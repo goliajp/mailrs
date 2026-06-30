@@ -1,0 +1,77 @@
+# Build + push the 4-binary split image for arch/** branches.
+#
+# Mirrors deploy-staging.yml's build step but with two differences:
+#
+# 1. Gates on the `test` workflow having succeeded on the same arch
+#    branch — same `workflow_run` pattern, just with a different branch
+#    filter.
+# 2. Stops at ghcr push — does NOT deploy to staging or prod. The
+#    arch/split-fastcore branch is experimental: the resulting
+#    `ghcr.io/goliajp/mailrs:arch-split-fastcore` image is available
+#    for manual `docker pull` on a staging host but no host is
+#    auto-updated. We will write a follow-up workflow once we have a
+#    dedicated split staging host.
+#
+# Image tag: `arch-<branch-suffix>` (e.g. `arch-split-fastcore`).
+
+name: build-arch-image
+
+on:
+  workflow_run:
+    workflows: ["test"]
+    types: [completed]
+    branches: ["arch/**"]
+
+concurrency:
+  group: build-arch-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: goliajp/mailrs
+
+jobs:
+  build:
+    name: build + push arch image
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: derive image tag from branch
+        id: tag
+        run: |
+          # github.event.workflow_run.head_branch is "arch/split-fastcore";
+          # turn it into "arch-split-fastcore" (slashes -> dashes).
+          branch="${{ github.event.workflow_run.head_branch }}"
+          tag="${branch//\//-}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Image tag: $tag"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build + push arch image (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          build-args: |
+            VERSION=0.0.0-${{ steps.tag.outputs.tag }}+${{ github.event.workflow_run.head_sha }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+          push: true
+          cache-from: type=gha,scope=${{ steps.tag.outputs.tag }}-arm64
+          cache-to: type=gha,mode=max,scope=${{ steps.tag.outputs.tag }}-arm64
