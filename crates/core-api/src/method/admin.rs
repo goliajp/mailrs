@@ -110,6 +110,54 @@ pub const PATH_REVOKE_API_KEY: &str = "/v1/admin/api-keys/{id}";
 pub const PATH_GET_API_KEY_BY_PREFIX: &str = "/v1/admin/api-keys/by-prefix/{prefix}";
 pub const PATH_TOUCH_API_KEY: &str = "/v1/admin/api-keys/{id}/touch";
 
+// ── drafts ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DraftWire {
+    pub id: i64,
+    pub to: String,
+    pub cc: String,
+    pub bcc: String,
+    pub subject: String,
+    pub body: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_to_thread_id: Option<String>,
+    /// Epoch seconds.
+    pub created_at: i64,
+    /// Epoch seconds.
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SaveDraftRequest {
+    #[serde(default)]
+    pub to: String,
+    #[serde(default)]
+    pub cc: String,
+    #[serde(default)]
+    pub bcc: String,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub reply_to_thread_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct SaveDraftResponse {
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DraftListResponse {
+    pub items: Vec<DraftWire>,
+}
+
+pub const PATH_LIST_DRAFTS: &str = "/v1/users/{user}/drafts";
+pub const PATH_SAVE_DRAFT: &str = "/v1/users/{user}/drafts";
+pub const PATH_DELETE_DRAFT: &str = "/v1/users/{user}/drafts/{id}";
+
 // ── webhook subscriptions ────────────────────────────────────────────
 pub const PATH_CREATE_WEBHOOK: &str = "/v1/admin/webhook-subscriptions";
 pub const PATH_LIST_WEBHOOKS: &str = "/v1/admin/accounts/{address}/webhook-subscriptions";

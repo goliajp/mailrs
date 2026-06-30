@@ -184,6 +184,47 @@ pub async fn submit_feedback(
         .map_err(map_err)
 }
 
+/// GET /api/mail/drafts
+pub async fn list_drafts(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<mailrs_core_api::method::admin::DraftListResponse>, StatusCode> {
+    state
+        .core_client
+        .list_drafts(&user)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// POST /api/mail/drafts
+pub async fn save_draft(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<mailrs_core_api::method::admin::SaveDraftRequest>,
+) -> Result<Json<mailrs_core_api::method::admin::SaveDraftResponse>, StatusCode> {
+    state
+        .core_client
+        .save_draft(&user, &req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// DELETE /api/mail/drafts/{id}
+pub async fn delete_draft(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .delete_draft(&user, id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// GET /api/queue  — outbound queue depths for ops dashboards.
 pub async fn get_queue_stats(
     State(state): State<Arc<WebState>>,

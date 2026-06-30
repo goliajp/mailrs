@@ -622,6 +622,28 @@ impl Client {
         Self::map_status_unit(resp, "sender_feedback").await
     }
 
+    /// GET /v1/users/{user}/drafts
+    pub async fn list_drafts(&self, user: &str) -> ApiResult<method::admin::DraftListResponse> {
+        let path = format!("/v1/users/{}/drafts", Self::enc(user));
+        self.get_authed(path, "list_drafts").await
+    }
+
+    /// POST /v1/users/{user}/drafts
+    pub async fn save_draft(
+        &self,
+        user: &str,
+        req: &method::admin::SaveDraftRequest,
+    ) -> ApiResult<method::admin::SaveDraftResponse> {
+        let path = format!("/v1/users/{}/drafts", Self::enc(user));
+        self.post_authed_json(path, req, "save_draft").await
+    }
+
+    /// DELETE /v1/users/{user}/drafts/{id}
+    pub async fn delete_draft(&self, user: &str, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/users/{}/drafts/{id}", Self::enc(user));
+        self.delete_authed(path, "delete_draft").await
+    }
+
     /// GET /v1/users/{user}/contacts:search?q=&limit=
     pub async fn search_contacts(
         &self,
