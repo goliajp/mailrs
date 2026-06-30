@@ -9,6 +9,7 @@ COPY bin/mailrs-server /usr/local/bin/mailrs-server
 # (the receiver-split flow + the upcoming webapi front). Both fall back
 # gracefully if the binary is absent (entrypoint override required).
 COPY --chmod=0755 bin/mailrs-webapi* /usr/local/bin/
+COPY --chmod=0755 bin/mailrs-sender* /usr/local/bin/
 COPY web /opt/mailrs/web
 
 ENV MAILRS_HOSTNAME=mx.mailrs.local \

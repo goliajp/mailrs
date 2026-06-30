@@ -167,6 +167,22 @@ services:
       - kevy-server
     restart: unless-stopped
 
+  # Phase 4 — sender worker. Outbound queue claim + SMTP deliver + webhook
+  # fan-out + DMARC daily report. Today this is a scaffold that just
+  # health-probes the core; worker loops fill in over checklist 4.3–4.9.
+  sender:
+    container_name: mailrs-sender
+    image: ghcr.io/goliajp/mailrs:${MAILRS_TAG:-latest}
+    entrypoint: ["/usr/local/bin/mailrs-sender"]
+    profiles: ["sender"]
+    environment:
+      MAILRS_CORE_RPC_BASE: http://mailrs:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:?required}
+      RUST_LOG: info,mailrs_sender=debug
+    depends_on:
+      - mailrs
+    restart: unless-stopped
+
   # Phase 3 — webapi front. Talks to the core via mailrs-core-api HTTP
   # (port 3300 on the core, not exposed publicly). Owns the public
   # :3100 web/REST/MCP port. Currently builds from the same image as
