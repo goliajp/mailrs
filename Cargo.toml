@@ -53,6 +53,7 @@ members = [
     "crates/arf",
     "crates/mail-builder",
     "crates/server",
+    "crates/core-api",
 ]
 
 [workspace.dependencies]

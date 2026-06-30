@@ -3059,6 +3059,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-core-api"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "mailrs-mailbox",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-dav"
 version = "1.1.1"
 dependencies = [
