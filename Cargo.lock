@@ -3595,7 +3595,11 @@ checksum = "fb740170b7e617d73a6f601e1587f0803afd87a6d98120e9a0b1a831a0591a03"
 name = "mailrs-sender"
 version = "0.0.1"
 dependencies = [
+ "base64",
+ "hickory-resolver",
  "mailrs-core-api",
+ "mailrs-outbound-queue",
+ "mailrs-smtp-client",
  "serde",
  "serde_json",
  "tokio",

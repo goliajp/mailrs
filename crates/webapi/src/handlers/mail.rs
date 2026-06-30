@@ -117,6 +117,19 @@ pub async fn send_message(
     Ok(Json(SendResponse { queue_id: resp.id }))
 }
 
+/// GET /api/queue  — outbound queue depths for ops dashboards.
+pub async fn get_queue_stats(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<mailrs_core_api::method::outbound::QueueStatsResponse>, StatusCode> {
+    state
+        .core_client
+        .outbound_stats()
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
 pub async fn get_mail_stats(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
