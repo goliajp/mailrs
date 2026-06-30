@@ -145,6 +145,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route(
             "/api/mail/signatures/{id}",
             delete(handlers::mail::delete_signature),
+        )
+        .route(
+            "/api/mail/templates",
+            get(handlers::mail::list_templates).post(handlers::mail::save_template),
+        )
+        .route(
+            "/api/mail/templates/{id}",
+            delete(handlers::mail::delete_template),
         );
 
     let auth_routes = axum::Router::new()

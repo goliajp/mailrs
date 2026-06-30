@@ -686,6 +686,31 @@ impl Client {
         self.delete_authed(path, "delete_signature").await
     }
 
+    /// GET /v1/users/{user}/templates
+    pub async fn list_templates(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::admin::TemplateListResponse> {
+        let path = format!("/v1/users/{}/templates", Self::enc(user));
+        self.get_authed(path, "list_templates").await
+    }
+
+    /// POST /v1/users/{user}/templates
+    pub async fn save_template(
+        &self,
+        user: &str,
+        req: &method::admin::SaveTemplateRequest,
+    ) -> ApiResult<method::admin::SaveTemplateResponse> {
+        let path = format!("/v1/users/{}/templates", Self::enc(user));
+        self.post_authed_json(path, req, "save_template").await
+    }
+
+    /// DELETE /v1/users/{user}/templates/{id}
+    pub async fn delete_template(&self, user: &str, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/users/{}/templates/{id}", Self::enc(user));
+        self.delete_authed(path, "delete_template").await
+    }
+
     /// GET /v1/users/{user}/threads/{thread_id}/reactions
     pub async fn get_thread_reactions(
         &self,

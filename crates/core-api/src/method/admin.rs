@@ -219,6 +219,50 @@ pub const PATH_GET_THREAD_REACTIONS: &str = "/v1/users/{user}/threads/{thread_id
 pub const PATH_TOGGLE_REACTION: &str =
     "/v1/users/{user}/threads/{thread_id}/messages/{uid}/reactions";
 
+// ── email templates ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateWire {
+    pub id: i64,
+    pub name: String,
+    pub subject: String,
+    pub html_body: String,
+    pub text_body: String,
+    pub category: String,
+    pub is_default: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SaveTemplateRequest {
+    pub name: String,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub html_body: String,
+    #[serde(default)]
+    pub text_body: String,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct SaveTemplateResponse {
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateListResponse {
+    pub items: Vec<TemplateWire>,
+}
+
+pub const PATH_LIST_TEMPLATES: &str = "/v1/users/{user}/templates";
+pub const PATH_SAVE_TEMPLATE: &str = "/v1/users/{user}/templates";
+pub const PATH_DELETE_TEMPLATE: &str = "/v1/users/{user}/templates/{id}";
+
 // ── webhook subscriptions ────────────────────────────────────────────
 pub const PATH_CREATE_WEBHOOK: &str = "/v1/admin/webhook-subscriptions";
 pub const PATH_LIST_WEBHOOKS: &str = "/v1/admin/accounts/{address}/webhook-subscriptions";

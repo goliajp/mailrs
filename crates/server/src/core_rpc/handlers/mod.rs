@@ -20,4 +20,5 @@ pub mod message;
 pub mod outbound;
 pub mod reactions;
 pub mod signatures;
+pub mod templates;
 pub mod thread;

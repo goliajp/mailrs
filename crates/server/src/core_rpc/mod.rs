@@ -437,6 +437,18 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .with_state(state.clone());
 
+    // ── templates ────────────────────────────────────────────────────
+    let templates = Router::new()
+        .route(
+            adm_paths::PATH_LIST_TEMPLATES,
+            get(handlers::templates::list_templates).post(handlers::templates::save_template),
+        )
+        .route(
+            adm_paths::PATH_DELETE_TEMPLATE,
+            delete(handlers::templates::delete_template),
+        )
+        .with_state(state.clone());
+
     // ── reactions ────────────────────────────────────────────────────
     let rx = Router::new()
         .route(
@@ -482,6 +494,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .merge(ct)
         .merge(drafts)
         .merge(signatures)
+        .merge(templates)
         .merge(rx)
         .merge(ob);
     drop(state);

@@ -266,6 +266,47 @@ pub async fn delete_signature(
         .map_err(map_err)
 }
 
+/// GET /api/mail/templates
+pub async fn list_templates(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<mailrs_core_api::method::admin::TemplateListResponse>, StatusCode> {
+    state
+        .core_client
+        .list_templates(&user)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// POST /api/mail/templates
+pub async fn save_template(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<mailrs_core_api::method::admin::SaveTemplateRequest>,
+) -> Result<Json<mailrs_core_api::method::admin::SaveTemplateResponse>, StatusCode> {
+    state
+        .core_client
+        .save_template(&user, &req)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// DELETE /api/mail/templates/{id}
+pub async fn delete_template(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core_client
+        .delete_template(&user, id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// GET /api/conversations/{thread_id}/reactions
 pub async fn get_thread_reactions(
     State(state): State<Arc<WebState>>,
