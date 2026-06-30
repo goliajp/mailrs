@@ -30,11 +30,15 @@ USER="${STAGING_SSH_USER:-root}"
 KEY="${STAGING_SSH_KEY:-$HOME/.ssh/id_ed25519}"
 IMAGE_TAG="arch-split-fastcore"
 WITH_SENDER=0
+SKIP_CORE_RECREATE=0
+ASSUME_YES=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --image-tag)   IMAGE_TAG="$2"; shift 2 ;;
         --with-sender) WITH_SENDER=1; shift ;;
+        --skip-core)   SKIP_CORE_RECREATE=1; shift ;;
+        --yes|-y)      ASSUME_YES=1; shift ;;
         --host)        HOST="$2"; shift 2 ;;
         --user)        USER="$2"; shift 2 ;;
         --key)         KEY="$2"; shift 2 ;;
@@ -73,8 +77,26 @@ EOF
 echo "[3/5] pulling ghcr.io/goliajp/mailrs:${IMAGE_TAG}"
 $SSH "docker pull ghcr.io/goliajp/mailrs:${IMAGE_TAG}"
 
-echo "[4/5] recreating mailrs (core) to pick up MAILRS_CORE_RPC_ADDR + SECRET"
-$SSH bash <<EOF
+if (( SKIP_CORE_RECREATE )); then
+    echo "[4/5] skipping monolith recreate (assuming RPC already up on :3300)"
+    if ! $SSH "docker exec mailrs-staging curl -sf -o /dev/null \
+            -H 'Authorization: Bearer '\$(grep ^MAILRS_CORE_API_SECRET /apps/mailrs-staging/.env | cut -d= -f2) \
+            http://127.0.0.1:3300/v1/healthz"; then
+        echo "ERROR: core RPC :3300 not reachable. Re-run without --skip-core."
+        exit 1
+    fi
+    echo "  RPC pre-check ok"
+else
+    if (( ! ASSUME_YES )); then
+        echo
+        echo "  About to RECREATE the monolith mailrs container on $HOST."
+        echo "  This drops :3101 + IMAP/POP3/sieve for ~30s while it boots back up."
+        echo "  Use --skip-core to skip this step on re-runs, or --yes to bypass this prompt."
+        read -rp "  Continue? [y/N] " ans
+        [[ "$ans" =~ ^[yY] ]] || { echo "aborted by user"; exit 1; }
+    fi
+    echo "[4/5] recreating mailrs (core) to pick up MAILRS_CORE_RPC_ADDR + SECRET"
+    $SSH bash <<EOF
 set -e
 cd /apps/mailrs-staging
 docker compose -p mailrs-staging -f docker-compose.staging.split.yml up -d --no-deps mailrs
@@ -89,6 +111,7 @@ for i in \$(seq 1 24); do
     sleep 5
 done
 EOF
+fi
 
 echo "[5/5] bringing up webapi $( ((WITH_SENDER)) && echo "+ sender" )"
 if (( WITH_SENDER )); then
