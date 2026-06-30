@@ -177,6 +177,27 @@ services:
       - kevy-server
     restart: unless-stopped
 
+  # Phase 8 — kevy-backed core RPC. Brought up on `--profile fastcore`
+  # next to the monolith mailrs container (NOT instead of it). Listens
+  # on :3201 host-side so webapi can be repointed at it via
+  # MAILRS_CORE_RPC_BASE=http://fastcore:3301 to A/B against monolith :3300.
+  fastcore:
+    container_name: mailrs-staging-fastcore
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-fastcore"]
+    pull_policy: always
+    profiles: ["fastcore"]
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3201:3301"
+    environment:
+      MAILRS_FASTCORE_BIND: 0.0.0.0:3301
+      MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      RUST_LOG: info
+    volumes:
+      - mailrs-staging-data:/data
+    restart: unless-stopped
+
   sender:
     container_name: mailrs-staging-sender
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
