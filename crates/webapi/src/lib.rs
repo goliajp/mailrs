@@ -65,7 +65,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     use handlers::conversations as c;
     let _ = stub_auth_middleware; // kept for tests / dev mode reference
 
-    use axum::routing::{delete, put};
+    use axum::routing::put;
     let convo = axum::Router::new()
         .route("/api/conversations", get(c::get_conversations))
         .route("/api/conversations/categories", get(c::get_categories))
@@ -105,7 +105,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/conversations/{thread_id}/snooze",
             put(c::snooze_thread).delete(c::unsnooze_thread),
         )
-        .route("/api/conversations/{thread_id}", delete(c::delete_thread));
+        .route(
+            "/api/conversations/{thread_id}",
+            get(c::get_thread_messages).delete(c::delete_thread),
+        );
 
     let mail = axum::Router::new()
         .route("/api/mail/folders", get(handlers::mail::get_folders))

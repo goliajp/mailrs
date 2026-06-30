@@ -241,6 +241,22 @@ impl Client {
         self.get_authed(path, "unseen_count").await
     }
 
+    // ── thread read ─────────────────────────────────────────────────
+
+    /// GET /v1/users/{user}/threads/{thread_id}/messages
+    pub async fn list_thread_messages(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ListThreadMessagesResponse> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/messages",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.get_authed(path, "list_thread_messages").await
+    }
+
     // ── thread mutate ───────────────────────────────────────────────
 
     /// POST /v1/users/{user}/threads/{thread_id}/{action}
