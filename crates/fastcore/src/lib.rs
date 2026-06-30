@@ -87,13 +87,18 @@ pub async fn run() {
 
 fn build_router(state: Arc<FastcoreState>) -> Router {
     let base = base_router(state.clone());
-    let convo = Router::new()
+    // One Router for all business routes so matchit's trie sees the
+    // full set at once. Earlier split into convo + thread Routers
+    // hit a route-resolution bug where only the first-registered
+    // route under /v1/users/{user}/conversations matched at runtime —
+    // probable matchit collision between `conversations:list` (literal
+    // ":list") and `conversations/categories` (path-separator). A
+    // single Router with all routes registered side-by-side resolves it.
+    let business = Router::new()
         .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
         .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
         .route(conv::PATH_ACTION_COUNT, get(get_action_count))
-        .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count));
-
-    let thread = Router::new()
+        .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
         .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
         .route(th::PATH_MARK_READ, post(mark_read))
         .route(th::PATH_PIN, post(pin_thread))
@@ -103,9 +108,10 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_ARCHIVE, post(archive_thread))
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))
         .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
-        .route(th::PATH_DELETE_THREAD, delete(delete_thread));
+        .route(th::PATH_DELETE_THREAD, delete(delete_thread))
+        .with_state(state);
 
-    base.merge(convo.merge(thread).with_state(state))
+    base.merge(business)
 }
 
 fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
