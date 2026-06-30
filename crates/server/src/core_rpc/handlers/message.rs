@@ -79,3 +79,116 @@ pub async fn find_message_by_message_id(
 // query_messages handler omitted from this loop — inherent method
 // returns (Vec<i64>, u32 total), not Vec<MessageMeta>. Needs a separate
 // wire response shape (id list + total) — implemented in next loop.
+
+// ── flag ops (IMAP STORE) ────────────────────────────────────────────
+
+/// PUT /v1/mailboxes/{id}/messages/{uid}/flags  — Set / Add / Remove via op
+pub async fn flag_mutation(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((mailbox_id, uid)): Path<(i64, u32)>,
+    Json(req): Json<wire::FlagMutationRequest>,
+) -> Result<Json<wire::FlagMutationResponse>, StatusCode> {
+    let new_modseq = match req.op {
+        wire::FlagOpWire::Set => state.mailbox.update_flags(mailbox_id, uid, req.flags).await,
+        wire::FlagOpWire::Add => state.mailbox.add_flags(mailbox_id, uid, req.flags).await,
+        wire::FlagOpWire::Remove => state.mailbox.remove_flags(mailbox_id, uid, req.flags).await,
+    }
+    .map_err(|e| {
+        tracing::warn!(error = %e, mailbox_id, uid, ?req.op, "flag mutation failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(wire::FlagMutationResponse { new_modseq }))
+}
+
+/// POST /v1/mailboxes/{id}/messages/{uid}/condstore  — RFC 7162 CAS
+pub async fn condstore(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((mailbox_id, uid)): Path<(i64, u32)>,
+    Json(req): Json<wire::CondstoreRequest>,
+) -> Json<wire::CondstoreResponse> {
+    let action = req.op.into();
+    match state
+        .mailbox
+        .update_flags_if_unchanged(mailbox_id, uid, req.flags, action, req.unchanged_since)
+        .await
+    {
+        Ok(Some(new_modseq)) => Json(wire::CondstoreResponse::Applied { new_modseq }),
+        Ok(None) => Json(wire::CondstoreResponse::Conflict {
+            current_modseq: req.unchanged_since,
+        }),
+        Err(e) => {
+            tracing::warn!(error = %e, mailbox_id, uid, "condstore failed");
+            // Map sqlx errors to a conflict with modseq=0 sentinel so the
+            // client retries / displays the error. A richer error model
+            // lands in checklist 2.5.
+            Json(wire::CondstoreResponse::Conflict { current_modseq: 0 })
+        }
+    }
+}
+
+/// GET /v1/mailboxes/{id}/changed-since/{modseq}
+pub async fn changed_since(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((mailbox_id, modseq)): Path<(i64, u64)>,
+) -> Result<Json<wire::ListMessagesResponse>, StatusCode> {
+    let rows = state
+        .mailbox
+        .list_messages_changed_since(mailbox_id, modseq)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, mailbox_id, modseq, "changed_since failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let items = rows.iter().map(Into::into).collect();
+    Ok(Json(wire::ListMessagesResponse { items }))
+}
+
+// ── message mutate (expunge / copy / move) ──────────────────────────
+
+/// POST /v1/mailboxes/{id}/expunge  — IMAP EXPUNGE
+pub async fn expunge(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(mailbox_id): Path<i64>,
+) -> Result<Json<wire::ExpungeResponse>, StatusCode> {
+    let expunged_uids = state.mailbox.expunge(mailbox_id).await.map_err(|e| {
+        tracing::warn!(error = %e, mailbox_id, "expunge failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(wire::ExpungeResponse { expunged_uids }))
+}
+
+/// POST /v1/users/{user}/mailboxes/{src_id}/messages/{uid}/copy
+pub async fn copy_message(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((user, src_mailbox_id, uid)): Path<(String, i64, u32)>,
+    Json(req): Json<wire::CopyMoveRequest>,
+) -> Result<Json<wire::CopyMoveResponse>, StatusCode> {
+    let new_uid = state
+        .mailbox
+        .copy_message(&user, src_mailbox_id, uid, &req.dst_mailbox_name)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user = %user, src_mailbox_id, uid, dst = %req.dst_mailbox_name, "copy failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(wire::CopyMoveResponse { new_uid }))
+}
+
+/// POST /v1/users/{user}/mailboxes/{src_id}/messages/{uid}/move
+pub async fn move_message(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((user, src_mailbox_id, uid)): Path<(String, i64, u32)>,
+    Json(req): Json<wire::CopyMoveRequest>,
+) -> Result<Json<wire::CopyMoveResponse>, StatusCode> {
+    let new_uid = state
+        .mailbox
+        .move_message(&user, src_mailbox_id, uid, &req.dst_mailbox_name)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user = %user, src_mailbox_id, uid, dst = %req.dst_mailbox_name, "move failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(wire::CopyMoveResponse { new_uid }))
+}
