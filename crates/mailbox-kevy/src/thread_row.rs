@@ -59,7 +59,7 @@ impl ThreadRow {
         ]
     }
 
-    fn from_pairs(thread_id: String, pairs: &[(Vec<u8>, Vec<u8>)]) -> Option<Self> {
+    pub(crate) fn from_pairs(thread_id: String, pairs: &[(Vec<u8>, Vec<u8>)]) -> Option<Self> {
         if pairs.is_empty() {
             return None;
         }

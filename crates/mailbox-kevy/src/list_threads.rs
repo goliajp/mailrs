@@ -1,0 +1,211 @@
+//! `list_threads_by_activity` — Rock 1 cascade-killer's real exit.
+//!
+//! Replaces the SQL aggregate (`string_agg DISTINCT` + 3 correlated
+//! subqueries + BOOL_OR + COUNT DISTINCT CASE) with one ZREVRANGE on the
+//! per-user activity zset followed by N × HGETALL on each thread hash.
+//! Total cost: O(log n + N) instead of O(rows × messages).
+//!
+//! Filtering by category / archived / pinned / has_unread / has_action
+//! uses the matching secondary zset (same shape, intersected with
+//! activity score range).
+
+use std::io;
+
+use super::KevyMailboxStore;
+use super::keys;
+use super::thread_row::ThreadRow;
+
+/// Filter knobs passed to `list_threads_by_activity`. None of these are
+/// required; default is "all threads sorted by recency, latest first."
+#[derive(Debug, Clone, Default)]
+pub struct ListThreadsFilter<'a> {
+    /// Restrict to a single category (`inbox`, `social`, etc.). When
+    /// set, the activity zset is replaced with the per-category index.
+    pub category: Option<&'a str>,
+    /// Only threads with `pinned = true`. Implemented as ZREVRANGE on
+    /// the pinned index.
+    pub pinned: bool,
+    /// Only threads with `archived = true`. Likewise — archived index.
+    pub archived: bool,
+    /// Only threads with `unread_count > 0`. Uses the has_unread index.
+    pub has_unread: bool,
+    /// Only threads with `has_action = true`. Uses the has_action index.
+    pub has_action: bool,
+}
+
+impl<'a> ListThreadsFilter<'a> {
+    fn pick_index_key(&self, user: &str) -> String {
+        // Order matters — most-specific predicate wins. A real fastcore
+        // implementation will use sorted-set INTERSECT once kevy ships
+        // ZINTERSTORE; for now we accept that combining > 1 of these
+        // filters returns the highest-priority predicate's superset.
+        if let Some(cat) = self.category {
+            keys::user_threads_by_category(user, cat)
+        } else if self.pinned {
+            keys::user_threads_pinned(user)
+        } else if self.archived {
+            keys::user_threads_archived(user)
+        } else if self.has_unread {
+            keys::user_threads_has_unread(user)
+        } else if self.has_action {
+            keys::user_threads_has_action(user)
+        } else {
+            keys::user_threads_by_activity(user)
+        }
+    }
+}
+
+impl KevyMailboxStore {
+    /// List threads for `user` in reverse-activity order, with optional
+    /// filter. `offset` skips the first N matches; `limit` caps the
+    /// returned row count.
+    ///
+    /// Returns `(rows, total_in_index)`. `total_in_index` is the
+    /// pre-pagination count of the chosen index — exactly the
+    /// "X / Y conversations" badge the UI shows.
+    pub fn list_threads_by_activity(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let key = filter.pick_index_key(user);
+        let total = self.store().zcard(key.as_bytes())?;
+        if limit == 0 || offset >= total {
+            return Ok((Vec::new(), total));
+        }
+        // ZREVRANGE [offset..offset+limit-1] — kevy's zrevrange takes
+        // start..=stop INCLUSIVE against the reversed list, matching
+        // Redis semantics.
+        let stop_exclusive = offset + limit;
+        let stop_inclusive_idx = (stop_exclusive.min(total) as i64) - 1;
+        let entries = self
+            .store()
+            .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)?;
+        let mut out = Vec::with_capacity(entries.len());
+        for (tid_bytes, _score) in entries {
+            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            let hkey = keys::thread(tid);
+            let pairs = self.store().hgetall(hkey.as_bytes())?;
+            if let Some(row) = ThreadRow::from_pairs(tid.to_string(), &pairs) {
+                out.push(row);
+            }
+        }
+        Ok((out, total))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kevy_embedded::{Config, Store};
+    use std::sync::Arc;
+
+    fn store() -> KevyMailboxStore {
+        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
+        KevyMailboxStore::new(s)
+    }
+
+    fn row(tid: &str, date: i64, category: &str) -> ThreadRow {
+        ThreadRow {
+            thread_id: tid.into(),
+            subject: format!("subject of {tid}"),
+            senders_csv: "x@y.z".into(),
+            count: 1,
+            unread_count: 0,
+            latest_date: date,
+            latest_preview: "".into(),
+            category: category.into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+        }
+    }
+
+    #[test]
+    fn lists_in_reverse_activity_order() {
+        let s = store();
+        let u = "u@x.com";
+        // out-of-order insertion
+        s.upsert_thread(u, &row("t2", 200, "inbox")).unwrap();
+        s.upsert_thread(u, &row("t1", 100, "inbox")).unwrap();
+        s.upsert_thread(u, &row("t3", 300, "inbox")).unwrap();
+        let (got, total) = s
+            .list_threads_by_activity(u, &ListThreadsFilter::default(), 0, 10)
+            .unwrap();
+        assert_eq!(total, 3);
+        let tids: Vec<&str> = got.iter().map(|r| r.thread_id.as_str()).collect();
+        assert_eq!(tids, vec!["t3", "t2", "t1"]); // highest date first
+    }
+
+    #[test]
+    fn offset_and_limit_paginate() {
+        let s = store();
+        let u = "u@x.com";
+        for i in 0..10 {
+            s.upsert_thread(u, &row(&format!("t{i}"), i as i64, "inbox"))
+                .unwrap();
+        }
+        let (got, total) = s
+            .list_threads_by_activity(u, &ListThreadsFilter::default(), 3, 4)
+            .unwrap();
+        assert_eq!(total, 10);
+        let tids: Vec<&str> = got.iter().map(|r| r.thread_id.as_str()).collect();
+        // reverse activity: t9 t8 t7 [t6 t5 t4 t3] t2 t1 t0
+        assert_eq!(tids, vec!["t6", "t5", "t4", "t3"]);
+    }
+
+    #[test]
+    fn category_filter_uses_per_category_index() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("a1", 100, "inbox")).unwrap();
+        s.upsert_thread(u, &row("a2", 200, "social")).unwrap();
+        s.upsert_thread(u, &row("a3", 300, "inbox")).unwrap();
+        let f = ListThreadsFilter {
+            category: Some("social"),
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].thread_id, "a2");
+    }
+
+    #[test]
+    fn pinned_filter_returns_only_pinned() {
+        let s = store();
+        let u = "u@x.com";
+        let mut p = row("p1", 100, "inbox");
+        p.pinned = true;
+        let np = row("p2", 200, "inbox");
+        s.upsert_thread(u, &p).unwrap();
+        s.upsert_thread(u, &np).unwrap();
+        let f = ListThreadsFilter {
+            pinned: true,
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(got[0].thread_id, "p1");
+    }
+
+    #[test]
+    fn offset_past_end_returns_empty() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("only", 1, "inbox")).unwrap();
+        let (got, total) = s
+            .list_threads_by_activity(u, &ListThreadsFilter::default(), 5, 10)
+            .unwrap();
+        assert_eq!(total, 1);
+        assert!(got.is_empty());
+    }
+}
