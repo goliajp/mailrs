@@ -16,4 +16,5 @@ pub mod contact;
 pub mod conversation;
 pub mod mailbox;
 pub mod message;
+pub mod outbound;
 pub mod thread;

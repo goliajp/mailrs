@@ -111,13 +111,26 @@ async fn claim_loop(core_client: Arc<mailrs_core_api::client::Client>) {
             Ok(resp) if !resp.items.is_empty() => {
                 tracing::info!(
                     claimed = resp.items.len(),
-                    "outbound claim got messages (delivery NYI — Phase 4.4)"
+                    "outbound claim got messages — Phase 4.4: marking failed (SMTP NYI)"
                 );
-                // TODO(checklist 4.4): for each item:
-                //   1. relay via mailrs_smtp_client with DKIM sign
-                //   2. on success: core_client.mark_delivered(item.id)
-                //   3. on failure: core_client.mark_failed(item.id, ...)
-                //   4. on hard bounce: core_client.add_suppression(...)
+                // Phase 4.4 minimal close-the-loop: SMTP delivery is not
+                // wired yet (lands in 4.5 with mailrs-smtp-client + MX
+                // resolve + DKIM sign). For now, mark each claimed row
+                // as `failed` so it goes back to pending after the
+                // retry window — prevents the queue from accumulating
+                // `inflight` rows in staging probes.
+                for item in &resp.items {
+                    let err = "sender 4.4: SMTP delivery NYI; row will retry".to_string();
+                    if let Err(e) = core_client.outbound_mark_failed(item.id, err.clone()).await {
+                        tracing::warn!(
+                            error = %e,
+                            id = item.id,
+                            "outbound_mark_failed RPC failed; row stays inflight"
+                        );
+                    } else {
+                        tracing::debug!(id = item.id, recipient = %item.recipient, "marked failed");
+                    }
+                }
             }
             Ok(_) => {
                 tracing::debug!("outbound claim — queue empty");

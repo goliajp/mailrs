@@ -539,4 +539,35 @@ impl Client {
         )
         .await
     }
+
+    /// POST /v1/outbound/{id}/delivered
+    pub async fn outbound_mark_delivered(&self, id: i64) -> ApiResult<()> {
+        let path = format!("/v1/outbound/{id}/delivered");
+        let resp = self
+            .inner
+            .post(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("mark_delivered transport: {e}")))?;
+        Self::map_status_unit(resp, "outbound_mark_delivered").await
+    }
+
+    /// POST /v1/outbound/{id}/failed
+    pub async fn outbound_mark_failed(&self, id: i64, error: String) -> ApiResult<()> {
+        let path = format!("/v1/outbound/{id}/failed");
+        let req = method::outbound::MarkFailedRequest {
+            error,
+            next_retry: None,
+        };
+        let resp = self
+            .inner
+            .post(self.url(&path))
+            .bearer_auth(&self.auth_bearer)
+            .json(&req)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("mark_failed transport: {e}")))?;
+        Self::map_status_unit(resp, "outbound_mark_failed").await
+    }
 }
