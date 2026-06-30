@@ -93,15 +93,52 @@ DEL_RC=$(curl -sS -b "$COOKIE_JAR" -X DELETE -o /dev/null -w "%{http_code}" \
 [[ "$DEL_RC" == "204" ]] || fail "delete returned HTTP $DEL_RC"
 pass "draft deleted"
 
-step "11. POST /api/auth/logout"
+step "11a. GET /api/mail/signatures (initial)"
+SIG_INIT=$(curl -sf -b "$COOKIE_JAR" "$BASE/api/mail/signatures")
+SIG_INIT_N=$(echo "$SIG_INIT" | jq '.items|length')
+pass "/mail/signatures ($SIG_INIT_N initial)"
+
+step "11b. POST /api/mail/signatures + DELETE"
+SIG_BODY='{"name":"smoke-sig","html":"<p>smoke</p>","text_content":"smoke","is_default":false}'
+SIG_SAVED=$(curl -sf -b "$COOKIE_JAR" -H "Content-Type: application/json" \
+    -d "$SIG_BODY" "$BASE/api/mail/signatures")
+SIG_ID=$(echo "$SIG_SAVED" | jq -r .id)
+[[ "$SIG_ID" =~ ^[0-9]+$ ]] || fail "save_signature did not return numeric id"
+SIG_DEL_RC=$(curl -sS -b "$COOKIE_JAR" -X DELETE -o /dev/null -w "%{http_code}" \
+    "$BASE/api/mail/signatures/$SIG_ID")
+[[ "$SIG_DEL_RC" == "204" ]] || fail "delete signature returned HTTP $SIG_DEL_RC"
+pass "signature CRUD (id=$SIG_ID)"
+
+step "11c. GET /api/mail/templates (initial)"
+TPL_INIT=$(curl -sf -b "$COOKIE_JAR" "$BASE/api/mail/templates")
+TPL_INIT_N=$(echo "$TPL_INIT" | jq '.items|length')
+pass "/mail/templates ($TPL_INIT_N initial)"
+
+step "11d. POST /api/mail/templates + DELETE"
+TPL_BODY='{"name":"smoke-tpl","subject":"smoke","html_body":"<p>smoke</p>","text_body":"smoke","category":"smoke","is_default":false}'
+TPL_SAVED=$(curl -sf -b "$COOKIE_JAR" -H "Content-Type: application/json" \
+    -d "$TPL_BODY" "$BASE/api/mail/templates")
+TPL_ID=$(echo "$TPL_SAVED" | jq -r .id)
+[[ "$TPL_ID" =~ ^[0-9]+$ ]] || fail "save_template did not return numeric id"
+TPL_DEL_RC=$(curl -sS -b "$COOKIE_JAR" -X DELETE -o /dev/null -w "%{http_code}" \
+    "$BASE/api/mail/templates/$TPL_ID")
+[[ "$TPL_DEL_RC" == "204" ]] || fail "delete template returned HTTP $TPL_DEL_RC"
+pass "template CRUD (id=$TPL_ID)"
+
+step "11e. GET /api/status (no auth needed)"
+STAT=$(curl -sf "$BASE/api/status")
+echo "  $STAT"
+pass "/api/status"
+
+step "12. POST /api/auth/logout"
 LO_RC=$(curl -sS -b "$COOKIE_JAR" -X POST -o /dev/null -w "%{http_code}" \
     "$BASE/api/auth/logout")
 [[ "$LO_RC" == "200" || "$LO_RC" == "204" ]] || fail "logout returned HTTP $LO_RC"
 pass "logged out"
 
-step "12. /api/auth/me without cookie should 401"
+step "13. /api/auth/me without cookie should 401"
 ME_RC=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/api/auth/me")
 [[ "$ME_RC" == "401" ]] || fail "expected 401 after logout, got $ME_RC"
 pass "session truly invalidated"
 
-printf "\n\033[1;32mALL %d STEPS PASSED\033[0m\n" 12
+printf "\n\033[1;32mALL STEPS PASSED\033[0m\n"
