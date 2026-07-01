@@ -276,26 +276,35 @@ async fn effective_permissions(
 /// 204 if mailbox-kevy reports the row existed + was mutated; 404 if
 /// the thread row is missing. Most mutations are idempotent so a
 /// 2nd call lands the same status.
-fn status_for(found: bool) -> StatusCode {
+/// Uniform mutation response — matches monolith's `ThreadActionResponse`
+/// JSON shape so the core-rpc client's deserializer succeeds. Fastcore
+/// doesn't track modseq yet (kevy row → single write) so return
+/// `new_modseq: 0` + `affected: 1` on success.
+fn action_result(found: bool) -> axum::response::Response {
+    use axum::response::IntoResponse;
     if found {
-        StatusCode::NO_CONTENT
+        Json(th::ThreadActionResponse {
+            affected: 1,
+            new_modseq: 0,
+        })
+        .into_response()
     } else {
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND.into_response()
     }
 }
 
 async fn mark_read(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(state.mailbox.mark_seen(&user, &thread_id).unwrap_or(false))
+) -> axum::response::Response {
+    action_result(state.mailbox.mark_seen(&user, &thread_id).unwrap_or(false))
 }
 
 async fn pin_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_pinned(&user, &thread_id, true)
@@ -306,8 +315,8 @@ async fn pin_thread(
 async fn star_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_starred(&user, &thread_id, true)
@@ -318,8 +327,8 @@ async fn star_thread(
 async fn unstar_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_starred(&user, &thread_id, false)
@@ -330,8 +339,8 @@ async fn unstar_thread(
 async fn unpin_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_pinned(&user, &thread_id, false)
@@ -342,8 +351,8 @@ async fn unpin_thread(
 async fn archive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_archived(&user, &thread_id, true)
@@ -354,8 +363,8 @@ async fn archive_thread(
 async fn unarchive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_archived(&user, &thread_id, false)
@@ -366,8 +375,8 @@ async fn unarchive_thread(
 async fn dismiss_action(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .set_has_action(&user, &thread_id, false)
@@ -378,8 +387,8 @@ async fn dismiss_action(
 async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
-) -> StatusCode {
-    status_for(
+) -> axum::response::Response {
+    action_result(
         state
             .mailbox
             .delete_thread(&user, &thread_id)
