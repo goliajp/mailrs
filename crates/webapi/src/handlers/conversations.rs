@@ -170,13 +170,88 @@ pub async fn get_action_count(
         .map_err(map_err)
 }
 
-/// GET /api/conversations/{thread_id} — return bare Vec<MessageWire>
-/// (monolith shape, not wrapped in `{"items": [...]}`).
+/// Wire shape UI expects for a message. Mirrors monolith's
+/// `ThreadMessageResponse` — critical fields the UI reaches into
+/// unconditionally (`attachments.length`, `text_body`, `html_body`,
+/// `people`, `dates`, ...). Return default empty arrays / null when
+/// the source `MessageWire` lacks the analysis fields.
+#[derive(serde::Serialize)]
+pub struct ThreadMessageResponse {
+    pub id: i64,
+    pub uid: u32,
+    pub sender: String,
+    pub recipients: String,
+    pub subject: String,
+    pub flags: u32,
+    pub internal_date: i64,
+    pub message_id: String,
+    pub text_body: Option<String>,
+    pub html_body: Option<String>,
+    pub attachments: Vec<serde_json::Value>,
+    pub category: String,
+    pub risk_score: u8,
+    pub risk_reason: String,
+    pub summary: String,
+    pub people: serde_json::Value,
+    pub dates: serde_json::Value,
+    pub amounts: serde_json::Value,
+    pub action_items: serde_json::Value,
+    pub ai_analyzed: bool,
+    pub clean_text: Option<String>,
+    pub new_content: Option<String>,
+    pub importance_level: String,
+    pub importance_score: f32,
+    pub is_bulk_sender: bool,
+    pub has_tracking_pixel: bool,
+    pub requires_action: bool,
+    pub sender_intent: String,
+    pub action_deadline: Option<String>,
+}
+
+impl From<mailrs_core_api::method::message::MessageWire> for ThreadMessageResponse {
+    fn from(w: mailrs_core_api::method::message::MessageWire) -> Self {
+        Self {
+            id: w.id,
+            uid: w.uid,
+            sender: w.sender,
+            recipients: w.recipients,
+            subject: w.subject,
+            flags: w.flags,
+            internal_date: w.internal_date,
+            message_id: w.message_id,
+            text_body: None,
+            html_body: None,
+            attachments: Vec::new(),
+            category: String::from("inbox"),
+            risk_score: 0,
+            risk_reason: String::new(),
+            summary: String::new(),
+            people: serde_json::json!([]),
+            dates: serde_json::json!([]),
+            amounts: serde_json::json!([]),
+            action_items: serde_json::json!([]),
+            ai_analyzed: false,
+            clean_text: None,
+            new_content: None,
+            importance_level: String::from("normal"),
+            importance_score: 0.0,
+            is_bulk_sender: false,
+            has_tracking_pixel: false,
+            requires_action: false,
+            sender_intent: String::new(),
+            action_deadline: None,
+        }
+    }
+}
+
+/// GET /api/conversations/{thread_id} — return Vec<ThreadMessageResponse>
+/// with monolith's exact wire shape (attachments, text_body, ...) so the
+/// React UI can safely reach into arrays without null-guards.
 pub async fn get_thread_messages(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
-) -> Result<Json<Vec<mailrs_core_api::method::message::MessageWire>>, StatusCode> {
+) -> Result<Json<Vec<ThreadMessageResponse>>, StatusCode> {
     let resp = match state.fast().list_thread_messages(&user, &thread_id).await {
         Ok(resp) if !resp.items.is_empty() => resp,
         Ok(_empty) if state.fastcore_client.is_some() => state
@@ -192,7 +267,7 @@ pub async fn get_thread_messages(
             .map_err(map_err)?,
         Err(e) => return Err(map_err(e)),
     };
-    Ok(Json(resp.items))
+    Ok(Json(resp.items.into_iter().map(Into::into).collect()))
 }
 
 /// POST /api/conversations/{thread_id}/read
