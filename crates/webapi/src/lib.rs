@@ -51,6 +51,10 @@ pub struct WebState {
     pub fastcore_client: Option<Arc<mailrs_core_api::client::Client>>,
     /// Process bind address for the public REST/MCP listener.
     pub bind_addr: String,
+    /// Shared WS broadcast bus, initialized lazily on the first
+    /// `/api/events` upgrade. Held here so all WS clients share
+    /// a single kevy subscribe loop.
+    pub event_bus: std::sync::OnceLock<handlers::events::EventBus>,
 }
 
 impl WebState {
@@ -86,6 +90,7 @@ impl WebState {
             core_client,
             fastcore_client,
             bind_addr,
+            event_bus: std::sync::OnceLock::new(),
         }
     }
 }
@@ -160,6 +165,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/mail/send", post(handlers::mail::send_message))
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
         .route("/api/queue", get(handlers::mail::get_queue_stats))
+        .route("/api/events", get(handlers::events::ws_events))
         .route("/api/contacts", get(handlers::mail::get_contacts))
         .route("/api/mail/feedback", post(handlers::mail::submit_feedback))
         .route(

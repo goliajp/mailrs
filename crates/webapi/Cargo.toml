@@ -17,6 +17,7 @@ path = "src/main.rs"
 mailrs-core-api = { path = "../core-api", features = ["client"] }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws"] }
+futures-util = "0.3"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
