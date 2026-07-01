@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 
 pub const PATH_SEARCH_CONTACTS: &str = "/v1/users/{user}/contacts:search";
 pub const PATH_UPSERT_INBOUND: &str = "/v1/users/{user}/contacts/{email}/inbound";
-pub const PATH_UPSERT_OUTBOUND: &str = "/v1/users/{user}/contacts/{email}:outbound";
+pub const PATH_UPSERT_OUTBOUND: &str = "/v1/users/{user}/contacts/{email}/outbound";
 pub const PATH_MARK_MUTUAL: &str = "/v1/users/{user}/contacts/{email}/mutual";
 pub const PATH_CONTACT_SCORING: &str = "/v1/users/{user}/contacts/{email}/scoring";
-pub const PATH_HAS_SENT_TO: &str = "/v1/users/{user}/contacts/{email}:has-sent-to";
+pub const PATH_HAS_SENT_TO: &str = "/v1/users/{user}/contacts/{email}/has-sent-to";
 pub const PATH_SENDER_FEEDBACK: &str = "/v1/users/{user}/contacts/{email}/feedback";
 
 // ── req/resp ────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ pub struct UpsertInboundContactRequest {
     pub is_automated: bool,
 }
 
-/// Request body for `POST /v1/users/{user}/contacts/{email}:outbound`.
+/// Request body for `POST /v1/users/{user}/contacts/{email}/outbound`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpsertOutboundContactRequest {
     /// Display name observed.
