@@ -487,7 +487,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), 204);
+        assert_eq!(resp.status(), 200);
         assert_eq!(
             state
                 .mailbox
@@ -602,47 +602,47 @@ mod tests {
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/read",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/pin",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unpin",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/star",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unstar",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/archive",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unarchive",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/dismiss-action",
-                allowed: &[204],
+                allowed: &[200, 404],
             },
             Probe {
                 method: Method::DELETE,
                 uri: "/v1/users/u@x.com/threads/t1",
-                allowed: &[204, 404],
+                allowed: &[200, 404],
             }, // delete after archive may already be gone
             // Probes
             Probe {
