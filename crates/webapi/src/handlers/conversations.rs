@@ -65,12 +65,28 @@ pub async fn get_conversations(
             section: q.section,
         },
     };
-    state
-        .fast()
-        .list_conversations(&user, &req)
-        .await
-        .map(Json)
-        .map_err(map_err)
+    // Fastcore-first with graceful fallback to monolith core: during
+    // the migration cutover fastcore's kevy may not have every thread
+    // yet, so a 5xx or empty response silently degrades to core so the
+    // user still sees their inbox. Once catchup is caught up, this
+    // fallback path never trips.
+    match state.fast().list_conversations(&user, &req).await {
+        Ok(resp) if !resp.items.is_empty() => Ok(Json(resp)),
+        Ok(_empty) if state.fastcore_client.is_some() => state
+            .core_client
+            .list_conversations(&user, &req)
+            .await
+            .map(Json)
+            .map_err(map_err),
+        Ok(empty) => Ok(Json(empty)),
+        Err(_) if state.fastcore_client.is_some() => state
+            .core_client
+            .list_conversations(&user, &req)
+            .await
+            .map(Json)
+            .map_err(map_err),
+        Err(e) => Err(map_err(e)),
+    }
 }
 
 /// GET /api/conversations/categories
