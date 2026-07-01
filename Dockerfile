@@ -47,12 +47,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-sender \
     && cargo build --release --bin mailrs-fastcore \
     && cargo build --release --bin mailrs-fastcore-migrate \
+    && cargo build --release --bin mailrs-pg-dump \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
     && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
     && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
-    && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
+    && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate \
+    && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
 
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
@@ -103,6 +105,10 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fa
 # Phase 10 (fastcore migration): NDJSON → kevy importer.
 # Run via `docker exec -i mailrs-fastcore-migrate`.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
+# Phase 10b (prod migration): spg → NDJSON dumper.
+# Run via `docker exec mailrs mailrs-pg-dump [--user X] [--since T]`
+# and pipe stdout into mailrs-fastcore-migrate.
+COPY --from=rust-builder /usr/local/bin/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it
