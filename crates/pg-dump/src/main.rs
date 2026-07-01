@@ -105,11 +105,18 @@ async fn main() {
     let (user_arg, since, limit) = parse_args();
     let pg_url = std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required");
     eprintln!("connecting to {pg_url} ...");
+    #[cfg(feature = "spg")]
     let pool = spg_sqlx::SpgPoolOptions::new()
         .max_connections(4)
         .connect(&pg_url)
         .await
         .expect("connect spg");
+    #[cfg(not(feature = "spg"))]
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(4)
+        .connect(&pg_url)
+        .await
+        .expect("connect pg");
     let store = PgMailboxStore::new(pool.clone());
 
     // 1. Collect users to dump
