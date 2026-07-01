@@ -122,6 +122,22 @@ pub const OUTBOUND_INFLIGHT: &str = "mailrs:outbound:inflight";
 /// Suppression set — sender consults before sending.
 pub const OUTBOUND_SUPPRESSION: &str = "mailrs:outbound:suppression";
 
+/// Account hash — one per user address. Fields mirror
+/// AccountWithHashWire so the same payload round-trips through pg-dump.
+pub fn account(address: &str) -> String {
+    format!("mailrs:account:{address}")
+}
+
+/// Global account address index — set of all account addresses. Used
+/// for admin/list_accounts and pg-dump reverse walks.
+pub const ACCOUNT_INDEX: &str = "mailrs:accounts:index";
+
+/// Effective permissions blob for a user — cached so login doesn't
+/// need to re-compute the graph on every request.
+pub fn account_permissions(address: &str) -> String {
+    format!("mailrs:account:{address}:perms")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
