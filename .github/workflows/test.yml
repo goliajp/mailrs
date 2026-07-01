@@ -93,7 +93,7 @@ jobs:
         # as the reference-backend gate for the published stones.
         run: >
           cargo test --workspace --no-fail-fast
-          --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg,mailrs-pg-dump/spg
+          --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg
           -- --skip _under_budget
 
       - name: cargo build (4-process binaries — split topology gate)
@@ -108,7 +108,7 @@ jobs:
           cargo build --release -p mailrs-mailbox-kevy  # Phase 7 fastcore
           cargo build --release -p mailrs-fastcore       # Phase 8 fastcore binary
           cargo build --release -p mailrs-fastcore --bin mailrs-fastcore-migrate  # Phase 10 import bin
-          cargo build --release -p mailrs-pg-dump --features spg  # Phase 10b spg → NDJSON
+          cargo build --release -p mailrs-pg-dump              # Phase 10b spg → NDJSON
 
       - name: cargo check (default mailrs-server — ironrule guard)
         # Asserts the prod-default build still produces the same artifact

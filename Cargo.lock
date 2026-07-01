@@ -3493,11 +3493,8 @@ name = "mailrs-pg-dump"
 version = "0.0.1"
 dependencies = [
  "mailrs-core-api",
- "mailrs-mailbox",
  "serde",
  "serde_json",
- "spg-sqlx",
- "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",

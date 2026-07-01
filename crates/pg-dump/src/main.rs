@@ -1,7 +1,8 @@
-//! `mailrs-pg-dump` — Walk the PG (or spg) catalog and emit NDJSON
-//! suitable for `mailrs-fastcore-migrate`. Phase 10b — bootstraps a
-//! fresh kevy backend from the existing spg source-of-truth so the
-//! cutover preserves all conversation + message history.
+//! `mailrs-pg-dump` — Walk the monolith's core-rpc HTTP surface and
+//! emit NDJSON suitable for `mailrs-fastcore-migrate`. Phase 10b —
+//! bootstraps a fresh kevy backend from the existing spg
+//! source-of-truth. Runs concurrently with the monolith (no spg
+//! catalog lock contention).
 //!
 //! Wire format (one record per line):
 //! ```text
@@ -12,9 +13,9 @@
 //!
 //! Usage:
 //! ```bash
-//!   MAILRS_PG_URL=spg:///data/spg/mailrs.spg \
-//!       mailrs-pg-dump --user u@x.com > dump.ndjson
-//!   # ... pipes into:
+//!   MAILRS_CORE_RPC_BASE=http://localhost:3300 \
+//!   MAILRS_CORE_API_SECRET=<secret> \
+//!       mailrs-pg-dump > dump.ndjson
 //!   cat dump.ndjson | mailrs-fastcore-migrate
 //! ```
 //!
@@ -27,9 +28,10 @@
 
 use std::collections::HashSet;
 
+use mailrs_core_api::client::Client;
+use mailrs_core_api::method::conversation::ListConversationsRequest;
 use mailrs_core_api::method::message::MessageWire;
-use mailrs_mailbox::PgMailboxStore;
-use mailrs_mailbox::store::MailboxStore;
+use mailrs_core_api::types::ConversationFilter;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -80,7 +82,8 @@ fn parse_args() -> (Option<String>, Option<i64>, u32) {
             "--limit" => limit = it.next().and_then(|s| s.parse().ok()).unwrap_or(0),
             "-h" | "--help" => {
                 eprintln!("usage: mailrs-pg-dump [--user <addr>] [--since <epoch>] [--limit <N>]");
-                eprintln!("env:   MAILRS_PG_URL — spg:// or postgres:// URL (required)");
+                eprintln!("env:   MAILRS_CORE_RPC_BASE (default http://localhost:3300)");
+                eprintln!("       MAILRS_CORE_API_SECRET (required)");
                 std::process::exit(0);
             }
             _ => {
@@ -103,34 +106,22 @@ async fn main() {
         .init();
 
     let (user_arg, since, limit) = parse_args();
-    let pg_url = std::env::var("MAILRS_PG_URL").expect("MAILRS_PG_URL required");
-    eprintln!("connecting to {pg_url} ...");
-    #[cfg(feature = "spg")]
-    let pool = spg_sqlx::SpgPoolOptions::new()
-        .max_connections(4)
-        .connect(&pg_url)
-        .await
-        .expect("connect spg");
-    #[cfg(not(feature = "spg"))]
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(4)
-        .connect(&pg_url)
-        .await
-        .expect("connect pg");
-    let store = PgMailboxStore::new(pool.clone());
+    let base =
+        std::env::var("MAILRS_CORE_RPC_BASE").unwrap_or_else(|_| "http://localhost:3300".into());
+    let secret = std::env::var("MAILRS_CORE_API_SECRET").expect("MAILRS_CORE_API_SECRET required");
+    eprintln!("connecting to {base} ...");
+    let client = Client::new(base, secret);
 
-    // 1. Collect users to dump
     let users: Vec<String> = if let Some(u) = user_arg {
         vec![u]
     } else {
-        // Fall back to scanning the conversations view for distinct user addrs.
-        // Avoids a hard dep on DomainStore (which is server-side).
-        sqlx::query_scalar::<_, String>(
-            "SELECT DISTINCT user_address FROM messages WHERE user_address <> ''",
-        )
-        .fetch_all(&pool)
-        .await
-        .unwrap_or_default()
+        match client.list_accounts().await {
+            Ok(resp) => resp.items.into_iter().map(|a| a.address).collect(),
+            Err(e) => {
+                eprintln!("list_accounts failed: {e:?}");
+                std::process::exit(1);
+            }
+        }
     };
     eprintln!("dumping {} user(s)", users.len());
 
@@ -138,20 +129,27 @@ async fn main() {
     let mut message_count = 0u64;
 
     for user in &users {
-        // 2. Each user: list conversations (paged via before_ts cursor)
         let page_size: u32 = if limit == 0 { 200 } else { limit.min(200) };
         let mut before_ts: Option<i64> = None;
         let mut seen_tids: HashSet<String> = HashSet::new();
         loop {
-            let summaries = match store
-                .list_conversations(
-                    user, page_size, before_ts, None, None, false, None, None, None, None,
-                )
-                .await
-            {
-                Ok(v) => v,
+            let req = ListConversationsRequest {
+                filter: ConversationFilter {
+                    limit: page_size,
+                    before_ts,
+                    category: None,
+                    domains: None,
+                    archived: false,
+                    folder: None,
+                    unread: None,
+                    starred: None,
+                    section: None,
+                },
+            };
+            let summaries = match client.list_conversations(user, &req).await {
+                Ok(v) => v.items,
                 Err(e) => {
-                    eprintln!("list_conversations({user}) failed: {e}");
+                    eprintln!("list_conversations({user}) failed: {e:?}");
                     break;
                 }
             };
@@ -163,7 +161,6 @@ async fn main() {
                     continue;
                 }
                 seen_tids.insert(s.thread_id.clone());
-                // emit thread row
                 let row = ThreadRowJson {
                     thread_id: &s.thread_id,
                     subject: &s.subject,
@@ -188,51 +185,36 @@ async fn main() {
                 );
                 thread_count += 1;
 
-                // emit each message in the thread
-                let mids = match <PgMailboxStore as MailboxStore>::thread_message_ids(
-                    &store,
-                    user,
-                    &s.thread_id,
-                )
-                .await
-                {
-                    Ok(v) => v,
+                let msgs = match client.list_thread_messages(user, &s.thread_id).await {
+                    Ok(v) => v.items,
                     Err(e) => {
-                        eprintln!("thread_message_ids({user},{}) failed: {e}", s.thread_id);
+                        eprintln!("list_thread_messages({user},{}) failed: {e:?}", s.thread_id);
                         continue;
                     }
                 };
-                for mid in mids {
-                    // Fetch message by store-native id; we only need a
-                    // small slice for fastcore.
-                    let m = match store.get_message_by_db_id(user, mid).await {
-                        Ok(Some(m)) => m,
-                        _ => continue,
-                    };
+                for m in &msgs {
                     if let Some(since) = since
                         && m.internal_date < since
                     {
                         continue;
                     }
-                    let wire = MessageWire::from(&m);
                     println!(
                         "{}",
                         serde_json::to_string(&OutRecord::Message {
                             user,
                             thread_id: &s.thread_id,
-                            message_id: &wire.message_id,
-                            internal_date: wire.internal_date,
-                            wire: &wire,
+                            message_id: &m.message_id,
+                            internal_date: m.internal_date,
+                            wire: m,
                         })
                         .unwrap()
                     );
                     message_count += 1;
                 }
             }
-            // next page: before_ts = oldest of this page
             let oldest = summaries.iter().map(|s| s.last_date).min().unwrap_or(0);
             before_ts = Some(oldest);
-            if thread_count.is_multiple_of(100) && thread_count > 0 {
+            if thread_count > 0 && thread_count.is_multiple_of(100) {
                 eprintln!("progress: {thread_count} threads, {message_count} messages");
             }
             if (summaries.len() as u32) < page_size {

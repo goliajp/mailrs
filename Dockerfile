@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-sender \
     && cargo build --release --bin mailrs-fastcore \
     && cargo build --release --bin mailrs-fastcore-migrate \
-    && cargo build --release -p mailrs-pg-dump --features spg \
+    && cargo build --release -p mailrs-pg-dump \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
