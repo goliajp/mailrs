@@ -93,7 +93,7 @@ jobs:
         # as the reference-backend gate for the published stones.
         run: >
           cargo test --workspace --no-fail-fast
-          --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg
+          --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg,mailrs-pg-dump/spg
           -- --skip _under_budget
 
       - name: cargo build (4-process binaries — split topology gate)
