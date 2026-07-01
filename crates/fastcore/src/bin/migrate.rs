@@ -113,7 +113,10 @@ fn main() {
             continue;
         };
         let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
+        // Skip empty, comments (#), and pg-dump progress lines that
+        // leaked in via `2>&1`. Any line that isn't a JSON object
+        // start is a diagnostic — don't count as a parse error.
+        if line.is_empty() || line.starts_with('#') || !line.starts_with('{') {
             continue;
         }
         let Ok(rec): Result<Record, _> = serde_json::from_str(line) else {
