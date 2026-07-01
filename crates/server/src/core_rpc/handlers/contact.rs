@@ -97,7 +97,7 @@ pub async fn sender_feedback(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// GET /v1/users/{user}/contacts/{email}:has-sent-to
+/// GET /v1/users/{user}/contacts/{email}/has-sent-to
 pub async fn has_sent_to(
     State(state): State<Arc<CoreRpcState>>,
     Path((user, email)): Path<(String, String)>,
