@@ -48,6 +48,13 @@ enum Record {
         unread: Option<bool>,
         wire: MessageWire,
     },
+    Account {
+        blob: serde_json::Value,
+    },
+    Permissions {
+        address: String,
+        blob: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -167,6 +174,31 @@ fn main() {
                     errors += 1;
                 } else {
                     messages += 1;
+                }
+            }
+            Record::Account { blob } => {
+                // Extract address from the top-level blob for the index key.
+                let addr = blob
+                    .get("address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if addr.is_empty() {
+                    eprintln!("line {idx}: account blob missing address");
+                    errors += 1;
+                    continue;
+                }
+                let json = blob.to_string();
+                if let Err(e) = mailbox.upsert_account(&addr, &json) {
+                    eprintln!("line {idx}: upsert_account({addr}): {e}");
+                    errors += 1;
+                }
+            }
+            Record::Permissions { address, blob } => {
+                let json = blob.to_string();
+                if let Err(e) = mailbox.upsert_permissions(&address, &json) {
+                    eprintln!("line {idx}: upsert_permissions({address}): {e}");
+                    errors += 1;
                 }
             }
         }

@@ -68,6 +68,13 @@ enum OutRecord<'a> {
         internal_date: i64,
         wire: &'a MessageWire,
     },
+    /// Serialized `AccountWithHashWire` — fastcore native login uses this.
+    Account { blob: serde_json::Value },
+    /// Serialized `EffectivePermissionsResponse` — cached for O(1) login.
+    Permissions {
+        address: &'a str,
+        blob: serde_json::Value,
+    },
 }
 
 fn parse_args() -> (Option<String>, Option<i64>, u32) {
@@ -124,6 +131,31 @@ async fn main() {
         }
     };
     eprintln!("dumping {} user(s)", users.len());
+
+    // Emit account + permissions blobs first so fastcore has them
+    // before it starts receiving thread/message writes.
+    for u in &users {
+        match client.get_account_with_hash(u).await {
+            Ok(acc) => {
+                let blob = serde_json::to_value(&acc).unwrap_or(serde_json::Value::Null);
+                println!(
+                    "{}",
+                    serde_json::to_string(&OutRecord::Account { blob }).unwrap()
+                );
+            }
+            Err(e) => eprintln!("get_account_with_hash({u}) failed: {e:?}"),
+        }
+        match client.effective_permissions(u).await {
+            Ok(perms) => {
+                let blob = serde_json::to_value(&perms).unwrap_or(serde_json::Value::Null);
+                println!(
+                    "{}",
+                    serde_json::to_string(&OutRecord::Permissions { address: u, blob }).unwrap()
+                );
+            }
+            Err(e) => eprintln!("effective_permissions({u}) failed: {e:?}"),
+        }
+    }
 
     let mut thread_count = 0u64;
     let mut message_count = 0u64;
