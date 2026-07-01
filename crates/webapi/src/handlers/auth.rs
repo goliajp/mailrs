@@ -43,6 +43,10 @@ pub struct LoginResponse {
     pub address: String,
     pub display_name: String,
     pub permissions: Vec<String>,
+    /// Session token — same shape as monolith. Frontend stores this
+    /// in the auth store; subsequent authenticated requests send it
+    /// as `Authorization: Bearer <token>`.
+    pub token: String,
 }
 
 /// POST /api/auth/login
@@ -145,6 +149,7 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         address,
         display_name: display,
         permissions: perms_vec,
+        token: token.clone(),
     });
     let cookie =
         format!("mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600");
