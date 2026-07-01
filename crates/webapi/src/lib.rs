@@ -258,7 +258,19 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/status", get(status_handler))
         .route("/api/auth/login", post(handlers::auth::login));
 
-    let mut app = unauth.merge(authenticated).with_state(state);
+    let mut app = unauth
+        .merge(authenticated)
+        .layer(
+            tower_http::trace::TraceLayer::new_for_http()
+                .make_span_with(
+                    tower_http::trace::DefaultMakeSpan::new().level(tracing::Level::INFO),
+                )
+                .on_response(
+                    tower_http::trace::DefaultOnResponse::new().level(tracing::Level::INFO),
+                )
+                .on_failure(tower_http::trace::DefaultOnFailure::new().level(tracing::Level::WARN)),
+        )
+        .with_state(state);
 
     // Serve the React UI from `MAILRS_WEB_STATIC_DIR` (defaults to
     // `/opt/mailrs/web` to match the monolith's bind-mount layout).
