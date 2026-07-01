@@ -51,7 +51,7 @@ pub async fn get_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<ListQuery>,
-) -> Result<Json<wire::ListConversationsResponse>, StatusCode> {
+) -> Result<Json<Vec<mailrs_core_api::types::ConversationSummaryWire>>, StatusCode> {
     let req = wire::ListConversationsRequest {
         filter: ConversationFilter {
             limit: q.limit,
@@ -65,83 +65,78 @@ pub async fn get_conversations(
             section: q.section,
         },
     };
-    // Fastcore-first with graceful fallback to monolith core: during
-    // the migration cutover fastcore's kevy may not have every thread
-    // yet, so a 5xx or empty response silently degrades to core so the
-    // user still sees their inbox. Once catchup is caught up, this
-    // fallback path never trips.
-    match state.fast().list_conversations(&user, &req).await {
-        Ok(resp) if !resp.items.is_empty() => Ok(Json(resp)),
+    // Fastcore-first with graceful fallback. Return bare Vec (not wrapped
+    // in ListConversationsResponse) to match monolith's `/api/conversations`
+    // shape — React query hooks type as ConversationSummary[] not {items: []}.
+    let resp = match state.fast().list_conversations(&user, &req).await {
+        Ok(resp) if !resp.items.is_empty() => resp,
         Ok(_empty) if state.fastcore_client.is_some() => state
             .core_client
             .list_conversations(&user, &req)
             .await
-            .map(Json)
-            .map_err(map_err),
-        Ok(empty) => Ok(Json(empty)),
+            .map_err(map_err)?,
+        Ok(empty) => empty,
         Err(_) if state.fastcore_client.is_some() => state
             .core_client
             .list_conversations(&user, &req)
             .await
-            .map(Json)
-            .map_err(map_err),
-        Err(e) => Err(map_err(e)),
-    }
+            .map_err(map_err)?,
+        Err(e) => return Err(map_err(e)),
+    };
+    Ok(Json(resp.items))
 }
 
-/// GET /api/conversations/categories
+/// GET /api/conversations/categories — return bare Vec<CategoryCount>
+/// (monolith shape, not wrapped in `{"categories": [...]}`).
 pub async fn get_categories(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Result<Json<wire::ConversationCategoriesResponse>, StatusCode> {
+) -> Result<Json<Vec<wire::CategoryCount>>, StatusCode> {
     state
         .fast()
         .conversation_categories(&user)
         .await
-        .map(Json)
+        .map(|r| Json(r.categories))
         .map_err(map_err)
 }
 
-/// GET /api/conversations/action-count
+/// GET /api/conversations/action-count — return bare `{count: N}`
+/// (already the response shape, but as flat i64 not the response struct).
 pub async fn get_action_count(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Result<Json<wire::ActionCountResponse>, StatusCode> {
+) -> Result<Json<serde_json::Value>, StatusCode> {
     state
         .fast()
         .action_count(&user)
         .await
-        .map(Json)
+        .map(|r| Json(serde_json::json!({ "count": r.count })))
         .map_err(map_err)
 }
 
-/// GET /api/conversations/{thread_id}
+/// GET /api/conversations/{thread_id} — return bare Vec<MessageWire>
+/// (monolith shape, not wrapped in `{"items": [...]}`).
 pub async fn get_thread_messages(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
-) -> Result<Json<mailrs_core_api::method::thread::ListThreadMessagesResponse>, StatusCode> {
-    // Same fastcore-first + core fallback pattern as list_conversations:
-    // during migration cutover fastcore may not have a thread's messages
-    // yet even if the thread row exists. Empty items list + fastcore_client
-    // set → retry via core so the user sees the real conversation.
-    match state.fast().list_thread_messages(&user, &thread_id).await {
-        Ok(resp) if !resp.items.is_empty() => Ok(Json(resp)),
+) -> Result<Json<Vec<mailrs_core_api::method::message::MessageWire>>, StatusCode> {
+    let resp = match state.fast().list_thread_messages(&user, &thread_id).await {
+        Ok(resp) if !resp.items.is_empty() => resp,
         Ok(_empty) if state.fastcore_client.is_some() => state
             .core_client
             .list_thread_messages(&user, &thread_id)
             .await
-            .map(Json)
-            .map_err(map_err),
-        Ok(empty) => Ok(Json(empty)),
+            .map_err(map_err)?,
+        Ok(empty) => empty,
         Err(_) if state.fastcore_client.is_some() => state
             .core_client
             .list_thread_messages(&user, &thread_id)
             .await
-            .map(Json)
-            .map_err(map_err),
-        Err(e) => Err(map_err(e)),
-    }
+            .map_err(map_err)?,
+        Err(e) => return Err(map_err(e)),
+    };
+    Ok(Json(resp.items))
 }
 
 /// POST /api/conversations/{thread_id}/read
@@ -321,16 +316,17 @@ pub async fn unsnooze_thread(
         .map_err(map_err)
 }
 
-/// GET /api/conversations/unseen-count
+/// GET /api/conversations/unseen-count — returns `{"count": N}` inline
+/// (monolith shape).
 pub async fn get_unseen_count(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Result<Json<wire::UnseenCountResponse>, StatusCode> {
+) -> Result<Json<serde_json::Value>, StatusCode> {
     state
         .fast()
         .unseen_count(&user)
         .await
-        .map(Json)
+        .map(|r| Json(serde_json::json!({ "count": r.count })))
         .map_err(map_err)
 }
 
