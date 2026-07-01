@@ -47,11 +47,70 @@ fn default_limit() -> u32 {
     50
 }
 
+/// Wire shape the React UI expects for /api/conversations.
+///
+/// Same as monolith's `ConversationResponse` — critical difference from
+/// fastcore's `ConversationSummaryWire` is `participants` is a `Vec<String>`
+/// (split by comma) instead of the raw csv string. UI does
+/// `convo.participants[0]` which on a plain string returns the first
+/// CHARACTER, not the first sender.
+#[derive(serde::Serialize)]
+pub struct ConversationResponse {
+    pub thread_id: String,
+    pub subject: String,
+    pub participants: Vec<String>,
+    pub message_count: u32,
+    pub unread_count: u32,
+    pub last_date: i64,
+    pub category: String,
+    pub flagged: bool,
+    pub snippet: String,
+    pub pinned: bool,
+    pub archived: bool,
+    pub importance_level: String,
+    pub importance_score: f32,
+    pub requires_action: bool,
+    pub last_sender: String,
+    pub received_count: u32,
+    pub sent_count: u32,
+}
+
+impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
+    fn from(w: mailrs_core_api::types::ConversationSummaryWire) -> Self {
+        let participants: Vec<String> = w
+            .participants
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let received_count = w.message_count.saturating_sub(w.sent_count);
+        Self {
+            thread_id: w.thread_id,
+            subject: w.subject,
+            participants,
+            message_count: w.message_count,
+            unread_count: w.unread_count,
+            last_date: w.last_date,
+            category: w.category,
+            flagged: w.flagged,
+            snippet: w.snippet,
+            pinned: w.pinned,
+            archived: w.archived,
+            importance_level: w.importance_level,
+            importance_score: w.importance_score,
+            requires_action: w.requires_action,
+            last_sender: w.last_sender,
+            received_count,
+            sent_count: w.sent_count,
+        }
+    }
+}
+
 pub async fn get_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<ListQuery>,
-) -> Result<Json<Vec<mailrs_core_api::types::ConversationSummaryWire>>, StatusCode> {
+) -> Result<Json<Vec<ConversationResponse>>, StatusCode> {
     let req = wire::ListConversationsRequest {
         filter: ConversationFilter {
             limit: q.limit,
@@ -65,9 +124,6 @@ pub async fn get_conversations(
             section: q.section,
         },
     };
-    // Fastcore-first with graceful fallback. Return bare Vec (not wrapped
-    // in ListConversationsResponse) to match monolith's `/api/conversations`
-    // shape — React query hooks type as ConversationSummary[] not {items: []}.
     let resp = match state.fast().list_conversations(&user, &req).await {
         Ok(resp) if !resp.items.is_empty() => resp,
         Ok(_empty) if state.fastcore_client.is_some() => state
@@ -83,7 +139,7 @@ pub async fn get_conversations(
             .map_err(map_err)?,
         Err(e) => return Err(map_err(e)),
     };
-    Ok(Json(resp.items))
+    Ok(Json(resp.items.into_iter().map(Into::into).collect()))
 }
 
 /// GET /api/conversations/categories — return bare Vec<CategoryCount>
