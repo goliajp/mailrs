@@ -25,6 +25,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::{delete, get, post};
 use kevy_embedded::{Config, Store};
+use mailrs_core_api::method::admin as adm;
 use mailrs_core_api::method::conversation as conv;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
@@ -109,6 +110,8 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_UNARCHIVE, post(unarchive_thread))
         .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
         .route(th::PATH_DELETE_THREAD, delete(delete_thread))
+        .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
+        .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
         .with_state(state);
 
     base.merge(business)
@@ -228,6 +231,44 @@ async fn thread_messages(
         .filter_map(|b| serde_json::from_slice::<MessageWire>(&b).ok())
         .collect();
     Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items })
+}
+
+// ── Account (auth) — Phase 8 ────────────────────────────────────────
+
+/// `GET /v1/admin/accounts/{address}/credentials` — used by webapi's
+/// login handler to fetch the argon2 hash. Blob in kevy is a JSON
+/// AccountWithHashWire; we forward it verbatim.
+async fn get_account_with_hash(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    match state.mailbox.get_account_blob(&address) {
+        Ok(Some(json)) => Ok(([("content-type", "application/json")], json).into_response()),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::warn!(error = %e, %address, "get_account_blob failed");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// `GET /v1/admin/accounts/{address}/effective-permissions`.
+async fn effective_permissions(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    match state.mailbox.get_permissions_blob(&address) {
+        Ok(Some(json)) => Ok(([("content-type", "application/json")], json).into_response()),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::warn!(error = %e, %address, "get_permissions_blob failed");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 // ── Thread mutations ───────────────────────────────────────────────
