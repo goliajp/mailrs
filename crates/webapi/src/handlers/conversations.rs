@@ -121,12 +121,27 @@ pub async fn get_thread_messages(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
 ) -> Result<Json<mailrs_core_api::method::thread::ListThreadMessagesResponse>, StatusCode> {
-    state
-        .fast()
-        .list_thread_messages(&user, &thread_id)
-        .await
-        .map(Json)
-        .map_err(map_err)
+    // Same fastcore-first + core fallback pattern as list_conversations:
+    // during migration cutover fastcore may not have a thread's messages
+    // yet even if the thread row exists. Empty items list + fastcore_client
+    // set → retry via core so the user sees the real conversation.
+    match state.fast().list_thread_messages(&user, &thread_id).await {
+        Ok(resp) if !resp.items.is_empty() => Ok(Json(resp)),
+        Ok(_empty) if state.fastcore_client.is_some() => state
+            .core_client
+            .list_thread_messages(&user, &thread_id)
+            .await
+            .map(Json)
+            .map_err(map_err),
+        Ok(empty) => Ok(Json(empty)),
+        Err(_) if state.fastcore_client.is_some() => state
+            .core_client
+            .list_thread_messages(&user, &thread_id)
+            .await
+            .map(Json)
+            .map_err(map_err),
+        Err(e) => Err(map_err(e)),
+    }
 }
 
 /// POST /api/conversations/{thread_id}/read
