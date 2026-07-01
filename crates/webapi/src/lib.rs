@@ -165,7 +165,6 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/mail/send", post(handlers::mail::send_message))
         .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
         .route("/api/queue", get(handlers::mail::get_queue_stats))
-        .route("/api/events", get(handlers::events::ws_events))
         .route("/api/contacts", get(handlers::mail::get_contacts))
         .route("/api/mail/feedback", post(handlers::mail::submit_feedback))
         .route(
@@ -256,7 +255,11 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/health", get(health_handler))
         .route("/api/readiness", get(readiness_handler))
         .route("/api/status", get(status_handler))
-        .route("/api/auth/login", post(handlers::auth::login));
+        .route("/api/auth/login", post(handlers::auth::login))
+        // WS upgrade uses `?token=<hex>` from query — browsers can't
+        // set custom headers on WebSocket. Auth is inside the handler
+        // (checks kevy `session:<token>` directly).
+        .route("/api/events", get(handlers::events::ws_events));
 
     let mut app = unauth
         .merge(authenticated)

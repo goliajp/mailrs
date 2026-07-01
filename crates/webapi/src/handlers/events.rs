@@ -19,11 +19,18 @@ use std::sync::Arc;
 
 use axum::extract::WebSocketUpgrade;
 use axum::extract::ws::{Message, WebSocket};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
 use tokio::sync::broadcast;
 
 use crate::WebState;
+
+#[derive(Debug, Deserialize)]
+pub struct WsQuery {
+    pub token: Option<String>,
+}
 
 /// Shared broadcast bus — one subscriber owns the kevy net client's
 /// blocking subscribe loop; per-WS handlers each own a broadcast::Receiver.
@@ -31,13 +38,33 @@ use crate::WebState;
 /// initialized on the first WS upgrade.
 pub type EventBus = broadcast::Sender<String>;
 
-/// `GET /api/events` — upgrade to WS, then stream kevy pubsub frames.
+/// `GET /api/events?token=<hex>` — upgrade to WS, then stream kevy
+/// pubsub frames. Auth is done here (not in middleware) because
+/// browser WebSockets can only pass credentials via query string
+/// or cookie, and the frontend uses `?token=`.
 pub async fn ws_events(
     ws: WebSocketUpgrade,
+    axum::extract::Query(query): axum::extract::Query<WsQuery>,
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, StatusCode> {
+    let token = query.token.as_deref().ok_or(StatusCode::UNAUTHORIZED)?;
+    // Verify the session exists in shared kevy — same key the auth
+    // middleware reads.
+    let kevy_url =
+        std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let key = format!("session:{token}");
+    let has_session = tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
+        let mut c = kevy_client::Connection::open(&kevy_url)?;
+        Ok(c.get(key.as_bytes())?.is_some())
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !has_session {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     let bus = get_or_init_bus(state.clone()).await;
-    ws.on_upgrade(move |socket| handle_ws(socket, bus))
+    Ok(ws.on_upgrade(move |socket| handle_ws(socket, bus)))
 }
 
 async fn handle_ws(socket: WebSocket, bus: EventBus) {
