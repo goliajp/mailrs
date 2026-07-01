@@ -202,10 +202,10 @@ async fn main() {
                         Ok(Some(m)) => m,
                         _ => continue,
                     };
-                    if let Some(since) = since {
-                        if m.internal_date < since {
-                            continue;
-                        }
+                    if let Some(since) = since
+                        && m.internal_date < since
+                    {
+                        continue;
                     }
                     let wire = MessageWire::from(&m);
                     println!(
