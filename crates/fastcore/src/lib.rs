@@ -248,6 +248,58 @@ async fn run_ingest_once(
                 .set(cursor_key.as_bytes(), max_seen.to_string().as_bytes())?;
             tracing::info!(%user, newly, cursor = max_seen, "ingest sync applied");
         }
+
+        // Self-heal pass — earlier ingest iterations wrote thread
+        // aggregates without pulling their messages (the pre-Group F
+        // "skip existing" path). For any thread whose fastcore-side
+        // `thread:<tid>:messages` zset is empty, fetch from monolith
+        // and upsert. Capped per tick to keep the loop bounded.
+        let activity_key = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let tids = state
+            .mailbox
+            .store_ref()
+            .zrevrange(activity_key.as_bytes(), 0, 199)
+            .unwrap_or_default();
+        let mut healed = 0u32;
+        for (tid_bytes, _score) in tids {
+            if healed >= 20 {
+                break;
+            }
+            let Ok(tid_str) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            let msg_zset = mailrs_mailbox_kevy::keys::thread_messages(tid_str);
+            let already = state
+                .mailbox
+                .store_ref()
+                .zcard(msg_zset.as_bytes())
+                .unwrap_or(0);
+            if already > 0 {
+                continue;
+            }
+            let Ok(msgs) = client.list_thread_messages(user, tid_str).await else {
+                continue;
+            };
+            for w in &msgs.items {
+                let payload = match serde_json::to_vec(w) {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
+                let _ = state.mailbox.upsert_message(
+                    tid_str,
+                    &w.message_id,
+                    w.internal_date,
+                    &payload,
+                );
+                let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
+            }
+            if !msgs.items.is_empty() {
+                healed += 1;
+            }
+        }
+        if healed > 0 {
+            tracing::info!(%user, healed, "ingest self-heal populated missing messages");
+        }
     }
     Ok(())
 }
@@ -297,6 +349,11 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         )
         .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
         .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
+        // Ops endpoint — reset every user's ingest cursor to 0 so the
+        // next sync tick re-processes historic threads and (via the
+        // Group F diff path) backfills messages fastcore missed under
+        // the older "skip-existing" ingest behaviour.
+        .route("/v1/admin/sync/reset-cursors", post(reset_sync_cursors_route))
         .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
         .route(
             msg::PATH_GET_MESSAGE_BY_UID_USER,
@@ -987,6 +1044,30 @@ where
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+/// `POST /v1/admin/sync/reset-cursors` — reset every registered
+/// user's `mailrs:sync:cursor:<user>` key so the next
+/// `ingest_sync_loop` tick treats every monolith thread as "new" and
+/// runs the Group F diff path to backfill missing messages.
+async fn reset_sync_cursors_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let addrs = match state.mailbox.list_account_addresses() {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut cleared = 0u32;
+    for user in &addrs {
+        let key = format!("mailrs:sync:cursor:{user}");
+        if state.mailbox.store_ref().del(&[key.as_bytes()]).is_ok() {
+            cleared += 1;
+        }
+    }
+    Json(serde_json::json!({ "cleared": cleared })).into_response()
 }
 
 /// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
