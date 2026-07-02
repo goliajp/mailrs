@@ -56,14 +56,21 @@ impl KevyMailboxStore {
         let exists = self
             .store()
             .hexists(thread_key.as_bytes(), b"unread_count")?;
-        if !exists {
-            return Ok(false);
-        }
-        self.store()
-            .hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
+        // Always drop from the has_unread index — the UI's "click to
+        // mark read" fired POST /read on a thread the client believes
+        // is unread. If the thread hash has no unread_count field the
+        // previous version returned early WITHOUT the zrem, so the
+        // index still said "unread" and the next list refetch kept the
+        // row highlighted / left the badge count wrong. Zrem is
+        // idempotent, so calling it on a tid that isn't in the index
+        // is a cheap no-op.
         let idx = keys::user_threads_has_unread(user);
         self.store().zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-        Ok(true)
+        if exists {
+            self.store()
+                .hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
+        }
+        Ok(exists)
     }
 }
 
