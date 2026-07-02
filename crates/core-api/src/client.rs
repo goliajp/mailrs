@@ -304,6 +304,18 @@ impl Client {
             .await
     }
 
+    /// POST /v1/users/{user}/conversations:mark-all-read — flip every
+    /// unread thread server-side. Returns the count that was flipped.
+    pub async fn mark_all_conversations_read(&self, user: &str) -> ApiResult<u32> {
+        let path = format!("/v1/users/{}/conversations:mark-all-read", Self::enc(user));
+        let v: serde_json::Value = self
+            .post_authed_no_body(path, "mark_all_conversations_read")
+            .await?;
+        Ok(v.get("flipped")
+            .and_then(|f| f.as_u64())
+            .unwrap_or(0) as u32)
+    }
+
     /// POST /v1/users/{user}/threads/{thread_id}/unread
     pub async fn mark_thread_unread(
         &self,

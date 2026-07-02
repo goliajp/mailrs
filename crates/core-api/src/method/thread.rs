@@ -23,6 +23,7 @@ pub const PATH_BACKFILL_THREADING: &str = "/v1/admin/backfill-threading";
 
 pub const PATH_MARK_READ: &str = "/v1/users/{user}/threads/{thread_id}/read";
 pub const PATH_MARK_UNREAD: &str = "/v1/users/{user}/threads/{thread_id}/unread";
+pub const PATH_MARK_ALL_READ: &str = "/v1/users/{user}/conversations:mark-all-read";
 pub const PATH_STAR: &str = "/v1/users/{user}/threads/{thread_id}/star";
 pub const PATH_UNSTAR: &str = "/v1/users/{user}/threads/{thread_id}/unstar";
 pub const PATH_PIN: &str = "/v1/users/{user}/threads/{thread_id}/pin";

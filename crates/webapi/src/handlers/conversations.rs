@@ -464,6 +464,23 @@ pub async fn mark_thread_read(
         .map_err(map_err)
 }
 
+/// POST /api/conversations/mark-all-read — sweep every unread thread
+/// for the current user. The old "Mark all as read" button was only
+/// batching the currently-loaded pagination slice; with 99+ unread
+/// spread across pages the tail stayed untouched. This endpoint fixes
+/// that by walking the has_unread zset server-side.
+pub async fn mark_all_read(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let flipped = state
+        .fast()
+        .mark_all_conversations_read(&user)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(serde_json::json!({ "success": true, "flipped": flipped })))
+}
+
 /// POST /api/conversations/{thread_id}/star
 pub async fn star_thread(
     State(state): State<Arc<WebState>>,

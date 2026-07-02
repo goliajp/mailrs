@@ -24,6 +24,28 @@ use super::keys;
 
 impl KevyMailboxStore {
     /// Mark `thread_id` as seen for `user` — zero the unread counter
+    /// Sweep every unread thread for `user` — walks the
+    /// `user:<u>:threads:has_unread` zset and calls `mark_seen` on each.
+    /// Returns the number of threads flipped. Idempotent: a second call
+    /// with no unread threads returns 0.
+    pub fn mark_all_seen(&self, user: &str) -> io::Result<u32> {
+        let idx = keys::user_threads_has_unread(user);
+        let members = self.store().zrange(idx.as_bytes(), 0, -1)?;
+        let mut flipped = 0u32;
+        for (tid_bytes, _score) in members {
+            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            // Copy the tid so we don't borrow across the mark_seen call
+            // (which reads from other zsets internally).
+            let tid = tid.to_string();
+            if self.mark_seen(user, &tid)? {
+                flipped += 1;
+            }
+        }
+        Ok(flipped)
+    }
+
     /// and drop the row from the `has_unread` index.
     ///
     /// Idempotent: re-applying produces the same state. Returns `true`
