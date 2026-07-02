@@ -189,6 +189,7 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
     let kevy_url = std::env::var("MAILRS_KEVY_URL").ok();
     if let Some(url) = kevy_url {
         let token_clone = token.clone();
+        let addr_clone = acct.public.address.clone();
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
             let mut c = kevy_client::Connection::open(&url)?;
             let key = format!("session:{token_clone}");
@@ -197,6 +198,10 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
                 &blob_bytes,
                 std::time::Duration::from_secs(7 * 24 * 3600),
             )?;
+            // Per-user session index — makes it possible to revoke all
+            // active sessions when the password changes.
+            let idx = format!("session:by_addr:{addr_clone}");
+            c.sadd(idx.as_bytes(), &[token_clone.as_bytes()])?;
             Ok(())
         })
         .await;
@@ -214,7 +219,7 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         token: token.clone(),
     });
     let cookie =
-        format!("mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600");
+        format!("mailrs_session={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800");
 
     let mut resp = body.into_response();
     if let Ok(v) = axum::http::HeaderValue::from_str(&cookie) {
@@ -486,6 +491,20 @@ pub async fn change_password(
         tracing::warn!(err = %e, %address, "set_account_password failed");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+
+    // Revoke all outstanding sessions for this address — the address
+    // itself owns the session:by_addr:<address> set of tokens.
+    let addr_c = address.clone();
+    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+        let idx = format!("session:by_addr:{addr_c}");
+        let tokens = c.smembers(idx.as_bytes()).unwrap_or_default();
+        for t in tokens {
+            let key = format!("session:{}", String::from_utf8_lossy(&t));
+            let _ = c.del(&[key.as_bytes()]);
+        }
+        let _ = c.del(&[idx.as_bytes()]);
+        Ok(())
+    });
     (
         StatusCode::OK,
         Json(serde_json::json!({"success": true})),

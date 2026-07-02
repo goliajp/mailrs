@@ -445,20 +445,26 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::jmap::jmap_eventsource),
         );
 
-    // DAV endpoints (authenticated).
+    // DAV endpoints (authenticated). CalDAV / CardDAV clients drive
+    // discovery with OPTIONS / PROPFIND / REPORT — axum's
+    // MethodRouter only routes standard verbs, so collection routes
+    // use `any(...)` so every method (including PROPFIND / REPORT /
+    // MKCALENDAR) lands on the same handler which inspects the
+    // Method header. Leaf item routes stick to PUT/GET/DELETE.
+    use axum::routing::any;
     let dav_routes = axum::Router::new()
-        .route("/dav/", get(handlers::dav::dav_root))
+        .route("/dav/", any(handlers::dav::dav_root))
         .route(
             "/dav/principals/{user}/",
-            get(handlers::dav::dav_principal),
+            any(handlers::dav::dav_principal),
         )
         .route(
             "/dav/calendars/{user}/",
-            get(handlers::dav::calendars_collection),
+            any(handlers::dav::calendars_collection),
         )
         .route(
             "/dav/addressbooks/{user}/",
-            get(handlers::dav::addressbooks_collection),
+            any(handlers::dav::addressbooks_collection),
         )
         .route(
             "/dav/calendars/{user}/{cal}/{uid}",
