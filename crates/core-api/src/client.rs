@@ -963,4 +963,32 @@ impl Client {
             .map_err(|e| CoreApiError::Internal(format!("mark_failed transport: {e}")))?;
         Self::map_status_unit(resp, "outbound_mark_failed").await
     }
+
+    // ── local aliases (fastcore-embedded kevy) ──────────────────────
+
+    /// GET /v1/admin/aliases:local — every alias currently in fastcore.
+    pub async fn list_local_aliases(&self) -> ApiResult<serde_json::Value> {
+        self.get_authed("/v1/admin/aliases:local".to_string(), "list_local_aliases")
+            .await
+    }
+
+    /// POST /v1/admin/aliases:local — insert/replace one alias.
+    pub async fn upsert_local_alias(&self, source: &str, target: &str) -> ApiResult<()> {
+        let body = serde_json::json!({"source": source, "target": target});
+        let resp = self
+            .inner
+            .post(self.url("/v1/admin/aliases:local"))
+            .bearer_auth(&self.auth_bearer)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("upsert_local_alias transport: {e}")))?;
+        Self::map_status_unit(resp, "upsert_local_alias").await
+    }
+
+    /// DELETE /v1/admin/aliases:local/{source}
+    pub async fn delete_local_alias(&self, source: &str) -> ApiResult<()> {
+        let path = format!("/v1/admin/aliases:local/{}", Self::enc(source));
+        self.delete_authed(path, "delete_local_alias").await
+    }
 }
