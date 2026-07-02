@@ -3266,6 +3266,7 @@ dependencies = [
  "mailrs-core-api",
  "mailrs-mailbox-kevy",
  "mailrs-smtp-client",
+ "rustls",
  "serde",
  "serde_json",
  "tokio",

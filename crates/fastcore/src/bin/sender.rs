@@ -395,6 +395,15 @@ async fn process_one(cfg: Cfg, id: String) {
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {
+    // Install the process-wide rustls crypto provider before any TLS
+    // config is built (STARTTLS in try_deliver). Without this rustls
+    // 0.23 panics on first use — same fix mailrs-receiver / mailrs-server
+    // apply. .ok() because a second install is a no-op error we can
+    // safely ignore in a single-binary process.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
