@@ -327,6 +327,60 @@ pub async fn get_thread_messages(
     Ok(Json(items))
 }
 
+/// Batch mutation request/response — matches the UI's `useBatchMutation`.
+#[derive(Debug, serde::Deserialize)]
+pub struct BatchRequest {
+    pub action: String,
+    pub thread_ids: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct BatchResponse {
+    pub failed: u32,
+    pub message: Option<String>,
+    pub processed: u32,
+    pub success: bool,
+}
+
+/// POST /api/conversations/batch — apply the same mutation across many
+/// threads. Fires each individually against fastcore (kevy mutations are
+/// idempotent + fast, ~2 ms each). Runs sequentially; a partial failure
+/// still lets the successes stick.
+pub async fn batch_mutation(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<BatchRequest>,
+) -> Result<Json<BatchResponse>, StatusCode> {
+    let action = req.action.as_str();
+    let mut processed = 0u32;
+    let mut failed = 0u32;
+    for tid in &req.thread_ids {
+        let f = state.fast();
+        let r = match action {
+            "read" => f.mark_thread_read(&user, tid).await.map(|_| ()),
+            "unread" => f.mark_thread_unread(&user, tid).await.map(|_| ()),
+            "star" => f.star_thread(&user, tid).await.map(|_| ()),
+            "unstar" => f.unstar_thread(&user, tid).await.map(|_| ()),
+            "archive" => f.archive_thread(&user, tid).await.map(|_| ()),
+            "unarchive" => f.unarchive_thread(&user, tid).await.map(|_| ()),
+            "delete" => f.delete_thread(&user, tid).await.map(|_| ()),
+            _ => Err(mailrs_core_api::error::CoreApiError::Internal(format!(
+                "unknown batch action: {action}"
+            ))),
+        };
+        match r {
+            Ok(_) => processed += 1,
+            Err(_) => failed += 1,
+        }
+    }
+    Ok(Json(BatchResponse {
+        failed,
+        message: None,
+        processed,
+        success: failed == 0,
+    }))
+}
+
 /// POST /api/conversations/{thread_id}/read
 pub async fn mark_thread_read(
     State(state): State<Arc<WebState>>,
