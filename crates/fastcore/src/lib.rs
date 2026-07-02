@@ -22,7 +22,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::admin as adm;
 use mailrs_core_api::method::conversation as conv;
@@ -245,7 +245,11 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(conv::PATH_ACTION_COUNT, get(get_action_count))
         .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
         .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
+        .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
         .route(th::PATH_MARK_READ, post(mark_read))
+        .route(th::PATH_MARK_UNREAD, post(mark_unread_route))
+        .route(th::PATH_SNOOZE, put(snooze_thread_route))
+        .route(th::PATH_UNSNOOZE, delete(unsnooze_thread_route))
         .route(th::PATH_PIN, post(pin_thread))
         .route(th::PATH_UNPIN, post(unpin_thread))
         .route(th::PATH_STAR, post(star_thread))
@@ -665,6 +669,119 @@ async fn delete_thread(
             .delete_thread(&user, &thread_id)
             .unwrap_or(false),
     )
+}
+
+use axum::response::IntoResponse;
+
+async fn mark_unread_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    if let Err(e) = state.mailbox.mark_unread(&user, &thread_id) {
+        tracing::warn!(error = %e, %user, %thread_id, "mark_unread io error — treating as noop");
+    }
+    action_result(true)
+}
+
+async fn snooze_thread_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+    Json(req): Json<th::SnoozeRequest>,
+) -> axum::response::Response {
+    if let Err(e) = state
+        .mailbox
+        .set_snoozed(&user, &thread_id, req.snoozed_until)
+    {
+        tracing::warn!(error = %e, %user, %thread_id, "snooze io error");
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+async fn unsnooze_thread_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    if let Err(e) = state.mailbox.set_snoozed(&user, &thread_id, 0) {
+        tracing::warn!(error = %e, %user, %thread_id, "unsnooze io error");
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+/// POST /v1/users/{user}/threads/{thread_id}/messages — the sent /
+/// draft / import write path. Mirrors what the inbound ingest loop
+/// does, but the caller controls the metadata (senders_csv, unread,
+/// category) so it can synthesize a "user is the sender" arrival.
+///
+/// Executes 3 atomic-ish steps:
+///   1. `record_message_arrival` — thread aggregate + activity/category
+///      zsets + has_unread toggle if `unread=true`
+///   2. `upsert_message` — write `mailrs:msg:<mid>` blob (verbatim
+///      `payload_wire_json`) + zadd `mailrs:thread:<tid>:messages`
+///   3. `upsert_thread` — re-read the aggregate we just updated and
+///      re-emit every index, most importantly `user_threads_sent` (adds
+///      when `senders_csv_contains_user`) and `has_unread`
+async fn deliver_message(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+    Json(req): Json<th::DeliverMessageRequest>,
+) -> axum::response::Response {
+    use mailrs_mailbox_kevy::MessageArrival;
+    let arrival = MessageArrival {
+        thread_id: &thread_id,
+        user: &user,
+        subject: &req.subject,
+        senders_csv: &req.senders_csv,
+        latest_date: req.latest_date,
+        latest_preview: &req.latest_preview,
+        category: &req.category,
+        unread: req.unread,
+    };
+
+    if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
+        tracing::error!(err = %e, %user, %thread_id, "record_message_arrival failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    if let Err(e) = state.mailbox.upsert_message(
+        &thread_id,
+        &req.message_id,
+        req.latest_date,
+        req.payload_wire_json.as_bytes(),
+    ) {
+        tracing::error!(err = %e, %user, %thread_id, "upsert_message failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    // Re-emit thread row so index zsets (sent, has_unread, etc.) reflect
+    // the new senders_csv / unread_count state. We read the row we just
+    // wrote and hand it to upsert_thread which owns the index fanout.
+    match state.mailbox.get_thread(&thread_id) {
+        Ok(Some(row)) => {
+            if let Err(e) = state.mailbox.upsert_thread(&user, &row) {
+                tracing::warn!(err = %e, %user, %thread_id, "upsert_thread reindex failed");
+            }
+        }
+        Ok(None) => {
+            tracing::warn!(%user, %thread_id, "get_thread returned None right after write");
+        }
+        Err(e) => {
+            tracing::warn!(err = %e, %user, %thread_id, "get_thread failed");
+        }
+    }
+
+    if req.uid > 0
+        && let Err(e) = state
+            .mailbox
+            .index_uid(&user, req.uid, &req.message_id)
+    {
+        tracing::warn!(err = %e, %user, uid = req.uid, "index_uid failed");
+    }
+
+    Json(th::DeliverMessageResponse {
+        thread_id,
+        message_id: req.message_id,
+    })
+    .into_response()
 }
 
 #[cfg(test)]

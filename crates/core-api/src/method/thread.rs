@@ -30,9 +30,18 @@ pub const PATH_UNPIN: &str = "/v1/users/{user}/threads/{thread_id}/unpin";
 pub const PATH_ARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/archive";
 pub const PATH_UNARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/unarchive";
 pub const PATH_SNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/snooze";
-pub const PATH_UNSNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/snooze";
+pub const PATH_UNSNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/unsnooze";
 pub const PATH_DELETE_THREAD: &str = "/v1/users/{user}/threads/{thread_id}";
 pub const PATH_DISMISS_ACTION: &str = "/v1/users/{user}/threads/{thread_id}/dismiss-action";
+
+/// `POST /v1/users/{user}/threads/{thread_id}/messages` — deliver a
+/// synthesized message (sent copy, saved draft, imported item) into the
+/// user's kevy view. Fires the same `record_message_arrival` +
+/// `upsert_thread` sequence used by inbound delivery so the sent index,
+/// activity zset, and message blob all populate together. This is the
+/// write endpoint the webapi send/save-draft handlers call after
+/// enqueueing outbound / writing maildir.
+pub const PATH_DELIVER_MESSAGE: &str = "/v1/users/{user}/threads/{thread_id}/messages";
 
 // ── req/resp ────────────────────────────────────────────────────────
 
@@ -111,6 +120,64 @@ pub struct BackfillThreadingRequest {
 pub struct BackfillThreadingResponse {
     /// Number of messages whose thread_id was filled.
     pub repaired: u32,
+}
+
+/// Request body for `POST /v1/users/{user}/threads/{thread_id}/messages`.
+///
+/// The webapi caller has already produced the RFC 5322 envelope (for
+/// send/reply) or the draft body (for save-draft), delivered it to the
+/// maildir (`.Sent` / `.Drafts`), and holds the resulting blob_ref
+/// (the maildir filename). Here it hands the fastcore side the
+/// metadata needed to:
+///
+///   - populate `mailrs:thread:<tid>` aggregate + `sent_count`
+///   - add the tid to `mailrs:user:<u>:threads:sent` (via `upsert_thread`
+///     with `senders_csv` containing `user`)
+///   - write the per-message `mailrs:msg:<mid>` JSON blob so
+///     `list_thread_messages` returns it
+///   - index the UID in `mailrs:user:<u>:msg_by_uid`
+///
+/// `payload_wire_json` is the pre-serialized `MessageWire` — fastcore
+/// stores it verbatim; the enrichment path in the webapi
+/// (`enrich_with_body`) then reads the maildir file at `blob_ref`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliverMessageRequest {
+    /// RFC 5322 `Message-ID:` header value (no angle brackets).
+    pub message_id: String,
+    /// Decoded subject; overwritten into the thread aggregate.
+    pub subject: String,
+    /// Comma-joined sender addresses; drives the sent-index membership
+    /// check (`senders_csv_contains_user`).
+    pub senders_csv: String,
+    /// Epoch seconds for the thread's `latest_date` + activity zset score.
+    pub latest_date: i64,
+    /// Short preview (first ~120 chars of body); overwritten into the
+    /// thread aggregate.
+    pub latest_preview: String,
+    /// Category label used by `user_threads_by_category`. For sent /
+    /// draft the caller should pass `"inbox"` so it doesn't drop into a
+    /// spam/scam bucket by accident.
+    pub category: String,
+    /// `true` = inbound-arrival (bumps `unread_count`); `false` = sent
+    /// or draft (bumps `sent_count`).
+    pub unread: bool,
+    /// UID within the user's mailbox — must match
+    /// `payload_wire_json.uid`. Fastcore mirrors it into the
+    /// user-scoped uid index so `get_message_by_uid_for_user` finds it.
+    pub uid: u32,
+    /// Pre-serialized `MessageWire` (JSON). Stored verbatim as the
+    /// message blob.
+    pub payload_wire_json: String,
+}
+
+/// Response body for `DeliverMessageRequest`. Currently just echoes
+/// the resolved `thread_id` for symmetry with other wire types; a
+/// future field could carry the new modseq once fastcore honours
+/// CONDSTORE.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct DeliverMessageResponse {
+    pub thread_id: String,
+    pub message_id: String,
 }
 
 #[cfg(test)]

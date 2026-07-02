@@ -7,6 +7,7 @@ pub mod complete;
 pub mod conversations;
 pub mod events;
 pub mod inline;
+pub mod kevy_util;
 pub mod mail;
 pub mod messages;
 pub mod misc;

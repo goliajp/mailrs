@@ -320,6 +320,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::complete::audit_conversation_detail),
         )
         .route(
+            "/api/admin/audit/conversations/{thread_id}/messages",
+            get(handlers::complete::audit_conversation_messages),
+        )
+        .route(
             "/api/admin/audit/messages/{uid}/raw",
             get(handlers::complete::audit_message_raw),
         )
@@ -384,7 +388,11 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
 
     let auth_routes = axum::Router::new()
         .route("/api/auth/me", get(handlers::auth::auth_me))
-        .route("/api/auth/logout", post(handlers::auth::logout));
+        .route("/api/auth/logout", post(handlers::auth::logout))
+        .route(
+            "/api/auth/change-password",
+            post(handlers::auth::change_password),
+        );
 
     let admin_routes = axum::Router::new()
         .route(
@@ -393,7 +401,66 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         )
         .route(
             "/api/admin/accounts/{address}",
-            delete(handlers::admin::remove_account),
+            delete(handlers::admin::remove_account).put(handlers::admin::update_account),
+        )
+        .route(
+            "/api/admin/accounts/{address}/quota",
+            get(handlers::admin::get_account_quota).post(handlers::admin::set_account_quota),
+        )
+        .route(
+            "/api/admin/accounts/{address}/sieve",
+            get(handlers::admin::get_account_sieve)
+                .post(handlers::admin::set_account_sieve)
+                .delete(handlers::admin::delete_account_sieve),
+        )
+        .route(
+            "/api/admin/accounts/{address}/groups",
+            get(handlers::admin::list_account_groups),
+        )
+        .route(
+            "/api/admin/accounts/{address}/overrides",
+            get(handlers::admin::get_account_overrides).put(handlers::admin::set_account_overrides),
+        )
+        .route(
+            "/api/admin/domains/{name}/check",
+            post(handlers::admin::check_domain_dns),
+        )
+        .route(
+            "/api/admin/reconcile-maildir",
+            post(handlers::admin::reconcile_maildir),
+        )
+        .route(
+            "/api/admin/suppressions",
+            get(handlers::admin::list_suppressions).delete(handlers::admin::clear_suppressions),
+        )
+        .route(
+            "/api/admin/email-groups/{id}/members",
+            get(handlers::admin::list_email_group_members)
+                .post(handlers::admin::add_email_group_member),
+        )
+        .route(
+            "/api/admin/email-groups/{id}/members/{address}",
+            delete(handlers::admin::remove_email_group_member),
+        )
+        .route(
+            "/api/admin/apps/{app_id}/scopes",
+            put(handlers::admin::set_app_scopes),
+        )
+        .route(
+            "/api/admin/cache/flush-conversations",
+            post(handlers::admin::flush_conversations_cache),
+        )
+        .route(
+            "/api/admin/rbl-status",
+            get(handlers::admin::get_rbl_status),
+        )
+        .route(
+            "/api/admin/reputation",
+            get(handlers::admin::get_reputation),
+        )
+        .route(
+            "/api/admin/spam-feedback-stats",
+            get(handlers::admin::get_spam_feedback_stats),
         )
         .route(
             "/api/admin/aliases",

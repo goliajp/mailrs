@@ -158,6 +158,108 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
     resp
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+/// POST /api/auth/change-password — verify the current password
+/// against the account's stored argon2 hash, then re-hash the new
+/// password and patch the account blob. Requires an authenticated
+/// session (address comes from the middleware).
+pub async fn change_password(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(address)): Extension<AuthedUser>,
+    Json(req): Json<ChangePasswordRequest>,
+) -> Response {
+    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng};
+    if req.current_password.is_empty() || req.new_password.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "current and new password are required"})),
+        )
+            .into_response();
+    }
+    if req.new_password.len() < 8 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "new password must be at least 8 characters"})),
+        )
+            .into_response();
+    }
+
+    // Verify current password via fastcore RPC (same shape as login).
+    let acct = match state.fast().get_account_with_hash(&address).await {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!(err = %e, "change_password: get_account_with_hash failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let hash = match acct.password_hash.as_deref() {
+        Some(h) if !h.is_empty() => h,
+        _ => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+    let parsed = match PasswordHash::new(hash) {
+        Ok(p) => p,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if Argon2::default()
+        .verify_password(req.current_password.as_bytes(), &parsed)
+        .is_err()
+    {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "current password is incorrect"})),
+        )
+            .into_response();
+    }
+
+    // Hash new password.
+    let salt = SaltString::generate(&mut ArgonRng);
+    let new_hash = match Argon2::default().hash_password(req.new_password.as_bytes(), &salt) {
+        Ok(h) => h.to_string(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    // Patch the account blob (mailrs:account:<addr> hash, blob field).
+    let key = format!("mailrs:account:{address}");
+    let key_read = key.clone();
+    let cur = match crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(key_read.as_bytes(), b"blob")
+    }) {
+        Ok(Some(v)) => v,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(s) => return s.into_response(),
+    };
+    let mut val: serde_json::Value = match serde_json::from_slice(&cur) {
+        Ok(v) => v,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if let Some(obj) = val.as_object_mut() {
+        obj.insert(
+            "password_hash".to_string(),
+            serde_json::Value::String(new_hash),
+        );
+    }
+    let payload = match serde_json::to_vec(&val) {
+        Ok(v) => v,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if let Err(s) = crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
+        Ok(())
+    }) {
+        return s.into_response();
+    }
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"success": true})),
+    )
+        .into_response()
+}
+
 /// POST /api/auth/logout
 ///
 /// Deletes the kevy `session:<token>` blob. The cookie is also cleared
