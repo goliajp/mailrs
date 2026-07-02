@@ -254,31 +254,122 @@ pub async fn set_recovery_email(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// GET /api/auth/totp/status — 2FA enrollment status. Always disabled
-/// for now; enabling requires a proper enrollment flow (secret + QR +
-/// verify). Returns the exact shape the settings page reads.
+/// TOTP enrollment storage layout (network kevy):
+///
+///   totp:<addr>            hash
+///     secret               base32 secret
+///     enabled              "0" | "1"
+///     recovery_codes       CSV of 8-char hex codes
+///
+/// Mirrors the monolith schema at `domain_store.save_totp_secret` /
+/// `get_totp_secret` / `enable_totp` / `disable_totp` — only the
+/// backend differs.
+#[derive(Debug, serde::Deserialize)]
+pub struct TotpCodeRequest {
+    pub code: String,
+}
+
+/// GET /api/auth/totp/status — returns `{ enabled: bool, address }`.
 pub async fn totp_status(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Json<serde_json::Value> {
+    let key = format!("totp:{user}");
+    let key_c = key.clone();
+    let enabled = with_kevy(move |c| c.hget(key_c.as_bytes(), b"enabled"))
+        .ok()
+        .flatten()
+        .map(|v| v == b"1")
+        .unwrap_or(false);
     Json(serde_json::json!({
-        "enabled": false,
+        "enabled": enabled,
         "address": user,
     }))
 }
 
-pub async fn totp_setup() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "secret": null,
-        "qr_svg": null,
-    }))
+/// POST /api/auth/totp/setup — generate a new secret + 8 recovery
+/// codes, store them un-enabled, return the secret / otpauth URL /
+/// recovery codes so the client can render the QR.
+pub async fn totp_setup(
+    Extension(AuthedUser(address)): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let secret = crate::handlers::totp_util::generate_secret();
+    let recovery_codes = crate::handlers::totp_util::generate_recovery_codes();
+    let recovery_str = recovery_codes.join(",");
+    let otpauth_url = crate::handlers::totp_util::get_otpauth_url(&secret, &address, "mailrs");
+
+    let key = format!("totp:{address}");
+    let s = secret.clone();
+    let r = recovery_str.clone();
+    with_kevy(move |c| {
+        c.hset(
+            key.as_bytes(),
+            &[
+                (b"secret" as &[u8], s.as_bytes()),
+                (b"enabled", b"0"),
+                (b"recovery_codes", r.as_bytes()),
+            ],
+        )?;
+        Ok(())
+    })?;
+    Ok(Json(serde_json::json!({
+        "secret": secret,
+        "otpauth_url": otpauth_url,
+        "recovery_codes": recovery_codes,
+    })))
 }
 
-pub async fn totp_enable(Json(_req): Json<serde_json::Value>) -> Result<StatusCode, StatusCode> {
-    Err(StatusCode::NOT_IMPLEMENTED)
+pub async fn totp_enable(
+    Extension(AuthedUser(address)): Extension<AuthedUser>,
+    Json(req): Json<TotpCodeRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("totp:{address}");
+    let key_r = key.clone();
+    let secret = with_kevy(move |c| c.hget(key_r.as_bytes(), b"secret"))?
+        .and_then(|v| String::from_utf8(v).ok())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let enabled = with_kevy({
+        let k = key.clone();
+        move |c| c.hget(k.as_bytes(), b"enabled")
+    })?
+    .map(|v| v == b"1")
+    .unwrap_or(false);
+    if enabled {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if !crate::handlers::totp_util::verify_code(&secret, &req.code) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(b"enabled" as &[u8], b"1")])?;
+        Ok(())
+    })?;
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
-pub async fn totp_disable(Json(_req): Json<serde_json::Value>) -> Result<StatusCode, StatusCode> {
-    Ok(StatusCode::NO_CONTENT)
+pub async fn totp_disable(
+    Extension(AuthedUser(address)): Extension<AuthedUser>,
+    Json(req): Json<TotpCodeRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("totp:{address}");
+    let key_r = key.clone();
+    let secret = with_kevy(move |c| c.hget(key_r.as_bytes(), b"secret"))?
+        .and_then(|v| String::from_utf8(v).ok())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let enabled_key = key.clone();
+    let enabled = with_kevy(move |c| c.hget(enabled_key.as_bytes(), b"enabled"))?
+        .map(|v| v == b"1")
+        .unwrap_or(false);
+    if !enabled {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if !crate::handlers::totp_util::verify_code(&secret, &req.code) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    with_kevy(move |c| {
+        c.del(&[key.as_bytes()])?;
+        Ok(())
+    })?;
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
 // ── /api/mail/keys/status — PGP setup status ──────────────────────

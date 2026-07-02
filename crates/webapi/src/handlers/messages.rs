@@ -180,6 +180,78 @@ fn flag_string_to_bits(labels: &[String]) -> u32 {
     bits
 }
 
+/// DELETE /api/mail/messages/{uid} — mark the message deleted. In the
+/// fastcore model the row lives in the thread's message zset; setting
+/// `\Deleted` on the wire's flags bitmask is enough for the UI to
+/// hide it. The maildir file is retained; a subsequent expunge (not
+/// yet exposed) removes it from disk.
+pub async fn delete_message(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(uid): Path<u32>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let mut wire = resolve_message(&state, &user, uid).await?;
+    wire.flags |= 0b0000_1000; // FLAG_DELETED
+    let msg_id = wire.message_id.clone();
+    let json = serde_json::to_vec(&wire).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let key = format!("mailrs:msg:{msg_id}");
+    let json_c = json.clone();
+    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(b"blob" as &[u8], json_c.as_slice())])?;
+        Ok(())
+    });
+    Ok(Json(serde_json::json!({"success": true, "message": null})))
+}
+
+/// DELETE /api/mail/pending/{message_id} — cancel a queued outbound.
+/// Walks the pending list looking for an id whose blob's Message-ID
+/// header matches, then removes the id + blob. Idempotent.
+pub async fn cancel_pending_send(
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(message_id): Path<String>,
+) -> Json<serde_json::Value> {
+    let target = message_id;
+    let user_c = user.clone();
+    let removed = crate::handlers::kevy_util::with_kevy(move |c| {
+        let ids = c.lrange(b"mailrs:outbound:pending", 0, -1)?;
+        let mut removed = 0u32;
+        let mut keep = Vec::new();
+        for id_bytes in ids {
+            let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
+                continue;
+            };
+            let hkey = format!("mailrs:outbound:{id_str}");
+            let blob = c.hget(hkey.as_bytes(), b"blob")?;
+            let mut matched = false;
+            if let Some(bytes) = blob {
+                let s = String::from_utf8_lossy(&bytes);
+                if s.contains(&format!("<{target}>")) || s.contains(&target)
+                {
+                    // Only cancel entries owned by the requesting user.
+                    if s.contains(&format!("\"sender\":\"{user_c}\"")) {
+                        removed += 1;
+                        matched = true;
+                        c.del(&[hkey.as_bytes()])?;
+                    }
+                }
+            }
+            if !matched {
+                keep.push(id_bytes);
+            }
+        }
+        c.del(&[b"mailrs:outbound:pending".as_slice()])?;
+        for id in keep {
+            c.lpush(b"mailrs:outbound:pending", &[id.as_slice()])?;
+        }
+        Ok(removed)
+    })
+    .unwrap_or(0);
+    Json(serde_json::json!({
+        "success": removed > 0,
+        "message": if removed == 0 { Some("message not found or already sent") } else { None },
+    }))
+}
+
 pub async fn update_flags(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,

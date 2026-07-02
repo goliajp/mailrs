@@ -833,3 +833,60 @@ pub async fn get_spam_feedback_stats(
         "per_user": per_user,
     })))
 }
+
+// ── /api/admin/export — bulk export a user's messages ────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AdminExportQuery {
+    pub user: String,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+/// GET /api/admin/export?user=&limit= — stream a JSONL blob of the
+/// user's threads (subject + participants + message_ids). Full raw
+/// export via `audit_message_raw`.
+pub async fn admin_export(
+    State(state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Query(q): Query<AdminExportQuery>,
+) -> Result<axum::response::Response, StatusCode> {
+    let limit = q.limit.unwrap_or(1000).min(10_000);
+    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
+        filter: mailrs_core_api::types::ConversationFilter {
+            limit,
+            ..Default::default()
+        },
+    };
+    let resp = state
+        .fast()
+        .list_conversations(&q.user, &req)
+        .await
+        .map_err(map_err)?;
+    let mut lines = String::new();
+    for c in resp.items {
+        let line = serde_json::json!({
+            "thread_id": c.thread_id,
+            "subject": c.subject,
+            "participants": c.participants,
+            "message_count": c.message_count,
+            "unread_count": c.unread_count,
+            "last_date": c.last_date,
+            "category": c.category,
+        })
+        .to_string();
+        lines.push_str(&line);
+        lines.push('\n');
+    }
+    let filename = format!("export-{}.jsonl", q.user);
+    let response = axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/jsonl")
+        .header(
+            "content-disposition",
+            format!("attachment; filename=\"{filename}\""),
+        )
+        .body(axum::body::Body::from(lines))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(response)
+}

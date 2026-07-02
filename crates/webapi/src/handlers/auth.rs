@@ -36,6 +36,8 @@ pub struct AuthMeResponse {
 pub struct LoginRequest {
     pub address: String,
     pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -82,6 +84,69 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         .is_err()
     {
         return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    // TOTP gate — if enrolled, require a 6-digit code (or a
+    // recovery code) on the login request; otherwise short-circuit
+    // with `{ requires_totp: true }` so the UI can prompt.
+    let totp_key = format!("totp:{}", req.address);
+    let totp_key_r = totp_key.clone();
+    let totp_enrolled_secret = crate::handlers::kevy_util::with_kevy(move |c| {
+        Ok((
+            c.hget(totp_key_r.as_bytes(), b"secret")?,
+            c.hget(totp_key_r.as_bytes(), b"enabled")?,
+        ))
+    })
+    .ok();
+    if let Some((Some(secret_bytes), Some(en))) = totp_enrolled_secret
+        && en == b"1"
+    {
+        let secret = String::from_utf8(secret_bytes).unwrap_or_default();
+        let Some(code) = req.totp_code.as_ref() else {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({ "requires_totp": true })),
+            )
+                .into_response();
+        };
+        let ok_code = crate::handlers::totp_util::verify_code(&secret, code);
+        let ok_recovery = if !ok_code {
+            let rc_key = totp_key.clone();
+            let recovery_str = crate::handlers::kevy_util::with_kevy(move |c| {
+                c.hget(rc_key.as_bytes(), b"recovery_codes")
+            })
+            .ok()
+            .flatten()
+            .and_then(|v| String::from_utf8(v).ok())
+            .unwrap_or_default();
+            let mut codes: Vec<&str> =
+                recovery_str.split(',').filter(|s| !s.is_empty()).collect();
+            let pos = codes.iter().position(|c| *c == code);
+            if let Some(idx) = pos {
+                codes.remove(idx);
+                let joined = codes.join(",");
+                let write_key = totp_key.clone();
+                let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+                    c.hset(
+                        write_key.as_bytes(),
+                        &[(b"recovery_codes" as &[u8], joined.as_bytes())],
+                    )?;
+                    Ok(())
+                });
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if !ok_code && !ok_recovery {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "invalid TOTP code" })),
+            )
+                .into_response();
+        }
     }
 
     // Permissions for the login response — fastcore-only.
@@ -162,6 +227,194 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
 pub struct ChangePasswordRequest {
     pub current_password: String,
     pub new_password: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyRequest {
+    pub address: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyTotpRequest {
+    pub address: String,
+    pub code: String,
+}
+
+fn perm_check_internal_rpc(perms: &[String]) -> bool {
+    perms.iter().any(|p| p == "internal.rpc" || p == "*")
+}
+
+/// POST /api/auth/verify — password verification without session
+/// creation (internal RPC only). Same wire shape as monolith.
+pub async fn verify_credentials(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(caller)): Extension<AuthedUser>,
+    Json(req): Json<VerifyRequest>,
+) -> Response {
+    let perms = state
+        .fast()
+        .effective_permissions(&caller)
+        .await
+        .map(|p| p.permissions)
+        .unwrap_or_default();
+    if !perm_check_internal_rpc(&perms) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "permission denied"})),
+        )
+            .into_response();
+    }
+    if req.address.len() > 256 || req.password.len() > 1024 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid input length"})),
+        )
+            .into_response();
+    }
+    let acct = match state.fast().get_account_with_hash(&req.address).await {
+        Ok(a) => a,
+        Err(_) => {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({"valid": false, "reason": "account_not_found"})),
+            )
+                .into_response();
+        }
+    };
+    let hash = acct.password_hash.as_deref().unwrap_or("");
+    let valid = if hash.is_empty() {
+        false
+    } else if let Ok(parsed) = PasswordHash::new(hash) {
+        Argon2::default()
+            .verify_password(req.password.as_bytes(), &parsed)
+            .is_ok()
+    } else {
+        hash == req.password
+    };
+    if !valid {
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({"valid": false, "reason": "invalid_password"})),
+        )
+            .into_response();
+    }
+    let totp_key = format!("totp:{}", req.address);
+    let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(totp_key.as_bytes(), b"enabled")
+    })
+    .ok()
+    .flatten()
+    .map(|v| v == b"1")
+    .unwrap_or(false);
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "valid": true,
+            "display_name": acct.public.display_name,
+            "domain": acct.public.address.split_once('@').map(|(_, d)| d).unwrap_or(""),
+            "totp_required": totp_required,
+        })),
+    )
+        .into_response()
+}
+
+/// POST /api/auth/verify-totp — internal-rpc TOTP code check (used by
+/// external IdP integrations to defer 2FA to mailrs).
+pub async fn verify_totp(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(caller)): Extension<AuthedUser>,
+    Json(req): Json<VerifyTotpRequest>,
+) -> Response {
+    let perms = state
+        .fast()
+        .effective_permissions(&caller)
+        .await
+        .map(|p| p.permissions)
+        .unwrap_or_default();
+    if !perm_check_internal_rpc(&perms) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "permission denied"})),
+        )
+            .into_response();
+    }
+    if req.address.len() > 256 || req.code.len() > 32 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid input length"})),
+        )
+            .into_response();
+    }
+    let key = format!("totp:{}", req.address);
+    let key_r = key.clone();
+    let secret = match crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(key_r.as_bytes(), b"secret")
+    }) {
+        Ok(Some(v)) => String::from_utf8(v).unwrap_or_default(),
+        _ => {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({"valid": false, "reason": "totp_not_configured"})),
+            )
+                .into_response();
+        }
+    };
+    let enabled_key = key.clone();
+    let enabled = crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(enabled_key.as_bytes(), b"enabled")
+    })
+    .ok()
+    .flatten()
+    .map(|v| v == b"1")
+    .unwrap_or(false);
+    if !enabled {
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({"valid": false, "reason": "totp_not_enabled"})),
+        )
+            .into_response();
+    }
+    let code_valid = crate::handlers::totp_util::verify_code(&secret, &req.code);
+    let recovery_valid = if !code_valid {
+        // Recovery codes consumed one-shot.
+        let rc_key = key.clone();
+        let recovery_str = crate::handlers::kevy_util::with_kevy(move |c| {
+            c.hget(rc_key.as_bytes(), b"recovery_codes")
+        })
+        .ok()
+        .flatten()
+        .and_then(|v| String::from_utf8(v).ok())
+        .unwrap_or_default();
+        let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
+        let pos = codes.iter().position(|c| *c == req.code);
+        if let Some(idx) = pos {
+            codes.remove(idx);
+            let joined = codes.join(",");
+            let write_key = key.clone();
+            let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+                c.hset(
+                    write_key.as_bytes(),
+                    &[(b"recovery_codes" as &[u8], joined.as_bytes())],
+                )?;
+                Ok(())
+            });
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    if code_valid || recovery_valid {
+        (StatusCode::OK, Json(serde_json::json!({"valid": true}))).into_response()
+    } else {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({"valid": false, "reason": "invalid_code"})),
+        )
+            .into_response()
+    }
 }
 
 /// POST /api/auth/change-password — verify the current password

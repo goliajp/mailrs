@@ -276,11 +276,45 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         )
         .route(
             "/api/calendar/feeds",
-            get(handlers::complete::calendar_feeds),
+            get(handlers::calendar::list_feeds).post(handlers::calendar::create_feed),
+        )
+        .route(
+            "/api/calendar/feeds/{feed_id}",
+            delete(handlers::calendar::delete_feed),
         )
         .route(
             "/api/calendar/conflicts",
-            get(handlers::complete::calendar_conflicts),
+            get(handlers::calendar::get_conflicts),
+        )
+        .route(
+            "/api/invites/{message_id}/rsvp",
+            post(handlers::invites::submit_rsvp),
+        )
+        .route(
+            "/api/invites/{message_id}/counter",
+            post(handlers::invites::submit_counter),
+        )
+        .route(
+            "/api/conversations/semantic-search",
+            get(handlers::search::semantic_search),
+        )
+        .route(
+            "/api/mail/pending/{message_id}",
+            delete(handlers::messages::cancel_pending_send),
+        )
+        .route(
+            "/api/mail/messages/{uid}",
+            delete(handlers::messages::delete_message),
+        )
+        .route(
+            "/api/mail/folders/{name}/messages",
+            get(handlers::mail::list_folder_messages),
+        )
+        .route(
+            "/api/mail/keys/{key_type}",
+            get(handlers::keys::get_key)
+                .put(handlers::keys::set_key)
+                .delete(handlers::keys::delete_key),
         )
         .route(
             "/api/agent/keys",
@@ -392,6 +426,51 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route(
             "/api/auth/change-password",
             post(handlers::auth::change_password),
+        )
+        .route(
+            "/api/auth/verify",
+            post(handlers::auth::verify_credentials),
+        )
+        .route("/api/auth/verify-totp", post(handlers::auth::verify_totp))
+        // OIDC provider auth-required endpoints.
+        .route("/oauth/authorize", get(handlers::oidc::authorize))
+        .route("/api/auth/oidc/login", get(handlers::oidc::oidc_login));
+
+    // JMAP endpoints (authenticated).
+    let jmap_routes = axum::Router::new()
+        .route("/.well-known/jmap", get(handlers::jmap::jmap_session))
+        .route("/jmap", post(handlers::jmap::jmap_api))
+        .route(
+            "/jmap/eventsource/",
+            get(handlers::jmap::jmap_eventsource),
+        );
+
+    // DAV endpoints (authenticated).
+    let dav_routes = axum::Router::new()
+        .route("/dav/", get(handlers::dav::dav_root))
+        .route(
+            "/dav/principals/{user}/",
+            get(handlers::dav::dav_principal),
+        )
+        .route(
+            "/dav/calendars/{user}/",
+            get(handlers::dav::calendars_collection),
+        )
+        .route(
+            "/dav/addressbooks/{user}/",
+            get(handlers::dav::addressbooks_collection),
+        )
+        .route(
+            "/dav/calendars/{user}/{cal}/{uid}",
+            put(handlers::dav::put_calendar_event)
+                .get(handlers::dav::get_calendar_event)
+                .delete(handlers::dav::delete_calendar_event),
+        )
+        .route(
+            "/dav/addressbooks/{user}/{book}/{uid}",
+            put(handlers::dav::put_contact)
+                .get(handlers::dav::get_contact)
+                .delete(handlers::dav::delete_contact),
         );
 
     let admin_routes = axum::Router::new()
@@ -490,7 +569,17 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/admin/accounts/{address}/webhook-subscriptions",
             get(handlers::admin::list_webhooks),
         )
-        .route("/api/admin/audit-log", get(handlers::admin::list_audit_log));
+        .route("/api/admin/audit-log", get(handlers::admin::list_audit_log))
+        .route("/api/admin/export", get(handlers::admin::admin_export))
+        .route(
+            "/api/admin/oauth-clients",
+            get(handlers::oidc::list_oauth_clients)
+                .post(handlers::oidc::create_oauth_client),
+        )
+        .route(
+            "/api/admin/oauth-clients/{client_id}",
+            delete(handlers::oidc::delete_oauth_client),
+        );
 
     // Phase 3.9 — real session auth via kevy when MAILRS_KEVY_URL is set;
     // falls back to the X-Mailrs-User header in dev (no kevy) mode.
@@ -498,6 +587,8 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(mail)
         .merge(auth_routes)
         .merge(admin_routes)
+        .merge(jmap_routes)
+        .merge(dav_routes)
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             session::session_auth_middleware,
@@ -527,7 +618,63 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         // WS upgrade uses `?token=<hex>` from query — browsers can't
         // set custom headers on WebSocket. Auth is inside the handler
         // (checks kevy `session:<token>` directly).
-        .route("/api/events", get(handlers::events::ws_events));
+        .route("/api/events", get(handlers::events::ws_events))
+        // Prometheus, unauth on internal network.
+        .route("/metrics", get(handlers::metrics::prometheus_metrics))
+        // Public-key lookup by address — unauth (used by any correspondent).
+        .route(
+            "/api/keys/{address}/pgp",
+            get(handlers::keys::get_public_pgp_key),
+        )
+        .route(
+            "/api/keys/{address}/smime",
+            get(handlers::keys::get_public_smime_key),
+        )
+        // Autodiscover / autoconfig / mta-sts (unauth).
+        .route(
+            "/autodiscover/autodiscover.xml",
+            get(handlers::autodiscover::autodiscover_outlook)
+                .post(handlers::autodiscover::autodiscover_outlook),
+        )
+        .route(
+            "/Autodiscover/Autodiscover.xml",
+            get(handlers::autodiscover::autodiscover_outlook)
+                .post(handlers::autodiscover::autodiscover_outlook),
+        )
+        .route(
+            "/.well-known/autoconfig/mail/config-v1.1.xml",
+            get(handlers::autodiscover::autoconfig_mozilla),
+        )
+        .route(
+            "/.well-known/apple-mobileconfig",
+            get(handlers::autodiscover::apple_mobileconfig),
+        )
+        .route(
+            "/.well-known/mta-sts.txt",
+            get(handlers::autodiscover::mta_sts_policy),
+        )
+        // OIDC discovery + JWKS + provider endpoints (unauth).
+        .route(
+            "/.well-known/openid-configuration",
+            get(handlers::oidc::openid_configuration),
+        )
+        .route("/.well-known/jwks.json", get(handlers::oidc::jwks))
+        .route("/oauth/token", post(handlers::oidc::token))
+        .route("/oauth/userinfo", get(handlers::oidc::userinfo))
+        // External IdP callback (kicks off session via redirect).
+        .route(
+            "/api/auth/oidc/callback",
+            get(handlers::oidc::oidc_callback),
+        )
+        // DAV well-known redirects (unauth — DAV spec allows anonymous discovery).
+        .route(
+            "/.well-known/caldav",
+            get(handlers::dav::well_known_caldav),
+        )
+        .route(
+            "/.well-known/carddav",
+            get(handlers::dav::well_known_carddav),
+        );
 
     let mut app = unauth
         .merge(authenticated)
@@ -618,6 +765,10 @@ pub async fn run() {
         .with_target(false)
         .with_writer(std::io::stderr)
         .init();
+
+    // Prometheus recorder must be installed before any counter is
+    // emitted; do it as early as possible in the boot sequence.
+    handlers::metrics::install();
 
     let state = Arc::new(WebState::from_env());
     tracing::info!(
