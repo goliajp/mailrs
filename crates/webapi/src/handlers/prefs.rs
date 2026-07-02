@@ -904,6 +904,31 @@ fn extract_addr(raw: &str) -> String {
     t.to_string()
 }
 
+/// Return `Ok(())` iff `from` matches the authed user's own address
+/// or any entry in their effective_permissions.send_as list.
+/// Otherwise `Err(FORBIDDEN)` — this stops any authenticated user
+/// from spoofing arbitrary From: (in particular, arbitrary domains).
+async fn ensure_from_allowed(
+    state: &Arc<WebState>,
+    user: &str,
+    from: &str,
+) -> Result<(), StatusCode> {
+    if from == user {
+        return Ok(());
+    }
+    let perms = state
+        .fast()
+        .effective_permissions(user)
+        .await
+        .map_err(|_| StatusCode::FORBIDDEN)?;
+    if perms.is_super || perms.send_as.iter().any(|s| s == from) {
+        Ok(())
+    } else {
+        tracing::warn!(%user, %from, "send blocked: from not in send_as allowlist");
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
 /// POST /api/mail/send — JSON compose form, no attachments.
 pub async fn send_message(
     State(state): State<Arc<WebState>>,
@@ -915,6 +940,7 @@ pub async fn send_message(
     } else {
         req.from
     };
+    ensure_from_allowed(&state, &user, &from).await?;
     let parts = ComposeParts {
         from: from.clone(),
         to: req.to,
@@ -992,6 +1018,7 @@ pub async fn send_message_multipart(
     if parts.from.is_empty() {
         parts.from = user.clone();
     }
+    ensure_from_allowed(&state, &user, &parts.from).await?;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());

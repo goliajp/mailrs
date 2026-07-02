@@ -156,9 +156,10 @@ pub struct ResetPasswordRequest {
     pub new_password: String,
 }
 
-/// POST /api/auth/reset-password — verify the token then update the
-/// argon2 hash inside the kevy account blob.
+/// POST /api/auth/reset-password — verify the token, delegate the
+/// hash write to fastcore, then invalidate the token.
 pub async fn reset_password(
+    State(state): State<Arc<WebState>>,
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<StatusCode, StatusCode> {
     use argon2::{
@@ -176,24 +177,16 @@ pub async fn reset_password(
         .hash_password(req.new_password.as_bytes(), &salt)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .to_string();
-    // Update the account blob in place: HGET blob, patch password_hash,
-    // HSET back. Fastcore's kevy is authoritative.
-    let addr_c = address.clone();
-    let key = format!("mailrs:account:{addr_c}");
-    let key_c = key.clone();
-    let cur = with_kevy(move |c| c.hget(key_c.as_bytes(), b"blob"))?;
-    let Some(cur) = cur else {
-        return Err(StatusCode::NOT_FOUND);
+    let set_req = mailrs_core_api::method::admin::SetPasswordRequest {
+        password_hash: hash,
     };
-    let mut val: serde_json::Value =
-        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if let Some(obj) = val.as_object_mut() {
-        obj.insert("password_hash".to_string(), serde_json::Value::String(hash));
-    }
-    let payload = serde_json::to_vec(&val).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    state
+        .fast()
+        .set_account_password(&address, &set_req)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let tok = req.token;
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
         c.del(&[format!("pwreset:{tok}").as_bytes()])?;
         Ok(())
     })?;
@@ -226,31 +219,19 @@ pub struct SetRecoveryEmailRequest {
 }
 
 pub async fn set_recovery_email(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<SetRecoveryEmailRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("mailrs:account:{user}");
-    let key_c = key.clone();
-    let cur = with_kevy(move |c| c.hget(key_c.as_bytes(), b"blob"))?;
-    let mut val: serde_json::Value = cur
-        .as_deref()
-        .and_then(|b| serde_json::from_slice(b).ok())
-        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-    if let Some(obj) = val.as_object_mut() {
-        obj.insert(
-            "recovery_email".to_string(),
-            match req.recovery_email {
-                Some(s) => serde_json::Value::String(s),
-                None => serde_json::Value::Null,
-            },
-        );
-    }
-    let payload = serde_json::to_vec(&val).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
-        Ok(())
-    })?;
+    let email = req.recovery_email.unwrap_or_default();
+    let wire_req = mailrs_core_api::method::admin::UpdateRecoveryEmailRequest {
+        recovery_email: email,
+    };
+    state
+        .fast()
+        .set_recovery_email(&user, &wire_req)
+        .await
+        .map_err(|e| StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -495,15 +476,21 @@ pub struct CreateAppRequest {
 pub async fn create_app(
     Json(req): Json<CreateAppRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    use sha2::{Digest, Sha256};
     let id = with_kevy(|c| next_id(c, APPS_CTR))?;
     let app_id = format!("app_{id}");
     let secret = random_hex(32);
+    // Store the sha256 of the secret so /oauth/token can verify
+    // what an app presents without persisting the plaintext (matches
+    // how the monolith stored api_keys).
+    let secret_sha = format!("{:x}", Sha256::digest(secret.as_bytes()));
     let blob = serde_json::json!({
         "id": id,
         "app_id": app_id,
         "name": req.name,
         "scopes": req.scopes,
         "created_at": now_secs(),
+        "secret_sha256": secret_sha,
     });
     let payload = serde_json::to_vec(&blob).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     with_kevy(move |c| {
@@ -513,6 +500,8 @@ pub async fn create_app(
         )?;
         Ok(())
     })?;
+    // Secret is returned once — the caller is responsible for storing
+    // it; subsequent GETs only see the sha256.
     Ok(Json(serde_json::json!({
         "id": id,
         "app_id": app_id,

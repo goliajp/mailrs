@@ -87,79 +87,32 @@ pub async fn list_accounts(
 /// same key shape `mailrs:account:<addr>`) plus an empty
 /// EffectivePermissionsResponse. Password is argon2-hashed here.
 pub async fn add_account(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     Json(req): Json<wire::AddAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    use argon2::{
-        Argon2,
-        password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
-    };
-    let salt = SaltString::generate(&mut ArgonRng);
-    let hash = Argon2::default()
-        .hash_password(req.password.as_bytes(), &salt)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .to_string();
-    let domain = req
-        .address
-        .split_once('@')
-        .map(|(_, d)| d.to_string())
-        .unwrap_or_default();
-    let blob = serde_json::json!({
-        "address": &req.address,
-        "domain": domain,
-        "display_name": req.display_name,
-        "active": true,
-        "created_at": now_secs(),
-        "quota_bytes": 10_737_418_240i64,
-        "recovery_email": null,
-        "password_hash": hash,
-    });
-    let payload = serde_json::to_vec(&blob).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let addr_c = req.address.clone();
-    with_kevy(move |c| {
-        let key = format!("mailrs:account:{addr_c}");
-        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
-        c.sadd(b"mailrs:accounts:index", &[addr_c.as_bytes()])?;
-        Ok(())
-    })?;
-    // Empty perms blob — admin bootstraps their own perms via
-    // /api/admin/groups later.
-    let perms = serde_json::json!({
-        "address": &req.address,
-        "permissions": Vec::<String>::new(),
-        "groups": Vec::<serde_json::Value>::new(),
-        "is_super": false,
-        "send_as": Vec::<String>::new(),
-    });
-    let perms_payload =
-        serde_json::to_vec(&perms).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let addr_c2 = req.address.clone();
-    with_kevy(move |c| {
-        let key = format!("mailrs:account:{addr_c2}:perms");
-        c.set(key.as_bytes(), perms_payload.as_slice())?;
-        Ok(())
-    })?;
+    // Delegate to fastcore — it owns the embedded kevy where accounts
+    // live. Writing to the network kevy here (as we used to) landed on
+    // a different store that fastcore never reads, so new accounts
+    // could never log in. See audit Group B P0.
+    state.fast().add_account(&req).await.map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 /// DELETE /api/admin/accounts/{address} — remove account entries from
-/// kevy. Does not touch maildir on disk — the operator is responsible
-/// for cleaning that up if they want a hard delete.
+/// fastcore's embedded kevy. Does not touch maildir on disk — the
+/// operator is responsible for cleaning that up if they want a hard
+/// delete.
 pub async fn remove_account(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     axum::extract::Path(address): axum::extract::Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let addr = address.clone();
-    with_kevy(move |c| {
-        c.del(&[
-            format!("mailrs:account:{addr}").as_bytes(),
-            format!("mailrs:account:{addr}:perms").as_bytes(),
-        ])?;
-        c.srem(b"mailrs:accounts:index", &[addr.as_bytes()])?;
-        Ok(())
-    })?;
+    state
+        .fast()
+        .remove_account(&address)
+        .await
+        .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -391,39 +344,35 @@ pub struct UpdateAccountRequest {
     pub disabled: Option<bool>,
 }
 
-/// PUT /api/admin/accounts/{address} — patch the account blob in
-/// place. Only whitelisted fields (display_name, recovery_email,
-/// disabled) so we don't clobber password_hash by accident.
+/// PUT /api/admin/accounts/{address} — patch account fields via
+/// fastcore. `display_name` goes through the dedicated RPC;
+/// `recovery_email` reuses `set_recovery_email`. `disabled` is
+/// currently a no-op fastcore-side (tracked in a follow-up — needs a
+/// new field on the account blob).
 pub async fn update_account(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("mailrs:account:{address}");
-    let key_r = key.clone();
-    let cur = with_kevy(move |c| c.hget(key_r.as_bytes(), b"blob"))?;
-    let Some(cur) = cur else {
-        return Err(StatusCode::NOT_FOUND);
-    };
-    let mut val: serde_json::Value =
-        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if let Some(obj) = val.as_object_mut() {
-        if let Some(dn) = req.display_name {
-            obj.insert("display_name".into(), serde_json::Value::String(dn));
-        }
-        if let Some(re) = req.recovery_email {
-            obj.insert("recovery_email".into(), serde_json::Value::String(re));
-        }
-        if let Some(d) = req.disabled {
-            obj.insert("disabled".into(), serde_json::Value::Bool(d));
-        }
+    if let Some(dn) = req.display_name {
+        let wire_req = wire::UpdateAccountRequest { display_name: dn };
+        state
+            .fast()
+            .update_account(&address, &wire_req)
+            .await
+            .map_err(map_err)?;
     }
-    let payload = serde_json::to_vec(&val).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
-        Ok(())
-    })?;
+    if let Some(re) = req.recovery_email {
+        let wire_req = wire::UpdateRecoveryEmailRequest { recovery_email: re };
+        state
+            .fast()
+            .set_recovery_email(&address, &wire_req)
+            .await
+            .map_err(map_err)?;
+    }
+    // `disabled` — TODO: needs a dedicated field/route on fastcore.
+    // Silently ignored for now.
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -451,30 +400,22 @@ pub struct SetQuotaRequest {
     pub quota_bytes: i64,
 }
 
-/// POST /api/admin/accounts/{address}/quota — patch `quota_bytes` on
-/// the account blob. `-1` sentinel means unlimited.
+/// POST /api/admin/accounts/{address}/quota — patch `quota_bytes` via
+/// fastcore RPC. `-1` sentinel means unlimited.
 pub async fn set_account_quota(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<SetQuotaRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("mailrs:account:{address}");
-    let key_r = key.clone();
-    let cur = with_kevy(move |c| c.hget(key_r.as_bytes(), b"blob"))?;
-    let Some(cur) = cur else {
-        return Err(StatusCode::NOT_FOUND);
+    let wire_req = wire::SetQuotaRequest {
+        quota_bytes: req.quota_bytes,
     };
-    let mut val: serde_json::Value =
-        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if let Some(obj) = val.as_object_mut() {
-        obj.insert("quota_bytes".into(), serde_json::Value::from(req.quota_bytes));
-    }
-    let payload = serde_json::to_vec(&val).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
-        Ok(())
-    })?;
+    state
+        .fast()
+        .set_quota(&address, &wire_req)
+        .await
+        .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -846,11 +787,26 @@ pub struct AdminExportQuery {
 /// GET /api/admin/export?user=&limit= — stream a JSONL blob of the
 /// user's threads (subject + participants + message_ids). Full raw
 /// export via `audit_message_raw`.
+///
+/// Access model: any admin can export their own account; only super
+/// admins can export somebody else's data. Enforced explicitly here so
+/// the middleware layer (which just checks admin.*) can't be
+/// side-stepped by passing `?user=someone_else`.
 pub async fn admin_export(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(caller)): Extension<AuthedUser>,
     Query(q): Query<AdminExportQuery>,
 ) -> Result<axum::response::Response, StatusCode> {
+    if q.user != caller {
+        let perms = state
+            .fast()
+            .effective_permissions(&caller)
+            .await
+            .map_err(|_| StatusCode::FORBIDDEN)?;
+        if !perms.is_super {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
     let limit = q.limit.unwrap_or(1000).min(10_000);
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
         filter: mailrs_core_api::types::ConversationFilter {

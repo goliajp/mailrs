@@ -58,7 +58,12 @@ pub async fn openid_configuration() -> Json<serde_json::Value> {
         "jwks_uri": format!("{issuer}/.well-known/jwks.json"),
         "response_types_supported": ["code"],
         "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["RS256"],
+        // Opaque bearer tokens; ID token is unsigned per RFC 7519 §7.
+        // Clients that require RS256 must be pointed at a proxy that
+        // signs (see docs/oidc-signing.md). Documenting truthfully
+        // here avoids Grafana / Home Assistant silently rejecting an
+        // alg=none token they were told to expect as RS256.
+        "id_token_signing_alg_values_supported": ["none"],
         "scopes_supported": ["openid", "email", "profile", "offline_access"],
         "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic", "none"],
         "code_challenge_methods_supported": ["S256", "plain"],
@@ -103,16 +108,24 @@ pub async fn authorize(
         )
             .into_response();
     }
-    // Verify the client is registered.
+    // Verify the client is registered AND the redirect_uri exactly
+    // matches. Prior version only checked `if let Some(ru)` — an
+    // attacker could pass an unregistered client_id and any
+    // redirect_uri they wanted, harvesting authorization codes.
     let cid_key = format!("oidc:client:{}", q.client_id);
     let cid_r = cid_key.clone();
     let registered_ru = with_kevy(move |c| c.hget(cid_r.as_bytes(), b"redirect_uri"))
         .ok()
         .flatten()
         .and_then(|v| String::from_utf8(v).ok());
-    if let Some(ru) = registered_ru
-        && ru != q.redirect_uri
-    {
+    let Some(ru) = registered_ru else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "unknown_client"})),
+        )
+            .into_response();
+    };
+    if ru != q.redirect_uri {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "redirect_uri_mismatch"})),
@@ -130,9 +143,10 @@ pub async fn authorize(
     let redirect_uri = q.redirect_uri.clone();
     let client_id = q.client_id.clone();
     let user_c = user.clone();
+    let code_key_c = code_key.clone();
     let _ = with_kevy(move |c| {
         c.hset(
-            code_key.as_bytes(),
+            code_key_c.as_bytes(),
             &[
                 (b"client_id" as &[u8], client_id.as_bytes()),
                 (b"user", user_c.as_bytes()),
@@ -143,6 +157,13 @@ pub async fn authorize(
                 (b"scope", scope.as_bytes()),
                 (b"expires_at", expires_at.to_string().as_bytes()),
             ],
+        )?;
+        // Belt-and-braces: also set kevy TTL so a stolen code can't
+        // outlast expires_at even if the token endpoint is DoS'd and
+        // the exp check is somehow skipped.
+        c.expire(
+            code_key_c.as_bytes(),
+            std::time::Duration::from_secs(AUTH_CODE_TTL_SECS as u64),
         )?;
         Ok(())
     });
@@ -263,6 +284,36 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
             let user = fields.get("user").cloned().unwrap_or_default();
             let scope = fields.get("scope").cloned().unwrap_or_default();
             let client_id = fields.get("client_id").cloned().unwrap_or_default();
+
+            // Verify client_secret unless the client was registered
+            // as a public (PKCE-only) client (secret field empty).
+            let ci = client_id.clone();
+            let registered_secret = with_kevy(move |c| {
+                c.hget(format!("oidc:client:{ci}").as_bytes(), b"secret")
+            })
+            .ok()
+            .flatten()
+            .and_then(|v| String::from_utf8(v).ok())
+            .unwrap_or_default();
+            if !registered_secret.is_empty() {
+                let presented = req.client_secret.as_deref().unwrap_or("");
+                // Constant-time compare (bytewise XOR fold).
+                let ok = registered_secret.len() == presented.len()
+                    && registered_secret
+                        .as_bytes()
+                        .iter()
+                        .zip(presented.as_bytes().iter())
+                        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+                        == 0;
+                if !ok {
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        Json(serde_json::json!({"error": "invalid_client"})),
+                    )
+                        .into_response();
+                }
+            }
+
             let access_token = random_hex(32);
             let refresh_token = random_hex(32);
             let expires = now_secs() + ACCESS_TOKEN_TTL_SECS;

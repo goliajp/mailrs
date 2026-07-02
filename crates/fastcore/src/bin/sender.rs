@@ -21,6 +21,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use mailrs_outbound_queue::dkim_sign::DkimSignConfig;
 use mailrs_smtp_client::{SmtpConnection, TimeoutConfig, TokioResolver, resolve_mx};
 use tokio::task::spawn_blocking;
 
@@ -34,6 +35,11 @@ struct Cfg {
     max_attempts: u32,
     poll_ms: u64,
     retry_min_secs: i64,
+    /// DKIM signing enabled when `MAILRS_DKIM_DOMAIN`,
+    /// `MAILRS_DKIM_SELECTOR`, and `MAILRS_DKIM_PRIVATE_KEY_PEM_FILE`
+    /// are all set. Public MX (Gmail / Outlook / etc.) drop unsigned
+    /// mail from mailrs-hosted domains into spam.
+    dkim: Option<Arc<DkimSignConfig>>,
 }
 
 impl Cfg {
@@ -55,8 +61,31 @@ impl Cfg {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(60),
+            dkim: load_dkim_from_env(),
         }
     }
+}
+
+fn load_dkim_from_env() -> Option<Arc<DkimSignConfig>> {
+    let domain = std::env::var("MAILRS_DKIM_DOMAIN").ok()?;
+    let selector = std::env::var("MAILRS_DKIM_SELECTOR").ok()?;
+    let pem = match std::env::var("MAILRS_DKIM_PRIVATE_KEY_PEM_FILE") {
+        Ok(path) => match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(%path, err = %e, "MAILRS_DKIM_PRIVATE_KEY_PEM_FILE unreadable");
+                return None;
+            }
+        },
+        Err(_) => std::env::var("MAILRS_DKIM_PRIVATE_KEY_PEM").ok()?,
+    };
+    Some(Arc::new(DkimSignConfig {
+        selector,
+        domain,
+        private_key_pem: pem,
+        parsed_key: Arc::new(std::sync::OnceLock::new()),
+        extra_keys: std::collections::HashMap::new(),
+    }))
 }
 
 fn kevy(url: &str) -> std::io::Result<kevy_client::Connection> {
@@ -191,6 +220,23 @@ fn extract_addr_spec(raw: &str) -> &str {
 async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8]) -> Outcome {
     let recipient = extract_addr_spec(recipient_raw);
     let sender = extract_addr_spec(sender);
+
+    // DKIM sign if a signing key is configured. Fatal signing errors
+    // are permanent (won't heal on retry): message data is malformed
+    // or the private key is broken.
+    let signed;
+    let payload: &[u8] = match cfg.dkim.as_ref() {
+        Some(dkim) => match dkim.sign(message) {
+            Ok(bytes) => {
+                signed = bytes;
+                &signed
+            }
+            Err(e) => {
+                return Outcome::Permanent(format!("dkim sign: {e}"));
+            }
+        },
+        None => message,
+    };
     let Some(domain) = recipient.split('@').nth(1) else {
         return Outcome::Permanent(format!("invalid recipient: {recipient_raw}"));
     };
@@ -288,7 +334,7 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
         };
 
         let mut conn = conn;
-        let resp = match conn.deliver(sender, &[recipient], message).await {
+        let resp = match conn.deliver(sender, &[recipient], payload).await {
             Ok(r) => r,
             Err(e) => {
                 last_err = format!("deliver {}: {e}", mx.exchange);

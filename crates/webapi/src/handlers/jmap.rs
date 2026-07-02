@@ -173,13 +173,14 @@ impl MailStore for JmapAdapter {
 
     async fn submit_message(
         &self,
-        _user: &str,
+        user: &str,
         message: &JmapMessage,
         raw: &[u8],
     ) -> SubmissionResult {
-        // Enqueue directly onto the network kevy outbound queue
-        // (`mailrs:outbound:pending`) — same shape webapi's REST send
-        // handlers use, so mailrs-fastcore-sender picks it up.
+        // Enqueue onto the shared network kevy outbound queue. Force
+        // the sender to the authed JMAP account (`user`) so a
+        // malicious/misbehaving client can't spoof the MAIL FROM
+        // envelope — mirrors REST's `ensure_from_allowed`.
         let recipients: Vec<String> = message
             .recipients
             .split(',')
@@ -196,7 +197,7 @@ impl MailStore for JmapAdapter {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
-        let sender = message.sender.clone();
+        let sender = user.to_string();
         let raw_owned = raw.to_vec();
         let write = crate::handlers::kevy_util::with_kevy(move |c| {
             for rcpt in &recipients {

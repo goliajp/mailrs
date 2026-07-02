@@ -166,14 +166,36 @@ async fn run_ingest_once(
             if s.last_date <= prev {
                 continue;
             }
-            // Skip if we already have this thread in kevy — mark_read /
-            // pin / archive / etc. are fastcore-only mutations that
-            // monolith doesn't learn about; blindly upserting would
-            // clobber the user's read state with monolith's stale one.
-            // The cost is that a monolith-side re-classification (e.g.
-            // spam detection running post-hoc) won't propagate. Small
-            // trade-off; user-visible state stays sticky.
-            if let Ok(Some(_)) = state.mailbox.get_thread(&s.thread_id) {
+            // If the thread already exists in kevy, don't clobber the
+            // aggregate (fastcore-side mark_read / pin / archive stay
+            // sticky) — but DO diff messages, because a thread with a
+            // new reply gets its `last_date` bumped and needs the new
+            // message body ingested. Prior version skipped the whole
+            // packet, so new replies never appeared until the user
+            // re-imported.
+            let already_exists = matches!(state.mailbox.get_thread(&s.thread_id), Ok(Some(_)));
+            if already_exists {
+                if let Ok(msgs) = client.list_thread_messages(user, &s.thread_id).await {
+                    for w in &msgs.items {
+                        // Only write if we don't already have this
+                        // message id (prevents duplicate writes on
+                        // every sync tick).
+                        if state.mailbox.get_message(&w.message_id).ok().flatten().is_some() {
+                            continue;
+                        }
+                        let payload = match serde_json::to_vec(w) {
+                            Ok(p) => p,
+                            Err(_) => continue,
+                        };
+                        let _ = state.mailbox.upsert_message(
+                            &s.thread_id,
+                            &w.message_id,
+                            w.internal_date,
+                            &payload,
+                        );
+                        let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
+                    }
+                }
                 max_seen = max_seen.max(s.last_date);
                 continue;
             }
@@ -260,7 +282,21 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_DELETE_THREAD, delete(delete_thread))
         .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
         .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
-        .route(adm::PATH_LIST_ACCOUNTS, get(list_accounts))
+        .route(
+            adm::PATH_LIST_ACCOUNTS,
+            get(list_accounts).post(add_account_route),
+        )
+        .route(
+            adm::PATH_UPDATE_ACCOUNT,
+            put(update_account_route).delete(remove_account_route),
+        )
+        .route(adm::PATH_SET_QUOTA, post(set_quota_route))
+        .route(
+            adm::PATH_UPDATE_RECOVERY_EMAIL,
+            post(set_recovery_email_route),
+        )
+        .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
+        .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
         .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
         .route(
             msg::PATH_GET_MESSAGE_BY_UID_USER,
@@ -782,6 +818,223 @@ async fn deliver_message(
         message_id: req.message_id,
     })
     .into_response()
+}
+
+// ── Group B: admin write handlers ─────────────────────────────────
+//
+// The webapi used to write account / permission / message blobs to
+// the network kevy directly (`MAILRS_KEVY_URL`). Fastcore reads its
+// own embedded kevy at `/data/kevy-fastcore`, so those writes never
+// affected login / account list / update_flags. These handlers close
+// the gap: webapi calls fastcore RPCs, fastcore mutates its embedded
+// kevy through the same `KevyMailboxStore` used at boot / ingest.
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+async fn add_account_route(
+    State(state): State<Arc<FastcoreState>>,
+    Json(req): Json<adm::AddAccountRequest>,
+) -> axum::response::Response {
+    use argon2::{
+        Argon2,
+        password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
+    };
+    let salt = SaltString::generate(&mut ArgonRng);
+    let hash = match Argon2::default().hash_password(req.password.as_bytes(), &salt) {
+        Ok(h) => h.to_string(),
+        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    let domain = req
+        .address
+        .split_once('@')
+        .map(|(_, d)| d.to_string())
+        .unwrap_or_default();
+    let blob = serde_json::json!({
+        "address": &req.address,
+        "domain": domain,
+        "display_name": req.display_name,
+        "active": true,
+        "created_at": now_secs(),
+        "quota_bytes": 10_737_418_240i64,
+        "recovery_email": null,
+        "password_hash": hash,
+    });
+    let json = blob.to_string();
+    if let Err(e) = state.mailbox.upsert_account(&req.address, &json) {
+        tracing::error!(err = %e, addr = %req.address, "upsert_account failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let perms = serde_json::json!({
+        "address": &req.address,
+        "permissions": Vec::<String>::new(),
+        "groups": Vec::<serde_json::Value>::new(),
+        "is_super": false,
+        "send_as": Vec::<String>::new(),
+    })
+    .to_string();
+    if let Err(e) = state.mailbox.upsert_permissions(&req.address, &perms) {
+        tracing::warn!(err = %e, addr = %req.address, "upsert_permissions failed");
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+async fn update_account_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+    Json(req): Json<adm::UpdateAccountRequest>,
+) -> axum::response::Response {
+    let cur = match state.mailbox.get_account_blob(&address) {
+        Ok(Some(s)) => s,
+        _ => return axum::http::StatusCode::NOT_FOUND.into_response(),
+    };
+    let mut val: serde_json::Value = match serde_json::from_str(&cur) {
+        Ok(v) => v,
+        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if let Some(obj) = val.as_object_mut() {
+        obj.insert(
+            "display_name".into(),
+            serde_json::Value::String(req.display_name),
+        );
+    }
+    let json = val.to_string();
+    if let Err(e) = state.mailbox.upsert_account(&address, &json) {
+        tracing::error!(err = %e, %address, "upsert_account failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+async fn remove_account_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+) -> axum::response::Response {
+    if let Err(e) = state.mailbox.delete_account(&address) {
+        tracing::warn!(err = %e, %address, "delete_account failed");
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+async fn set_quota_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+    Json(req): Json<adm::SetQuotaRequest>,
+) -> axum::response::Response {
+    patch_account_field(&state, &address, |obj| {
+        obj.insert(
+            "quota_bytes".into(),
+            serde_json::Value::from(req.quota_bytes),
+        );
+    })
+    .await
+}
+
+async fn set_recovery_email_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+    Json(req): Json<adm::UpdateRecoveryEmailRequest>,
+) -> axum::response::Response {
+    patch_account_field(&state, &address, |obj| {
+        obj.insert(
+            "recovery_email".into(),
+            serde_json::Value::String(req.recovery_email),
+        );
+    })
+    .await
+}
+
+async fn set_password_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(address): Path<String>,
+    Json(req): Json<adm::SetPasswordRequest>,
+) -> axum::response::Response {
+    patch_account_field(&state, &address, |obj| {
+        obj.insert(
+            "password_hash".into(),
+            serde_json::Value::String(req.password_hash),
+        );
+    })
+    .await
+}
+
+async fn patch_account_field<F>(
+    state: &Arc<FastcoreState>,
+    address: &str,
+    mutator: F,
+) -> axum::response::Response
+where
+    F: FnOnce(&mut serde_json::Map<String, serde_json::Value>),
+{
+    let cur = match state.mailbox.get_account_blob(address) {
+        Ok(Some(s)) => s,
+        _ => return axum::http::StatusCode::NOT_FOUND.into_response(),
+    };
+    let mut val: serde_json::Value = match serde_json::from_str(&cur) {
+        Ok(v) => v,
+        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if let Some(obj) = val.as_object_mut() {
+        mutator(obj);
+    }
+    let json = val.to_string();
+    if let Err(e) = state.mailbox.upsert_account(address, &json) {
+        tracing::error!(err = %e, %address, "upsert_account failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+/// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
+/// bitmask on a message blob. Also reconciles the thread's `has_unread`
+/// zset via `mark_seen` / `mark_unread` when `\Seen` toggled.
+async fn set_message_flags_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, uid)): Path<(String, u32)>,
+    Json(req): Json<adm::SetMessageFlagsRequest>,
+) -> axum::response::Response {
+    let bytes = match state.mailbox.get_message_by_uid(&user, uid) {
+        Ok(Some(b)) => b,
+        _ => return axum::http::StatusCode::NOT_FOUND.into_response(),
+    };
+    let mut wire: mailrs_core_api::method::message::MessageWire =
+        match serde_json::from_slice(&bytes) {
+            Ok(w) => w,
+            Err(e) => {
+                tracing::error!(err = %e, %user, %uid, "wire parse failed");
+                return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        };
+    let old_flags = wire.flags;
+    let new_flags = req.flags;
+    wire.flags = new_flags;
+    let json = match serde_json::to_vec(&wire) {
+        Ok(v) => v,
+        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    if let Err(e) =
+        state
+            .mailbox
+            .upsert_message(&wire.thread_id, &wire.message_id, wire.date, &json)
+    {
+        tracing::error!(err = %e, %user, %uid, "upsert_message failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let seen_bit = 0b0000_0001u32;
+    let was_seen = (old_flags & seen_bit) != 0;
+    let is_seen = (new_flags & seen_bit) != 0;
+    if was_seen != is_seen && !wire.thread_id.is_empty() {
+        let _ = if is_seen {
+            state.mailbox.mark_seen(&user, &wire.thread_id)
+        } else {
+            state.mailbox.mark_unread(&user, &wire.thread_id)
+        };
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
 }
 
 #[cfg(test)]
