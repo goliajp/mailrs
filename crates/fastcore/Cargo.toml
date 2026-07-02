@@ -37,6 +37,10 @@ path = "src/bin/sender.rs"
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 mailrs-smtp-client = { path = "../smtp-client" }
+# rustls crypto provider must be installed once per process before any
+# TLS config is built (STARTTLS in the sender daemon). Match the
+# receiver binary's version + feature set.
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
 axum = { version = "0.8" }
