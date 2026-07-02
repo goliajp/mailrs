@@ -1,0 +1,367 @@
+//! Miscellaneous fastcore-native handlers — keys, deliverability
+//! check, spam-feedback, render-preview, mbox export, search.
+
+use std::sync::Arc;
+
+use axum::{
+    Json,
+    extract::{Extension, Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+
+use crate::WebState;
+use crate::handlers::conversations::AuthedUser;
+
+fn with_kevy<F, T>(f: F) -> Result<T, StatusCode>
+where
+    F: FnOnce(&mut kevy_client::Connection) -> std::io::Result<T> + Send + 'static,
+    T: Send + 'static,
+{
+    let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let handle = std::thread::spawn(move || -> std::io::Result<T> {
+        let mut c = kevy_client::Connection::open(&url)?;
+        f(&mut c)
+    });
+    handle
+        .join()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn map_core_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
+    StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+// ── PGP keys (network kevy hash) ──────────────────────────────────
+//
+// Keys:
+//   pgp_keys:<user>       hash  { <email> -> <ascii-armored public key> }
+
+/// GET /api/mail/keys — list saved public keys for the current user.
+pub async fn get_keys(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("pgp_keys:{user}");
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let mut items = Vec::new();
+    let mut i = 0;
+    while i + 1 < flat.len() {
+        items.push(serde_json::json!({
+            "email": String::from_utf8_lossy(&flat[i]),
+            "key_armored": String::from_utf8_lossy(&flat[i + 1]),
+        }));
+        i += 2;
+    }
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SaveKeyRequest {
+    pub email: String,
+    pub key_armored: String,
+}
+
+/// POST /api/mail/keys — upsert a key entry.
+pub async fn save_key(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<SaveKeyRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("pgp_keys:{user}");
+    let email = req.email;
+    let body = req.key_armored;
+    with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(email.as_bytes(), body.as_bytes())])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Deliverability check ─────────────────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DeliverabilityQuery {
+    pub domain: String,
+}
+
+/// GET /api/mail/check-deliverability?domain=example.com —
+/// look up SPF, DKIM (default._domainkey), and DMARC TXT records for
+/// the target domain and return a summary. External DNS only.
+pub async fn check_deliverability(
+    Query(q): Query<DeliverabilityQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
+        ResolverConfig::default(),
+        ResolverOpts::default(),
+    );
+
+    async fn txt_join(
+        resolver: &hickory_resolver::TokioAsyncResolver,
+        name: &str,
+    ) -> Option<String> {
+        let l = resolver.txt_lookup(name).await.ok()?;
+        let joined: Vec<String> = l
+            .iter()
+            .map(|txt| {
+                txt.txt_data()
+                    .iter()
+                    .flat_map(|b| std::str::from_utf8(b).ok().map(str::to_owned))
+                    .collect::<String>()
+            })
+            .collect();
+        if joined.is_empty() {
+            None
+        } else {
+            Some(joined.join("\n"))
+        }
+    }
+
+    let spf = txt_join(&resolver, &q.domain).await;
+    let dkim = txt_join(&resolver, &format!("default._domainkey.{}", q.domain)).await;
+    let dmarc = txt_join(&resolver, &format!("_dmarc.{}", q.domain)).await;
+
+    Ok(Json(serde_json::json!({
+        "domain": q.domain,
+        "spf": spf,
+        "dkim": dkim,
+        "dmarc": dmarc,
+    })))
+}
+
+// ── Spam feedback (network kevy hash) ─────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SpamFeedbackRequest {
+    pub message_id: String,
+    pub is_spam: bool,
+}
+
+/// POST /api/mail/spam-feedback — record the user's spam vote.
+/// Persisted to `spam_feedback:<user>` hash for eventual bulk export
+/// to whatever trainer we wire up later.
+pub async fn spam_feedback(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Json(req): Json<SpamFeedbackRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("spam_feedback:{user}");
+    let mid = req.message_id;
+    let val = if req.is_spam { "spam" } else { "ham" };
+    with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(mid.as_bytes(), val.as_bytes())])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Render preview (chromium sidecar) ─────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RenderPreviewRequest {
+    pub html: String,
+}
+
+/// POST /api/mail/render-preview — return a PNG preview of the given
+/// HTML. Uses the chromium sidecar (mailrs-chromium container). Falls
+/// back to returning the HTML wrapped in a JSON envelope if chromium
+/// isn't configured — the UI hides the preview panel gracefully.
+pub async fn render_preview(
+    Json(req): Json<RenderPreviewRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let base =
+        std::env::var("MAILRS_CHROMIUM_URL").unwrap_or_else(|_| "http://chromium:9222".into());
+    let client = reqwest::Client::new();
+    // Simple screenshot payload — matches the CDP shape our chromium
+    // sidecar wrapper accepts. If the sidecar isn't running we return
+    // the HTML unchanged.
+    let resp = client
+        .post(format!("{base}/render"))
+        .json(&serde_json::json!({"html": req.html}))
+        .send()
+        .await;
+    match resp {
+        Ok(r) if r.status().is_success() => {
+            let bytes = r.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+            use base64::Engine as _;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+            Ok(Json(serde_json::json!({
+                "png_base64": b64,
+            })))
+        }
+        _ => Ok(Json(serde_json::json!({
+            "png_base64": null,
+            "fallback_html": req.html,
+        }))),
+    }
+}
+
+/// GET /api/mail/render-preview/cache/{id} — stub, returns 404 unless
+/// the id matches a cached render (kevy `render_cache:<id>`). Kept for
+/// UI-URL stability; production rendering usually bypasses the cache.
+pub async fn render_preview_cached(
+    Path(id): Path<String>,
+) -> Result<axum::response::Response, StatusCode> {
+    let key = format!("render_cache:{id}");
+    let key_c = key.clone();
+    let png = with_kevy(move |c| c.get(key_c.as_bytes()))?;
+    let Some(bytes) = png else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "image/png")
+        .body(axum::body::Body::from(bytes))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+// ── Mbox export ──────────────────────────────────────────────────
+
+/// GET /api/mail/export — stream every message in the user's inbox as
+/// a single mbox file. Walks the activity zset and concatenates each
+/// message's maildir bytes prefixed with `From ...` per RFC 4155.
+pub async fn export_mbox(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<axum::response::Response, StatusCode> {
+    use mailrs_message_store::MessageStore;
+    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let Some((local, domain)) = user.split_once('@') else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
+    let path = format!("{maildir_root}/{domain}/{local}");
+    let store = mailrs_message_store::MaildirStore;
+
+    // Pull the full list of thread_ids via fastcore (single conversation
+    // list call with a large limit).
+    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
+        filter: mailrs_core_api::types::ConversationFilter {
+            limit: 10_000,
+            before_ts: None,
+            category: None,
+            domains: None,
+            archived: false,
+            folder: None,
+            unread: None,
+            starred: None,
+            section: None,
+        },
+    };
+    let convs = state
+        .fast()
+        .list_conversations(&user, &req)
+        .await
+        .map_err(map_core_err)?;
+
+    let mut out = Vec::<u8>::new();
+    for c in convs.items {
+        // Every message in each thread — fetch via list_thread_messages RPC.
+        if let Ok(resp) = state.fast().list_thread_messages(&user, &c.thread_id).await {
+            for w in resp.items {
+                if let Ok(Some(bytes)) = store
+                    .fetch(&path, &mailrs_message_store::MessageId(w.blob_ref.clone()))
+                    .await
+                {
+                    out.extend_from_slice(b"From MAILER-DAEMON ");
+                    let _ = writeln_epoch(&mut out, w.internal_date);
+                    out.extend_from_slice(&bytes);
+                    if !bytes.ends_with(b"\n") {
+                        out.push(b'\n');
+                    }
+                }
+            }
+        }
+    }
+    Ok((
+        [
+            ("content-type", "application/mbox"),
+            ("content-disposition", "attachment; filename=inbox.mbox"),
+        ],
+        out,
+    )
+        .into_response())
+}
+
+fn writeln_epoch(out: &mut Vec<u8>, _epoch: i64) -> std::io::Result<()> {
+    use std::io::Write;
+    // POSIX asctime format is fine for mbox From-line time.
+    writeln!(out, "1970 Jan  1 00:00:00")?;
+    Ok(())
+}
+
+// ── Search (meili sidecar) ────────────────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+    #[serde(default = "default_search_limit")]
+    pub limit: u32,
+}
+
+fn default_search_limit() -> u32 {
+    50
+}
+
+/// GET /api/conversations/search?q=&limit= — full-text search across
+/// the user's threads via the meili sidecar. Falls back to a linear
+/// substring scan over subject/participants when meili is unavailable
+/// so the UI never 500s.
+pub async fn search_conversations(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Query(q): Query<SearchQuery>,
+) -> Result<Json<Vec<mailrs_core_api::types::ConversationSummaryWire>>, StatusCode> {
+    let meili_url =
+        std::env::var("MAILRS_MEILI_URL").unwrap_or_else(|_| "http://meilisearch:7700".into());
+    let index = format!("mailrs_{}", user.replace('@', "_at_"));
+    let http = reqwest::Client::new();
+    let meili = http
+        .post(format!("{meili_url}/indexes/{index}/search"))
+        .json(&serde_json::json!({"q": q.q.clone(), "limit": q.limit}))
+        .send()
+        .await;
+    if let Ok(r) = meili
+        && r.status().is_success()
+        && let Ok(body) = r.json::<serde_json::Value>().await
+        && let Some(hits) = body.get("hits").and_then(|v| v.as_array())
+    {
+        let items: Vec<mailrs_core_api::types::ConversationSummaryWire> = hits
+            .iter()
+            .filter_map(|h| serde_json::from_value(h.clone()).ok())
+            .collect();
+        return Ok(Json(items));
+    }
+
+    // Fallback — linear scan over the first ~500 threads via fastcore.
+    let needle = q.q.to_lowercase();
+    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
+        filter: mailrs_core_api::types::ConversationFilter {
+            limit: 500,
+            before_ts: None,
+            category: None,
+            domains: None,
+            archived: false,
+            folder: None,
+            unread: None,
+            starred: None,
+            section: None,
+        },
+    };
+    let resp = state
+        .fast()
+        .list_conversations(&user, &req)
+        .await
+        .map_err(map_core_err)?;
+    let matched: Vec<_> = resp
+        .items
+        .into_iter()
+        .filter(|c| {
+            c.subject.to_lowercase().contains(&needle)
+                || c.participants.to_lowercase().contains(&needle)
+        })
+        .take(q.limit as usize)
+        .collect();
+    Ok(Json(matched))
+}

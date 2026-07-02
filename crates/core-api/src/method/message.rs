@@ -15,6 +15,9 @@ use crate::types::{MailboxId, MaildirId, MessageId, ThreadId, UserAddress};
 pub const PATH_GET_MESSAGE: &str = "/v1/messages/{id}";
 pub const PATH_GET_MESSAGE_RAW: &str = "/v1/messages/{id}/raw";
 pub const PATH_GET_MESSAGE_BY_UID: &str = "/v1/mailboxes/{id}/messages/uid/{uid}";
+/// Fastcore-native by-user variant — resolves the message via the per-user
+/// uid → message_id index instead of a mailbox scan.
+pub const PATH_GET_MESSAGE_BY_UID_USER: &str = "/v1/users/{user}/messages/by-uid/{uid}";
 pub const PATH_LIST_MESSAGES: &str = "/v1/mailboxes/{id}/messages";
 pub const PATH_FIND_BY_MESSAGE_ID: &str = "/v1/users/{user}/messages/by-message-id/{message_id}";
 pub const PATH_QUERY_MESSAGES: &str = "/v1/users/{user}/messages:query";

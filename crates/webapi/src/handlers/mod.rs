@@ -5,5 +5,8 @@ pub mod admin;
 pub mod auth;
 pub mod conversations;
 pub mod events;
+pub mod inline;
 pub mod mail;
+pub mod messages;
+pub mod misc;
 pub mod prefs;

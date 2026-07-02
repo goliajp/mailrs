@@ -44,6 +44,32 @@ impl KevyMailboxStore {
         self.store().get(key.as_bytes())
     }
 
+    /// Look up a message by (user, uid) via the per-user uid → message_id
+    /// hash. Returns the raw payload bytes (JSON MessageWire) or None
+    /// when the uid isn't indexed (or the message was deleted).
+    pub fn get_message_by_uid(&self, user: &str, uid: u32) -> io::Result<Option<Vec<u8>>> {
+        let idx_key = keys::user_msg_by_uid(user);
+        let mid_bytes = self
+            .store()
+            .hget(idx_key.as_bytes(), uid.to_string().as_bytes())?;
+        let Some(mid_bytes) = mid_bytes else {
+            return Ok(None);
+        };
+        let mid = String::from_utf8_lossy(&mid_bytes).to_string();
+        self.get_message(&mid)
+    }
+
+    /// Populate the per-user uid → message_id index for a single message.
+    /// Called from deliver / migrate paths so per-uid lookups are O(1).
+    pub fn index_uid(&self, user: &str, uid: u32, message_id: &str) -> io::Result<()> {
+        let idx_key = keys::user_msg_by_uid(user);
+        self.store().hset(
+            idx_key.as_bytes(),
+            &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+        )?;
+        Ok(())
+    }
+
     /// List all messages in `thread_id` in chronological order
     /// (lowest internal_date first). One ZRANGE + N × GET.
     pub fn list_thread_messages(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {

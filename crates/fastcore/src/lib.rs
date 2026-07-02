@@ -27,6 +27,7 @@ use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::admin as adm;
 use mailrs_core_api::method::conversation as conv;
 use mailrs_core_api::method::mailbox as mb;
+use mailrs_core_api::method::message as msg;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
@@ -114,6 +115,10 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
         .route(adm::PATH_LIST_ACCOUNTS, get(list_accounts))
         .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
+        .route(
+            msg::PATH_GET_MESSAGE_BY_UID_USER,
+            get(get_message_by_uid_for_user),
+        )
         .with_state(state);
 
     base.merge(business)
@@ -288,6 +293,29 @@ async fn list_accounts(State(state): State<Arc<FastcoreState>>) -> Json<adm::Acc
         }
     }
     Json(adm::AccountListResponse { items })
+}
+
+/// `GET /v1/users/{user}/messages/by-uid/{uid}` — look up a message by
+/// the user-scoped uid index (populated by `deliver_message` /
+/// `mailrs-fastcore-backfill-uid-index`). Returns the JSON MessageWire.
+async fn get_message_by_uid_for_user(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, uid)): Path<(String, u32)>,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    match state.mailbox.get_message_by_uid(&user, uid) {
+        Ok(Some(bytes)) => Ok((
+            [("content-type", "application/json")],
+            String::from_utf8(bytes).unwrap_or_default(),
+        )
+            .into_response()),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::warn!(error = %e, %user, %uid, "get_message_by_uid failed");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 // ── Mailboxes (folders) ────────────────────────────────────────────
