@@ -208,8 +208,8 @@ pub struct ThreadMessageResponse {
     pub action_deadline: Option<String>,
 }
 
-impl From<mailrs_core_api::method::message::MessageWire> for ThreadMessageResponse {
-    fn from(w: mailrs_core_api::method::message::MessageWire) -> Self {
+impl ThreadMessageResponse {
+    fn from_wire_no_body(w: mailrs_core_api::method::message::MessageWire) -> Self {
         Self {
             id: w.id,
             uid: w.uid,
@@ -244,6 +244,76 @@ impl From<mailrs_core_api::method::message::MessageWire> for ThreadMessageRespon
     }
 }
 
+/// Parse `data` (raw RFC-5322 bytes) into text/html body + attachments.
+/// Same pipeline as monolith's `crate::message_util::parse_message`.
+fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<serde_json::Value>) {
+    let root = mailrs_mime::parse(data);
+    let mut text_body: Option<String> = None;
+    let mut html_body: Option<String> = None;
+    for part in root.walk() {
+        let mt = part.content_type.mime_type();
+        if text_body.is_none() && mt == "text/plain" {
+            text_body = part.body_text();
+        } else if html_body.is_none() && mt == "text/html" {
+            html_body = part.body_text();
+        }
+        if text_body.is_some() && html_body.is_some() {
+            break;
+        }
+    }
+    if text_body.is_none() && html_body.is_none() && root.children.is_empty() {
+        if root.content_type.type_ == "text" {
+            text_body = root.body_text();
+        } else {
+            text_body = Some(String::from_utf8_lossy(data).into_owned());
+        }
+    }
+    let text_body = text_body.or_else(|| {
+        html_body
+            .as_deref()
+            .and_then(|html| html2text::from_read(html.as_bytes(), 80).ok())
+    });
+    let attachments: Vec<serde_json::Value> = root
+        .attachments()
+        .map(|att| {
+            let filename = att.attachment_filename().unwrap_or("unnamed").to_string();
+            let mt = att.content_type.mime_type();
+            let mt = if mt.ends_with('/') || mt.starts_with('/') {
+                "application/octet-stream".to_string()
+            } else {
+                mt
+            };
+            serde_json::json!({
+                "filename": filename,
+                "content_type": mt,
+                "size": att.body.len() as u32,
+            })
+        })
+        .collect();
+    (text_body, html_body, attachments)
+}
+
+/// Enrich a MessageWire with body content read from maildir.
+async fn enrich_with_body(
+    store: &dyn mailrs_message_store::MessageStore,
+    maildir_root: &str,
+    user: &str,
+    w: mailrs_core_api::method::message::MessageWire,
+) -> ThreadMessageResponse {
+    let mut r = ThreadMessageResponse::from_wire_no_body(w.clone());
+    if let Some((local, domain)) = user.split_once('@') {
+        let path = format!("{maildir_root}/{domain}/{local}");
+        let id = mailrs_message_store::MessageId(w.blob_ref.clone());
+        if let Ok(Some(bytes)) = store.fetch(&path, &id).await {
+            let (t, h, a) = parse_body(&bytes);
+            r.text_body = t;
+            r.html_body = h;
+            r.attachments = a;
+        }
+    }
+    r
+}
+
 /// GET /api/conversations/{thread_id} — return Vec<ThreadMessageResponse>
 /// with monolith's exact wire shape (attachments, text_body, ...) so the
 /// React UI can safely reach into arrays without null-guards.
@@ -267,7 +337,13 @@ pub async fn get_thread_messages(
             .map_err(map_err)?,
         Err(e) => return Err(map_err(e)),
     };
-    Ok(Json(resp.items.into_iter().map(Into::into).collect()))
+    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let store = mailrs_message_store::MaildirStore;
+    let mut items = Vec::with_capacity(resp.items.len());
+    for w in resp.items {
+        items.push(enrich_with_body(&store, &maildir_root, &user, w).await);
+    }
+    Ok(Json(items))
 }
 
 /// POST /api/conversations/{thread_id}/read

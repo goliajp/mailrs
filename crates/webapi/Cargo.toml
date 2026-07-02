@@ -31,3 +31,9 @@ base64 = "0.22"
 argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
+# Phase 12b — fastcore-native message body extraction: read raw
+# from maildir + parse MIME.
+mailrs-message-store = { path = "../message-store" }
+mailrs-mime = { path = "../mime", version = "2" }
+mailrs-rfc2047 = "1"
+html2text = "0.17"
