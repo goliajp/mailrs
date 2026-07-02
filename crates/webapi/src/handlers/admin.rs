@@ -391,7 +391,10 @@ pub async fn get_account_quota(
     };
     let val: serde_json::Value =
         serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let quota = val.get("quota_bytes").cloned().unwrap_or(serde_json::Value::Null);
+    let quota = val
+        .get("quota_bytes")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     Ok(Json(serde_json::json!({ "quota_bytes": quota })))
 }
 
@@ -763,10 +766,7 @@ pub async fn get_spam_feedback_stats(
         }
         spam_total += spam;
         ham_total += ham;
-        per_user.insert(
-            addr_s,
-            serde_json::json!({ "spam": spam, "ham": ham }),
-        );
+        per_user.insert(addr_s, serde_json::json!({ "spam": spam, "ham": ham }));
     }
     Ok(Json(serde_json::json!({
         "spam": spam_total,

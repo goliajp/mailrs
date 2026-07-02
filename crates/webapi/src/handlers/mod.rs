@@ -3,12 +3,12 @@
 
 pub mod admin;
 pub mod auth;
-pub mod complete;
-pub mod conversations;
-pub mod events;
 pub mod autodiscover;
 pub mod calendar;
+pub mod complete;
+pub mod conversations;
 pub mod dav;
+pub mod events;
 pub mod inline;
 pub mod invites;
 pub mod jmap;

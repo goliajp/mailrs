@@ -8,10 +8,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use axum::extract::{Extension, Query, State};
-use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::IntoResponse;
 use axum::Json;
+use axum::extract::{Extension, Query, State};
+use axum::response::IntoResponse;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use serde::Deserialize;
 
 use mailrs_jmap::dispatch::{JMAP_CORE_CAP, JMAP_MAIL_CAP, JMAP_SUBMISSION_CAP, JmapRequest};
@@ -198,12 +198,7 @@ impl MailStore for JmapAdapter {
         Ok(resp.items.into_iter().map(bridge_wire_to_jmap).collect())
     }
 
-    async fn update_flags(
-        &self,
-        mailbox_id: i64,
-        uid: u32,
-        flags: u32,
-    ) -> Result<(), StoreError> {
+    async fn update_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
         let (_mb, user) = self.resolve_mailbox(mailbox_id).await?;
         let req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags };
         self.state
@@ -224,9 +219,7 @@ impl MailStore for JmapAdapter {
             .await
             .map(|w| w.flags)
             .unwrap_or(0);
-        let req = mailrs_core_api::method::admin::SetMessageFlagsRequest {
-            flags: cur | flags,
-        };
+        let req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags: cur | flags };
         self.state
             .fast()
             .set_message_flags(&user, uid, &req)
@@ -240,7 +233,11 @@ impl MailStore for JmapAdapter {
         let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
         let path = format!("{root}/{domain}/{local}");
         let id = mailrs_message_store::MessageId(message.blob_id.clone());
-        mailrs_message_store::MaildirStore.fetch(&path, &id).await.ok().flatten()
+        mailrs_message_store::MaildirStore
+            .fetch(&path, &id)
+            .await
+            .ok()
+            .flatten()
     }
 
     fn parse_message(&self, raw: &[u8]) -> ParsedBody {
@@ -256,10 +253,7 @@ impl MailStore for JmapAdapter {
         let attachments = msg
             .attachments()
             .map(|a| JmapAttachment {
-                filename: a
-                    .attachment_filename()
-                    .unwrap_or("attachment")
-                    .to_string(),
+                filename: a.attachment_filename().unwrap_or("attachment").to_string(),
                 content_type: format!("{}/{}", a.content_type.type_, a.content_type.subtype),
                 size: a.body.len() as u32,
             })
@@ -332,12 +326,13 @@ impl MailStore for JmapAdapter {
 }
 
 /// GET /.well-known/jmap — session document.
-pub async fn jmap_session(Extension(AuthedUser(address)): Extension<AuthedUser>) -> impl IntoResponse {
+pub async fn jmap_session(
+    Extension(AuthedUser(address)): Extension<AuthedUser>,
+) -> impl IntoResponse {
     let hostname = hostname();
     let api_url = format!("https://{hostname}/jmap");
-    let download_url = format!(
-        "https://{hostname}/jmap/download/{{accountId}}/{{blobId}}/{{name}}?type={{type}}"
-    );
+    let download_url =
+        format!("https://{hostname}/jmap/download/{{accountId}}/{{blobId}}/{{name}}?type={{type}}");
     let upload_url = format!("https://{hostname}/jmap/upload/{{accountId}}/");
     let event_source_url = format!(
         "https://{hostname}/jmap/eventsource/?types={{types}}&closeafter={{closeafter}}&ping={{ping}}"
@@ -419,10 +414,7 @@ pub async fn jmap_eventsource(
     let ping_secs = params.ping.unwrap_or(30).clamp(5, 300) as u64;
     let stream = futures_util::stream::unfold(ping_secs, |ping_secs| async move {
         tokio::time::sleep(std::time::Duration::from_secs(ping_secs)).await;
-        Some((
-            Ok(Event::default().event("ping").data("{}")),
-            ping_secs,
-        ))
+        Some((Ok(Event::default().event("ping").data("{}")), ping_secs))
     });
     Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)))
 }

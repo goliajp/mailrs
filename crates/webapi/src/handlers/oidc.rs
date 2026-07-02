@@ -15,10 +15,10 @@
 //! Grafana / Home Assistant / Portainer / Vaultwarden which accept
 //! opaque bearer.
 
+use axum::Json;
 use axum::extract::{Extension, Form, Query};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect};
-use axum::Json;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -171,8 +171,7 @@ pub async fn authorize(
     // break the query string. Prior version used raw format! which let
     // an attacker-controlled state inject extra params.
     let redirect = if let Some(state) = q.state {
-        let encoded = url::form_urlencoded::byte_serialize(state.as_bytes())
-            .collect::<String>();
+        let encoded = url::form_urlencoded::byte_serialize(state.as_bytes()).collect::<String>();
         format!("{}?code={code}&state={encoded}", q.redirect_uri)
     } else {
         format!("{}?code={code}", q.redirect_uri)
@@ -210,17 +209,16 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
                     .into_response();
             };
             let code_key = format!("oidc:code:{code}");
-            let flat =
-                match with_kevy(move |c| c.hgetall(code_key.as_bytes())) {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": "server_error"})),
-                        )
-                            .into_response();
-                    }
-                };
+            let flat = match with_kevy(move |c| c.hgetall(code_key.as_bytes())) {
+                Ok(v) => v,
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "server_error"})),
+                    )
+                        .into_response();
+                }
+            };
             if flat.is_empty() {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -293,13 +291,12 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
             // Verify client_secret unless the client was registered
             // as a public (PKCE-only) client (secret field empty).
             let ci = client_id.clone();
-            let registered_secret = with_kevy(move |c| {
-                c.hget(format!("oidc:client:{ci}").as_bytes(), b"secret")
-            })
-            .ok()
-            .flatten()
-            .and_then(|v| String::from_utf8(v).ok())
-            .unwrap_or_default();
+            let registered_secret =
+                with_kevy(move |c| c.hget(format!("oidc:client:{ci}").as_bytes(), b"secret"))
+                    .ok()
+                    .flatten()
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
             if !registered_secret.is_empty() {
                 let presented = req.client_secret.as_deref().unwrap_or("");
                 // Constant-time compare (bytewise XOR fold).

@@ -14,10 +14,10 @@
 //! is tracked separately — this port delivers the minimum the web UI
 //! needs (the endpoints return 200 and persist the user's choice).
 
+use axum::Json;
 use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::conversations::AuthedUser;

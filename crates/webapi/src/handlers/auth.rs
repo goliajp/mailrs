@@ -128,8 +128,7 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
             .flatten()
             .and_then(|v| String::from_utf8(v).ok())
             .unwrap_or_default();
-            let mut codes: Vec<&str> =
-                recovery_str.split(',').filter(|s| !s.is_empty()).collect();
+            let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
             let pos = codes.iter().position(|c| *c == code);
             if let Some(idx) = pos {
                 codes.remove(idx);
@@ -314,13 +313,12 @@ pub async fn verify_credentials(
             .into_response();
     }
     let totp_key = format!("totp:{}", req.address);
-    let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hget(totp_key.as_bytes(), b"enabled")
-    })
-    .ok()
-    .flatten()
-    .map(|v| v == b"1")
-    .unwrap_or(false);
+    let totp_required =
+        crate::handlers::kevy_util::with_kevy(move |c| c.hget(totp_key.as_bytes(), b"enabled"))
+            .ok()
+            .flatten()
+            .map(|v| v == b"1")
+            .unwrap_or(false);
     (
         StatusCode::OK,
         Json(serde_json::json!({
@@ -362,26 +360,24 @@ pub async fn verify_totp(
     }
     let key = format!("totp:{}", req.address);
     let key_r = key.clone();
-    let secret = match crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hget(key_r.as_bytes(), b"secret")
-    }) {
-        Ok(Some(v)) => String::from_utf8(v).unwrap_or_default(),
-        _ => {
-            return (
-                StatusCode::OK,
-                Json(serde_json::json!({"valid": false, "reason": "totp_not_configured"})),
-            )
-                .into_response();
-        }
-    };
+    let secret =
+        match crate::handlers::kevy_util::with_kevy(move |c| c.hget(key_r.as_bytes(), b"secret")) {
+            Ok(Some(v)) => String::from_utf8(v).unwrap_or_default(),
+            _ => {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({"valid": false, "reason": "totp_not_configured"})),
+                )
+                    .into_response();
+            }
+        };
     let enabled_key = key.clone();
-    let enabled = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hget(enabled_key.as_bytes(), b"enabled")
-    })
-    .ok()
-    .flatten()
-    .map(|v| v == b"1")
-    .unwrap_or(false);
+    let enabled =
+        crate::handlers::kevy_util::with_kevy(move |c| c.hget(enabled_key.as_bytes(), b"enabled"))
+            .ok()
+            .flatten()
+            .map(|v| v == b"1")
+            .unwrap_or(false);
     if !enabled {
         return (
             StatusCode::OK,
@@ -514,11 +510,7 @@ pub async fn change_password(
         let _ = c.del(&[idx.as_bytes()]);
         Ok(())
     });
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"success": true})),
-    )
-        .into_response()
+    (StatusCode::OK, Json(serde_json::json!({"success": true}))).into_response()
 }
 
 /// POST /api/auth/logout

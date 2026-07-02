@@ -329,15 +329,20 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                     mx = %mx.exchange,
                     "STARTTLS handshake failed, downgrading to plaintext"
                 );
-                let mut plain =
-                    match SmtpConnection::connect_with_timeout(&mx.exchange, 25, &timeouts).await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            last_err = format!("plaintext reconnect {}: {e}", mx.exchange);
-                            tracing::warn!(err = %last_err, "reconnect after TLS failure failed, next MX");
-                            continue;
-                        }
-                    };
+                let mut plain = match SmtpConnection::connect_with_timeout(
+                    &mx.exchange,
+                    25,
+                    &timeouts,
+                )
+                .await
+                {
+                    Ok(c) => c,
+                    Err(e) => {
+                        last_err = format!("plaintext reconnect {}: {e}", mx.exchange);
+                        tracing::warn!(err = %last_err, "reconnect after TLS failure failed, next MX");
+                        continue;
+                    }
+                };
                 if let Err(e) = plain.ehlo(&cfg.helo).await {
                     last_err = format!("plaintext ehlo {}: {e}", mx.exchange);
                     tracing::warn!(err = %last_err, "plaintext ehlo after TLS failure failed, next MX");
@@ -411,22 +416,20 @@ async fn process_one(cfg: Cfg, id: String) {
     // JSON round-trip; fall back to the legacy plaintext field for
     // backwards compatibility with in-flight items enqueued before
     // the base64 switch.
-    let message_bytes: Vec<u8> = if let Some(b64) = envelope
-        .get("message_data_b64")
-        .and_then(|v| v.as_str())
-    {
-        use base64::Engine as _;
-        base64::engine::general_purpose::STANDARD
-            .decode(b64)
-            .unwrap_or_default()
-    } else {
-        envelope
-            .get("message_data")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .as_bytes()
-            .to_vec()
-    };
+    let message_bytes: Vec<u8> =
+        if let Some(b64) = envelope.get("message_data_b64").and_then(|v| v.as_str()) {
+            use base64::Engine as _;
+            base64::engine::general_purpose::STANDARD
+                .decode(b64)
+                .unwrap_or_default()
+        } else {
+            envelope
+                .get("message_data")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .as_bytes()
+                .to_vec()
+        };
     let attempts_prev = envelope
         .get("attempts")
         .and_then(|v| v.as_u64())

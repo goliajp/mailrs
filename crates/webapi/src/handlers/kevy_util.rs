@@ -72,9 +72,8 @@ pub async fn admin_middleware(
     // client), and /oauth/token is unauth (client-credentials — not
     // routed through this middleware anyway). Only admin-panel routes
     // gate on admin authority.
-    let requires_admin = path.starts_with("/api/admin/")
-        || path == "/api/admin"
-        || path == "/api/admin/export";
+    let requires_admin =
+        path.starts_with("/api/admin/") || path == "/api/admin" || path == "/api/admin/export";
     if !requires_admin {
         return next.run(req).await;
     }
@@ -122,7 +121,12 @@ where
         })
     };
     match tokio::runtime::Handle::try_current() {
-        Ok(handle) if matches!(handle.runtime_flavor(), tokio::runtime::RuntimeFlavor::MultiThread) => {
+        Ok(handle)
+            if matches!(
+                handle.runtime_flavor(),
+                tokio::runtime::RuntimeFlavor::MultiThread
+            ) =>
+        {
             tokio::task::block_in_place(|| inner(url, f))
         }
         _ => inner(url, f),

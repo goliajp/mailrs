@@ -45,7 +45,10 @@ pub async fn autodiscover_outlook() -> impl IntoResponse {
     );
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/xml; charset=utf-8",
+        )],
         xml,
     )
 }
@@ -77,7 +80,10 @@ pub async fn autoconfig_mozilla() -> impl IntoResponse {
     );
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/xml; charset=utf-8",
+        )],
         xml,
     )
 }

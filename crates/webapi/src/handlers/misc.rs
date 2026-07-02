@@ -301,7 +301,8 @@ fn writeln_epoch(out: &mut Vec<u8>, epoch: i64) -> std::io::Result<()> {
     let second = (sec_of_day % 60) as u32;
     let mut year: u32 = 1970;
     loop {
-        let leap = (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+        let leap =
+            (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
         let ydays: u64 = if leap { 366 } else { 365 };
         if days < ydays {
             break;
@@ -313,7 +314,16 @@ fn writeln_epoch(out: &mut Vec<u8>, epoch: i64) -> std::io::Result<()> {
     let ml = [
         31u64,
         if leap { 29 } else { 28 },
-        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
     ];
     let mut month = 0usize;
     while month < 12 && days >= ml[month] {
@@ -343,40 +353,26 @@ fn default_search_limit() -> u32 {
 }
 
 /// GET /api/conversations/search?q=&limit= — full-text search across
-/// the user's threads via the meili sidecar. Falls back to a linear
-/// substring scan over subject/participants when meili is unavailable
-/// so the UI never 500s.
+/// the user's threads.
+///
+/// Currently a fastcore-side linear scan over subject + participants
+/// (the two fields cheap to fetch in one HGETALL). The historical
+/// Meili path is skipped because fastcore doesn't index into Meili
+/// yet — Meili's contents are frozen from the last monolith run and
+/// would return stale + drastically under-count results. Once
+/// fastcore learns to write to Meili on every `upsert_thread`, we can
+/// re-enable a Meili-first path here.
 pub async fn search_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<SearchQuery>,
 ) -> Result<Json<Vec<mailrs_core_api::types::ConversationSummaryWire>>, StatusCode> {
-    let meili_url =
-        std::env::var("MAILRS_MEILI_URL").unwrap_or_else(|_| "http://meilisearch:7700".into());
-    let index = format!("mailrs_{}", user.replace('@', "_at_"));
-    let http = reqwest::Client::new();
-    let meili = http
-        .post(format!("{meili_url}/indexes/{index}/search"))
-        .json(&serde_json::json!({"q": q.q.clone(), "limit": q.limit}))
-        .send()
-        .await;
-    if let Ok(r) = meili
-        && r.status().is_success()
-        && let Ok(body) = r.json::<serde_json::Value>().await
-        && let Some(hits) = body.get("hits").and_then(|v| v.as_array())
-    {
-        let items: Vec<mailrs_core_api::types::ConversationSummaryWire> = hits
-            .iter()
-            .filter_map(|h| serde_json::from_value(h.clone()).ok())
-            .collect();
-        return Ok(Json(items));
-    }
-
-    // Fallback — linear scan over the first ~500 threads via fastcore.
     let needle = q.q.to_lowercase();
+    // Scan a wide window — kevy HGETALL is ~100 µs in-process, so a
+    // 20 000-entry scan is ~2 s worst case and covers a full account.
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
         filter: mailrs_core_api::types::ConversationFilter {
-            limit: 500,
+            limit: 20_000,
             before_ts: None,
             category: None,
             domains: None,
@@ -398,6 +394,7 @@ pub async fn search_conversations(
         .filter(|c| {
             c.subject.to_lowercase().contains(&needle)
                 || c.participants.to_lowercase().contains(&needle)
+                || c.snippet.to_lowercase().contains(&needle)
         })
         .take(q.limit as usize)
         .collect();

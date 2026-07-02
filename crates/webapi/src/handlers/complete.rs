@@ -274,7 +274,9 @@ pub async fn set_recovery_email(
         .fast()
         .set_recovery_email(&user, &wire_req)
         .await
-        .map_err(|e| StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))?;
+        .map_err(|e| {
+            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+        })?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -630,7 +632,9 @@ pub async fn audit_conversations(
         .fast()
         .list_conversations(&target, &req)
         .await
-        .map_err(|e| StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))?;
+        .map_err(|e| {
+            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+        })?;
     let items: Vec<serde_json::Value> = resp
         .items
         .into_iter()
@@ -664,7 +668,9 @@ pub async fn audit_conversation_detail(
     let key = format!("mailrs:thread:{thread_id}");
     let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
     if flat.is_empty() {
-        return Ok(Json(serde_json::json!({ "thread_id": thread_id, "found": false })));
+        return Ok(Json(
+            serde_json::json!({ "thread_id": thread_id, "found": false }),
+        ));
     }
     let mut obj = serde_json::Map::new();
     let mut i = 0;
@@ -699,7 +705,9 @@ pub async fn audit_conversation_messages(
         .fast()
         .list_thread_messages(&q.user, &thread_id)
         .await
-        .map_err(|e| StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))?;
+        .map_err(|e| {
+            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+        })?;
     Ok(Json(serde_json::json!({
         "thread_id": thread_id,
         "user": q.user,

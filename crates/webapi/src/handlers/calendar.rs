@@ -11,9 +11,9 @@
 //! ships the same wire shapes so the UI's invite card + weekly view
 //! render identically.
 
+use axum::Json;
 use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::conversations::AuthedUser;
@@ -129,15 +129,22 @@ pub async fn get_conflicts(
             i += 2;
         }
         // Window overlap check.
-        let s_ts = row.dtstart.as_deref().and_then(parse_iso).unwrap_or(i64::MIN);
-        let e_ts = row.dtend.as_deref().and_then(parse_iso).unwrap_or(s_ts + 3600);
+        let s_ts = row
+            .dtstart
+            .as_deref()
+            .and_then(parse_iso)
+            .unwrap_or(i64::MIN);
+        let e_ts = row
+            .dtend
+            .as_deref()
+            .and_then(parse_iso)
+            .unwrap_or(s_ts + 3600);
         if s_ts < end_ts && e_ts > start_ts {
             out.push(row);
         }
     }
     Json(out)
 }
-
 
 // ── Feeds (subscriptions to external ICS URLs) ─────────────────────
 

@@ -75,7 +75,7 @@ mod mutations;
 mod thread_row;
 pub use list_threads::ListThreadsFilter;
 pub use message_arrival::MessageArrival;
-pub use thread_row::ThreadRow;
+pub use thread_row::{ThreadRow, senders_csv_contains_user};
 
 /// Experimental kevy-backed implementation of `MailboxStore`.
 ///

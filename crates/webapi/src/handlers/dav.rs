@@ -41,7 +41,10 @@ fn options_response() -> axum::response::Response {
 fn xml(status: StatusCode, body: String) -> axum::response::Response {
     let mut resp = (
         status,
-        [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/xml; charset=utf-8",
+        )],
         body,
     )
         .into_response();
@@ -211,7 +214,10 @@ pub async fn get_calendar_event(
     };
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/calendar; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/calendar; charset=utf-8",
+        )],
         bytes,
     )
         .into_response()
@@ -260,7 +266,10 @@ pub async fn get_contact(
     };
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/vcard; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/vcard; charset=utf-8",
+        )],
         bytes,
     )
         .into_response()
