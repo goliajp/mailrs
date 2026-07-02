@@ -48,6 +48,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore \
     && cargo build --release --bin mailrs-fastcore-migrate \
     && cargo build --release --bin mailrs-fastcore-backfill-sent \
+    && cargo build --release --bin mailrs-fastcore-backfill-contacts \
     && cargo build --release -p mailrs-pg-dump \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
@@ -56,6 +57,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
     && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate \
     && cp /build/target/release/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent \
+    && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
     && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
 
 # stage 2: build frontend
@@ -108,6 +110,7 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fa
 # Run via `docker exec -i mailrs-fastcore-migrate`.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts
 # Phase 10b (prod migration): spg → NDJSON dumper.
 # Run via `docker exec mailrs mailrs-pg-dump [--user X] [--since T]`
 # and pipe stdout into mailrs-fastcore-migrate.
