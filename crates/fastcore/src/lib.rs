@@ -900,6 +900,7 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
         .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
         .route(th::PATH_MARK_READ, post(mark_read))
+        .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
         .route(th::PATH_MARK_UNREAD, post(mark_unread_route))
         .route(th::PATH_SNOOZE, put(snooze_thread_route))
         .route(th::PATH_UNSNOOZE, delete(unsnooze_thread_route))
@@ -1262,6 +1263,19 @@ async fn mark_read(
         tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
     }
     action_result(true)
+}
+
+/// POST `/v1/users/{user}/conversations:mark-all-read` — sweep every
+/// unread thread and flip it to seen in one call. UI's "Mark all as
+/// read" button was previously batching only the loaded pagination
+/// slice, so users with 99+ unread across pages left the tail
+/// untouched.
+async fn mark_all_read_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+) -> Json<serde_json::Value> {
+    let flipped = state.mailbox.mark_all_seen(&user).unwrap_or(0);
+    Json(serde_json::json!({ "ok": true, "flipped": flipped }))
 }
 
 async fn pin_thread(

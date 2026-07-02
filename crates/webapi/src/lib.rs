@@ -106,6 +106,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     let convo = axum::Router::new()
         .route("/api/conversations", get(c::get_conversations))
         .route("/api/conversations/batch", post(c::batch_mutation))
+        .route("/api/conversations/mark-all-read", post(c::mark_all_read))
         .route("/api/conversations/categories", get(c::get_categories))
         .route("/api/conversations/action-count", get(c::get_action_count))
         .route("/api/conversations/unseen-count", get(c::get_unseen_count))
