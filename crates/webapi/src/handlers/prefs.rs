@@ -856,7 +856,7 @@ async fn mirror_send_to_sender_view(
         uid: 0,
         payload_wire_json: wire_json,
     };
-    if let Err(e) = state.core_client.deliver_message(user, &thread_id, &req).await {
+    if let Err(e) = state.fast().deliver_message(user, &thread_id, &req).await {
         tracing::warn!(err = %e, %user, %thread_id, "mirror_send: fastcore deliver_message failed");
     }
 
