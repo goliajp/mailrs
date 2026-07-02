@@ -19,7 +19,6 @@ on:
       - 'bugfix/**'
       - 'release/**'
       - 'hotfix/**'
-      - 'arch/**'
 
 env:
   CARGO_TERM_COLOR: always
