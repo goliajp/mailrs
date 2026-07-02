@@ -17,6 +17,7 @@
 
 #![allow(missing_docs)]
 
+mod live_sync;
 mod spool_drain;
 
 use std::sync::Arc;
@@ -755,6 +756,16 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                     unread,
                 };
                 let _ = state.mailbox.record_message_arrival(&arrival);
+                // Side sinks: contacts autocomplete + Meili index.
+                crate::live_sync::upsert_contacts(user, &m.from);
+                crate::live_sync::index_meili(
+                    user,
+                    root,
+                    &m.subject,
+                    &m.from,
+                    "",
+                    m.date,
+                );
                 // Also write the message blob for enrich_with_body.
                 let uid = state
                     .mailbox
@@ -1408,6 +1419,18 @@ async fn deliver_message(
         tracing::error!(err = %e, %user, %thread_id, "record_message_arrival failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+
+    // Side sinks so contacts autocomplete + Meili stay live on webapi-
+    // driven deliveries (mirror-send, forward-into-thread, etc.).
+    crate::live_sync::upsert_contacts(&user, &req.senders_csv);
+    crate::live_sync::index_meili(
+        &user,
+        &thread_id,
+        &req.subject,
+        &req.senders_csv,
+        &req.latest_preview,
+        req.latest_date,
+    );
 
     if let Err(e) = state.mailbox.upsert_message(
         &thread_id,
