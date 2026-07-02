@@ -27,6 +27,7 @@ use axum::routing::{delete, get, post};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::admin as adm;
 use mailrs_core_api::method::conversation as conv;
+use mailrs_core_api::method::mailbox as mb;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
@@ -112,6 +113,7 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_DELETE_THREAD, delete(delete_thread))
         .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
         .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
+        .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
         .with_state(state);
 
     base.merge(business)
@@ -269,6 +271,74 @@ async fn effective_permissions(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// ── Mailboxes (folders) ────────────────────────────────────────────
+
+/// `GET /v1/users/{user}/mailboxes` — returns the INBOX + standard IMAP
+/// folders. Counts derived from kevy zsets so no spg touch.
+/// This is a minimum-viable shape — future phase populates true
+/// per-mailbox metadata via mailbox-kevy `list_mailboxes` when the
+/// mailbox → messages sub-index lands.
+async fn list_mailboxes(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+) -> Json<mailrs_core_api::method::mailbox::ListMailboxesResponse> {
+    use mailrs_core_api::method::mailbox::{ListMailboxesResponse, MailboxWire};
+    let total = state
+        .mailbox
+        .store_ref()
+        .zcard(mailrs_mailbox_kevy::keys::user_threads_by_activity(&user).as_bytes())
+        .unwrap_or(0) as u32;
+    let unseen = state
+        .mailbox
+        .store_ref()
+        .zcard(mailrs_mailbox_kevy::keys::user_threads_has_unread(&user).as_bytes())
+        .unwrap_or(0) as u32;
+    let items = vec![
+        MailboxWire {
+            id: 1,
+            user: user.clone(),
+            name: "INBOX".to_string(),
+            uidvalidity: 1,
+            uidnext: total + 1,
+            highest_modseq: total as u64,
+        },
+        MailboxWire {
+            id: 2,
+            user: user.clone(),
+            name: "Sent".to_string(),
+            uidvalidity: 1,
+            uidnext: 1,
+            highest_modseq: 0,
+        },
+        MailboxWire {
+            id: 3,
+            user: user.clone(),
+            name: "Drafts".to_string(),
+            uidvalidity: 1,
+            uidnext: 1,
+            highest_modseq: 0,
+        },
+        MailboxWire {
+            id: 4,
+            user: user.clone(),
+            name: "Junk".to_string(),
+            uidvalidity: 1,
+            uidnext: 1,
+            highest_modseq: 0,
+        },
+        MailboxWire {
+            id: 5,
+            user,
+            name: "Trash".to_string(),
+            uidvalidity: 1,
+            uidnext: 1,
+            highest_modseq: 0,
+        },
+    ];
+    let _ = unseen;
+    Json(ListMailboxesResponse { items })
 }
 
 // ── Thread mutations ───────────────────────────────────────────────
