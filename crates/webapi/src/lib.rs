@@ -155,48 +155,47 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             put(handlers::mail::toggle_reaction),
         );
 
+    // Phase 12b — all /api/mail/* + BIMI + proxy routes are now
+    // fastcore-native (kevy + maildir + external HTTP). Zero spg touch.
+    use axum::routing::delete;
     let mail = axum::Router::new()
         .route("/api/mail/folders", get(handlers::mail::get_folders))
-        .route("/api/mail/messages/{uid}", get(handlers::mail::get_message))
-        .route(
-            "/api/mail/messages/{uid}/raw",
-            get(handlers::mail::get_message_raw),
-        )
-        .route("/api/mail/send", post(handlers::mail::send_message))
-        .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
-        .route("/api/queue", get(handlers::mail::get_queue_stats))
-        .route("/api/contacts", get(handlers::mail::get_contacts))
-        .route("/api/mail/feedback", post(handlers::mail::submit_feedback))
+        .route("/api/mail/send", post(handlers::prefs::send_message))
+        .route("/api/queue", get(handlers::prefs::get_queue_stats))
+        .route("/api/contacts", get(handlers::prefs::get_contacts))
+        .route("/api/mail/feedback", post(handlers::prefs::submit_feedback))
         .route(
             "/api/mail/drafts",
-            get(handlers::mail::list_drafts).post(handlers::mail::save_draft),
+            get(handlers::prefs::list_drafts).post(handlers::prefs::save_draft),
         )
         .route(
             "/api/mail/drafts/{id}",
-            delete(handlers::mail::delete_draft),
+            delete(handlers::prefs::delete_draft),
         )
         .route(
             "/api/mail/signatures",
-            get(handlers::mail::list_signatures).post(handlers::mail::save_signature),
+            get(handlers::prefs::list_signatures).post(handlers::prefs::save_signature),
         )
         .route(
             "/api/mail/signatures/{id}",
-            delete(handlers::mail::delete_signature),
+            delete(handlers::prefs::delete_signature),
         )
         .route(
             "/api/mail/templates",
-            get(handlers::mail::list_templates).post(handlers::mail::save_template),
+            get(handlers::prefs::list_templates).post(handlers::prefs::save_template),
         )
         .route(
             "/api/mail/templates/{id}",
-            delete(handlers::mail::delete_template),
-        );
+            delete(handlers::prefs::delete_template),
+        )
+        .route("/api/bimi/{domain}", get(handlers::prefs::get_bimi))
+        .route("/api/proxy/image", get(handlers::prefs::proxy_image))
+        .route("/api/proxy/link", get(handlers::prefs::proxy_link));
 
     let auth_routes = axum::Router::new()
         .route("/api/auth/me", get(handlers::auth::auth_me))
         .route("/api/auth/logout", post(handlers::auth::logout));
 
-    use axum::routing::delete;
     let admin_routes = axum::Router::new()
         .route(
             "/api/admin/accounts",
