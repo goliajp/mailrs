@@ -873,8 +873,10 @@ async fn mirror_send_to_sender_view(
         .collect();
     if !contact_targets.is_empty() {
         let user_owned = user.to_string();
+        let now_ts = now_secs();
         let _ = with_kevy(move |c| {
             let key = format!("mailrs:user:{user_owned}:contacts");
+            let ts_key = format!("mailrs:user:{user_owned}:contacts:ts");
             for raw in &contact_targets {
                 let addr = extract_addr(raw);
                 if addr.is_empty() {
@@ -886,6 +888,24 @@ async fn mirror_send_to_sender_view(
                     addr.clone()
                 };
                 c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])?;
+                // Track last-used ts in a companion zset so we can
+                // evict the least-recently-emailed contacts once the
+                // set grows past a soft cap. Without this the hash
+                // grows unbounded.
+                c.zadd(ts_key.as_bytes(), &[(now_ts as f64, addr.as_bytes())])?;
+            }
+            // Enforce a 2000-entry cap. If the zset exceeds it, drop
+            // the oldest entries from both the hash and the zset.
+            let size = c.zcard(ts_key.as_bytes())?;
+            const CAP: usize = 2000;
+            if size > CAP {
+                let overflow = (size - CAP) as i64;
+                let old = c.zrange(ts_key.as_bytes(), 0, overflow - 1)?;
+                let old_refs: Vec<&[u8]> = old.iter().map(|v| v.as_slice()).collect();
+                if !old_refs.is_empty() {
+                    c.hdel(key.as_bytes(), &old_refs)?;
+                    c.zrem(ts_key.as_bytes(), &old_refs)?;
+                }
             }
             Ok(())
         });
