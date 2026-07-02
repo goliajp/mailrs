@@ -27,6 +27,8 @@ thiserror = "2"
 # Phase 3.9 — session resolution from kevy-server. Sync client wrapped
 # via tokio::task::spawn_blocking on the auth hot path.
 kevy-client = { workspace = true }
+# Phase 12 — /api/mail/* etc proxy through to monolith web.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 base64 = "0.22"
 argon2 = { workspace = true }
 password-hash = { workspace = true }

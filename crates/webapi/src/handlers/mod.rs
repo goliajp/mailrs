@@ -6,3 +6,4 @@ pub mod auth;
 pub mod conversations;
 pub mod events;
 pub mod mail;
+pub mod proxy;
