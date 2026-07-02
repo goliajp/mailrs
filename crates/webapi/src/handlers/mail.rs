@@ -44,6 +44,49 @@ pub struct FolderInfo {
     pub uidnext: u32,
 }
 
+/// GET /api/mail/folders/{name}/messages — thread summaries for a
+/// folder (INBOX / Sent / etc). Fastcore lists via
+/// `list_conversations` with the folder filter.
+pub async fn list_folder_messages(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
+        filter: mailrs_core_api::types::ConversationFilter {
+            limit: 100,
+            folder: Some(name.clone()),
+            ..Default::default()
+        },
+    };
+    let resp = state
+        .fast()
+        .list_conversations(&user, &req)
+        .await
+        .map_err(|e| {
+            axum::http::StatusCode::from_u16(e.status_code())
+                .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        })?;
+    let items: Vec<serde_json::Value> = resp
+        .items
+        .into_iter()
+        .map(|c| {
+            serde_json::json!({
+                "thread_id": c.thread_id,
+                "subject": c.subject,
+                "participants": c.participants,
+                "message_count": c.message_count,
+                "unread_count": c.unread_count,
+                "last_date": c.last_date,
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({
+        "folder": name,
+        "items": items,
+    })))
+}
+
 /// GET /api/mail/folders — fastcore-native. Returns bare `FolderInfo[]`.
 ///
 /// `unseen` count for INBOX comes from `zcard mailrs:user:<u>:threads:has_unread`

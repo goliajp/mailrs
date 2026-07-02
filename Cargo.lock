@@ -2944,7 +2944,7 @@ dependencies = [
  "hickory-resolver 0.26.1",
  "mail-builder",
  "mail-parser",
- "quick-xml",
+ "quick-xml 0.40.1",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -4010,27 +4010,41 @@ name = "mailrs-webapi"
 version = "0.0.1"
 dependencies = [
  "argon2",
+ "async-trait",
  "axum",
  "base64",
+ "chrono",
  "futures-util",
+ "hex",
  "hickory-resolver 0.24.4",
+ "hmac 0.12.1",
  "html2text",
+ "jsonwebtoken",
  "kevy-client",
  "mailrs-core-api",
+ "mailrs-ical",
+ "mailrs-jmap 1.1.2",
  "mailrs-message-store",
  "mailrs-mime",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "metrics",
+ "metrics-exporter-prometheus",
  "password-hash",
+ "quick-xml 0.37.5",
  "rand_core 0.6.4",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.18",
  "tokio",
+ "totp-rs",
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
@@ -4851,6 +4865,16 @@ name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
+
+[[package]]
+name = "quick-xml"
+version = "0.37.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+dependencies = [
+ "memchr",
+ "serde",
+]
 
 [[package]]
 name = "quick-xml"
