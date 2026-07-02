@@ -139,7 +139,7 @@ dependencies = [
  "nom 7.1.3",
  "num-traits",
  "rusticata-macros",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -481,7 +481,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_urlencoded",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
  "tokio",
  "tokio-stream",
@@ -666,7 +666,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "url",
@@ -1320,6 +1320,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum-as-inner"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1e6a265c649f3f5979b601d26f1d05ada116434c87741c9493cb56218f76cbc"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1842,7 +1854,7 @@ dependencies = [
  "futures-channel",
  "futures-io",
  "futures-util",
- "hickory-proto",
+ "hickory-proto 0.26.1",
  "idna",
  "ipnet",
  "jni",
@@ -1851,11 +1863,35 @@ dependencies = [
  "rand 0.10.1",
  "rustls",
  "rustls-pki-types",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
  "tinyvec",
  "tokio",
  "tokio-rustls",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "hickory-proto"
+version = "0.24.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92652067c9ce6f66ce53cc38d1169daa36e6e7eb7dd3b63b5103bd9d97117248"
+dependencies = [
+ "async-trait",
+ "cfg-if",
+ "data-encoding",
+ "enum-as-inner",
+ "futures-channel",
+ "futures-io",
+ "futures-util",
+ "idna",
+ "ipnet",
+ "once_cell",
+ "rand 0.8.6",
+ "thiserror 1.0.69",
+ "tinyvec",
+ "tokio",
  "tracing",
  "url",
 ]
@@ -1877,11 +1913,32 @@ dependencies = [
  "rand 0.10.1",
  "ring",
  "rustls-pki-types",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
  "tinyvec",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "hickory-resolver"
+version = "0.24.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbb117a1ca520e111743ab2f6688eddee69db4e0ea242545a604dce8a66fd22e"
+dependencies = [
+ "cfg-if",
+ "futures-util",
+ "hickory-proto 0.24.4",
+ "ipconfig",
+ "lru-cache",
+ "once_cell",
+ "parking_lot",
+ "rand 0.8.6",
+ "resolv-conf",
+ "smallvec",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1893,7 +1950,7 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "hickory-net",
- "hickory-proto",
+ "hickory-proto 0.26.1",
  "ipconfig",
  "ipnet",
  "jni",
@@ -1906,7 +1963,7 @@ dependencies = [
  "rustls",
  "smallvec",
  "system-configuration",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -1967,7 +2024,7 @@ checksum = "d1c97eea9d3e6524d8d2a4643ce0e3135500c4c7ca1d02393a485f871bef69d8"
 dependencies = [
  "html5ever",
  "tendril",
- "thiserror",
+ "thiserror 2.0.18",
  "unicode-width",
 ]
 
@@ -2344,7 +2401,7 @@ dependencies = [
  "bounded-static",
  "bounded-static-derive",
  "chrono",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2402,7 +2459,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -2493,7 +2550,7 @@ dependencies = [
  "jni-sys",
  "log",
  "simd_cesu8",
- "thiserror",
+ "thiserror 2.0.18",
  "walkdir",
  "windows-link",
 ]
@@ -2732,7 +2789,7 @@ dependencies = [
  "percent-encoding",
  "rustls",
  "rustls-native-certs",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "tokio-stream",
@@ -2855,7 +2912,7 @@ dependencies = [
  "rangemap",
  "sha2 0.10.9",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.18",
  "ttf-parser",
  "weezl",
 ]
@@ -2884,7 +2941,7 @@ dependencies = [
  "aws-lc-rs",
  "flate2",
  "hashify",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mail-builder",
  "mail-parser",
  "quick-xml",
@@ -3092,7 +3149,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tower-http",
  "tracing",
 ]
@@ -3141,14 +3198,14 @@ dependencies = [
  "compact_str",
  "criterion 0.8.2",
  "ed25519-dalek",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mail-auth",
  "memchr",
  "rand 0.8.6",
  "rsa",
  "rustls-pki-types",
  "sha2 0.10.9",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3166,7 +3223,7 @@ dependencies = [
  "psl",
  "spg-sqlx",
  "sqlx",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3176,7 +3233,7 @@ version = "1.0.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "tokio",
 ]
 
@@ -3185,7 +3242,7 @@ name = "mailrs-dnsbl"
 version = "1.0.0"
 dependencies = [
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "tokio",
 ]
 
@@ -3195,7 +3252,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b03f2803d9bc554f04b6f2542e656674517084c3ca107269533ba73475e5310"
 dependencies = [
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
 ]
 
 [[package]]
@@ -3311,7 +3368,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]
@@ -3398,7 +3455,7 @@ dependencies = [
  "mailrs-mailbox",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -3466,7 +3523,7 @@ dependencies = [
  "chrono",
  "criterion 0.8.2",
  "futures-util",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "kevy-embedded",
  "mailrs-arc",
  "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3482,7 +3539,7 @@ dependencies = [
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -3507,11 +3564,11 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3548,7 +3605,7 @@ dependencies = [
  "bytes",
  "chrono",
  "futures-util",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "ipnet",
  "kevy-client",
  "mailrs-arc",
@@ -3649,7 +3706,7 @@ name = "mailrs-sender"
 version = "0.0.1"
 dependencies = [
  "base64",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mailrs-core-api",
  "mailrs-outbound-queue",
  "mailrs-smtp-client",
@@ -3678,7 +3735,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "hex",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "hmac 0.13.0",
  "html2text",
  "image",
@@ -3773,7 +3830,7 @@ version = "3.1.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "kevy-embedded",
  "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "spg-sqlx",
@@ -3796,7 +3853,7 @@ dependencies = [
  "criterion 0.8.2",
  "mailrs-rfc5322 1.0.1",
  "memchr",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3805,7 +3862,7 @@ version = "2.0.1"
 dependencies = [
  "compact_str",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "rcgen 0.14.8",
  "rustls",
  "sha2 0.11.0",
@@ -3861,7 +3918,7 @@ dependencies = [
  "compact_str",
  "criterion 0.8.2",
  "dhat",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mail-auth",
  "memchr",
  "tokio",
@@ -3953,6 +4010,7 @@ dependencies = [
  "axum",
  "base64",
  "futures-util",
+ "hickory-resolver 0.24.4",
  "html2text",
  "kevy-client",
  "mailrs-core-api",
@@ -3961,9 +4019,10 @@ dependencies = [
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "password-hash",
  "rand_core 0.6.4",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tower-http",
  "tracing",
@@ -4055,7 +4114,7 @@ dependencies = [
  "metrics",
  "metrics-util",
  "quanta",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4812,7 +4871,7 @@ dependencies = [
  "rustc-hash 2.1.2",
  "rustls",
  "socket2",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "web-time",
@@ -4834,7 +4893,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror",
+ "thiserror 2.0.18",
  "tinyvec",
  "tracing",
  "web-time",
@@ -5206,7 +5265,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sse-stream",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -5238,7 +5297,7 @@ dependencies = [
  "chrono-tz",
  "log",
  "regex",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5736,7 +5795,7 @@ checksum = "0d585997b0ac10be3c5ee635f1bab02d512760d14b7c468801ac8a01d9ae5f1d"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -5948,7 +6007,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -6031,7 +6090,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
  "whoami",
 ]
@@ -6069,7 +6128,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
  "whoami",
 ]
@@ -6094,7 +6153,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "sqlx-core",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
  "url",
 ]
@@ -6299,7 +6358,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -6317,11 +6376,31 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.18",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -6743,7 +6822,7 @@ dependencies = [
  "log",
  "rand 0.9.4",
  "sha1",
- "thiserror",
+ "thiserror 2.0.18",
  "utf-8",
 ]
 
@@ -6760,7 +6839,7 @@ dependencies = [
  "log",
  "rand 0.9.4",
  "sha1",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -7475,7 +7554,7 @@ dependencies = [
  "oid-registry",
  "ring",
  "rusticata-macros",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
 ]
 
