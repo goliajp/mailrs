@@ -82,24 +82,85 @@ pub async fn list_accounts(
         .map_err(map_err)
 }
 
-/// POST /api/admin/accounts — stub: full add flow needs fastcore-side
-/// account provisioning (argon2 hash + effective perms). Returns 501 for
-/// now; single-user prod doesn't hit this path.
+/// POST /api/admin/accounts — provision a new account. Writes an
+/// AccountWithHashWire blob into fastcore-side kevy (via network kevy,
+/// same key shape `mailrs:account:<addr>`) plus an empty
+/// EffectivePermissionsResponse. Password is argon2-hashed here.
 pub async fn add_account(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
-    Json(_req): Json<wire::AddAccountRequest>,
+    Json(req): Json<wire::AddAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    Err(StatusCode::NOT_IMPLEMENTED)
+    use argon2::{
+        Argon2,
+        password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
+    };
+    let salt = SaltString::generate(&mut ArgonRng);
+    let hash = Argon2::default()
+        .hash_password(req.password.as_bytes(), &salt)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .to_string();
+    let domain = req
+        .address
+        .split_once('@')
+        .map(|(_, d)| d.to_string())
+        .unwrap_or_default();
+    let blob = serde_json::json!({
+        "address": &req.address,
+        "domain": domain,
+        "display_name": req.display_name,
+        "active": true,
+        "created_at": now_secs(),
+        "quota_bytes": 10_737_418_240i64,
+        "recovery_email": null,
+        "password_hash": hash,
+    });
+    let payload = serde_json::to_vec(&blob).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let addr_c = req.address.clone();
+    with_kevy(move |c| {
+        let key = format!("mailrs:account:{addr_c}");
+        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
+        c.sadd(b"mailrs:accounts:index", &[addr_c.as_bytes()])?;
+        Ok(())
+    })?;
+    // Empty perms blob — admin bootstraps their own perms via
+    // /api/admin/groups later.
+    let perms = serde_json::json!({
+        "address": &req.address,
+        "permissions": Vec::<String>::new(),
+        "groups": Vec::<serde_json::Value>::new(),
+        "is_super": false,
+        "send_as": Vec::<String>::new(),
+    });
+    let perms_payload =
+        serde_json::to_vec(&perms).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let addr_c2 = req.address.clone();
+    with_kevy(move |c| {
+        let key = format!("mailrs:account:{addr_c2}:perms");
+        c.set(key.as_bytes(), perms_payload.as_slice())?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
-/// DELETE /api/admin/accounts/{address} — stub, see add_account.
+/// DELETE /api/admin/accounts/{address} — remove account entries from
+/// kevy. Does not touch maildir on disk — the operator is responsible
+/// for cleaning that up if they want a hard delete.
 pub async fn remove_account(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
-    axum::extract::Path(_address): axum::extract::Path<String>,
+    axum::extract::Path(address): axum::extract::Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    Err(StatusCode::NOT_IMPLEMENTED)
+    let addr = address.clone();
+    with_kevy(move |c| {
+        c.del(&[
+            format!("mailrs:account:{addr}").as_bytes(),
+            format!("mailrs:account:{addr}:perms").as_bytes(),
+        ])?;
+        c.srem(b"mailrs:accounts:index", &[addr.as_bytes()])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ── aliases (network kevy) ─────────────────────────────────────────

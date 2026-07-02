@@ -30,7 +30,7 @@ name = "mailrs-fastcore-backfill-uid-index"
 path = "src/bin/backfill_uid_index.rs"
 
 [dependencies]
-mailrs-core-api = { path = "../core-api", features = ["server"] }
+mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 kevy-embedded = { workspace = true }
 axum = { version = "0.8" }

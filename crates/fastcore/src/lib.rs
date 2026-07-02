@@ -72,6 +72,14 @@ pub async fn run() {
     let mailbox = KevyMailboxStore::new(store);
     let state = Arc::new(FastcoreState { mailbox });
 
+    // Spawn the ingestion sync loop before the HTTP listener so new
+    // messages start replicating as soon as the process boots. Failures
+    // are logged + retried; they don't crash the server.
+    let sync_state = state.clone();
+    tokio::spawn(async move {
+        ingest_sync_loop(sync_state).await;
+    });
+
     let addr = std::env::var("MAILRS_FASTCORE_BIND").unwrap_or_else(|_| "0.0.0.0:3301".into());
 
     let app = build_router(state);
@@ -85,6 +93,130 @@ pub async fn run() {
         "mailrs-fastcore listening (kevy backend)"
     );
     axum::serve(listener, app).await.unwrap();
+}
+
+/// Poll monolith's core-rpc every 30 s for threads newer than the last
+/// synced timestamp per user; upsert them into kevy so mail delivered
+/// after cutover shows up in the fastcore-served inbox without a manual
+/// re-migrate. Uses monolith solely as the source of "what's arrived
+/// since the last poll" — user-visible reads never touch it.
+async fn ingest_sync_loop(state: Arc<FastcoreState>) {
+    let Ok(base) = std::env::var("MAILRS_CORE_RPC_BASE") else {
+        tracing::warn!("MAILRS_CORE_RPC_BASE unset — ingestion loop disabled");
+        return;
+    };
+    let Ok(secret) = std::env::var(mailrs_core_api::AUTH_SECRET_ENV) else {
+        tracing::warn!("MAILRS_CORE_API_SECRET unset — ingestion loop disabled");
+        return;
+    };
+    let client = mailrs_core_api::client::Client::new(base, secret);
+    let interval = std::time::Duration::from_secs(
+        std::env::var("MAILRS_FASTCORE_SYNC_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(30),
+    );
+    loop {
+        if let Err(e) = run_ingest_once(&state, &client).await {
+            tracing::warn!(error = %e, "ingest sync tick failed");
+        }
+        tokio::time::sleep(interval).await;
+    }
+}
+
+async fn run_ingest_once(
+    state: &Arc<FastcoreState>,
+    client: &mailrs_core_api::client::Client,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use mailrs_core_api::method::conversation::ListConversationsRequest;
+    use mailrs_core_api::types::ConversationFilter;
+
+    let addrs = state.mailbox.list_account_addresses()?;
+    for user in &addrs {
+        let cursor_key = format!("mailrs:sync:cursor:{user}");
+        let prev = state
+            .mailbox
+            .store_ref()
+            .get(cursor_key.as_bytes())?
+            .and_then(|b| String::from_utf8_lossy(&b).parse::<i64>().ok())
+            .unwrap_or(0);
+        let req = ListConversationsRequest {
+            filter: ConversationFilter {
+                limit: 200,
+                before_ts: None,
+                category: None,
+                domains: None,
+                archived: false,
+                folder: None,
+                unread: None,
+                starred: None,
+                section: None,
+            },
+        };
+        let resp = match client.list_conversations(user, &req).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(error = %e, %user, "monolith list_conversations failed");
+                continue;
+            }
+        };
+        let mut max_seen = prev;
+        let mut newly = 0;
+        for s in &resp.items {
+            if s.last_date <= prev {
+                continue;
+            }
+            let row = mailrs_mailbox_kevy::ThreadRow {
+                thread_id: s.thread_id.clone(),
+                subject: s.subject.clone(),
+                senders_csv: s.participants.clone(),
+                count: s.message_count as i64,
+                unread_count: s.unread_count as i64,
+                latest_date: s.last_date,
+                latest_preview: s.snippet.clone(),
+                category: s.category.clone(),
+                importance_level: s.importance_level.clone(),
+                importance_score: s.importance_score as f64,
+                requires_action: s.requires_action,
+                pinned: s.pinned,
+                archived: s.archived,
+                has_action: s.requires_action,
+                sent_count: s.sent_count as i64,
+                starred: s.flagged,
+            };
+            if let Err(e) = state.mailbox.upsert_thread(user, &row) {
+                tracing::warn!(error = %e, %user, tid = %s.thread_id, "upsert_thread failed");
+                continue;
+            }
+            // Pull the thread's messages and mirror them so `get_thread_messages`
+            // returns the fresh content on the next click.
+            if let Ok(msgs) = client.list_thread_messages(user, &s.thread_id).await {
+                for w in &msgs.items {
+                    let payload = match serde_json::to_vec(w) {
+                        Ok(p) => p,
+                        Err(_) => continue,
+                    };
+                    let _ = state.mailbox.upsert_message(
+                        &s.thread_id,
+                        &w.message_id,
+                        w.internal_date,
+                        &payload,
+                    );
+                    let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
+                }
+            }
+            max_seen = max_seen.max(s.last_date);
+            newly += 1;
+        }
+        if newly > 0 {
+            state
+                .mailbox
+                .store_ref()
+                .set(cursor_key.as_bytes(), max_seen.to_string().as_bytes())?;
+            tracing::info!(%user, newly, cursor = max_seen, "ingest sync applied");
+        }
+    }
+    Ok(())
 }
 
 fn build_router(state: Arc<FastcoreState>) -> Router {
@@ -179,10 +311,24 @@ async fn get_categories(
     State(state): State<Arc<FastcoreState>>,
     Path(_user): Path<String>,
 ) -> Json<conv::ConversationCategoriesResponse> {
-    // Hardcoded set for now — mailbox-kevy doesn't have a "list all
-    // categories for user" iterator yet. The 5 below match the UI tab
-    // set; missing ones return 0.
-    let categories: Vec<conv::CategoryCount> = ["personal", "bulk", "spam", "scam", "inbox"]
+    // Expanded set — covers monolith's known category vocabulary.
+    // Any per-category zset that ZCARD > 0 is returned. UI tabs only
+    // render the categories that exist so overshooting is safe.
+    let candidates = [
+        "inbox",
+        "personal",
+        "bulk",
+        "spam",
+        "scam",
+        "promotions",
+        "updates",
+        "forums",
+        "work",
+        "notifications",
+        "receipts",
+        "newsletter",
+    ];
+    let categories: Vec<conv::CategoryCount> = candidates
         .into_iter()
         .map(|cat| {
             let key = mailrs_mailbox_kevy::keys::user_threads_by_category(&_user, cat);
