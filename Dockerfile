@@ -50,6 +50,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore-backfill-sent \
     && cargo build --release --bin mailrs-fastcore-backfill-contacts \
     && cargo build --release --bin mailrs-fastcore-backfill-uid-index \
+    && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
@@ -60,6 +61,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent \
     && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
     && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
+    && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
     && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
 
 # stage 2: build frontend
