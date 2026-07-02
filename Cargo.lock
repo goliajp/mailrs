@@ -3268,6 +3268,7 @@ dependencies = [
  "mailrs-core-api",
  "mailrs-mailbox-kevy",
  "mailrs-outbound-queue",
+ "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-smtp-client",
  "password-hash",
  "rand_core 0.6.4",
