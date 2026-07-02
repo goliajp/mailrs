@@ -25,6 +25,10 @@ path = "src/bin/backfill_sent.rs"
 name = "mailrs-fastcore-backfill-contacts"
 path = "src/bin/backfill_contacts.rs"
 
+[[bin]]
+name = "mailrs-fastcore-backfill-uid-index"
+path = "src/bin/backfill_uid_index.rs"
+
 [dependencies]
 mailrs-core-api = { path = "../core-api", features = ["server"] }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }

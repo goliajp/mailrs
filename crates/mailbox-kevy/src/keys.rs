@@ -53,6 +53,12 @@ pub fn user_threads_sent(user: &str) -> String {
     format!("mailrs:user:{user}:threads:sent")
 }
 
+/// Per-user uid → message_id index — hash where field=uid, value=message_id.
+/// Populated by the deliver path + `mailrs-fastcore-backfill-uid-index`.
+pub fn user_msg_by_uid(user: &str) -> String {
+    format!("mailrs:user:{user}:msg_by_uid")
+}
+
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the
 /// full message timeline in order.

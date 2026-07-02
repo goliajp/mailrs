@@ -457,6 +457,19 @@ impl Client {
         self.get_authed(path, "get_message_by_uid").await
     }
 
+    /// GET /v1/users/{user}/messages/by-uid/{uid} — fastcore-native
+    /// variant. Resolves through the per-user uid index instead of a
+    /// per-mailbox scan. Preferred when the caller already knows the
+    /// user (webapi does).
+    pub async fn get_message_by_uid_for_user(
+        &self,
+        user: &str,
+        uid: u32,
+    ) -> ApiResult<method::message::MessageWire> {
+        let path = format!("/v1/users/{}/messages/by-uid/{uid}", Self::enc(user));
+        self.get_authed(path, "get_message_by_uid_for_user").await
+    }
+
     /// GET /v1/mailboxes/{id}/messages/uid/{uid}/raw  → raw RFC 5322 bytes.
     pub async fn get_message_raw(&self, mailbox_id: i64, uid: u32) -> ApiResult<Vec<u8>> {
         let path = format!("/v1/mailboxes/{mailbox_id}/messages/uid/{uid}/raw");

@@ -45,19 +45,58 @@ const KEVY_URL_ENV: &str = "MAILRS_KEVY_URL";
 const SESSION_COOKIE: &str = "mailrs_session";
 const SESSION_KEY_PREFIX: &str = "session:";
 
-/// Pull `mailrs_session=<token>` out of the `Cookie:` header.
-fn extract_token(headers: &HeaderMap) -> Option<String> {
-    let raw = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
-    for cookie in raw.split(';') {
-        let cookie = cookie.trim();
-        if let Some(token) = cookie.strip_prefix(SESSION_COOKIE) {
-            // strip the `=` plus the value
-            if let Some(stripped) = token.strip_prefix('=') {
-                return Some(stripped.to_string());
+/// Extract session token from any of: `mailrs_session` cookie,
+/// `Authorization: Bearer <token>` header, or `?token=<hex>` query.
+/// The query variant is used by browser <img src> / <a href> which
+/// can't set custom headers, e.g. attachment previews.
+fn extract_token(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
+    if let Some(cookie_header) = headers.get(axum::http::header::COOKIE)
+        && let Ok(raw) = cookie_header.to_str()
+    {
+        for cookie in raw.split(';') {
+            let cookie = cookie.trim();
+            if let Some(rest) = cookie.strip_prefix(SESSION_COOKIE)
+                && let Some(v) = rest.strip_prefix('=')
+            {
+                return Some(v.to_string());
+            }
+        }
+    }
+    if let Some(auth) = headers.get(axum::http::header::AUTHORIZATION)
+        && let Ok(raw) = auth.to_str()
+        && let Some(v) = raw.strip_prefix("Bearer ")
+    {
+        return Some(v.trim().to_string());
+    }
+    if let Some(q) = uri.query() {
+        for pair in q.split('&') {
+            if let Some(v) = pair.strip_prefix("token=") {
+                // Percent-decode via url crate — session tokens are hex so
+                // in practice decode is a noop, but this normalizes anyway.
+                return percent_decode(v);
             }
         }
     }
     None
+}
+
+fn percent_decode(s: &str) -> Option<String> {
+    let mut out = String::with_capacity(s.len());
+    let mut iter = s.bytes();
+    while let Some(b) = iter.next() {
+        if b == b'%' {
+            let h1 = iter.next()?;
+            let h2 = iter.next()?;
+            let hex = format!("{}{}", h1 as char, h2 as char);
+            let byte = u8::from_str_radix(&hex, 16).ok()?;
+            out.push(byte as char);
+        } else if b == b'+' {
+            out.push(' ');
+        } else {
+            out.push(b as char);
+        }
+    }
+    Some(out)
 }
 
 /// Look up the session in kevy. Runs the blocking kevy-client call on a
@@ -104,12 +143,9 @@ pub async fn session_auth_middleware(
     let kevy_url = kevy_url.expect("checked above");
     let _ = &state; // reserved for future enrichment via core_client
 
-    let token = {
-        let h = req.headers();
-        match extract_token(h) {
-            Some(t) => t,
-            None => return Err(StatusCode::UNAUTHORIZED),
-        }
+    let token = match extract_token(req.headers(), req.uri()) {
+        Some(t) => t,
+        None => return Err(StatusCode::UNAUTHORIZED),
     };
 
     let session = match resolve_session(kevy_url, token).await {
@@ -142,24 +178,33 @@ mod tests {
     #[test]
     fn parses_lone_session_cookie() {
         let m = h("mailrs_session=abc123");
-        assert_eq!(extract_token(&m).as_deref(), Some("abc123"));
+        assert_eq!(
+            extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
+            Some("abc123")
+        );
     }
 
     #[test]
     fn parses_session_among_others() {
         let m = h("foo=bar; mailrs_session=xyz; baz=qux");
-        assert_eq!(extract_token(&m).as_deref(), Some("xyz"));
+        assert_eq!(
+            extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
+            Some("xyz")
+        );
     }
 
     #[test]
     fn missing_cookie_returns_none() {
         let m = h("foo=bar");
-        assert!(extract_token(&m).is_none());
+        assert!(extract_token(&m, &axum::http::Uri::from_static("/")).is_none());
     }
 
     #[test]
     fn empty_session_value_yields_empty_string() {
         let m = h("mailrs_session=");
-        assert_eq!(extract_token(&m).as_deref(), Some(""));
+        assert_eq!(
+            extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
+            Some("")
+        );
     }
 }
