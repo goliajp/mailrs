@@ -74,6 +74,17 @@ pub fn user_next_uid(user: &str) -> String {
     format!("mailrs:user:{user}:next_uid")
 }
 
+/// Alias key: `mailrs:alias:<address>` — string, value is the resolved
+/// target address. `contact@golia.jp -> lihao@golia.jp` lives here.
+/// Reads follow one hop; cycles are broken by a depth cap in the caller.
+pub fn alias(address: &str) -> String {
+    format!("mailrs:alias:{address}")
+}
+
+/// Set-of-aliases index: `mailrs:aliases:index` — SADD every alias key
+/// on write so admin tooling can list them without SCAN.
+pub const ALIAS_INDEX: &str = "mailrs:aliases:index";
+
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the
 /// full message timeline in order.

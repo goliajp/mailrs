@@ -64,6 +64,7 @@ use std::sync::Arc;
 use kevy_embedded::Store;
 
 mod account;
+mod alias;
 mod deliver;
 pub mod keys;
 mod list_threads;
