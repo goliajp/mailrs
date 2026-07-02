@@ -58,25 +58,9 @@ pub struct LoginResponse {
 ///   monolith uses, so either binary can read it
 /// - Return 200 with `Set-Cookie: mailrs_session=<token>; HttpOnly; ...`
 pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequest>) -> Response {
-    // Fastcore-first: hit fastcore's kevy-backed account store; only
-    // fall back to monolith core RPC if fastcore doesn't have the
-    // record yet (pre-migration window).
+    // Fastcore-only: kevy-backed account store is the source of truth.
     let acct = match state.fast().get_account_with_hash(&req.address).await {
         Ok(a) => a,
-        Err(mailrs_core_api::error::CoreApiError::NotFound(_))
-            if state.fastcore_client.is_some() =>
-        {
-            match state.core_client.get_account_with_hash(&req.address).await {
-                Ok(a) => a,
-                Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => {
-                    return StatusCode::UNAUTHORIZED.into_response();
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, "login: core fallback failed");
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            }
-        }
         Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => {
             return StatusCode::UNAUTHORIZED.into_response();
         }
@@ -100,17 +84,8 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
-    // Permissions for the login response — same hot path as auth_me.
-    // Same fastcore-first pattern.
-    let perms = match state.fast().effective_permissions(&req.address).await {
-        Ok(p) => Some(p),
-        Err(_) if state.fastcore_client.is_some() => state
-            .core_client
-            .effective_permissions(&req.address)
-            .await
-            .ok(),
-        Err(_) => None,
-    };
+    // Permissions for the login response — fastcore-only.
+    let perms = state.fast().effective_permissions(&req.address).await.ok();
 
     // Generate token + write to kevy in the same shape as the monolith.
     let mut bytes = [0u8; 32];
@@ -223,16 +198,11 @@ pub async fn auth_me(
     Extension(AuthedUser(address)): Extension<AuthedUser>,
     Extension(AuthedDisplayName(display_name)): Extension<AuthedDisplayName>,
 ) -> Result<Json<AuthMeResponse>, StatusCode> {
-    // Fastcore-first — same pattern as login.
-    let perms = match state.fast().effective_permissions(&address).await {
-        Ok(p) => p,
-        Err(_) if state.fastcore_client.is_some() => state
-            .core_client
-            .effective_permissions(&address)
-            .await
-            .map_err(map_err)?,
-        Err(e) => return Err(map_err(e)),
-    };
+    let perms = state
+        .fast()
+        .effective_permissions(&address)
+        .await
+        .map_err(map_err)?;
     // `accessible_domains` lives in EffectivePermissions but is NOT in
     // the wire response (server cement only exposes is_super + send_as +
     // permissions on the EffectivePermissionsResponse). For Phase 3 the
