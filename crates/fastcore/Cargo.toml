@@ -57,6 +57,9 @@ rand_core = { workspace = true }
 base64 = "0.22"
 mailrs-rfc2047 = "1"
 ureq = "2"
+mailrs-acme = "1"
+mailrs-tls-reload = "1"
+instant-acme = "0.8"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

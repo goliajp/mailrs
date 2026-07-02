@@ -17,6 +17,7 @@
 
 #![allow(missing_docs)]
 
+mod acme_task;
 mod live_sync;
 mod spool_drain;
 
@@ -91,6 +92,15 @@ pub async fn run() {
     let drain_state = state.clone();
     tokio::spawn(async move {
         spool_drain::spawn(drain_state).await;
+    });
+
+    // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
+    // either is unset. Binds port 80 for the HTTP-01 challenge server
+    // and periodically renews the cert to `MAILRS_ACME_DIR`. Receiver
+    // + webapi consume the resulting cert files on their own reload
+    // cadence — fastcore doesn't serve TLS itself.
+    tokio::spawn(async move {
+        acme_task::spawn().await;
     });
 
     let addr = std::env::var("MAILRS_FASTCORE_BIND").unwrap_or_else(|_| "0.0.0.0:3301".into());
