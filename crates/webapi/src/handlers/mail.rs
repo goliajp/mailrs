@@ -11,7 +11,7 @@ use axum::{
     response::IntoResponse,
 };
 
-use mailrs_core_api::method::{mailbox as mb_wire, message as msg_wire};
+use mailrs_core_api::method::message as msg_wire;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
@@ -20,17 +20,33 @@ fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// GET /api/mail/folders
+/// Wire shape UI expects from /api/mail/folders.
+#[derive(serde::Serialize)]
+pub struct FolderInfo {
+    pub name: String,
+    pub total: u32,
+    pub unseen: u32,
+    pub uidnext: u32,
+}
+
+/// GET /api/mail/folders — fastcore-native. Returns bare `FolderInfo[]`
+/// (monolith shape). Counts derived from kevy zsets — zero spg touch.
 pub async fn get_folders(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Result<Json<mb_wire::ListMailboxesResponse>, StatusCode> {
-    state
-        .core_client
-        .list_mailboxes(&user)
-        .await
-        .map(Json)
-        .map_err(map_err)
+) -> Result<Json<Vec<FolderInfo>>, StatusCode> {
+    let resp = state.fast().list_mailboxes(&user).await.map_err(map_err)?;
+    let folders = resp
+        .items
+        .into_iter()
+        .map(|m| FolderInfo {
+            name: m.name,
+            total: m.uidnext.saturating_sub(1),
+            unseen: 0,
+            uidnext: m.uidnext,
+        })
+        .collect();
+    Ok(Json(folders))
 }
 
 /// GET /api/mail/messages/{uid}
