@@ -212,18 +212,30 @@ pub async fn reset_password(
 
 /// GET /api/auth/recovery-email — returns the account's recovery
 /// email (or null). POST updates it.
+///
+/// Reads via the fastcore RPC because the blob lives in fastcore's
+/// embedded kevy (`upsert_account`). Prior version read
+/// `mailrs:account:<u>` from the network kevy where it was never
+/// written — so the endpoint always returned null even after a
+/// successful save.
 pub async fn get_recovery_email(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("mailrs:account:{user}");
-    let cur = with_kevy(move |c| c.hget(key.as_bytes(), b"blob"))?;
-    let Some(cur) = cur else {
-        return Ok(Json(serde_json::json!({ "recovery_email": null })));
+    let acct = match state.fast().get_account_with_hash(&user).await {
+        Ok(a) => a,
+        Err(_) => {
+            return Ok(Json(serde_json::json!({ "recovery_email": null })));
+        }
     };
-    let val: serde_json::Value =
-        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let rec = val
+    // Recovery email lives on the AccountWithHashWire's inner
+    // AccountWire, which is flattened into the same JSON blob. Read
+    // it back via serde_json to future-proof against wire changes.
+    let raw = match serde_json::to_value(&acct) {
+        Ok(v) => v,
+        Err(_) => return Ok(Json(serde_json::json!({ "recovery_email": null }))),
+    };
+    let rec = raw
         .get("recovery_email")
         .cloned()
         .unwrap_or(serde_json::Value::Null);

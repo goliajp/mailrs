@@ -68,9 +68,12 @@ pub async fn admin_middleware(
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
     let path = req.uri().path().to_string();
+    // NB: /oauth/authorize is user-facing (any authed user consents to a
+    // client), and /oauth/token is unauth (client-credentials — not
+    // routed through this middleware anyway). Only admin-panel routes
+    // gate on admin authority.
     let requires_admin = path.starts_with("/api/admin/")
         || path == "/api/admin"
-        || path.starts_with("/oauth/") // oidc provider ops on client credentials
         || path == "/api/admin/export";
     if !requires_admin {
         return next.run(req).await;
@@ -88,22 +91,40 @@ pub async fn admin_middleware(
     next.run(req).await
 }
 
-/// Run `f` against a fresh kevy connection on a blocking thread.
+/// Run `f` against a fresh kevy connection.
+///
+/// Prior version used `std::thread::spawn(...).join()` which is a
+/// synchronous block on the tokio worker; under load it starved the
+/// runtime. `tokio::task::block_in_place` signals that the current
+/// task will block so tokio can migrate other tasks off this worker;
+/// no async signature change is needed at the call sites, so this is
+/// safe to land ahead of the full pool refactor.
+///
 /// Any I/O error surfaces as `INTERNAL_SERVER_ERROR`. Callers that
 /// need to distinguish (e.g., NOT_FOUND on empty key) should peek the
 /// returned value before mapping.
 pub fn with_kevy<F, T>(f: F) -> Result<T, StatusCode>
 where
-    F: FnOnce(&mut kevy_client::Connection) -> std::io::Result<T> + Send + 'static,
-    T: Send + 'static,
+    F: FnOnce(&mut kevy_client::Connection) -> std::io::Result<T>,
 {
     let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::open(&url)?;
-        f(&mut c)
-    });
-    handle
-        .join()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    // block_in_place is only valid inside a multi-thread runtime — it
+    // panics under the current_thread runtime used by some tests. In
+    // that case we just run the closure directly.
+    let inner = |url: String, f: F| -> Result<T, StatusCode> {
+        let mut c = kevy_client::Connection::open(&url).map_err(|e| {
+            tracing::warn!(err = %e, "with_kevy: kevy connect failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+        f(&mut c).map_err(|e| {
+            tracing::warn!(err = %e, "with_kevy: kevy IO error");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
+    };
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) if matches!(handle.runtime_flavor(), tokio::runtime::RuntimeFlavor::MultiThread) => {
+            tokio::task::block_in_place(|| inner(url, f))
+        }
+        _ => inner(url, f),
+    }
 }
