@@ -37,6 +37,32 @@ impl JmapAdapter {
     pub fn new(state: Arc<WebState>) -> Self {
         Self { state }
     }
+
+    /// Best-effort mailbox → (wire, owner) lookup. JMAP passes just
+    /// a mailbox_id which is a per-user synthetic in fastcore; we
+    /// discover which user by scanning every registered account until
+    /// we find one whose list_mailboxes returns a match. Cheap because
+    /// list_mailboxes is O(1) per account (INBOX/Sent/Drafts/Junk/Trash).
+    async fn resolve_mailbox(
+        &self,
+        mailbox_id: i64,
+    ) -> Result<(mailrs_core_api::method::mailbox::MailboxWire, String), StoreError> {
+        let accounts = self
+            .state
+            .fast()
+            .list_accounts()
+            .await
+            .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
+        for a in accounts.items {
+            let addr = a.address;
+            if let Ok(list) = self.state.fast().list_mailboxes(&addr).await
+                && let Some(m) = list.items.into_iter().find(|m| m.id == mailbox_id)
+            {
+                return Ok((m, addr));
+            }
+        }
+        Err(Box::new(std::io::Error::other("mailbox not found")))
+    }
 }
 
 fn bridge_wire_to_jmap(w: mailrs_core_api::method::message::MessageWire) -> JmapMessage {
@@ -79,24 +105,71 @@ impl MailStore for JmapAdapter {
             .collect())
     }
 
-    async fn mailbox_status(&self, _mailbox_id: i64) -> Result<MailboxCounts, StoreError> {
-        // Fastcore's mailbox model treats all folders as views over the
-        // per-user threads. Report 0/0 — clients that care fetch
-        // messages directly.
-        Ok(MailboxCounts { total: 0, unread: 0 })
+    async fn mailbox_status(&self, mailbox_id: i64) -> Result<MailboxCounts, StoreError> {
+        // Fastcore's mailboxes are synthetic (INBOX = 1, Sent = 2, …).
+        // Total = uidnext − 1 from list_mailboxes; unread = the
+        // user-scoped unseen_count for INBOX, 0 elsewhere.
+        // Prior version reported 0/0 always — iPhone Mail then showed
+        // every folder empty even when they weren't.
+        let (mb, user) = self.resolve_mailbox(mailbox_id).await?;
+        let total = mb.uidnext.saturating_sub(1);
+        let unread = if mb.name.eq_ignore_ascii_case("INBOX") {
+            self.state
+                .fast()
+                .unseen_count(&user)
+                .await
+                .map(|r| r.count.max(0) as u32)
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        Ok(MailboxCounts { total, unread })
     }
 
     async fn list_messages(
         &self,
-        _mailbox_id: i64,
-        _offset: u32,
-        _limit: u32,
+        mailbox_id: i64,
+        offset: u32,
+        limit: u32,
     ) -> Result<Vec<JmapMessage>, StoreError> {
-        // Fastcore is thread-centric; per-mailbox listing is emulated
-        // by the webapi's `/api/mail/folders/{name}/messages` handler.
-        // JMAP Email/query implementations get their messages via
-        // list_thread_messages, so returning empty here is safe.
-        Ok(Vec::new())
+        // Walk the user's conversations for the resolved mailbox's
+        // folder, then flatten each thread's messages. Sufficient for
+        // Email/query with basic sort — full CONDSTORE / cursor
+        // paging tracks in a follow-up.
+        let (mb, user) = self.resolve_mailbox(mailbox_id).await?;
+        let mut out = Vec::new();
+        let req = mailrs_core_api::method::conversation::ListConversationsRequest {
+            filter: mailrs_core_api::types::ConversationFilter {
+                limit: (offset + limit).min(500),
+                folder: Some(mb.name.clone()),
+                ..Default::default()
+            },
+        };
+        let resp = self
+            .state
+            .fast()
+            .list_conversations(&user, &req)
+            .await
+            .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
+        for conv in resp.items.into_iter().skip(offset as usize) {
+            if out.len() as u32 >= limit {
+                break;
+            }
+            let msgs = self
+                .state
+                .fast()
+                .list_thread_messages(&user, &conv.thread_id)
+                .await
+                .map(|r| r.items)
+                .unwrap_or_default();
+            for w in msgs {
+                out.push(bridge_wire_to_jmap(w));
+                if out.len() as u32 >= limit {
+                    break;
+                }
+            }
+        }
+        Ok(out)
     }
 
     async fn get_message_by_db_id(
@@ -104,6 +177,10 @@ impl MailStore for JmapAdapter {
         _user: &str,
         _id: i64,
     ) -> Result<Option<JmapMessage>, StoreError> {
+        // The webapi doesn't own a global message-id → wire index —
+        // JMAP handlers that need this take the mailbox_id + uid
+        // route instead. Returning None matches JMAP Email/get with
+        // an unknown blobId.
         Ok(None)
     }
 
@@ -123,15 +200,38 @@ impl MailStore for JmapAdapter {
 
     async fn update_flags(
         &self,
-        _mailbox_id: i64,
-        _uid: u32,
-        _flags: u32,
+        mailbox_id: i64,
+        uid: u32,
+        flags: u32,
     ) -> Result<(), StoreError> {
-        Ok(())
+        let (_mb, user) = self.resolve_mailbox(mailbox_id).await?;
+        let req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags };
+        self.state
+            .fast()
+            .set_message_flags(&user, uid, &req)
+            .await
+            .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })
     }
 
-    async fn add_flags(&self, _mailbox_id: i64, _uid: u32, _flags: u32) -> Result<(), StoreError> {
-        Ok(())
+    async fn add_flags(&self, mailbox_id: i64, uid: u32, flags: u32) -> Result<(), StoreError> {
+        // Read-modify-write: fetch current flags, OR the new bits in,
+        // write back. Ties into the same fastcore RPC as update_flags.
+        let (_mb, user) = self.resolve_mailbox(mailbox_id).await?;
+        let cur = self
+            .state
+            .fast()
+            .get_message_by_uid_for_user(&user, uid)
+            .await
+            .map(|w| w.flags)
+            .unwrap_or(0);
+        let req = mailrs_core_api::method::admin::SetMessageFlagsRequest {
+            flags: cur | flags,
+        };
+        self.state
+            .fast()
+            .set_message_flags(&user, uid, &req)
+            .await
+            .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })
     }
 
     async fn read_message_raw(&self, message: &JmapMessage) -> Option<Vec<u8>> {
@@ -202,11 +302,13 @@ impl MailStore for JmapAdapter {
         let write = crate::handlers::kevy_util::with_kevy(move |c| {
             for rcpt in &recipients {
                 let id = c.incr(b"mailrs:outbound:counter").unwrap_or(created);
+                use base64::Engine as _;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_owned);
                 let blob = serde_json::json!({
                     "id": id,
                     "sender": sender,
                     "recipient": rcpt,
-                    "message_data": String::from_utf8_lossy(&raw_owned).to_string(),
+                    "message_data_b64": b64,
                     "created_at": created,
                 })
                 .to_string();

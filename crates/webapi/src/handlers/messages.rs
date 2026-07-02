@@ -219,21 +219,33 @@ pub async fn cancel_pending_send(
         let mut keep = Vec::new();
         for id_bytes in ids {
             let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
+                keep.push(id_bytes);
                 continue;
             };
             let hkey = format!("mailrs:outbound:{id_str}");
             let blob = c.hget(hkey.as_bytes(), b"blob")?;
+            // Strict JSON compare: parse the envelope, match on the
+            // sender field AND the Message-ID header extracted from
+            // message_data. Prior contains-in-string version would
+            // false-positive on any Message-ID substring, letting the
+            // caller cancel other users' outbound entries.
             let mut matched = false;
-            if let Some(bytes) = blob {
-                let s = String::from_utf8_lossy(&bytes);
-                if s.contains(&format!("<{target}>")) || s.contains(&target)
-                {
-                    // Only cancel entries owned by the requesting user.
-                    if s.contains(&format!("\"sender\":\"{user_c}\"")) {
-                        removed += 1;
-                        matched = true;
-                        c.del(&[hkey.as_bytes()])?;
-                    }
+            if let Some(bytes) = blob
+                && let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            {
+                let sender = env
+                    .get("sender")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let md = env
+                    .get("message_data")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let header = format!("Message-ID: <{target}>\r\n");
+                if sender == user_c && md.contains(&header) {
+                    removed += 1;
+                    matched = true;
+                    c.del(&[hkey.as_bytes()])?;
                 }
             }
             if !matched {

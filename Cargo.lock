@@ -3261,6 +3261,7 @@ version = "0.0.1"
 dependencies = [
  "argon2",
  "axum",
+ "base64",
  "http-body-util",
  "kevy-client",
  "kevy-embedded",

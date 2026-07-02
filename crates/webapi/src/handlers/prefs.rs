@@ -716,11 +716,13 @@ fn enqueue_outbound(
         let ckey = "mailrs:outbound:counter".to_string();
         let ckey_c = ckey.clone();
         let id = with_kevy(move |c| next_id(c, &ckey_c))?;
+        use base64::Engine as _;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(envelope);
         let blob = serde_json::json!({
             "id": id,
             "sender": sender,
             "recipient": rcpt,
-            "message_data": String::from_utf8_lossy(envelope).to_string(),
+            "message_data_b64": b64,
             "created_at": created,
         });
         let payload = blob.to_string();

@@ -120,6 +120,21 @@ pub struct ForgotPasswordRequest {
 pub async fn forgot_password(
     Json(req): Json<ForgotPasswordRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    // Rate-limit — one reset per address per 5 minutes. Without this
+    // an attacker can spam the endpoint to churn pwreset:<token>
+    // entries and DoS the reset flow.
+    let rate_key = format!("pwreset:ratelimit:{}", req.address);
+    let rate_key_c = rate_key.clone();
+    let now = now_secs();
+    let recent = with_kevy(move |c| c.get(rate_key_c.as_bytes()))?
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(0);
+    if now - recent < 300 {
+        // Return 204 anyway so we don't leak "user exists" — the
+        // client can't tell whether we actually issued a token.
+        return Ok(StatusCode::NO_CONTENT);
+    }
     let token = random_hex(24);
     let key = format!("pwreset:{token}");
     let addr = req.address;
@@ -129,21 +144,23 @@ pub async fn forgot_password(
             key.as_bytes(),
             &[
                 (b"address" as &[u8], addr_c.as_bytes()),
-                (b"issued_at", now_secs().to_string().as_bytes()),
+                (b"issued_at", now.to_string().as_bytes()),
             ],
         )?;
-        // TTL best-effort — expire in 3600 s. If the kevy build lacks
-        // hexpire, the entry just lives longer; not a security issue
-        // for a token that's still gated by "must know the token".
         let _ = c.expire(
             format!("pwreset:{token}").as_bytes(),
             std::time::Duration::from_secs(3600),
         );
-        // Also index address → latest token so the "check your inbox"
-        // debug page can retrieve it. Fine for single-tenant use.
         c.set(
             format!("pwreset_by_addr:{addr}").as_bytes(),
             token.as_bytes(),
+        )?;
+        // Bump rate-limit stamp with a matching TTL so the entry
+        // self-clears after 5 minutes without cluttering kevy.
+        c.set_with_ttl(
+            rate_key.as_bytes(),
+            now.to_string().as_bytes(),
+            std::time::Duration::from_secs(300),
         )?;
         Ok(())
     })?;

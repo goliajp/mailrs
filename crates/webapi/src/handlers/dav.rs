@@ -16,10 +16,27 @@
 //! but with best-effort recurrence handling.
 
 use axum::extract::{Extension, Path};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::IntoResponse;
 
 use crate::handlers::conversations::AuthedUser;
+
+/// Standard DAV OPTIONS response — advertises the extensions we
+/// implement so client-side auto-detection accepts us as caldav +
+/// carddav.
+fn options_response() -> axum::response::Response {
+    let mut resp = (
+        StatusCode::OK,
+        [(
+            "Allow",
+            "OPTIONS, GET, HEAD, PROPFIND, REPORT, PUT, DELETE, MKCOL, MKCALENDAR",
+        )],
+    )
+        .into_response();
+    resp.headers_mut()
+        .insert("DAV", "1, 2, calendar-access, addressbook".parse().unwrap());
+    resp
+}
 
 fn xml(status: StatusCode, body: String) -> axum::response::Response {
     let mut resp = (
@@ -49,14 +66,13 @@ pub async fn well_known_carddav() -> impl IntoResponse {
     )
 }
 
-/// Root DAV endpoint. Responds to OPTIONS/PROPFIND with the correct
-/// DAV capabilities so clients can proceed with discovery.
-pub async fn dav_root(headers: HeaderMap) -> impl IntoResponse {
-    let method = headers
-        .get("access-control-request-method")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("PROPFIND");
-    let _ = method;
+/// Root DAV endpoint. Responds to OPTIONS with the capabilities
+/// header; PROPFIND / GET / HEAD return the standard collection
+/// multistatus so client discovery can proceed.
+pub async fn dav_root(method: Method, _headers: HeaderMap) -> axum::response::Response {
+    if method == Method::OPTIONS {
+        return options_response();
+    }
     xml(
         StatusCode::MULTI_STATUS,
         r#"<?xml version="1.0" encoding="utf-8"?>
@@ -79,9 +95,13 @@ pub async fn dav_root(headers: HeaderMap) -> impl IntoResponse {
 /// Principals endpoint (`/dav/principals/{user}/`) — enumerates the
 /// user's calendar-home-set and addressbook-home-set.
 pub async fn dav_principal(
+    method: Method,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(_user_path): Path<String>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    if method == Method::OPTIONS {
+        return options_response();
+    }
     let body = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:A="urn:ietf:params:xml:ns:carddav">
@@ -104,8 +124,12 @@ pub async fn dav_principal(
 
 /// Calendar collection listing.
 pub async fn calendars_collection(
+    method: Method,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    if method == Method::OPTIONS {
+        return options_response();
+    }
     let body = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
@@ -130,8 +154,12 @@ pub async fn calendars_collection(
 
 /// Addressbook collection listing.
 pub async fn addressbooks_collection(
+    method: Method,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> impl IntoResponse {
+) -> axum::response::Response {
+    if method == Method::OPTIONS {
+        return options_response();
+    }
     let body = format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <D:multistatus xmlns:D="DAV:" xmlns:A="urn:ietf:params:xml:ns:carddav">

@@ -392,11 +392,27 @@ async fn process_one(cfg: Cfg, id: String) {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let message_data = envelope
-        .get("message_data")
+    // Read the raw RFC 5322 bytes. Prefer message_data_b64 so 8-bit
+    // MIME (binary attachments, non-UTF-8 encodings) survives the
+    // JSON round-trip; fall back to the legacy plaintext field for
+    // backwards compatibility with in-flight items enqueued before
+    // the base64 switch.
+    let message_bytes: Vec<u8> = if let Some(b64) = envelope
+        .get("message_data_b64")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap_or_default()
+    } else {
+        envelope
+            .get("message_data")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .as_bytes()
+            .to_vec()
+    };
     let attempts_prev = envelope
         .get("attempts")
         .and_then(|v| v.as_u64())
@@ -406,7 +422,7 @@ async fn process_one(cfg: Cfg, id: String) {
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
 
-    if sender.is_empty() || recipient.is_empty() || message_data.is_empty() {
+    if sender.is_empty() || recipient.is_empty() || message_bytes.is_empty() {
         tracing::error!(%id, "envelope malformed (missing sender/recipient/message_data)");
         let _ = move_to_failed(cfg, id, "malformed envelope".into(), true).await;
         return;
@@ -424,7 +440,7 @@ async fn process_one(cfg: Cfg, id: String) {
     }
 
     tracing::info!(%id, %sender, %recipient, attempt = attempts_prev + 1, "delivering");
-    match try_deliver(&cfg, &sender, &recipient, message_data.as_bytes()).await {
+    match try_deliver(&cfg, &sender, &recipient, &message_bytes).await {
         Outcome::Delivered => {
             if let Err(e) = drop_blob(cfg, id.clone()).await {
                 tracing::error!(%id, err = %e, "drop_blob after success failed");

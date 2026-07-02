@@ -99,14 +99,27 @@ fn percent_decode(s: &str) -> Option<String> {
     Some(out)
 }
 
+/// Kevy TTL applied to the session key on every authenticated hit —
+/// sliding-window auth so a user actively using the app doesn't get
+/// logged out mid-session. Matches the cookie's Max-Age.
+const SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
+
 /// Look up the session in kevy. Runs the blocking kevy-client call on a
-/// dedicated blocking thread so the axum runtime isn't pinned.
+/// dedicated blocking thread so the axum runtime isn't pinned. On hit,
+/// renews the kevy TTL to `SESSION_TTL_SECS`.
 async fn resolve_session(kevy_url: String, token: String) -> Option<SessionBlob> {
     let token_clone = token.clone();
     let raw = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
         let mut client = kevy_client::Connection::open(&kevy_url)?;
         let key = format!("{SESSION_KEY_PREFIX}{token_clone}");
-        client.get(key.as_bytes())
+        let bytes = client.get(key.as_bytes())?;
+        if bytes.is_some() {
+            let _ = client.expire(
+                key.as_bytes(),
+                std::time::Duration::from_secs(SESSION_TTL_SECS),
+            );
+        }
+        Ok(bytes)
     })
     .await
     .ok()?
