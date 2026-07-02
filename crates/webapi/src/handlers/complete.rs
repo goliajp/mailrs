@@ -202,6 +202,20 @@ pub async fn reset_password(
         .set_account_password(&address, &set_req)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Revoke all existing sessions for this address so an attacker who
+    // captured a token via the victim's old device can't keep using
+    // it after the victim resets. Mirrors auth.rs::change_password.
+    let addr_c = address.clone();
+    let _ = with_kevy(move |c| {
+        let idx = format!("session:by_addr:{addr_c}");
+        let tokens = c.smembers(idx.as_bytes()).unwrap_or_default();
+        for t in tokens {
+            let key = format!("session:{}", String::from_utf8_lossy(&t));
+            let _ = c.del(&[key.as_bytes()]);
+        }
+        let _ = c.del(&[idx.as_bytes()]);
+        Ok(())
+    });
     let tok = req.token;
     with_kevy(move |c| {
         c.del(&[format!("pwreset:{tok}").as_bytes()])?;
