@@ -589,6 +589,12 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .merge(admin_routes)
         .merge(jmap_routes)
         .merge(dav_routes)
+        // admin gate — 403 unless caller has admin.* permission or is_super.
+        // Runs after session_auth (below) so authed user is in Extensions.
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            handlers::kevy_util::admin_middleware,
+        ))
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             session::session_auth_middleware,

@@ -587,6 +587,65 @@ impl Client {
         self.delete_authed(path, "remove_account").await
     }
 
+    /// PUT /v1/admin/accounts/{address} — patch display_name.
+    pub async fn update_account(
+        &self,
+        address: &str,
+        req: &method::admin::UpdateAccountRequest,
+    ) -> ApiResult<()> {
+        let path = format!("/v1/admin/accounts/{}", Self::enc(address));
+        self.put_authed_json(path, req, "update_account").await
+    }
+
+    /// POST /v1/admin/accounts/{address}/quota
+    pub async fn set_quota(
+        &self,
+        address: &str,
+        req: &method::admin::SetQuotaRequest,
+    ) -> ApiResult<()> {
+        let path = format!("/v1/admin/accounts/{}/quota", Self::enc(address));
+        self.post_authed_json(path, req, "set_quota").await
+    }
+
+    /// POST /v1/admin/accounts/{address}/recovery-email
+    pub async fn set_recovery_email(
+        &self,
+        address: &str,
+        req: &method::admin::UpdateRecoveryEmailRequest,
+    ) -> ApiResult<()> {
+        let path = format!("/v1/admin/accounts/{}/recovery-email", Self::enc(address));
+        self.post_authed_json(path, req, "set_recovery_email").await
+    }
+
+    /// POST /v1/admin/accounts/{address}/password — persist a
+    /// pre-hashed password. Webapi hashes locally so fastcore never
+    /// sees plaintext.
+    pub async fn set_account_password(
+        &self,
+        address: &str,
+        req: &method::admin::SetPasswordRequest,
+    ) -> ApiResult<()> {
+        let path = format!("/v1/admin/accounts/{}/password", Self::enc(address));
+        self.post_authed_json(path, req, "set_account_password").await
+    }
+
+    /// POST /v1/users/{user}/messages/{uid}/flags — patch a message's
+    /// flag bitmask. Fastcore reconciles the thread's has_unread zset
+    /// when `\Seen` toggles.
+    pub async fn set_message_flags(
+        &self,
+        user: &str,
+        uid: u32,
+        req: &method::admin::SetMessageFlagsRequest,
+    ) -> ApiResult<()> {
+        let path = format!(
+            "/v1/users/{}/messages/{}/flags",
+            Self::enc(user),
+            uid
+        );
+        self.post_authed_json(path, req, "set_message_flags").await
+    }
+
     /// POST /v1/admin/aliases
     pub async fn add_alias(
         &self,

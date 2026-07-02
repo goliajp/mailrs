@@ -22,6 +22,15 @@ pub const PATH_GET_ACCOUNT_HASH: &str = "/v1/admin/accounts/{address}/credential
 pub const PATH_GET_QUOTA: &str = "/v1/admin/accounts/{address}/quota";
 pub const PATH_SET_QUOTA: &str = "/v1/admin/accounts/{address}/quota";
 pub const PATH_UPDATE_RECOVERY_EMAIL: &str = "/v1/admin/accounts/{address}/recovery-email";
+/// `POST /v1/admin/accounts/{address}/password` — re-hash & set the
+/// account's password. Used by webapi's change-password / reset-password
+/// / forgot-password flows so they update fastcore's embedded kevy
+/// instead of the network kevy (which fastcore never reads).
+pub const PATH_SET_ACCOUNT_PASSWORD: &str = "/v1/admin/accounts/{address}/password";
+/// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
+/// bitmask on a message that lives in fastcore's embedded kevy. Used
+/// by webapi's update_flags / delete_message handlers.
+pub const PATH_SET_MESSAGE_FLAGS: &str = "/v1/users/{user}/messages/{uid}/flags";
 
 // ── aliases ──────────────────────────────────────────────────────────
 pub const PATH_LIST_ALIASES: &str = "/v1/admin/aliases";
@@ -332,6 +341,25 @@ pub struct SetQuotaRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateRecoveryEmailRequest {
     pub recovery_email: String,
+}
+
+/// Request body for `POST /v1/admin/accounts/{address}/password`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetPasswordRequest {
+    /// Argon2-hashed password. Webapi hashes the plaintext locally so
+    /// fastcore only ever sees the hash on the wire.
+    pub password_hash: String,
+}
+
+/// Request body for `POST /v1/users/{user}/messages/{uid}/flags`.
+///
+/// Fastcore reads the current wire from the per-user uid index,
+/// rewrites `flags` verbatim, and (if `\Seen` toggled) mirrors the
+/// change to the thread's `has_unread` zset via `mark_seen` /
+/// `mark_unread`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct SetMessageFlagsRequest {
+    pub flags: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

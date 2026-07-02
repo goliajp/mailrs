@@ -190,16 +190,17 @@ pub async fn delete_message(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(uid): Path<u32>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let mut wire = resolve_message(&state, &user, uid).await?;
-    wire.flags |= 0b0000_1000; // FLAG_DELETED
-    let msg_id = wire.message_id.clone();
-    let json = serde_json::to_vec(&wire).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = format!("mailrs:msg:{msg_id}");
-    let json_c = json.clone();
-    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"blob" as &[u8], json_c.as_slice())])?;
-        Ok(())
-    });
+    // Set \Deleted on the wire blob via fastcore so the change lands
+    // in the embedded kevy the read path reads. OR-ing FLAG_DELETED
+    // preserves other bits (e.g. \Seen) that may already be set.
+    let wire = resolve_message(&state, &user, uid).await?;
+    let new_flags = wire.flags | 0b0000_1000;
+    let set_req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags: new_flags };
+    state
+        .fast()
+        .set_message_flags(&user, uid, &set_req)
+        .await
+        .map_err(map_err)?;
     Ok(Json(serde_json::json!({"success": true, "message": null})))
 }
 
@@ -258,45 +259,15 @@ pub async fn update_flags(
     Path(uid): Path<u32>,
     Json(req): Json<FlagsRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let mut wire = resolve_message(&state, &user, uid).await?;
-    let new_bits = flag_string_to_bits(&req.flags);
-    let old_bits = wire.flags;
-    wire.flags = new_bits;
-
-    // Re-serialize the wire back into the mailrs:msg:<mid> hash.
-    let msg_id = wire.message_id.clone();
-    let json = serde_json::to_vec(&wire).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = format!("mailrs:msg:{msg_id}");
-    // Fastcore's embedded kevy — reach through core-api? Actually the
-    // message hash lives on the fastcore-side embedded kevy since
-    // upsert_message writes there. But we can't call it from webapi
-    // without a dedicated RPC. Fall through: try the network kevy
-    // path as a best-effort mirror; if the read/write pair is on
-    // embedded kevy the value will diverge until fastcore is invoked.
-    // Correct long-term fix is `POST /v1/users/{user}/messages/{uid}/flags`
-    // fastcore RPC. Deferred to a follow-up patch.
-    let key_c = key.clone();
-    let json_c = json.clone();
-    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hset(key_c.as_bytes(), &[(b"blob" as &[u8], json_c.as_slice())])?;
-        Ok(())
-    });
-
-    // \Seen toggle reconciliation on the thread aggregate. Call
-    // fastcore mark_read / mark_unread which own the has_unread zset.
-    let seen_bit = 0b0000_0001;
-    let was_seen = (old_bits & seen_bit) != 0;
-    let is_seen = (new_bits & seen_bit) != 0;
-    if was_seen != is_seen && !wire.thread_id.is_empty() {
-        if is_seen {
-            let _ = state.fast().mark_thread_read(&user, &wire.thread_id).await;
-        } else {
-            let _ = state
-                .fast()
-                .mark_thread_unread(&user, &wire.thread_id)
-                .await;
-        }
-    }
-
+    let bits = flag_string_to_bits(&req.flags);
+    let set_req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags: bits };
+    // Fastcore owns the embedded kevy where message blobs live, and it
+    // also handles the has_unread zset reconciliation when \Seen
+    // toggles. Delegating is what makes the write actually stick.
+    state
+        .fast()
+        .set_message_flags(&user, uid, &set_req)
+        .await
+        .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
 }

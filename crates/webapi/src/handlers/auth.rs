@@ -476,35 +476,15 @@ pub async fn change_password(
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
 
-    // Patch the account blob (mailrs:account:<addr> hash, blob field).
-    let key = format!("mailrs:account:{address}");
-    let key_read = key.clone();
-    let cur = match crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hget(key_read.as_bytes(), b"blob")
-    }) {
-        Ok(Some(v)) => v,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(s) => return s.into_response(),
+    // Delegate the hash write to fastcore, which owns the embedded
+    // kevy that login reads from. Writing to network kevy here (the
+    // old code) landed on a store fastcore never consults.
+    let req = mailrs_core_api::method::admin::SetPasswordRequest {
+        password_hash: new_hash,
     };
-    let mut val: serde_json::Value = match serde_json::from_slice(&cur) {
-        Ok(v) => v,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    };
-    if let Some(obj) = val.as_object_mut() {
-        obj.insert(
-            "password_hash".to_string(),
-            serde_json::Value::String(new_hash),
-        );
-    }
-    let payload = match serde_json::to_vec(&val) {
-        Ok(v) => v,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    };
-    if let Err(s) = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
-        Ok(())
-    }) {
-        return s.into_response();
+    if let Err(e) = state.fast().set_account_password(&address, &req).await {
+        tracing::warn!(err = %e, %address, "set_account_password failed");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     (
         StatusCode::OK,

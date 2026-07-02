@@ -63,6 +63,18 @@ impl KevyMailboxStore {
             None => Ok(None),
         }
     }
+
+    /// Remove account + perms blob + drop from the account index. Does
+    /// NOT touch the user's threads / mailboxes / maildir — the caller
+    /// is responsible for that when a hard delete is desired.
+    pub fn delete_account(&self, address: &str) -> io::Result<()> {
+        let acct = keys::account(address);
+        let perms = keys::account_permissions(address);
+        self.store().del(&[acct.as_bytes(), perms.as_bytes()])?;
+        self.store()
+            .srem(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -3259,13 +3259,17 @@ dependencies = [
 name = "mailrs-fastcore"
 version = "0.0.1"
 dependencies = [
+ "argon2",
  "axum",
  "http-body-util",
  "kevy-client",
  "kevy-embedded",
  "mailrs-core-api",
  "mailrs-mailbox-kevy",
+ "mailrs-outbound-queue",
  "mailrs-smtp-client",
+ "password-hash",
+ "rand_core 0.6.4",
  "rustls",
  "serde",
  "serde_json",
