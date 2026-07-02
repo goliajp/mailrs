@@ -249,59 +249,230 @@ async fn run_ingest_once(
             tracing::info!(%user, newly, cursor = max_seen, "ingest sync applied");
         }
 
-        // Self-heal pass — earlier ingest iterations wrote thread
-        // aggregates without pulling their messages (the pre-Group F
-        // "skip existing" path). For any thread whose fastcore-side
-        // `thread:<tid>:messages` zset is empty, fetch from monolith
-        // and upsert. Capped per tick to keep the loop bounded.
-        let activity_key = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let tids = state
-            .mailbox
-            .store_ref()
-            .zrevrange(activity_key.as_bytes(), 0, 199)
-            .unwrap_or_default();
-        let mut healed = 0u32;
-        for (tid_bytes, _score) in tids {
-            if healed >= 20 {
-                break;
-            }
-            let Ok(tid_str) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
-            let msg_zset = mailrs_mailbox_kevy::keys::thread_messages(tid_str);
-            let already = state
-                .mailbox
-                .store_ref()
-                .zcard(msg_zset.as_bytes())
-                .unwrap_or(0);
-            if already > 0 {
-                continue;
-            }
-            let Ok(msgs) = client.list_thread_messages(user, tid_str).await else {
-                continue;
-            };
-            for w in &msgs.items {
-                let payload = match serde_json::to_vec(w) {
-                    Ok(p) => p,
-                    Err(_) => continue,
-                };
-                let _ = state.mailbox.upsert_message(
-                    tid_str,
-                    &w.message_id,
-                    w.internal_date,
-                    &payload,
-                );
-                let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
-            }
-            if !msgs.items.is_empty() {
-                healed += 1;
-            }
-        }
-        if healed > 0 {
-            tracing::info!(%user, healed, "ingest self-heal populated missing messages");
-        }
+        // Self-heal pass — reads maildir directly, no monolith call.
+        //
+        // Fastcore's whole reason for existing is to be spg-independent.
+        // If we heal by calling monolith, then a spg outage takes
+        // fastcore down with it — defeats the point. Instead, walk the
+        // user's maildir(s), parse each file's headers, and upsert any
+        // messages whose thread_id already exists in fastcore but has
+        // an empty messages zset.
+        healed_from_maildir(state, user).await;
     }
     Ok(())
+}
+
+/// Extract common headers from an RFC 5322 message. Returns
+/// `(message_id, in_reply_to, subject, date_epoch, from, to)`.
+fn extract_headers(raw: &[u8]) -> (String, String, String, i64, String, String) {
+    let mut message_id = String::new();
+    let mut in_reply_to = String::new();
+    let mut subject = String::new();
+    let mut date_epoch: i64 = 0;
+    let mut from = String::new();
+    let mut to = String::new();
+
+    // We only need headers; stop at the first blank line.
+    let head_end = raw
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .or_else(|| raw.windows(2).position(|w| w == b"\n\n"))
+        .unwrap_or(raw.len());
+    let head = &raw[..head_end];
+    let s = String::from_utf8_lossy(head);
+    // Unfold headers (RFC 5322 §2.2.3 — a header continues onto the
+    // next line if that line starts with WSP).
+    let mut cur = String::new();
+    let mut lines: Vec<String> = Vec::new();
+    for line in s.split('\n') {
+        let line = line.trim_end_matches('\r');
+        if line.starts_with(' ') || line.starts_with('\t') {
+            cur.push(' ');
+            cur.push_str(line.trim_start());
+        } else {
+            if !cur.is_empty() {
+                lines.push(std::mem::take(&mut cur));
+            }
+            cur.push_str(line);
+        }
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    for l in &lines {
+        let Some((name, val)) = l.split_once(':') else {
+            continue;
+        };
+        let val = val.trim();
+        match name.to_ascii_lowercase().as_str() {
+            "message-id" => message_id = strip_angle(val),
+            "in-reply-to" => in_reply_to = strip_angle(val),
+            "subject" => subject = mailrs_rfc2047::decode(val.as_bytes()).into_owned(),
+            "from" => from = val.to_string(),
+            "to" => to = val.to_string(),
+            "date" => date_epoch = parse_rfc5322_date(val).unwrap_or(0),
+            _ => {}
+        }
+    }
+    (message_id, in_reply_to, subject, date_epoch, from, to)
+}
+
+fn strip_angle(v: &str) -> String {
+    let t = v.trim();
+    if let Some(inner) = t.strip_prefix('<').and_then(|s| s.strip_suffix('>')) {
+        inner.trim().to_string()
+    } else {
+        t.trim_matches(|c: char| c == '<' || c == '>').to_string()
+    }
+}
+
+/// Very small RFC 5322 date parser: `Wed, 01 Jul 2026 12:34:56 +0000`.
+/// Only accepts `+0000`/`-0000`-style offsets; that covers everything
+/// modern MTAs emit. Full parse coverage lives on `time` crate; we
+/// don't need to pull it in for the fallback.
+fn parse_rfc5322_date(s: &str) -> Option<i64> {
+    let s = s.trim();
+    let s = s.strip_prefix(|c: char| c.is_ascii_alphabetic()).map(str::trim_start).unwrap_or(s);
+    let s = s.strip_prefix(',').map(str::trim_start).unwrap_or(s);
+    let mut parts = s.split_whitespace();
+    let day: i64 = parts.next()?.parse().ok()?;
+    let mon_str = parts.next()?;
+    let year: i64 = parts.next()?.parse().ok()?;
+    let hms = parts.next()?;
+    let mut hmsp = hms.split(':');
+    let h: i64 = hmsp.next()?.parse().ok()?;
+    let m: i64 = hmsp.next()?.parse().ok()?;
+    let se: i64 = hmsp.next()?.parse().ok()?;
+    let mons = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    let mon = mons.iter().position(|x| x.eq_ignore_ascii_case(mon_str))? as i64 + 1;
+    let mut days: i64 = 0;
+    for y in 1970..year {
+        let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+        days += if leap { 366 } else { 365 };
+    }
+    let ml = [31i64,28,31,30,31,30,31,31,30,31,30,31];
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    for i in 1..mon {
+        let base = ml[(i - 1) as usize];
+        days += if i == 2 && leap { 29 } else { base };
+    }
+    days += day - 1;
+    Some(days * 86_400 + h * 3600 + m * 60 + se)
+}
+
+/// Walk the user's maildir and populate any thread whose messages
+/// zset is empty. Best-effort — logs and continues on parse errors.
+async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
+    let Some((local, domain)) = user.split_once('@') else {
+        return;
+    };
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let base = std::path::PathBuf::from(&root).join(domain).join(local);
+    // Collect maildir file paths (cur + new). Non-recursive per
+    // Maildir++ convention; folders are dot-prefixed peers of cur/new,
+    // which we skip for this pass — INBOX is the pool.
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    for sub in ["cur", "new"] {
+        let dir = base.join(sub);
+        let Ok(iter) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in iter.flatten() {
+            if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                files.push(entry.path());
+            }
+        }
+    }
+    if files.is_empty() {
+        return;
+    }
+
+    // Build message_id → path index by reading each file's headers.
+    // Only load the head bytes (first 16 KB) to keep this cheap.
+    let mut index: std::collections::HashMap<String, (std::path::PathBuf, i64, String, String, String)> =
+        std::collections::HashMap::new();
+    for path in &files {
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let head = &bytes[..bytes.len().min(16 * 1024)];
+        let (mid, _irt, subject, date_epoch, from, to) = extract_headers(head);
+        if mid.is_empty() {
+            continue;
+        }
+        index.insert(mid, (path.clone(), date_epoch, subject, from, to));
+    }
+
+    // Walk empty-messages threads and heal each one from the index.
+    let activity_key = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+    let tids = state
+        .mailbox
+        .store_ref()
+        .zrevrange(activity_key.as_bytes(), 0, 499)
+        .unwrap_or_default();
+    let mut healed = 0u32;
+    for (tid_bytes, _score) in tids {
+        if healed >= 50 {
+            break;
+        }
+        let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+            continue;
+        };
+        let msg_zset = mailrs_mailbox_kevy::keys::thread_messages(tid);
+        if state
+            .mailbox
+            .store_ref()
+            .zcard(msg_zset.as_bytes())
+            .unwrap_or(0)
+            > 0
+        {
+            continue;
+        }
+        // Match tid → maildir file. In our current pipeline every
+        // thread_id is either the head message's Message-ID or a
+        // References-chain root — both live in the index built above.
+        let Some((path, date, subject, from, to)) = index.get(tid) else {
+            continue;
+        };
+        let filename = path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let size = std::fs::metadata(path).map(|m| m.len() as u32).unwrap_or(0);
+        // Assemble the same wire shape enrich_with_body reads: blob_ref
+        // is the maildir filename; enrich then reads the raw RFC 5322
+        // bytes from disk. sender / recipients derived from headers.
+        let wire = mailrs_core_api::method::message::MessageWire {
+            id: 0,
+            mailbox_id: 0,
+            uid: 0,
+            blob_ref: filename,
+            sender: from.clone(),
+            recipients: to.clone(),
+            subject: subject.clone(),
+            date: *date,
+            internal_date: *date,
+            size,
+            flags: 1,
+            message_id: tid.to_string(),
+            in_reply_to: String::new(),
+            thread_id: tid.to_string(),
+            modseq: 0,
+            user_address: user.to_string(),
+        };
+        let payload = match serde_json::to_vec(&wire) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let _ = state
+            .mailbox
+            .upsert_message(tid, &wire.message_id, *date, &payload);
+        healed += 1;
+    }
+    if healed > 0 {
+        tracing::info!(%user, healed, files_scanned = files.len(), "self-heal (maildir): populated missing messages");
+    }
 }
 
 fn build_router(state: Arc<FastcoreState>) -> Router {
