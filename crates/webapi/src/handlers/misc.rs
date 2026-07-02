@@ -284,10 +284,48 @@ pub async fn export_mbox(
         .into_response())
 }
 
-fn writeln_epoch(out: &mut Vec<u8>, _epoch: i64) -> std::io::Result<()> {
+fn writeln_epoch(out: &mut Vec<u8>, epoch: i64) -> std::io::Result<()> {
     use std::io::Write;
-    // POSIX asctime format is fine for mbox From-line time.
-    writeln!(out, "1970 Jan  1 00:00:00")?;
+    // POSIX asctime shape for the mbox From-line: `YYYY Mon  D HH:MM:SS`.
+    // Prior version hard-coded 1970-01-01 so every exported message
+    // sorted identically in downstream mbox clients. Compute the real
+    // Gregorian date from the epoch.
+    static MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let secs = epoch.max(0) as u64;
+    let mut days = secs / 86_400;
+    let sec_of_day = secs % 86_400;
+    let hour = (sec_of_day / 3600) as u32;
+    let minute = ((sec_of_day % 3600) / 60) as u32;
+    let second = (sec_of_day % 60) as u32;
+    let mut year: u32 = 1970;
+    loop {
+        let leap = (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+        let ydays: u64 = if leap { 366 } else { 365 };
+        if days < ydays {
+            break;
+        }
+        days -= ydays;
+        year += 1;
+    }
+    let leap = (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+    let ml = [
+        31u64,
+        if leap { 29 } else { 28 },
+        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+    ];
+    let mut month = 0usize;
+    while month < 12 && days >= ml[month] {
+        days -= ml[month];
+        month += 1;
+    }
+    let day = days + 1;
+    writeln!(
+        out,
+        "{year} {mon} {day:>2} {hour:02}:{minute:02}:{second:02}",
+        mon = MONTHS[month.min(11)]
+    )?;
     Ok(())
 }
 
