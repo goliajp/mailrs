@@ -13,6 +13,7 @@
 mod account_store;
 pub mod config;
 mod conn_metrics;
+mod kevy_dmarc;
 mod quota_store;
 mod recipient;
 mod run;
