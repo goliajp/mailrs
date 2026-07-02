@@ -19,6 +19,7 @@
 
 mod acme_task;
 mod live_sync;
+mod sieve_apply;
 mod spool_drain;
 
 use std::sync::Arc;

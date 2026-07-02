@@ -100,43 +100,86 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
         let mut delivered_here = 0usize;
         let mut unresolved: Vec<String> = Vec::new();
         for fwd in &env.forward_paths {
-            // First try the direct mailbox. If missing, fall through to
-            // the alias table (`mailrs:alias:<addr>` → target). Prevents
-            // a `contact@golia.jp → lihao@golia.jp` alias from silently
-            // dead-lettering when nobody sits at contact/.
-            let target = match deliver(maildir_root, fwd, &filename, body) {
-                Ok(true) => {
-                    delivered_here += 1;
-                    None
-                }
-                Ok(false) => Some(fwd.clone()),
-                Err(e) => {
-                    tracing::warn!(fwd = %fwd, error = %e, "spool deliver");
-                    Some(fwd.clone())
-                }
+            // 1. Resolve the addressable recipient — direct maildir, or
+            //    the alias table (`mailrs:alias:<addr>` → target). Both
+            //    cases return the address we'll actually deliver TO.
+            let resolved_addr: Option<String> = if has_maildir(maildir_root, fwd) {
+                Some(fwd.clone())
+            } else {
+                let via_alias = state.mailbox.resolve_alias(fwd).ok().flatten();
+                via_alias.and_then(|a| {
+                    if has_maildir(maildir_root, &a) {
+                        tracing::info!(orig = %fwd, aliased = %a, "spool alias resolved");
+                        Some(a)
+                    } else {
+                        None
+                    }
+                })
             };
-            if let Some(orig) = target {
-                let resolved = state
-                    .mailbox
-                    .resolve_alias(&orig)
-                    .ok()
-                    .flatten();
-                match resolved.as_deref() {
-                    Some(aliased) => match deliver(maildir_root, aliased, &filename, body) {
+            let Some(addr) = resolved_addr else {
+                unresolved.push(fwd.clone());
+                continue;
+            };
+            // 2. Consult the recipient's sieve script. Actions map to a
+            //    Decision that overrides the default INBOX write.
+            let decision = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
+            match decision {
+                crate::sieve_apply::Decision::Discard => {
+                    delivered_here += 1;
+                    tracing::info!(recipient = %addr, "sieve: discard");
+                }
+                crate::sieve_apply::Decision::Redirect(target) => {
+                    match enqueue_redirect(&addr, &target, body, &env.reverse_path) {
+                        Ok(()) => {
+                            delivered_here += 1;
+                            tracing::info!(recipient = %addr, %target, "sieve: redirect");
+                        }
+                        Err(e) => {
+                            tracing::warn!(recipient = %addr, %target, error = %e,
+                                "sieve: redirect enqueue failed; falling back to Keep");
+                            match deliver(maildir_root, &addr, "", &filename, body) {
+                                Ok(true) => delivered_here += 1,
+                                _ => unresolved.push(addr.clone()),
+                            }
+                        }
+                    }
+                }
+                crate::sieve_apply::Decision::FileInto(folder) => {
+                    let subfolder = crate::sieve_apply::maildir_subfolder(&folder);
+                    match deliver(maildir_root, &addr, &subfolder, &filename, body) {
                         Ok(true) => {
                             delivered_here += 1;
-                            tracing::info!(
-                                orig = %orig, aliased = %aliased,
-                                "spool alias resolved"
-                            );
+                            tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
                         }
-                        Ok(false) => unresolved.push(format!("{orig} (alias→{aliased})")),
+                        Ok(false) => {
+                            tracing::warn!(recipient = %addr, %subfolder,
+                                "sieve: fileinto target dir missing; falling back to INBOX");
+                            if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
+                                delivered_here += 1;
+                            } else {
+                                unresolved.push(addr.clone());
+                            }
+                        }
                         Err(e) => {
-                            tracing::warn!(fwd = %aliased, error = %e, "spool deliver via alias");
-                            unresolved.push(format!("{orig} (alias→{aliased})"));
+                            tracing::warn!(recipient = %addr, error = %e,
+                                "sieve: fileinto write failed; falling back to INBOX");
+                            if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
+                                delivered_here += 1;
+                            } else {
+                                unresolved.push(addr.clone());
+                            }
                         }
-                    },
-                    None => unresolved.push(orig),
+                    }
+                }
+                crate::sieve_apply::Decision::Keep => {
+                    match deliver(maildir_root, &addr, "", &filename, body) {
+                        Ok(true) => delivered_here += 1,
+                        Ok(false) => unresolved.push(addr.clone()),
+                        Err(e) => {
+                            tracing::warn!(fwd = %addr, error = %e, "spool deliver");
+                            unresolved.push(addr.clone());
+                        }
+                    }
                 }
             }
         }
@@ -174,17 +217,34 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
     delivered
 }
 
-/// Deliver one file to one recipient. Returns `Ok(true)` on success,
-/// `Ok(false)` when the recipient has no maildir (unresolved).
-fn deliver(maildir_root: &str, addr: &str, filename: &str, body: &[u8]) -> std::io::Result<bool> {
+/// Deliver one file to one recipient. `subfolder` is empty for INBOX
+/// or `.Maildir++Folder` (produced by sieve_apply::maildir_subfolder)
+/// for a fileinto action. Returns `Ok(true)` on success, `Ok(false)`
+/// when the target directory is absent.
+fn deliver(
+    maildir_root: &str,
+    addr: &str,
+    subfolder: &str,
+    filename: &str,
+    body: &[u8],
+) -> std::io::Result<bool> {
     let (local, domain) = match addr.split_once('@') {
         Some(x) => x,
         None => return Ok(false),
     };
-    let user_new = PathBuf::from(maildir_root)
-        .join(domain)
-        .join(local)
-        .join("new");
+    let base = PathBuf::from(maildir_root).join(domain).join(local);
+    let user_new = if subfolder.is_empty() {
+        base.join("new")
+    } else {
+        // Auto-create the Maildir++ subfolder skeleton on first fileinto,
+        // matching what an IMAP client would do via CREATE — otherwise a
+        // freshly-provisioned account can't receive filed mail.
+        let sub = base.join(subfolder);
+        for leaf in ["cur", "new", "tmp"] {
+            let _ = std::fs::create_dir_all(sub.join(leaf));
+        }
+        sub.join("new")
+    };
     if !user_new.is_dir() {
         return Ok(false);
     }
@@ -196,6 +256,74 @@ fn deliver(maildir_root: &str, addr: &str, filename: &str, body: &[u8]) -> std::
         let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644));
     }
     Ok(true)
+}
+
+/// Quick recipient-existence probe used before choosing between direct
+/// delivery and alias resolution. Splits `addr@dom`, checks the
+/// per-user `new/` dir exists. Returns false for malformed addresses.
+fn has_maildir(maildir_root: &str, addr: &str) -> bool {
+    let Some((local, domain)) = addr.split_once('@') else {
+        return false;
+    };
+    PathBuf::from(maildir_root)
+        .join(domain)
+        .join(local)
+        .join("new")
+        .is_dir()
+}
+
+/// Push a sieve `redirect` action into the outbound queue.
+///
+/// Wire shape matches `mailrs-outbound-queue`'s existing envelope so
+/// `mailrs-fastcore-sender` picks it up without special-casing:
+/// - LPUSH `mailrs:outbound:pending`  <id>
+/// - HSET  `mailrs:outbound:<id>`     blob = JSON envelope
+///
+/// `id` is a millisecond timestamp + a random suffix so concurrent
+/// redirects on the same tick don't collide.
+fn enqueue_redirect(
+    original_recipient: &str,
+    target: &str,
+    body: &[u8],
+    reverse_path: &str,
+) -> std::io::Result<()> {
+    use base64::Engine as _;
+    let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
+        return Err(std::io::Error::other("MAILRS_KEVY_URL unset"));
+    };
+    let mut conn =
+        kevy_client::Connection::open(&url).map_err(std::io::Error::other)?;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let nonce: u32 = {
+        // Cheap non-crypto uniqueness — a millisecond suffix is enough
+        // when redirects fire from the same drain tick.
+        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    };
+    let id = format!("{now_ms}-{nonce}");
+    let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
+    let envelope = serde_json::json!({
+        "sender": original_recipient,
+        "recipients": [target],
+        "message_data_b64": b64_body,
+        "attempts": 0,
+        "next_attempt": 0,
+        "id": &id,
+        "envelope_from": reverse_path,
+    });
+    let blob = envelope.to_string();
+    let hash_key = format!("mailrs:outbound:{id}");
+    conn.hset(hash_key.as_bytes(), &[(b"blob".as_slice(), blob.as_bytes())])
+        .map_err(std::io::Error::other)?;
+    conn.lpush(
+        b"mailrs:outbound:pending",
+        &[id.as_bytes()],
+    )
+    .map_err(std::io::Error::other)?;
+    Ok(())
 }
 
 #[cfg(test)]
