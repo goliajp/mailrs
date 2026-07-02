@@ -236,9 +236,15 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
             continue;
         }
 
-        // Opportunistic STARTTLS: on Rejected we stay plaintext (best
-        // effort); on HandshakeFailed we treat as transient because the
-        // TCP is dead.
+        // Opportunistic STARTTLS with plaintext downgrade on failure.
+        //
+        // - Success: upgrade + re-EHLO
+        // - Rejected (server refused STARTTLS): stay on the same plaintext conn
+        // - HandshakeFailed (peer cert expired / SNI mismatch / etc.):
+        //   the TCP session is dead, so open a fresh plaintext session
+        //   and continue there. This matches how Gmail/O365/Postfix
+        //   handle opportunistic-TLS failures — SPF/DKIM/DMARC (not TLS)
+        //   are the real integrity guarantees for interpersonal mail.
         let conn = match conn.try_starttls(&mx.exchange).await {
             mailrs_smtp_client::StarttlsResult::Success(c) => {
                 let mut c = c;
@@ -258,9 +264,26 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                 conn
             }
             mailrs_smtp_client::StarttlsResult::HandshakeFailed { source, .. } => {
-                last_err = format!("starttls {}: {source}", mx.exchange);
-                tracing::warn!(err = %last_err, "starttls handshake failed, next MX");
-                continue;
+                tracing::warn!(
+                    err = %source,
+                    mx = %mx.exchange,
+                    "STARTTLS handshake failed, downgrading to plaintext"
+                );
+                let mut plain =
+                    match SmtpConnection::connect_with_timeout(&mx.exchange, 25, &timeouts).await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            last_err = format!("plaintext reconnect {}: {e}", mx.exchange);
+                            tracing::warn!(err = %last_err, "reconnect after TLS failure failed, next MX");
+                            continue;
+                        }
+                    };
+                if let Err(e) = plain.ehlo(&cfg.helo).await {
+                    last_err = format!("plaintext ehlo {}: {e}", mx.exchange);
+                    tracing::warn!(err = %last_err, "plaintext ehlo after TLS failure failed, next MX");
+                    continue;
+                }
+                plain
             }
         };
 
