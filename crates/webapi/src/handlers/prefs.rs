@@ -736,9 +736,177 @@ fn enqueue_outbound(
     Ok(())
 }
 
+/// Take the first ~120 chars of `body` (or html-stripped `html_body`
+/// if body is empty) as the preview shown in conversation lists.
+fn build_preview(parts: &ComposeParts) -> String {
+    let src = if !parts.body.is_empty() {
+        parts.body.clone()
+    } else if !parts.html_body.is_empty() {
+        html2text::from_read(parts.html_body.as_bytes(), 80).unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let cleaned = src.replace(['\r', '\n'], " ");
+    if cleaned.chars().count() <= 120 {
+        cleaned
+    } else {
+        cleaned.chars().take(120).collect::<String>() + "…"
+    }
+}
+
+/// Mirror an outbound send / draft save into the sender's own kevy
+/// view so it shows up in the Sent (or Drafts) tab immediately, into
+/// their maildir so IMAP sees it, and into the contacts hash so
+/// recipient autocomplete stays fresh.
+///
+/// `is_draft = true` marks the wire with `FLAG_DRAFT` and lands the
+/// message under a Draft-flavored kevy thread; `false` marks
+/// `FLAG_SEEN` (the sender always "already read" what they wrote).
+///
+/// This intentionally does one write per persistence layer and
+/// swallows individual failures with a warning instead of failing the
+/// whole request — the primary user-facing operation is the send
+/// itself (kevy outbound queue), and the mirror is a UX nicety that
+/// mustn't take the send down with it.
+async fn mirror_send_to_sender_view(
+    state: &Arc<WebState>,
+    user: &str,
+    parts: &ComposeParts,
+    envelope: &[u8],
+    message_id: &str,
+    is_draft: bool,
+) {
+    use mailrs_core_api::method::message::MessageWire;
+    use mailrs_core_api::method::thread::DeliverMessageRequest;
+    use mailrs_message_store::{MessageStore, MaildirStore};
+
+    let now = now_secs();
+    let thread_id = parts
+        .in_reply_to
+        .clone()
+        .unwrap_or_else(|| message_id.to_string());
+
+    let (local, domain) = match user.split_once('@') {
+        Some(v) => v,
+        None => {
+            tracing::warn!(%user, "mirror_send: malformed user address, skipping");
+            return;
+        }
+    };
+    let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let maildir_path = format!("{maildir_root}/{domain}/{local}");
+    let store = MaildirStore;
+    let blob_ref = match store.deliver_batch(&maildir_path, &[envelope]).await {
+        Ok(ids) if !ids.is_empty() => ids[0].0.clone(),
+        Ok(_) => String::new(),
+        Err(e) => {
+            tracing::warn!(err = %e, %user, "mirror_send: maildir write failed, using synthetic blob_ref");
+            format!("kevy:{message_id}")
+        }
+    };
+    // Mark as read (sent) or draft in the maildir tag.
+    if !blob_ref.is_empty() && !blob_ref.starts_with("kevy:") {
+        let flag = if is_draft {
+            mailrs_message_store::Flag::Draft
+        } else {
+            mailrs_message_store::Flag::Seen
+        };
+        let id = mailrs_message_store::MessageId(blob_ref.clone());
+        if let Err(e) = store.mark_processed(&maildir_path, &id, &[flag]).await {
+            tracing::debug!(err = %e, "mirror_send: mark_processed failed, continuing");
+        }
+    }
+
+    let recipients_csv = parts.to.join(", ");
+    let flags = if is_draft { 0b0001_0000 } else { 0b0000_0001 };
+    let wire = MessageWire {
+        id: 0,
+        mailbox_id: 0,
+        uid: 0,
+        blob_ref: blob_ref.clone(),
+        sender: user.to_string(),
+        recipients: recipients_csv.clone(),
+        subject: parts.subject.clone(),
+        date: now,
+        internal_date: now,
+        size: envelope.len() as u32,
+        flags,
+        message_id: message_id.to_string(),
+        in_reply_to: parts.in_reply_to.clone().unwrap_or_default(),
+        thread_id: thread_id.clone(),
+        modseq: 0,
+        user_address: user.to_string(),
+    };
+    let wire_json = match serde_json::to_string(&wire) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(err = %e, "mirror_send: wire serialize failed");
+            return;
+        }
+    };
+
+    let req = DeliverMessageRequest {
+        message_id: message_id.to_string(),
+        subject: parts.subject.clone(),
+        senders_csv: user.to_string(),
+        latest_date: now,
+        latest_preview: build_preview(parts),
+        category: "inbox".to_string(),
+        unread: false,
+        uid: 0,
+        payload_wire_json: wire_json,
+    };
+    if let Err(e) = state.core_client.deliver_message(user, &thread_id, &req).await {
+        tracing::warn!(err = %e, %user, %thread_id, "mirror_send: fastcore deliver_message failed");
+    }
+
+    // Contacts autocomplete refresh — union of to+cc+bcc.
+    let contact_targets: Vec<String> = parts
+        .to
+        .iter()
+        .chain(parts.cc.iter())
+        .chain(parts.bcc.iter())
+        .filter(|s| !s.trim().is_empty())
+        .cloned()
+        .collect();
+    if !contact_targets.is_empty() {
+        let user_owned = user.to_string();
+        let _ = with_kevy(move |c| {
+            let key = format!("mailrs:user:{user_owned}:contacts");
+            for raw in &contact_targets {
+                let addr = extract_addr(raw);
+                if addr.is_empty() {
+                    continue;
+                }
+                let val = if raw.trim() != addr {
+                    raw.trim().to_string()
+                } else {
+                    addr.clone()
+                };
+                c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])?;
+            }
+            Ok(())
+        });
+    }
+}
+
+/// Extract the addr-spec (`user@host`) from an RFC 5322 mailbox token.
+/// Mirrors sender.rs's helper — kept here so webapi doesn't depend on
+/// the fastcore-sender bin crate.
+fn extract_addr(raw: &str) -> String {
+    let t = raw.trim();
+    if let Some(start) = t.rfind('<')
+        && let Some(end) = t.rfind('>')
+        && end > start
+    {
+        return t[start + 1..end].trim().to_string();
+    }
+    t.to_string()
+}
+
 /// POST /api/mail/send — JSON compose form, no attachments.
 pub async fn send_message(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<SendRequest>,
 ) -> Result<Json<SendResponse>, StatusCode> {
@@ -764,6 +932,7 @@ pub async fn send_message(
     recipients.extend(parts.bcc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, &from);
     enqueue_outbound(&user, &recipients, &envelope)?;
+    mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
         success: true,
@@ -776,7 +945,7 @@ pub async fn send_message(
 /// body, html_body, attachments (repeated file parts), in_reply_to,
 /// scheduled_at, forward_message_id, forward_attachments_from.
 pub async fn send_message_multipart(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<SendResponse>, StatusCode> {
@@ -829,6 +998,7 @@ pub async fn send_message_multipart(
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
     enqueue_outbound(&user, &recipients, &envelope)?;
+    mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
         success: true,

@@ -100,6 +100,70 @@ impl KevyMailboxStore {
         Ok(true)
     }
 
+    /// Flip a thread back to unread. Mirrors `mark_seen` in the
+    /// opposite direction: set `unread_count` to at least 1 and add the
+    /// row to `has_unread`. Score used is the row's own `latest_date` so
+    /// the has_unread index remains sortable.
+    ///
+    /// Returns `true` when the row existed. Idempotent.
+    pub fn mark_unread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        let thread_key = keys::thread(thread_id);
+        if !self.store().hexists(thread_key.as_bytes(), b"count")? {
+            return Ok(false);
+        }
+        let latest = self
+            .store()
+            .hget(thread_key.as_bytes(), b"latest_date")?
+            .and_then(|v| {
+                std::str::from_utf8(&v)
+                    .ok()
+                    .and_then(|s| s.parse::<i64>().ok())
+            })
+            .unwrap_or(0);
+        let cur = self
+            .store()
+            .hget(thread_key.as_bytes(), b"unread_count")?
+            .and_then(|v| {
+                std::str::from_utf8(&v)
+                    .ok()
+                    .and_then(|s| s.parse::<i64>().ok())
+            })
+            .unwrap_or(0);
+        if cur < 1 {
+            self.store()
+                .hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
+        }
+        let idx = keys::user_threads_has_unread(user);
+        self.store()
+            .zadd(idx.as_bytes(), &[(latest as f64, thread_id.as_bytes())])?;
+        Ok(true)
+    }
+
+    /// Set `snoozed_until` (epoch seconds; `0` = unsnooze) on the
+    /// thread. No dedicated index zset — snoozed threads still appear
+    /// in activity/category zsets; the webapi filters by comparing
+    /// `snoozed_until > now` when the user selects the "hide snoozed"
+    /// view.
+    ///
+    /// Returns `true` when the row existed.
+    pub fn set_snoozed(
+        &self,
+        _user: &str,
+        thread_id: &str,
+        snoozed_until: i64,
+    ) -> io::Result<bool> {
+        let thread_key = keys::thread(thread_id);
+        if !self.store().hexists(thread_key.as_bytes(), b"count")? {
+            return Ok(false);
+        }
+        let val = snoozed_until.to_string();
+        self.store().hset(
+            thread_key.as_bytes(),
+            &[(b"snoozed_until" as &[u8], val.as_bytes())],
+        )?;
+        Ok(true)
+    }
+
     /// Hard-delete `thread_id` for `user`. Removes the row hash + drops
     /// it from every index zset the row could be in. Idempotent: a
     /// re-call after deletion is a no-op returning false.

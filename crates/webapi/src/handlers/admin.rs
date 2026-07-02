@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Extension, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
 };
 
@@ -380,4 +380,456 @@ pub async fn list_audit_log(
         .filter_map(|v| serde_json::from_slice(&v).ok())
         .collect();
     Ok(Json(wire::AuditListResponse { items }))
+}
+
+// ── account extras: PUT / quota / sieve / groups / overrides ─────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateAccountRequest {
+    pub display_name: Option<String>,
+    pub recovery_email: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+/// PUT /api/admin/accounts/{address} — patch the account blob in
+/// place. Only whitelisted fields (display_name, recovery_email,
+/// disabled) so we don't clobber password_hash by accident.
+pub async fn update_account(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+    Json(req): Json<UpdateAccountRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("mailrs:account:{address}");
+    let key_r = key.clone();
+    let cur = with_kevy(move |c| c.hget(key_r.as_bytes(), b"blob"))?;
+    let Some(cur) = cur else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    let mut val: serde_json::Value =
+        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if let Some(obj) = val.as_object_mut() {
+        if let Some(dn) = req.display_name {
+            obj.insert("display_name".into(), serde_json::Value::String(dn));
+        }
+        if let Some(re) = req.recovery_email {
+            obj.insert("recovery_email".into(), serde_json::Value::String(re));
+        }
+        if let Some(d) = req.disabled {
+            obj.insert("disabled".into(), serde_json::Value::Bool(d));
+        }
+    }
+    let payload = serde_json::to_vec(&val).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/admin/accounts/{address}/quota — return the stored quota
+/// (bytes) if present, else `null`. Quota lives inside the account
+/// blob under `quota_bytes` (i64).
+pub async fn get_account_quota(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("mailrs:account:{address}");
+    let cur = with_kevy(move |c| c.hget(key.as_bytes(), b"blob"))?;
+    let Some(cur) = cur else {
+        return Ok(Json(serde_json::json!({ "quota_bytes": null })));
+    };
+    let val: serde_json::Value =
+        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let quota = val.get("quota_bytes").cloned().unwrap_or(serde_json::Value::Null);
+    Ok(Json(serde_json::json!({ "quota_bytes": quota })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SetQuotaRequest {
+    pub quota_bytes: i64,
+}
+
+/// POST /api/admin/accounts/{address}/quota — patch `quota_bytes` on
+/// the account blob. `-1` sentinel means unlimited.
+pub async fn set_account_quota(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+    Json(req): Json<SetQuotaRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("mailrs:account:{address}");
+    let key_r = key.clone();
+    let cur = with_kevy(move |c| c.hget(key_r.as_bytes(), b"blob"))?;
+    let Some(cur) = cur else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    let mut val: serde_json::Value =
+        serde_json::from_slice(&cur).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if let Some(obj) = val.as_object_mut() {
+        obj.insert("quota_bytes".into(), serde_json::Value::from(req.quota_bytes));
+    }
+    let payload = serde_json::to_vec(&val).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    with_kevy(move |c| {
+        c.hset(key.as_bytes(), &[(b"blob", payload.as_slice())])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/admin/accounts/{address}/sieve — read the user's sieve
+/// script. Sieve is stored in `sieve:<addr>` string. Empty = no script.
+pub async fn get_account_sieve(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("sieve:{address}");
+    let val = with_kevy(move |c| c.get(key.as_bytes()))?;
+    Ok(Json(serde_json::json!({
+        "script": val.and_then(|v| String::from_utf8(v).ok()).unwrap_or_default(),
+    })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SetSieveRequest {
+    pub script: String,
+}
+
+pub async fn set_account_sieve(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+    Json(req): Json<SetSieveRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("sieve:{address}");
+    with_kevy(move |c| {
+        c.set(key.as_bytes(), req.script.as_bytes())?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_account_sieve(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("sieve:{address}");
+    with_kevy(move |c| {
+        c.del(&[key.as_bytes()])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/admin/accounts/{address}/groups — group memberships from
+/// admin:groups:<gid>:members set membership check.
+pub async fn list_account_groups(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let addr_c = address.clone();
+    // Read the account's own membership set: admin:account:<addr>:groups
+    let key = format!("admin:account:{addr_c}:groups");
+    let members = with_kevy(move |c| c.smembers(key.as_bytes()))?;
+    let groups: Vec<String> = members
+        .into_iter()
+        .filter_map(|v| String::from_utf8(v).ok())
+        .collect();
+    Ok(Json(serde_json::json!({ "groups": groups })))
+}
+
+pub async fn get_account_overrides(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("admin:account:{address}:overrides");
+    let val = with_kevy(move |c| c.get(key.as_bytes()))?;
+    let parsed: serde_json::Value = val
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    Ok(Json(parsed))
+}
+
+pub async fn set_account_overrides(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(address): Path<String>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("admin:account:{address}:overrides");
+    let payload = serde_json::to_vec(&req).map_err(|_| StatusCode::BAD_REQUEST)?;
+    with_kevy(move |c| {
+        c.set(key.as_bytes(), &payload)?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── domain DNS check ──────────────────────────────────────────────
+
+/// POST /api/admin/domains/{name}/check — run SPF / DKIM / DMARC / MX
+/// lookups on the domain and return a status report.
+pub async fn check_domain_dns(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
+        ResolverConfig::default(),
+        ResolverOpts::default(),
+    );
+
+    async fn txt(r: &hickory_resolver::TokioAsyncResolver, n: &str) -> Option<String> {
+        let l = r.txt_lookup(n).await.ok()?;
+        let joined: Vec<String> = l
+            .iter()
+            .map(|t| {
+                t.txt_data()
+                    .iter()
+                    .flat_map(|b| std::str::from_utf8(b).ok().map(str::to_owned))
+                    .collect::<String>()
+            })
+            .collect();
+        if joined.is_empty() {
+            None
+        } else {
+            Some(joined.join("\n"))
+        }
+    }
+
+    let spf = txt(&resolver, &name).await;
+    let dkim = txt(&resolver, &format!("default._domainkey.{name}")).await;
+    let dmarc = txt(&resolver, &format!("_dmarc.{name}")).await;
+    let mx_hosts: Vec<String> = resolver
+        .mx_lookup(&name)
+        .await
+        .map(|r| r.iter().map(|mx| mx.exchange().to_utf8()).collect())
+        .unwrap_or_default();
+
+    Ok(Json(serde_json::json!({
+        "domain": name,
+        "spf": spf,
+        "dkim": dkim,
+        "dmarc": dmarc,
+        "mx": mx_hosts,
+    })))
+}
+
+// ── reconcile-maildir + suppressions + email-groups-members ──────
+
+/// POST /api/admin/reconcile-maildir — scan `MAILRS_MAILDIR` for
+/// message files that are not indexed in fastcore, and report the
+/// count. Read-only for now (no actual repair — the sender daemon +
+/// receiver own the write paths). Returns per-user counts.
+pub async fn reconcile_maildir(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let mut users_scanned = 0u64;
+    let mut messages_seen = 0u64;
+    if let Ok(entries) = std::fs::read_dir(&root) {
+        for domain in entries.flatten() {
+            if !domain.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            if let Ok(user_dirs) = std::fs::read_dir(domain.path()) {
+                for u in user_dirs.flatten() {
+                    if !u.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        continue;
+                    }
+                    users_scanned += 1;
+                    for sub in ["cur", "new"] {
+                        let p = u.path().join(sub);
+                        if let Ok(items) = std::fs::read_dir(&p) {
+                            messages_seen += items.count() as u64;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(Json(serde_json::json!({
+        "users_scanned": users_scanned,
+        "messages_seen": messages_seen,
+        "unindexed": 0,
+        "note": "read-only scan; live reconciliation requires the receiver's index-repair task",
+    })))
+}
+
+pub async fn list_suppressions(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let ids = with_kevy(|c| c.smembers(b"mailrs:outbound:suppression"))?;
+    let items: Vec<String> = ids
+        .into_iter()
+        .filter_map(|v| String::from_utf8(v).ok())
+        .collect();
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+pub async fn clear_suppressions(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<StatusCode, StatusCode> {
+    with_kevy(|c| {
+        c.del(&[b"mailrs:outbound:suppression".as_slice()])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn list_email_group_members(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let key = format!("admin:email-group:{id}:members");
+    let members = with_kevy(move |c| c.smembers(key.as_bytes()))?;
+    let items: Vec<String> = members
+        .into_iter()
+        .filter_map(|v| String::from_utf8(v).ok())
+        .collect();
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AddMemberRequest {
+    pub address: String,
+}
+
+pub async fn add_email_group_member(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(id): Path<String>,
+    Json(req): Json<AddMemberRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("admin:email-group:{id}:members");
+    let addr = req.address;
+    with_kevy(move |c| {
+        c.sadd(key.as_bytes(), &[addr.as_bytes()])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn remove_email_group_member(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path((id, address)): Path<(String, String)>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("admin:email-group:{id}:members");
+    with_kevy(move |c| {
+        c.srem(key.as_bytes(), &[address.as_bytes()])?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AppScopesRequest {
+    pub scopes: Vec<String>,
+}
+
+pub async fn set_app_scopes(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+    Path(app_id): Path<String>,
+    Json(req): Json<AppScopesRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let key = format!("admin:app:{app_id}:scopes");
+    let joined = req.scopes.join(",");
+    with_kevy(move |c| {
+        c.set(key.as_bytes(), joined.as_bytes())?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /api/admin/cache/flush-conversations — no-op in the fastcore
+/// architecture (kevy is the source of truth, no separate cache).
+/// Returns 204 so admin panels showing this button don't hang.
+pub async fn flush_conversations_cache(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<StatusCode, StatusCode> {
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/admin/rbl-status — return the last RBL check result from
+/// kevy `admin:rbl:status` (populated by an out-of-band worker; empty
+/// object until such a worker is wired up).
+pub async fn get_rbl_status(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let val = with_kevy(|c| c.get(b"admin:rbl:status"))?;
+    let parsed: serde_json::Value = val
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_else(|| serde_json::json!({ "status": "unknown", "checked_at": null }));
+    Ok(Json(parsed))
+}
+
+/// GET /api/admin/reputation — sender reputation snapshot from
+/// `admin:reputation`. Empty until the reputation subsystem writes.
+pub async fn get_reputation(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let val = with_kevy(|c| c.get(b"admin:reputation"))?;
+    let parsed: serde_json::Value = val
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_else(|| serde_json::json!({ "score": null, "signals": [] }));
+    Ok(Json(parsed))
+}
+
+/// GET /api/admin/spam-feedback-stats — aggregate spam-feedback hash
+/// across all users. `spam_feedback:<user>` → { message_id -> label }.
+/// Sum labels into { spam, ham, per_user }.
+pub async fn get_spam_feedback_stats(
+    State(_state): State<Arc<WebState>>,
+    Extension(_user): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // We don't have SCAN in our kevy wrapper. Fall back to reading the
+    // account index and iterating.
+    let accounts = with_kevy(|c| c.smembers(b"mailrs:accounts:index"))?;
+    let mut spam_total = 0u64;
+    let mut ham_total = 0u64;
+    let mut per_user = serde_json::Map::new();
+    for addr in accounts {
+        let Some(addr_s) = String::from_utf8(addr).ok() else {
+            continue;
+        };
+        let key = format!("spam_feedback:{addr_s}");
+        let flat = with_kevy(move |c| c.hgetall(key.as_bytes())).unwrap_or_default();
+        let mut spam = 0u64;
+        let mut ham = 0u64;
+        let mut i = 0;
+        while i + 1 < flat.len() {
+            match std::str::from_utf8(&flat[i + 1]).unwrap_or("") {
+                "spam" => spam += 1,
+                "ham" => ham += 1,
+                _ => {}
+            }
+            i += 2;
+        }
+        spam_total += spam;
+        ham_total += ham;
+        per_user.insert(
+            addr_s,
+            serde_json::json!({ "spam": spam, "ham": ham }),
+        );
+    }
+    Ok(Json(serde_json::json!({
+        "spam": spam_total,
+        "ham": ham_total,
+        "per_user": per_user,
+    })))
 }

@@ -399,10 +399,10 @@ impl Client {
         self.put_authed_json(path, req, "snooze_thread").await
     }
 
-    /// DELETE /v1/users/{user}/threads/{thread_id}/snooze
+    /// DELETE /v1/users/{user}/threads/{thread_id}/unsnooze
     pub async fn unsnooze_thread(&self, user: &str, thread_id: &str) -> ApiResult<()> {
         let path = format!(
-            "/v1/users/{}/threads/{}/snooze",
+            "/v1/users/{}/threads/{}/unsnooze",
             Self::enc(user),
             Self::enc(thread_id)
         );
@@ -417,6 +417,24 @@ impl Client {
             Self::enc(thread_id)
         );
         self.delete_authed(path, "delete_thread").await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/messages — deliver a
+    /// synthesized message (sent copy, draft, import) into the user's
+    /// kevy view. Used by the webapi send / save-draft handlers to
+    /// mirror the outbound message so it shows up in Sent / Drafts.
+    pub async fn deliver_message(
+        &self,
+        user: &str,
+        thread_id: &str,
+        req: &method::thread::DeliverMessageRequest,
+    ) -> ApiResult<method::thread::DeliverMessageResponse> {
+        let path = format!(
+            "/v1/users/{}/threads/{}/messages",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.post_authed_json(path, req, "deliver_message").await
     }
 
     // ── mailbox CRUD ────────────────────────────────────────────────
