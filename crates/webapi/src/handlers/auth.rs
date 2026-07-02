@@ -89,16 +89,25 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
     // TOTP gate — if enrolled, require a 6-digit code (or a
     // recovery code) on the login request; otherwise short-circuit
     // with `{ requires_totp: true }` so the UI can prompt.
+    //
+    // Kevy failure while checking TOTP must NOT fall through to
+    // "session issued" — that would let a kevy blink bypass 2FA.
+    // Fail closed with 500 instead.
     let totp_key = format!("totp:{}", req.address);
     let totp_key_r = totp_key.clone();
-    let totp_enrolled_secret = crate::handlers::kevy_util::with_kevy(move |c| {
+    let totp_enrolled_secret = match crate::handlers::kevy_util::with_kevy(move |c| {
         Ok((
             c.hget(totp_key_r.as_bytes(), b"secret")?,
             c.hget(totp_key_r.as_bytes(), b"enabled")?,
         ))
-    })
-    .ok();
-    if let Some((Some(secret_bytes), Some(en))) = totp_enrolled_secret
+    }) {
+        Ok(v) => v,
+        Err(_) => {
+            tracing::warn!(addr = %req.address, "login: kevy TOTP check failed; rejecting to fail-closed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    if let (Some(secret_bytes), Some(en)) = totp_enrolled_secret
         && en == b"1"
     {
         let secret = String::from_utf8(secret_bytes).unwrap_or_default();

@@ -179,9 +179,12 @@ pub async fn addressbooks_collection(
 }
 
 /// PUT /dav/calendars/{user}/{cal}/{uid}.ics — store an event.
+/// The `{user}` path segment is ignored — the authenticated user
+/// (from the session) is the source of truth, so `user_A` can't
+/// smuggle a PUT to `/dav/calendars/user_B/…`.
 pub async fn put_calendar_event(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path((cal, uid)): Path<(String, String)>,
+    Path((_url_user, cal, uid)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> StatusCode {
     let key = format!("caldav:{user}:events:{cal}");
@@ -197,7 +200,7 @@ pub async fn put_calendar_event(
 /// GET /dav/calendars/{user}/{cal}/{uid}.ics — fetch an event.
 pub async fn get_calendar_event(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path((cal, uid)): Path<(String, String)>,
+    Path((_url_user, cal, uid)): Path<(String, String, String)>,
 ) -> axum::response::Response {
     let key = format!("caldav:{user}:events:{cal}");
     let bytes = match crate::handlers::kevy_util::with_kevy(move |c| {
@@ -217,7 +220,7 @@ pub async fn get_calendar_event(
 /// DELETE /dav/calendars/{user}/{cal}/{uid}.ics
 pub async fn delete_calendar_event(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path((cal, uid)): Path<(String, String)>,
+    Path((_url_user, cal, uid)): Path<(String, String, String)>,
 ) -> StatusCode {
     let key = format!("caldav:{user}:events:{cal}");
     let _ = crate::handlers::kevy_util::with_kevy(move |c| {
@@ -230,7 +233,7 @@ pub async fn delete_calendar_event(
 /// PUT /dav/addressbooks/{user}/{book}/{uid}.vcf
 pub async fn put_contact(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path((book, uid)): Path<(String, String)>,
+    Path((_url_user, book, uid)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> StatusCode {
     let key = format!("carddav:{user}:contacts:{book}");
@@ -246,7 +249,7 @@ pub async fn put_contact(
 /// GET /dav/addressbooks/{user}/{book}/{uid}.vcf
 pub async fn get_contact(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path((book, uid)): Path<(String, String)>,
+    Path((_url_user, book, uid)): Path<(String, String, String)>,
 ) -> axum::response::Response {
     let key = format!("carddav:{user}:contacts:{book}");
     let bytes = match crate::handlers::kevy_util::with_kevy(move |c| {
@@ -266,7 +269,7 @@ pub async fn get_contact(
 /// DELETE /dav/addressbooks/{user}/{book}/{uid}.vcf
 pub async fn delete_contact(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path((book, uid)): Path<(String, String)>,
+    Path((_url_user, book, uid)): Path<(String, String, String)>,
 ) -> StatusCode {
     let key = format!("carddav:{user}:contacts:{book}");
     let _ = crate::handlers::kevy_util::with_kevy(move |c| {
