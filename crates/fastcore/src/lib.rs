@@ -113,6 +113,7 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(th::PATH_DELETE_THREAD, delete(delete_thread))
         .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
         .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
+        .route(adm::PATH_LIST_ACCOUNTS, get(list_accounts))
         .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
         .with_state(state);
 
@@ -271,6 +272,21 @@ async fn effective_permissions(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+/// `GET /v1/admin/accounts` — walk kevy account index + return
+/// AccountListResponse. Zero spg.
+async fn list_accounts(State(state): State<Arc<FastcoreState>>) -> Json<adm::AccountListResponse> {
+    let mut items = Vec::new();
+    let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
+    for addr in addrs {
+        if let Ok(Some(json)) = state.mailbox.get_account_blob(&addr)
+            && let Ok(acc) = serde_json::from_str::<adm::AccountWithHashWire>(&json)
+        {
+            items.push(acc.public);
+        }
+    }
+    Json(adm::AccountListResponse { items })
 }
 
 // ── Mailboxes (folders) ────────────────────────────────────────────
