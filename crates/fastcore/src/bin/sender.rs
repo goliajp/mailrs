@@ -69,15 +69,29 @@ impl Cfg {
 fn load_dkim_from_env() -> Option<Arc<DkimSignConfig>> {
     let domain = std::env::var("MAILRS_DKIM_DOMAIN").ok()?;
     let selector = std::env::var("MAILRS_DKIM_SELECTOR").ok()?;
-    let pem = match std::env::var("MAILRS_DKIM_PRIVATE_KEY_PEM_FILE") {
-        Ok(path) => match std::fs::read_to_string(&path) {
+    // Accept either the monolith's env-var convention
+    // (MAILRS_DKIM_PRIVATE_KEY = file path) or inline PEM
+    // (MAILRS_DKIM_PRIVATE_KEY_PEM). The file path takes precedence.
+    let pem = if let Ok(path) = std::env::var("MAILRS_DKIM_PRIVATE_KEY") {
+        match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(%path, err = %e, "MAILRS_DKIM_PRIVATE_KEY unreadable");
+                return None;
+            }
+        }
+    } else if let Ok(path) = std::env::var("MAILRS_DKIM_PRIVATE_KEY_PEM_FILE") {
+        match std::fs::read_to_string(&path) {
             Ok(s) => s,
             Err(e) => {
                 tracing::error!(%path, err = %e, "MAILRS_DKIM_PRIVATE_KEY_PEM_FILE unreadable");
                 return None;
             }
-        },
-        Err(_) => std::env::var("MAILRS_DKIM_PRIVATE_KEY_PEM").ok()?,
+        }
+    } else if let Ok(pem) = std::env::var("MAILRS_DKIM_PRIVATE_KEY_PEM") {
+        pem
+    } else {
+        return None;
     };
     Some(Arc::new(DkimSignConfig {
         selector,
