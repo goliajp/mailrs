@@ -70,6 +70,32 @@ impl KevyMailboxStore {
         Ok(())
     }
 
+    /// Assign a per-user uid to `message_id` and persist both directions
+    /// of the mapping. Idempotent: if the message already has a uid,
+    /// the existing value is returned without touching the counter.
+    ///
+    /// Used by the self-heal path so `/api/mail/messages/{uid}/…`
+    /// endpoints (raw source, attachments) can resolve messages that
+    /// weren't handed a uid by the monolith migration.
+    pub fn allocate_uid(&self, user: &str, message_id: &str) -> io::Result<u32> {
+        let rev_key = keys::user_uid_by_mid(user);
+        if let Some(existing) = self.store().hget(rev_key.as_bytes(), message_id.as_bytes())?
+            && let Ok(s) = std::str::from_utf8(&existing)
+            && let Ok(uid) = s.parse::<u32>()
+        {
+            return Ok(uid);
+        }
+        let counter_key = keys::user_next_uid(user);
+        let uid = self.store().incr(counter_key.as_bytes())?;
+        let uid = uid.clamp(1, u32::MAX as i64) as u32;
+        self.store().hset(
+            rev_key.as_bytes(),
+            &[(message_id.as_bytes(), uid.to_string().as_bytes())],
+        )?;
+        self.index_uid(user, uid, message_id)?;
+        Ok(uid)
+    }
+
     /// List all messages in `thread_id` in chronological order
     /// (lowest internal_date first). One ZRANGE + N × GET.
     pub fn list_thread_messages(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {

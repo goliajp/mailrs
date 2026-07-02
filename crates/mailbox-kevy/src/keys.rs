@@ -59,6 +59,21 @@ pub fn user_msg_by_uid(user: &str) -> String {
     format!("mailrs:user:{user}:msg_by_uid")
 }
 
+/// Reverse index: `mailrs:user:<u>:uid_by_mid` — hash message_id → uid,
+/// so a rerun of self-heal can reuse the previously-allocated uid
+/// instead of burning a fresh one every tick. Preserves IMAP UIDVALIDITY
+/// even when the fastcore process restarts.
+pub fn user_uid_by_mid(user: &str) -> String {
+    format!("mailrs:user:{user}:uid_by_mid")
+}
+
+/// String counter: `mailrs:user:<u>:next_uid` — monotonic uid allocator.
+/// `INCR` returns the next uid to assign; caller must persist the
+/// mapping via [`user_uid_by_mid`] + [`user_msg_by_uid`] afterwards.
+pub fn user_next_uid(user: &str) -> String {
+    format!("mailrs:user:{user}:next_uid")
+}
+
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the
 /// full message timeline in order.
