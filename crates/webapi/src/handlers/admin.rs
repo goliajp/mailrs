@@ -121,6 +121,36 @@ pub async fn remove_account(
 const ALIAS_KEY: &str = "admin:aliases";
 const ALIAS_CTR: &str = "admin:aliases:counter";
 
+/// One-shot boot-time mirror of network-kevy alias entries into the
+/// fastcore-embedded alias table. Reads every `admin:aliases` hash row,
+/// deserializes the `AliasWire`, and calls `fastcore.upsert_local_alias`
+/// for each `source → target` pair. Idempotent — safe to run every boot.
+/// Returns the count of aliases successfully mirrored.
+pub async fn sync_aliases_to_fastcore(state: &Arc<WebState>) -> usize {
+    let vals = match with_kevy(|c| hgetall_values(c, ALIAS_KEY)) {
+        Ok(v) => v,
+        Err(_) => return 0,
+    };
+    let mut synced = 0usize;
+    for v in vals {
+        let Ok(alias) = serde_json::from_slice::<wire::AliasWire>(&v) else {
+            continue;
+        };
+        if !alias.active {
+            continue;
+        }
+        if state
+            .fast()
+            .upsert_local_alias(&alias.source_address, &alias.target_address)
+            .await
+            .is_ok()
+        {
+            synced += 1;
+        }
+    }
+    synced
+}
+
 /// GET /api/admin/aliases
 pub async fn list_aliases(
     State(_state): State<Arc<WebState>>,
@@ -134,17 +164,20 @@ pub async fn list_aliases(
     Ok(Json(wire::AliasListResponse { items }))
 }
 
-/// POST /api/admin/aliases
+/// POST /api/admin/aliases — dual-write: the wire record lives in the
+/// network kevy (UI listing reads from there); the resolvable
+/// `source→target` pair also goes to fastcore's embedded kevy so the
+/// spool drain can honor it.
 pub async fn add_alias(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     Json(req): Json<wire::AddAliasRequest>,
 ) -> Result<Json<wire::AddAliasResponse>, StatusCode> {
     let id = with_kevy(|c| next_id(c, ALIAS_CTR))?;
     let alias = wire::AliasWire {
         id,
-        source_address: req.source_address,
-        target_address: req.target_address,
+        source_address: req.source_address.clone(),
+        target_address: req.target_address.clone(),
         domain: req.domain,
         alias_type: req.alias_type,
         active: true,
@@ -158,19 +191,39 @@ pub async fn add_alias(
         )?;
         Ok(())
     })?;
+    if let Err(e) = state
+        .fast()
+        .upsert_local_alias(&req.source_address, &req.target_address)
+        .await
+    {
+        tracing::warn!(err = %e, source = %req.source_address,
+            "add_alias: fastcore mirror failed; drain won't see alias until re-added");
+    }
     Ok(Json(wire::AddAliasResponse { id }))
 }
 
-/// DELETE /api/admin/aliases/{id}
+/// DELETE /api/admin/aliases/{id} — dual-delete from network kevy +
+/// fastcore. Reads the wire back first so we know which source to drop.
 pub async fn remove_alias(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
     axum::extract::Path(id): axum::extract::Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    with_kevy(move |c| {
-        c.hdel(ALIAS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
-        Ok(())
+    let key = id.to_string();
+    let source = with_kevy(move |c| {
+        let raw = c.hget(ALIAS_KEY.as_bytes(), key.as_bytes())?;
+        let s = raw
+            .and_then(|b| serde_json::from_slice::<wire::AliasWire>(&b).ok())
+            .map(|a| a.source_address);
+        c.hdel(ALIAS_KEY.as_bytes(), &[key.as_bytes()])?;
+        Ok(s)
     })?;
+    if let Some(src) = source
+        && let Err(e) = state.fast().delete_local_alias(&src).await
+    {
+        tracing::warn!(err = %e, source = %src,
+            "remove_alias: fastcore mirror delete failed");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -172,6 +172,8 @@ pub struct ThreadMessageResponse {
     pub uid: u32,
     pub sender: String,
     pub recipients: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cc: Option<String>,
     pub subject: String,
     pub flags: u32,
     pub internal_date: i64,
@@ -206,6 +208,7 @@ impl ThreadMessageResponse {
             uid: w.uid,
             sender: w.sender,
             recipients: w.recipients,
+            cc: None,
             subject: w.subject,
             flags: w.flags,
             internal_date: w.internal_date,
@@ -233,6 +236,58 @@ impl ThreadMessageResponse {
             action_deadline: None,
         }
     }
+}
+
+/// Extract the `Cc:` header from the raw RFC 5322 source. Follows folded
+/// continuation lines (leading whitespace = continuation of prior header).
+/// Returns `None` when no Cc header is present or when it's empty.
+fn extract_cc_header(data: &[u8]) -> Option<String> {
+    // Header block ends at the first blank line (CRLF CRLF or LF LF).
+    let head_end = memchr_bytes(data, b"\r\n\r\n")
+        .or_else(|| memchr_bytes(data, b"\n\n"))
+        .unwrap_or(data.len());
+    let head = &data[..head_end];
+    let mut lines: Vec<&[u8]> = head.split(|&b| b == b'\n').collect();
+    for l in lines.iter_mut() {
+        if l.last() == Some(&b'\r') {
+            *l = &l[..l.len() - 1];
+        }
+    }
+    let mut i = 0;
+    while i < lines.len() {
+        let ll = lines[i];
+        if !ll.len().ge(&3) {
+            i += 1;
+            continue;
+        }
+        if ll.get(..3).is_some_and(|s| s.eq_ignore_ascii_case(b"cc:")) {
+            let mut val: Vec<u8> = ll[3..].trim_ascii_start().to_vec();
+            let mut j = i + 1;
+            while j < lines.len() {
+                let cont = lines[j];
+                if cont.first().is_some_and(|c| *c == b' ' || *c == b'\t') {
+                    val.push(b' ');
+                    val.extend_from_slice(cont.trim_ascii());
+                    j += 1;
+                } else {
+                    break;
+                }
+            }
+            let s = String::from_utf8_lossy(&val).trim().to_string();
+            return if s.is_empty() { None } else { Some(s) };
+        }
+        i += 1;
+    }
+    None
+}
+
+fn memchr_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack
+        .windows(needle.len())
+        .position(|w| w == needle)
 }
 
 /// Parse `data` (raw RFC-5322 bytes) into text/html body + attachments.
@@ -313,6 +368,7 @@ async fn enrich_with_body(
             r.text_body = t;
             r.html_body = h;
             r.attachments = a;
+            r.cc = extract_cc_header(&bytes);
         }
     }
     r
@@ -588,4 +644,48 @@ pub async fn get_unseen_count(
 fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     let code = e.status_code();
     StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+#[cfg(test)]
+mod cc_tests {
+    use super::extract_cc_header;
+
+    #[test]
+    fn returns_none_when_no_cc_header() {
+        let m = b"From: a@x\r\nTo: b@x\r\nSubject: hi\r\n\r\nbody";
+        assert_eq!(extract_cc_header(m), None);
+    }
+
+    #[test]
+    fn extracts_single_line_cc() {
+        let m = b"From: a@x\r\nTo: b@x\r\nCc: c@x, d@x\r\nSubject: hi\r\n\r\nbody";
+        assert_eq!(extract_cc_header(m).as_deref(), Some("c@x, d@x"));
+    }
+
+    #[test]
+    fn extracts_folded_cc() {
+        let m = b"From: a@x\r\nCc: c@x,\r\n d@x,\r\n\te@x\r\nSubject: hi\r\n\r\nbody";
+        assert_eq!(
+            extract_cc_header(m).as_deref(),
+            Some("c@x, d@x, e@x")
+        );
+    }
+
+    #[test]
+    fn case_insensitive_header_name() {
+        let m = b"From: a@x\r\nCC: c@x\r\n\r\nbody";
+        assert_eq!(extract_cc_header(m).as_deref(), Some("c@x"));
+    }
+
+    #[test]
+    fn stops_at_header_terminator() {
+        let m = b"From: a@x\r\n\r\nCc: fake@x\r\nbody";
+        assert_eq!(extract_cc_header(m), None);
+    }
+
+    #[test]
+    fn empty_cc_returns_none() {
+        let m = b"From: a@x\r\nCc:   \r\n\r\nbody";
+        assert_eq!(extract_cc_header(m), None);
+    }
 }

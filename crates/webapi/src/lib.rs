@@ -793,6 +793,20 @@ pub async fn run() {
         }
     }
 
+    // One-shot alias sync: existing alias entries in the network kevy
+    // `admin:aliases` hash (populated by webapi's older `add_alias`
+    // handler) don't have a fastcore mirror. Push each into fastcore
+    // on boot so the spool drain sees them immediately. Idempotent.
+    {
+        let sync_state = state.clone();
+        tokio::spawn(async move {
+            let synced = crate::handlers::admin::sync_aliases_to_fastcore(&sync_state).await;
+            if synced > 0 {
+                tracing::info!(count = synced, "alias sync: network → fastcore");
+            }
+        });
+    }
+
     let bind = state.bind_addr.clone();
     let router = build_router(state);
     let listener = tokio::net::TcpListener::bind(&bind)
