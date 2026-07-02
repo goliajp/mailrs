@@ -563,6 +563,75 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         by_root.entry(root).or_default().push(m);
     }
 
+    // UID backfill — one-time per boot per user. Repair any
+    // MessageWire that self-heal wrote before we started allocating
+    // uids (all showed uid=0, breaking /api/mail/messages/{uid}/…
+    // attachment endpoints). Guard on a persistent flag so subsequent
+    // ticks don't re-scan the full mailbox. Bump the sentinel key when
+    // the migration format changes to force another sweep.
+    let uid_flag_key = format!("mailrs:user:{user}:uid_backfill_v1");
+    let need_uid_backfill = state
+        .mailbox
+        .store_ref()
+        .get(uid_flag_key.as_bytes())
+        .ok()
+        .flatten()
+        .is_none();
+    if need_uid_backfill {
+        let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let all_tids = state
+            .mailbox
+            .store_ref()
+            .zrevrange(by_activity.as_bytes(), 0, -1)
+            .unwrap_or_default();
+        let mut uid_healed = 0u32;
+        for (tid_bytes, _score) in all_tids {
+            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            let msgs = state
+                .mailbox
+                .list_thread_messages(tid)
+                .unwrap_or_default();
+            for payload in msgs {
+                let Ok(mut wire) =
+                    serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(
+                        &payload,
+                    )
+                else {
+                    continue;
+                };
+                if wire.uid != 0 {
+                    continue;
+                }
+                let uid = state
+                    .mailbox
+                    .allocate_uid(user, &wire.message_id)
+                    .unwrap_or(0);
+                if uid == 0 {
+                    continue;
+                }
+                wire.uid = uid;
+                if let Ok(new_payload) = serde_json::to_vec(&wire) {
+                    let _ = state.mailbox.upsert_message(
+                        &wire.thread_id,
+                        &wire.message_id,
+                        wire.internal_date,
+                        &new_payload,
+                    );
+                }
+                uid_healed += 1;
+            }
+        }
+        let _ = state
+            .mailbox
+            .store_ref()
+            .set(uid_flag_key.as_bytes(), b"1");
+        if uid_healed > 0 {
+            tracing::info!(%user, uid_healed, "self-heal: uid backfill (one-shot)");
+        }
+    }
+
     // Walk empty-messages threads and heal each from its bucket.
     let activity_key = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
     let tids = state
@@ -593,10 +662,18 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         let mut ordered: Vec<&MailFile> = bucket.to_vec();
         ordered.sort_by_key(|m| m.date);
         for m in &ordered {
+            // Allocate a stable per-user uid before writing the wire so
+            // /api/mail/messages/{uid}/attachments/… can resolve the
+            // message. allocate_uid is idempotent — reruns return the
+            // previously-issued uid via the uid_by_mid reverse index.
+            let uid = state
+                .mailbox
+                .allocate_uid(user, &m.message_id)
+                .unwrap_or(0);
             let wire = mailrs_core_api::method::message::MessageWire {
                 id: 0,
                 mailbox_id: 0,
-                uid: 0,
+                uid,
                 blob_ref: m.filename.clone(),
                 sender: m.from.clone(),
                 recipients: m.to.clone(),
@@ -678,10 +755,14 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                 };
                 let _ = state.mailbox.record_message_arrival(&arrival);
                 // Also write the message blob for enrich_with_body.
+                let uid = state
+                    .mailbox
+                    .allocate_uid(user, &m.message_id)
+                    .unwrap_or(0);
                 let wire = mailrs_core_api::method::message::MessageWire {
                     id: 0,
                     mailbox_id: 0,
-                    uid: 0,
+                    uid,
                     blob_ref: m.filename.clone(),
                     sender: m.from.clone(),
                     recipients: m.to.clone(),
