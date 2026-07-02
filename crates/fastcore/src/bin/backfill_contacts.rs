@@ -1,16 +1,16 @@
-//! `mailrs-fastcore-backfill-contacts` — one-time script to build the
+//! `mailrs-fastcore-backfill-contacts` — build the
 //! `mailrs:user:<u>:contacts` hash from existing kevy data.
 //!
-//! Walks every thread's `senders_csv` field, parses RFC-5322-ish
-//! `Name <email@host>` tokens, and inserts one hash entry per unique
-//! email. Idempotent — safe to re-run.
+//! Reads thread rows from fastcore's EMBEDDED kevy (where the migrated
+//! mail lives) and writes the contact index into the shared NETWORK
+//! kevy at `MAILRS_KEVY_URL`, matching where webapi's `/api/contacts`
+//! handler reads from.
 
 use kevy_embedded::{Config, Store};
 use mailrs_mailbox_kevy::{KevyMailboxStore, keys};
 use std::sync::Arc;
 
-/// Parse a single `senders_csv` value into `(email, display_name)` pairs.
-/// Handles: `Foo <foo@bar>` / bare `foo@bar` / lists separated by `,`.
+/// Parse one `senders_csv` value into `(email, display)` tuples.
 fn parse_senders(csv: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for token in csv.split(',') {
@@ -18,7 +18,6 @@ fn parse_senders(csv: &str) -> Vec<(String, String)> {
         if token.is_empty() {
             continue;
         }
-        // `Name <email>` form.
         if let Some(lt) = token.rfind('<')
             && let Some(gt) = token.rfind('>')
             && gt > lt
@@ -29,7 +28,6 @@ fn parse_senders(csv: &str) -> Vec<(String, String)> {
                 continue;
             }
         }
-        // Bare email.
         if token.contains('@') {
             out.push((token.to_string(), token.to_string()));
         }
@@ -41,8 +39,12 @@ fn main() {
     let kevy_dir =
         std::env::var("MAILRS_KEVY_DATA_DIR").unwrap_or_else(|_| "/data/kevy-fastcore".to_string());
     let cfg = Config::default().with_persist(&kevy_dir);
-    let store = Arc::new(Store::open(cfg).expect("open kevy store"));
+    let store = Arc::new(Store::open(cfg).expect("open embedded kevy"));
     let mailbox = KevyMailboxStore::new(store.clone());
+
+    let net_url =
+        std::env::var("MAILRS_KEVY_URL").expect("MAILRS_KEVY_URL required (network kevy)");
+    let mut net = kevy_client::Connection::open(&net_url).expect("open network kevy");
 
     let users = mailbox
         .list_account_addresses()
@@ -57,7 +59,7 @@ fn main() {
         eprintln!("user={user} threads={n}");
         let entries = store
             .zrevrange(activity_key.as_bytes(), 0, (n as i64) - 1)
-            .expect("zrevrange activity");
+            .expect("zrevrange");
         let contacts_key = format!("mailrs:user:{user}:contacts");
         let mut pending: Vec<(String, String)> = Vec::new();
         for (tid_bytes, _score) in entries {
@@ -73,17 +75,15 @@ fn main() {
                 pending.push((email, display));
             }
         }
-        // Dedupe by email — keep the last-seen display name.
         pending.sort_by(|a, b| a.0.cmp(&b.0));
         pending.dedup_by(|a, b| a.0 == b.0);
         let mut inserted = 0;
         for (email, display) in &pending {
-            store
-                .hset(
-                    contacts_key.as_bytes(),
-                    &[(email.as_bytes(), display.as_bytes())],
-                )
-                .expect("hset contact");
+            net.hset(
+                contacts_key.as_bytes(),
+                &[(email.as_bytes(), display.as_bytes())],
+            )
+            .expect("hset contact");
             inserted += 1;
         }
         eprintln!("  user={user} contacts_inserted={inserted}");
