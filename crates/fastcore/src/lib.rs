@@ -166,6 +166,17 @@ async fn run_ingest_once(
             if s.last_date <= prev {
                 continue;
             }
+            // Skip if we already have this thread in kevy — mark_read /
+            // pin / archive / etc. are fastcore-only mutations that
+            // monolith doesn't learn about; blindly upserting would
+            // clobber the user's read state with monolith's stale one.
+            // The cost is that a monolith-side re-classification (e.g.
+            // spam detection running post-hoc) won't propagate. Small
+            // trade-off; user-visible state stays sticky.
+            if let Ok(Some(_)) = state.mailbox.get_thread(&s.thread_id) {
+                max_seen = max_seen.max(s.last_date);
+                continue;
+            }
             let row = mailrs_mailbox_kevy::ThreadRow {
                 thread_id: s.thread_id.clone(),
                 subject: s.subject.clone(),
