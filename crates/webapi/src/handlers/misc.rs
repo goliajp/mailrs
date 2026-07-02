@@ -366,7 +366,7 @@ pub async fn search_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<SearchQuery>,
-) -> Result<Json<Vec<mailrs_core_api::types::ConversationSummaryWire>>, StatusCode> {
+) -> Result<Json<Vec<crate::handlers::conversations::ConversationResponse>>, StatusCode> {
     let needle = q.q.to_lowercase();
     // Scan a wide window — kevy HGETALL is ~100 µs in-process, so a
     // 20 000-entry scan is ~2 s worst case and covers a full account.
@@ -388,7 +388,11 @@ pub async fn search_conversations(
         .list_conversations(&user, &req)
         .await
         .map_err(map_core_err)?;
-    let matched: Vec<_> = resp
+    // Match into ConversationResponse so `participants` is a Vec<String>
+    // (comma-split) — the UI does `convo.participants[0]` and would
+    // otherwise index a raw String and get the first character. That's
+    // what showed sender labels as "l +13" / "q +28" / etc.
+    let matched: Vec<crate::handlers::conversations::ConversationResponse> = resp
         .items
         .into_iter()
         .filter(|c| {
@@ -397,6 +401,7 @@ pub async fn search_conversations(
                 || c.snippet.to_lowercase().contains(&needle)
         })
         .take(q.limit as usize)
+        .map(Into::into)
         .collect();
     Ok(Json(matched))
 }
