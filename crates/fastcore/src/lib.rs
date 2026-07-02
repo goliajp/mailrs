@@ -383,11 +383,23 @@ fn strip_angle(v: &str) -> String {
 /// don't need to pull it in for the fallback.
 fn parse_rfc5322_date(s: &str) -> Option<i64> {
     let s = s.trim();
-    let s = s
-        .strip_prefix(|c: char| c.is_ascii_alphabetic())
-        .map(str::trim_start)
-        .unwrap_or(s);
-    let s = s.strip_prefix(',').map(str::trim_start).unwrap_or(s);
+    // Strip an optional day-of-week prefix like "Sat, " or "Sunday, ".
+    // Previously this used `strip_prefix(|c: char| c.is_ascii_alphabetic())`
+    // which only removes ONE character (the closure Pattern matches a
+    // single char). That left "at, 13 Jun 2026 …" behind, day parse
+    // failed, and every RFC 5322 date reduced to 0 — pushing the thread
+    // to the bottom of every zset scored by latest_date. Now strip the
+    // full alpha word + comma if present.
+    let s = if let Some(idx) = s.find(',') {
+        let head = &s[..idx];
+        if !head.is_empty() && head.chars().all(|c| c.is_ascii_alphabetic()) {
+            s[idx + 1..].trim_start()
+        } else {
+            s
+        }
+    } else {
+        s
+    };
     let mut parts = s.split_whitespace();
     let day: i64 = parts.next()?.parse().ok()?;
     let mon_str = parts.next()?;
@@ -699,7 +711,12 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         // which drifted from the aggregate whenever record_message_arrival
         // was called separately (e.g. via mirror_send during a live
         // send) and left the two in disagreement → apparent random order.
-        let agg_latest = state
+        //
+        // If the stored aggregate latest_date is stale/zero (e.g. the
+        // hash was created back when parse_rfc5322_date was broken and
+        // fed 0), prefer the bucket's true max date and heal the hash
+        // + by_activity index so the row stops sinking to the bottom.
+        let stored_latest = state
             .mailbox
             .store_ref()
             .hget(thread_key.as_bytes(), b"latest_date")
@@ -707,7 +724,20 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             .flatten()
             .and_then(|v| String::from_utf8(v).ok())
             .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or_else(|| bucket.iter().map(|m| m.date).max().unwrap_or(0));
+            .unwrap_or(0);
+        let bucket_max = bucket.iter().map(|m| m.date).max().unwrap_or(0);
+        let agg_latest = std::cmp::max(stored_latest, bucket_max);
+        if agg_latest > stored_latest {
+            let _ = state.mailbox.store_ref().hset(
+                thread_key.as_bytes(),
+                &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
+            );
+            let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+            let _ = state.mailbox.store_ref().zadd(
+                by_activity.as_bytes(),
+                &[(agg_latest as f64, root.as_bytes())],
+            );
+        }
         let _ = state
             .mailbox
             .store_ref()
