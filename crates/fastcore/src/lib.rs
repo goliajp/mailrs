@@ -724,9 +724,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             .iter()
             .filter(|m| mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user))
             .collect();
-        if sent_here.is_empty() {
-            continue;
-        }
+        let is_sender_thread = !sent_here.is_empty();
         let thread_key = mailrs_mailbox_kevy::keys::thread(root);
         let exists = state
             .mailbox
@@ -734,10 +732,13 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             .hexists(thread_key.as_bytes(), b"count")
             .unwrap_or(false);
         if !exists {
-            // Create a minimal thread aggregate from scratch. The
-            // earliest file in the bucket seeds the "first arrival"
-            // record; subsequent files bump the aggregate through
-            // upsert_message + record_message_arrival.
+            // Create a minimal thread aggregate from scratch — inbound
+            // OR outbound. Skipping non-sender threads here was the
+            // reason fresh Gmail arrivals (files present in maildir but
+            // no matching kevy hash) never showed up in the inbox: the
+            // "heal missing messages" branch above only touches threads
+            // already in the by_activity zset, so a genuinely new
+            // arrival had no path in. Create here for every bucket.
             let mut ordered: Vec<&MailFile> = bucket.to_vec();
             ordered.sort_by_key(|m| m.date);
             for m in &ordered {
@@ -784,6 +785,12 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                 }
             }
             created += 1;
+        }
+        if !is_sender_thread {
+            // Inbound-only thread — created (or already existed), but
+            // the user isn't a sender so it doesn't belong in the sent
+            // zset. Skip the sent-index maintenance below.
+            continue;
         }
         // Score the sent zset by the aggregate's own latest_date —
         // that's what the UI displays as the row's date pill, so this
@@ -899,6 +906,20 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
         )
         .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
         .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
+        // Aliases live in the fastcore-embedded kevy so the spool drain
+        // (also in-process) can resolve `contact@golia.jp -> lihao` and
+        // similar single-hop forwards. Distinct namespace from webapi's
+        // network-kevy `admin:aliases` hash — that older store is not
+        // consulted by the drain and stays around only until UI wiring
+        // catches up.
+        .route(
+            "/v1/admin/aliases:local",
+            get(list_local_aliases).post(upsert_local_alias),
+        )
+        .route(
+            "/v1/admin/aliases:local/{source}",
+            delete(delete_local_alias_route),
+        )
         // Ops endpoint — reset every user's ingest cursor to 0 so the
         // next sync tick re-processes historic threads and (via the
         // Group F diff path) backfills messages fastcore missed under
@@ -1667,6 +1688,55 @@ async fn set_message_flags_route(
         };
     }
     axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+/// GET `/v1/admin/aliases:local` — list every fastcore-embedded alias.
+async fn list_local_aliases(
+    State(state): State<Arc<FastcoreState>>,
+) -> Json<serde_json::Value> {
+    let items = state.mailbox.list_aliases().unwrap_or_default();
+    let payload: Vec<serde_json::Value> = items
+        .into_iter()
+        .map(|(source, target)| serde_json::json!({"source": source, "target": target}))
+        .collect();
+    Json(serde_json::json!({ "items": payload }))
+}
+
+#[derive(serde::Deserialize)]
+struct AliasBody {
+    source: String,
+    target: String,
+}
+
+/// POST `/v1/admin/aliases:local` — insert/replace one alias entry.
+async fn upsert_local_alias(
+    State(state): State<Arc<FastcoreState>>,
+    Json(body): Json<AliasBody>,
+) -> axum::response::Response {
+    if body.source.is_empty() || body.target.is_empty() {
+        return axum::http::StatusCode::BAD_REQUEST.into_response();
+    }
+    match state.mailbox.upsert_alias(&body.source, &body.target) {
+        Ok(()) => axum::http::StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, source = %body.source, "upsert_alias failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// DELETE `/v1/admin/aliases:local/{source}` — drop one alias entry.
+async fn delete_local_alias_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(source): Path<String>,
+) -> axum::response::Response {
+    match state.mailbox.delete_alias(&source) {
+        Ok(()) => axum::http::StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, %source, "delete_alias failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 #[cfg(test)]

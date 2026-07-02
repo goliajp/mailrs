@@ -32,7 +32,7 @@ use crate::FastcoreState;
 /// If the spool `incoming/` dir doesn't exist yet, the loop still runs
 /// — receiver may not have written its first file. Missing-dir errors
 /// downgrade to debug.
-pub async fn spawn(_state: Arc<FastcoreState>) {
+pub async fn spawn(state: Arc<FastcoreState>) {
     let spool_root =
         std::env::var("MAILRS_SPOOL_ROOT").unwrap_or_else(|_| "/data/.spool".to_string());
     let maildir_root =
@@ -51,8 +51,8 @@ pub async fn spawn(_state: Arc<FastcoreState>) {
         "fastcore spool drain started"
     );
     loop {
-        let delivered_new = drain_once(&incoming_new, &maildir_root);
-        let delivered_cur = drain_once(&incoming_cur, &maildir_root);
+        let delivered_new = drain_once(&incoming_new, &maildir_root, &state);
+        let delivered_cur = drain_once(&incoming_cur, &maildir_root, &state);
         let total = delivered_new + delivered_cur;
         if total > 0 {
             tracing::info!(delivered = total, "fastcore spool drain tick");
@@ -63,7 +63,7 @@ pub async fn spawn(_state: Arc<FastcoreState>) {
 
 /// Walk one spool dir once, deliver every decodable file to its
 /// recipient maildir(s), and remove it. Returns delivered count.
-fn drain_once(dir: &Path, maildir_root: &str) -> usize {
+fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usize {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) => {
@@ -100,12 +100,43 @@ fn drain_once(dir: &Path, maildir_root: &str) -> usize {
         let mut delivered_here = 0usize;
         let mut unresolved: Vec<String> = Vec::new();
         for fwd in &env.forward_paths {
-            match deliver(maildir_root, fwd, &filename, body) {
-                Ok(true) => delivered_here += 1,
-                Ok(false) => unresolved.push(fwd.clone()),
+            // First try the direct mailbox. If missing, fall through to
+            // the alias table (`mailrs:alias:<addr>` → target). Prevents
+            // a `contact@golia.jp → lihao@golia.jp` alias from silently
+            // dead-lettering when nobody sits at contact/.
+            let target = match deliver(maildir_root, fwd, &filename, body) {
+                Ok(true) => {
+                    delivered_here += 1;
+                    None
+                }
+                Ok(false) => Some(fwd.clone()),
                 Err(e) => {
                     tracing::warn!(fwd = %fwd, error = %e, "spool deliver");
-                    unresolved.push(fwd.clone());
+                    Some(fwd.clone())
+                }
+            };
+            if let Some(orig) = target {
+                let resolved = state
+                    .mailbox
+                    .resolve_alias(&orig)
+                    .ok()
+                    .flatten();
+                match resolved.as_deref() {
+                    Some(aliased) => match deliver(maildir_root, aliased, &filename, body) {
+                        Ok(true) => {
+                            delivered_here += 1;
+                            tracing::info!(
+                                orig = %orig, aliased = %aliased,
+                                "spool alias resolved"
+                            );
+                        }
+                        Ok(false) => unresolved.push(format!("{orig} (alias→{aliased})")),
+                        Err(e) => {
+                            tracing::warn!(fwd = %aliased, error = %e, "spool deliver via alias");
+                            unresolved.push(format!("{orig} (alias→{aliased})"));
+                        }
+                    },
+                    None => unresolved.push(orig),
                 }
             }
         }
@@ -170,7 +201,15 @@ fn deliver(maildir_root: &str, addr: &str, filename: &str, body: &[u8]) -> std::
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kevy_embedded::{Config, Store};
     use mailrs_core::spool::{SPOOL_SCHEMA_VERSION, SpoolEnvelope, encode_spool_blob};
+    use mailrs_mailbox_kevy::KevyMailboxStore;
+
+    fn state() -> Arc<FastcoreState> {
+        let store = Arc::new(Store::open(Config::default()).unwrap());
+        let mailbox = KevyMailboxStore::new(store);
+        Arc::new(FastcoreState { mailbox })
+    }
 
     fn envelope(forward_paths: &[&str]) -> SpoolEnvelope {
         SpoolEnvelope {
@@ -206,15 +245,11 @@ mod tests {
         let spool_file = spool_new.join("1000000.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap());
+        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 1);
-
-        // spool file gone
         assert!(!spool_file.exists());
-        // maildir file present, body stripped of envelope header
         let landed = user_base.join("new").join("1000000.M1P1Q1.host");
-        let landed_bytes = std::fs::read(&landed).unwrap();
-        assert_eq!(landed_bytes, body);
+        assert_eq!(std::fs::read(&landed).unwrap(), body);
     }
 
     #[test]
@@ -229,7 +264,7 @@ mod tests {
         let spool_file = spool_new.join("1000001.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap());
+        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 0);
         assert!(spool_file.exists(), "unresolved file must stay in spool");
     }
@@ -249,7 +284,7 @@ mod tests {
         let spool_file = spool_new.join("1000002.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap());
+        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 1);
         assert!(!spool_file.exists());
         assert!(bob_base.join("new").join("1000002.M1P1Q1.host").exists());
@@ -266,9 +301,8 @@ mod tests {
         let bogus = spool_new.join("garbage");
         std::fs::write(&bogus, b"not a spool envelope").unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap());
+        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 0);
-        // undecodable file left in place (operator has to look).
         assert!(bogus.exists());
     }
 
@@ -278,6 +312,38 @@ mod tests {
         let missing = tmp.path().join("nope").join("incoming").join("new");
         let maildir_root = tmp.path().join("maildir");
         std::fs::create_dir_all(&maildir_root).unwrap();
-        assert_eq!(drain_once(&missing, maildir_root.to_str().unwrap()), 0);
+        assert_eq!(
+            drain_once(&missing, maildir_root.to_str().unwrap(), &state()),
+            0
+        );
+    }
+
+    #[test]
+    fn drain_falls_back_to_alias_when_direct_mailbox_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spool_new = tmp.path().join("spool").join("incoming").join("new");
+        std::fs::create_dir_all(&spool_new).unwrap();
+        let maildir_root = tmp.path().join("maildir");
+        let alice_base = setup_user_maildir(&maildir_root, "alice@example.com");
+
+        let s = state();
+        s.mailbox
+            .upsert_alias("contact@example.com", "alice@example.com")
+            .unwrap();
+
+        let blob = encode_spool_blob(&envelope(&["contact@example.com"]), b"aliased body");
+        let spool_file = spool_new.join("1000003.M1P1Q1.host");
+        std::fs::write(&spool_file, &blob).unwrap();
+
+        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &s);
+        assert_eq!(delivered, 1);
+        assert!(!spool_file.exists());
+        assert!(
+            alice_base
+                .join("new")
+                .join("1000003.M1P1Q1.host")
+                .exists(),
+            "aliased delivery must land in the resolved user's maildir"
+        );
     }
 }
