@@ -675,8 +675,15 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::dav::well_known_carddav),
         );
 
+    // Match monolith's 25 MiB multipart cap. Axum's default is 2 MiB,
+    // which trips /api/mail/send-multipart on any attached file bigger
+    // than that — the UI just shows "Send failed" with no server-side
+    // trace. See crates/server/src/web/mod.rs:MAX_MULTIPART_BODY.
+    const MAX_MULTIPART_BODY: usize = 25 * 1024 * 1024;
+
     let mut app = unauth
         .merge(authenticated)
+        .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .make_span_with(
