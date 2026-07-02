@@ -3261,6 +3261,7 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "http-body-util",
+ "kevy-client",
  "kevy-embedded",
  "mailrs-core-api",
  "mailrs-mailbox-kevy",
