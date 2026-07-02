@@ -124,21 +124,11 @@ pub async fn get_conversations(
             section: q.section,
         },
     };
-    let resp = match state.fast().list_conversations(&user, &req).await {
-        Ok(resp) if !resp.items.is_empty() => resp,
-        Ok(_empty) if state.fastcore_client.is_some() => state
-            .core_client
-            .list_conversations(&user, &req)
-            .await
-            .map_err(map_err)?,
-        Ok(empty) => empty,
-        Err(_) if state.fastcore_client.is_some() => state
-            .core_client
-            .list_conversations(&user, &req)
-            .await
-            .map_err(map_err)?,
-        Err(e) => return Err(map_err(e)),
-    };
+    let resp = state
+        .fast()
+        .list_conversations(&user, &req)
+        .await
+        .map_err(map_err)?;
     Ok(Json(resp.items.into_iter().map(Into::into).collect()))
 }
 
@@ -322,21 +312,11 @@ pub async fn get_thread_messages(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
 ) -> Result<Json<Vec<ThreadMessageResponse>>, StatusCode> {
-    let resp = match state.fast().list_thread_messages(&user, &thread_id).await {
-        Ok(resp) if !resp.items.is_empty() => resp,
-        Ok(_empty) if state.fastcore_client.is_some() => state
-            .core_client
-            .list_thread_messages(&user, &thread_id)
-            .await
-            .map_err(map_err)?,
-        Ok(empty) => empty,
-        Err(_) if state.fastcore_client.is_some() => state
-            .core_client
-            .list_thread_messages(&user, &thread_id)
-            .await
-            .map_err(map_err)?,
-        Err(e) => return Err(map_err(e)),
-    };
+    let resp = state
+        .fast()
+        .list_thread_messages(&user, &thread_id)
+        .await
+        .map_err(map_err)?;
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let store = mailrs_message_store::MaildirStore;
     let mut items = Vec::with_capacity(resp.items.len());
