@@ -208,6 +208,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::misc::search_conversations),
         )
         .route("/api/mail/send", post(handlers::prefs::send_message))
+        .route(
+            "/api/mail/send-multipart",
+            post(handlers::prefs::send_message_multipart),
+        )
         .route("/api/queue", get(handlers::prefs::get_queue_stats))
         .route("/api/contacts", get(handlers::prefs::get_contacts))
         .route("/api/mail/feedback", post(handlers::prefs::submit_feedback))

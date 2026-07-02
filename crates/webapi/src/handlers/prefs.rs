@@ -472,54 +472,344 @@ pub async fn get_contacts(
 
 // ── /api/mail/send ────────────────────────────────────────────────
 
+/// One entry parsed out of the compose form.
+#[derive(Debug, Default)]
+struct ComposeParts {
+    from: String,
+    to: Vec<String>,
+    cc: Vec<String>,
+    bcc: Vec<String>,
+    subject: String,
+    body: String,
+    html_body: String,
+    in_reply_to: Option<String>,
+    forward_message_id: Option<String>,
+    attachments: Vec<Attachment>,
+}
+
+#[derive(Debug)]
+struct Attachment {
+    filename: String,
+    content_type: String,
+    bytes: Vec<u8>,
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct SendRequest {
-    pub to: String,
+    #[serde(default)]
+    pub from: String,
+    #[serde(default)]
+    pub to: Vec<String>,
+    #[serde(default)]
+    pub cc: Vec<String>,
+    #[serde(default)]
+    pub bcc: Vec<String>,
     #[serde(default)]
     pub subject: String,
     #[serde(default)]
     pub body: String,
+    #[serde(default)]
+    pub html_body: String,
+    #[serde(default)]
+    pub in_reply_to: Option<String>,
+    #[serde(default)]
+    pub forward_message_id: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
 pub struct SendResponse {
-    pub queue_id: i64,
+    pub message_id: String,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
-/// POST /api/mail/send — enqueue a plain RFC 5322 envelope in the
-/// shared network kevy outbound queue for sender to pick up. Zero
-/// spg touch. The sender binary consumes `mailrs:outbound:pending`
-/// via LRANGE / LPOP.
+fn random_hex(bytes: usize) -> String {
+    let mut b = vec![0u8; bytes];
+    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut b);
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// RFC 5322 date string in the shape smtpd wants.
+fn rfc5322_date(epoch: i64) -> String {
+    // Manual format so we don't pull in chrono here — the outbound
+    // queue consumer re-parses this defensively anyway.
+    // Sat, 02 Jul 2026 12:34:56 +0000
+    static WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    static MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    // Simple date math — fine within the current epoch range.
+    let secs = epoch.max(0) as u64;
+    let mut days = secs / 86_400;
+    let sec_of_day = secs % 86_400;
+    let hour = (sec_of_day / 3600) as u32;
+    let minute = ((sec_of_day % 3600) / 60) as u32;
+    let second = (sec_of_day % 60) as u32;
+    // 1970-01-01 was Thursday (index 4)
+    let weekday = WEEKDAYS[((days + 4) % 7) as usize];
+    let mut year: u32 = 1970;
+    while {
+        let leap =
+            (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+        let ydays = if leap { 366 } else { 365 };
+        days >= ydays
+    } {
+        let leap =
+            (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+        days -= if leap { 366 } else { 365 };
+        year += 1;
+    }
+    let leap = (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400);
+    let month_lengths = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    let mut month: usize = 0;
+    while month < 12 && days >= month_lengths[month] {
+        days -= month_lengths[month];
+        month += 1;
+    }
+    let day = days + 1;
+    format!(
+        "{weekday}, {day:02} {mon} {year} {hour:02}:{minute:02}:{second:02} +0000",
+        mon = MONTHS[month],
+    )
+}
+
+/// Build a complete RFC 5322 envelope from parsed compose parts.
+fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
+    use base64::Engine as _;
+    let mid_local = random_hex(8);
+    let mid_host = from.split('@').nth(1).unwrap_or("localhost");
+    let message_id = format!("{mid_local}@{mid_host}");
+    let date = rfc5322_date(now_secs());
+
+    let has_attachments = !parts.attachments.is_empty();
+    let has_html = !parts.html_body.is_empty();
+
+    let mixed_boundary = format!("----=Mixed_{}", random_hex(6));
+    let alt_boundary = format!("----=Alt_{}", random_hex(6));
+
+    let mut out = String::new();
+    out.push_str(&format!("Date: {date}\r\n"));
+    out.push_str(&format!("From: {from}\r\n"));
+    if !parts.to.is_empty() {
+        out.push_str(&format!("To: {}\r\n", parts.to.join(", ")));
+    }
+    if !parts.cc.is_empty() {
+        out.push_str(&format!("Cc: {}\r\n", parts.cc.join(", ")));
+    }
+    // Encode subject via RFC 2047 (via the workspace crate) so unicode
+    // subjects don't corrupt.
+    let encoded_subject = mailrs_rfc2047::encode(&parts.subject);
+    out.push_str(&format!("Subject: {encoded_subject}\r\n"));
+    out.push_str(&format!("Message-ID: <{message_id}>\r\n"));
+    out.push_str("MIME-Version: 1.0\r\n");
+    if let Some(ref irt) = parts.in_reply_to {
+        out.push_str(&format!("In-Reply-To: <{irt}>\r\n"));
+        out.push_str(&format!("References: <{irt}>\r\n"));
+    }
+
+    if has_attachments {
+        out.push_str(&format!(
+            "Content-Type: multipart/mixed; boundary=\"{mixed_boundary}\"\r\n\r\n"
+        ));
+        out.push_str(&format!("--{mixed_boundary}\r\n"));
+    }
+    if has_html {
+        out.push_str(&format!(
+            "Content-Type: multipart/alternative; boundary=\"{alt_boundary}\"\r\n\r\n"
+        ));
+        out.push_str(&format!("--{alt_boundary}\r\n"));
+        out.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+        out.push_str("Content-Transfer-Encoding: 8bit\r\n\r\n");
+        out.push_str(&parts.body);
+        out.push_str("\r\n\r\n");
+        out.push_str(&format!("--{alt_boundary}\r\n"));
+        out.push_str("Content-Type: text/html; charset=utf-8\r\n");
+        out.push_str("Content-Transfer-Encoding: 8bit\r\n\r\n");
+        out.push_str(&parts.html_body);
+        out.push_str("\r\n\r\n");
+        out.push_str(&format!("--{alt_boundary}--\r\n"));
+    } else {
+        out.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+        out.push_str("Content-Transfer-Encoding: 8bit\r\n\r\n");
+        out.push_str(&parts.body);
+        out.push_str("\r\n");
+    }
+    let mut bytes = out.into_bytes();
+
+    if has_attachments {
+        for att in &parts.attachments {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(&att.bytes);
+            let mut part = String::new();
+            part.push_str(&format!("\r\n--{mixed_boundary}\r\n"));
+            part.push_str(&format!(
+                "Content-Type: {ct}; name=\"{name}\"\r\n",
+                ct = att.content_type,
+                name = att.filename
+            ));
+            part.push_str(&format!(
+                "Content-Disposition: attachment; filename=\"{name}\"\r\n",
+                name = att.filename
+            ));
+            part.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
+            // Wrap base64 to 76 columns.
+            for chunk in encoded.as_bytes().chunks(76) {
+                part.push_str(std::str::from_utf8(chunk).unwrap_or(""));
+                part.push_str("\r\n");
+            }
+            bytes.extend_from_slice(part.as_bytes());
+        }
+        bytes.extend_from_slice(format!("\r\n--{mixed_boundary}--\r\n").as_bytes());
+    }
+
+    (message_id, bytes)
+}
+
+/// Enqueue one outbound row per recipient. Sender binary picks these
+/// up from `mailrs:outbound:pending`.
+fn enqueue_outbound(
+    sender: &str,
+    recipients: &[String],
+    envelope: &[u8],
+) -> Result<(), StatusCode> {
+    let created = now_secs();
+    for rcpt in recipients {
+        let rcpt = rcpt.trim().to_string();
+        if rcpt.is_empty() {
+            continue;
+        }
+        let ckey = "mailrs:outbound:counter".to_string();
+        let ckey_c = ckey.clone();
+        let id = with_kevy(move |c| next_id(c, &ckey_c))?;
+        let blob = serde_json::json!({
+            "id": id,
+            "sender": sender,
+            "recipient": rcpt,
+            "message_data": String::from_utf8_lossy(envelope).to_string(),
+            "created_at": created,
+        });
+        let payload = blob.to_string();
+        with_kevy(move |c| {
+            c.hset(
+                format!("mailrs:outbound:{id}").as_bytes(),
+                &[(b"blob", payload.as_bytes())],
+            )?;
+            c.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()])?;
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
+/// POST /api/mail/send — JSON compose form, no attachments.
 pub async fn send_message(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<SendRequest>,
 ) -> Result<Json<SendResponse>, StatusCode> {
-    let ckey = "mailrs:outbound:counter".to_string();
-    let ckey_c = ckey.clone();
-    let id = with_kevy(move |c| next_id(c, &ckey_c))?;
-    let message = format!(
-        "From: {from}\r\nTo: {to}\r\nSubject: {subject}\r\n\r\n{body}",
-        from = user,
-        to = req.to,
-        subject = req.subject,
-        body = req.body,
-    );
-    let envelope = serde_json::json!({
-        "id": id,
-        "sender": user,
-        "recipient": req.to,
-        "message_data": message,
-        "created_at": now_secs(),
-    });
-    let payload = envelope.to_string();
-    with_kevy(move |c| {
-        c.hset(
-            format!("mailrs:outbound:{id}").as_bytes(),
-            &[(b"blob", payload.as_bytes())],
-        )?;
-        c.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()])?;
-        Ok(())
-    })?;
-    Ok(Json(SendResponse { queue_id: id }))
+    let from = if req.from.is_empty() {
+        user.clone()
+    } else {
+        req.from
+    };
+    let parts = ComposeParts {
+        from: from.clone(),
+        to: req.to,
+        cc: req.cc,
+        bcc: req.bcc,
+        subject: req.subject,
+        body: req.body,
+        html_body: req.html_body,
+        in_reply_to: req.in_reply_to,
+        forward_message_id: req.forward_message_id,
+        attachments: Vec::new(),
+    };
+    let mut recipients = parts.to.clone();
+    recipients.extend(parts.cc.clone());
+    recipients.extend(parts.bcc.clone());
+    let (message_id, envelope) = build_rfc5322(&parts, &from);
+    enqueue_outbound(&user, &recipients, &envelope)?;
+    Ok(Json(SendResponse {
+        message_id,
+        success: true,
+        message: None,
+    }))
+}
+
+/// POST /api/mail/send-multipart — multipart/form-data compose form.
+/// Fields: from, to (repeated), cc (repeated), bcc (repeated), subject,
+/// body, html_body, attachments (repeated file parts), in_reply_to,
+/// scheduled_at, forward_message_id, forward_attachments_from.
+pub async fn send_message_multipart(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<SendResponse>, StatusCode> {
+    let mut parts = ComposeParts {
+        from: user.clone(),
+        ..Default::default()
+    };
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "from" => parts.from = field.text().await.unwrap_or_default(),
+            "to" => parts.to.push(field.text().await.unwrap_or_default()),
+            "cc" => parts.cc.push(field.text().await.unwrap_or_default()),
+            "bcc" => parts.bcc.push(field.text().await.unwrap_or_default()),
+            "subject" => parts.subject = field.text().await.unwrap_or_default(),
+            "body" => parts.body = field.text().await.unwrap_or_default(),
+            "html_body" => parts.html_body = field.text().await.unwrap_or_default(),
+            "in_reply_to" => parts.in_reply_to = Some(field.text().await.unwrap_or_default()),
+            "forward_message_id" => {
+                parts.forward_message_id = Some(field.text().await.unwrap_or_default())
+            }
+            "attachments" => {
+                let filename = field.file_name().unwrap_or("attachment").to_string();
+                let content_type = field
+                    .content_type()
+                    .unwrap_or("application/octet-stream")
+                    .to_string();
+                let bytes = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                parts.attachments.push(Attachment {
+                    filename,
+                    content_type,
+                    bytes: bytes.to_vec(),
+                });
+            }
+            _ => {
+                let _ = field.text().await;
+            }
+        }
+    }
+    if parts.from.is_empty() {
+        parts.from = user.clone();
+    }
+    let mut recipients = parts.to.clone();
+    recipients.extend(parts.cc.clone());
+    recipients.extend(parts.bcc.clone());
+    let from = parts.from.clone();
+    let (message_id, envelope) = build_rfc5322(&parts, &from);
+    enqueue_outbound(&user, &recipients, &envelope)?;
+    Ok(Json(SendResponse {
+        message_id,
+        success: true,
+        message: None,
+    }))
 }
