@@ -33,6 +33,7 @@ pub struct AuthedDisplayName(pub String);
 pub struct ListQuery {
     #[serde(default = "default_limit")]
     pub limit: u32,
+    #[serde(default, alias = "before")]
     pub before_ts: Option<i64>,
     pub category: Option<String>,
     pub folder: Option<String>,

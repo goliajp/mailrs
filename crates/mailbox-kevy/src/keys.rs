@@ -47,6 +47,12 @@ pub fn user_threads_starred(user: &str) -> String {
     format!("mailrs:user:{user}:threads:starred")
 }
 
+/// Per-user Sent-folder subset — threads with `sent_count > 0`. Same
+/// shape/semantics as the other index zsets; score = latest_date.
+pub fn user_threads_sent(user: &str) -> String {
+    format!("mailrs:user:{user}:threads:sent")
+}
+
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the
 /// full message timeline in order.

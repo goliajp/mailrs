@@ -22,6 +22,10 @@ pub struct ListThreadsFilter<'a> {
     /// Restrict to a single category (`inbox`, `social`, etc.). When
     /// set, the activity zset is replaced with the per-category index.
     pub category: Option<&'a str>,
+    /// Match monolith's `folder` query. `Some("Sent")` (case-insensitive)
+    /// flips the source index to the sent zset. Anything else falls
+    /// through to the default axis.
+    pub folder: Option<&'a str>,
     /// Only threads with `pinned = true`. Implemented as ZREVRANGE on
     /// the pinned index.
     pub pinned: bool,
@@ -33,6 +37,10 @@ pub struct ListThreadsFilter<'a> {
     pub has_action: bool,
     /// Only threads with `starred = true`. Uses the starred index.
     pub starred: bool,
+    /// Cursor for pagination: only return threads with `latest_date <
+    /// before_ts`. Enables O(log n) load-more via ZREVRANGEBYSCORE.
+    /// When `None`, the caller controls window via `(offset, limit)`.
+    pub before_ts: Option<i64>,
 }
 
 impl<'a> ListThreadsFilter<'a> {
@@ -41,6 +49,11 @@ impl<'a> ListThreadsFilter<'a> {
         // implementation will use sorted-set INTERSECT once kevy ships
         // ZINTERSTORE; for now we accept that combining > 1 of these
         // filters returns the highest-priority predicate's superset.
+        if let Some(f) = self.folder
+            && f.eq_ignore_ascii_case("sent")
+        {
+            return keys::user_threads_sent(user);
+        }
         if let Some(cat) = self.category {
             keys::user_threads_by_category(user, cat)
         } else if self.pinned {
@@ -76,17 +89,32 @@ impl KevyMailboxStore {
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
         let key = filter.pick_index_key(user);
         let total = self.store().zcard(key.as_bytes())?;
-        if limit == 0 || offset >= total {
+        if limit == 0 {
             return Ok((Vec::new(), total));
         }
-        // ZREVRANGE [offset..offset+limit-1] — kevy's zrevrange takes
-        // start..=stop INCLUSIVE against the reversed list, matching
-        // Redis semantics.
-        let stop_exclusive = offset + limit;
-        let stop_inclusive_idx = (stop_exclusive.min(total) as i64) - 1;
-        let entries = self
-            .store()
-            .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)?;
+
+        // Cursor branch — used by "load more". `before_ts` is the
+        // `last_date` of the previous page's tail; return threads with
+        // strictly smaller latest_date, ordered by score descending.
+        // kevy's `zrev_range_by_score` doesn't take a LIMIT, so we
+        // slice manually. For an in-memory-backed store this is fine
+        // up to ~100k entries; a future kevy release with LIMIT can
+        // replace the take().
+        let entries = if let Some(ts) = filter.before_ts {
+            let max = (ts - 1) as f64;
+            let raw = self
+                .store()
+                .zrev_range_by_score(key.as_bytes(), max, f64::NEG_INFINITY)?;
+            raw.into_iter().take(limit).collect()
+        } else {
+            if offset >= total {
+                return Ok((Vec::new(), total));
+            }
+            let stop_exclusive = offset + limit;
+            let stop_inclusive_idx = (stop_exclusive.min(total) as i64) - 1;
+            self.store()
+                .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)?
+        };
         let mut out = Vec::with_capacity(entries.len());
         for (tid_bytes, _score) in entries {
             let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
@@ -200,6 +228,84 @@ mod tests {
         let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
         assert_eq!(total, 1);
         assert_eq!(got[0].thread_id, "p1");
+    }
+
+    #[test]
+    fn cursor_paginates_by_date() {
+        let s = store();
+        let u = "u@x.com";
+        // 5 threads at dates 100, 200, 300, 400, 500
+        for i in 1..=5 {
+            s.upsert_thread(u, &row(&format!("t{i}"), i * 100, "inbox"))
+                .unwrap();
+        }
+        // First page — no cursor, limit 2.
+        let (page1, _total) = s
+            .list_threads_by_activity(u, &ListThreadsFilter::default(), 0, 2)
+            .unwrap();
+        assert_eq!(
+            page1
+                .iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["t5", "t4"]
+        );
+
+        // Second page — cursor = last item's latest_date = 400. Should
+        // return threads STRICTLY less than 400: t3 (300), t2 (200).
+        let f = ListThreadsFilter {
+            before_ts: Some(400),
+            ..Default::default()
+        };
+        let (page2, _total) = s.list_threads_by_activity(u, &f, 0, 2).unwrap();
+        assert_eq!(
+            page2
+                .iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["t3", "t2"]
+        );
+    }
+
+    #[test]
+    fn cursor_skips_ts_boundary() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("boundary", 500, "inbox")).unwrap();
+        s.upsert_thread(u, &row("under", 499, "inbox")).unwrap();
+        let f = ListThreadsFilter {
+            before_ts: Some(500),
+            ..Default::default()
+        };
+        let (rows, _total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].thread_id, "under");
+    }
+
+    #[test]
+    fn folder_sent_returns_only_sent_threads() {
+        let s = store();
+        let u = "u@x.com";
+        let mut sent = row("s1", 200, "inbox");
+        sent.sent_count = 1;
+        let received = row("r1", 300, "inbox");
+        s.upsert_thread(u, &sent).unwrap();
+        s.upsert_thread(u, &received).unwrap();
+        let f = ListThreadsFilter {
+            folder: Some("Sent"),
+            ..Default::default()
+        };
+        let (rows, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(rows[0].thread_id, "s1");
+
+        // Case-insensitive match.
+        let f2 = ListThreadsFilter {
+            folder: Some("sent"),
+            ..Default::default()
+        };
+        let (rows2, _) = s.list_threads_by_activity(u, &f2, 0, 10).unwrap();
+        assert_eq!(rows2.len(), 1);
     }
 
     #[test]
