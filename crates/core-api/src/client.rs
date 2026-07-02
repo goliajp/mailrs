@@ -626,7 +626,8 @@ impl Client {
         req: &method::admin::SetPasswordRequest,
     ) -> ApiResult<()> {
         let path = format!("/v1/admin/accounts/{}/password", Self::enc(address));
-        self.post_authed_json(path, req, "set_account_password").await
+        self.post_authed_json(path, req, "set_account_password")
+            .await
     }
 
     /// POST /v1/users/{user}/messages/{uid}/flags — patch a message's
@@ -638,11 +639,7 @@ impl Client {
         uid: u32,
         req: &method::admin::SetMessageFlagsRequest,
     ) -> ApiResult<()> {
-        let path = format!(
-            "/v1/users/{}/messages/{}/flags",
-            Self::enc(user),
-            uid
-        );
+        let path = format!("/v1/users/{}/messages/{}/flags", Self::enc(user), uid);
         self.post_authed_json(path, req, "set_message_flags").await
     }
 

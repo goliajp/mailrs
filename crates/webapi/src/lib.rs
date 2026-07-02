@@ -427,10 +427,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/auth/change-password",
             post(handlers::auth::change_password),
         )
-        .route(
-            "/api/auth/verify",
-            post(handlers::auth::verify_credentials),
-        )
+        .route("/api/auth/verify", post(handlers::auth::verify_credentials))
         .route("/api/auth/verify-totp", post(handlers::auth::verify_totp))
         // OIDC provider auth-required endpoints.
         .route("/oauth/authorize", get(handlers::oidc::authorize))
@@ -440,10 +437,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     let jmap_routes = axum::Router::new()
         .route("/.well-known/jmap", get(handlers::jmap::jmap_session))
         .route("/jmap", post(handlers::jmap::jmap_api))
-        .route(
-            "/jmap/eventsource/",
-            get(handlers::jmap::jmap_eventsource),
-        );
+        .route("/jmap/eventsource/", get(handlers::jmap::jmap_eventsource));
 
     // DAV endpoints (authenticated). CalDAV / CardDAV clients drive
     // discovery with OPTIONS / PROPFIND / REPORT — axum's
@@ -454,10 +448,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     use axum::routing::any;
     let dav_routes = axum::Router::new()
         .route("/dav/", any(handlers::dav::dav_root))
-        .route(
-            "/dav/principals/{user}/",
-            any(handlers::dav::dav_principal),
-        )
+        .route("/dav/principals/{user}/", any(handlers::dav::dav_principal))
         .route(
             "/dav/calendars/{user}/",
             any(handlers::dav::calendars_collection),
@@ -579,8 +570,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/admin/export", get(handlers::admin::admin_export))
         .route(
             "/api/admin/oauth-clients",
-            get(handlers::oidc::list_oauth_clients)
-                .post(handlers::oidc::create_oauth_client),
+            get(handlers::oidc::list_oauth_clients).post(handlers::oidc::create_oauth_client),
         )
         .route(
             "/api/admin/oauth-clients/{client_id}",
@@ -679,10 +669,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::oidc::oidc_callback),
         )
         // DAV well-known redirects (unauth — DAV spec allows anonymous discovery).
-        .route(
-            "/.well-known/caldav",
-            get(handlers::dav::well_known_caldav),
-        )
+        .route("/.well-known/caldav", get(handlers::dav::well_known_caldav))
         .route(
             "/.well-known/carddav",
             get(handlers::dav::well_known_carddav),

@@ -166,7 +166,10 @@ pub async fn delete_key(
     Json(serde_json::json!({"success": true, "message": null}))
 }
 
-async fn get_public_key_inner(address: &str, key_type: &str) -> (StatusCode, Json<serde_json::Value>) {
+async fn get_public_key_inner(
+    address: &str,
+    key_type: &str,
+) -> (StatusCode, Json<serde_json::Value>) {
     if address.len() > MAX_FIELD_LEN || !address.contains('@') {
         return (
             StatusCode::BAD_REQUEST,

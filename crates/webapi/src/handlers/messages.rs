@@ -233,28 +233,23 @@ pub async fn cancel_pending_send(
             if let Some(bytes) = blob
                 && let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes)
             {
-                let sender = env
-                    .get("sender")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
                 // New envelopes use message_data_b64 (base64 of RFC 5322
                 // bytes). Fall back to the legacy plaintext field for
                 // in-flight items from before the switch.
-                let md_owned: String = if let Some(b64) = env
-                    .get("message_data_b64")
-                    .and_then(|v| v.as_str())
-                {
-                    use base64::Engine as _;
-                    match base64::engine::general_purpose::STANDARD.decode(b64) {
-                        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-                        Err(_) => String::new(),
-                    }
-                } else {
-                    env.get("message_data")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string()
-                };
+                let md_owned: String =
+                    if let Some(b64) = env.get("message_data_b64").and_then(|v| v.as_str()) {
+                        use base64::Engine as _;
+                        match base64::engine::general_purpose::STANDARD.decode(b64) {
+                            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                            Err(_) => String::new(),
+                        }
+                    } else {
+                        env.get("message_data")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string()
+                    };
                 let header = format!("Message-ID: <{target}>\r\n");
                 if sender == user_c && md_owned.contains(&header) {
                     removed += 1;

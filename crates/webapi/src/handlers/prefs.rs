@@ -780,7 +780,7 @@ async fn mirror_send_to_sender_view(
 ) {
     use mailrs_core_api::method::message::MessageWire;
     use mailrs_core_api::method::thread::DeliverMessageRequest;
-    use mailrs_message_store::{MessageStore, MaildirStore};
+    use mailrs_message_store::{MaildirStore, MessageStore};
 
     let now = now_secs();
     let thread_id = parts
@@ -1097,7 +1097,10 @@ mod build_rfc5322_tests {
             "expected RFC 2231 filename*=; body =\n{s}"
         );
         assert!(s.contains("name*=UTF-8''"), "expected RFC 2231 name*=");
-        assert!(!s.contains("filename=\"取引明細"), "raw UTF-8 must not appear");
+        assert!(
+            !s.contains("filename=\"取引明細"),
+            "raw UTF-8 must not appear"
+        );
     }
 
     #[test]

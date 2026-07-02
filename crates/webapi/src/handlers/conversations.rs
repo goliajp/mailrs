@@ -285,6 +285,12 @@ fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<serde_json::V
 }
 
 /// Enrich a MessageWire with body content read from maildir.
+///
+/// Handles Maildir++ subfolders: fastcore's self-heal stores blob_ref
+/// as `<subfolder>/<filename>` for files under `.Sent/`, `.Drafts/`,
+/// etc. INBOX files stay as bare `<filename>`. We split on the first
+/// `/` and append the subfolder segment to the maildir path so
+/// `MaildirStore::fetch` opens the right sub-maildir.
 async fn enrich_with_body(
     store: &dyn mailrs_message_store::MessageStore,
     maildir_root: &str,
@@ -293,8 +299,15 @@ async fn enrich_with_body(
 ) -> ThreadMessageResponse {
     let mut r = ThreadMessageResponse::from_wire_no_body(w.clone());
     if let Some((local, domain)) = user.split_once('@') {
-        let path = format!("{maildir_root}/{domain}/{local}");
-        let id = mailrs_message_store::MessageId(w.blob_ref.clone());
+        let (subfolder, bare) = match w.blob_ref.split_once('/') {
+            Some((sf, name)) if sf.starts_with('.') => (Some(sf), name.to_string()),
+            _ => (None, w.blob_ref.clone()),
+        };
+        let path = match subfolder {
+            Some(sf) => format!("{maildir_root}/{domain}/{local}/{sf}"),
+            None => format!("{maildir_root}/{domain}/{local}"),
+        };
+        let id = mailrs_message_store::MessageId(bare);
         if let Ok(Some(bytes)) = store.fetch(&path, &id).await {
             let (t, h, a) = parse_body(&bytes);
             r.text_body = t;

@@ -3,8 +3,8 @@
 //! Falls back to a linear scan of the user's activity zset when meili
 //! is unreachable. Mirrors the monolith's search endpoint shape.
 
-use axum::extract::{Extension, Query};
 use axum::Json;
+use axum::extract::{Extension, Query};
 use serde::Deserialize;
 
 use crate::handlers::conversations::AuthedUser;
@@ -52,10 +52,9 @@ pub async fn semantic_search(
 
     // Linear fallback: read the user's activity zset directly.
     let activity_key = format!("mailrs:user:{user}:threads:by_activity");
-    let ids = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.zrange(activity_key.as_bytes(), 0, 199)
-    })
-    .unwrap_or_default();
+    let ids =
+        crate::handlers::kevy_util::with_kevy(move |c| c.zrange(activity_key.as_bytes(), 0, 199))
+            .unwrap_or_default();
     let needle = q.q.to_lowercase();
     let mut out = Vec::new();
     for id_bytes in ids.into_iter().take(500) {

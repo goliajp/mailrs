@@ -117,13 +117,32 @@ pub async fn run() {
         None
     };
 
+    // Whitelist wire-up. Split-topology receiver was shipping with
+    // `empty()` here, which meant *every* new sender got greylisted
+    // — Gmail / Outlook / etc. all deferred on first attempt even
+    // though the whitelist code already knew to skip them. Fix: kick
+    // off the same remote-sync task the monolith used, driven by
+    // `MAILRS_GREYLIST_WHITELIST_URL` (with a sensible default so
+    // operators don't need to set it explicitly).
+    let greylist_lists = crate::greylist_sync::empty();
+    {
+        let url = std::env::var("MAILRS_GREYLIST_WHITELIST_URL").unwrap_or_else(|_| {
+            "https://raw.githubusercontent.com/goliajp/mailrs/develop/assets/greylist-whitelist.txt".to_string()
+        });
+        let interval = std::env::var("MAILRS_GREYLIST_WHITELIST_INTERVAL_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(3600u64);
+        tracing::info!(%url, interval, "spawning greylist whitelist sync");
+        crate::greylist_sync::spawn_sync_task(greylist_lists.clone(), url, interval);
+    }
     let inbound_pipeline = build_inbound_pipeline(
         greylist_db,
         GreylistConfig {
             initial_delay_secs: cfg.greylist_delay_secs,
             ..Default::default()
         },
-        crate::greylist_sync::empty(),
+        greylist_lists,
         crate::greylist_local::empty(),
         resolver.clone(),
         mail_auth_resolvers,

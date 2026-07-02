@@ -35,6 +35,7 @@ path = "src/bin/sender.rs"
 
 [dependencies]
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
+mailrs-core = { path = "../core" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 mailrs-smtp-client = { path = "../smtp-client" }
 mailrs-outbound-queue = { path = "../outbound-queue" }
@@ -59,3 +60,4 @@ mailrs-rfc2047 = "1"
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+tempfile = "3"
