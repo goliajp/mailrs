@@ -56,6 +56,7 @@ password-hash = { workspace = true }
 rand_core = { workspace = true }
 base64 = "0.22"
 mailrs-rfc2047 = "1"
+ureq = "2"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
