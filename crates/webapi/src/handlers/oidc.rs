@@ -167,8 +167,13 @@ pub async fn authorize(
         )?;
         Ok(())
     });
+    // Percent-encode state so a value containing `&` / `#` / `=` doesn't
+    // break the query string. Prior version used raw format! which let
+    // an attacker-controlled state inject extra params.
     let redirect = if let Some(state) = q.state {
-        format!("{}?code={code}&state={state}", q.redirect_uri)
+        let encoded = url::form_urlencoded::byte_serialize(state.as_bytes())
+            .collect::<String>();
+        format!("{}?code={code}&state={encoded}", q.redirect_uri)
     } else {
         format!("{}?code={code}", q.redirect_uri)
     };
