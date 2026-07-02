@@ -155,42 +155,26 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             put(handlers::mail::toggle_reaction),
         );
 
+    // Phase 12 — every /api/mail/*, /api/bimi/*, /api/proxy/*, /api/queue,
+    // /api/contacts, /api/attachment/* route is now transparent-proxied to
+    // monolith's :3100 web server. Rather than re-implement 30+ tightly
+    // shaped wire structs the React UI reaches into unconditionally, forward
+    // the request verbatim so monolith produces the exact expected shape.
+    // Auth header/cookie flows through unchanged.
+    use axum::routing::any;
     let mail = axum::Router::new()
-        .route("/api/mail/folders", get(handlers::mail::get_folders))
-        .route("/api/mail/messages/{uid}", get(handlers::mail::get_message))
+        .route("/api/mail/{*rest}", any(handlers::proxy::proxy_to_monolith))
+        .route("/api/bimi/{*rest}", any(handlers::proxy::proxy_to_monolith))
         .route(
-            "/api/mail/messages/{uid}/raw",
-            get(handlers::mail::get_message_raw),
-        )
-        .route("/api/mail/send", post(handlers::mail::send_message))
-        .route("/api/mail/stats", get(handlers::mail::get_mail_stats))
-        .route("/api/queue", get(handlers::mail::get_queue_stats))
-        .route("/api/contacts", get(handlers::mail::get_contacts))
-        .route("/api/mail/feedback", post(handlers::mail::submit_feedback))
-        .route(
-            "/api/mail/drafts",
-            get(handlers::mail::list_drafts).post(handlers::mail::save_draft),
+            "/api/proxy/{*rest}",
+            any(handlers::proxy::proxy_to_monolith),
         )
         .route(
-            "/api/mail/drafts/{id}",
-            delete(handlers::mail::delete_draft),
+            "/api/attachment/{*rest}",
+            any(handlers::proxy::proxy_to_monolith),
         )
-        .route(
-            "/api/mail/signatures",
-            get(handlers::mail::list_signatures).post(handlers::mail::save_signature),
-        )
-        .route(
-            "/api/mail/signatures/{id}",
-            delete(handlers::mail::delete_signature),
-        )
-        .route(
-            "/api/mail/templates",
-            get(handlers::mail::list_templates).post(handlers::mail::save_template),
-        )
-        .route(
-            "/api/mail/templates/{id}",
-            delete(handlers::mail::delete_template),
-        );
+        .route("/api/queue", any(handlers::proxy::proxy_to_monolith))
+        .route("/api/contacts", any(handlers::proxy::proxy_to_monolith));
 
     let auth_routes = axum::Router::new()
         .route("/api/auth/me", get(handlers::auth::auth_me))
