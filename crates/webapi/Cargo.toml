@@ -36,6 +36,7 @@ rand_core = { workspace = true }
 mailrs-message-store = { path = "../message-store" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = "1"
+mailrs-rfc2231 = "1"
 html2text = "0.17"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime", "system-config"] }

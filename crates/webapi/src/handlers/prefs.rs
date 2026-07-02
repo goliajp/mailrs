@@ -587,9 +587,30 @@ fn rfc5322_date(epoch: i64) -> String {
     )
 }
 
-/// Build a complete RFC 5322 envelope from parsed compose parts.
-fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
+/// Encode a body buffer as base64 with 76-column line wrapping.
+/// Universal-safe transport — no 8BITMIME dependence, no quoted-printable
+/// pathological blow-up on CJK text.
+fn base64_wrap(input: &[u8]) -> String {
     use base64::Engine as _;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(input);
+    let mut out = String::with_capacity(encoded.len() + encoded.len() / 76 * 2);
+    for chunk in encoded.as_bytes().chunks(76) {
+        out.push_str(std::str::from_utf8(chunk).unwrap_or(""));
+        out.push_str("\r\n");
+    }
+    out
+}
+
+/// Build a complete RFC 5322 envelope from parsed compose parts.
+///
+/// Transport-safe by construction:
+/// - subject: RFC 2047 encoded-word
+/// - attachment filenames: RFC 2231 (`filename*=UTF-8''<pct>`) so
+///   non-ASCII filenames survive strict MTAs and older MUAs
+/// - text/plain + text/html bodies: base64 (safe on non-8BITMIME hops,
+///   avoids quoted-printable blow-up on CJK)
+/// - attachment payload: base64 with 76-column line wrapping
+fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
     let mid_local = random_hex(8);
     let mid_host = from.split('@').nth(1).unwrap_or("localhost");
     let message_id = format!("{mid_local}@{mid_host}");
@@ -610,8 +631,6 @@ fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
     if !parts.cc.is_empty() {
         out.push_str(&format!("Cc: {}\r\n", parts.cc.join(", ")));
     }
-    // Encode subject via RFC 2047 (via the workspace crate) so unicode
-    // subjects don't corrupt.
     let encoded_subject = mailrs_rfc2047::encode(&parts.subject);
     out.push_str(&format!("Subject: {encoded_subject}\r\n"));
     out.push_str(&format!("Message-ID: <{message_id}>\r\n"));
@@ -621,55 +640,58 @@ fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
         out.push_str(&format!("References: <{irt}>\r\n"));
     }
 
+    // Assemble text/alternative/mixed structure. We always emit an outer
+    // Content-Type in the top-level header, then the body parts. When
+    // there are attachments the outer is multipart/mixed; the first
+    // inner part is either text/plain or multipart/alternative.
+    let body_section = if has_html {
+        let mut s = String::new();
+        s.push_str(&format!(
+            "Content-Type: multipart/alternative; boundary=\"{alt_boundary}\"\r\n\r\n"
+        ));
+        s.push_str(&format!("--{alt_boundary}\r\n"));
+        s.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+        s.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
+        s.push_str(&base64_wrap(parts.body.as_bytes()));
+        s.push_str(&format!("\r\n--{alt_boundary}\r\n"));
+        s.push_str("Content-Type: text/html; charset=utf-8\r\n");
+        s.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
+        s.push_str(&base64_wrap(parts.html_body.as_bytes()));
+        s.push_str(&format!("\r\n--{alt_boundary}--\r\n"));
+        s
+    } else {
+        let mut s = String::new();
+        s.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+        s.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
+        s.push_str(&base64_wrap(parts.body.as_bytes()));
+        s
+    };
+
     if has_attachments {
         out.push_str(&format!(
             "Content-Type: multipart/mixed; boundary=\"{mixed_boundary}\"\r\n\r\n"
         ));
         out.push_str(&format!("--{mixed_boundary}\r\n"));
-    }
-    if has_html {
-        out.push_str(&format!(
-            "Content-Type: multipart/alternative; boundary=\"{alt_boundary}\"\r\n\r\n"
-        ));
-        out.push_str(&format!("--{alt_boundary}\r\n"));
-        out.push_str("Content-Type: text/plain; charset=utf-8\r\n");
-        out.push_str("Content-Transfer-Encoding: 8bit\r\n\r\n");
-        out.push_str(&parts.body);
-        out.push_str("\r\n\r\n");
-        out.push_str(&format!("--{alt_boundary}\r\n"));
-        out.push_str("Content-Type: text/html; charset=utf-8\r\n");
-        out.push_str("Content-Transfer-Encoding: 8bit\r\n\r\n");
-        out.push_str(&parts.html_body);
-        out.push_str("\r\n\r\n");
-        out.push_str(&format!("--{alt_boundary}--\r\n"));
+        out.push_str(&body_section);
     } else {
-        out.push_str("Content-Type: text/plain; charset=utf-8\r\n");
-        out.push_str("Content-Transfer-Encoding: 8bit\r\n\r\n");
-        out.push_str(&parts.body);
-        out.push_str("\r\n");
+        out.push_str(&body_section);
     }
+
     let mut bytes = out.into_bytes();
 
     if has_attachments {
         for att in &parts.attachments {
-            let encoded = base64::engine::general_purpose::STANDARD.encode(&att.bytes);
             let mut part = String::new();
+            let ct_name = mailrs_rfc2231::encode_param("name", &att.filename);
+            let cd_name = mailrs_rfc2231::encode_param("filename", &att.filename);
             part.push_str(&format!("\r\n--{mixed_boundary}\r\n"));
             part.push_str(&format!(
-                "Content-Type: {ct}; name=\"{name}\"\r\n",
+                "Content-Type: {ct}; {ct_name}\r\n",
                 ct = att.content_type,
-                name = att.filename
             ));
-            part.push_str(&format!(
-                "Content-Disposition: attachment; filename=\"{name}\"\r\n",
-                name = att.filename
-            ));
+            part.push_str(&format!("Content-Disposition: attachment; {cd_name}\r\n"));
             part.push_str("Content-Transfer-Encoding: base64\r\n\r\n");
-            // Wrap base64 to 76 columns.
-            for chunk in encoded.as_bytes().chunks(76) {
-                part.push_str(std::str::from_utf8(chunk).unwrap_or(""));
-                part.push_str("\r\n");
-            }
+            part.push_str(&base64_wrap(&att.bytes));
             bytes.extend_from_slice(part.as_bytes());
         }
         bytes.extend_from_slice(format!("\r\n--{mixed_boundary}--\r\n").as_bytes());
@@ -812,4 +834,77 @@ pub async fn send_message_multipart(
         success: true,
         message: None,
     }))
+}
+
+#[cfg(test)]
+mod build_rfc5322_tests {
+    use super::*;
+
+    fn parts(body: &str, atts: Vec<Attachment>) -> ComposeParts {
+        ComposeParts {
+            from: "a@example.com".into(),
+            to: vec!["b@example.com".into()],
+            cc: vec![],
+            bcc: vec![],
+            subject: "hello".into(),
+            body: body.into(),
+            html_body: String::new(),
+            in_reply_to: None,
+            forward_message_id: None,
+            attachments: atts,
+        }
+    }
+
+    #[test]
+    fn text_body_is_base64_not_8bit() {
+        let (_mid, bytes) = build_rfc5322(&parts("hi 日本", vec![]), "a@example.com");
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(s.contains("Content-Transfer-Encoding: base64\r\n"));
+        assert!(!s.contains("Content-Transfer-Encoding: 8bit"));
+    }
+
+    #[test]
+    fn attachment_uses_rfc2231_for_japanese_filename() {
+        let att = Attachment {
+            filename: "取引明細.xlsx".into(),
+            content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                .into(),
+            bytes: b"hello".to_vec(),
+        };
+        let (_mid, bytes) = build_rfc5322(&parts("hi", vec![att]), "a@example.com");
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(
+            s.contains("filename*=UTF-8''"),
+            "expected RFC 2231 filename*=; body =\n{s}"
+        );
+        assert!(s.contains("name*=UTF-8''"), "expected RFC 2231 name*=");
+        assert!(!s.contains("filename=\"取引明細"), "raw UTF-8 must not appear");
+    }
+
+    #[test]
+    fn attachment_ascii_filename_stays_legacy_quoted() {
+        let att = Attachment {
+            filename: "report.pdf".into(),
+            content_type: "application/pdf".into(),
+            bytes: b"x".to_vec(),
+        };
+        let (_mid, bytes) = build_rfc5322(&parts("hi", vec![att]), "a@example.com");
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(s.contains("filename=\"report.pdf\""));
+    }
+
+    #[test]
+    fn multipart_mixed_wraps_alternative_when_html_and_attachments() {
+        let att = Attachment {
+            filename: "a.txt".into(),
+            content_type: "text/plain".into(),
+            bytes: b"x".to_vec(),
+        };
+        let mut p = parts("plain", vec![att]);
+        p.html_body = "<p>html</p>".into();
+        let (_mid, bytes) = build_rfc5322(&p, "a@example.com");
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(s.contains("multipart/mixed"));
+        assert!(s.contains("multipart/alternative"));
+    }
 }

@@ -29,9 +29,14 @@ path = "src/bin/backfill_contacts.rs"
 name = "mailrs-fastcore-backfill-uid-index"
 path = "src/bin/backfill_uid_index.rs"
 
+[[bin]]
+name = "mailrs-fastcore-sender"
+path = "src/bin/sender.rs"
+
 [dependencies]
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+mailrs-smtp-client = { path = "../smtp-client" }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
 axum = { version = "0.8" }
