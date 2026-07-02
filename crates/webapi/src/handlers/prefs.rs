@@ -424,15 +424,50 @@ pub async fn get_queue_stats(
 
 // ── /api/contacts — sender autocomplete ───────────────────────────
 
-/// GET /api/contacts?q=&limit= — returns an empty list. Full
-/// implementation reads from a `contacts:<user>` hash which is
-/// currently populated by the pg-dump migration path but not yet
-/// consulted here. Placeholder so the compose form doesn't 500.
+#[derive(Debug, serde::Deserialize)]
+pub struct ContactsQuery {
+    #[serde(default)]
+    pub q: String,
+    #[serde(default = "default_contacts_limit")]
+    pub limit: u32,
+}
+
+fn default_contacts_limit() -> u32 {
+    5
+}
+
+/// GET /api/contacts?q=&limit= — returns `Vec<String>` where each
+/// entry is a `Name <email>` formatted contact. Backed by the
+/// `mailrs:user:<u>:contacts` kevy hash (email -> `Name <email>`),
+/// populated by `mailrs-fastcore-backfill-contacts` on first run
+/// and kept in sync by future `record_message_arrival` writes.
 pub async fn get_contacts(
     State(_state): State<Arc<WebState>>,
-    Extension(AuthedUser(_user)): Extension<AuthedUser>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    Ok(Json(serde_json::json!({"items": []})))
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    axum::extract::Query(q): axum::extract::Query<ContactsQuery>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    let key = format!("mailrs:user:{user}:contacts");
+    let query = q.q.to_lowercase();
+    let limit = q.limit.max(1) as usize;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    // hgetall returns [field, value, field, value, ...] — extract pairs.
+    let mut matches: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i + 1 < flat.len() {
+        let email = String::from_utf8_lossy(&flat[i]).to_lowercase();
+        let display = String::from_utf8_lossy(&flat[i + 1]).to_string();
+        if email.contains(&query) || display.to_lowercase().contains(&query) {
+            matches.push(display);
+        }
+        i += 2;
+        if matches.len() >= limit * 4 {
+            break;
+        }
+    }
+    matches.sort();
+    matches.dedup();
+    matches.truncate(limit);
+    Ok(Json(matches))
 }
 
 // ── /api/mail/send ────────────────────────────────────────────────
