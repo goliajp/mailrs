@@ -167,13 +167,36 @@ enum Outcome {
     Permanent(String),
 }
 
+/// Extract the addr-spec from an RFC 5322 mailbox token.
+///
+/// Accepts both `addr@domain` (bare `addr-spec`) and
+/// `Display Name <addr@domain>` (bare `name-addr`) forms. Trims
+/// surrounding whitespace. Never panics — returns the original trimmed
+/// input on parse failure so the caller can surface a
+/// `Permanent(invalid recipient …)` error one level up.
+fn extract_addr_spec(raw: &str) -> &str {
+    let t = raw.trim();
+    if let Some(start) = t.rfind('<')
+        && let Some(end) = t.rfind('>')
+        && end > start
+    {
+        return t[start + 1..end].trim();
+    }
+    t
+}
+
 /// Attempt SMTP delivery via the recipient's MX hosts, in priority
 /// order. Returns the first non-transient outcome; on all-transient
 /// exhaustion returns `Outcome::Transient` with the last error.
-async fn try_deliver(cfg: &Cfg, sender: &str, recipient: &str, message: &[u8]) -> Outcome {
+async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8]) -> Outcome {
+    let recipient = extract_addr_spec(recipient_raw);
+    let sender = extract_addr_spec(sender);
     let Some(domain) = recipient.split('@').nth(1) else {
-        return Outcome::Permanent(format!("invalid recipient: {recipient}"));
+        return Outcome::Permanent(format!("invalid recipient: {recipient_raw}"));
     };
+    if domain.is_empty() || domain.contains(char::is_whitespace) {
+        return Outcome::Permanent(format!("invalid recipient: {recipient_raw}"));
+    }
 
     let resolver = match TokioResolver::builder_tokio() {
         Ok(b) => match b.build() {
@@ -412,5 +435,40 @@ async fn main() {
                 tokio::time::sleep(Duration::from_millis(back_ms)).await;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_addr_spec;
+
+    #[test]
+    fn bare_addr_spec_passes_through() {
+        assert_eq!(
+            extract_addr_spec("nagata@nagatax.tokyo.jp"),
+            "nagata@nagatax.tokyo.jp"
+        );
+    }
+
+    #[test]
+    fn name_addr_extracts_inside_brackets() {
+        assert_eq!(
+            extract_addr_spec("Masato Nagata <nagata@nagatax.tokyo.jp>"),
+            "nagata@nagatax.tokyo.jp"
+        );
+    }
+
+    #[test]
+    fn quoted_display_name_supported() {
+        assert_eq!(
+            extract_addr_spec("\"Nagata, M.\" <nagata@nagatax.tokyo.jp>"),
+            "nagata@nagatax.tokyo.jp"
+        );
+    }
+
+    #[test]
+    fn trims_outer_whitespace() {
+        assert_eq!(extract_addr_spec("  a@b.c  "), "a@b.c");
+        assert_eq!(extract_addr_spec("  A <a@b.c>  "), "a@b.c");
     }
 }
