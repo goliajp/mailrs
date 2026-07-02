@@ -286,8 +286,9 @@ mod tests {
     fn folder_sent_returns_only_sent_threads() {
         let s = store();
         let u = "u@x.com";
+        // Sent membership is decided by senders_csv containing the user.
         let mut sent = row("s1", 200, "inbox");
-        sent.sent_count = 1;
+        sent.senders_csv = "me <u@x.com>".into();
         let received = row("r1", 300, "inbox");
         s.upsert_thread(u, &sent).unwrap();
         s.upsert_thread(u, &received).unwrap();

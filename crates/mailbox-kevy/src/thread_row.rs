@@ -10,6 +10,21 @@ use std::io;
 use super::KevyMailboxStore;
 use super::keys;
 
+/// Sent-folder membership predicate — true when the thread's
+/// `senders_csv` contains the user's own address (case-insensitive).
+/// Used by `upsert_thread` (write path) and by
+/// `mailrs-fastcore-backfill-sent` (backfill path).
+pub fn senders_csv_contains_user(senders_csv: &str, user: &str) -> bool {
+    let user_lc = user.to_lowercase();
+    for token in senders_csv.split(',') {
+        let t = token.trim().to_lowercase();
+        if t.contains(&user_lc) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Aggregated thread state — one row in `mailrs:thread:<tid>`.
 ///
 /// Stable on-the-wire field names: the kevy hash uses these exact
@@ -207,11 +222,15 @@ impl KevyMailboxStore {
                 .zrem(starred.as_bytes(), &[row.thread_id.as_bytes()])?;
         }
 
-        // Sent-folder index — populated when at least one message in the
-        // thread was sent by this user. Enables `folder=Sent` in the UI
-        // without a separate mailbox membership check.
+        // Sent-folder index — populated when the user's own email
+        // shows up in the thread's senders_csv (i.e. they sent at
+        // least one message). Fastcore trusts senders_csv here rather
+        // than the pg-dump-provided `sent_count`, which comes from a
+        // monolith SQL aggregate that also fires on inbound-direction
+        // events and produces false positives.
         let sent = keys::user_threads_sent(user);
-        if row.sent_count > 0 {
+        let is_sender = senders_csv_contains_user(&row.senders_csv, user);
+        if is_sender {
             self.store().zadd(
                 sent.as_bytes(),
                 &[(row.latest_date as f64, row.thread_id.as_bytes())],
