@@ -22,7 +22,6 @@ use std::sync::Arc;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
 use axum::routing::{delete, get, post};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::admin as adm;
@@ -150,11 +149,13 @@ async fn list_conversations(
     let f = &req.filter;
     let filter = ListThreadsFilter {
         category: f.category.as_deref(),
+        folder: f.folder.as_deref(),
         pinned: false,
         archived: f.archived,
         has_unread: f.unread.unwrap_or(false),
         has_action: false,
         starred: f.starred.unwrap_or(false),
+        before_ts: f.before_ts,
     };
     let limit = if f.limit == 0 { 50 } else { f.limit as usize };
     let (rows, _total) = state
@@ -359,31 +360,30 @@ async fn list_mailboxes(
 
 // ── Thread mutations ───────────────────────────────────────────────
 
-/// 204 if mailbox-kevy reports the row existed + was mutated; 404 if
-/// the thread row is missing. Most mutations are idempotent so a
-/// 2nd call lands the same status.
 /// Uniform mutation response — matches monolith's `ThreadActionResponse`
-/// JSON shape so the core-rpc client's deserializer succeeds. Fastcore
-/// doesn't track modseq yet (kevy row → single write) so return
-/// `new_modseq: 0` + `affected: 1` on success.
-fn action_result(found: bool) -> axum::response::Response {
+/// JSON shape so the core-rpc client's deserializer succeeds. Fastcore's
+/// mutations are idempotent (mark_seen / set_pinned / set_starred / ...
+/// are all noop-safe when the target thread is already in the requested
+/// state or missing). Return 200 unconditionally so the UI's optimistic
+/// patch never rolls back — a missing thread row simply means "nothing
+/// to do" and the list refetch will reconcile.
+fn action_result(_found: bool) -> axum::response::Response {
     use axum::response::IntoResponse;
-    if found {
-        Json(th::ThreadActionResponse {
-            affected: 1,
-            new_modseq: 0,
-        })
-        .into_response()
-    } else {
-        StatusCode::NOT_FOUND.into_response()
-    }
+    Json(th::ThreadActionResponse {
+        affected: 1,
+        new_modseq: 0,
+    })
+    .into_response()
 }
 
 async fn mark_read(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(state.mailbox.mark_seen(&user, &thread_id).unwrap_or(false))
+    if let Err(e) = state.mailbox.mark_seen(&user, &thread_id) {
+        tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
+    }
+    action_result(true)
 }
 
 async fn pin_thread(
@@ -586,7 +586,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mark_read_on_missing_returns_404() {
+    async fn mark_read_on_missing_returns_200_idempotent() {
+        // Post 5eb8cc07 mutations are idempotent — a missing thread row
+        // returns 200 (noop success) instead of 404 so the UI's optimistic
+        // patch doesn't flicker back to unread. Reconciliation happens on
+        // the next list refetch.
         let app = build_router(fresh_state());
         let resp = app
             .oneshot(
@@ -598,7 +602,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), 404);
+        assert_eq!(resp.status(), 200);
     }
 
     #[tokio::test]
@@ -688,47 +692,47 @@ mod tests {
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/read",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/pin",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unpin",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/star",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unstar",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/archive",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unarchive",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/dismiss-action",
-                allowed: &[200, 404],
+                allowed: &[200],
             },
             Probe {
                 method: Method::DELETE,
                 uri: "/v1/users/u@x.com/threads/t1",
-                allowed: &[200, 404],
+                allowed: &[200],
             }, // delete after archive may already be gone
             // Probes
             Probe {

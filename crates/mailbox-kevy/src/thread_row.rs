@@ -207,6 +207,20 @@ impl KevyMailboxStore {
                 .zrem(starred.as_bytes(), &[row.thread_id.as_bytes()])?;
         }
 
+        // Sent-folder index — populated when at least one message in the
+        // thread was sent by this user. Enables `folder=Sent` in the UI
+        // without a separate mailbox membership check.
+        let sent = keys::user_threads_sent(user);
+        if row.sent_count > 0 {
+            self.store().zadd(
+                sent.as_bytes(),
+                &[(row.latest_date as f64, row.thread_id.as_bytes())],
+            )?;
+        } else {
+            self.store()
+                .zrem(sent.as_bytes(), &[row.thread_id.as_bytes()])?;
+        }
+
         Ok(())
     }
 
