@@ -584,7 +584,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
             </div>
           )}
-          <div className="min-w-0 flex-1 overflow-y-auto" ref={contentScrollRef}>
+          {/* data-selectable: the gds base reset sets user-select:none on
+              every element, and .select-text only rescues the element it's
+              on — nested spans/divs stay unselectable (Chromium). gds's
+              [data-selectable] * rule opts the whole reading pane back in. */}
+          <div className="min-w-0 flex-1 overflow-y-auto" data-selectable ref={contentScrollRef}>
             {selectedMsg ? (
               <>
                 {/* Email header (sender info). Each of the four info rows

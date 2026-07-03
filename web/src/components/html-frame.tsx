@@ -100,6 +100,12 @@ const SHADOW_STYLES = `
     color-scheme: light;
   }
   .mail-wrap {
+    /* the app-level GDS reset (* { user-select: none }) hits the shadow
+       host, and everything in here computes user-select from it. email
+       body text must be selectable, so opt the whole subtree back in —
+       document styles can't cross the shadow boundary, so this wins. */
+    user-select: text;
+    -webkit-user-select: text;
     max-width: 680px;
     margin: 0 auto;
     padding: 12px;
