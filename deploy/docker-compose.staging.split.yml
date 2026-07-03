@@ -134,12 +134,93 @@ services:
       MAILRS_CHROME_CDP_URL: ws://chromium:9222
       MAILRS_ANTISPAM_ENABLED: "true"
       MAILRS_AI_ANALYSIS_ENABLED: "false"
+      # 4-process split (arch/split-fastcore). When MAILRS_CORE_API_SECRET
+      # is set the core opens an extra :3300 RPC listener that webapi
+      # + sender talk to. Empty / unset = no RPC server (legacy).
+      MAILRS_CORE_RPC_ADDR: 0.0.0.0:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
     volumes:
       - mailrs-staging-data:/data
       - ./certs:/certs:ro
       - ./dkim:/dkim:ro
     depends_on:
       - kevy-server
+    restart: unless-stopped
+
+  # ── 4-process split shadow services ──────────────────────────────
+  # webapi + sender both consume mailrs's core-rpc port; bring them up
+  # with `--profile split` once MAILRS_CORE_API_SECRET is exported on
+  # the host. They are shadow services: webapi binds :3102 on host
+  # (distinct from mailrs :3101) so frontend smoke tests can hit one
+  # or the other without conflicting; sender is queue-driven so it
+  # claims outbound jobs as soon as it boots — leave it down unless
+  # you want it to compete with monolith mailrs's sender thread.
+
+  webapi:
+    container_name: mailrs-staging-webapi
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-webapi"]
+    pull_policy: always
+    profiles: ["split"]
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3102:3100"
+    environment:
+      MAILRS_CORE_RPC_BASE: http://mailrs:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_WEB_BIND: 0.0.0.0:3100
+      MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
+      RUST_LOG: info
+    depends_on:
+      - mailrs
+      - kevy-server
+    restart: unless-stopped
+
+  # Phase 8 — kevy-backed core RPC. Brought up on `--profile fastcore`
+  # next to the monolith mailrs container (NOT instead of it). Listens
+  # on :3201 host-side so webapi can be repointed at it via
+  # MAILRS_CORE_RPC_BASE=http://fastcore:3301 to A/B against monolith :3300.
+  fastcore:
+    container_name: mailrs-staging-fastcore
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-fastcore"]
+    pull_policy: always
+    profiles: ["fastcore"]
+    mem_limit: 1g
+    # fastcore listens on :3301 not :3100; image's default healthcheck
+    # hits :3100/api/health which doesn't exist here. Disable.
+    healthcheck:
+      disable: true
+    ports:
+      - "127.0.0.1:3201:3301"
+    environment:
+      MAILRS_FASTCORE_BIND: 0.0.0.0:3301
+      MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      RUST_LOG: info
+    volumes:
+      - mailrs-staging-data:/data
+    restart: unless-stopped
+
+  sender:
+    container_name: mailrs-staging-sender
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-sender"]
+    pull_policy: always
+    profiles: ["split"]
+    mem_limit: 512m
+    environment:
+      MAILRS_CORE_RPC_BASE: http://mailrs:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
+      MAILRS_HOSTNAME: mail.smk.ai
+      MAILRS_DKIM_SELECTOR: mail
+      MAILRS_DKIM_DOMAIN: smk.ai
+      MAILRS_DKIM_PRIVATE_KEY: /dkim/stg.key
+      RUST_LOG: info
+    volumes:
+      - ./dkim:/dkim:ro
+    depends_on:
+      - mailrs
     restart: unless-stopped
 
 volumes:

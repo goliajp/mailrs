@@ -139,7 +139,7 @@ dependencies = [
  "nom 7.1.3",
  "num-traits",
  "rusticata-macros",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -481,7 +481,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_urlencoded",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
  "tokio",
  "tokio-stream",
@@ -502,7 +502,7 @@ dependencies = [
  "prost-types",
  "tonic",
  "tonic-prost",
- "ureq",
+ "ureq 3.3.0",
 ]
 
 [[package]]
@@ -666,7 +666,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "url",
@@ -1320,6 +1320,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum-as-inner"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1e6a265c649f3f5979b601d26f1d05ada116434c87741c9493cb56218f76cbc"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1842,7 +1854,7 @@ dependencies = [
  "futures-channel",
  "futures-io",
  "futures-util",
- "hickory-proto",
+ "hickory-proto 0.26.1",
  "idna",
  "ipnet",
  "jni",
@@ -1851,11 +1863,35 @@ dependencies = [
  "rand 0.10.1",
  "rustls",
  "rustls-pki-types",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
  "tinyvec",
  "tokio",
  "tokio-rustls",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "hickory-proto"
+version = "0.24.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92652067c9ce6f66ce53cc38d1169daa36e6e7eb7dd3b63b5103bd9d97117248"
+dependencies = [
+ "async-trait",
+ "cfg-if",
+ "data-encoding",
+ "enum-as-inner",
+ "futures-channel",
+ "futures-io",
+ "futures-util",
+ "idna",
+ "ipnet",
+ "once_cell",
+ "rand 0.8.6",
+ "thiserror 1.0.69",
+ "tinyvec",
+ "tokio",
  "tracing",
  "url",
 ]
@@ -1877,11 +1913,32 @@ dependencies = [
  "rand 0.10.1",
  "ring",
  "rustls-pki-types",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
  "tinyvec",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "hickory-resolver"
+version = "0.24.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbb117a1ca520e111743ab2f6688eddee69db4e0ea242545a604dce8a66fd22e"
+dependencies = [
+ "cfg-if",
+ "futures-util",
+ "hickory-proto 0.24.4",
+ "ipconfig",
+ "lru-cache",
+ "once_cell",
+ "parking_lot",
+ "rand 0.8.6",
+ "resolv-conf",
+ "smallvec",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1893,7 +1950,7 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "hickory-net",
- "hickory-proto",
+ "hickory-proto 0.26.1",
  "ipconfig",
  "ipnet",
  "jni",
@@ -1906,7 +1963,7 @@ dependencies = [
  "rustls",
  "smallvec",
  "system-configuration",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -1967,7 +2024,7 @@ checksum = "d1c97eea9d3e6524d8d2a4643ce0e3135500c4c7ca1d02393a485f871bef69d8"
 dependencies = [
  "html5ever",
  "tendril",
- "thiserror",
+ "thiserror 2.0.18",
  "unicode-width",
 ]
 
@@ -2093,7 +2150,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 1.0.8",
 ]
 
 [[package]]
@@ -2344,7 +2401,7 @@ dependencies = [
  "bounded-static",
  "bounded-static-derive",
  "chrono",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2402,7 +2459,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -2493,7 +2550,7 @@ dependencies = [
  "jni-sys",
  "log",
  "simd_cesu8",
- "thiserror",
+ "thiserror 2.0.18",
  "walkdir",
  "windows-link",
 ]
@@ -2575,7 +2632,16 @@ version = "1.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29979ad853c1fc25d784b587322038bd4893129e6e66fc2f10435b86a3f83315"
 dependencies = [
- "kevy-hash",
+ "kevy-hash 1.26.6",
+]
+
+[[package]]
+name = "kevy-bytes"
+version = "2.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4b1c114f57af2b3ca1290a203e050457fe3b4429b2040b484aa71f66dba3c54"
+dependencies = [
+ "kevy-hash 2.0.20",
 ]
 
 [[package]]
@@ -2585,21 +2651,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d98ab7183a883971613029479f56b86ea688e02aead8c5becc57ab6bb67c84c"
 dependencies = [
  "kevy-embedded",
- "kevy-hash",
- "kevy-resp",
+ "kevy-hash 1.26.6",
+ "kevy-resp 1.26.6",
  "kevy-resp-client",
 ]
 
 [[package]]
 name = "kevy-embedded"
-version = "1.4.11"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a97015505e0d1fd0118afc290b281af2734598808a79de13f00e82cf1283fb2"
+checksum = "e2896d7f14cda3fb10fbf1a3c6cf825632cd68c8588d162e64cf3f41a5cdb07f"
 dependencies = [
- "kevy-hash",
+ "kevy-hash 2.0.20",
  "kevy-persist",
  "kevy-replicate",
- "kevy-resp",
+ "kevy-resp 2.0.20",
  "kevy-store",
 ]
 
@@ -2610,38 +2676,44 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6339d2e6868ab0ccad08e93f4b9644b4347f915daa83f10d51d8530b24d5cd1d"
 
 [[package]]
-name = "kevy-madvise"
-version = "1.26.6"
+name = "kevy-hash"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e28e79cc02f51574edc36df38a33adaa7322eae1bfa338089ea75a28687970f0"
+checksum = "262d511936d66916771675f5a7407ef8ef55990d8c8d5c31b23d18bd50810654"
+
+[[package]]
+name = "kevy-madvise"
+version = "2.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3427848578b81135b1584c850724dc73d4b966bf2a5d5c5b9a4e2eb7e98a260"
 
 [[package]]
 name = "kevy-map"
-version = "1.26.6"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a088e77dfb767591ab48286758ba0a364327fbd8e64f7315b068fe22a2829355"
+checksum = "a581fb65362bef5ac2c2366e8bbb9da99aa7deb7a856dda82d1705f0528c7eba"
 dependencies = [
- "kevy-hash",
+ "kevy-hash 2.0.20",
  "kevy-madvise",
 ]
 
 [[package]]
 name = "kevy-persist"
-version = "1.26.6"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c67d4f8d276d73590ad07a1088dd8ba9e3635dcdbc836685996bc15eefc3e13"
+checksum = "c4961fe3d4958c7b034df43b1d6977b7a222f61329bc7f0b095aae7cb3741bd4"
 dependencies = [
- "kevy-resp",
+ "kevy-resp 2.0.20",
  "kevy-store",
 ]
 
 [[package]]
 name = "kevy-replicate"
-version = "1.26.6"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43ed86c033c1525d342ba3d421134d630a1b6526569cc74443f6185447b956df"
+checksum = "4f73a2da24a06d704a0cfbafe27c203262cd9b8b4fd53f43ed756652167d5358"
 dependencies = [
- "kevy-resp",
+ "kevy-resp 2.0.20",
 ]
 
 [[package]]
@@ -2650,7 +2722,16 @@ version = "1.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b9c79b3d4923b98c1a1f147ff6f925f69f5f842ada672cae07cd3910448525"
 dependencies = [
- "kevy-bytes",
+ "kevy-bytes 1.26.6",
+]
+
+[[package]]
+name = "kevy-resp"
+version = "2.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a7998f6bdd4a2fbe9aac9ed5cfeed821f2abd1494a423ff2a7ff4b0574c5b6a"
+dependencies = [
+ "kevy-bytes 2.0.20",
 ]
 
 [[package]]
@@ -2659,17 +2740,17 @@ version = "1.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aff562c41fb6919203537a9dfdafddde53257377e1ab53dd39e2fcf52d024310"
 dependencies = [
- "kevy-resp",
+ "kevy-resp 1.26.6",
 ]
 
 [[package]]
 name = "kevy-store"
-version = "1.26.6"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c4d21a2cf513cfb0078cf63820c5683a6507ed2b7073df5cd0dcfff54bcfc5e"
+checksum = "8aedd60fe4ef8ada04da8f020b46e2c8f40de9b55147a84349acebd444914552"
 dependencies = [
- "kevy-bytes",
- "kevy-hash",
+ "kevy-bytes 2.0.20",
+ "kevy-hash 2.0.20",
  "kevy-map",
 ]
 
@@ -2708,7 +2789,7 @@ dependencies = [
  "percent-encoding",
  "rustls",
  "rustls-native-certs",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "tokio-stream",
@@ -2831,7 +2912,7 @@ dependencies = [
  "rangemap",
  "sha2 0.10.9",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.18",
  "ttf-parser",
  "weezl",
 ]
@@ -2860,10 +2941,10 @@ dependencies = [
  "aws-lc-rs",
  "flate2",
  "hashify",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mail-builder",
  "mail-parser",
- "quick-xml",
+ "quick-xml 0.40.1",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -3059,6 +3140,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-core-api"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "mailrs-mailbox",
+ "percent-encoding",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-dav"
 version = "1.1.1"
 dependencies = [
@@ -3102,14 +3198,14 @@ dependencies = [
  "compact_str",
  "criterion 0.8.2",
  "ed25519-dalek",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mail-auth",
  "memchr",
  "rand 0.8.6",
  "rsa",
  "rustls-pki-types",
  "sha2 0.10.9",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3127,7 +3223,7 @@ dependencies = [
  "psl",
  "spg-sqlx",
  "sqlx",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3137,7 +3233,7 @@ version = "1.0.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "tokio",
 ]
 
@@ -3146,7 +3242,7 @@ name = "mailrs-dnsbl"
 version = "1.0.0"
 dependencies = [
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "tokio",
 ]
 
@@ -3156,7 +3252,48 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b03f2803d9bc554f04b6f2542e656674517084c3ca107269533ba73475e5310"
 dependencies = [
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
+]
+
+[[package]]
+name = "mailrs-fastcore"
+version = "0.0.1"
+dependencies = [
+ "argon2",
+ "axum",
+ "base64",
+ "chrono",
+ "futures-util",
+ "http-body-util",
+ "instant-acme",
+ "kevy-client",
+ "kevy-embedded",
+ "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-core",
+ "mailrs-core-api",
+ "mailrs-imap-codec 1.0.0",
+ "mailrs-imap-format 1.0.0",
+ "mailrs-imap-proto 1.0.5",
+ "mailrs-mailbox-kevy",
+ "mailrs-maildir",
+ "mailrs-outbound-queue",
+ "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-sieve",
+ "mailrs-smtp-client",
+ "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "password-hash",
+ "rand_core 0.6.4",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "ureq 2.12.1",
 ]
 
 [[package]]
@@ -3255,7 +3392,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]
@@ -3333,6 +3470,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-mailbox-kevy"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "kevy-embedded",
+ "mailrs-mailbox",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "mailrs-maildir"
 version = "1.2.1"
 dependencies = [
@@ -3396,7 +3547,7 @@ dependencies = [
  "chrono",
  "criterion 0.8.2",
  "futures-util",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "kevy-embedded",
  "mailrs-arc",
  "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3412,10 +3563,22 @@ dependencies = [
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
  "tracing",
+]
+
+[[package]]
+name = "mailrs-pg-dump"
+version = "0.0.1"
+dependencies = [
+ "mailrs-core-api",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3425,11 +3588,11 @@ dependencies = [
  "async-trait",
  "chrono",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -3466,7 +3629,7 @@ dependencies = [
  "bytes",
  "chrono",
  "futures-util",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "ipnet",
  "kevy-client",
  "mailrs-arc",
@@ -3563,6 +3726,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb740170b7e617d73a6f601e1587f0803afd87a6d98120e9a0b1a831a0591a03"
 
 [[package]]
+name = "mailrs-sender"
+version = "0.0.1"
+dependencies = [
+ "base64",
+ "hickory-resolver 0.26.1",
+ "mailrs-core-api",
+ "mailrs-outbound-queue",
+ "mailrs-smtp-client",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mailrs-server"
 version = "0.0.0"
 dependencies = [
@@ -3580,7 +3759,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "hex",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "hmac 0.13.0",
  "html2text",
  "image",
@@ -3598,6 +3777,7 @@ dependencies = [
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-core",
+ "mailrs-core-api",
  "mailrs-dav 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-delivery-executor",
  "mailrs-dkim",
@@ -3674,7 +3854,7 @@ version = "3.1.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "kevy-embedded",
  "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "spg-sqlx",
@@ -3697,7 +3877,7 @@ dependencies = [
  "criterion 0.8.2",
  "mailrs-rfc5322 1.0.1",
  "memchr",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3706,13 +3886,13 @@ version = "2.0.1"
 dependencies = [
  "compact_str",
  "criterion 0.8.2",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "rcgen 0.14.8",
  "rustls",
  "sha2 0.11.0",
  "tokio",
  "tokio-rustls",
- "webpki-roots",
+ "webpki-roots 1.0.8",
 ]
 
 [[package]]
@@ -3762,7 +3942,7 @@ dependencies = [
  "compact_str",
  "criterion 0.8.2",
  "dhat",
- "hickory-resolver",
+ "hickory-resolver 0.26.1",
  "mail-auth",
  "memchr",
  "tokio",
@@ -3844,6 +4024,50 @@ dependencies = [
  "flate2",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mailrs-webapi"
+version = "0.0.1"
+dependencies = [
+ "argon2",
+ "async-trait",
+ "axum",
+ "base64",
+ "chrono",
+ "futures-util",
+ "hex",
+ "hickory-resolver 0.24.4",
+ "hmac 0.12.1",
+ "html2text",
+ "jsonwebtoken",
+ "kevy-client",
+ "mailrs-core-api",
+ "mailrs-ical",
+ "mailrs-jmap 1.1.2",
+ "mailrs-message-store",
+ "mailrs-mime",
+ "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "password-hash",
+ "quick-xml 0.37.5",
+ "rand_core 0.6.4",
+ "reqwest 0.12.28",
+ "rmcp",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "tokio",
+ "totp-rs",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3931,7 +4155,7 @@ dependencies = [
  "metrics",
  "metrics-util",
  "quanta",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4667,6 +4891,16 @@ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quick-xml"
+version = "0.37.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
+name = "quick-xml"
 version = "0.40.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
@@ -4688,7 +4922,7 @@ dependencies = [
  "rustc-hash 2.1.2",
  "rustls",
  "socket2",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "web-time",
@@ -4710,7 +4944,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror",
+ "thiserror 2.0.18",
  "tinyvec",
  "tracing",
  "web-time",
@@ -4999,7 +5233,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 1.0.8",
 ]
 
 [[package]]
@@ -5082,7 +5316,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sse-stream",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -5114,7 +5348,7 @@ dependencies = [
  "chrono-tz",
  "log",
  "regex",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5612,7 +5846,7 @@ checksum = "0d585997b0ac10be3c5ee635f1bab02d512760d14b7c468801ac8a01d9ae5f1d"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -5824,7 +6058,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -5907,7 +6141,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
  "whoami",
 ]
@@ -5945,7 +6179,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
  "whoami",
 ]
@@ -5970,7 +6204,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "sqlx-core",
- "thiserror",
+ "thiserror 2.0.18",
  "tracing",
  "url",
 ]
@@ -6175,7 +6409,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "thiserror",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -6193,11 +6427,31 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.18",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -6619,7 +6873,7 @@ dependencies = [
  "log",
  "rand 0.9.4",
  "sha1",
- "thiserror",
+ "thiserror 2.0.18",
  "utf-8",
 ]
 
@@ -6636,7 +6890,7 @@ dependencies = [
  "log",
  "rand 0.9.4",
  "sha1",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -6716,6 +6970,22 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "ureq"
+version = "2.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
+dependencies = [
+ "base64",
+ "flate2",
+ "log",
+ "once_cell",
+ "rustls",
+ "rustls-pki-types",
+ "url",
+ "webpki-roots 0.26.11",
+]
 
 [[package]]
 name = "ureq"
@@ -6957,6 +7227,15 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
+version = "0.26.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+dependencies = [
+ "webpki-roots 1.0.8",
+]
+
+[[package]]
+name = "webpki-roots"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf85cb06032201fa7c6f829d7db5a7e5aa45bcc0655327713065f6f0576731bf"
@@ -7017,7 +7296,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7351,7 +7630,7 @@ dependencies = [
  "oid-registry",
  "ring",
  "rusticata-macros",
- "thiserror",
+ "thiserror 2.0.18",
  "time",
 ]
 

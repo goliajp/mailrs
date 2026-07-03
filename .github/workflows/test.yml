@@ -95,6 +95,27 @@ jobs:
           --features mailrs-server/spg,mailrs-mailbox/spg,mailrs-outbound-queue/spg,mailrs-shield/spg,mailrs-dmarc/spg
           -- --skip _under_budget
 
+      - name: cargo build (4-process binaries — split topology gate)
+        # Phase 2/3/4 of the split-fastcore plan. Builds every binary
+        # the deploy compose mounts so a CI green means the staging
+        # image has all four roles.
+        run: |
+          cargo build --release -p mailrs-server --features spg,render-preview,core-rpc
+          cargo build --release -p mailrs-receiver
+          cargo build --release -p mailrs-webapi
+          cargo build --release -p mailrs-sender
+          cargo build --release -p mailrs-mailbox-kevy  # Phase 7 fastcore
+          cargo build --release -p mailrs-fastcore       # Phase 8 fastcore binary
+          cargo build --release -p mailrs-fastcore --bin mailrs-fastcore-migrate  # Phase 10 import bin
+          cargo build --release -p mailrs-pg-dump              # Phase 10b spg → NDJSON
+
+      - name: cargo check (default mailrs-server — ironrule guard)
+        # Asserts the prod-default build still produces the same artifact
+        # as develop. Phase 2 `core-rpc` is feature-flagged off here, so
+        # any unexpected pull of mailrs-core-api into the default graph
+        # would be caught.
+        run: cargo check -p mailrs-server
+
   web:
     name: web check + test
     runs-on: ubuntu-latest
