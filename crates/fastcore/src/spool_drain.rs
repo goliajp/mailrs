@@ -291,8 +291,7 @@ fn enqueue_redirect(
     let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
         return Err(std::io::Error::other("MAILRS_KEVY_URL unset"));
     };
-    let mut conn =
-        kevy_client::Connection::open(&url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::open(&url).map_err(std::io::Error::other)?;
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -316,13 +315,13 @@ fn enqueue_redirect(
     });
     let blob = envelope.to_string();
     let hash_key = format!("mailrs:outbound:{id}");
-    conn.hset(hash_key.as_bytes(), &[(b"blob".as_slice(), blob.as_bytes())])
-        .map_err(std::io::Error::other)?;
-    conn.lpush(
-        b"mailrs:outbound:pending",
-        &[id.as_bytes()],
+    conn.hset(
+        hash_key.as_bytes(),
+        &[(b"blob".as_slice(), blob.as_bytes())],
     )
     .map_err(std::io::Error::other)?;
+    conn.lpush(b"mailrs:outbound:pending", &[id.as_bytes()])
+        .map_err(std::io::Error::other)?;
     Ok(())
 }
 
@@ -467,10 +466,7 @@ mod tests {
         assert_eq!(delivered, 1);
         assert!(!spool_file.exists());
         assert!(
-            alice_base
-                .join("new")
-                .join("1000003.M1P1Q1.host")
-                .exists(),
+            alice_base.join("new").join("1000003.M1P1Q1.host").exists(),
             "aliased delivery must land in the resolved user's maildir"
         );
     }

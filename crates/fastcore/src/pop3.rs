@@ -146,10 +146,8 @@ where
                         messages = backend::list_messages(inbox);
                     }
                     authed_user = Some(username);
-                    tx.write_all(
-                        format!("+OK {} messages\r\n", messages.len()).as_bytes(),
-                    )
-                    .await?;
+                    tx.write_all(format!("+OK {} messages\r\n", messages.len()).as_bytes())
+                        .await?;
                 } else {
                     tx.write_all(b"-ERR invalid credentials\r\n").await?;
                 }
@@ -159,11 +157,10 @@ where
                     tx.write_all(b"-ERR not authenticated\r\n").await?;
                     continue;
                 }
-                let (count, size) =
-                    messages
-                        .iter()
-                        .filter(|m| !deleted.contains(&m.uid))
-                        .fold((0u32, 0u64), |(c, s), m| (c + 1, s + m.size));
+                let (count, size) = messages
+                    .iter()
+                    .filter(|m| !deleted.contains(&m.uid))
+                    .fold((0u32, 0u64), |(c, s), m| (c + 1, s + m.size));
                 tx.write_all(format!("+OK {count} {size}\r\n").as_bytes())
                     .await?;
             }
@@ -176,10 +173,8 @@ where
                     tx.write_all(b"+OK maildrop follows\r\n").await?;
                     for m in &messages {
                         if !deleted.contains(&m.uid) {
-                            tx.write_all(
-                                format!("{} {}\r\n", m.uid, m.size).as_bytes(),
-                            )
-                            .await?;
+                            tx.write_all(format!("{} {}\r\n", m.uid, m.size).as_bytes())
+                                .await?;
                         }
                     }
                     tx.write_all(b".\r\n").await?;
@@ -187,10 +182,8 @@ where
                     let idx: u32 = arg.parse().unwrap_or(0);
                     match messages.iter().find(|m| m.uid == idx) {
                         Some(m) if !deleted.contains(&idx) => {
-                            tx.write_all(
-                                format!("+OK {} {}\r\n", m.uid, m.size).as_bytes(),
-                            )
-                            .await?;
+                            tx.write_all(format!("+OK {} {}\r\n", m.uid, m.size).as_bytes())
+                                .await?;
                         }
                         _ => tx.write_all(b"-ERR no such message\r\n").await?,
                     }

@@ -149,8 +149,10 @@ pub async fn run() {
         // Record per-message DMARC results into the shared network
         // kevy so admin tooling (and a future aggregate reporter) can
         // consume them. Errors are swallowed inside the sink.
-        Some(Arc::new(crate::kevy_dmarc::KevyDmarcSink::new(&cfg.kevy_url))
-            as Arc<dyn crate::inbound::stages::mail_auth::DmarcReportSink>),
+        Some(
+            Arc::new(crate::kevy_dmarc::KevyDmarcSink::new(&cfg.kevy_url))
+                as Arc<dyn crate::inbound::stages::mail_auth::DmarcReportSink>,
+        ),
         cfg.clamav_addr.clone(),
         None, // LLM scoring is the core's post-delivery job
         None, // spam cache is core-side

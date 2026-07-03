@@ -152,21 +152,20 @@ pub fn list_messages(mb: &MailboxInfo) -> Vec<ImapMessage> {
     for (idx, e) in entries.into_iter().enumerate() {
         let uid = (idx + 1) as u32;
         let size = std::fs::metadata(&e.path).map(|m| m.len()).unwrap_or(0);
-        let internal_date = e
-            .id
-            .0
-            .split('.')
-            .next()
-            .and_then(|s| s.parse::<i64>().ok())
-            .filter(|n| *n > 946_684_800)
-            .or_else(|| {
-                std::fs::metadata(&e.path)
-                    .and_then(|m| m.modified())
-                    .ok()
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs() as i64)
-            })
-            .unwrap_or(0);
+        let internal_date =
+            e.id.0
+                .split('.')
+                .next()
+                .and_then(|s| s.parse::<i64>().ok())
+                .filter(|n| *n > 946_684_800)
+                .or_else(|| {
+                    std::fs::metadata(&e.path)
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs() as i64)
+                })
+                .unwrap_or(0);
         out.push(ImapMessage {
             uid,
             seqno: uid,

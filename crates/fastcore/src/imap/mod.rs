@@ -102,10 +102,7 @@ pub async fn spawn_tls(state: Arc<FastcoreState>) {
 
 /// Load rustls from PEM cert + key. Returns a `TlsAcceptor` cloneable
 /// per-connection. Shared with POP3S — same cert files.
-pub(crate) fn load_tls_acceptor(
-    cert_path: &Path,
-    key_path: &Path,
-) -> std::io::Result<TlsAcceptor> {
+pub(crate) fn load_tls_acceptor(cert_path: &Path, key_path: &Path) -> std::io::Result<TlsAcceptor> {
     let cfg = mailrs_tls_reload::load_tls_config(cert_path, key_path)?;
     let cfg_owned = std::sync::Arc::try_unwrap(cfg).unwrap_or_else(|arc| (*arc).clone());
     Ok(TlsAcceptor::from(std::sync::Arc::new(cfg_owned)))

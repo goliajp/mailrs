@@ -40,11 +40,7 @@ pub enum Decision {
 /// Runs sync — spool_drain is already sync, and network kevy calls
 /// through kevy-client are blocking. Called at most a handful of
 /// times per drain tick, so no need for pooling.
-pub fn decide(
-    recipient: &str,
-    raw_message: &[u8],
-    envelope_from: Option<&str>,
-) -> Decision {
+pub fn decide(recipient: &str, raw_message: &[u8], envelope_from: Option<&str>) -> Decision {
     let Some(script) = fetch_script(recipient) else {
         return Decision::Keep;
     };
@@ -110,10 +106,7 @@ fn fetch_script(address: &str) -> Option<String> {
 /// disk-path segment. Dot-prefixed, and any embedded `/` is replaced
 /// with `.` per the Maildir++ hierarchy convention.
 pub fn maildir_subfolder(folder: &str) -> String {
-    let cleaned = folder
-        .trim()
-        .replace('/', ".")
-        .replace(['\\', '\0'], "");
+    let cleaned = folder.trim().replace('/', ".").replace(['\\', '\0'], "");
     if cleaned.starts_with('.') {
         cleaned
     } else {

@@ -66,7 +66,9 @@ impl KevyMailboxStore {
         let members = self.store().smembers(keys::ALIAS_INDEX.as_bytes())?;
         let mut out = Vec::with_capacity(members.len());
         for m in members {
-            let Ok(a) = String::from_utf8(m) else { continue };
+            let Ok(a) = String::from_utf8(m) else {
+                continue;
+            };
             let key = keys::alias(&a);
             let Some(raw) = self.store().get(key.as_bytes())? else {
                 continue;
