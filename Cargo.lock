@@ -3288,6 +3288,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-rustls",
  "tokio-util",
  "tower",
  "tracing",

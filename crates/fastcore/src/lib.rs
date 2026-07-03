@@ -106,17 +106,27 @@ pub async fn run() {
         acme_task::spawn().await;
     });
 
-    // Plain-text IMAP + POP3 listeners. STARTTLS + implicit-TLS
-    // variants (993 / 995) belong on the receiver container which
-    // already owns the TlsState — set MAILRS_IMAP_BIND=off /
-    // MAILRS_POP3_BIND=off to disable per-container.
+    // IMAP + IMAPS + POP3 + POP3S listeners. Cert comes from
+    // MAILRS_TLS_CERT + MAILRS_TLS_KEY (same paths the receiver uses)
+    // — matching the monolith's TLS pattern: plaintext port loads no
+    // cert, implicit-TLS port wraps every accepted socket via a
+    // shared rustls acceptor before entering the session. Set each
+    // MAILRS_(IMAP|IMAPS|POP3|POP3S)_BIND=off to disable per-port.
     let imap_state = state.clone();
     tokio::spawn(async move {
         imap::spawn(imap_state).await;
     });
+    let imaps_state = state.clone();
+    tokio::spawn(async move {
+        imap::spawn_tls(imaps_state).await;
+    });
     let pop3_state = state.clone();
     tokio::spawn(async move {
         pop3::spawn(pop3_state).await;
+    });
+    let pop3s_state = state.clone();
+    tokio::spawn(async move {
+        pop3::spawn_tls(pop3s_state).await;
     });
 
     let addr = std::env::var("MAILRS_FASTCORE_BIND").unwrap_or_else(|_| "0.0.0.0:3301".into());

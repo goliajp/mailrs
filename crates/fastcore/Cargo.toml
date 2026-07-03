@@ -68,6 +68,7 @@ mailrs-imap-format = { path = "../imap-format" }
 mailrs-maildir = { path = "../storage-maildir" }
 tokio-util = { version = "0.7", features = ["codec"] }
 futures-util = "0.3"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

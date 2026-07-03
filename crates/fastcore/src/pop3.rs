@@ -7,15 +7,17 @@
 //!
 //! Auth uses the same kevy account store as IMAP.
 
+use std::path::Path;
 use std::sync::Arc;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::net::TcpListener;
 
 use crate::FastcoreState;
 use crate::imap::backend::{self, ImapMessage};
 
-/// Spawn POP3 listener; noop when `MAILRS_POP3_BIND=off`.
+/// Spawn plaintext POP3 listener on `MAILRS_POP3_BIND` (default
+/// `0.0.0.0:110`). Set the env to `off` to disable.
 pub async fn spawn(state: Arc<FastcoreState>) {
     let bind = std::env::var("MAILRS_POP3_BIND").unwrap_or_else(|_| "0.0.0.0:110".to_string());
     if bind.eq_ignore_ascii_case("off") || bind.is_empty() {
@@ -48,8 +50,67 @@ pub async fn spawn(state: Arc<FastcoreState>) {
     }
 }
 
-async fn session(state: Arc<FastcoreState>, sock: TcpStream) -> std::io::Result<()> {
-    let (rx, mut tx) = sock.into_split();
+/// Spawn implicit-TLS POP3S listener on `MAILRS_POP3S_BIND`
+/// (default `0.0.0.0:995`). Reuses `MAILRS_TLS_CERT` +
+/// `MAILRS_TLS_KEY` (same paths as IMAPS + receiver).
+pub async fn spawn_tls(state: Arc<FastcoreState>) {
+    let bind = std::env::var("MAILRS_POP3S_BIND").unwrap_or_else(|_| "0.0.0.0:995".to_string());
+    if bind.eq_ignore_ascii_case("off") || bind.is_empty() {
+        tracing::debug!("MAILRS_POP3S_BIND=off — skipping POP3S listener");
+        return;
+    }
+    let (Ok(cert_path), Ok(key_path)) = (
+        std::env::var("MAILRS_TLS_CERT"),
+        std::env::var("MAILRS_TLS_KEY"),
+    ) else {
+        tracing::debug!("MAILRS_TLS_CERT / MAILRS_TLS_KEY unset — skipping POP3S listener");
+        return;
+    };
+    let acceptor = match crate::imap::load_tls_acceptor(Path::new(&cert_path), Path::new(&key_path))
+    {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!(error = %e, %cert_path, %key_path, "pop3s: TLS config load failed");
+            return;
+        }
+    };
+    let listener = match TcpListener::bind(&bind).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!(error = %e, %bind, "pop3s: bind failed");
+            return;
+        }
+    };
+    tracing::info!(%bind, "pop3s: listening (implicit TLS)");
+    loop {
+        let (sock, peer) = match listener.accept().await {
+            Ok(pair) => pair,
+            Err(e) => {
+                tracing::warn!(error = %e, "pop3s: accept error");
+                continue;
+            }
+        };
+        let state = state.clone();
+        let acceptor = acceptor.clone();
+        tokio::spawn(async move {
+            tracing::debug!(%peer, "pop3s: connection open");
+            match acceptor.accept(sock).await {
+                Ok(tls_sock) => {
+                    if let Err(e) = session(state, tls_sock).await {
+                        tracing::debug!(%peer, error = %e, "pop3s: session ended");
+                    }
+                }
+                Err(e) => tracing::warn!(%peer, error = %e, "pop3s: handshake failed"),
+            }
+        });
+    }
+}
+
+async fn session<S>(state: Arc<FastcoreState>, sock: S) -> std::io::Result<()>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
+    let (rx, mut tx) = tokio::io::split(sock);
     let mut reader = BufReader::new(rx);
     tx.write_all(b"+OK mailrs POP3 ready\r\n").await?;
 
