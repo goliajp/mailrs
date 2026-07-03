@@ -86,7 +86,7 @@ else
 systemctl reset-failed staging-traffic-gen.service 2>/dev/null || true
 systemctl restart staging-traffic-gen.service
 systemctl reset-failed staging-soak-gate.service 2>/dev/null || true
-systemctl start --no-block staging-soak-gate.service"
+systemctl restart --no-block staging-soak-gate.service"
     echo "    verdict lands in ~35 min: ssh $HOST cat /var/run/staging-gate.json"
     echo "    when pass=true → git flow release v<X.Y.Z> from THIS commit → CI deploys prod"
 fi
