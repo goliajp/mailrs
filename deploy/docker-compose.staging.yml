@@ -20,10 +20,11 @@
 # so staging doesn't either. ManageSieve :4190 disappears with it
 # (fastcore has no ManageSieve yet — known protocol gap).
 #
-# Deployed by deploy-staging.yml on every green develop push:
-#   docker compose -p mailrs-staging -f docker-compose.staging.yml \
-#     pull && docker compose -p mailrs-staging -f docker-compose.staging.yml \
-#     up -d --remove-orphans
+# Deployed by scripts/staging-build-deploy.sh — the LOCAL dev loop
+# (build image on the dev machine, docker save|load to t01, up -d).
+# No CI involvement; MAILRS_VERSION=staging-local and pull_policy is
+# `missing` on the mailrs services because the image never lives in a
+# registry. Prod remains CI-owned (v* tag -> release.yml).
 
 services:
   meilisearch:
@@ -72,7 +73,7 @@ services:
     container_name: mailrs-staging-receiver
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     entrypoint: ["mailrs-receiver"]
-    pull_policy: always
+    pull_policy: missing
     mem_limit: 2g
     # receiver runs no web server — disable the image's curl :3100 check
     healthcheck:
@@ -107,7 +108,7 @@ services:
     container_name: mailrs-staging-fastcore
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     entrypoint: ["mailrs-fastcore"]
-    pull_policy: always
+    pull_policy: missing
     mem_limit: 2g
     healthcheck:
       disable: true
@@ -139,7 +140,7 @@ services:
     container_name: mailrs-staging-webapi-fc
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     entrypoint: ["mailrs-webapi"]
-    pull_policy: always
+    pull_policy: missing
     mem_limit: 1g
     ports:
       - "127.0.0.1:3103:3100"
@@ -164,7 +165,7 @@ services:
     container_name: mailrs-staging-fastcore-sender
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     entrypoint: ["mailrs-fastcore-sender"]
-    pull_policy: always
+    pull_policy: missing
     mem_limit: 256m
     healthcheck:
       disable: true
