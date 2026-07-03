@@ -988,6 +988,44 @@ pub async fn send_message(
     }))
 }
 
+/// MCP-side send helper — same pipeline as [`send_message`] but without
+/// the axum/JSON wrapper so the MCP tool can drive it directly. Returns
+/// the assigned Message-ID on success.
+#[allow(clippy::too_many_arguments)]
+pub async fn send_email_mcp(
+    state: &Arc<WebState>,
+    auth_user: &str,
+    from: &str,
+    to: &[String],
+    cc: &[String],
+    subject: &str,
+    body: &str,
+    in_reply_to: Option<&str>,
+) -> Result<String, String> {
+    ensure_from_allowed(state, auth_user, from)
+        .await
+        .map_err(|c| format!("from not allowed ({c})"))?;
+    let parts = ComposeParts {
+        from: from.to_string(),
+        to: to.to_vec(),
+        cc: cc.to_vec(),
+        bcc: Vec::new(),
+        subject: subject.to_string(),
+        body: body.to_string(),
+        html_body: String::new(),
+        in_reply_to: in_reply_to.map(|s| s.to_string()),
+        forward_message_id: None,
+        attachments: Vec::new(),
+    };
+    let mut recipients = parts.to.clone();
+    recipients.extend(parts.cc.clone());
+    let (message_id, envelope) = build_rfc5322(&parts, from);
+    enqueue_outbound(auth_user, &recipients, &envelope)
+        .map_err(|c| format!("enqueue failed ({c})"))?;
+    mirror_send_to_sender_view(state, auth_user, &parts, &envelope, &message_id, false).await;
+    Ok(message_id)
+}
+
 /// POST /api/mail/send-multipart — multipart/form-data compose form.
 /// Fields: from, to (repeated), cc (repeated), bcc (repeated), subject,
 /// body, html_body, attachments (repeated file parts), in_reply_to,

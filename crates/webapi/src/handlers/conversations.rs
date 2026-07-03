@@ -404,6 +404,18 @@ fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<serde_json::V
     (text_body, html_body, attachments)
 }
 
+/// Public alias for the MCP handler to reuse the same body-enrichment
+/// pipeline REST uses. Same signature; keeps `enrich_with_body`
+/// module-private while giving MCP a stable seam.
+pub async fn enrich_with_body_public(
+    store: &dyn mailrs_message_store::MessageStore,
+    maildir_root: &str,
+    user: &str,
+    w: mailrs_core_api::method::message::MessageWire,
+) -> ThreadMessageResponse {
+    enrich_with_body(store, maildir_root, user, w).await
+}
+
 /// Enrich a MessageWire with body content read from maildir.
 ///
 /// Handles Maildir++ subfolders: fastcore's self-heal stores blob_ref

@@ -15,6 +15,7 @@ pub mod jmap;
 pub mod kevy_util;
 pub mod keys;
 pub mod mail;
+pub mod mcp;
 pub mod messages;
 pub mod metrics;
 pub mod misc;
