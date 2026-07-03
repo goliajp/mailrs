@@ -259,7 +259,9 @@ function MobileThreadView() {
       </div>
 
       {/* email body — scrollable */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto" ref={scrollRef}>
+      {/* data-selectable — see thread-view.tsx: opts the reading pane out of
+          the gds user-select:none base reset for the whole subtree */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto" data-selectable ref={scrollRef}>
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="border-border border-t-accent h-6 w-6 animate-spin rounded-full border-2" />
