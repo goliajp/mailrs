@@ -643,7 +643,10 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
     // attachment endpoints). Guard on a persistent flag so subsequent
     // ticks don't re-scan the full mailbox. Bump the sentinel key when
     // the migration format changes to force another sweep.
-    let uid_flag_key = format!("mailrs:user:{user}:uid_backfill_v1");
+    // v2: bumped after finding deliver_message wrote uid=0 wires for
+    // every web-sent mirror copy until 2026-07-03 — one more full sweep
+    // repairs the backlog now that the write path allocates correctly.
+    let uid_flag_key = format!("mailrs:user:{user}:uid_backfill_v2");
     let need_uid_backfill = state
         .mailbox
         .store_ref()
@@ -1498,11 +1501,32 @@ async fn deliver_message(
         req.latest_date,
     );
 
+    // Allocate the per-user persistent uid HERE, not at the caller —
+    // fastcore owns the uid space. mirror_send used to pass wires with
+    // uid=0 straight through, so every web-sent message produced
+    // /api/mail/messages/0/attachments/... URLs that 404'd (attachment
+    // preview / raw / flags all resolve via the uid index).
+    // allocate_uid is idempotent per (user, message_id).
+    let payload = match state.mailbox.allocate_uid(&user, &req.message_id) {
+        Ok(uid) if uid != 0 => {
+            let _ = state.mailbox.index_uid(&user, uid, &req.message_id);
+            match serde_json::from_str::<mailrs_core_api::method::message::MessageWire>(
+                &req.payload_wire_json,
+            ) {
+                Ok(mut wire) => {
+                    wire.uid = uid;
+                    serde_json::to_string(&wire).unwrap_or_else(|_| req.payload_wire_json.clone())
+                }
+                Err(_) => req.payload_wire_json.clone(),
+            }
+        }
+        _ => req.payload_wire_json.clone(),
+    };
     if let Err(e) = state.mailbox.upsert_message(
         &thread_id,
         &req.message_id,
         req.latest_date,
-        req.payload_wire_json.as_bytes(),
+        payload.as_bytes(),
     ) {
         tracing::error!(err = %e, %user, %thread_id, "upsert_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
