@@ -133,9 +133,17 @@ pub async fn run() {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(3600u64);
-        tracing::info!(%url, interval, "spawning greylist whitelist sync");
-        crate::greylist_sync::spawn_sync_task(greylist_lists.clone(), url, interval);
+        let cache = std::env::var("MAILRS_GREYLIST_CACHE_PATH")
+            .unwrap_or_else(|_| "/data/.greylist-whitelist.cache".to_string());
+        tracing::info!(%url, interval, %cache, "spawning greylist whitelist sync");
+        crate::greylist_sync::spawn_sync_task(greylist_lists.clone(), url, interval, Some(cache));
     }
+    // Local admin lists live in the shared network kevy
+    // (admin:greylist:local-lists, written by webapi). Reload every 60s
+    // so a whitelist entry added in the admin UI takes effect without a
+    // receiver restart.
+    let greylist_local = crate::greylist_local::empty();
+    crate::greylist_local_sync::spawn_reload_task(greylist_local.clone(), kevy_client.clone(), 60);
     let inbound_pipeline = build_inbound_pipeline(
         greylist_db,
         GreylistConfig {
@@ -143,7 +151,8 @@ pub async fn run() {
             ..Default::default()
         },
         greylist_lists,
-        crate::greylist_local::empty(),
+        greylist_local,
+        Some(kevy_client.clone()),
         resolver.clone(),
         mail_auth_resolvers,
         // Record per-message DMARC results into the shared network

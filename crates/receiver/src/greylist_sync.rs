@@ -61,36 +61,76 @@ pub fn empty() -> GreylistListsHandle {
 
 /// Spawn a tokio task that fetches the URL once immediately, then every
 /// `interval_secs`. Errors are recorded on the handle but never panic.
+///
+/// `cache_path` (when set) makes the whitelist survive both restarts
+/// and remote outages: every successful fetch persists the raw body
+/// there, and at task start the cache primes the snapshot BEFORE the
+/// first network fetch — deliverability beats spam filtering, so the
+/// receiver must never sit with an empty whitelist just because
+/// GitHub is unreachable.
 pub fn spawn_sync_task(
     handle: GreylistListsHandle,
     url: String,
     interval_secs: u64,
+    cache_path: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
+        if let Some(path) = &cache_path {
+            prime_from_cache(&handle, path).await;
+        }
         // First sync runs immediately so the in-memory snapshot has
         // a real value before any mail arrives.
-        sync_once(&handle, &url).await;
+        sync_once(&handle, &url, cache_path.as_deref()).await;
         let mut tick = tokio::time::interval(Duration::from_secs(interval_secs));
         // The first tick fires instantly — skip it (we already synced above)
         // so the actual cadence is interval_secs apart.
         tick.tick().await;
         loop {
             tick.tick().await;
-            sync_once(&handle, &url).await;
+            sync_once(&handle, &url, cache_path.as_deref()).await;
         }
     })
 }
 
-async fn sync_once(handle: &GreylistListsHandle, url: &str) {
+/// Load a previously persisted whitelist body into the snapshot. Only
+/// applies when the snapshot has never synced (cache never overrides a
+/// live fetch). The cache file's mtime becomes `last_sync_at` so the
+/// fail-open logic in the greylist stage sees a populated list.
+async fn prime_from_cache(handle: &GreylistListsHandle, path: &str) {
+    let Ok(body) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let mtime = std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+    let set = parse_list(&body);
+    let mut g = handle.write().await;
+    if g.last_sync_at.is_none() {
+        let count = set.len();
+        g.remote_white = set;
+        g.last_sync_at = mtime;
+        tracing::info!(target: "greylist.sync", path, count, "whitelist primed from disk cache");
+    }
+}
+
+async fn sync_once(handle: &GreylistListsHandle, url: &str, cache_path: Option<&str>) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    let outcome = fetch_and_parse(url).await;
+    let outcome = fetch_body(url).await;
     let mut g = handle.write().await;
     match outcome {
-        Ok(set) => {
+        Ok(body) => {
+            if let Some(path) = cache_path
+                && let Err(e) = std::fs::write(path, &body)
+            {
+                tracing::warn!(target: "greylist.sync", path, error = %e, "whitelist cache write failed");
+            }
+            let set = parse_list(&body);
             let count = set.len();
             g.remote_white = set;
             g.last_sync_at = Some(now);
@@ -118,8 +158,8 @@ async fn sync_once(handle: &GreylistListsHandle, url: &str) {
     }
 }
 
-async fn fetch_and_parse(url: &str) -> Result<HashSet<String>, reqwest::Error> {
-    let body = reqwest::Client::builder()
+async fn fetch_body(url: &str) -> Result<String, reqwest::Error> {
+    reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()?
         .get(url)
@@ -127,8 +167,7 @@ async fn fetch_and_parse(url: &str) -> Result<HashSet<String>, reqwest::Error> {
         .await?
         .error_for_status()?
         .text()
-        .await?;
-    Ok(parse_list(&body))
+        .await
 }
 
 /// Parse the plain-text wire format. Lowercases, strips comments, drops

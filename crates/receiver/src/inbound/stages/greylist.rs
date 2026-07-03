@@ -24,6 +24,10 @@ pub struct GreylistStage {
     config: GreylistConfig,
     remote_whitelist: GreylistListsHandle,
     local_lists: GreylistLocalHandle,
+    /// Network kevy for the known-correspondent bypass — anyone already
+    /// in the recipient's contacts (we mailed them / they mailed us
+    /// before) is never greylisted. None = bypass disabled.
+    contacts: Option<Arc<crate::kevy_net::KevyNetClient>>,
 }
 
 impl GreylistStage {
@@ -33,13 +37,39 @@ impl GreylistStage {
         config: GreylistConfig,
         remote_whitelist: GreylistListsHandle,
         local_lists: GreylistLocalHandle,
+        contacts: Option<Arc<crate::kevy_net::KevyNetClient>>,
     ) -> Self {
         Self {
             db,
             config,
             remote_whitelist,
             local_lists,
+            contacts,
         }
+    }
+
+    /// Known-correspondent check: HGET the recipient user's contacts
+    /// hash for the sender address. Every failure mode (kevy down,
+    /// join error) reads as "not a contact" — the sender then just
+    /// takes the normal triplet path, never a reject.
+    async fn is_known_correspondent(&self, recipient: &str, sender: &str) -> bool {
+        let Some(client) = &self.contacts else {
+            return false;
+        };
+        if sender.is_empty() || recipient.is_empty() {
+            return false;
+        }
+        let key = format!("mailrs:user:{}:contacts", recipient.to_lowercase());
+        let field = sender.to_lowercase();
+        let c = client.clone();
+        tokio::task::spawn_blocking(move || {
+            c.with_conn(|conn| conn.hget(key.as_bytes(), field.as_bytes()))
+        })
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .flatten()
+        .is_some()
     }
 }
 
@@ -87,11 +117,12 @@ impl Stage for GreylistStage {
         //    ancestor-walks the domain (mail.gmail.com → gmail.com etc.).
         //    Empty senders (bounces, '<>') silently fall through to the
         //    triplet check.
-        if let Some(domain) = ctx.sender.rsplit_once('@').map(|(_, d)| d)
-            && !domain.is_empty()
-        {
+        let remote_synced = {
             let lists = self.remote_whitelist.read().await;
-            if lists.is_whitelisted(domain) {
+            if let Some(domain) = ctx.sender.rsplit_once('@').map(|(_, d)| d)
+                && !domain.is_empty()
+                && lists.is_whitelisted(domain)
+            {
                 metrics::counter!("mailrs_greylist_whitelist_hit_total").increment(1);
                 tracing::debug!(
                     target: "greylist",
@@ -100,6 +131,38 @@ impl Stage for GreylistStage {
                 );
                 return StageOutcome::Continue;
             }
+            lists.last_sync_at.is_some()
+        };
+
+        // 3.5 known correspondent — anyone in the recipient's contacts
+        //     (prior send OR receive) is never greylisted. The strongest
+        //     deliverability guarantee for real correspondents.
+        if self
+            .is_known_correspondent(&ctx.recipient, &ctx.sender)
+            .await
+        {
+            metrics::counter!("mailrs_greylist_contact_bypass_total").increment(1);
+            tracing::debug!(
+                target: "greylist",
+                sender = %ctx.sender,
+                recipient = %ctx.recipient,
+                "known correspondent — skipping greylist"
+            );
+            return StageOutcome::Continue;
+        }
+
+        // 3.9 fail-open: if the remote whitelist has NEVER been populated
+        //     (no successful sync and no disk cache) we cannot tell gmail
+        //     from a drive-by. Deliverability beats spam filtering — skip
+        //     greylisting entirely instead of deferring legitimate mail.
+        if !remote_synced {
+            metrics::counter!("mailrs_greylist_failopen_total").increment(1);
+            tracing::warn!(
+                target: "greylist",
+                sender = %ctx.sender,
+                "remote whitelist never populated — greylist failing OPEN"
+            );
+            return StageOutcome::Continue;
         }
 
         // 4. triplet check.
