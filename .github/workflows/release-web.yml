@@ -132,10 +132,10 @@ jobs:
           # so we hit the in-container port over loopback rather than
           # public 443 (which has a different cert / SNI).
           BUNDLE=$(grep -oE 'index-[A-Za-z0-9_-]+\.js' web-dist/index.html | head -1)
-          echo "==> verifying $BUNDLE via host localhost:3100"
+          echo "==> verifying $BUNDLE via host localhost:3103 (webapi-fc)"
           CT=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "curl -sIo /dev/null -w '%{content_type}' 'http://localhost:3100/assets/$BUNDLE'")
+            "curl -sIo /dev/null -w '%{content_type}' 'http://localhost:3103/assets/$BUNDLE'")
           echo "==> content-type: $CT"
           case "$CT" in
             application/javascript*|text/javascript*) echo "==> bundle served — deploy ok" ;;
@@ -146,7 +146,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            'curl -sS --max-time 5 http://localhost:3100/api/health | python3 -c "import json,sys;print(json.load(sys.stdin).get(\"status\",\"?\"))"'
+            'curl -sS --max-time 5 http://localhost:3103/api/health | python3 -c "import json,sys;print(json.load(sys.stdin).get(\"status\",\"?\"))"'
 
   publish:
     name: announce web release

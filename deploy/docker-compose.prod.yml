@@ -1,0 +1,175 @@
+# docker-compose.prod.yml — canonical prod topology (fastcore mode).
+#
+# Prod (t02.golia.jp) runs the 4-process fastcore stack; there is no
+# monolith mailrs container and no postgres/spg in the serving path.
+# All mailrs roles ship in one image, selected per-service by
+# entrypoint. `MAILRS_VERSION` in the host `.env` pins the image tag;
+# release.yml sets it and runs `docker compose up -d` on every v* tag.
+#
+#   receiver        SMTP inbound (25/465/587), antispam verdict, writes
+#                   /data/.spool — never touches kevy-fastcore or spg
+#   fastcore        kevy-backed core: core-api RPC :3301 (host :3201),
+#                   IMAP 143/993, POP3 110/995, spool drain, sieve,
+#                   self-heal, live contacts + meili sync
+#   webapi-fc       REST + web UI :3100 (host 127.0.0.1:3103, nginx
+#                   terminates TLS). Static UI comes from the host
+#                   bind mount /apps/mailrs/web (owned by the web-v*
+#                   release lane — rsync lands instantly, no container
+#                   restart). The image's baked /opt/mailrs/web copy is
+#                   only a bootstrap source for that directory.
+#   fastcore-sender outbound SMTP: drains mailrs:outbound:pending from
+#                   network kevy, DKIM-signs, MX + STARTTLS delivery
+#   kevy-server     network kevy (sessions, queue, sieve, contacts,
+#                   calendar/DAV, cross-process notify)
+#   meilisearch     search index (fastcore live_sync writes on arrival)
+#   chromium        render-preview backend
+#
+# Deploy: scp this file to /apps/mailrs/docker-compose.prod.yml, then
+#   cd /apps/mailrs && docker compose -p mailrs -f docker-compose.prod.yml \
+#     pull && docker compose -p mailrs -f docker-compose.prod.yml up -d
+# Project name MUST stay `mailrs` so the existing mailrs_mailrs-data
+# volume and mailrs_default network line up.
+
+services:
+  receiver:
+    container_name: mailrs-receiver
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-receiver"]
+    pull_policy: always
+    mem_limit: 2g
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+    environment:
+      MAILRS_HOSTNAME: mail.golia.ai
+      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      MAILRS_SPOOL_ROOT: /data/.spool
+      MAILRS_MAILDIR: /data/maildir
+      MAILRS_USERS_FILE: /data/users.toml
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_ANTISPAM_ENABLED: "true"
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      RUST_LOG: info
+    volumes:
+      - mailrs-data:/data
+      - /apps/mailrs/certs:/certs:ro
+    restart: unless-stopped
+
+  fastcore:
+    container_name: mailrs-fastcore
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-fastcore"]
+    pull_policy: always
+    mem_limit: 1g
+    healthcheck:
+      disable: true
+    ports:
+      - "127.0.0.1:3201:3301"
+      - "143:143"
+      - "993:993"
+      - "110:110"
+      - "995:995"
+    environment:
+      MAILRS_FASTCORE_BIND: 0.0.0.0:3301
+      MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      MAILRS_MAILDIR: /data/maildir
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
+      MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      RUST_LOG: info
+    volumes:
+      - mailrs-data:/data
+      - /apps/mailrs/certs:/certs:ro
+    restart: unless-stopped
+
+  webapi-fc:
+    container_name: mailrs-webapi-fc
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-webapi"]
+    pull_policy: always
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3103:3100"
+    environment:
+      MAILRS_FASTCORE_RPC_BASE: http://mailrs-fastcore:3301
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_WEB_BIND: 0.0.0.0:3100
+      MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
+      MAILRS_MAILDIR: /data/maildir
+      RUST_LOG: info
+    volumes:
+      - mailrs-data:/data
+      # web UI owned by the web-v* lane; release-web.yml rsyncs into
+      # this host dir and the container picks it up without a restart
+      - /apps/mailrs/web:/opt/mailrs/web:ro
+    restart: unless-stopped
+
+  fastcore-sender:
+    container_name: mailrs-fastcore-sender
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
+    entrypoint: ["mailrs-fastcore-sender"]
+    pull_policy: always
+    mem_limit: 256m
+    healthcheck:
+      disable: true
+    environment:
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_HELO_HOSTNAME: mail.golia.jp
+      MAILRS_SENDER_MAX_ATTEMPTS: "10"
+      MAILRS_SENDER_POLL_MS: "500"
+      MAILRS_SENDER_RETRY_MIN_SECS: "60"
+      MAILRS_DKIM_DOMAIN: golia.jp
+      MAILRS_DKIM_SELECTOR: mail
+      MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
+      RUST_LOG: info
+    volumes:
+      - /apps/mailrs/dkim:/dkim:ro
+    restart: unless-stopped
+
+  kevy-server:
+    container_name: mailrs-kevy
+    image: ghcr.io/goliajp/kevy:latest
+    pull_policy: always
+    mem_limit: 1g
+    volumes:
+      - kevy-server-data:/data
+    restart: unless-stopped
+
+  meilisearch:
+    container_name: mailrs-meilisearch
+    image: getmeili/meilisearch:v1.44
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: mailrs-meili-key
+    volumes:
+      - meili-data:/meili_data
+    restart: unless-stopped
+
+  chromium:
+    container_name: mailrs-chromium
+    image: zenika/alpine-chrome:124
+    command:
+      [
+        "--no-sandbox",
+        "--remote-debugging-address=0.0.0.0",
+        "--remote-debugging-port=9222",
+        "--disable-gpu",
+        "--headless",
+      ]
+    ports:
+      - "9222:9222"
+    mem_limit: 1g
+    restart: unless-stopped
+
+volumes:
+  mailrs-data:
+  kevy-server-data:
+  meili-data:
