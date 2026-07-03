@@ -36,15 +36,38 @@ async fn resolve_message(
         .map_err(map_err)
 }
 
+/// Resolve a wire `blob_ref` to the maildir path + bare filename.
+///
+/// Handles Maildir++ subfolders: self-heal / IMAP APPEND store blob_ref
+/// as `<subfolder>/<filename>` for files under `.Sent/`, `.Drafts/`,
+/// etc; INBOX files stay bare. The subfolder segment must extend the
+/// maildir path — passing the prefixed ref as a filename makes
+/// `MaildirStore::fetch` look for it inside INBOX and 404 (that broke
+/// attachment preview / raw download for every sent-folder message).
+pub(crate) fn blob_ref_location(
+    maildir_root: &str,
+    user: &str,
+    blob_ref: &str,
+) -> Option<(String, mailrs_message_store::MessageId)> {
+    let (local, domain) = user.split_once('@')?;
+    let (subfolder, bare) = match blob_ref.split_once('/') {
+        Some((sf, name)) if sf.starts_with('.') => (Some(sf), name.to_string()),
+        _ => (None, blob_ref.to_string()),
+    };
+    let path = match subfolder {
+        Some(sf) => format!("{maildir_root}/{domain}/{local}/{sf}"),
+        None => format!("{maildir_root}/{domain}/{local}"),
+    };
+    Some((path, mailrs_message_store::MessageId(bare)))
+}
+
 /// Read raw bytes for a MessageWire from maildir.
 async fn read_maildir_bytes(user: &str, blob_ref: &str) -> Result<Vec<u8>, StatusCode> {
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let Some((local, domain)) = user.split_once('@') else {
+    let Some((path, id)) = blob_ref_location(&maildir_root, user, blob_ref) else {
         return Err(StatusCode::BAD_REQUEST);
     };
-    let path = format!("{maildir_root}/{domain}/{local}");
     let store = mailrs_message_store::MaildirStore;
-    let id = mailrs_message_store::MessageId(blob_ref.to_string());
     match store.fetch(&path, &id).await {
         Ok(Some(bytes)) => Ok(bytes),
         Ok(None) => Err(StatusCode::NOT_FOUND),
@@ -291,4 +314,40 @@ pub async fn update_flags(
         .await
         .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::blob_ref_location;
+
+    #[test]
+    fn bare_filename_maps_to_inbox() {
+        let (path, id) = blob_ref_location("/data/maildir", "lihao@golia.jp", "123.M1P2.host")
+            .expect("valid user");
+        assert_eq!(path, "/data/maildir/golia.jp/lihao");
+        assert_eq!(id.0, "123.M1P2.host");
+    }
+
+    #[test]
+    fn sent_subfolder_extends_path() {
+        let (path, id) =
+            blob_ref_location("/data/maildir", "lihao@golia.jp", ".Sent/123.M1P2.host")
+                .expect("valid user");
+        assert_eq!(path, "/data/maildir/golia.jp/lihao/.Sent");
+        assert_eq!(id.0, "123.M1P2.host");
+    }
+
+    #[test]
+    fn non_dot_prefix_stays_bare_id() {
+        // a filename containing '/' without a dot-folder prefix is not a
+        // Maildir++ subfolder — treat the whole ref as the id
+        let (path, id) = blob_ref_location("/data/maildir", "a@b.c", "kevy:msgid").expect("valid");
+        assert_eq!(path, "/data/maildir/b.c/a");
+        assert_eq!(id.0, "kevy:msgid");
+    }
+
+    #[test]
+    fn malformed_user_is_none() {
+        assert!(blob_ref_location("/data/maildir", "no-at-sign", "x").is_none());
+    }
 }

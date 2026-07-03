@@ -431,34 +431,26 @@ async fn enrich_with_body(
     w: mailrs_core_api::method::message::MessageWire,
 ) -> ThreadMessageResponse {
     let mut r = ThreadMessageResponse::from_wire_no_body(w.clone());
-    if let Some((local, domain)) = user.split_once('@') {
-        let (subfolder, bare) = match w.blob_ref.split_once('/') {
-            Some((sf, name)) if sf.starts_with('.') => (Some(sf), name.to_string()),
-            _ => (None, w.blob_ref.clone()),
-        };
-        let path = match subfolder {
-            Some(sf) => format!("{maildir_root}/{domain}/{local}/{sf}"),
-            None => format!("{maildir_root}/{domain}/{local}"),
-        };
-        let id = mailrs_message_store::MessageId(bare);
-        if let Ok(Some(bytes)) = store.fetch(&path, &id).await {
-            let (t, h, a) = parse_body(&bytes);
-            r.text_body = t;
-            r.html_body = h;
-            r.attachments = a;
-            r.cc = extract_cc_header(&bytes);
-            // Repair a stale internal_date at read time. Historic
-            // messages had wire.internal_date = 0 (1970) whenever the
-            // old fastcore date parser choked on the header — replace
-            // with the freshly parsed epoch so the timeline sorts
-            // right without needing a bulk re-heal. Only overrides
-            // when we get a positive parse and the stored value is
-            // clearly stale (<= 0 or older than the header epoch).
-            if let Some(hdr_epoch) = extract_date_header_epoch(&bytes)
-                && (r.internal_date <= 0 || r.internal_date > hdr_epoch + 86_400)
-            {
-                r.internal_date = hdr_epoch;
-            }
+    if let Some((path, id)) =
+        crate::handlers::messages::blob_ref_location(maildir_root, user, &w.blob_ref)
+        && let Ok(Some(bytes)) = store.fetch(&path, &id).await
+    {
+        let (t, h, a) = parse_body(&bytes);
+        r.text_body = t;
+        r.html_body = h;
+        r.attachments = a;
+        r.cc = extract_cc_header(&bytes);
+        // Repair a stale internal_date at read time. Historic
+        // messages had wire.internal_date = 0 (1970) whenever the
+        // old fastcore date parser choked on the header — replace
+        // with the freshly parsed epoch so the timeline sorts
+        // right without needing a bulk re-heal. Only overrides
+        // when we get a positive parse and the stored value is
+        // clearly stale (<= 0 or older than the header epoch).
+        if let Some(hdr_epoch) = extract_date_header_epoch(&bytes)
+            && (r.internal_date <= 0 || r.internal_date > hdr_epoch + 86_400)
+        {
+            r.internal_date = hdr_epoch;
         }
     }
     r
