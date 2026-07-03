@@ -379,26 +379,34 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!selectedId) return
-    // Only one auto-mark per entry into the thread. Any later unread_count
-    // bump (right-click "mark as unread" on the open thread, new message
-    // arrival) leaves the thread alone — the user re-enters to clear it.
-    if (lastAutoMarkedIdRef.current === selectedId) return
+    // Nothing to do — thread is already read.
     if (selectedUnreadCount === 0) {
       lastAutoMarkedIdRef.current = selectedId
       return
     }
-    // Block re-entry while a mark-read mutation is still in flight for any
-    // thread. Without this, the wrapper returned by useMutation flips
-    // pending→success on each render, re-runs this effect, and — during
-    // the microtask window where onMutate is still awaiting
-    // cancelConversationFetches — sees selectedUnreadCount still > 0 and
-    // fires mutate() again. Observed in prod as 20+ POST /read for a
-    // single thread within <3s, which ultimately froze the page.
+    // Re-firing per (thread, unread_count > 0) is intentional: if a
+    // previous mark-read attempt was cancelled / raced / dropped and
+    // the invalidation refetch restored unread > 0, the ref used to
+    // prevent us from ever re-firing on the same thread even though
+    // the cache still said "unread". Users experienced this as
+    // "clicking a thread doesn't mark it read; I have to click back
+    // and forth". Now the ref only suppresses re-fires that happened
+    // for the exact same (selectedId, current unread_count) — as soon
+    // as unread_count changes (either up on a new arrival or down
+    // after a successful mark) the effect re-evaluates cleanly.
+    if (lastAutoMarkedIdRef.current === `${selectedId}#${selectedUnreadCount}`) {
+      return
+    }
+    // Block re-entry while a mark-read mutation is still in flight —
+    // without this, the wrapper's pending→success flip re-runs the
+    // effect and fires mutate() again during the microtask window
+    // (observed in prod as 20+ POST /read for a single thread <3s,
+    // which ultimately froze the page).
     if (markReadMutation.isPending) return
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
-    lastAutoMarkedIdRef.current = selectedId
+    lastAutoMarkedIdRef.current = `${selectedId}#${selectedUnreadCount}`
     setIsRead(true)
     markReadMutation.mutate({
       domains: crossAll && doms.length > 0 ? doms : undefined,

@@ -62,6 +62,12 @@ mailrs-tls-reload = "1"
 instant-acme = "0.8"
 mailrs-sieve = { path = "../sieve" }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+mailrs-imap-proto = { path = "../imap-proto" }
+mailrs-imap-codec = { path = "../imap-codec" }
+mailrs-imap-format = { path = "../imap-format" }
+mailrs-maildir = { path = "../storage-maildir" }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = "0.3"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

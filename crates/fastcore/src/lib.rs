@@ -18,7 +18,9 @@
 #![allow(missing_docs)]
 
 mod acme_task;
+mod imap;
 mod live_sync;
+mod pop3;
 mod sieve_apply;
 mod spool_drain;
 
@@ -102,6 +104,19 @@ pub async fn run() {
     // cadence — fastcore doesn't serve TLS itself.
     tokio::spawn(async move {
         acme_task::spawn().await;
+    });
+
+    // Plain-text IMAP + POP3 listeners. STARTTLS + implicit-TLS
+    // variants (993 / 995) belong on the receiver container which
+    // already owns the TlsState — set MAILRS_IMAP_BIND=off /
+    // MAILRS_POP3_BIND=off to disable per-container.
+    let imap_state = state.clone();
+    tokio::spawn(async move {
+        imap::spawn(imap_state).await;
+    });
+    let pop3_state = state.clone();
+    tokio::spawn(async move {
+        pop3::spawn(pop3_state).await;
     });
 
     let addr = std::env::var("MAILRS_FASTCORE_BIND").unwrap_or_else(|_| "0.0.0.0:3301".into());
