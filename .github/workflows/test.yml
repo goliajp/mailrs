@@ -10,13 +10,14 @@ name: test
 # release/**:   release candidates (off develop, into master)
 # hotfix/**:    urgent prod fixes (off master, into master + develop)
 
+# Dev-loop is CI-free since 2026-07-04: daily verification happens on
+# staging via scripts/staging-build-deploy.sh (local build + deploy).
+# CI runs only on the prod-bound paths — release/hotfix branches,
+# master, and the v* tag gate inside release.yml.
 on:
   push:
     branches:
-      - develop
       - master
-      - 'feature/**'
-      - 'bugfix/**'
       - 'release/**'
       - 'hotfix/**'
 
