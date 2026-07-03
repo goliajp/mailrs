@@ -281,6 +281,71 @@ fn extract_cc_header(data: &[u8]) -> Option<String> {
     None
 }
 
+/// Extract the `Date:` header epoch (UTC seconds) from raw RFC 5322
+/// bytes. Used to override `wire.internal_date` at read-time when the
+/// stored value looks stale — the fastcore self-heal used to parse
+/// dates without a proper RFC 2822 parser (dropped timezones, missing
+/// dates fell to 0 → 1970), so historic threads still carry those
+/// bad epochs. Re-parsing at read time fixes the sort order in the UI
+/// without a bulk re-heal pass. Same folding rules as `extract_cc_header`.
+fn extract_date_header_epoch(data: &[u8]) -> Option<i64> {
+    let head_end = memchr_bytes(data, b"\r\n\r\n")
+        .or_else(|| memchr_bytes(data, b"\n\n"))
+        .unwrap_or(data.len());
+    let head = &data[..head_end];
+    let mut lines: Vec<&[u8]> = head.split(|&b| b == b'\n').collect();
+    for l in lines.iter_mut() {
+        if l.last() == Some(&b'\r') {
+            *l = &l[..l.len() - 1];
+        }
+    }
+    let mut i = 0;
+    while i < lines.len() {
+        let ll = lines[i];
+        if ll.get(..5).is_some_and(|s| s.eq_ignore_ascii_case(b"date:")) {
+            let mut val: Vec<u8> = ll[5..].trim_ascii_start().to_vec();
+            let mut j = i + 1;
+            while j < lines.len() {
+                let cont = lines[j];
+                if cont.first().is_some_and(|c| *c == b' ' || *c == b'\t') {
+                    val.push(b' ');
+                    val.extend_from_slice(cont.trim_ascii());
+                    j += 1;
+                } else {
+                    break;
+                }
+            }
+            let s = String::from_utf8_lossy(&val).trim().to_string();
+            return parse_rfc2822_epoch(&s);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Same retry ladder as fastcore's `parse_rfc5322_date`. Local copy
+/// keeps webapi self-contained (chrono is already a transitive dep).
+fn parse_rfc2822_epoch(s: &str) -> Option<i64> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(s) {
+        return Some(dt.timestamp());
+    }
+    let no_comment = s.split(" (").next().unwrap_or(s).trim_end();
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(no_comment) {
+        return Some(dt.timestamp());
+    }
+    let no_dow = match no_comment.find(", ") {
+        Some(idx) => no_comment[idx + 2..].trim_start(),
+        None => no_comment,
+    };
+    chrono::DateTime::parse_from_rfc2822(no_dow)
+        .ok()
+        .map(|dt| dt.timestamp())
+}
+
 fn memchr_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
@@ -369,6 +434,18 @@ async fn enrich_with_body(
             r.html_body = h;
             r.attachments = a;
             r.cc = extract_cc_header(&bytes);
+            // Repair a stale internal_date at read time. Historic
+            // messages had wire.internal_date = 0 (1970) whenever the
+            // old fastcore date parser choked on the header — replace
+            // with the freshly parsed epoch so the timeline sorts
+            // right without needing a bulk re-heal. Only overrides
+            // when we get a positive parse and the stored value is
+            // clearly stale (<= 0 or older than the header epoch).
+            if let Some(hdr_epoch) = extract_date_header_epoch(&bytes)
+                && (r.internal_date <= 0 || r.internal_date > hdr_epoch + 86_400)
+            {
+                r.internal_date = hdr_epoch;
+            }
         }
     }
     r

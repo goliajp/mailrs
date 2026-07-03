@@ -393,51 +393,65 @@ fn strip_angle(v: &str) -> String {
 /// Only accepts `+0000`/`-0000`-style offsets; that covers everything
 /// modern MTAs emit. Full parse coverage lives on `time` crate; we
 /// don't need to pull it in for the fallback.
+/// Parse an RFC 5322 `Date:` header value to unix epoch seconds (UTC).
+///
+/// Delegates to `chrono::DateTime::parse_from_rfc2822`, which handles
+/// every real-world variant we see: `Sat, 13 Jun 2026 06:01:22 +0000`,
+/// `Fri, 3 Jul 2026 02:40:42 +0900` (Gmail), `13 Jun 2026 06:01:22 GMT`
+/// (no day-of-week), and named zones (`GMT`/`UTC`/`EST`/…). Timezones
+/// are correctly normalised to UTC before the epoch conversion — the
+/// previous hand-rolled parser dropped the zone entirely, so an email
+/// stamped in JST landed nine hours off and inbound replies could sort
+/// ahead of the sent copy.
+///
+/// Returns `None` when the header is empty / unparseable.
 fn parse_rfc5322_date(s: &str) -> Option<i64> {
     let s = s.trim();
-    // Strip an optional day-of-week prefix like "Sat, " or "Sunday, ".
-    // Previously this used `strip_prefix(|c: char| c.is_ascii_alphabetic())`
-    // which only removes ONE character (the closure Pattern matches a
-    // single char). That left "at, 13 Jun 2026 …" behind, day parse
-    // failed, and every RFC 5322 date reduced to 0 — pushing the thread
-    // to the bottom of every zset scored by latest_date. Now strip the
-    // full alpha word + comma if present.
-    let s = if let Some(idx) = s.find(',') {
-        let head = &s[..idx];
-        if !head.is_empty() && head.chars().all(|c| c.is_ascii_alphabetic()) {
-            s[idx + 1..].trim_start()
-        } else {
-            s
-        }
-    } else {
-        s
+    if s.is_empty() {
+        return None;
+    }
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(s) {
+        return Some(dt.timestamp());
+    }
+    // Retry ladder for the messy real world:
+    //   1. Strip a trailing " (CFWS)" comment (RFC 5322 §3.3 permits it,
+    //      chrono rejects it).
+    //   2. Strip a leading "Weekday, " prefix — many senders ship a
+    //      day-of-week that disagrees with the date (chrono treats that
+    //      as Impossible even though the timestamp is well-formed).
+    let no_comment = s.split(" (").next().unwrap_or(s).trim_end();
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(no_comment) {
+        return Some(dt.timestamp());
+    }
+    let no_dow = match no_comment.find(", ") {
+        Some(idx) => no_comment[idx + 2..].trim_start(),
+        None => no_comment,
     };
-    let mut parts = s.split_whitespace();
-    let day: i64 = parts.next()?.parse().ok()?;
-    let mon_str = parts.next()?;
-    let year: i64 = parts.next()?.parse().ok()?;
-    let hms = parts.next()?;
-    let mut hmsp = hms.split(':');
-    let h: i64 = hmsp.next()?.parse().ok()?;
-    let m: i64 = hmsp.next()?.parse().ok()?;
-    let se: i64 = hmsp.next()?.parse().ok()?;
-    let mons = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let mon = mons.iter().position(|x| x.eq_ignore_ascii_case(mon_str))? as i64 + 1;
-    let mut days: i64 = 0;
-    for y in 1970..year {
-        let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-        days += if leap { 366 } else { 365 };
-    }
-    let ml = [31i64, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-    for i in 1..mon {
-        let base = ml[(i - 1) as usize];
-        days += if i == 2 && leap { 29 } else { base };
-    }
-    days += day - 1;
-    Some(days * 86_400 + h * 3600 + m * 60 + se)
+    chrono::DateTime::parse_from_rfc2822(no_dow)
+        .ok()
+        .map(|dt| dt.timestamp())
+}
+
+/// Extract the delivery epoch from a Maildir filename. The Maildir
+/// naming convention (`<epoch>.M<micro>P<pid>Q<seq>.<host>`) records
+/// the delivery second in the leading component — a reliable fallback
+/// when the message's `Date:` header is missing or unparseable. Filter
+/// out obviously bogus epochs (<= year 2000) so we don't backdate
+/// modern mail into 1970 territory.
+fn maildir_filename_epoch(name: &str) -> Option<i64> {
+    let first = name.split('.').next()?;
+    let n: i64 = first.parse().ok()?;
+    if n > 946_684_800 { Some(n) } else { None }
+}
+
+/// Fall back to the file's mtime as the delivery epoch when both the
+/// `Date:` header and the maildir filename yield nothing usable.
+fn file_mtime_epoch(path: &std::path::Path) -> Option<i64> {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
 }
 
 #[derive(Debug, Clone)]
@@ -533,7 +547,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         // Prepend Maildir++ subfolder when set so `enrich_with_body`
         // can route `MaildirStore::fetch` to the right sub-maildir.
         let blob_ref = if subfolder.is_empty() {
-            bare
+            bare.clone()
         } else {
             format!("{subfolder}/{bare}")
         };
@@ -548,6 +562,20 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         if message_id.is_empty() {
             continue;
         }
+        // If the RFC 5322 `Date:` header was missing or unparseable
+        // (some mailers ship malformed dates and many self-injected
+        // notifications have none), fall back to the maildir delivery
+        // epoch encoded in the filename, then to file mtime, then to
+        // 0. Without these fallbacks the affected messages sorted to
+        // 1970 and inbound replies could end up ahead of the sent
+        // copy in the thread timeline.
+        let date = if date > 0 {
+            date
+        } else {
+            maildir_filename_epoch(&bare)
+                .or_else(|| file_mtime_epoch(path))
+                .unwrap_or(0)
+        };
         parsed.push(MailFile {
             filename: blob_ref,
             size,
