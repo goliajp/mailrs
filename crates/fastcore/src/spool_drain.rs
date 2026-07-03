@@ -105,10 +105,17 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
             //    cases return the address we'll actually deliver TO.
             let resolved_addr: Option<String> = if has_maildir(maildir_root, fwd) {
                 Some(fwd.clone())
+            } else if provision_if_account(state, maildir_root, fwd) {
+                // account exists in kevy but was never provisioned a
+                // maildir (fresh add_account) — create the skeleton so
+                // its very first mail is deliverable
+                Some(fwd.clone())
             } else {
                 let via_alias = state.mailbox.resolve_alias(fwd).ok().flatten();
                 via_alias.and_then(|a| {
-                    if has_maildir(maildir_root, &a) {
+                    if has_maildir(maildir_root, &a)
+                        || provision_if_account(state, maildir_root, &a)
+                    {
                         tracing::info!(orig = %fwd, aliased = %a, "spool alias resolved");
                         Some(a)
                     } else {
@@ -266,6 +273,28 @@ fn deliver(
         let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644));
     }
     Ok(true)
+}
+
+/// A kevy account with no maildir gets one created on first delivery.
+/// Returns true when the address is a known account and the skeleton
+/// now exists. New-account provisioning (add_account RPC) never made
+/// the maildir, so a fresh account's first inbound mail sat unresolved
+/// in the spool forever.
+fn provision_if_account(state: &Arc<FastcoreState>, maildir_root: &str, addr: &str) -> bool {
+    let Ok(Some(_)) = state.mailbox.get_account_blob(addr) else {
+        return false;
+    };
+    let Some((local, domain)) = addr.split_once('@') else {
+        return false;
+    };
+    let base = PathBuf::from(maildir_root).join(domain).join(local);
+    for leaf in ["cur", "new", "tmp"] {
+        if std::fs::create_dir_all(base.join(leaf)).is_err() {
+            return false;
+        }
+    }
+    tracing::info!(%addr, "provisioned maildir for kevy account on first delivery");
+    true
 }
 
 /// Quick recipient-existence probe used before choosing between direct
