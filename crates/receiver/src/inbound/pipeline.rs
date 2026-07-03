@@ -33,6 +33,7 @@ pub fn build_inbound_pipeline(
     greylist_config: GreylistConfig,
     greylist_whitelist: GreylistListsHandle,
     greylist_local: GreylistLocalHandle,
+    greylist_contacts: Option<Arc<crate::kevy_net::KevyNetClient>>,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
     dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
@@ -49,6 +50,7 @@ pub fn build_inbound_pipeline(
             greylist_config,
             greylist_whitelist,
             greylist_local,
+            greylist_contacts,
         ));
     }
     if let Some(r) = resolver {
