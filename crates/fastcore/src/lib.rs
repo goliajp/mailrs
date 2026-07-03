@@ -360,7 +360,7 @@ async fn run_ingest_once(
 /// `references_first` is the FIRST Message-ID in the References
 /// header — by RFC 5322 §3.6.4 that identifies the conversation root
 /// (which is what monolith uses as the fastcore thread_id).
-fn extract_headers(raw: &[u8]) -> (String, String, String, String, i64, String, String) {
+pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i64, String, String) {
     let mut message_id = String::new();
     let mut in_reply_to = String::new();
     let mut references_first = String::new();

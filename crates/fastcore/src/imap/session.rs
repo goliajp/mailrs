@@ -158,7 +158,7 @@ where
                 sequence,
                 action,
                 flags,
-            } => store_response(session, tag, &sequence, &action, &flags, true),
+            } => store_response(state, session, tag, &sequence, &action, &flags, true),
             ImapCommand::Search { criteria } => search_response(session, tag, &criteria, true),
             ImapCommand::Copy { sequence, mailbox } => {
                 copy_response(state, session, tag, &sequence, &mailbox, false, true)
@@ -172,9 +172,9 @@ where
             sequence,
             action,
             flags,
-        } => store_response(session, tag, &sequence, &action, &flags, false),
+        } => store_response(state, session, tag, &sequence, &action, &flags, false),
         ImapCommand::Search { criteria } => search_response(session, tag, &criteria, false),
-        ImapCommand::Expunge => expunge(session, tag),
+        ImapCommand::Expunge => expunge(state, session, tag),
         ImapCommand::Copy { sequence, mailbox } => {
             copy_response(state, session, tag, &sequence, &mailbox, false, false)
         }
@@ -301,11 +301,11 @@ fn select(
     let Some(mb) = backend::get_mailbox(state, &user, mailbox) else {
         return vec![format_no(tag, "no such mailbox")];
     };
-    let messages = backend::list_messages(&mb);
+    let messages = backend::list_messages(state, &user, &mb);
     let count = messages.len() as u32;
     let recent = count; // We don't distinguish; every scan is fresh.
-    let uidnext = count.saturating_add(1);
-    let uidvalidity = 1_u32; // Stable within process lifetime.
+    let uidnext = backend::uid_next(state, &user);
+    let uidvalidity = backend::uidvalidity(state, &user, mailbox);
     let flags_line = format_flags(&["\\Seen", "\\Answered", "\\Flagged", "\\Deleted", "\\Draft"]);
     let permanent = if read_only {
         "* OK [PERMANENTFLAGS ()] Read-only\r\n".to_string()
@@ -444,6 +444,7 @@ fn format_internal_date(epoch: i64) -> String {
 }
 
 fn store_response(
+    state: &Arc<FastcoreState>,
     session: &mut State,
     tag: &str,
     sequence: &str,
@@ -498,10 +499,13 @@ fn store_response(
     }
     // Refresh session view since paths changed.
     if let State::Selected {
-        mailbox, messages, ..
+        user,
+        mailbox,
+        messages,
+        ..
     } = session
     {
-        *messages = backend::list_messages(mailbox);
+        *messages = backend::list_messages(state, user, mailbox);
     }
     out.push(format_ok(tag, "STORE completed"));
     out
@@ -540,8 +544,9 @@ fn search_response(session: &State, tag: &str, criteria: &str, by_uid: bool) -> 
     vec![untagged, format_ok(tag, "SEARCH completed")]
 }
 
-fn expunge(session: &mut State, tag: &str) -> Vec<String> {
+fn expunge(state: &Arc<FastcoreState>, session: &mut State, tag: &str) -> Vec<String> {
     let State::Selected {
+        user,
         messages,
         read_only,
         mailbox,
@@ -568,7 +573,7 @@ fn expunge(session: &mut State, tag: &str) -> Vec<String> {
             out.push(format!("* {seqno} EXPUNGE\r\n"));
         }
     }
-    *messages = backend::list_messages(mailbox);
+    *messages = backend::list_messages(state, user, mailbox);
     out.push(format_ok(tag, "EXPUNGE completed"));
     out
 }
@@ -607,7 +612,7 @@ fn copy_response(
         }
     }
     // Refresh source mailbox view.
-    *messages = backend::list_messages(src_mb);
+    *messages = backend::list_messages(state, &user, src_mb);
     vec![format_ok(
         tag,
         if move_op {
@@ -650,7 +655,8 @@ where
         Some(Ok(ImapInput::LiteralData(bytes))) => bytes,
         _ => return vec![format_no(tag, "expected literal data")],
     };
-    match backend::append(&dest, &bytes) {
+    let user = user.to_string();
+    match backend::append(state, &user, &dest, &bytes) {
         Ok(_uid) => vec![format_ok(tag, "APPEND completed")],
         Err(e) => vec![format_no(tag, &format!("append failed: {e}"))],
     }
