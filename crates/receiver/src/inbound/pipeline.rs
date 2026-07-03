@@ -19,6 +19,7 @@ use hickory_resolver::TokioResolver;
 
 use crate::greylist_local::GreylistLocalHandle;
 use crate::greylist_sync::GreylistListsHandle;
+use crate::inbound::stages::quota::QuotaStage;
 
 /// Build the inbound `mailrs_inbound::Pipeline` from the optional backends
 /// configured at server startup. Each backend, when present, contributes its
@@ -34,6 +35,7 @@ pub fn build_inbound_pipeline(
     greylist_whitelist: GreylistListsHandle,
     greylist_local: GreylistLocalHandle,
     greylist_contacts: Option<Arc<crate::kevy_net::KevyNetClient>>,
+    quota_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
     dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
@@ -53,6 +55,9 @@ pub fn build_inbound_pipeline(
             greylist_contacts,
         ));
     }
+    // quota tempfail sits right after greylist: cheap kevy read, and a
+    // 452 before the expensive DNS/auth stages. Fail-open by design.
+    builder = builder.add(QuotaStage::new(quota_client));
     if let Some(r) = resolver {
         builder = builder.add(PtrStage::new(r));
     }

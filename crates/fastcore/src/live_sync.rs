@@ -128,6 +128,62 @@ fn ureq_client() -> &'static ureq::Agent {
     })
 }
 
+/// Adjust the recipient's used-bytes counter in the NETWORK kevy —
+/// the receiver's quota stage reads `mailrs:quota:<user>:used_bytes`
+/// at RCPT time. Best-effort: kevy down means the counter drifts until
+/// the next backfill-usage run; enforcement is fail-open anyway.
+pub fn adjust_usage_bytes(user: &str, delta: i64) {
+    if delta == 0 {
+        return;
+    }
+    let Some(url) = network_kevy_url() else {
+        return;
+    };
+    let Ok(mut conn) = Connection::open(&url) else {
+        return;
+    };
+    let key = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
+    let _ = conn.incr_by(key.as_bytes(), delta);
+}
+
+/// Mirror the quota LIMIT to the network kevy so the receiver's quota
+/// stage can consult it (the authoritative copy stays in the account
+/// blob in fastcore's embedded store).
+pub fn mirror_quota_limit(user: &str, limit_bytes: i64) {
+    let Some(url) = network_kevy_url() else {
+        return;
+    };
+    let Ok(mut conn) = Connection::open(&url) else {
+        return;
+    };
+    let key = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());
+    let _ = conn.set(key.as_bytes(), limit_bytes.to_string().as_bytes());
+}
+
+/// Read (limit, used) for the quota check on write paths fastcore owns
+/// (IMAP APPEND). Missing/zero limit = unlimited. Fail-open on errors.
+pub fn quota_exceeded(user: &str) -> bool {
+    let Some(url) = network_kevy_url() else {
+        return false;
+    };
+    let Ok(mut conn) = Connection::open(&url) else {
+        return false;
+    };
+    let lk = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());
+    let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
+    let parse = |v: Option<Vec<u8>>| {
+        v.and_then(|b| String::from_utf8(b).ok())
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0)
+    };
+    let limit = parse(conn.get(lk.as_bytes()).unwrap_or(None));
+    if limit <= 0 {
+        return false;
+    }
+    let used = parse(conn.get(uk.as_bytes()).unwrap_or(None));
+    used >= limit
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

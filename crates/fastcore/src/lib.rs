@@ -998,6 +998,7 @@ pub(crate) fn ingest_delivered_file(
     }
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::index_meili(addr, &root, &subject, &from, "", date);
+    crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
     let wire = mailrs_core_api::method::message::MessageWire {
         id: 0,
@@ -1770,6 +1771,7 @@ async fn set_quota_route(
     Path(address): Path<String>,
     Json(req): Json<adm::SetQuotaRequest>,
 ) -> axum::response::Response {
+    crate::live_sync::mirror_quota_limit(&address, req.quota_bytes);
     patch_account_field(&state, &address, |obj| {
         obj.insert(
             "quota_bytes".into(),

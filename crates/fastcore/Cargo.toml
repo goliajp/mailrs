@@ -30,6 +30,10 @@ name = "mailrs-fastcore-backfill-uid-index"
 path = "src/bin/backfill_uid_index.rs"
 
 [[bin]]
+name = "mailrs-fastcore-backfill-usage"
+path = "src/bin/backfill_usage.rs"
+
+[[bin]]
 name = "mailrs-fastcore-sender"
 path = "src/bin/sender.rs"
 

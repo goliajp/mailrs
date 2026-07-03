@@ -359,8 +359,12 @@ pub fn append(
     mb: &MailboxInfo,
     bytes: &[u8],
 ) -> std::io::Result<u32> {
+    if crate::live_sync::quota_exceeded(user) {
+        return Err(std::io::Error::other("over quota"));
+    }
     let maildir = Maildir::create(&mb.path)?;
     let id = maildir.deliver(bytes)?;
+    crate::live_sync::adjust_usage_bytes(user, bytes.len() as i64);
     let empty_cache = std::collections::HashMap::new();
     let empty_seen = std::collections::HashSet::new();
     let path = mb.path.join("new").join(&id.0);
