@@ -521,7 +521,9 @@ pub async fn run() {
             url = %url,
             interval_secs = interval,
         );
-        greylist_sync::spawn_sync_task(handle, url, interval);
+        // monolith (staging dogfood lane): no disk cache — its whitelist
+        // behaviour predates the receiver-split hardening and stays as-was
+        greylist_sync::spawn_sync_task(handle, url, interval, None);
     } else {
         tracing::info!(
             event = "subsystem_skipped",
