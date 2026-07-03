@@ -14,6 +14,7 @@ pub mod content_scan;
 pub mod greylist;
 pub mod mail_auth;
 pub mod ptr;
+pub mod quota;
 
 pub use ai_scoring::AiScoringStage;
 pub use clamav::ClamavStage;

@@ -799,7 +799,16 @@ async fn mirror_send_to_sender_view(
     let maildir_path = format!("{maildir_root}/{domain}/{local}");
     let store = MaildirStore;
     let blob_ref = match store.deliver_batch(&maildir_path, &[envelope]).await {
-        Ok(ids) if !ids.is_empty() => ids[0].0.clone(),
+        Ok(ids) if !ids.is_empty() => {
+            // sent copy counts against the sender's own quota
+            let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
+            let n = envelope.len() as i64;
+            let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+                c.incr_by(uk.as_bytes(), n)?;
+                Ok(())
+            });
+            ids[0].0.clone()
+        }
         Ok(_) => String::new(),
         Err(e) => {
             tracing::warn!(err = %e, %user, "mirror_send: maildir write failed, using synthetic blob_ref");

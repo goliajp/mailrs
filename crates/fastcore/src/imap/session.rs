@@ -569,7 +569,9 @@ fn expunge(state: &Arc<FastcoreState>, session: &mut State, tag: &str) -> Vec<St
     to_delete.sort_unstable_by(|a, b| b.cmp(a));
     for seqno in &to_delete {
         if let Some(m) = messages.iter().find(|m| m.seqno == *seqno) {
-            let _ = backend::delete_file(m);
+            if backend::delete_file(m).is_ok() {
+                crate::live_sync::adjust_usage_bytes(user, -(m.size as i64));
+            }
             out.push(format!("* {seqno} EXPUNGE\r\n"));
         }
     }
@@ -609,6 +611,9 @@ fn copy_response(
         }
         if move_op {
             let _ = backend::delete_file(msg);
+        } else {
+            // COPY duplicates the bytes under the same account
+            crate::live_sync::adjust_usage_bytes(&user, msg.size as i64);
         }
     }
     // Refresh source mailbox view.
