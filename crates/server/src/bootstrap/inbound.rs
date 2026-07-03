@@ -59,6 +59,9 @@ pub(crate) fn build_inbound_pipeline_with_shadows(
         greylist_config.clone(),
         greylist_whitelist.clone(),
         greylist_local.clone(),
+        // known-correspondent bypass is receiver-split only (needs the
+        // network kevy client); the monolith keeps plain list behaviour
+        None,
         resolver.clone(),
         mail_auth_resolvers,
         dmarc_sink,
