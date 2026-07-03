@@ -17,13 +17,11 @@
 name: build-arch-image
 
 on:
-  workflow_run:
-    workflows: ["test"]
-    types: [completed]
+  push:
     branches: ["arch/**"]
 
 concurrency:
-  group: build-arch-${{ github.event.workflow_run.head_branch }}
+  group: build-arch-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -33,7 +31,6 @@ env:
 jobs:
   build:
     name: build + push arch image
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     permissions:
@@ -42,14 +39,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
       - name: derive image tag from branch
         id: tag
         run: |
-          # github.event.workflow_run.head_branch is "arch/split-fastcore";
+          # github.ref_name is "arch/split-fastcore";
           # turn it into "arch-split-fastcore" (slashes -> dashes).
-          branch="${{ github.event.workflow_run.head_branch }}"
+          branch="${{ github.ref_name }}"
           tag="${branch//\//-}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Image tag: $tag"
@@ -70,7 +67,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/arm64
           build-args: |
-            VERSION=0.0.0-${{ steps.tag.outputs.tag }}+${{ github.event.workflow_run.head_sha }}
+            VERSION=0.0.0-${{ steps.tag.outputs.tag }}+${{ github.sha }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
           push: true
           cache-from: type=gha,scope=${{ steps.tag.outputs.tag }}-arm64

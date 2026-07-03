@@ -41,10 +41,28 @@ RUN sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-server --features spg,render-preview \
+    cargo build --release --bin mailrs-server --features spg,render-preview,core-rpc \
     && cargo build --release --bin mailrs-receiver \
+    && cargo build --release --bin mailrs-webapi \
+    && cargo build --release --bin mailrs-sender \
+    && cargo build --release --bin mailrs-fastcore \
+    && cargo build --release --bin mailrs-fastcore-migrate \
+    && cargo build --release --bin mailrs-fastcore-backfill-sent \
+    && cargo build --release --bin mailrs-fastcore-backfill-contacts \
+    && cargo build --release --bin mailrs-fastcore-backfill-uid-index \
+    && cargo build --release --bin mailrs-fastcore-sender \
+    && cargo build --release -p mailrs-pg-dump \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
-    && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver
+    && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
+    && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
+    && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
+    && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
+    && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate \
+    && cp /build/target/release/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent \
+    && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
+    && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
+    && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
+    && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
 
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
@@ -81,6 +99,31 @@ COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-serv
 # mailrs-receiver (the receiver-split topology); the default mailrs-server
 # entrypoint never touches it. One image, two roles.
 COPY --from=rust-builder /usr/local/bin/mailrs-receiver /usr/local/bin/mailrs-receiver
+# Phase 3 (webapi split): same one-image-many-roles pattern. Idle unless
+# the container's entrypoint is overridden to `mailrs-webapi`. Talks to
+# the core via mailrs-core-api over HTTP — no PG access in this binary.
+COPY --from=rust-builder /usr/local/bin/mailrs-webapi /usr/local/bin/mailrs-webapi
+# Phase 4 (sender split): outbound delivery / webhook / DMARC report
+# worker. Idle until entrypoint is overridden to `mailrs-sender`. Talks
+# to core via mailrs-core-api.
+COPY --from=rust-builder /usr/local/bin/mailrs-sender /usr/local/bin/mailrs-sender
+# Phase 8 (fastcore): kevy-backed core RPC. Idle until entrypoint is
+# overridden to `mailrs-fastcore`. Listens on :3301 when started.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fastcore
+# Phase 10 (fastcore migration): NDJSON → kevy importer.
+# Run via `docker exec -i mailrs-fastcore-migrate`.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index
+# Fastcore-native outbound SMTP sender. Drains mailrs:outbound:pending
+# and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
+# to `mailrs-fastcore-sender`.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender
+# Phase 10b (prod migration): spg → NDJSON dumper.
+# Run via `docker exec mailrs mailrs-pg-dump [--user X] [--since T]`
+# and pipe stdout into mailrs-fastcore-migrate.
+COPY --from=rust-builder /usr/local/bin/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it

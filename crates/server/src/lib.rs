@@ -66,6 +66,8 @@ pub mod kevy_net {
 pub mod kevy_notify {
     pub use mailrs_receiver::kevy_notify::*;
 }
+#[cfg(feature = "core-rpc")]
+mod core_rpc;
 mod kevy_store;
 mod mcp;
 mod oidc_jwt;
@@ -692,6 +694,23 @@ pub async fn run() {
     );
 
     spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &kevy_embedded_store);
+
+    // Phase 2 — optional core RPC server (only compiled with --features core-rpc).
+    // Default build excludes this entirely; production artifact is byte-identical.
+    #[cfg(feature = "core-rpc")]
+    if let (Some(mb), Some(ds), Some(pool)) = (
+        mailbox_store.as_ref(),
+        domain_store.as_ref(),
+        pg_pool.as_ref(),
+    ) {
+        let core_rpc_state = std::sync::Arc::new(core_rpc::CoreRpcState {
+            mailbox: mb.clone(),
+            domain: ds.clone(),
+            pool: pool.clone(),
+            maildir_root: cfg.maildir_root.clone(),
+        });
+        core_rpc::spawn_core_rpc(core_rpc_state, shutdown_rx.clone());
+    }
 
     // keep main alive — exit on SIGINT (interactive ctrl+c) or
     // SIGTERM (docker stop / compose recreate). SIGTERM matters for

@@ -139,6 +139,10 @@ services:
       # the core also keeps its embedded kevy for outbound-queue notify /
       # spam cache / cache-bust — independent of the shared network kevy.
       MAILRS_KEVY_DATA_DIR: /data/kevy
+      # Phase 2 — core_rpc server (bearer-auth bound to MAILRS_CORE_API_SECRET).
+      # The webapi sidecar talks to this; not exposed to the public internet.
+      MAILRS_CORE_RPC_ADDR: 0.0.0.0:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:?required}
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_LOCAL_DOMAINS: ${MAILRS_LOCAL_DOMAINS:-}
       MAILRS_TLS_CERT: /certs/fullchain.pem
@@ -161,6 +165,43 @@ services:
       - chromium
       - meilisearch
       - kevy-server
+    restart: unless-stopped
+
+  # Phase 4 — sender worker. Outbound queue claim + SMTP deliver + webhook
+  # fan-out + DMARC daily report. Today this is a scaffold that just
+  # health-probes the core; worker loops fill in over checklist 4.3–4.9.
+  sender:
+    container_name: mailrs-sender
+    image: ghcr.io/goliajp/mailrs:${MAILRS_TAG:-latest}
+    entrypoint: ["/usr/local/bin/mailrs-sender"]
+    profiles: ["sender"]
+    environment:
+      MAILRS_CORE_RPC_BASE: http://mailrs:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:?required}
+      RUST_LOG: info,mailrs_sender=debug
+    depends_on:
+      - mailrs
+    restart: unless-stopped
+
+  # Phase 3 — webapi front. Talks to the core via mailrs-core-api HTTP
+  # (port 3300 on the core, not exposed publicly). Owns the public
+  # :3100 web/REST/MCP port. Currently builds from the same image as
+  # the core; when the core moves the web layer out (checklist 3.16),
+  # this is the binary that keeps serving it.
+  webapi:
+    container_name: mailrs-webapi
+    image: ghcr.io/goliajp/mailrs:${MAILRS_TAG:-latest}
+    entrypoint: ["/usr/local/bin/mailrs-webapi"]
+    profiles: ["webapi"]
+    ports:
+      - "3101:3100"  # parallel to the core's :3100 for side-by-side
+    environment:
+      MAILRS_WEB_BIND: 0.0.0.0:3100
+      MAILRS_CORE_RPC_BASE: http://mailrs:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:?required}
+      RUST_LOG: info,mailrs_webapi=debug,tower_http=debug
+    depends_on:
+      - mailrs
     restart: unless-stopped
 
 volumes:

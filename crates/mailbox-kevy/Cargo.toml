@@ -1,0 +1,20 @@
+[package]
+name = "mailrs-mailbox-kevy"
+version = "0.0.1"
+edition = "2024"
+description = "Experimental kevy-backed mailbox store — implements the same surface as PgMailboxStore via in-process kevy (no PG/SPG)."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+kevy-embedded = { workspace = true }
+mailrs-mailbox = { path = "../mailbox" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = "0.1"
+async-trait = "0.1"
+thiserror = "2"
+chrono = { workspace = true }

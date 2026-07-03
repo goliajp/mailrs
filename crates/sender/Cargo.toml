@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-sender"
+version = "0.0.1"
+edition = "2024"
+description = "Outbound delivery / webhook / DMARC report worker. Talks to core via mailrs-core-api over HTTP."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-sender"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["client"] }
+mailrs-smtp-client = { path = "../smtp-client" }
+mailrs-outbound-queue = { path = "../outbound-queue" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = "0.22"
+hickory-resolver = { workspace = true }

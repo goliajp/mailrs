@@ -1,0 +1,58 @@
+[package]
+name = "mailrs-webapi"
+version = "0.0.1"
+edition = "2024"
+description = "REST + MCP + JMAP + CalDAV/CardDAV web frontend for mailrs. Talks to core via mailrs-core-api over HTTP."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-webapi"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["client"] }
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["ws", "multipart"] }
+futures-util = "0.3"
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2"
+# Phase 3.9 — session resolution from kevy-server. Sync client wrapped
+# via tokio::task::spawn_blocking on the auth hot path.
+kevy-client = { workspace = true }
+base64 = "0.22"
+argon2 = { workspace = true }
+password-hash = { workspace = true }
+rand_core = { workspace = true }
+# Phase 12b — fastcore-native message body extraction: read raw
+# from maildir + parse MIME.
+mailrs-message-store = { path = "../message-store" }
+mailrs-mime = { path = "../mime", version = "2" }
+mailrs-rfc2047 = "1"
+mailrs-rfc2231 = "1"
+html2text = "0.17"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime", "system-config"] }
+mailrs-jmap = { path = "../jmap" }
+mailrs-ical = { path = "../ical" }
+async-trait = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+rmcp = { version = "1.7", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }
+schemars = "1"
+totp-rs = { version = "5.7.1", features = ["otpauth"] }
+hex = "0.4"
+jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
+sha2 = "0.10"
+hmac = "0.12"
+uuid = { version = "1", features = ["v4"] }
+url = "2"
+quick-xml = { version = "0.37", features = ["serialize"] }
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
+metrics = "0.24"

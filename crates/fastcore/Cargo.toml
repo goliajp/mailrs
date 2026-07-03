@@ -1,0 +1,76 @@
+[package]
+name = "mailrs-fastcore"
+version = "0.0.1"
+edition = "2024"
+description = "Kevy-backed `mailrs-core-api` server. Drop-in for the PG/spg core when the workload fits the cascade-killer KV layout."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-fastcore"
+path = "src/main.rs"
+
+[[bin]]
+name = "mailrs-fastcore-migrate"
+path = "src/bin/migrate.rs"
+
+[[bin]]
+name = "mailrs-fastcore-backfill-sent"
+path = "src/bin/backfill_sent.rs"
+
+[[bin]]
+name = "mailrs-fastcore-backfill-contacts"
+path = "src/bin/backfill_contacts.rs"
+
+[[bin]]
+name = "mailrs-fastcore-backfill-uid-index"
+path = "src/bin/backfill_uid_index.rs"
+
+[[bin]]
+name = "mailrs-fastcore-sender"
+path = "src/bin/sender.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
+mailrs-core = { path = "../core" }
+mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+mailrs-smtp-client = { path = "../smtp-client" }
+mailrs-outbound-queue = { path = "../outbound-queue" }
+# rustls crypto provider must be installed once per process before any
+# TLS config is built (STARTTLS in the sender daemon). Match the
+# receiver binary's version + feature set.
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
+kevy-embedded = { workspace = true }
+kevy-client = { workspace = true }
+axum = { version = "0.8" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+argon2 = { workspace = true }
+password-hash = { workspace = true }
+rand_core = { workspace = true }
+base64 = "0.22"
+mailrs-rfc2047 = "1"
+ureq = "2"
+mailrs-acme = "1"
+mailrs-tls-reload = "1"
+instant-acme = "0.8"
+mailrs-sieve = { path = "../sieve" }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+mailrs-imap-proto = { path = "../imap-proto" }
+mailrs-imap-codec = { path = "../imap-codec" }
+mailrs-imap-format = { path = "../imap-format" }
+mailrs-maildir = { path = "../storage-maildir" }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = "0.3"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"

@@ -712,17 +712,13 @@ export function ConversationList({
             aria-label="Mark all as read"
             className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
             onClick={async () => {
-              const unreadIds = conversations
-                .filter((c) => c.unread_count > 0)
-                .map((c) => c.thread_id)
-              if (unreadIds.length === 0) return
               try {
-                await postJson('/conversations/batch', {
-                  action: 'read',
-                  thread_ids: unreadIds,
-                })
+                const resp = await postJson<{ flipped: number; success: boolean }>(
+                  '/conversations/mark-all-read',
+                  {}
+                )
                 setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })))
-                toast.success(`Marked ${unreadIds.length} as read`)
+                toast.success(`Marked ${resp.flipped ?? 0} as read`)
               } catch {
                 toast.error('Failed')
               }

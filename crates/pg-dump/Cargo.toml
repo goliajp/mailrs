@@ -1,0 +1,22 @@
+[package]
+name = "mailrs-pg-dump"
+version = "0.0.1"
+edition = "2024"
+description = "Dump mailrs's PG (or spg) catalog to NDJSON suitable for `mailrs-fastcore-migrate`. Phase 10b — bootstraps kevy mirror from the existing spg source-of-truth."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "mailrs-pg-dump"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["client"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }

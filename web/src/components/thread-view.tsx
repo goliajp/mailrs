@@ -135,11 +135,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [showAllMessages, setShowAllMessages] = useState(false)
   // Tracks the threadId we've already auto-marked-read this entry. Set on
   // first run for a given selectedId; cleared when selectedId changes. Any
-  // unread_count change WITHIN the same entry (right-click mark-unread on
-  // the open thread, new message arriving) is ignored — the user has to
-  // re-enter the thread for auto-mark to fire again.
-  const lastAutoMarkedIdRef = useRef<null | string>(null)
-
   // thread messages now live in react-query; we bridge to the legacy
   // threadMessagesAtom for downstream consumers. The bridge is structured
   // to eliminate the thread-switch flash: while a new thread is fetching
@@ -358,10 +353,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setShowAllMessages(false)
     setMobileThreadTab('content')
     setMobileReplyOpen(false)
-    // re-arm auto-mark-read for the new selection: clearing the ref makes
-    // the auto-mark effect treat this thread as "freshly entered" even if
-    // we're returning to a thread we've already auto-marked before.
-    lastAutoMarkedIdRef.current = null
     const existing = store
       .get(conversationsAtom)
       .find((c: ConversationSummary) => c.thread_id === selectedId)
@@ -379,26 +370,23 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!selectedId) return
-    // Only one auto-mark per entry into the thread. Any later unread_count
-    // bump (right-click "mark as unread" on the open thread, new message
-    // arrival) leaves the thread alone — the user re-enters to clear it.
-    if (lastAutoMarkedIdRef.current === selectedId) return
+    // Thread is already read — nothing to do.
     if (selectedUnreadCount === 0) {
-      lastAutoMarkedIdRef.current = selectedId
       return
     }
-    // Block re-entry while a mark-read mutation is still in flight for any
-    // thread. Without this, the wrapper returned by useMutation flips
-    // pending→success on each render, re-runs this effect, and — during
-    // the microtask window where onMutate is still awaiting
-    // cancelConversationFetches — sees selectedUnreadCount still > 0 and
-    // fires mutate() again. Observed in prod as 20+ POST /read for a
-    // single thread within <3s, which ultimately froze the page.
+    // Mutation in flight — the ONLY re-entry guard we need. The
+    // wrapper flips pending true→false several times per successful
+    // mutation cycle (onMutate → onSuccess → onSettled), and this
+    // effect's deps include the mutation object, so without this
+    // gate we'd re-issue the POST on every micro-transition. When the
+    // mutation actually completes, the optimistic patch already set
+    // unread_count = 0, so the top guard returns before we get here.
+    // If the mutation errors (and we DON'T roll back — see
+    // useMarkReadMutation), the patch stays, so no retry loop either.
     if (markReadMutation.isPending) return
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
-    lastAutoMarkedIdRef.current = selectedId
     setIsRead(true)
     markReadMutation.mutate({
       domains: crossAll && doms.length > 0 ? doms : undefined,
@@ -596,7 +584,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
               <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
             </div>
           )}
-          <div className="min-w-0 flex-1 overflow-y-auto" ref={contentScrollRef}>
+          {/* data-selectable: the gds base reset sets user-select:none on
+              every element, and .select-text only rescues the element it's
+              on — nested spans/divs stay unselectable (Chromium). gds's
+              [data-selectable] * rule opts the whole reading pane back in. */}
+          <div className="min-w-0 flex-1 overflow-y-auto" data-selectable ref={contentScrollRef}>
             {selectedMsg ? (
               <>
                 {/* Email header (sender info). Each of the four info rows
