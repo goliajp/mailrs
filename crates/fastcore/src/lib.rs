@@ -153,21 +153,29 @@ pub async fn run() {
     axum::serve(listener, app).await.unwrap();
 }
 
-/// Poll monolith's core-rpc every 30 s for threads newer than the last
-/// synced timestamp per user; upsert them into kevy so mail delivered
-/// after cutover shows up in the fastcore-served inbox without a manual
-/// re-migrate. Uses monolith solely as the source of "what's arrived
-/// since the last poll" — user-visible reads never touch it.
+/// Periodic sync loop. Two jobs on the same tick:
+///
+/// 1. OPTIONAL ingest: when `MAILRS_CORE_RPC_BASE` + the shared secret
+///    are set, poll that core-api server for threads newer than the
+///    per-user cursor and mirror them in (the monolith-era cutover
+///    path).
+/// 2. MANDATORY maildir self-heal: thread/message/uid repair straight
+///    from disk. This must run regardless of the ingest config —
+///    returning early when MAILRS_CORE_RPC_BASE was unset silently
+///    killed self-heal on the first monolith-free deploy and new
+///    inbound mail stopped appearing in the UI (2026-07-04, 99-message
+///    backlog on prod before the stopgap).
 async fn ingest_sync_loop(state: Arc<FastcoreState>) {
-    let Ok(base) = std::env::var("MAILRS_CORE_RPC_BASE") else {
-        tracing::warn!("MAILRS_CORE_RPC_BASE unset — ingestion loop disabled");
-        return;
+    let client = match (
+        std::env::var("MAILRS_CORE_RPC_BASE"),
+        std::env::var(mailrs_core_api::AUTH_SECRET_ENV),
+    ) {
+        (Ok(base), Ok(secret)) => Some(mailrs_core_api::client::Client::new(base, secret)),
+        _ => {
+            tracing::info!("no ingest source configured — running maildir self-heal only");
+            None
+        }
     };
-    let Ok(secret) = std::env::var(mailrs_core_api::AUTH_SECRET_ENV) else {
-        tracing::warn!("MAILRS_CORE_API_SECRET unset — ingestion loop disabled");
-        return;
-    };
-    let client = mailrs_core_api::client::Client::new(base, secret);
     let interval = std::time::Duration::from_secs(
         std::env::var("MAILRS_FASTCORE_SYNC_SECS")
             .ok()
@@ -175,8 +183,18 @@ async fn ingest_sync_loop(state: Arc<FastcoreState>) {
             .unwrap_or(30),
     );
     loop {
-        if let Err(e) = run_ingest_once(&state, &client).await {
-            tracing::warn!(error = %e, "ingest sync tick failed");
+        match &client {
+            Some(c) => {
+                if let Err(e) = run_ingest_once(&state, c).await {
+                    tracing::warn!(error = %e, "ingest sync tick failed");
+                }
+            }
+            None => {
+                let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
+                for user in &addrs {
+                    healed_from_maildir(&state, user).await;
+                }
+            }
         }
         tokio::time::sleep(interval).await;
     }
