@@ -143,7 +143,7 @@ where
                     // Load INBOX messages.
                     let mailboxes = backend::list_mailboxes(&state, &username);
                     if let Some(inbox) = mailboxes.first() {
-                        messages = backend::list_messages(inbox);
+                        messages = backend::list_messages(&state, &username, inbox);
                     }
                     authed_user = Some(username);
                     tx.write_all(format!("+OK {} messages\r\n", messages.len()).as_bytes())
