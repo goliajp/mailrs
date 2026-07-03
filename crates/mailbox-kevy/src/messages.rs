@@ -61,6 +61,37 @@ impl KevyMailboxStore {
 
     /// Populate the per-user uid → message_id index for a single message.
     /// Called from deliver / migrate paths so per-uid lookups are O(1).
+    /// Register a KNOWN (user, uid, message_id) triple — both direction
+    /// maps AND raise the allocation counter so future `allocate_uid`
+    /// calls never re-issue this uid. This is what migration/backfill
+    /// tooling must use: writing only the forward map (the old backfill
+    /// behaviour) left `next_uid` at 0, so the first post-migration
+    /// delivery allocated uid=1 and overwrote the migrated message's
+    /// forward mapping.
+    pub fn register_uid(&self, user: &str, uid: u32, message_id: &str) -> io::Result<()> {
+        if uid == 0 {
+            return Ok(());
+        }
+        let rev_key = keys::user_uid_by_mid(user);
+        self.store().hset(
+            rev_key.as_bytes(),
+            &[(message_id.as_bytes(), uid.to_string().as_bytes())],
+        )?;
+        self.index_uid(user, uid, message_id)?;
+        let counter_key = keys::user_next_uid(user);
+        let cur = self
+            .store()
+            .get(counter_key.as_bytes())?
+            .and_then(|b| String::from_utf8(b).ok())
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        if cur < uid as i64 {
+            self.store()
+                .set(counter_key.as_bytes(), uid.to_string().as_bytes())?;
+        }
+        Ok(())
+    }
+
     pub fn index_uid(&self, user: &str, uid: u32, message_id: &str) -> io::Result<()> {
         let idx_key = keys::user_msg_by_uid(user);
         self.store().hset(
@@ -154,6 +185,26 @@ mod tests {
         let s = store();
         let got = s.list_thread_messages("never-existed").unwrap();
         assert!(got.is_empty());
+    }
+
+    #[test]
+    fn register_uid_raises_allocation_counter() {
+        let s = store();
+        // simulate migration: register a known high uid
+        s.register_uid("u@x.y", 27757, "migrated-mid").unwrap();
+        // next allocation must NOT collide with the registered range
+        let fresh = s.allocate_uid("u@x.y", "new-mid").unwrap();
+        assert_eq!(fresh, 27758);
+        // registered mapping intact in both directions
+        let fwd = s
+            .store()
+            .hget(keys::user_msg_by_uid("u@x.y").as_bytes(), b"27757")
+            .unwrap()
+            .unwrap();
+        assert_eq!(fwd, b"migrated-mid");
+        // idempotent re-register never lowers the counter
+        s.register_uid("u@x.y", 5, "old-mid").unwrap();
+        assert_eq!(s.allocate_uid("u@x.y", "new-mid-2").unwrap(), 27759);
     }
 
     #[test]

@@ -42,7 +42,14 @@ fn main() {
                 let Ok(wire) = serde_json::from_slice::<MessageWire>(&payload) else {
                     continue;
                 };
-                if mailbox.index_uid(user, wire.uid, &wire.message_id).is_ok() {
+                // register_uid writes BOTH maps and raises next_uid —
+                // index_uid alone left the counter at 0 and the first
+                // post-migration delivery collided with migrated uid=1.
+                if wire.uid != 0
+                    && mailbox
+                        .register_uid(user, wire.uid, &wire.message_id)
+                        .is_ok()
+                {
                     indexed += 1;
                 }
             }
