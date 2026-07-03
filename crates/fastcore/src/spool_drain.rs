@@ -138,7 +138,10 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                             tracing::warn!(recipient = %addr, %target, error = %e,
                                 "sieve: redirect enqueue failed; falling back to Keep");
                             match deliver(maildir_root, &addr, "", &filename, body) {
-                                Ok(true) => delivered_here += 1,
+                                Ok(true) => {
+                                    delivered_here += 1;
+                                    crate::ingest_delivered_file(state, &addr, &filename, body);
+                                }
                                 _ => unresolved.push(addr.clone()),
                             }
                         }
@@ -150,12 +153,15 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                         Ok(true) => {
                             delivered_here += 1;
                             tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
+                            let blob_ref = format!("{subfolder}/{filename}");
+                            crate::ingest_delivered_file(state, &addr, &blob_ref, body);
                         }
                         Ok(false) => {
                             tracing::warn!(recipient = %addr, %subfolder,
                                 "sieve: fileinto target dir missing; falling back to INBOX");
                             if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
                                 delivered_here += 1;
+                                crate::ingest_delivered_file(state, &addr, &filename, body);
                             } else {
                                 unresolved.push(addr.clone());
                             }
@@ -165,6 +171,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                                 "sieve: fileinto write failed; falling back to INBOX");
                             if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
                                 delivered_here += 1;
+                                crate::ingest_delivered_file(state, &addr, &filename, body);
                             } else {
                                 unresolved.push(addr.clone());
                             }
@@ -173,7 +180,10 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                 }
                 crate::sieve_apply::Decision::Keep => {
                     match deliver(maildir_root, &addr, "", &filename, body) {
-                        Ok(true) => delivered_here += 1,
+                        Ok(true) => {
+                            delivered_here += 1;
+                            crate::ingest_delivered_file(state, &addr, &filename, body);
+                        }
                         Ok(false) => unresolved.push(addr.clone()),
                         Err(e) => {
                             tracing::warn!(fwd = %addr, error = %e, "spool deliver");

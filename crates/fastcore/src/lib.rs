@@ -945,6 +945,91 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
     }
 }
 
+/// Write-through ingest for a file the spool drain just delivered to
+/// maildir: thread aggregate + message wire + uid + side sinks, all at
+/// delivery time.
+///
+/// Before this existed the drain wrote ONLY maildir and relied on the
+/// periodic self-heal to surface the message — but self-heal handles
+/// just two shapes (thread hash missing / messages zset empty), so a
+/// reply landing in an EXISTING thread never became visible (G14).
+/// Self-heal remains the crash-recovery backstop; this is the primary
+/// path.
+pub(crate) fn ingest_delivered_file(
+    state: &Arc<FastcoreState>,
+    addr: &str,
+    blob_ref: &str,
+    body: &[u8],
+) {
+    let head = &body[..body.len().min(16 * 1024)];
+    let (message_id, in_reply_to, references_first, subject, date, from, to) =
+        extract_headers(head);
+    if message_id.is_empty() {
+        // no Message-ID header — leave it to self-heal's filename-based
+        // fallbacks rather than fabricating an id here
+        return;
+    }
+    let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
+    let date = if date > 0 {
+        date
+    } else {
+        maildir_filename_epoch(bare).unwrap_or(0)
+    };
+    let root = if !references_first.is_empty() {
+        references_first
+    } else if !in_reply_to.is_empty() {
+        in_reply_to.clone()
+    } else {
+        message_id.clone()
+    };
+    let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
+    let arrival = mailrs_mailbox_kevy::MessageArrival {
+        thread_id: &root,
+        user: addr,
+        subject: &subject,
+        senders_csv: &from,
+        latest_date: date,
+        latest_preview: "",
+        category: "inbox",
+        unread,
+    };
+    if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
+        tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
+    }
+    crate::live_sync::upsert_contacts(addr, &from);
+    crate::live_sync::index_meili(addr, &root, &subject, &from, "", date);
+    let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
+    let wire = mailrs_core_api::method::message::MessageWire {
+        id: 0,
+        mailbox_id: 0,
+        uid,
+        blob_ref: blob_ref.to_string(),
+        sender: from,
+        recipients: to,
+        subject,
+        date,
+        internal_date: date,
+        size: body.len() as u32,
+        flags: if unread { 0 } else { 1 },
+        message_id: message_id.clone(),
+        in_reply_to,
+        thread_id: root.clone(),
+        modseq: 0,
+        user_address: addr.to_string(),
+    };
+    match serde_json::to_vec(&wire) {
+        Ok(payload) => {
+            if let Err(e) = state
+                .mailbox
+                .upsert_message(&root, &message_id, date, &payload)
+            {
+                tracing::warn!(error = %e, %addr, %root, "drain ingest: upsert_message failed");
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),
+    }
+}
+
 fn build_router(state: Arc<FastcoreState>) -> Router {
     let base = base_router(state.clone());
     // One Router for all business routes so matchit's trie sees the
