@@ -1984,7 +1984,7 @@ mod tests {
             kevy_embedded::Store::open(kevy_embedded::Config::default()).expect("in-memory kevy"),
         );
         let mailbox = KevyMailboxStore::new(store);
-        Arc::new(FastcoreState { mailbox })
+        Arc::new(FastcoreState::new(mailbox))
     }
 
     fn arr<'a>(tid: &'a str, user: &'a str, unread: bool) -> MessageArrival<'a> {
