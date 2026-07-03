@@ -135,11 +135,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const [showAllMessages, setShowAllMessages] = useState(false)
   // Tracks the threadId we've already auto-marked-read this entry. Set on
   // first run for a given selectedId; cleared when selectedId changes. Any
-  // unread_count change WITHIN the same entry (right-click mark-unread on
-  // the open thread, new message arriving) is ignored — the user has to
-  // re-enter the thread for auto-mark to fire again.
-  const lastAutoMarkedIdRef = useRef<null | string>(null)
-
   // thread messages now live in react-query; we bridge to the legacy
   // threadMessagesAtom for downstream consumers. The bridge is structured
   // to eliminate the thread-switch flash: while a new thread is fetching
@@ -358,10 +353,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setShowAllMessages(false)
     setMobileThreadTab('content')
     setMobileReplyOpen(false)
-    // re-arm auto-mark-read for the new selection: clearing the ref makes
-    // the auto-mark effect treat this thread as "freshly entered" even if
-    // we're returning to a thread we've already auto-marked before.
-    lastAutoMarkedIdRef.current = null
     const existing = store
       .get(conversationsAtom)
       .find((c: ConversationSummary) => c.thread_id === selectedId)
@@ -379,34 +370,23 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!selectedId) return
-    // Nothing to do — thread is already read.
+    // Thread is already read — nothing to do.
     if (selectedUnreadCount === 0) {
-      lastAutoMarkedIdRef.current = selectedId
       return
     }
-    // Re-firing per (thread, unread_count > 0) is intentional: if a
-    // previous mark-read attempt was cancelled / raced / dropped and
-    // the invalidation refetch restored unread > 0, the ref used to
-    // prevent us from ever re-firing on the same thread even though
-    // the cache still said "unread". Users experienced this as
-    // "clicking a thread doesn't mark it read; I have to click back
-    // and forth". Now the ref only suppresses re-fires that happened
-    // for the exact same (selectedId, current unread_count) — as soon
-    // as unread_count changes (either up on a new arrival or down
-    // after a successful mark) the effect re-evaluates cleanly.
-    if (lastAutoMarkedIdRef.current === `${selectedId}#${selectedUnreadCount}`) {
-      return
-    }
-    // Block re-entry while a mark-read mutation is still in flight —
-    // without this, the wrapper's pending→success flip re-runs the
-    // effect and fires mutate() again during the microtask window
-    // (observed in prod as 20+ POST /read for a single thread <3s,
-    // which ultimately froze the page).
+    // Mutation in flight — the ONLY re-entry guard we need. The
+    // wrapper flips pending true→false several times per successful
+    // mutation cycle (onMutate → onSuccess → onSettled), and this
+    // effect's deps include the mutation object, so without this
+    // gate we'd re-issue the POST on every micro-transition. When the
+    // mutation actually completes, the optimistic patch already set
+    // unread_count = 0, so the top guard returns before we get here.
+    // If the mutation errors (and we DON'T roll back — see
+    // useMarkReadMutation), the patch stays, so no retry loop either.
     if (markReadMutation.isPending) return
 
     const doms = domainsRef.current
     const crossAll = crossAccountReadRef.current
-    lastAutoMarkedIdRef.current = `${selectedId}#${selectedUnreadCount}`
     setIsRead(true)
     markReadMutation.mutate({
       domains: crossAll && doms.length > 0 ? doms : undefined,
