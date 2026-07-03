@@ -117,8 +117,15 @@ export function useMarkReadMutation() {
         domains && domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
       return postJson(`/conversations/${encodeURIComponent(threadId)}/read${q}`, {})
     },
-    onError: (_e, _vars, ctx) => {
-      if (ctx) rollbackConversations(ctx.snapshots)
+    onError: (_e, _vars, _ctx) => {
+      // Do NOT rollback the optimistic patch on network / server error.
+      // The retry path (auto-mark effect keyed on selectedUnreadCount)
+      // would see the reverted unread > 0 and re-fire in a loop until
+      // the network recovers — meanwhile the user sees the thread flip
+      // back to unread even though they clearly opened it. Leaving the
+      // patch in place gives the user Gmail-style visual continuity;
+      // when connectivity returns, the next explicit action or a
+      // WebSocket-driven refetch will reconcile with server truth.
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
