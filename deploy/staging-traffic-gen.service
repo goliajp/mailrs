@@ -1,0 +1,34 @@
+# staging traffic generator — drives prod-shape read traffic against the
+# staging fastcore stack (webapi-fc :3103) so the 30-min self-soak gate
+# (staging-soak-gate.service) has samples to judge.
+#
+# Credentials live in /etc/staging-traffic-gen.env on the host (ADDR=,
+# PASSWORD=) — never in this unit or the repo. deploy-staging.yml keeps
+# this unit + /usr/local/bin/staging-traffic-gen.sh in lockstep with the
+# repo on every green develop deploy.
+#
+# RestartSec is deliberately 60s: with a 10s restart a failing login
+# turned into a storm the auth rate limiter answered with permanent
+# 429s (81k restarts, 2026-07-03). The script also retries login with
+# backoff instead of exiting.
+[Unit]
+Description=Staging traffic generator (prod-shape replay against fastcore)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/staging-traffic-gen.env
+Environment=STAGING_URL=http://localhost:3103
+Environment=CONCURRENCY=8
+Environment=RPS_PER_WORKER=5
+Environment=LOG_FILE=/var/log/staging-traffic-gen.log
+Environment=STATS_FILE=/var/log/staging-traffic-gen-stats.log
+ExecStart=/usr/local/bin/staging-traffic-gen.sh
+Restart=always
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
