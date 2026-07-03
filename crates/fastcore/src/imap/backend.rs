@@ -387,9 +387,7 @@ mod tests {
 
     fn state() -> Arc<FastcoreState> {
         let store = Arc::new(Store::open(Config::default()).expect("mem store"));
-        Arc::new(FastcoreState {
-            mailbox: KevyMailboxStore::new(store),
-        })
+        Arc::new(FastcoreState::new(KevyMailboxStore::new(store)))
     }
 
     fn mb(dir: &std::path::Path) -> MailboxInfo {

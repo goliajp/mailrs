@@ -345,7 +345,7 @@ mod tests {
     fn state() -> Arc<FastcoreState> {
         let store = Arc::new(Store::open(Config::default()).unwrap());
         let mailbox = KevyMailboxStore::new(store);
-        Arc::new(FastcoreState { mailbox })
+        Arc::new(FastcoreState::new(mailbox))
     }
 
     fn envelope(forward_paths: &[&str]) -> SpoolEnvelope {

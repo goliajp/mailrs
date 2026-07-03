@@ -43,6 +43,19 @@ use mailrs_mailbox_kevy::{KevyMailboxStore, ListThreadsFilter, ThreadRow};
 /// Server state — owns the kevy store and is cloned into axum handlers.
 pub struct FastcoreState {
     pub mailbox: KevyMailboxStore,
+    /// In-process delivery fanout: every write path publishes the
+    /// recipient address here; IMAP IDLE sessions subscribe and push
+    /// `* n EXISTS` to their client (RFC 2177). Drain + RPC + IMAP all
+    /// live in this process, so no kevy pub/sub hop is needed.
+    pub notify: tokio::sync::broadcast::Sender<String>,
+}
+
+impl FastcoreState {
+    /// Construct state with a fresh notify channel.
+    pub fn new(mailbox: KevyMailboxStore) -> Self {
+        let (notify, _) = tokio::sync::broadcast::channel(256);
+        Self { mailbox, notify }
+    }
 }
 
 impl Handler for FastcoreState {
@@ -86,7 +99,7 @@ pub async fn run() {
     let cfg = Config::default().with_persist(&kevy_dir);
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
     let mailbox = KevyMailboxStore::new(store);
-    let state = Arc::new(FastcoreState { mailbox });
+    let state = Arc::new(FastcoreState::new(mailbox));
 
     // Spawn the ingestion sync loop before the HTTP listener so new
     // messages start replicating as soon as the process boots. Failures
@@ -999,6 +1012,7 @@ pub(crate) fn ingest_delivered_file(
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::index_meili(addr, &root, &subject, &from, "", date);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
+    let _ = state.notify.send(addr.to_string());
     let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
     let wire = mailrs_core_api::method::message::MessageWire {
         id: 0,
@@ -1595,6 +1609,7 @@ async fn deliver_message(
 
     // Side sinks so contacts autocomplete + Meili stay live on webapi-
     // driven deliveries (mirror-send, forward-into-thread, etc.).
+    let _ = state.notify.send(user.clone());
     crate::live_sync::upsert_contacts(&user, &req.senders_csv);
     crate::live_sync::index_meili(
         &user,
