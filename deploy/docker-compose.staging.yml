@@ -1,0 +1,185 @@
+# docker-compose.staging.yml — staging topology (pure fastcore, zero monolith).
+#
+# Mirrors deploy/docker-compose.prod.yml one-to-one so staging validates
+# exactly what prod runs. Differences from prod are staging-local only:
+# ens5 bind IP for mail ports, mail.smk.ai hostname/domains, staging
+# cert/dkim paths, and the web UI served from the image's baked copy
+# (staging has no web-v* lane; every develop push rebuilds the image).
+#
+#   receiver         public SMTP 25/587/465 (172.31.11.182), antispam
+#                    verdict, writes /data/.spool. Zero spg, zero kevy-fastcore.
+#   fastcore         kevy-backed core: core-api :3301 (host 127.0.0.1:3201),
+#                    IMAP/POP3 on the ens5 IP, spool drain, sieve, self-heal
+#   webapi-fc        REST + web UI (host 127.0.0.1:3103)
+#   fastcore-sender  outbound queue drain (unsigned on staging — DKIM env
+#                    omitted on purpose; staging deliverability is not a gate)
+#   kevy-server / meilisearch / chromium — infra, same as prod
+#
+# NOTE the monolith `mailrs` service (spg core, :3101) and the RPC-scaffold
+# webapi/sender shadows are GONE as of 2026-07-03 — prod runs no monolith,
+# so staging doesn't either. ManageSieve :4190 disappears with it
+# (fastcore has no ManageSieve yet — known protocol gap).
+#
+# Deployed by deploy-staging.yml on every green develop push:
+#   docker compose -p mailrs-staging -f docker-compose.staging.yml \
+#     pull && docker compose -p mailrs-staging -f docker-compose.staging.yml \
+#     up -d --remove-orphans
+
+services:
+  meilisearch:
+    container_name: mailrs-staging-meilisearch
+    image: getmeili/meilisearch:v1.44
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meili-data:/meili_data
+    restart: unless-stopped
+
+  chromium:
+    container_name: mailrs-staging-chromium
+    image: zenika/alpine-chrome:124
+    command:
+      [
+        "--no-sandbox",
+        "--remote-debugging-address=0.0.0.0",
+        "--remote-debugging-port=9222",
+        "--disable-gpu",
+        "--headless",
+      ]
+    restart: unless-stopped
+
+  kevy-server:
+    container_name: mailrs-staging-kevy
+    image: ghcr.io/goliajp/kevy:latest
+    mem_limit: 1g
+    environment:
+      KEVY_PORT: "6379"
+      KEVY_AOF: "1"
+      KEVY_DIR: /data
+    volumes:
+      - kevy-server-data:/data
+    healthcheck:
+      test: ["CMD", "kevy-cli", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    restart: unless-stopped
+
+  receiver:
+    container_name: mailrs-staging-receiver
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-receiver"]
+    pull_policy: always
+    mem_limit: 2g
+    # receiver runs no web server — disable the image's curl :3100 check
+    healthcheck:
+      disable: true
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "172.31.11.182:25:25"
+      - "172.31.11.182:587:587"
+      - "172.31.11.182:465:465"
+    environment:
+      MAILRS_HOSTNAME: mail.smk.ai
+      MAILRS_SPOOL_ROOT: /data/.spool
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_LOCAL_DOMAINS: smk.ai
+      MAILRS_PORT: "25"
+      MAILRS_SUBMISSION_PORT: "587"
+      MAILRS_SMTPS_PORT: "465"
+      MAILRS_ANTISPAM_ENABLED: "true"
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      MAILRS_USERS_FILE: /data/users.toml
+    volumes:
+      - mailrs-staging-data:/data
+      - ./certs:/certs:ro
+    depends_on:
+      - kevy-server
+    restart: unless-stopped
+
+  fastcore:
+    container_name: mailrs-staging-fastcore
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-fastcore"]
+    pull_policy: always
+    mem_limit: 2g
+    healthcheck:
+      disable: true
+    ports:
+      - "127.0.0.1:3201:3301"
+      - "172.31.11.182:143:143"
+      - "172.31.11.182:993:993"
+      - "172.31.11.182:110:110"
+      - "172.31.11.182:995:995"
+    environment:
+      MAILRS_FASTCORE_BIND: 0.0.0.0:3301
+      MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      MAILRS_MAILDIR: /data/maildir
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_MEILI_URL: http://meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY}
+      MAILRS_TLS_CERT: /certs/fullchain.pem
+      MAILRS_TLS_KEY: /certs/privkey.pem
+      RUST_LOG: info
+    volumes:
+      - mailrs-staging-data:/data
+      - ./certs:/certs:ro
+    depends_on:
+      - kevy-server
+    restart: unless-stopped
+
+  webapi-fc:
+    container_name: mailrs-staging-webapi-fc
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-webapi"]
+    pull_policy: always
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3103:3100"
+    environment:
+      MAILRS_FASTCORE_RPC_BASE: http://fastcore:3301
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_WEB_BIND: 0.0.0.0:3100
+      MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
+      MAILRS_MAILDIR: /data/maildir
+      MAILRS_MEILI_URL: http://meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY}
+      RUST_LOG: info
+    volumes:
+      - mailrs-staging-data:/data
+    depends_on:
+      - fastcore
+      - kevy-server
+    restart: unless-stopped
+
+  fastcore-sender:
+    container_name: mailrs-staging-fastcore-sender
+    image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
+    entrypoint: ["mailrs-fastcore-sender"]
+    pull_policy: always
+    mem_limit: 256m
+    healthcheck:
+      disable: true
+    environment:
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_HELO_HOSTNAME: mail.smk.ai
+      MAILRS_SENDER_MAX_ATTEMPTS: "10"
+      MAILRS_SENDER_POLL_MS: "500"
+      MAILRS_SENDER_RETRY_MIN_SECS: "60"
+      RUST_LOG: info
+    depends_on:
+      - kevy-server
+    restart: unless-stopped
+
+volumes:
+  mailrs-staging-data:
+  meili-data:
+  kevy-server-data:
