@@ -65,6 +65,15 @@ impl Handler for FastcoreState {
 }
 
 pub async fn run() {
+    // Install the process-wide rustls crypto provider before any TLS
+    // config is built (IMAPS / POP3S acceptors, ACME challenge server).
+    // Without this rustls 0.23 panics on first use — same fix
+    // mailrs-receiver / mailrs-fastcore-sender apply. `.ok()` because
+    // a second install is a no-op error we can safely ignore.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
