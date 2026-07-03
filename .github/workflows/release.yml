@@ -319,13 +319,15 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           # Destination is docker-compose.yml — the file `docker compose`
-          # actually reads in /apps/mailrs. Shipping it as
-          # docker-compose.prod.yml made this scp dead code: every
-          # `docker compose up -d` kept reusing the host's stale
-          # docker-compose.yml (caught at the v1.7.148 SPG cutover, where
-          # the env/service changes silently didn't apply).
+          # actually reads in /apps/mailrs (lesson from the v1.7.148 SPG
+          # cutover: shipping under any other name makes the scp dead
+          # code and up -d silently reuses the stale YAML).
+          # deploy/docker-compose.prod.yml is the canonical fastcore
+          # topology: receiver / fastcore / webapi-fc / fastcore-sender
+          # + kevy-server / meilisearch / chromium. No monolith, no
+          # postgres.
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            docker-compose.prod.split.yml \
+            deploy/docker-compose.prod.yml \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/docker-compose.yml"
 
       - name: SSH + docker pull + restart
@@ -342,13 +344,13 @@ jobs:
             cd /apps/mailrs
 
             VERSION="${{ steps.ver.outputs.version }}"
-            echo "==> deploying mailrs v$VERSION"
+            echo "==> deploying mailrs v$VERSION (fastcore topology)"
 
             # 1. pull new multi-arch image (published by the manifest job above)
             docker pull ghcr.io/goliajp/mailrs:$VERSION
 
             # 2. bootstrap web/ from the image ONLY when host has no web yet.
-            #    docker-compose.prod.yml mounts ./web → /opt/mailrs/web:ro,
+            #    webapi-fc mounts /apps/mailrs/web → /opt/mailrs/web:ro,
             #    so the host directory is authoritative once populated. The
             #    web-v* lane (release-web.yml) is the sole channel that
             #    updates web on subsequent releases — full v* releases ship
@@ -377,49 +379,44 @@ jobs:
             # 4. align bind-mounted secret + data-volume ownership to UID 10001.
             #    The image runs as USER mailrs (UID 10001); without this chown
             #    the container can't read host-bound certs or write to /data.
-            chown -R 10001:10001 certs/ dkim/ 2>/dev/null || true
+            chown -R 10001:10001 certs/ dkim/ web/ 2>/dev/null || true
             docker run --rm -v mailrs_mailrs-data:/data alpine \
               chown -R 10001:10001 /data
 
-            # 5. restart with the new image tag
+            # 5. roll the stack. --remove-orphans reaps services dropped
+            #    from the compose file (e.g. the old monolith `mailrs`
+            #    service after the fastcore cutover).
             docker compose up -d --remove-orphans
 
-            # 6. health gate — poll /api/health until healthy or 180s timeout.
-            # spg catalog load alone took ~75s on 2026-06-12 (762MB) before
-            # the web listener came up, so the old 60s window was a
-            # guaranteed false-fail. `health` not `status` because prod root
-            # shell is zsh; `$status` is read-only there (bash's $?).
+            # 6. health gate — all four fastcore roles must come up:
+            #    receiver SMTP banner (:25), fastcore core-api healthz
+            #    (:3201, backend must be kevy), webapi (:3103). Sender has
+            #    no listener; `docker ps` state is its only cheap signal.
             for i in $(seq 1 90); do
-              health=$(curl -sS --max-time 5 http://localhost:3100/api/health 2>/dev/null \
-                | python3 -c "import json,sys;print(json.load(sys.stdin).get('status','?'))" \
-                2>/dev/null || echo "unreachable")
-              case "$health" in
-                healthy|degraded)
-                  echo "==> core health: $health"
-                  # split: also smoke-check the receiver's SMTP listener
-                  # by talking to it from the host (receiver image has no
-                  # ss/nc; banner-back is a stronger signal than ss
-                  # anyway).
-                  if docker ps --format '{{.Names}}' | grep -q '^mailrs-receiver$'; then
-                    if timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/25; head -c 3 <&3' 2>/dev/null | grep -q '^220'; then
-                      echo "==> receiver SMTP banner ok — deploy ok"
-                      exit 0
-                    else
-                      echo "==> receiver up but SMTP banner not yet; waiting"
-                    fi
-                  else
-                    # no receiver in compose (monolith rollback) — core alone is the signal.
-                    echo "==> monolith mode — deploy ok"
-                    exit 0
-                  fi
-                  ;;
-              esac
+              ok=1
+              if ! timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/25; head -c 3 <&3' 2>/dev/null | grep -q '^220'; then
+                echo "==> waiting: receiver SMTP banner"; ok=0
+              fi
+              if [ "$ok" = 1 ] && ! curl -sf --max-time 5 http://127.0.0.1:3201/v1/healthz | grep -q '"backend":"kevy"'; then
+                echo "==> waiting: fastcore /v1/healthz backend=kevy"; ok=0
+              fi
+              if [ "$ok" = 1 ] && ! curl -sf --max-time 5 http://127.0.0.1:3103/_health >/dev/null; then
+                echo "==> waiting: webapi-fc /_health"; ok=0
+              fi
+              if [ "$ok" = 1 ] && ! docker ps --format '{{.Names}} {{.Status}}' | grep '^mailrs-fastcore-sender' | grep -q ' Up '; then
+                echo "==> waiting: fastcore-sender container Up"; ok=0
+              fi
+              if [ "$ok" = 1 ]; then
+                echo "==> all fastcore roles healthy — deploy ok"
+                exit 0
+              fi
               sleep 2
             done
 
             echo "==> deploy failed; container logs (tail 40):" >&2
-            docker compose logs --tail 40 mailrs >&2 || true
-            docker compose logs --tail 30 mailrs-receiver >&2 || true
+            docker compose logs --tail 40 fastcore >&2 || true
+            docker compose logs --tail 30 webapi-fc >&2 || true
+            docker compose logs --tail 30 receiver >&2 || true
             exit 1
 
   publish:
