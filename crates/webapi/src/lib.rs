@@ -682,8 +682,17 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // trace. See crates/server/src/web/mod.rs:MAX_MULTIPART_BODY.
     const MAX_MULTIPART_BODY: usize = 25 * 1024 * 1024;
 
+    // MCP Streamable HTTP surface at /mcp. Runs its own auth
+    // middleware (task-local user) so rmcp's session factory sees
+    // the caller. Mounted OUTSIDE the REST auth stack because rmcp
+    // manages its own Extension shape.
+    let mcp = handlers::mcp::mcp_router(state.clone()).route_layer(
+        axum::middleware::from_fn_with_state(state.clone(), handlers::mcp::mcp_auth_middleware),
+    );
+
     let mut app = unauth
         .merge(authenticated)
+        .merge(mcp)
         .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()

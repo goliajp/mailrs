@@ -49,6 +49,26 @@ const SESSION_KEY_PREFIX: &str = "session:";
 /// `Authorization: Bearer <token>` header, or `?token=<hex>` query.
 /// The query variant is used by browser <img src> / <a href> which
 /// can't set custom headers, e.g. attachment previews.
+/// Resolve the authenticated user address from the incoming headers,
+/// mirroring [`session_auth_middleware`] but returning the result
+/// instead of mutating request extensions. Used by the MCP handler
+/// to populate its per-session task-local. Returns `None` on any
+/// auth failure — the caller decides how to react.
+pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
+    let kevy_url = std::env::var(KEVY_URL_ENV).ok();
+    let Some(kevy_url) = kevy_url else {
+        // Dev fallback matches session_auth_middleware.
+        return headers
+            .get("X-Mailrs-User")
+            .and_then(|h| h.to_str().ok())
+            .map(|s| s.to_string());
+    };
+    let uri = axum::http::Uri::from_static("/mcp");
+    let token = extract_token(headers, &uri)?;
+    let session = resolve_session(kevy_url, token).await?;
+    Some(session.address)
+}
+
 fn extract_token(headers: &HeaderMap, uri: &axum::http::Uri) -> Option<String> {
     if let Some(cookie_header) = headers.get(axum::http::header::COOKIE)
         && let Ok(raw) = cookie_header.to_str()

@@ -4048,6 +4048,8 @@ dependencies = [
  "quick-xml 0.37.5",
  "rand_core 0.6.4",
  "reqwest 0.12.28",
+ "rmcp",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "sha2 0.10.9",
