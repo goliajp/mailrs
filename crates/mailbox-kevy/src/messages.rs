@@ -79,7 +79,9 @@ impl KevyMailboxStore {
     /// weren't handed a uid by the monolith migration.
     pub fn allocate_uid(&self, user: &str, message_id: &str) -> io::Result<u32> {
         let rev_key = keys::user_uid_by_mid(user);
-        if let Some(existing) = self.store().hget(rev_key.as_bytes(), message_id.as_bytes())?
+        if let Some(existing) = self
+            .store()
+            .hget(rev_key.as_bytes(), message_id.as_bytes())?
             && let Ok(s) = std::str::from_utf8(&existing)
             && let Ok(uid) = s.parse::<u32>()
         {

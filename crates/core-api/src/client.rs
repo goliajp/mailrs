@@ -311,9 +311,7 @@ impl Client {
         let v: serde_json::Value = self
             .post_authed_no_body(path, "mark_all_conversations_read")
             .await?;
-        Ok(v.get("flipped")
-            .and_then(|f| f.as_u64())
-            .unwrap_or(0) as u32)
+        Ok(v.get("flipped").and_then(|f| f.as_u64()).unwrap_or(0) as u32)
     }
 
     /// POST /v1/users/{user}/threads/{thread_id}/unread

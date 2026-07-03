@@ -663,16 +663,11 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
                 continue;
             };
-            let msgs = state
-                .mailbox
-                .list_thread_messages(tid)
-                .unwrap_or_default();
+            let msgs = state.mailbox.list_thread_messages(tid).unwrap_or_default();
             for payload in msgs {
-                let Ok(mut wire) =
-                    serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(
-                        &payload,
-                    )
-                else {
+                let Ok(mut wire) = serde_json::from_slice::<
+                    mailrs_core_api::method::message::MessageWire,
+                >(&payload) else {
                     continue;
                 };
                 if wire.uid != 0 {
@@ -697,10 +692,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                 uid_healed += 1;
             }
         }
-        let _ = state
-            .mailbox
-            .store_ref()
-            .set(uid_flag_key.as_bytes(), b"1");
+        let _ = state.mailbox.store_ref().set(uid_flag_key.as_bytes(), b"1");
         if uid_healed > 0 {
             tracing::info!(%user, uid_healed, "self-heal: uid backfill (one-shot)");
         }
@@ -740,10 +732,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             // /api/mail/messages/{uid}/attachments/… can resolve the
             // message. allocate_uid is idempotent — reruns return the
             // previously-issued uid via the uid_by_mid reverse index.
-            let uid = state
-                .mailbox
-                .allocate_uid(user, &m.message_id)
-                .unwrap_or(0);
+            let uid = state.mailbox.allocate_uid(user, &m.message_id).unwrap_or(0);
             let wire = mailrs_core_api::method::message::MessageWire {
                 id: 0,
                 mailbox_id: 0,
@@ -831,19 +820,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                 let _ = state.mailbox.record_message_arrival(&arrival);
                 // Side sinks: contacts autocomplete + Meili index.
                 crate::live_sync::upsert_contacts(user, &m.from);
-                crate::live_sync::index_meili(
-                    user,
-                    root,
-                    &m.subject,
-                    &m.from,
-                    "",
-                    m.date,
-                );
+                crate::live_sync::index_meili(user, root, &m.subject, &m.from, "", m.date);
                 // Also write the message blob for enrich_with_body.
-                let uid = state
-                    .mailbox
-                    .allocate_uid(user, &m.message_id)
-                    .unwrap_or(0);
+                let uid = state.mailbox.allocate_uid(user, &m.message_id).unwrap_or(0);
                 let wire = mailrs_core_api::method::message::MessageWire {
                     id: 0,
                     mailbox_id: 0,
@@ -1801,9 +1780,7 @@ async fn set_message_flags_route(
 }
 
 /// GET `/v1/admin/aliases:local` — list every fastcore-embedded alias.
-async fn list_local_aliases(
-    State(state): State<Arc<FastcoreState>>,
-) -> Json<serde_json::Value> {
+async fn list_local_aliases(State(state): State<Arc<FastcoreState>>) -> Json<serde_json::Value> {
     let items = state.mailbox.list_aliases().unwrap_or_default();
     let payload: Vec<serde_json::Value> = items
         .into_iter()

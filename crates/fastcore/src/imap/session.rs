@@ -29,8 +29,15 @@ use crate::FastcoreState;
 #[derive(Debug, Clone)]
 enum State {
     NotAuthed,
-    Authed { user: String },
-    Selected { user: String, mailbox: MailboxInfo, messages: Vec<ImapMessage>, read_only: bool },
+    Authed {
+        user: String,
+    },
+    Selected {
+        user: String,
+        mailbox: MailboxInfo,
+        messages: Vec<ImapMessage>,
+        read_only: bool,
+    },
 }
 
 impl State {
@@ -79,7 +86,9 @@ where
         let parsed = match parse_command(line.trim_end()) {
             Ok(cmd) => cmd,
             Err(e) => {
-                let _ = framed.send(format_bad("*", &format!("parse: {e}")).into_bytes()).await;
+                let _ = framed
+                    .send(format_bad("*", &format!("parse: {e}")).into_bytes())
+                    .await;
                 continue;
             }
         };
@@ -126,21 +135,30 @@ where
             format_bye("mailrs logging out"),
             format_ok(tag, "LOGOUT completed"),
         ],
-        ImapCommand::Login { username, password } => login(state, session, tag, &username, &password),
-        ImapCommand::List { reference: _, pattern } => list_response(state, session, tag, &pattern),
+        ImapCommand::Login { username, password } => {
+            login(state, session, tag, &username, &password)
+        }
+        ImapCommand::List {
+            reference: _,
+            pattern,
+        } => list_response(state, session, tag, &pattern),
         ImapCommand::Select { mailbox } => select(state, session, tag, &mailbox, false),
         ImapCommand::Examine { mailbox } => select(state, session, tag, &mailbox, true),
         ImapCommand::Close => close(session, tag),
-        ImapCommand::Fetch { sequence, attributes } => {
-            fetch_response(session, tag, &sequence, &attributes, false)
-        }
+        ImapCommand::Fetch {
+            sequence,
+            attributes,
+        } => fetch_response(session, tag, &sequence, &attributes, false),
         ImapCommand::Uid { subcommand } => match *subcommand {
-            ImapCommand::Fetch { sequence, attributes } => {
-                fetch_response(session, tag, &sequence, &attributes, true)
-            }
-            ImapCommand::Store { sequence, action, flags } => {
-                store_response(session, tag, &sequence, &action, &flags, true)
-            }
+            ImapCommand::Fetch {
+                sequence,
+                attributes,
+            } => fetch_response(session, tag, &sequence, &attributes, true),
+            ImapCommand::Store {
+                sequence,
+                action,
+                flags,
+            } => store_response(session, tag, &sequence, &action, &flags, true),
             ImapCommand::Search { criteria } => search_response(session, tag, &criteria, true),
             ImapCommand::Copy { sequence, mailbox } => {
                 copy_response(state, session, tag, &sequence, &mailbox, false, true)
@@ -150,9 +168,11 @@ where
             }
             _ => vec![format_bad(tag, "UID subcommand not supported")],
         },
-        ImapCommand::Store { sequence, action, flags } => {
-            store_response(session, tag, &sequence, &action, &flags, false)
-        }
+        ImapCommand::Store {
+            sequence,
+            action,
+            flags,
+        } => store_response(session, tag, &sequence, &action, &flags, false),
         ImapCommand::Search { criteria } => search_response(session, tag, &criteria, false),
         ImapCommand::Expunge => expunge(session, tag),
         ImapCommand::Copy { sequence, mailbox } => {
@@ -161,9 +181,11 @@ where
         ImapCommand::Move { sequence, mailbox } => {
             copy_response(state, session, tag, &sequence, &mailbox, true, false)
         }
-        ImapCommand::Append { mailbox, flags: _flags, literal_size } => {
-            append_flow(state, session, tag, framed, &mailbox, literal_size).await
-        }
+        ImapCommand::Append {
+            mailbox,
+            flags: _flags,
+            literal_size,
+        } => append_flow(state, session, tag, framed, &mailbox, literal_size).await,
         ImapCommand::Idle => idle_response(tag),
         _ => vec![format_bad(tag, "command not implemented")],
     }
@@ -252,7 +274,9 @@ fn match_wildcard(name: &str, pattern: &str) -> bool {
                 None
             }
         } else {
-            name_lower[search_from..].find(&seg_l).map(|p| p + search_from)
+            name_lower[search_from..]
+                .find(&seg_l)
+                .map(|p| p + search_from)
         };
         let Some(f) = found else { return false };
         pos = f + seg_l.len();
@@ -368,10 +392,7 @@ fn fetch_items(msg: &ImapMessage, attrs: &str, by_uid: bool) -> Vec<(String, Str
                 .unwrap_or(bytes.len());
             let head = &bytes[..head_end];
             let s = String::from_utf8_lossy(head).to_string();
-            items.push((
-                "BODY[HEADER]".into(),
-                format!("{{{}}}\r\n{}", s.len(), s),
-            ));
+            items.push(("BODY[HEADER]".into(), format!("{{{}}}\r\n{}", s.len(), s)));
         }
     } else if (upper.contains("BODY[]") || upper.contains("RFC822"))
         && let Some(bytes) = backend::read_message(msg)
@@ -568,7 +589,12 @@ fn copy_response(
     let Some(dest) = backend::get_mailbox(state, &user, mailbox) else {
         return vec![format_no(tag, "no such destination")];
     };
-    let State::Selected { messages, mailbox: src_mb, .. } = session else {
+    let State::Selected {
+        messages,
+        mailbox: src_mb,
+        ..
+    } = session
+    else {
         unreachable!("checked above");
     };
     let ids = expand_sequence(sequence, messages, by_uid);
@@ -584,7 +610,11 @@ fn copy_response(
     *messages = backend::list_messages(src_mb);
     vec![format_ok(
         tag,
-        if move_op { "MOVE completed" } else { "COPY completed" },
+        if move_op {
+            "MOVE completed"
+        } else {
+            "COPY completed"
+        },
     )]
 }
 
@@ -675,9 +705,7 @@ fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }
-    haystack
-        .windows(needle.len())
-        .position(|w| w == needle)
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 #[cfg(test)]

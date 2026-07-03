@@ -304,7 +304,10 @@ impl MailrsMcpService {
         }
         let cc = params.cc.unwrap_or_default();
         if params.to.len() + cc.len() > 50 {
-            return Err(McpError::invalid_params("too many recipients (max 50)", None));
+            return Err(McpError::invalid_params(
+                "too many recipients (max 50)",
+                None,
+            ));
         }
         let from = params.from.unwrap_or_else(|| user.clone());
         let message_id = crate::handlers::prefs::send_email_mcp(
@@ -336,9 +339,7 @@ impl MailrsMcpService {
         let items: Vec<_> = resp
             .items
             .into_iter()
-            .map(|m| {
-                serde_json::json!({ "id": m.id, "name": m.name, "uidnext": m.uidnext })
-            })
+            .map(|m| serde_json::json!({ "id": m.id, "name": m.name, "uidnext": m.uidnext }))
             .collect();
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "mailboxes": items }).to_string(),
@@ -351,10 +352,7 @@ impl ServerHandler for MailrsMcpService {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_protocol_version(ProtocolVersion::V_2025_03_26)
-            .with_server_info(Implementation::new(
-                "mailrs",
-                env!("CARGO_PKG_VERSION"),
-            ))
+            .with_server_info(Implementation::new("mailrs", env!("CARGO_PKG_VERSION")))
             .with_instructions(
                 "mailrs email server MCP interface. list_conversations lists inbox, \
                  read_thread fetches every message in a thread, search_conversations \

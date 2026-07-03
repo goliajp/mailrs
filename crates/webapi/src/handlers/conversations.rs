@@ -302,7 +302,10 @@ fn extract_date_header_epoch(data: &[u8]) -> Option<i64> {
     let mut i = 0;
     while i < lines.len() {
         let ll = lines[i];
-        if ll.get(..5).is_some_and(|s| s.eq_ignore_ascii_case(b"date:")) {
+        if ll
+            .get(..5)
+            .is_some_and(|s| s.eq_ignore_ascii_case(b"date:"))
+        {
             let mut val: Vec<u8> = ll[5..].trim_ascii_start().to_vec();
             let mut j = i + 1;
             while j < lines.len() {
@@ -350,9 +353,7 @@ fn memchr_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }
-    haystack
-        .windows(needle.len())
-        .position(|w| w == needle)
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 /// Parse `data` (raw RFC-5322 bytes) into text/html body + attachments.
@@ -567,7 +568,9 @@ pub async fn mark_all_read(
         .mark_all_conversations_read(&user)
         .await
         .map_err(map_err)?;
-    Ok(Json(serde_json::json!({ "success": true, "flipped": flipped })))
+    Ok(Json(
+        serde_json::json!({ "success": true, "flipped": flipped }),
+    ))
 }
 
 /// POST /api/conversations/{thread_id}/star
@@ -771,10 +774,7 @@ mod cc_tests {
     #[test]
     fn extracts_folded_cc() {
         let m = b"From: a@x\r\nCc: c@x,\r\n d@x,\r\n\te@x\r\nSubject: hi\r\n\r\nbody";
-        assert_eq!(
-            extract_cc_header(m).as_deref(),
-            Some("c@x, d@x, e@x")
-        );
+        assert_eq!(extract_cc_header(m).as_deref(), Some("c@x, d@x, e@x"));
     }
 
     #[test]
