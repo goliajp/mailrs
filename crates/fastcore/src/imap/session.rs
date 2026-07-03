@@ -186,7 +186,7 @@ where
             flags: _flags,
             literal_size,
         } => append_flow(state, session, tag, framed, &mailbox, literal_size).await,
-        ImapCommand::Idle => idle_response(tag),
+        ImapCommand::Idle => idle_flow(state, session, tag, framed).await,
         _ => vec![format_bad(tag, "command not implemented")],
     }
 }
@@ -667,14 +667,87 @@ where
     }
 }
 
-fn idle_response(tag: &str) -> Vec<String> {
-    // Minimal IDLE — we accept + immediately return DONE handling to
-    // the client. Full push-notification IDLE (RFC 2177) requires
-    // wiring the event bus, deferred to a follow-up.
-    vec![
-        "+ idling\r\n".into(),
-        format_ok(tag, "IDLE terminated (short-circuit)"),
-    ]
+/// RFC 2177 IDLE with real push. Subscribes to the in-process delivery
+/// broadcast; on an event for this user, rescans the selected mailbox
+/// and emits `* n EXISTS` (+ RECENT) when the count grew. Ends when the
+/// client sends DONE, the connection drops, or the 29-minute inactivity
+/// ceiling passes (clients re-issue IDLE well before that per the RFC).
+async fn idle_flow<S>(
+    state: &Arc<FastcoreState>,
+    session: &mut State,
+    tag: &str,
+    framed: &mut Framed<S, ImapCodec>,
+) -> Vec<String>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
+    let (user, mailbox) = match &session {
+        State::Selected { user, mailbox, .. } => (user.clone(), mailbox.clone()),
+        State::Authed { .. } => {
+            // legal per RFC but there is no mailbox to report on — hold
+            // the line open without events
+            (
+                String::new(),
+                MailboxInfo {
+                    name: String::new(),
+                    path: std::path::PathBuf::new(),
+                },
+            )
+        }
+        _ => return vec![format_no(tag, "not authenticated")],
+    };
+    if framed.send(b"+ idling\r\n".to_vec()).await.is_err() {
+        return Vec::new();
+    }
+    let mut rx = state.notify.subscribe();
+    let mut known = match &session {
+        State::Selected { messages, .. } => messages.len(),
+        _ => 0,
+    };
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(29 * 60);
+    loop {
+        tokio::select! {
+            frame = framed.next() => {
+                match frame {
+                    Some(Ok(ImapInput::Line(l))) if l.trim().eq_ignore_ascii_case("DONE") => {
+                        break;
+                    }
+                    Some(Ok(_)) => continue, // anything else mid-IDLE: ignore
+                    _ => return Vec::new(),  // connection gone
+                }
+            }
+            evt = rx.recv() => {
+                let Ok(delivered_user) = evt else { continue }; // lagged — resync below anyway
+                if user.is_empty() || !delivered_user.eq_ignore_ascii_case(&user) {
+                    continue;
+                }
+                let fresh = backend::list_messages(state, &user, &mailbox);
+                if fresh.len() > known {
+                    known = fresh.len();
+                    let exists = format_exists(known as u32);
+                    if framed.send(exists.into_bytes()).await.is_err() {
+                        return Vec::new();
+                    }
+                }
+            }
+            _ = tokio::time::sleep_until(deadline) => {
+                // inactivity ceiling — terminate the command; a live
+                // client re-issues IDLE immediately
+                break;
+            }
+        }
+    }
+    // refresh the session view so post-IDLE FETCHes see the new mail
+    if let State::Selected {
+        user,
+        mailbox,
+        messages,
+        ..
+    } = session
+    {
+        *messages = backend::list_messages(state, user, mailbox);
+    }
+    vec![format_ok(tag, "IDLE terminated")]
 }
 
 /// Expand an IMAP sequence set (`1:5`, `*`, `2,5,8:10`) to matching
