@@ -108,7 +108,7 @@ pub fn index_meili(
     });
 }
 
-fn network_kevy_url() -> Option<String> {
+pub(crate) fn network_kevy_url() -> Option<String> {
     std::env::var("MAILRS_KEVY_URL").ok()
 }
 

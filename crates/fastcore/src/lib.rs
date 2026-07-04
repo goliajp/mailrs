@@ -18,6 +18,7 @@
 #![allow(missing_docs)]
 
 mod acme_task;
+pub mod bounce;
 mod imap;
 mod live_sync;
 mod pop3;
@@ -118,6 +119,10 @@ pub async fn run() {
     tokio::spawn(async move {
         spool_drain::spawn(drain_state).await;
     });
+
+    // Bounce DSN hand-off queue (G9): the sender enqueues composed
+    // DSNs; we deliver them into the local sender's maildir + ingest.
+    bounce::spawn_bounce_drain(state.clone());
 
     // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
     // either is unset. Binds port 80 for the HTTP-01 challenge server
