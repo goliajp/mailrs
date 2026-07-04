@@ -24,3 +24,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+mailrs-fastcore = { path = "../fastcore" }
+mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+kevy-embedded = { workspace = true }
+axum = { version = "0.8" }
