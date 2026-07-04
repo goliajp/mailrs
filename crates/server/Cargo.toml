@@ -147,6 +147,12 @@ rsa = { version = "0.9", features = ["pem"] }
 # mailrs-maildir come from [dependencies] (available to integration tests).
 testcontainers = "0.27"
 mailrs-core-api = { path = "../core-api", features = ["client", "server"] }
+# cross-backend sync test (core_rpc pg_core_tests): spawn a kevy fastcore
+# alongside the spg pg-core and run mailrs-core-sync between them.
+mailrs-fastcore = { path = "../fastcore" }
+mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
+mailrs-core-sync = { path = "../core-sync" }
+kevy-embedded = { workspace = true }
 
 # Network-driven SMTP load bench — substantiates / refutes the
 # "+10-20% throughput" claim from commit 9f21e0b (perf-first release

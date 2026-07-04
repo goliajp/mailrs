@@ -672,4 +672,95 @@ mod pg_core_tests {
         let msgs2 = c.list_thread_messages(user, thread).await.expect("list2");
         assert_eq!(msgs2.items.len(), 1, "re-delivery must not duplicate");
     }
+
+    // ── real cross-backend sync (v2 audit point 5) ──────────────────
+    // Spawn a live kevy fastcore AND the spg pg-core, then run the real
+    // mailrs-core-sync between them over HTTP. This is the actual
+    // production switch axis (kevy↔pg), which the kevy↔kevy roundtrip
+    // test could not cover.
+
+    fn spawn_fastcore() -> String {
+        use std::sync::Arc as StdArc;
+        let store =
+            StdArc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap());
+        let state = StdArc::new(mailrs_fastcore::FastcoreState::new(
+            mailrs_mailbox_kevy::KevyMailboxStore::new(store),
+        ));
+        let router = mailrs_fastcore::build_router(state);
+        // bind synchronously so the caller has the URL before returning
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            axum::serve(listener, router).await.unwrap();
+        });
+        format!("http://{addr}")
+    }
+
+    #[tokio::test]
+    async fn sync_kevy_to_pg_mirrors_mail_store() {
+        use mailrs_core_sync::{SyncOpts, sync};
+
+        let kevy_base = spawn_fastcore();
+        let pg_base = spawn_pg_core().await;
+        let kevy = Client::new(kevy_base, String::new());
+        let pg = Client::new(pg_base, String::new());
+        let user = "sync-user@test";
+
+        // seed the kevy core with an account + 2 threads x 2 messages
+        kevy.add_account(&AddAccountRequest {
+            address: user.into(),
+            display_name: "Sync".into(),
+            password: "pw".into(),
+        })
+        .await
+        .expect("seed add_account");
+        let mut uid = 1u32;
+        for t in 0..2 {
+            let thread = format!("th-{t}@test");
+            for m in 0..2 {
+                kevy.deliver_message(
+                    user,
+                    &thread,
+                    &deliver_req(&format!("k-{t}-{m}@test"), uid, &thread, user),
+                )
+                .await
+                .expect("seed deliver");
+                uid += 1;
+            }
+        }
+
+        // run the REAL sync kevy -> pg over the contract
+        let report = sync(&kevy, &pg, &SyncOpts::default())
+            .await
+            .expect("kevy->pg sync");
+        assert_eq!(report.accounts, 1);
+        assert_eq!(report.messages_delivered, 4, "all 4 messages cross to pg");
+        assert_eq!(report.messages_skipped_dupe, 0);
+
+        // assert the pg core now holds the same per-thread message-id set
+        for t in 0..2 {
+            let thread = format!("th-{t}@test");
+            let msgs = pg
+                .list_thread_messages(user, &thread)
+                .await
+                .expect("pg list");
+            let ids: std::collections::BTreeSet<String> =
+                msgs.items.iter().map(|m| m.message_id.clone()).collect();
+            let expected: std::collections::BTreeSet<String> =
+                (0..2).map(|m| format!("k-{t}-{m}@test")).collect();
+            assert_eq!(ids, expected, "pg thread {t} mirrors kevy");
+        }
+
+        // re-run: idempotent (per-thread dedup on the pg side)
+        let report2 = sync(&kevy, &pg, &SyncOpts::default())
+            .await
+            .expect("re-sync");
+        assert_eq!(report2.messages_delivered, 0, "re-run delivers nothing new");
+        assert_eq!(
+            report2.messages_skipped_dupe, 4,
+            "re-run skips all 4 as dupes"
+        );
+    }
 }
