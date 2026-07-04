@@ -59,6 +59,7 @@ members = [
     "crates/mailbox-kevy",
     "crates/fastcore",
     "crates/pg-dump",
+    "crates/core-sync",
 ]
 
 [workspace.dependencies]
