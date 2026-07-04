@@ -369,7 +369,21 @@ pub async fn search_conversations(
     let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     };
-    let index = format!("mailrs_{}", user.replace('@', "_at_"));
+    // must match fastcore's meili_index sanitization: illegal Meili
+    // index-uid chars (incl. the domain '.') map to '_'
+    let index = {
+        let mut out = String::from("mailrs_");
+        for c in user.chars() {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                out.push(c);
+            } else if c == '@' {
+                out.push_str("_at_");
+            } else {
+                out.push('_');
+            }
+        }
+        out
+    };
     let url = format!("{base}/indexes/{index}/search");
     let mut req = reqwest::Client::new().post(&url).json(&serde_json::json!({
         "q": q.q,
