@@ -18,8 +18,11 @@
 //! - `search_contacts` / `list_signatures` / `get_queue`
 //! - `list_accounts` / `list_domains` (admin-gated)
 //!
-//! 19 tools (was 6). Remaining monolith tools (alias/domain/account
-//! CRUD, encryption, full audit) fill in as follow-on G11 batches.
+//! - `create_account` / `remove_account` / `get_audit_log` (admin-gated)
+//!
+//! 22 tools (was 6). Remaining monolith tools (alias/domain CRUD,
+//! groups, encryption, signatures save/delete) fill in as follow-on
+//! G11 batches.
 //!
 //! Each session gets its own service instance; the authenticated user
 //! flows in through a tokio task-local set by [`mcp_auth_middleware`].
@@ -95,6 +98,33 @@ pub struct SearchConversationsParams {
     /// Max hits (default 20, cap 100).
     #[serde(default)]
     pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateAccountParams {
+    /// New account address (email).
+    pub address: String,
+    /// Display name.
+    pub display_name: String,
+    /// Initial password (Argon2-hashed server-side).
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AddressParams {
+    /// Account address to act on.
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AuditQueryParams {
+    /// Max rows (default 50).
+    #[serde(default = "default_audit_mcp_limit")]
+    pub limit: u32,
+}
+
+fn default_audit_mcp_limit() -> u32 {
+    50
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -565,6 +595,64 @@ impl MailrsMcpService {
             .map_err(|e| McpError::internal_error(format!("list_domains: {e}"), None))?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Create a new account (requires an admin permission).")]
+    async fn create_account(
+        &self,
+        Parameters(params): Parameters<CreateAccountParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        let req = mailrs_core_api::method::admin::AddAccountRequest {
+            address: params.address.clone(),
+            display_name: params.display_name,
+            password: params.password,
+        };
+        self.state
+            .fast()
+            .add_account(&req)
+            .await
+            .map_err(|e| McpError::internal_error(format!("create_account: {e}"), None))?;
+        crate::handlers::audit::record(&user, "account.create", &params.address, "via mcp");
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Remove an account (requires an admin permission).")]
+    async fn remove_account(
+        &self,
+        Parameters(params): Parameters<AddressParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        self.state
+            .fast()
+            .remove_account(&params.address)
+            .await
+            .map_err(|e| McpError::internal_error(format!("remove_account: {e}"), None))?;
+        crate::handlers::audit::record(&user, "account.delete", &params.address, "via mcp");
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Read the admin audit log, newest first (requires an admin permission).")]
+    async fn get_audit_log(
+        &self,
+        Parameters(params): Parameters<AuditQueryParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        let limit = params.limit as i64;
+        let rows = crate::handlers::kevy_util::with_kevy(move |c| {
+            c.lrange(b"admin:audit_log", 0, limit - 1)
+        })
+        .map_err(|_| McpError::internal_error("audit read failed", None))?;
+        let items: Vec<serde_json::Value> = rows
+            .into_iter()
+            .filter_map(|v| serde_json::from_slice(&v).ok())
+            .collect();
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({ "entries": items }).to_string(),
         )]))
     }
 }
