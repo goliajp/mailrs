@@ -248,6 +248,7 @@ fn drain_once(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
             continue;
         }
         crate::ingest_delivered_file(state, &recipient, &filename, &bytes);
+        crate::live_sync::audit_system("mail.bounce", &recipient, "DSN delivered to sender");
         tracing::info!(%recipient, %id, "bounce DSN delivered");
     }
 }
