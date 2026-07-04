@@ -623,7 +623,7 @@ mod pg_core_tests {
             "blob_ref": format!("{message_id}.host"),
             "sender": "remote@x.y", "recipients": user, "subject": "Hi",
             "date": 1_700_000_000i64, "internal_date": 1_700_000_000i64,
-            "size": 42, "flags": 0, "message_id": message_id,
+            "size": 42, "flags": 1, "message_id": message_id,
             "in_reply_to": "", "thread_id": thread_id, "modseq": 0,
             "user_address": user,
         });
@@ -1094,7 +1094,7 @@ mod real_pg_sync_tests {
             "id": 0, "mailbox_id": 0, "uid": uid, "blob_ref": format!("{mid}.host"),
             "sender": "remote@x.y", "recipients": user, "subject": "Hi",
             "date": 1_700_000_000i64, "internal_date": 1_700_000_000i64,
-            "size": 42, "flags": 0, "message_id": mid, "in_reply_to": "",
+            "size": 42, "flags": 1, "message_id": mid, "in_reply_to": "",
             "thread_id": thread, "modseq": 0, "user_address": user,
         });
         DeliverMessageRequest {
