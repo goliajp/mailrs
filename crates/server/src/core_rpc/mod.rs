@@ -763,4 +763,60 @@ mod pg_core_tests {
             "re-run skips all 4 as dupes"
         );
     }
+
+    #[tokio::test]
+    async fn sync_pg_to_kevy_mirrors_mail_store() {
+        // reverse direction: seed the PG core, sync -> kevy. Exercises the
+        // pg-core's enumeration READ path (list_conversations /
+        // list_thread_messages against PG) + kevy ingest, proving the
+        // switch is reliable in BOTH directions across the real boundary.
+        use mailrs_core_sync::{SyncOpts, sync};
+
+        let pg_base = spawn_pg_core().await;
+        let kevy_base = spawn_fastcore();
+        let pg = Client::new(pg_base, String::new());
+        let kevy = Client::new(kevy_base, String::new());
+        let user = "rev-user@test";
+
+        pg.add_account(&AddAccountRequest {
+            address: user.into(),
+            display_name: "Rev".into(),
+            password: "pw".into(),
+        })
+        .await
+        .expect("seed add_account");
+        let mut uid = 1u32;
+        for t in 0..2 {
+            let thread = format!("rth-{t}@test");
+            for m in 0..2 {
+                pg.deliver_message(
+                    user,
+                    &thread,
+                    &deliver_req(&format!("p-{t}-{m}@test"), uid, &thread, user),
+                )
+                .await
+                .expect("seed deliver into pg");
+                uid += 1;
+            }
+        }
+
+        let report = sync(&pg, &kevy, &SyncOpts::default())
+            .await
+            .expect("pg->kevy sync");
+        assert_eq!(report.accounts, 1);
+        assert_eq!(report.messages_delivered, 4, "all 4 messages cross to kevy");
+
+        for t in 0..2 {
+            let thread = format!("rth-{t}@test");
+            let msgs = kevy
+                .list_thread_messages(user, &thread)
+                .await
+                .expect("kevy list");
+            let ids: std::collections::BTreeSet<String> =
+                msgs.items.iter().map(|m| m.message_id.clone()).collect();
+            let expected: std::collections::BTreeSet<String> =
+                (0..2).map(|m| format!("p-{t}-{m}@test")).collect();
+            assert_eq!(ids, expected, "kevy thread {t} mirrors pg");
+        }
+    }
 }
