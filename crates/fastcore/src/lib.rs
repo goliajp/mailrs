@@ -21,6 +21,7 @@ mod acme_task;
 pub mod bounce;
 mod imap;
 pub mod live_sync;
+mod managesieve;
 mod pop3;
 pub mod sender_sts;
 mod sieve_apply;
@@ -159,6 +160,11 @@ pub async fn run() {
     let pop3s_state = state.clone();
     tokio::spawn(async move {
         pop3::spawn_tls(pop3s_state).await;
+    });
+    // ManageSieve (RFC 5804) — sieve script CRUD on :4190 (G5).
+    let sieve_state = state.clone();
+    tokio::spawn(async move {
+        managesieve::spawn(sieve_state).await;
     });
 
     let addr = std::env::var("MAILRS_FASTCORE_BIND").unwrap_or_else(|_| "0.0.0.0:3301".into());
