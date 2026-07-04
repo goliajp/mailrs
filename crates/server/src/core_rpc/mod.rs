@@ -819,4 +819,111 @@ mod pg_core_tests {
             assert_eq!(ids, expected, "kevy thread {t} mirrors pg");
         }
     }
+
+    // ── contract parity on the webapi-called surface (audit point 3) ──
+    // fastcore and pg-core are NOT identical across the FULL contract
+    // (pg-core serves ~60 routes fastcore 404s). But webapi only calls a
+    // mail-store subset, and for THAT subset the two must be
+    // substitutable. This asserts semantic equality (normalized, not
+    // byte-identical — kevy synthesizes mailbox ids/uidvalidity) on the
+    // read surface after an identical seed.
+
+    async fn seed_core(c: &Client, user: &str) {
+        c.add_account(&AddAccountRequest {
+            address: user.into(),
+            display_name: "Parity".into(),
+            password: "pw".into(),
+        })
+        .await
+        .expect("seed add_account");
+        let mut uid = 1u32;
+        for t in 0..3 {
+            let thread = format!("pth-{t}@test");
+            for m in 0..2 {
+                c.deliver_message(
+                    user,
+                    &thread,
+                    &deliver_req(&format!("x-{t}-{m}@test"), uid, &thread, user),
+                )
+                .await
+                .expect("seed deliver");
+                uid += 1;
+            }
+        }
+    }
+
+    /// Normalized (thread_id -> sorted message-id set) for a user.
+    async fn thread_msg_map(c: &Client) -> std::collections::BTreeMap<String, Vec<String>> {
+        use mailrs_core_api::method::conversation::ListConversationsRequest;
+        use mailrs_core_api::types::ConversationFilter;
+        let user = "parity@test";
+        let mut out = std::collections::BTreeMap::new();
+        let page = c
+            .list_conversations(
+                user,
+                &ListConversationsRequest {
+                    filter: ConversationFilter {
+                        limit: 100,
+                        ..Default::default()
+                    },
+                },
+            )
+            .await
+            .expect("list_conversations");
+        for s in &page.items {
+            let msgs = c
+                .list_thread_messages(user, &s.thread_id)
+                .await
+                .expect("list_thread_messages");
+            let mut ids: Vec<String> = msgs.items.iter().map(|m| m.message_id.clone()).collect();
+            ids.sort();
+            out.insert(s.thread_id.clone(), ids);
+        }
+        out
+    }
+
+    #[tokio::test]
+    async fn fastcore_and_pgcore_agree_on_webapi_read_surface() {
+        let user = "parity@test";
+        let kevy = Client::new(spawn_fastcore(), String::new());
+        let pg = Client::new(spawn_pg_core().await, String::new());
+
+        // identical seed into both cores
+        seed_core(&kevy, user).await;
+        seed_core(&pg, user).await;
+
+        // both must expose the identical thread -> message-id structure
+        let kmap = thread_msg_map(&kevy).await;
+        let pmap = thread_msg_map(&pg).await;
+        assert_eq!(
+            kmap, pmap,
+            "fastcore and pg-core must agree on threads+messages"
+        );
+        assert_eq!(kmap.len(), 3, "3 threads on both");
+        for (_t, ids) in &kmap {
+            assert_eq!(ids.len(), 2, "2 messages per thread on both");
+        }
+
+        // account listing agrees on the seeded address
+        let kaccts: std::collections::BTreeSet<String> = kevy
+            .list_accounts()
+            .await
+            .expect("kevy accounts")
+            .items
+            .into_iter()
+            .map(|a| a.address)
+            .collect();
+        let paccts: std::collections::BTreeSet<String> = pg
+            .list_accounts()
+            .await
+            .expect("pg accounts")
+            .items
+            .into_iter()
+            .map(|a| a.address)
+            .collect();
+        assert!(
+            kaccts.contains(user) && paccts.contains(user),
+            "both list the account"
+        );
+    }
 }
