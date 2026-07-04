@@ -74,12 +74,7 @@ pub async fn list_accounts(
     State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<wire::AccountListResponse>, StatusCode> {
-    state
-        .fast()
-        .list_accounts()
-        .await
-        .map(Json)
-        .map_err(map_err)
+    state.core.list_accounts().await.map(Json).map_err(map_err)
 }
 
 /// POST /api/admin/accounts — provision a new account. Writes an
@@ -95,7 +90,7 @@ pub async fn add_account(
     // live. Writing to the network kevy here (as we used to) landed on
     // a different store that fastcore never reads, so new accounts
     // could never log in. See audit Group B P0.
-    state.fast().add_account(&req).await.map_err(map_err)?;
+    state.core.add_account(&req).await.map_err(map_err)?;
     super::audit::record(&actor, "account.create", &req.address, "");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -109,11 +104,7 @@ pub async fn remove_account(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(address): axum::extract::Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    state
-        .fast()
-        .remove_account(&address)
-        .await
-        .map_err(map_err)?;
+    state.core.remove_account(&address).await.map_err(map_err)?;
     super::audit::record(&actor, "account.delete", &address, "");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -142,7 +133,7 @@ pub async fn sync_aliases_to_fastcore(state: &Arc<WebState>) -> usize {
             continue;
         }
         if state
-            .fast()
+            .core
             .upsert_local_alias(&alias.source_address, &alias.target_address)
             .await
             .is_ok()
@@ -194,7 +185,7 @@ pub async fn add_alias(
         Ok(())
     })?;
     if let Err(e) = state
-        .fast()
+        .core
         .upsert_local_alias(&req.source_address, &req.target_address)
         .await
     {
@@ -228,7 +219,7 @@ pub async fn remove_alias(
     })?;
     super::audit::record(&actor, "alias.delete", source.as_deref().unwrap_or(""), "");
     if let Some(src) = source.clone()
-        && let Err(e) = state.fast().delete_local_alias(&src).await
+        && let Err(e) = state.core.delete_local_alias(&src).await
     {
         tracing::warn!(err = %e, source = %src,
             "remove_alias: fastcore mirror delete failed");
@@ -445,7 +436,7 @@ pub async fn update_account(
     if let Some(dn) = req.display_name {
         let wire_req = wire::UpdateAccountRequest { display_name: dn };
         state
-            .fast()
+            .core
             .update_account(&address, &wire_req)
             .await
             .map_err(map_err)?;
@@ -453,7 +444,7 @@ pub async fn update_account(
     if let Some(re) = req.recovery_email {
         let wire_req = wire::UpdateRecoveryEmailRequest { recovery_email: re };
         state
-            .fast()
+            .core
             .set_recovery_email(&address, &wire_req)
             .await
             .map_err(map_err)?;
@@ -502,7 +493,7 @@ pub async fn set_account_quota(
         quota_bytes: req.quota_bytes,
     };
     state
-        .fast()
+        .core
         .set_quota(&address, &wire_req)
         .await
         .map_err(map_err)?;
@@ -893,7 +884,7 @@ pub async fn admin_export(
 ) -> Result<axum::response::Response, StatusCode> {
     if q.user != caller {
         let perms = state
-            .fast()
+            .core
             .effective_permissions(&caller)
             .await
             .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -909,7 +900,7 @@ pub async fn admin_export(
         },
     };
     let resp = state
-        .fast()
+        .core
         .list_conversations(&q.user, &req)
         .await
         .map_err(map_err)?;

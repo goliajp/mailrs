@@ -7,7 +7,7 @@
 //! loops fill in the REST and MCP handlers by copying the existing
 //! `crates/server/src/web/` + `crates/server/src/mcp/` trees and replacing
 //! `state.mailbox.X()` / `state.domain.X()` direct calls with
-//! `state.core_client.X()` RPC client calls.
+//! `state.core.X()` RPC client calls.
 //!
 //! Boot order:
 //! 1. tracing init
@@ -36,19 +36,13 @@ use axum::response::Response;
 /// Distinct from the old `crate::server::web::WebState` — fewer fields
 /// because PG/mailbox/domain backings now sit behind `core_client`.
 pub struct WebState {
-    /// HTTP client for the core/fastcore RPC. Used for everything
-    /// EXCEPT the routes `fastcore_client` covers (when set).
-    pub core_client: Arc<mailrs_core_api::client::Client>,
-    /// Optional second client pointing at a kevy-backed fastcore.
-    /// When `Some`, conversation list / thread mutations / counts /
-    /// categories / per-thread messages are served via this client.
-    /// Everything else (auth, admin, mail send, drafts, signatures,
-    /// templates, queue) stays on `core_client`.
-    ///
-    /// Set via `MAILRS_FASTCORE_RPC_BASE` env var. When unset, all
-    /// requests go to `core_client` and webapi behaves identically
-    /// to the pre-fastcore build.
-    pub fastcore_client: Option<Arc<mailrs_core_api::client::Client>>,
+    /// The ONE core-api RPC client. Points at whichever serving core is
+    /// running (fastcore/kevy OR core/pg-spg) via `MAILRS_CORE_RPC_BASE`
+    /// — webapi is 100% agnostic to which backend answers. The switch
+    /// boundary is exactly this env var; there is no per-route client
+    /// selection and no backend conditional anywhere above this field
+    /// (v2 dual-mode: RFC lazy-wobbling-nebula).
+    pub core: Arc<mailrs_core_api::client::Client>,
     /// Process bind address for the public REST/MCP listener.
     pub bind_addr: String,
     /// Shared WS broadcast bus, initialized lazily on the first
@@ -58,37 +52,16 @@ pub struct WebState {
 }
 
 impl WebState {
-    /// Pick which client handles a "fastcore-eligible" route.
-    /// Used by conversation list / thread mutation handlers.
-    pub fn fast(&self) -> &Arc<mailrs_core_api::client::Client> {
-        self.fastcore_client.as_ref().unwrap_or(&self.core_client)
-    }
-}
-
-impl WebState {
     /// Build state from env. Panics if `MAILRS_CORE_API_SECRET` is missing.
     pub fn from_env() -> Self {
         let base = std::env::var("MAILRS_CORE_RPC_BASE")
             .unwrap_or_else(|_| "http://localhost:3300".into());
         let secret = std::env::var(mailrs_core_api::AUTH_SECRET_ENV)
             .expect("MAILRS_CORE_API_SECRET required for webapi");
-        let core_client = Arc::new(mailrs_core_api::client::Client::new(base, secret.clone()));
-        let fastcore_client = match std::env::var("MAILRS_FASTCORE_RPC_BASE") {
-            Ok(fbase) if !fbase.is_empty() => {
-                tracing::info!(
-                    fastcore_base = %fbase,
-                    "fastcore RPC enabled — conversation/thread reads go to fastcore"
-                );
-                Some(Arc::new(mailrs_core_api::client::Client::new(
-                    fbase, secret,
-                )))
-            }
-            _ => None,
-        };
+        let core = Arc::new(mailrs_core_api::client::Client::new(base, secret));
         let bind_addr = std::env::var("MAILRS_WEB_BIND").unwrap_or_else(|_| "0.0.0.0:3100".into());
         Self {
-            core_client,
-            fastcore_client,
+            core,
             bind_addr,
             event_bus: std::sync::OnceLock::new(),
         }
@@ -737,7 +710,7 @@ async fn health_handler() -> axum::Json<serde_json::Value> {
 async fn readiness_handler(
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
-    match state.core_client.readyz().await {
+    match state.core.readyz().await {
         Ok(h) if h.ready => Ok(axum::Json(serde_json::json!({
             "status": "ready",
             "core_version": h.version,
@@ -794,7 +767,7 @@ pub async fn run() {
     );
 
     // Quick core liveness probe so we fail-fast on bad MAILRS_CORE_RPC_BASE.
-    match state.core_client.healthz().await {
+    match state.core.healthz().await {
         Ok(h) => {
             tracing::info!(version = %h.version, backend = ?h.backend, "core RPC reachable");
         }

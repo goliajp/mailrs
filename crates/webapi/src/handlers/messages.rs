@@ -30,7 +30,7 @@ async fn resolve_message(
     uid: u32,
 ) -> Result<mailrs_core_api::method::message::MessageWire, StatusCode> {
     state
-        .fast()
+        .core
         .get_message_by_uid_for_user(user, uid)
         .await
         .map_err(map_err)
@@ -220,7 +220,7 @@ pub async fn delete_message(
     let new_flags = wire.flags | 0b0000_1000;
     let set_req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags: new_flags };
     state
-        .fast()
+        .core
         .set_message_flags(&user, uid, &set_req)
         .await
         .map_err(map_err)?;
@@ -340,7 +340,7 @@ pub async fn update_flags(
     // also handles the has_unread zset reconciliation when \Seen
     // toggles. Delegating is what makes the write actually stick.
     state
-        .fast()
+        .core
         .set_message_flags(&user, uid, &set_req)
         .await
         .map_err(map_err)?;

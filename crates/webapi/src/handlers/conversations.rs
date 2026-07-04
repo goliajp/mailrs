@@ -126,7 +126,7 @@ pub async fn get_conversations(
         },
     };
     let resp = state
-        .fast()
+        .core
         .list_conversations(&user, &req)
         .await
         .map_err(map_err)?;
@@ -140,7 +140,7 @@ pub async fn get_categories(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<wire::CategoryCount>>, StatusCode> {
     state
-        .fast()
+        .core
         .conversation_categories(&user)
         .await
         .map(|r| Json(r.categories))
@@ -154,7 +154,7 @@ pub async fn get_action_count(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     state
-        .fast()
+        .core
         .action_count(&user)
         .await
         .map(|r| Json(serde_json::json!({ "count": r.count })))
@@ -465,7 +465,7 @@ pub async fn get_thread_messages(
     Path(thread_id): Path<String>,
 ) -> Result<Json<Vec<ThreadMessageResponse>>, StatusCode> {
     let resp = state
-        .fast()
+        .core
         .list_thread_messages(&user, &thread_id)
         .await
         .map_err(map_err)?;
@@ -506,7 +506,7 @@ pub async fn batch_mutation(
     let mut processed = 0u32;
     let mut failed = 0u32;
     for tid in &req.thread_ids {
-        let f = state.fast();
+        let f = &state.core;
         let r = match action {
             "read" => f.mark_thread_read(&user, tid).await.map(|_| ()),
             "unread" => f.mark_thread_unread(&user, tid).await.map(|_| ()),
@@ -539,7 +539,7 @@ pub async fn mark_thread_read(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .mark_thread_read(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -556,7 +556,7 @@ pub async fn mark_all_read(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let flipped = state
-        .fast()
+        .core
         .mark_all_conversations_read(&user)
         .await
         .map_err(map_err)?;
@@ -572,7 +572,7 @@ pub async fn star_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .star_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -586,7 +586,7 @@ pub async fn archive_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .archive_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -600,7 +600,7 @@ pub async fn mark_thread_unread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .mark_thread_unread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -614,7 +614,7 @@ pub async fn unstar_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .unstar_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -628,7 +628,7 @@ pub async fn pin_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .pin_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -642,7 +642,7 @@ pub async fn unpin_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .unpin_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -656,7 +656,7 @@ pub async fn unarchive_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .unarchive_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -670,7 +670,7 @@ pub async fn dismiss_action(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .dismiss_thread_action(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -684,7 +684,7 @@ pub async fn delete_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .delete_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -707,7 +707,7 @@ pub async fn snooze_thread(
         snoozed_until: req.snoozed_until,
     };
     state
-        .fast()
+        .core
         .snooze_thread(&user, &thread_id, &wire_req)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -721,7 +721,7 @@ pub async fn unsnooze_thread(
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .fast()
+        .core
         .unsnooze_thread(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
@@ -735,7 +735,7 @@ pub async fn get_unseen_count(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     state
-        .fast()
+        .core
         .unseen_count(&user)
         .await
         .map(|r| Json(serde_json::json!({ "count": r.count })))
