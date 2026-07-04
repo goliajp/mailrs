@@ -560,3 +560,116 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         base.merge(authenticated)
     }
 }
+
+#[cfg(all(test, feature = "spg"))]
+mod pg_core_tests {
+    //! In-process validation that the PG core router mounts + serves the
+    //! v2 dual-mode routes (deliver_message ingest + read-back +
+    //! Message-ID idempotency) against a real in-memory spg store.
+    //! Spawns the router on an ephemeral port and drives it with the
+    //! core-api Client — the same surface `mailrs-core-sync` uses.
+
+    use super::*;
+    use mailrs_core_api::client::Client;
+    use mailrs_core_api::method::admin::AddAccountRequest;
+    use mailrs_core_api::method::thread::DeliverMessageRequest;
+    use spg_sqlx::SpgPoolExt;
+
+    const SCHEMA_SQL: &str = include_str!("../../../../scripts/init-schema.sql");
+
+    async fn spawn_pg_core() -> String {
+        let pool = spg_sqlx::SpgPool::connect_in_memory()
+            .await
+            .expect("open in-memory spg");
+        sqlx::raw_sql(SCHEMA_SQL)
+            .execute(&pool)
+            .await
+            .expect("apply init-schema.sql");
+        // domain FK for account inserts
+        sqlx::query("INSERT INTO domains (name) VALUES ('test') ON CONFLICT DO NOTHING")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let mailbox = Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone()));
+        let domain = Arc::new(crate::domain_store::DomainStore::new(
+            Some(pool.clone()),
+            None,
+            crate::health::HealthState::new(),
+        ));
+        let state = Arc::new(CoreRpcState {
+            mailbox,
+            domain,
+            pool,
+            maildir_root: "/tmp/pg-core-test".into(),
+        });
+        let router = build_full_router(state, String::new());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        format!("http://{addr}")
+    }
+
+    fn deliver_req(
+        message_id: &str,
+        uid: u32,
+        thread_id: &str,
+        user: &str,
+    ) -> DeliverMessageRequest {
+        let wire = serde_json::json!({
+            "id": 0, "mailbox_id": 0, "uid": uid,
+            "blob_ref": format!("{message_id}.host"),
+            "sender": "remote@x.y", "recipients": user, "subject": "Hi",
+            "date": 1_700_000_000i64, "internal_date": 1_700_000_000i64,
+            "size": 42, "flags": 0, "message_id": message_id,
+            "in_reply_to": "", "thread_id": thread_id, "modseq": 0,
+            "user_address": user,
+        });
+        DeliverMessageRequest {
+            message_id: message_id.into(),
+            subject: "Hi".into(),
+            senders_csv: "remote@x.y".into(),
+            latest_date: 1_700_000_000,
+            latest_preview: String::new(),
+            category: "inbox".into(),
+            unread: true,
+            uid,
+            payload_wire_json: wire.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn pg_core_ingest_reads_back_and_is_idempotent() {
+        let base = spawn_pg_core().await;
+        let c = Client::new(base, String::new());
+        let user = "u@test";
+        let thread = "t1@test";
+
+        c.add_account(&AddAccountRequest {
+            address: user.into(),
+            display_name: "U".into(),
+            password: "pw".into(),
+        })
+        .await
+        .expect("add_account");
+
+        // ingest a message via the P0 route
+        c.deliver_message(user, thread, &deliver_req("m1@test", 1, thread, user))
+            .await
+            .expect("deliver_message");
+
+        // read it back over the contract
+        let msgs = c.list_thread_messages(user, thread).await.expect("list");
+        assert_eq!(msgs.items.len(), 1, "ingested message must read back");
+        assert_eq!(msgs.items[0].message_id, "m1@test");
+
+        // Message-ID idempotent: re-deliver is a no-op, still one message
+        c.deliver_message(user, thread, &deliver_req("m1@test", 1, thread, user))
+            .await
+            .expect("re-deliver");
+        let msgs2 = c.list_thread_messages(user, thread).await.expect("list2");
+        assert_eq!(msgs2.items.len(), 1, "re-delivery must not duplicate");
+    }
+}

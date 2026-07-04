@@ -146,6 +146,7 @@ rsa = { version = "0.9", features = ["pem"] }
 # fixtures use. Pre-pulled in CI's test.yml. tokio / sqlx / tempfile /
 # mailrs-maildir come from [dependencies] (available to integration tests).
 testcontainers = "0.27"
+mailrs-core-api = { path = "../core-api", features = ["client", "server"] }
 
 # Network-driven SMTP load bench — substantiates / refutes the
 # "+10-20% throughput" claim from commit 9f21e0b (perf-first release
