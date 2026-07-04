@@ -193,3 +193,82 @@ pub async fn delete_thread(
         })?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+/// POST /v1/users/{user}/threads/{thread_id}/messages — ingest a message
+/// into the PG store (the landing route for `mailrs-core-sync` running
+/// kevy→PG; the fastcore equivalent lives in fastcore's `deliver_message`).
+///
+/// Message-ID idempotent: re-delivering the same message is a no-op that
+/// echoes the existing thread, so a re-run of sync never double-inserts.
+/// The message's raw bytes are NOT transported — `blob_ref` points at the
+/// shared maildir both cores mount, so only metadata/threading lands here.
+pub async fn deliver_message(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+    Json(req): Json<wire::DeliverMessageRequest>,
+) -> Result<Json<wire::DeliverMessageResponse>, StatusCode> {
+    use mailrs_core_api::method::message::MessageWire;
+    use mailrs_mailbox::{InsertMessage, MailboxStore};
+
+    // idempotency: already ingested → echo, do not re-insert
+    if let Ok(Some(existing)) = state
+        .mailbox
+        .find_by_message_id(&user, &req.message_id)
+        .await
+    {
+        return Ok(Json(wire::DeliverMessageResponse {
+            thread_id: existing.thread_id,
+            message_id: req.message_id,
+        }));
+    }
+
+    let wire: MessageWire = serde_json::from_str(&req.payload_wire_json).map_err(|e| {
+        tracing::warn!(error = %e, user = %user, "deliver_message: bad payload_wire_json");
+        StatusCode::BAD_REQUEST
+    })?;
+
+    // ensure the destination mailbox exists (sync lands everything in INBOX;
+    // per-mailbox placement is not preserved cross-backend by design)
+    const MAILBOX: &str = "INBOX";
+    if state
+        .mailbox
+        .get_mailbox(&user, MAILBOX)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .is_none()
+    {
+        state
+            .mailbox
+            .create_mailbox(&user, MAILBOX)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, user = %user, "deliver_message: create INBOX failed");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
+
+    let input = InsertMessage {
+        user: &user,
+        mailbox_name: MAILBOX,
+        blob_ref: wire.blob_ref.as_str(),
+        sender: &wire.sender,
+        recipients: &wire.recipients,
+        subject: &wire.subject,
+        size: wire.size,
+        date: wire.date,
+        internal_date: wire.internal_date,
+        message_id: &req.message_id,
+        in_reply_to: &wire.in_reply_to,
+        thread_id: &thread_id,
+        flags: wire.flags,
+    };
+    state.mailbox.insert_message(input).await.map_err(|e| {
+        tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: insert failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(wire::DeliverMessageResponse {
+        thread_id,
+        message_id: req.message_id,
+    }))
+}

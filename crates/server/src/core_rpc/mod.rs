@@ -218,9 +218,12 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
 
     // ── thread mutate ────────────────────────────────────────────────
     let th = Router::new()
+        // GET lists, POST ingests — same URL as PATH_DELIVER_MESSAGE, so
+        // the two share one method-chained route (separate .route() calls
+        // on an identical path panic at startup).
         .route(
             th_paths::PATH_LIST_THREAD_MESSAGES,
-            get(handlers::thread::list_thread_messages),
+            get(handlers::thread::list_thread_messages).post(handlers::thread::deliver_message),
         )
         .route(th_paths::PATH_MARK_READ, post(handlers::thread::mark_read))
         .route(
