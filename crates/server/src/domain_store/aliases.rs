@@ -78,6 +78,7 @@ impl DomainStore {
         Ok(res.rows_affected() > 0)
     }
 
+    #[cfg(feature = "core-rpc")]
     /// Source-keyed upsert — the backend-neutral alias API both cores
     /// serve for the v2 switchable-core boundary (kevy is source-keyed;
     /// PG gets this so webapi + `mailrs-core-sync` drive one identical
@@ -100,6 +101,7 @@ impl DomainStore {
         Ok(())
     }
 
+    #[cfg(feature = "core-rpc")]
     /// Source-keyed delete — companion to [`Self::upsert_alias_by_source`].
     pub async fn remove_alias_by_source(&self, source: &str) -> Result<bool> {
         let pool = self.pg()?;
