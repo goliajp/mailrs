@@ -120,9 +120,10 @@ impl MailboxStore for PgMailboxStore {
         )
         .await?;
 
-        // Fetch the resulting id + modseq for the trait's Inserted return.
-        let row: (i64, i64) = sqlx::query_as(
-            "SELECT m.id, m.modseq FROM messages m
+        // Fetch the resulting id + modseq + mailbox_id for the trait's
+        // Inserted return. mailbox_id is needed for the flags path below.
+        let row: (i64, i64, i64) = sqlx::query_as(
+            "SELECT m.id, m.modseq, mb.id FROM messages m
              JOIN mailboxes mb ON m.mailbox_id = mb.id
              WHERE mb.user_address = $1 AND mb.name = $2 AND m.uid = $3",
         )
@@ -138,10 +139,14 @@ impl MailboxStore for PgMailboxStore {
             modseq: row.1 as u64,
         };
 
-        // If the caller passed non-zero initial flags (IMAP APPEND), apply
-        // them now. index_message itself inserts with flags=0.
+        // If the caller passed non-zero initial flags (IMAP APPEND / a
+        // sync delivering a \Seen message), apply them now. index_message
+        // inserts with flags=0. set_flags keys on (mailbox_id, uid) — pass
+        // the MAILBOX id (row.2), NOT the message id (row.0); the latter
+        // made bump_modseq's `UPDATE mailboxes WHERE id=<msg_id>` match no
+        // row → "no rows returned" for every flagged insert.
         if input.flags != 0 {
-            let modseq = Self::set_flags(self, row.0, uid, input.flags).await?;
+            let modseq = Self::set_flags(self, row.2, uid, input.flags).await?;
             inserted.modseq = modseq;
         }
         Ok(inserted)
