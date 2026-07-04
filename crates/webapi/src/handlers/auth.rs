@@ -219,6 +219,7 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
 
     let display = acct.public.display_name.clone();
     let address = acct.public.address.clone();
+    crate::handlers::audit::record(&address, "auth.login", &address, "");
     let perms_vec = perms.map(|p| p.permissions).unwrap_or_default();
     let body = Json(LoginResponse {
         address,

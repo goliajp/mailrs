@@ -88,7 +88,7 @@ pub async fn list_accounts(
 /// EffectivePermissionsResponse. Password is argon2-hashed here.
 pub async fn add_account(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::AddAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
     // Delegate to fastcore — it owns the embedded kevy where accounts
@@ -96,6 +96,7 @@ pub async fn add_account(
     // a different store that fastcore never reads, so new accounts
     // could never log in. See audit Group B P0.
     state.fast().add_account(&req).await.map_err(map_err)?;
+    super::audit::record(&actor, "account.create", &req.address, "");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -105,7 +106,7 @@ pub async fn add_account(
 /// delete.
 pub async fn remove_account(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(address): axum::extract::Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     state
@@ -113,6 +114,7 @@ pub async fn remove_account(
         .remove_account(&address)
         .await
         .map_err(map_err)?;
+    super::audit::record(&actor, "account.delete", &address, "");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -170,7 +172,7 @@ pub async fn list_aliases(
 /// spool drain can honor it.
 pub async fn add_alias(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::AddAliasRequest>,
 ) -> Result<Json<wire::AddAliasResponse>, StatusCode> {
     let id = with_kevy(|c| next_id(c, ALIAS_CTR))?;
@@ -199,6 +201,12 @@ pub async fn add_alias(
         tracing::warn!(err = %e, source = %req.source_address,
             "add_alias: fastcore mirror failed; drain won't see alias until re-added");
     }
+    super::audit::record(
+        &actor,
+        "alias.create",
+        &req.source_address,
+        &format!("-> {}", req.target_address),
+    );
     Ok(Json(wire::AddAliasResponse { id }))
 }
 
@@ -206,7 +214,7 @@ pub async fn add_alias(
 /// fastcore. Reads the wire back first so we know which source to drop.
 pub async fn remove_alias(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(id): axum::extract::Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
     let key = id.to_string();
@@ -218,7 +226,8 @@ pub async fn remove_alias(
         c.hdel(ALIAS_KEY.as_bytes(), &[key.as_bytes()])?;
         Ok(s)
     })?;
-    if let Some(src) = source
+    super::audit::record(&actor, "alias.delete", source.as_deref().unwrap_or(""), "");
+    if let Some(src) = source.clone()
         && let Err(e) = state.fast().delete_local_alias(&src).await
     {
         tracing::warn!(err = %e, source = %src,
@@ -252,7 +261,7 @@ pub struct AddDomainBody {
 /// POST /api/admin/domains
 pub async fn add_domain(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<AddDomainBody>,
 ) -> Result<StatusCode, StatusCode> {
     let d = wire::DomainWire {
@@ -261,8 +270,13 @@ pub async fn add_domain(
     };
     let json = serde_json::to_vec(&d).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let name = req.name;
+    super::audit::record(&actor, "domain.create", &name, "");
+    let name2 = name.clone();
     with_kevy(move |c| {
-        c.hset(DOMAIN_KEY.as_bytes(), &[(name.as_bytes(), json.as_slice())])?;
+        c.hset(
+            DOMAIN_KEY.as_bytes(),
+            &[(name2.as_bytes(), json.as_slice())],
+        )?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -271,11 +285,13 @@ pub async fn add_domain(
 /// DELETE /api/admin/domains/{name}
 pub async fn remove_domain(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<StatusCode, StatusCode> {
+    super::audit::record(&actor, "domain.delete", &name, "");
+    let name2 = name.clone();
     with_kevy(move |c| {
-        c.hdel(DOMAIN_KEY.as_bytes(), &[name.as_bytes()])?;
+        c.hdel(DOMAIN_KEY.as_bytes(), &[name2.as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -367,6 +383,10 @@ const AUDIT_KEY: &str = "admin:audit_log";
 pub struct AuditQuery {
     #[serde(default = "default_audit_limit")]
     pub limit: u32,
+    /// Filter by actor (exact email) — G12.4.
+    pub actor: Option<String>,
+    /// Filter by action prefix (e.g. "account" matches account.*).
+    pub action: Option<String>,
 }
 
 fn default_audit_limit() -> u32 {
@@ -379,11 +399,25 @@ pub async fn list_audit_log(
     Extension(_user): Extension<AuthedUser>,
     Query(q): Query<AuditQuery>,
 ) -> Result<Json<wire::AuditListResponse>, StatusCode> {
-    let limit = q.limit as i64;
-    let entries = with_kevy(move |c| c.lrange(AUDIT_KEY.as_bytes(), 0, limit - 1))?;
+    let limit = q.limit as usize;
+    // read a wider window when filtering so the caller still gets up to
+    // `limit` matching rows, not `limit` pre-filter rows
+    let scan = if q.actor.is_some() || q.action.is_some() {
+        10_000
+    } else {
+        limit as i64
+    };
+    let entries = with_kevy(move |c| c.lrange(AUDIT_KEY.as_bytes(), 0, scan - 1))?;
     let items: Vec<wire::AuditRowWire> = entries
         .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
+        .filter_map(|v| serde_json::from_slice::<wire::AuditRowWire>(&v).ok())
+        .filter(|row| q.actor.as_deref().is_none_or(|a| row.actor == a))
+        .filter(|row| {
+            q.action
+                .as_deref()
+                .is_none_or(|a| row.action.starts_with(a))
+        })
+        .take(limit)
         .collect();
     Ok(Json(wire::AuditListResponse { items }))
 }
@@ -460,7 +494,7 @@ pub struct SetQuotaRequest {
 /// fastcore RPC. `-1` sentinel means unlimited.
 pub async fn set_account_quota(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<SetQuotaRequest>,
 ) -> Result<StatusCode, StatusCode> {
@@ -472,6 +506,12 @@ pub async fn set_account_quota(
         .set_quota(&address, &wire_req)
         .await
         .map_err(map_err)?;
+    super::audit::record(
+        &actor,
+        "account.quota",
+        &address,
+        &format!("{} bytes", req.quota_bytes),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -496,11 +536,12 @@ pub struct SetSieveRequest {
 
 pub async fn set_account_sieve(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<SetSieveRequest>,
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("sieve:{address}");
+    super::audit::record(&actor, "sieve.update", &address, "");
     with_kevy(move |c| {
         c.set(key.as_bytes(), req.script.as_bytes())?;
         Ok(())
