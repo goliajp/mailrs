@@ -1,0 +1,39 @@
+# PG-core variant: mailrs-server WITHOUT the spg feature, so
+# BackendPool = sqlx::PgPool (real PostgreSQL). Used ONLY for the v2
+# two-mode staging validation — the main image ships the spg build.
+# Reuses cargo-chef so external deps are cached; only the workspace
+# recompiles for the non-spg feature set.
+
+FROM rust:1-trixie AS chef
+RUN cargo install cargo-chef --locked --version ^0.1
+WORKDIR /build
+
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY crates/ crates/
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS rust-builder
+COPY --from=planner /build/recipe.json recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo chef cook --release --recipe-path recipe.json
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY crates/ crates/
+# non-spg: real PostgreSQL backend + core-rpc HTTP surface
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --bin mailrs-server --features render-preview,core-rpc \
+    && cargo build --release -p mailrs-core-sync \
+    && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server-pg \
+    && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
+
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=rust-builder /usr/local/bin/mailrs-server-pg /usr/local/bin/mailrs-server-pg
+COPY --from=rust-builder /usr/local/bin/mailrs-core-sync /usr/local/bin/mailrs-core-sync
+ENTRYPOINT ["mailrs-server-pg"]
