@@ -288,6 +288,37 @@ pub async fn cancel_pending_send(
         for id in keep {
             c.lpush(b"mailrs:outbound:pending", &[id.as_slice()])?;
         }
+        // also sweep the scheduled zset — a scheduled send hasn't reached
+        // the pending list yet, so cancelling it must look here too (G13)
+        let sched = c.zrange(b"mailrs:outbound:scheduled", 0, -1)?;
+        for id_bytes in sched {
+            let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
+                continue;
+            };
+            let hkey = format!("mailrs:outbound:{id_str}");
+            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
+                continue;
+            };
+            let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+                continue;
+            };
+            let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
+            let md: String = env
+                .get("message_data_b64")
+                .and_then(|v| v.as_str())
+                .and_then(|b64| {
+                    use base64::Engine as _;
+                    base64::engine::general_purpose::STANDARD.decode(b64).ok()
+                })
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+                .unwrap_or_default();
+            let header = format!("Message-ID: <{target}>\r\n");
+            if sender == user_c && md.contains(&header) {
+                c.zrem(b"mailrs:outbound:scheduled", &[id_bytes.as_slice()])?;
+                c.del(&[hkey.as_bytes()])?;
+                removed += 1;
+            }
+        }
         Ok(removed)
     })
     .unwrap_or(0);

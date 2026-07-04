@@ -485,6 +485,8 @@ struct ComposeParts {
     in_reply_to: Option<String>,
     forward_message_id: Option<String>,
     attachments: Vec<Attachment>,
+    /// Unix epoch seconds to send at; None / past = send now (G13).
+    scheduled_at: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -514,6 +516,8 @@ pub struct SendRequest {
     pub in_reply_to: Option<String>,
     #[serde(default)]
     pub forward_message_id: Option<String>,
+    #[serde(default)]
+    pub scheduled_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -707,7 +711,21 @@ fn enqueue_outbound(
     recipients: &[String],
     envelope: &[u8],
 ) -> Result<(), StatusCode> {
+    enqueue_outbound_at(sender, recipients, envelope, None)
+}
+
+/// Enqueue outbound. When `scheduled_at` is a future epoch, the id
+/// lands in the `mailrs:outbound:scheduled` zset (scored by send time)
+/// instead of the pending list; the sender's due-sweep promotes it to
+/// pending when the time arrives (G13). Past / None sends immediately.
+fn enqueue_outbound_at(
+    sender: &str,
+    recipients: &[String],
+    envelope: &[u8],
+    scheduled_at: Option<i64>,
+) -> Result<(), StatusCode> {
     let created = now_secs();
+    let send_at = scheduled_at.filter(|t| *t > created);
     for rcpt in recipients {
         let rcpt = rcpt.trim().to_string();
         if rcpt.is_empty() {
@@ -724,6 +742,7 @@ fn enqueue_outbound(
             "recipient": rcpt,
             "message_data_b64": b64,
             "created_at": created,
+            "scheduled_at": send_at,
         });
         let payload = blob.to_string();
         with_kevy(move |c| {
@@ -731,7 +750,17 @@ fn enqueue_outbound(
                 format!("mailrs:outbound:{id}").as_bytes(),
                 &[(b"blob", payload.as_bytes())],
             )?;
-            c.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()])?;
+            match send_at {
+                Some(t) => {
+                    c.zadd(
+                        b"mailrs:outbound:scheduled",
+                        &[(t as f64, id.to_string().as_bytes())],
+                    )?;
+                }
+                None => {
+                    c.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()])?;
+                }
+            }
             Ok(())
         })?;
     }
@@ -981,6 +1010,7 @@ pub async fn send_message(
         body: req.body,
         html_body: req.html_body,
         in_reply_to: req.in_reply_to,
+        scheduled_at: req.scheduled_at,
         forward_message_id: req.forward_message_id,
         attachments: Vec::new(),
     };
@@ -988,7 +1018,7 @@ pub async fn send_message(
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    enqueue_outbound(&user, &recipients, &envelope)?;
+    enqueue_outbound_at(&user, &recipients, &envelope, parts.scheduled_at)?;
     mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
@@ -1025,6 +1055,7 @@ pub async fn send_email_mcp(
         in_reply_to: in_reply_to.map(|s| s.to_string()),
         forward_message_id: None,
         attachments: Vec::new(),
+        scheduled_at: None,
     };
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
@@ -1066,6 +1097,9 @@ pub async fn send_message_multipart(
             "forward_message_id" => {
                 parts.forward_message_id = Some(field.text().await.unwrap_or_default())
             }
+            "scheduled_at" => {
+                parts.scheduled_at = field.text().await.ok().and_then(|s| s.trim().parse().ok())
+            }
             "attachments" => {
                 let filename = field.file_name().unwrap_or("attachment").to_string();
                 let content_type = field
@@ -1093,7 +1127,7 @@ pub async fn send_message_multipart(
     recipients.extend(parts.bcc.clone());
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    enqueue_outbound(&user, &recipients, &envelope)?;
+    enqueue_outbound_at(&user, &recipients, &envelope, parts.scheduled_at)?;
     mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
@@ -1118,6 +1152,7 @@ mod build_rfc5322_tests {
             in_reply_to: None,
             forward_message_id: None,
             attachments: atts,
+            scheduled_at: None,
         }
     }
 
