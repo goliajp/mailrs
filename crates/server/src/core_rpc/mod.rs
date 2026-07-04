@@ -926,4 +926,62 @@ mod pg_core_tests {
             "both list the account"
         );
     }
+
+    // ── SQL-core ↔ SQL-core sync (audit point 6, pg↔spg mechanism) ────
+    // pg and spg are the SAME PgMailboxStore code over sqlx — they differ
+    // only in the storage engine underneath, which sqlx abstracts. So the
+    // pg↔spg switch reuses mailrs-core-sync between two SQL cores. This
+    // runs it between two spg cores, proving a SQL-backed core works as
+    // BOTH sync source and destination over the contract (the exact
+    // read=list_conversations + write=deliver_message mechanism a real
+    // pg↔spg migration uses). CAVEAT: real-PostgreSQL↔real-spg with
+    // distinct on-disk formats + spg's held bugs remains untested.
+    #[tokio::test]
+    async fn sync_sql_core_to_sql_core() {
+        use mailrs_core_sync::{SyncOpts, sync};
+
+        let src = Client::new(spawn_pg_core().await, String::new());
+        let dst = Client::new(spawn_pg_core().await, String::new());
+        let user = "sql-sync@test";
+
+        src.add_account(&AddAccountRequest {
+            address: user.into(),
+            display_name: "Sql".into(),
+            password: "pw".into(),
+        })
+        .await
+        .expect("seed add_account");
+        let mut uid = 1u32;
+        for t in 0..2 {
+            let thread = format!("sth-{t}@test");
+            for m in 0..2 {
+                src.deliver_message(
+                    user,
+                    &thread,
+                    &deliver_req(&format!("s-{t}-{m}@test"), uid, &thread, user),
+                )
+                .await
+                .expect("seed deliver");
+                uid += 1;
+            }
+        }
+
+        let report = sync(&src, &dst, &SyncOpts::default())
+            .await
+            .expect("sql->sql sync");
+        assert_eq!(report.messages_delivered, 4, "all 4 cross SQL->SQL");
+
+        for t in 0..2 {
+            let thread = format!("sth-{t}@test");
+            let msgs = dst
+                .list_thread_messages(user, &thread)
+                .await
+                .expect("dst list");
+            let ids: std::collections::BTreeSet<String> =
+                msgs.items.iter().map(|m| m.message_id.clone()).collect();
+            let expected: std::collections::BTreeSet<String> =
+                (0..2).map(|m| format!("s-{t}-{m}@test")).collect();
+            assert_eq!(ids, expected, "dst SQL core thread {t} mirrors src");
+        }
+    }
 }
