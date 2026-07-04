@@ -204,6 +204,7 @@ async fn enqueue_bounce_dsn(
         &cfg.helo,
         sender.trim_matches(|c| c == '<' || c == '>'),
         recipient,
+        "5.0.0",
         reason,
         message,
     );

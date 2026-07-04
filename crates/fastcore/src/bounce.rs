@@ -48,6 +48,36 @@ fn threading_headers(original: &[u8]) -> (Option<String>, Option<String>) {
     (mid, refs)
 }
 
+/// Case-insensitive unfolded single-header lookup over a raw message
+/// head. Shared by DSN composition and the vacation suppression rules.
+pub(crate) fn header_value(raw: &[u8], name: &str) -> Option<String> {
+    let head = &raw[..raw.len().min(16 * 1024)];
+    let text = String::from_utf8_lossy(head);
+    let head_end = text.find("\r\n\r\n").or_else(|| text.find("\n\n"));
+    let head = &text[..head_end.unwrap_or(text.len())];
+    let want = name.to_ascii_lowercase();
+    let mut current: Option<String> = None;
+    for line in head.split('\n') {
+        let line = line.trim_end_matches('\r');
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if let Some(c) = &mut current {
+                c.push(' ');
+                c.push_str(line.trim_start());
+            }
+            continue;
+        }
+        if current.is_some() {
+            break; // finished collecting the wanted header
+        }
+        if let Some((n, v)) = line.split_once(':')
+            && n.trim().to_ascii_lowercase() == want
+        {
+            current = Some(v.trim().to_string());
+        }
+    }
+    current
+}
+
 /// Original header block (up to the first blank line, capped at 8 KB)
 /// for the text/rfc822-headers part.
 fn original_headers(original: &[u8]) -> Vec<u8> {
@@ -72,6 +102,7 @@ pub fn compose_dsn(
     reporting_mta: &str,
     original_sender: &str,
     failed_recipient: &str,
+    status: &str,
     diagnostic: &str,
     original: &[u8],
 ) -> Vec<u8> {
@@ -125,7 +156,7 @@ pub fn compose_dsn(
         "--{boundary}\r\nContent-Type: message/delivery-status\r\n\r\n\
          Reporting-MTA: dns; {reporting_mta}\r\n\r\n\
          Final-Recipient: rfc822; {failed_recipient}\r\n\
-         Action: failed\r\nStatus: 5.0.0\r\n\
+         Action: failed\r\nStatus: {status}\r\n\
          Diagnostic-Code: smtp; {diag}\r\n\r\n",
         diag = diagnostic.replace(['\r', '\n'], " ")
     );
@@ -241,6 +272,7 @@ mod tests {
             "mx.test",
             "sender@x.y",
             "gone@remote.z",
+            "5.1.1",
             "550 no such user",
             orig,
         );
@@ -257,7 +289,14 @@ mod tests {
 
     #[test]
     fn dsn_without_original_mid_still_valid() {
-        let dsn = compose_dsn("mx.test", "s@x.y", "r@z.w", "timeout", b"no headers here");
+        let dsn = compose_dsn(
+            "mx.test",
+            "s@x.y",
+            "r@z.w",
+            "5.0.0",
+            "timeout",
+            b"no headers here",
+        );
         let text = String::from_utf8_lossy(&dsn);
         assert!(!text.contains("In-Reply-To"));
         assert!(text.contains("multipart/report"));

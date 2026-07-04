@@ -129,11 +129,42 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
             };
             // 2. Consult the recipient's sieve script. Actions map to a
             //    Decision that overrides the default INBOX write.
-            let decision = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
-            match decision {
+            let outcome = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
+            // vacation fires only after a successful LOCAL delivery below
+            let mut delivered_locally = false;
+            match outcome.decision {
                 crate::sieve_apply::Decision::Discard => {
                     delivered_here += 1;
                     tracing::info!(recipient = %addr, "sieve: discard");
+                }
+                crate::sieve_apply::Decision::Reject(reason) => {
+                    // Backscatter guard: DSN only when the receiver's
+                    // antispam verdict routed to INBOX (auth-scored OK
+                    // proxy — the envelope carries no raw SPF/DKIM
+                    // result) AND the sender is a real address. Anything
+                    // else is silently consumed.
+                    let allow = env.target_folder.eq_ignore_ascii_case("INBOX")
+                        && !crate::bounce::suppress_bounce(&env.reverse_path);
+                    if allow {
+                        let helo = std::env::var("MAILRS_HELO_HOSTNAME")
+                            .unwrap_or_else(|_| "mailrs".into());
+                        let dsn = crate::bounce::compose_dsn(
+                            &helo,
+                            &env.reverse_path,
+                            &addr,
+                            "5.7.1",
+                            &format!("550 5.7.1 {reason}"),
+                            body,
+                        );
+                        match enqueue_outbound(&env.reverse_path, "", &dsn) {
+                            Ok(()) => tracing::info!(recipient = %addr, "sieve: reject DSN queued"),
+                            Err(e) => tracing::warn!(recipient = %addr, error = %e,
+                                "sieve: reject DSN enqueue failed; message discarded"),
+                        }
+                    } else {
+                        tracing::info!(recipient = %addr, "sieve: reject suppressed (backscatter guard)");
+                    }
+                    delivered_here += 1;
                 }
                 crate::sieve_apply::Decision::Redirect(target) => {
                     match enqueue_redirect(&addr, &target, body, &env.reverse_path) {
@@ -147,6 +178,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                             match deliver(maildir_root, &addr, "", &filename, body) {
                                 Ok(true) => {
                                     delivered_here += 1;
+                                    delivered_locally = true;
                                     crate::ingest_delivered_file(state, &addr, &filename, body);
                                 }
                                 _ => unresolved.push(addr.clone()),
@@ -159,6 +191,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                     match deliver(maildir_root, &addr, &subfolder, &filename, body) {
                         Ok(true) => {
                             delivered_here += 1;
+                            delivered_locally = true;
                             tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
                             let blob_ref = format!("{subfolder}/{filename}");
                             crate::ingest_delivered_file(state, &addr, &blob_ref, body);
@@ -168,6 +201,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                                 "sieve: fileinto target dir missing; falling back to INBOX");
                             if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
                                 delivered_here += 1;
+                                delivered_locally = true;
                                 crate::ingest_delivered_file(state, &addr, &filename, body);
                             } else {
                                 unresolved.push(addr.clone());
@@ -178,6 +212,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                                 "sieve: fileinto write failed; falling back to INBOX");
                             if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
                                 delivered_here += 1;
+                                delivered_locally = true;
                                 crate::ingest_delivered_file(state, &addr, &filename, body);
                             } else {
                                 unresolved.push(addr.clone());
@@ -189,6 +224,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                     match deliver(maildir_root, &addr, "", &filename, body) {
                         Ok(true) => {
                             delivered_here += 1;
+                            delivered_locally = true;
                             crate::ingest_delivered_file(state, &addr, &filename, body);
                         }
                         Ok(false) => unresolved.push(addr.clone()),
@@ -198,6 +234,9 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                         }
                     }
                 }
+            }
+            if delivered_locally && let Some(vac) = outcome.vacation {
+                crate::sieve_apply::maybe_vacation_reply(&addr, &env.reverse_path, body, &vac);
             }
         }
         if delivered_here > 0 {
@@ -311,6 +350,13 @@ fn has_maildir(maildir_root: &str, addr: &str) -> bool {
         .is_dir()
 }
 
+/// Enqueue an arbitrary outbound message (DSN / auto-reply). `sender`
+/// is the MAIL FROM ("<>" for null-envelope notifications).
+fn enqueue_outbound(to: &str, sender: &str, body: &[u8]) -> std::io::Result<()> {
+    let mail_from = if sender.is_empty() { "<>" } else { sender };
+    enqueue_redirect(mail_from, to, body, mail_from)
+}
+
 /// Push a sieve `redirect` action into the outbound queue.
 ///
 /// Wire shape matches `mailrs-outbound-queue`'s existing envelope so
@@ -343,9 +389,12 @@ fn enqueue_redirect(
     };
     let id = format!("{now_ms}-{nonce}");
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
+    // NOTE `recipient` singular — the sender process reads that exact
+    // field; the earlier `recipients` array made every redirect
+    // envelope land in move_to_failed as "malformed"
     let envelope = serde_json::json!({
         "sender": original_recipient,
-        "recipients": [target],
+        "recipient": target,
         "message_data_b64": b64_body,
         "attempts": 0,
         "next_attempt": 0,
