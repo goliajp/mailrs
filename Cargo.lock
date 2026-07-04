@@ -3280,6 +3280,7 @@ dependencies = [
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-sieve",
  "mailrs-smtp-client",
+ "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "password-hash",
  "rand_core 0.6.4",
