@@ -353,55 +353,70 @@ fn default_search_limit() -> u32 {
 }
 
 /// GET /api/conversations/search?q=&limit= — full-text search across
-/// the user's threads.
+/// the user's threads, Meili-first (G10).
 ///
-/// Currently a fastcore-side linear scan over subject + participants
-/// (the two fields cheap to fetch in one HGETALL). The historical
-/// Meili path is skipped because fastcore doesn't index into Meili
-/// yet — Meili's contents are frozen from the last monolith run and
-/// would return stale + drastically under-count results. Once
-/// fastcore learns to write to Meili on every `upsert_thread`, we can
-/// re-enable a Meili-first path here.
+/// Queries the user's `mailrs_<user>` Meili index (populated live by
+/// fastcore + one-shot by `mailrs-fastcore-backfill-meili`), then
+/// hydrates full conversation rows via the by-thread-ids RPC so the UI
+/// gets unread/flags/category like a normal list. Meili unreachable →
+/// 503 (an explicit error, NOT a silent linear scan that would only
+/// see a 20k-row window and mis-rank).
 pub async fn search_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<SearchQuery>,
 ) -> Result<Json<Vec<crate::handlers::conversations::ConversationResponse>>, StatusCode> {
-    let needle = q.q.to_lowercase();
-    // Scan a wide window — kevy HGETALL is ~100 µs in-process, so a
-    // 20 000-entry scan is ~2 s worst case and covers a full account.
-    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
-        filter: mailrs_core_api::types::ConversationFilter {
-            limit: 20_000,
-            before_ts: None,
-            category: None,
-            domains: None,
-            archived: false,
-            folder: None,
-            unread: None,
-            starred: None,
-            section: None,
-        },
+    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
     };
-    let resp = state
+    let index = format!("mailrs_{}", user.replace('@', "_at_"));
+    let url = format!("{base}/indexes/{index}/search");
+    let mut req = reqwest::Client::new().post(&url).json(&serde_json::json!({
+        "q": q.q,
+        "limit": q.limit,
+        "attributesToRetrieve": ["thread_id"],
+    }));
+    if let Ok(key) = std::env::var("MAILRS_MEILI_KEY") {
+        req = req.bearer_auth(key);
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if !resp.status().is_success() {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    let thread_ids: Vec<String> = body
+        .get("hits")
+        .and_then(|h| h.as_array())
+        .map(|hits| {
+            hits.iter()
+                .filter_map(|h| {
+                    h.get("thread_id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if thread_ids.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    // hydrate full rows, preserving Meili's relevance order
+    let hydrate = mailrs_core_api::method::conversation::ConversationsByIdsRequest {
+        thread_ids: thread_ids.clone(),
+        folder: None,
+    };
+    let rows = state
         .fast()
-        .list_conversations(&user, &req)
+        .conversations_by_thread_ids(&user, &hydrate)
         .await
         .map_err(map_core_err)?;
-    // Match into ConversationResponse so `participants` is a Vec<String>
-    // (comma-split) — the UI does `convo.participants[0]` and would
-    // otherwise index a raw String and get the first character. That's
-    // what showed sender labels as "l +13" / "q +28" / etc.
-    let matched: Vec<crate::handlers::conversations::ConversationResponse> = resp
-        .items
-        .into_iter()
-        .filter(|c| {
-            c.subject.to_lowercase().contains(&needle)
-                || c.participants.to_lowercase().contains(&needle)
-                || c.snippet.to_lowercase().contains(&needle)
-        })
-        .take(q.limit as usize)
-        .map(Into::into)
-        .collect();
-    Ok(Json(matched))
+    let out: Vec<crate::handlers::conversations::ConversationResponse> =
+        rows.items.into_iter().map(Into::into).collect();
+    Ok(Json(out))
 }
