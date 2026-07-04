@@ -1013,6 +1013,7 @@ pub(crate) fn ingest_delivered_file(
     crate::live_sync::index_meili(addr, &root, &subject, &from, "", date);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let _ = state.notify.send(addr.to_string());
+    crate::live_sync::publish_new_mail(addr, &root, &from, &subject, "");
     let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
     let wire = mailrs_core_api::method::message::MessageWire {
         id: 0,
@@ -1610,6 +1611,13 @@ async fn deliver_message(
     // Side sinks so contacts autocomplete + Meili stay live on webapi-
     // driven deliveries (mirror-send, forward-into-thread, etc.).
     let _ = state.notify.send(user.clone());
+    crate::live_sync::publish_new_mail(
+        &user,
+        &thread_id,
+        &req.senders_csv,
+        &req.subject,
+        &req.latest_preview,
+    );
     crate::live_sync::upsert_contacts(&user, &req.senders_csv);
     crate::live_sync::index_meili(
         &user,
