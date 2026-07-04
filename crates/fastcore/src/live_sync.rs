@@ -128,6 +128,35 @@ fn ureq_client() -> &'static ureq::Agent {
     })
 }
 
+/// Publish the frontend-shaped realtime event AFTER the message is
+/// readable in kevy. The receiver's SpoolDelivered fires at spool-write
+/// time — before the drain ingests — so a webapp refetch triggered by
+/// it finds nothing; worse, its NotifyEnvelope wrapper isn't the
+/// `{type:"NewMessage",...}` shape the webapp matches on, so realtime
+/// sync was dead in the fastcore topology. webapi forwards whatever
+/// crosses `notify:new-mail` verbatim; this payload IS the frontend
+/// contract (web/src/lib/types.ts NewMessageEvent).
+pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str, snippet: &str) {
+    let Some(url) = network_kevy_url() else {
+        return;
+    };
+    let Ok(mut conn) = Connection::open(&url) else {
+        return;
+    };
+    let payload = serde_json::json!({
+        "type": "NewMessage",
+        "user": user,
+        "thread_id": thread_id,
+        "sender": sender,
+        "subject": subject,
+        "snippet": snippet,
+    });
+    let Ok(bytes) = serde_json::to_vec(&payload) else {
+        return;
+    };
+    let _ = conn.publish(b"notify:new-mail", &bytes);
+}
+
 /// Adjust the recipient's used-bytes counter in the NETWORK kevy —
 /// the receiver's quota stage reads `mailrs:quota:<user>:used_bytes`
 /// at RCPT time. Best-effort: kevy down means the counter drifts until
