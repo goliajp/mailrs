@@ -3155,6 +3155,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-core-sync"
+version = "0.0.1"
+dependencies = [
+ "mailrs-core-api",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mailrs-dav"
 version = "1.1.1"
 dependencies = [

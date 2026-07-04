@@ -1,0 +1,26 @@
+[package]
+name = "mailrs-core-sync"
+version = "0.0.1"
+edition = "2024"
+description = "Backend-agnostic bidirectional mail-store sync between two mailrs cores (fastcore/kevy <-> core/pg-spg) over the mailrs-core-api contract. v2 dual-mode switchover tool."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "mailrs_core_sync"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mailrs-core-sync"
+path = "src/main.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["client"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
