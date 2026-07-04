@@ -185,6 +185,52 @@ async fn move_to_failed(
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
 }
 
+/// Compose an RFC 3464 DSN for a permanently failed delivery and push
+/// it onto the bounce hand-off queue fastcore drains (G9). Null /
+/// daemon senders are suppressed — a bounce never bounces.
+async fn enqueue_bounce_dsn(
+    cfg: &Cfg,
+    sender: &str,
+    recipient: &str,
+    reason: &str,
+    message: &[u8],
+) {
+    use base64::Engine as _;
+    if mailrs_fastcore::bounce::suppress_bounce(sender) {
+        tracing::info!(%recipient, "bounce suppressed (null/daemon sender)");
+        return;
+    }
+    let dsn = mailrs_fastcore::bounce::compose_dsn(
+        &cfg.helo,
+        sender.trim_matches(|c| c == '<' || c == '>'),
+        recipient,
+        reason,
+        message,
+    );
+    let cfg = cfg.clone();
+    let sender = sender.trim_matches(|c| c == '<' || c == '>').to_string();
+    let res = spawn_blocking(move || {
+        let mut c = kevy(&cfg.kevy_url)?;
+        let id = format!("{}-{}", now_secs(), std::process::id());
+        let key = format!("mailrs:bounce:{id}");
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&dsn);
+        c.hset(
+            key.as_bytes(),
+            &[
+                (b"recipient" as &[u8], sender.as_bytes()),
+                (b"blob", b64.as_bytes()),
+            ],
+        )?;
+        c.lpush(mailrs_fastcore::bounce::BOUNCE_PENDING, &[id.as_bytes()])?;
+        Ok::<(), std::io::Error>(())
+    })
+    .await;
+    match res {
+        Ok(Ok(())) => {}
+        other => tracing::warn!(?other, "bounce enqueue failed"),
+    }
+}
+
 /// Persist updated envelope (new attempts / last_error) and RPUSH back
 /// to the pending tail for a retry.
 async fn requeue(cfg: Cfg, id: String, envelope: serde_json::Value) -> std::io::Result<()> {
@@ -467,6 +513,7 @@ async fn process_one(cfg: Cfg, id: String) {
         }
         Outcome::Permanent(reason) => {
             tracing::warn!(%id, reason = %reason, "permanent — moving to failed");
+            enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
             if let Err(e) = move_to_failed(cfg, id.clone(), reason, true).await {
                 tracing::error!(%id, err = %e, "move_to_failed after permanent failed");
             }
@@ -480,6 +527,7 @@ async fn process_one(cfg: Cfg, id: String) {
                     reason = %reason,
                     "max attempts reached — moving to failed"
                 );
+                enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
                 let _ = move_to_failed(cfg, id, reason, true).await;
                 return;
             }
