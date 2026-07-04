@@ -264,6 +264,7 @@ impl DomainStore {
         Ok(res.rows_affected() > 0)
     }
 
+    #[cfg(feature = "core-rpc")]
     /// Set an already-Argon2-hashed password (webapi hashes plaintext
     /// before the RPC, mirroring fastcore's set_password route so the
     /// two cores accept identical requests).
