@@ -25,6 +25,7 @@ mod pop3;
 pub mod sender_sts;
 mod sieve_apply;
 mod spool_drain;
+pub mod tlsrpt;
 
 use std::sync::Arc;
 
@@ -124,6 +125,9 @@ pub async fn run() {
     // Bounce DSN hand-off queue (G9): the sender enqueues composed
     // DSNs; we deliver them into the local sender's maildir + ingest.
     bounce::spawn_bounce_drain(state.clone());
+
+    // TLS-RPT daily aggregate submission (G8.3).
+    tlsrpt::spawn_submit(state.clone());
 
     // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
     // either is unset. Binds port 80 for the HTTP-01 challenge server

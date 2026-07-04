@@ -342,6 +342,16 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
         {
             last_err = format!("mta-sts enforce: {} not in policy mx:", mx.exchange);
             tracing::warn!(err = %last_err, "MX excluded by STS policy, next MX");
+            mailrs_fastcore::tlsrpt::record(
+                &cfg.kevy_url,
+                &mailrs_fastcore::tlsrpt::TlsEvent {
+                    domain: domain.to_string(),
+                    mx: mx.exchange.to_string(),
+                    success: false,
+                    failure_type: Some("mx-mismatch".into()),
+                    detail: Some(last_err.clone()),
+                },
+            );
             continue;
         }
         tracing::info!(mx = %mx.exchange, priority = mx.priority, %recipient, "attempt");
@@ -356,6 +366,7 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
 
         // First EHLO (plain).
         let mut conn = conn;
+        let mut tls_used = false;
         if let Err(e) = conn.ehlo(&cfg.helo).await {
             last_err = format!("ehlo {}: {e}", mx.exchange);
             tracing::warn!(err = %last_err, "ehlo failed, next MX");
@@ -379,6 +390,7 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                     tracing::warn!(err = %last_err, "post-tls ehlo failed, next MX");
                     continue;
                 }
+                tls_used = true;
                 c
             }
             mailrs_smtp_client::StarttlsResult::Rejected {
@@ -389,6 +401,16 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                 if sts_enforce {
                     last_err = format!("mta-sts enforce: {} refused STARTTLS", mx.exchange);
                     tracing::warn!(err = %last_err, "STARTTLS refused under STS enforce, next MX");
+                    mailrs_fastcore::tlsrpt::record(
+                        &cfg.kevy_url,
+                        &mailrs_fastcore::tlsrpt::TlsEvent {
+                            domain: domain.to_string(),
+                            mx: mx.exchange.to_string(),
+                            success: false,
+                            failure_type: Some("starttls-not-supported".into()),
+                            detail: Some(last_err.clone()),
+                        },
+                    );
                     let mut c = conn;
                     let _ = c.quit().await;
                     continue;
@@ -445,6 +467,18 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
 
         if resp.is_positive() {
             tracing::info!(mx = %mx.exchange, code = resp.code, msg = %resp.message(), "delivered");
+            // TLS-RPT success event (G8.3): tls_used tracks whether the
+            // final connection upgraded — set at STARTTLS resolution.
+            mailrs_fastcore::tlsrpt::record(
+                &cfg.kevy_url,
+                &mailrs_fastcore::tlsrpt::TlsEvent {
+                    domain: domain.to_string(),
+                    mx: mx.exchange.to_string(),
+                    success: tls_used,
+                    failure_type: (!tls_used).then(|| "starttls-not-supported".to_string()),
+                    detail: None,
+                },
+            );
             return Outcome::Delivered;
         }
         if resp.is_permanent_error() {

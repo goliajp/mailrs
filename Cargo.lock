@@ -3283,6 +3283,7 @@ dependencies = [
  "mailrs-smtp-client",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "password-hash",
  "rand_core 0.6.4",
  "reqwest 0.13.4",
