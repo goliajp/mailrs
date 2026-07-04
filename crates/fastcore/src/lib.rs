@@ -1064,7 +1064,7 @@ pub(crate) fn ingest_delivered_file(
     }
 }
 
-fn build_router(state: Arc<FastcoreState>) -> Router {
+pub fn build_router(state: Arc<FastcoreState>) -> Router {
     let base = base_router(state.clone());
     // One Router for all business routes so matchit's trie sees the
     // full set at once. Earlier split into convo + thread Routers

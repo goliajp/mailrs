@@ -635,9 +635,21 @@ impl Client {
         address: &str,
         req: &method::admin::SetPasswordRequest,
     ) -> ApiResult<()> {
-        let path = format!("/v1/admin/accounts/{}/password", Self::enc(address));
-        self.post_authed_json(path, req, "set_account_password")
+        // cores answer 204 No Content — decode a unit, don't parse a body
+        // (post_authed_json's map_status::<()> would fail on the empty body;
+        // caught by the core-sync round-trip test).
+        let resp = self
+            .inner
+            .post(self.url(&format!(
+                "/v1/admin/accounts/{}/password",
+                Self::enc(address)
+            )))
+            .bearer_auth(&self.auth_bearer)
+            .json(req)
+            .send()
             .await
+            .map_err(|e| CoreApiError::Internal(format!("set_account_password transport: {e}")))?;
+        Self::map_status_unit(resp, "set_account_password").await
     }
 
     /// POST /v1/users/{user}/messages/{uid}/flags — patch a message's
