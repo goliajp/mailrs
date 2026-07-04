@@ -148,7 +148,8 @@ services:
     ports:
       - "127.0.0.1:3103:3100"
     environment:
-      MAILRS_FASTCORE_RPC_BASE: http://fastcore:3301
+      # v2 dual-mode single switch (default fastcore/kevy :3301).
+      MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://fastcore:3301}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_WEB_BIND: 0.0.0.0:3100
