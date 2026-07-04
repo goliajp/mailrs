@@ -209,6 +209,140 @@ fn _import_tz() -> chrono::DateTime<chrono::Utc> {
     chrono::Utc.timestamp_opt(0, 0).unwrap()
 }
 
+// ── account writes (v2 dual-mode parity with fastcore) ──────────────
+// The monolith did account CRUD in its web layer; in the split the PG
+// core must serve these so webapi (a separate process on one core
+// client) can create/update accounts regardless of backend.
+
+/// POST /v1/admin/accounts — create/replace. Webapi sends plaintext;
+/// hashed here with Argon2 so the wire mirrors fastcore's add_account.
+pub async fn add_account(
+    State(state): State<Arc<CoreRpcState>>,
+    Json(req): Json<wire::AddAccountRequest>,
+) -> Result<StatusCode, StatusCode> {
+    use argon2::{
+        Argon2, PasswordHasher,
+        password_hash::{SaltString, rand_core::OsRng},
+    };
+    let salt = SaltString::generate(&mut OsRng);
+    let hash = Argon2::default()
+        .hash_password(req.password.as_bytes(), &salt)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .to_string();
+    let domain = req.address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+    state
+        .domain
+        .add_account(
+            &req.address,
+            domain,
+            &req.display_name,
+            &hash,
+            chrono::Utc::now().timestamp(),
+        )
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, address = %req.address, "add_account failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// PUT /v1/admin/accounts/{address} — update display name.
+pub async fn update_account(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+    Json(req): Json<wire::UpdateAccountRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .update_account_display_name(&address, &req.display_name)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// DELETE /v1/admin/accounts/{address}
+pub async fn remove_account(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .remove_account(&address)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /v1/admin/accounts/{address}/quota
+pub async fn set_quota(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+    Json(req): Json<wire::SetQuotaRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .set_quota(&address, req.quota_bytes)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /v1/admin/accounts/{address}/recovery-email
+pub async fn set_recovery_email(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+    Json(req): Json<wire::UpdateRecoveryEmailRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .update_recovery_email(&address, &req.recovery_email)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /v1/admin/accounts/{address}/password — accepts a pre-hashed
+/// password (webapi hashes locally, matching fastcore).
+pub async fn set_account_password(
+    State(state): State<Arc<CoreRpcState>>,
+    Path(address): Path<String>,
+    Json(req): Json<wire::SetPasswordRequest>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .domain
+        .set_password_hash(&address, &req.password_hash)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /v1/users/{user}/messages/{uid}/flags — set flags verbatim on
+/// the message in the user's INBOX (parity with fastcore's per-user
+/// uid index route).
+pub async fn set_message_flags(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((user, uid)): Path<(String, u32)>,
+    Json(req): Json<wire::SetMessageFlagsRequest>,
+) -> Result<StatusCode, StatusCode> {
+    use mailrs_mailbox::MailboxStore;
+    let mb = state
+        .mailbox
+        .get_mailbox(&user, "INBOX")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    state
+        .mailbox
+        .set_flags(mb.id, uid, req.flags)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user = %user, uid, "set_message_flags failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ── aliases ─────────────────────────────────────────────────────────
 
 /// GET /v1/admin/aliases
