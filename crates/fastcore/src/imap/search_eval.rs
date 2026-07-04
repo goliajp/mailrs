@@ -295,6 +295,7 @@ mod tests {
             flags: vec![],
             internal_date: date,
             size,
+            modseq: 1,
         }
     }
 

@@ -45,6 +45,9 @@ pub struct ImapMessage {
     pub internal_date: i64,
     /// File size in bytes.
     pub size: u64,
+    /// CONDSTORE modification sequence (RFC 7162). 1 for messages that
+    /// were never flag-mutated since tracking began.
+    pub modseq: u64,
 }
 
 /// Verify a plaintext password against the argon2 hash stored in the
@@ -201,6 +204,21 @@ pub fn list_messages(state: &Arc<FastcoreState>, user: &str, mb: &MailboxInfo) -
     }
     entries.sort_by(|a, b| a.id.0.cmp(&b.id.0));
 
+    let mck = modseq_cache_key(user);
+    let modseqs: std::collections::HashMap<String, u64> = state
+        .mailbox
+        .store_ref()
+        .hgetall(mck.as_bytes())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(k, v)| {
+            Some((
+                String::from_utf8(k).ok()?,
+                std::str::from_utf8(&v).ok()?.parse().ok()?,
+            ))
+        })
+        .collect();
+
     // one HGETALL up front — subsequent SELECTs are cache hits only
     let ck = uid_cache_key(user);
     let cache: std::collections::HashMap<String, u32> = state
@@ -220,6 +238,7 @@ pub fn list_messages(state: &Arc<FastcoreState>, user: &str, mb: &MailboxInfo) -
     let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut out = Vec::with_capacity(entries.len());
     for e in entries {
+        let modseq = modseqs.get(&e.id.0).copied().unwrap_or(1);
         let uid = resolve_uid(state, user, &cache, &seen, &e.id.0, &e.path);
         if uid != 0 {
             seen.insert(uid);
@@ -246,6 +265,7 @@ pub fn list_messages(state: &Arc<FastcoreState>, user: &str, mb: &MailboxInfo) -
             flags: e.flags,
             internal_date,
             size,
+            modseq,
         });
     }
     // RFC 3501: uids must be ascending with sequence order
@@ -293,6 +313,48 @@ pub fn uid_next(state: &Arc<FastcoreState>, user: &str) -> u32 {
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     last.saturating_add(1)
+}
+
+/// Kevy hash caching maildir base-filename → modseq per user.
+fn modseq_cache_key(user: &str) -> String {
+    format!("mailrs:user:{user}:imap:modseq_by_file")
+}
+
+/// Bump and return the per-user modification sequence (RFC 7162).
+/// Monotonic across every mailbox the user owns — a legal (if coarse)
+/// HIGHESTMODSEQ domain.
+pub fn bump_modseq(state: &Arc<FastcoreState>, user: &str) -> u64 {
+    let key = format!("mailrs:user:{user}:imap:modseq");
+    state
+        .mailbox
+        .store_ref()
+        .incr(key.as_bytes())
+        .map(|v| v.max(1) as u64)
+        .unwrap_or(1)
+}
+
+/// Current highest modseq for the user (1 when never bumped).
+pub fn highest_modseq(state: &Arc<FastcoreState>, user: &str) -> u64 {
+    let key = format!("mailrs:user:{user}:imap:modseq");
+    state
+        .mailbox
+        .store_ref()
+        .get(key.as_bytes())
+        .ok()
+        .flatten()
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(1)
+        .max(1)
+}
+
+/// Record a message file's modseq after a mutation.
+pub fn set_file_modseq(state: &Arc<FastcoreState>, user: &str, base: &str, modseq: u64) {
+    let ck = modseq_cache_key(user);
+    let _ = state.mailbox.store_ref().hset(
+        ck.as_bytes(),
+        &[(base.as_bytes(), modseq.to_string().as_bytes())],
+    );
 }
 
 /// Read the raw bytes of a message. Returns `None` when the file is
@@ -368,6 +430,8 @@ pub fn append(
     let empty_cache = std::collections::HashMap::new();
     let empty_seen = std::collections::HashSet::new();
     let path = mb.path.join("new").join(&id.0);
+    let m = bump_modseq(state, user);
+    set_file_modseq(state, user, &id.0, m);
     Ok(resolve_uid(
         state,
         user,
