@@ -357,6 +357,42 @@ pub fn set_file_modseq(state: &Arc<FastcoreState>, user: &str, base: &str, modse
     );
 }
 
+/// Record an expunged uid for QRESYNC `VANISHED (EARLIER)` replay
+/// (RFC 7162 §3.2.9). Scored by the modseq at expunge time.
+pub fn record_vanished(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    folder: &str,
+    uid: u32,
+    modseq: u64,
+) {
+    let key = format!("mailrs:user:{user}:imap:vanished:{folder}");
+    let _ = state.mailbox.store_ref().zadd(
+        key.as_bytes(),
+        &[(modseq as f64, uid.to_string().as_bytes())],
+    );
+}
+
+/// Uids expunged after `since` (exclusive), ascending.
+pub fn vanished_since(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    folder: &str,
+    since: u64,
+) -> Vec<u32> {
+    let key = format!("mailrs:user:{user}:imap:vanished:{folder}");
+    let mut uids: Vec<u32> = state
+        .mailbox
+        .store_ref()
+        .zrange_by_score(key.as_bytes(), (since + 1) as f64, f64::MAX)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(m, _score)| String::from_utf8(m).ok()?.parse().ok())
+        .collect();
+    uids.sort_unstable();
+    uids
+}
+
 /// Read the raw bytes of a message. Returns `None` when the file is
 /// gone (expunged / moved / deleted since the scan).
 pub fn read_message(msg: &ImapMessage) -> Option<Vec<u8>> {
