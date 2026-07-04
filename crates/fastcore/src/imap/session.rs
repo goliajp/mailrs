@@ -59,7 +59,7 @@ where
     let mut framed = Framed::new(io, ImapCodec::new());
     // Greeting per RFC 3501 §7.5. Sent before the client says anything.
     let greeting = format!(
-        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE SORT QUOTA CONDSTORE] {} ready\r\n",
+        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE SORT QUOTA CONDSTORE QRESYNC] {} ready\r\n",
         state
             .mailbox
             .store_ref()
@@ -74,6 +74,8 @@ where
     }
 
     let mut session = State::NotAuthed;
+    // ENABLE QRESYNC is connection-scoped (RFC 7162 §3.2.5)
+    let mut qresync = false;
     while let Some(frame) = framed.next().await {
         let Ok(input) = frame else { return };
         let line = match input {
@@ -94,7 +96,15 @@ where
         };
         let is_logout = matches!(parsed.command, ImapCommand::Logout);
         let tag = parsed.tag;
-        let responses = dispatch(&state, &mut session, &tag, parsed.command, &mut framed).await;
+        let responses = dispatch(
+            &state,
+            &mut session,
+            &tag,
+            parsed.command,
+            &mut framed,
+            &mut qresync,
+        )
+        .await;
         for r in responses {
             if framed.send(r.into_bytes()).await.is_err() {
                 return;
@@ -112,6 +122,7 @@ async fn dispatch<S>(
     tag: &str,
     cmd: ImapCommand,
     framed: &mut Framed<S, ImapCodec>,
+    qresync: &mut bool,
 ) -> Vec<String>
 where
     S: AsyncRead + AsyncWrite + Send + Unpin,
@@ -130,6 +141,7 @@ where
                 "SORT",
                 "QUOTA",
                 "CONDSTORE",
+                "QRESYNC",
             ]),
             format_ok(tag, "CAPABILITY completed"),
         ],
@@ -145,8 +157,24 @@ where
             reference: _,
             pattern,
         } => list_response(state, session, tag, &pattern),
-        ImapCommand::Select { mailbox } => select(state, session, tag, &mailbox, false),
-        ImapCommand::Examine { mailbox } => select(state, session, tag, &mailbox, true),
+        ImapCommand::Select { mailbox } => select(state, session, tag, &mailbox, false, *qresync),
+        ImapCommand::Examine { mailbox } => select(state, session, tag, &mailbox, true, *qresync),
+        ImapCommand::Enable(caps) => {
+            let mut enabled = Vec::new();
+            for c in &caps {
+                let up = c.to_ascii_uppercase();
+                if up == "QRESYNC" || up == "CONDSTORE" {
+                    if up == "QRESYNC" {
+                        *qresync = true;
+                    }
+                    enabled.push(up);
+                }
+            }
+            vec![
+                format!("* ENABLED {}\r\n", enabled.join(" ")),
+                format_ok(tag, "ENABLE completed"),
+            ]
+        }
         ImapCommand::Close => close(session, tag),
         ImapCommand::Fetch {
             sequence,
@@ -182,7 +210,7 @@ where
             flags,
         } => store_response(state, session, tag, &sequence, &action, &flags, false),
         ImapCommand::Search { criteria } => search_response(session, tag, &criteria, false),
-        ImapCommand::Expunge => expunge(state, session, tag),
+        ImapCommand::Expunge => expunge(state, session, tag, *qresync),
         ImapCommand::Copy { sequence, mailbox } => {
             copy_response(state, session, tag, &sequence, &mailbox, false, false)
         }
@@ -313,9 +341,28 @@ fn select(
     tag: &str,
     mailbox: &str,
     read_only: bool,
+    qresync: bool,
 ) -> Vec<String> {
     let Some(user) = session.user().map(str::to_string) else {
         return vec![format_no(tag, "not authenticated")];
+    };
+    // `SELECT "INBOX" (QRESYNC (uidvalidity modseq))` — the proto hands
+    // the whole tail as the mailbox arg; split the optional QRESYNC
+    // parameter list off (RFC 7162 §3.2.5)
+    let (mailbox, qresync_params) = match mailbox.split_once(" (") {
+        Some((name, params)) => {
+            let name = name.trim().trim_matches('"');
+            let up = params.to_ascii_uppercase();
+            let parsed = up.strip_prefix("QRESYNC (").and_then(|rest| {
+                let rest = rest.trim_end_matches(')');
+                let mut it = rest.split_whitespace();
+                let uv = it.next()?.parse::<u32>().ok()?;
+                let ms = it.next()?.parse::<u64>().ok()?;
+                Some((uv, ms))
+            });
+            (name, parsed)
+        }
+        None => (mailbox, None),
     };
     let Some(mb) = backend::get_mailbox(state, &user, mailbox) else {
         return vec![format_no(tag, "no such mailbox")];
@@ -333,7 +380,7 @@ fn select(
         "* OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft)] Limited\r\n"
             .to_string()
     };
-    let out = vec![
+    let mut out = vec![
         flags_line,
         format_exists(count),
         format_recent(recent),
@@ -350,12 +397,45 @@ fn select(
             },
         ),
     ];
+    // QRESYNC delta: only when the client ENABLEd it, supplied params,
+    // and its cached uidvalidity still matches
+    let mut qresync_lines: Vec<String> = Vec::new();
+    if qresync
+        && let Some((client_uv, client_ms)) = qresync_params
+        && client_uv == uidvalidity
+    {
+        let vanished = backend::vanished_since(state, &user, mailbox, client_ms);
+        if !vanished.is_empty() {
+            let list = vanished
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            qresync_lines.push(format!("* VANISHED (EARLIER) {list}\r\n"));
+        }
+        for m in &messages {
+            if m.modseq > client_ms {
+                let flags_str = flags_to_imap(&m.flags);
+                qresync_lines.push(format!(
+                    "* {} FETCH (UID {} FLAGS ({flags_str}) MODSEQ ({}))\r\n",
+                    m.seqno, m.uid, m.modseq
+                ));
+            }
+        }
+    }
     *session = State::Selected {
         user,
         mailbox: mb,
         messages,
         read_only,
     };
+    // untagged QRESYNC deltas go before the tagged completion
+    if !qresync_lines.is_empty()
+        && let Some(tagged) = out.pop()
+    {
+        out.extend(qresync_lines);
+        out.push(tagged);
+    }
     out
 }
 
@@ -677,7 +757,12 @@ fn quota_response(_state: &Arc<FastcoreState>, session: &State, tag: &str) -> Ve
     vec![line, format_ok(tag, "GETQUOTA completed")]
 }
 
-fn expunge(state: &Arc<FastcoreState>, session: &mut State, tag: &str) -> Vec<String> {
+fn expunge(
+    state: &Arc<FastcoreState>,
+    session: &mut State,
+    tag: &str,
+    qresync: bool,
+) -> Vec<String> {
     let State::Selected {
         user,
         messages,
@@ -700,13 +785,29 @@ fn expunge(state: &Arc<FastcoreState>, session: &mut State, tag: &str) -> Vec<St
         .map(|m| m.seqno)
         .collect();
     to_delete.sort_unstable_by(|a, b| b.cmp(a));
+    let mut vanished_uids: Vec<u32> = Vec::new();
     for seqno in &to_delete {
         if let Some(m) = messages.iter().find(|m| m.seqno == *seqno) {
             if backend::delete_file(m).is_ok() {
                 crate::live_sync::adjust_usage_bytes(user, -(m.size as i64));
+                let ms = backend::bump_modseq(state, user);
+                backend::record_vanished(state, user, &mailbox.name, m.uid, ms);
+                vanished_uids.push(m.uid);
             }
-            out.push(format!("* {seqno} EXPUNGE\r\n"));
+            if !qresync {
+                out.push(format!("* {seqno} EXPUNGE\r\n"));
+            }
         }
+    }
+    // QRESYNC-enabled sessions get VANISHED instead of seqno EXPUNGE
+    if qresync && !vanished_uids.is_empty() {
+        vanished_uids.sort_unstable();
+        let list = vanished_uids
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        out.push(format!("* VANISHED {list}\r\n"));
     }
     *messages = backend::list_messages(state, user, mailbox);
     out.push(format_ok(tag, "EXPUNGE completed"));
