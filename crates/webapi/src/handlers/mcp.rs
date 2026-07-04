@@ -215,7 +215,7 @@ impl MailrsMcpService {
         };
         let resp = self
             .state
-            .fast()
+            .core
             .list_conversations(user, &req)
             .await
             .map_err(|e| McpError::internal_error(format!("list_conversations: {e}"), None))?;
@@ -250,7 +250,7 @@ impl MailrsMcpService {
         let user = self.require_user()?;
         let resp = self
             .state
-            .fast()
+            .core
             .list_thread_messages(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("list_thread_messages: {e}"), None))?;
@@ -308,7 +308,7 @@ impl MailrsMcpService {
         };
         let resp = self
             .state
-            .fast()
+            .core
             .list_conversations(user, &req)
             .await
             .map_err(|e| McpError::internal_error(format!("list_conversations: {e}"), None))?;
@@ -343,7 +343,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .mark_thread_read(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("mark_thread_read: {e}"), None))?;
@@ -393,7 +393,7 @@ impl MailrsMcpService {
         let user = self.require_user()?;
         let resp = self
             .state
-            .fast()
+            .core
             .list_mailboxes(user)
             .await
             .map_err(|e| McpError::internal_error(format!("list_mailboxes: {e}"), None))?;
@@ -414,7 +414,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .mark_thread_unread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("mark_thread_unread: {e}"), None))?;
@@ -428,7 +428,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .star_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("star_thread: {e}"), None))?;
@@ -442,7 +442,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .unstar_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("unstar_thread: {e}"), None))?;
@@ -456,7 +456,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .archive_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("archive_thread: {e}"), None))?;
@@ -470,7 +470,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .unarchive_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("unarchive_thread: {e}"), None))?;
@@ -484,7 +484,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .delete_thread(user, &params.thread_id)
             .await
             .map_err(|e| McpError::internal_error(format!("delete_thread: {e}"), None))?;
@@ -495,7 +495,7 @@ impl MailrsMcpService {
     async fn mark_all_read(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?;
         self.state
-            .fast()
+            .core
             .mark_all_conversations_read(user)
             .await
             .map_err(|e| McpError::internal_error(format!("mark_all_read: {e}"), None))?;
@@ -509,7 +509,7 @@ impl MailrsMcpService {
         let user = self.require_user()?;
         let resp = self
             .state
-            .fast()
+            .core
             .conversation_categories(user)
             .await
             .map_err(|e| McpError::internal_error(format!("get_categories: {e}"), None))?;
@@ -523,48 +523,65 @@ impl MailrsMcpService {
         )]))
     }
 
+    // NOTE: contacts / signatures / outbound-queue / domains live in the
+    // INDEPENDENT network kevy (shared side-state), NOT the switchable
+    // core — so these tools read it directly, never through `state.core`.
+    // (v2 dual-mode: the core client is mail-store only.)
+
     #[tool(description = "Search the authenticated user's contacts (autocomplete addresses).")]
     async fn search_contacts(
         &self,
         Parameters(params): Parameters<SearchContactsParams>,
     ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?;
-        let resp = self
-            .state
-            .fast()
-            .search_contacts(user, &params.q, params.limit)
-            .await
-            .map_err(|e| McpError::internal_error(format!("search_contacts: {e}"), None))?;
+        let user = self.require_user()?.to_string();
+        let key = format!("mailrs:user:{user}:contacts");
+        let q = params.q.to_lowercase();
+        let limit = params.limit as usize;
+        let flat = crate::handlers::kevy_util::with_kevy(move |c| c.hgetall(key.as_bytes()))
+            .map_err(|_| McpError::internal_error("contacts read failed", None))?;
+        // hgetall is flat [field, value, ...] — field = email, value = display
+        let mut items: Vec<String> = Vec::new();
+        for pair in flat.chunks(2) {
+            let email = String::from_utf8_lossy(&pair[0]).into_owned();
+            let display = pair
+                .get(1)
+                .map(|v| String::from_utf8_lossy(v).into_owned())
+                .unwrap_or_default();
+            if email.to_lowercase().contains(&q) || display.to_lowercase().contains(&q) {
+                items.push(email);
+                if items.len() >= limit {
+                    break;
+                }
+            }
+        }
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({ "contacts": resp.items }).to_string(),
+            serde_json::json!({ "contacts": items }).to_string(),
         )]))
     }
 
     #[tool(description = "List the authenticated user's saved signatures.")]
     async fn list_signatures(&self) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?;
-        let resp = self
-            .state
-            .fast()
-            .list_signatures(user)
-            .await
-            .map_err(|e| McpError::internal_error(format!("list_signatures: {e}"), None))?;
+        let user = self.require_user()?.to_string();
+        let key = format!("signatures:{user}");
+        let flat = crate::handlers::kevy_util::with_kevy(move |c| c.hgetall(key.as_bytes()))
+            .map_err(|_| McpError::internal_error("signatures read failed", None))?;
+        let items: Vec<serde_json::Value> = flat
+            .chunks(2)
+            .filter_map(|p| p.get(1))
+            .filter_map(|v| serde_json::from_slice(v).ok())
+            .collect();
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
+            serde_json::json!({ "signatures": items }).to_string(),
         )]))
     }
 
-    #[tool(description = "Outbound queue stats (pending + inflight counts).")]
+    #[tool(description = "Outbound queue stats (pending count).")]
     async fn get_queue(&self) -> Result<CallToolResult, McpError> {
         let _user = self.require_user()?;
-        let resp = self
-            .state
-            .fast()
-            .outbound_stats()
-            .await
-            .map_err(|e| McpError::internal_error(format!("get_queue: {e}"), None))?;
+        let pending = crate::handlers::kevy_util::with_kevy(|c| c.llen(b"mailrs:outbound:pending"))
+            .map_err(|_| McpError::internal_error("queue read failed", None))?;
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({ "pending": resp.pending, "inflight": resp.inflight }).to_string(),
+            serde_json::json!({ "pending": pending }).to_string(),
         )]))
     }
 
@@ -574,7 +591,7 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         let resp = self
             .state
-            .fast()
+            .core
             .list_accounts()
             .await
             .map_err(|e| McpError::internal_error(format!("list_accounts: {e}"), None))?;
@@ -587,14 +604,17 @@ impl MailrsMcpService {
     async fn list_domains(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let resp = self
-            .state
-            .fast()
-            .list_domains()
-            .await
-            .map_err(|e| McpError::internal_error(format!("list_domains: {e}"), None))?;
+        // domains are shared side-state (env + network kevy admin:domains),
+        // not switchable-core data — read network kevy directly.
+        let flat = crate::handlers::kevy_util::with_kevy(|c| c.hgetall(b"admin:domains"))
+            .map_err(|_| McpError::internal_error("domains read failed", None))?;
+        let items: Vec<serde_json::Value> = flat
+            .chunks(2)
+            .filter_map(|p| p.get(1))
+            .filter_map(|v| serde_json::from_slice(v).ok())
+            .collect();
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::to_string(&resp).unwrap_or_default(),
+            serde_json::json!({ "domains": items }).to_string(),
         )]))
     }
 
@@ -611,7 +631,7 @@ impl MailrsMcpService {
             password: params.password,
         };
         self.state
-            .fast()
+            .core
             .add_account(&req)
             .await
             .map_err(|e| McpError::internal_error(format!("create_account: {e}"), None))?;
@@ -627,7 +647,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         self.state
-            .fast()
+            .core
             .remove_account(&params.address)
             .await
             .map_err(|e| McpError::internal_error(format!("remove_account: {e}"), None))?;

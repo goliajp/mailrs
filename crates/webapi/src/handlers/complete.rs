@@ -78,15 +78,11 @@ pub async fn get_mail_stats(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let cats = state
-        .fast()
+        .core
         .conversation_categories(&user)
         .await
         .map_err(map_core_err)?;
-    let unseen = state
-        .fast()
-        .unseen_count(&user)
-        .await
-        .map_err(map_core_err)?;
+    let unseen = state.core.unseen_count(&user).await.map_err(map_core_err)?;
     let total: i64 = cats.categories.iter().map(|c| c.count).sum();
     Ok(Json(serde_json::json!({
         "categories": cats.categories,
@@ -198,7 +194,7 @@ pub async fn reset_password(
         password_hash: hash,
     };
     state
-        .fast()
+        .core
         .set_account_password(&address, &set_req)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -236,7 +232,7 @@ pub async fn get_recovery_email(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let acct = match state.fast().get_account_with_hash(&user).await {
+    let acct = match state.core.get_account_with_hash(&user).await {
         Ok(a) => a,
         Err(_) => {
             return Ok(Json(serde_json::json!({ "recovery_email": null })));
@@ -271,7 +267,7 @@ pub async fn set_recovery_email(
         recovery_email: email,
     };
     state
-        .fast()
+        .core
         .set_recovery_email(&user, &wire_req)
         .await
         .map_err(|e| {
@@ -420,7 +416,7 @@ pub async fn get_message_single(
     Path(uid): Path<u32>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let w = state
-        .fast()
+        .core
         .get_message_by_uid_for_user(&user, uid)
         .await
         .map_err(map_core_err)?;
@@ -629,7 +625,7 @@ pub async fn audit_conversations(
         },
     };
     let resp = state
-        .fast()
+        .core
         .list_conversations(&target, &req)
         .await
         .map_err(|e| {
@@ -702,7 +698,7 @@ pub async fn audit_conversation_messages(
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let resp = state
-        .fast()
+        .core
         .list_thread_messages(&q.user, &thread_id)
         .await
         .map_err(|e| {
@@ -724,7 +720,7 @@ pub async fn audit_message_raw(
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<axum::response::Response, StatusCode> {
     let wire = state
-        .fast()
+        .core
         .get_message_by_uid_for_user(&q.user, uid)
         .await
         .map_err(|e| StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::NOT_FOUND))?;

@@ -896,7 +896,7 @@ async fn mirror_send_to_sender_view(
         uid: 0,
         payload_wire_json: wire_json,
     };
-    if let Err(e) = state.fast().deliver_message(user, &thread_id, &req).await {
+    if let Err(e) = state.core.deliver_message(user, &thread_id, &req).await {
         tracing::warn!(err = %e, %user, %thread_id, "mirror_send: fastcore deliver_message failed");
     }
 
@@ -977,7 +977,7 @@ async fn ensure_from_allowed(
         return Ok(());
     }
     let perms = state
-        .fast()
+        .core
         .effective_permissions(user)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;

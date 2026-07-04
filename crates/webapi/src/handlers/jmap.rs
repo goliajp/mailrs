@@ -49,13 +49,13 @@ impl JmapAdapter {
     ) -> Result<(mailrs_core_api::method::mailbox::MailboxWire, String), StoreError> {
         let accounts = self
             .state
-            .fast()
+            .core
             .list_accounts()
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
         for a in accounts.items {
             let addr = a.address;
-            if let Ok(list) = self.state.fast().list_mailboxes(&addr).await
+            if let Ok(list) = self.state.core.list_mailboxes(&addr).await
                 && let Some(m) = list.items.into_iter().find(|m| m.id == mailbox_id)
             {
                 return Ok((m, addr));
@@ -91,7 +91,7 @@ impl MailStore for JmapAdapter {
     async fn list_mailboxes(&self, user: &str) -> Result<Vec<JmapMailbox>, StoreError> {
         let resp = self
             .state
-            .fast()
+            .core
             .list_mailboxes(user)
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
@@ -115,7 +115,7 @@ impl MailStore for JmapAdapter {
         let total = mb.uidnext.saturating_sub(1);
         let unread = if mb.name.eq_ignore_ascii_case("INBOX") {
             self.state
-                .fast()
+                .core
                 .unseen_count(&user)
                 .await
                 .map(|r| r.count.max(0) as u32)
@@ -147,7 +147,7 @@ impl MailStore for JmapAdapter {
         };
         let resp = self
             .state
-            .fast()
+            .core
             .list_conversations(&user, &req)
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
@@ -157,7 +157,7 @@ impl MailStore for JmapAdapter {
             }
             let msgs = self
                 .state
-                .fast()
+                .core
                 .list_thread_messages(&user, &conv.thread_id)
                 .await
                 .map(|r| r.items)
@@ -191,7 +191,7 @@ impl MailStore for JmapAdapter {
     ) -> Result<Vec<JmapMessage>, StoreError> {
         let resp = self
             .state
-            .fast()
+            .core
             .list_thread_messages(user, thread_id)
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })?;
@@ -202,7 +202,7 @@ impl MailStore for JmapAdapter {
         let (_mb, user) = self.resolve_mailbox(mailbox_id).await?;
         let req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags };
         self.state
-            .fast()
+            .core
             .set_message_flags(&user, uid, &req)
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })
@@ -214,14 +214,14 @@ impl MailStore for JmapAdapter {
         let (_mb, user) = self.resolve_mailbox(mailbox_id).await?;
         let cur = self
             .state
-            .fast()
+            .core
             .get_message_by_uid_for_user(&user, uid)
             .await
             .map(|w| w.flags)
             .unwrap_or(0);
         let req = mailrs_core_api::method::admin::SetMessageFlagsRequest { flags: cur | flags };
         self.state
-            .fast()
+            .core
             .set_message_flags(&user, uid, &req)
             .await
             .map_err(|e| -> StoreError { Box::new(std::io::Error::other(e.to_string())) })

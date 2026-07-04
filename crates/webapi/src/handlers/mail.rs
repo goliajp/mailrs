@@ -60,7 +60,7 @@ pub async fn list_folder_messages(
         },
     };
     let resp = state
-        .fast()
+        .core
         .list_conversations(&user, &req)
         .await
         .map_err(|e| {
@@ -97,9 +97,9 @@ pub async fn get_folders(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<FolderInfo>>, StatusCode> {
-    let resp = state.fast().list_mailboxes(&user).await.map_err(map_err)?;
+    let resp = state.core.list_mailboxes(&user).await.map_err(map_err)?;
     let inbox_unseen = state
-        .fast()
+        .core
         .unseen_count(&user)
         .await
         .map(|r| r.count)

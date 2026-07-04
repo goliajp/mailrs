@@ -27,7 +27,7 @@ use crate::WebState;
 /// [`require_permission`].
 pub async fn require_admin(state: &Arc<WebState>, user: &str) -> Result<(), StatusCode> {
     let perms = state
-        .fast()
+        .core
         .effective_permissions(user)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;
@@ -47,7 +47,7 @@ pub async fn require_permission(
     permission: &str,
 ) -> Result<(), StatusCode> {
     let perms = state
-        .fast()
+        .core
         .effective_permissions(user)
         .await
         .map_err(|_| StatusCode::FORBIDDEN)?;

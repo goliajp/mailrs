@@ -250,7 +250,7 @@ pub async fn export_mbox(
         },
     };
     let convs = state
-        .fast()
+        .core
         .list_conversations(&user, &req)
         .await
         .map_err(map_core_err)?;
@@ -258,7 +258,7 @@ pub async fn export_mbox(
     let mut out = Vec::<u8>::new();
     for c in convs.items {
         // Every message in each thread — fetch via list_thread_messages RPC.
-        if let Ok(resp) = state.fast().list_thread_messages(&user, &c.thread_id).await {
+        if let Ok(resp) = state.core.list_thread_messages(&user, &c.thread_id).await {
             for w in resp.items {
                 if let Ok(Some(bytes)) = store
                     .fetch(&path, &mailrs_message_store::MessageId(w.blob_ref.clone()))
@@ -426,7 +426,7 @@ pub async fn search_conversations(
         folder: None,
     };
     let rows = state
-        .fast()
+        .core
         .conversations_by_thread_ids(&user, &hydrate)
         .await
         .map_err(map_core_err)?;

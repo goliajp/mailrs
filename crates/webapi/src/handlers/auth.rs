@@ -61,7 +61,7 @@ pub struct LoginResponse {
 /// - Return 200 with `Set-Cookie: mailrs_session=<token>; HttpOnly; ...`
 pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequest>) -> Response {
     // Fastcore-only: kevy-backed account store is the source of truth.
-    let acct = match state.fast().get_account_with_hash(&req.address).await {
+    let acct = match state.core.get_account_with_hash(&req.address).await {
         Ok(a) => a,
         Err(mailrs_core_api::error::CoreApiError::NotFound(_)) => {
             return StatusCode::UNAUTHORIZED.into_response();
@@ -158,7 +158,7 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
     }
 
     // Permissions for the login response — fastcore-only.
-    let perms = state.fast().effective_permissions(&req.address).await.ok();
+    let perms = state.core.effective_permissions(&req.address).await.ok();
 
     // Generate token + write to kevy in the same shape as the monolith.
     let mut bytes = [0u8; 32];
@@ -267,7 +267,7 @@ pub async fn verify_credentials(
     Json(req): Json<VerifyRequest>,
 ) -> Response {
     let perms = state
-        .fast()
+        .core
         .effective_permissions(&caller)
         .await
         .map(|p| p.permissions)
@@ -286,7 +286,7 @@ pub async fn verify_credentials(
         )
             .into_response();
     }
-    let acct = match state.fast().get_account_with_hash(&req.address).await {
+    let acct = match state.core.get_account_with_hash(&req.address).await {
         Ok(a) => a,
         Err(_) => {
             return (
@@ -340,7 +340,7 @@ pub async fn verify_totp(
     Json(req): Json<VerifyTotpRequest>,
 ) -> Response {
     let perms = state
-        .fast()
+        .core
         .effective_permissions(&caller)
         .await
         .map(|p| p.permissions)
@@ -454,7 +454,7 @@ pub async fn change_password(
     }
 
     // Verify current password via fastcore RPC (same shape as login).
-    let acct = match state.fast().get_account_with_hash(&address).await {
+    let acct = match state.core.get_account_with_hash(&address).await {
         Ok(a) => a,
         Err(e) => {
             tracing::warn!(err = %e, "change_password: get_account_with_hash failed");
@@ -493,7 +493,7 @@ pub async fn change_password(
     let req = mailrs_core_api::method::admin::SetPasswordRequest {
         password_hash: new_hash,
     };
-    if let Err(e) = state.fast().set_account_password(&address, &req).await {
+    if let Err(e) = state.core.set_account_password(&address, &req).await {
         tracing::warn!(err = %e, %address, "set_account_password failed");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
@@ -555,7 +555,7 @@ pub async fn auth_me(
     Extension(AuthedDisplayName(display_name)): Extension<AuthedDisplayName>,
 ) -> Result<Json<AuthMeResponse>, StatusCode> {
     let perms = state
-        .fast()
+        .core
         .effective_permissions(&address)
         .await
         .map_err(map_err)?;
