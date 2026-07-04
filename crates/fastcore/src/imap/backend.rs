@@ -325,12 +325,15 @@ fn modseq_cache_key(user: &str) -> String {
 /// HIGHESTMODSEQ domain.
 pub fn bump_modseq(state: &Arc<FastcoreState>, user: &str) -> u64 {
     let key = format!("mailrs:user:{user}:imap:modseq");
+    // +1 bias: never-mutated messages default to modseq 1, so the very
+    // first bump must land at 2 — a raw first incr() returns 1 and the
+    // mutation becomes invisible to CHANGEDSINCE (caught on staging)
     state
         .mailbox
         .store_ref()
         .incr(key.as_bytes())
-        .map(|v| v.max(1) as u64)
-        .unwrap_or(1)
+        .map(|v| (v.max(0) as u64) + 1)
+        .unwrap_or(2)
 }
 
 /// Current highest modseq for the user (1 when never bumped).
@@ -344,6 +347,7 @@ pub fn highest_modseq(state: &Arc<FastcoreState>, user: &str) -> u64 {
         .flatten()
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|s| s.parse::<u64>().ok())
+        .map(|c| c + 1)
         .unwrap_or(1)
         .max(1)
 }
