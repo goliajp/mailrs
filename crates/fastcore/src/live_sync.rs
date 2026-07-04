@@ -189,14 +189,14 @@ pub fn mirror_quota_limit(user: &str, limit_bytes: i64) {
     let _ = conn.set(key.as_bytes(), limit_bytes.to_string().as_bytes());
 }
 
-/// Read (limit, used) for the quota check on write paths fastcore owns
-/// (IMAP APPEND). Missing/zero limit = unlimited. Fail-open on errors.
-pub fn quota_exceeded(user: &str) -> bool {
+/// Read `(limit, used)` bytes for a user from the network kevy.
+/// `(0, _)` = no limit configured. Fail-open: any error reads as 0.
+pub fn quota_read(user: &str) -> (i64, i64) {
     let Some(url) = network_kevy_url() else {
-        return false;
+        return (0, 0);
     };
     let Ok(mut conn) = Connection::open(&url) else {
-        return false;
+        return (0, 0);
     };
     let lk = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());
     let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
@@ -206,11 +206,15 @@ pub fn quota_exceeded(user: &str) -> bool {
             .unwrap_or(0)
     };
     let limit = parse(conn.get(lk.as_bytes()).unwrap_or(None));
-    if limit <= 0 {
-        return false;
-    }
     let used = parse(conn.get(uk.as_bytes()).unwrap_or(None));
-    used >= limit
+    (limit, used)
+}
+
+/// Read (limit, used) for the quota check on write paths fastcore owns
+/// (IMAP APPEND). Missing/zero limit = unlimited. Fail-open on errors.
+pub fn quota_exceeded(user: &str) -> bool {
+    let (limit, used) = quota_read(user);
+    limit > 0 && used >= limit
 }
 
 #[cfg(test)]

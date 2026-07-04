@@ -45,6 +45,18 @@ pub enum SearchKey {
     On(i64),
     /// `UID <sequence-set>` — match specific UIDs.
     Uid(String),
+    /// `HEADER <field> <string>` — substring match on a named header.
+    Header(String, String),
+    /// `LARGER <n>` — messages larger than n bytes.
+    Larger(u32),
+    /// `SMALLER <n>` — messages smaller than n bytes.
+    Smaller(u32),
+    /// `OR <key1> <key2>` — either operand matches.
+    Or(Box<SearchKey>, Box<SearchKey>),
+    /// `NOT <key>` — operand does not match.
+    Not(Box<SearchKey>),
+    /// `(<keys...>)` — parenthesized group; every member must match.
+    And(Vec<SearchKey>),
 }
 
 /// parse IMAP SEARCH criteria string into a list of search keys
@@ -56,93 +68,187 @@ pub fn parse_search_criteria(criteria: &str) -> Vec<SearchKey> {
     if criteria.is_empty() {
         return vec![SearchKey::All];
     }
-
-    let mut keys = Vec::new();
     let tokens = tokenize_search(criteria);
     let mut i = 0;
-
+    let mut keys = Vec::new();
     while i < tokens.len() {
-        // Stack-buffer uppercase: SEARCH keywords are bounded ASCII
-        // (longest is `UNANSWERED` at 10 bytes). Fits in 16; tokens
-        // exceeding 16 are non-keywords (quoted strings / numbers /
-        // unknown extensions) and fall through to the default arm.
-        let tok = tokens[i].as_bytes();
-        if tok.len() > 16 {
-            i += 1;
-            continue;
-        }
-        let mut buf = [0u8; 16];
-        for (j, &b) in tok.iter().enumerate() {
-            buf[j] = b.to_ascii_uppercase();
-        }
-        let kw = &buf[..tok.len()];
-        match kw {
-            b"ALL" => keys.push(SearchKey::All),
-            b"SEEN" => keys.push(SearchKey::Seen),
-            b"UNSEEN" => keys.push(SearchKey::Unseen),
-            b"FLAGGED" => keys.push(SearchKey::Flagged),
-            b"UNFLAGGED" => keys.push(SearchKey::Unflagged),
-            b"ANSWERED" => keys.push(SearchKey::Answered),
-            b"UNANSWERED" => keys.push(SearchKey::Unanswered),
-            b"DELETED" => keys.push(SearchKey::Deleted),
-            b"UNDELETED" => keys.push(SearchKey::Undeleted),
-            b"DRAFT" => keys.push(SearchKey::Draft),
-            b"UNDRAFT" => keys.push(SearchKey::Undraft),
-            b"RECENT" => keys.push(SearchKey::Recent),
-            b"FROM" if i + 1 < tokens.len() => {
-                i += 1;
-                keys.push(SearchKey::From(unquote(&tokens[i])));
-            }
-            b"TO" if i + 1 < tokens.len() => {
-                i += 1;
-                keys.push(SearchKey::To(unquote(&tokens[i])));
-            }
-            b"SUBJECT" if i + 1 < tokens.len() => {
-                i += 1;
-                keys.push(SearchKey::Subject(unquote(&tokens[i])));
-            }
-            b"TEXT" if i + 1 < tokens.len() => {
-                i += 1;
-                keys.push(SearchKey::Text(unquote(&tokens[i])));
-            }
-            b"BODY" if i + 1 < tokens.len() => {
-                i += 1;
-                keys.push(SearchKey::Body(unquote(&tokens[i])));
-            }
-            b"SINCE" if i + 1 < tokens.len() => {
-                i += 1;
-                if let Some(ts) = parse_imap_date(&tokens[i]) {
-                    keys.push(SearchKey::Since(ts));
+        let before = i;
+        match parse_one_key(&tokens, &mut i) {
+            Some(k) => keys.push(k),
+            None => {
+                // no key produced — advance only if the parser didn't
+                // (CHARSET consumes its argument and yields nothing)
+                if i == before {
+                    i += 1;
                 }
             }
-            b"BEFORE" if i + 1 < tokens.len() => {
-                i += 1;
-                if let Some(ts) = parse_imap_date(&tokens[i]) {
-                    keys.push(SearchKey::Before(ts));
-                }
-            }
-            b"ON" if i + 1 < tokens.len() => {
-                i += 1;
-                if let Some(ts) = parse_imap_date(&tokens[i]) {
-                    keys.push(SearchKey::On(ts));
-                }
-            }
-            b"UID" if i + 1 < tokens.len() => {
-                i += 1;
-                keys.push(SearchKey::Uid(tokens[i].clone()));
-            }
-            _ => {} // skip unknown tokens (CHARSET / UTF-8 / extensions)
         }
-        i += 1;
     }
-
     if keys.is_empty() {
         keys.push(SearchKey::All);
     }
     keys
 }
 
-/// tokenize search criteria, respecting quoted strings
+/// Parse ONE search key at `tokens[*i]`, advancing `*i` past everything
+/// it consumed. `None` = the token is not a recognised key (caller
+/// skips it). Recursion depth is naturally bounded by the input length
+/// (each recursive call consumes at least one token).
+fn parse_one_key(tokens: &[String], i: &mut usize) -> Option<SearchKey> {
+    if *i >= tokens.len() {
+        return None;
+    }
+    // parenthesized group → AND of members
+    if tokens[*i] == "(" {
+        *i += 1;
+        let mut members = Vec::new();
+        while *i < tokens.len() && tokens[*i] != ")" {
+            let before = *i;
+            match parse_one_key(tokens, i) {
+                Some(k) => members.push(k),
+                None => {
+                    if *i == before {
+                        *i += 1;
+                    }
+                }
+            }
+        }
+        if *i < tokens.len() {
+            *i += 1; // consume ')'
+        }
+        return Some(match members.len() {
+            0 => SearchKey::All,
+            1 => members.pop().expect("len checked"),
+            _ => SearchKey::And(members),
+        });
+    }
+
+    let tok = tokens[*i].as_bytes();
+    if tok.len() > 16 {
+        return None;
+    }
+    let mut buf = [0u8; 16];
+    for (j, &b) in tok.iter().enumerate() {
+        buf[j] = b.to_ascii_uppercase();
+    }
+    let kw = &buf[..tok.len()];
+
+    // one-token flag keys
+    let flag = match kw {
+        b"ALL" => Some(SearchKey::All),
+        b"SEEN" => Some(SearchKey::Seen),
+        b"UNSEEN" => Some(SearchKey::Unseen),
+        b"FLAGGED" => Some(SearchKey::Flagged),
+        b"UNFLAGGED" => Some(SearchKey::Unflagged),
+        b"ANSWERED" => Some(SearchKey::Answered),
+        b"UNANSWERED" => Some(SearchKey::Unanswered),
+        b"DELETED" => Some(SearchKey::Deleted),
+        b"UNDELETED" => Some(SearchKey::Undeleted),
+        b"DRAFT" => Some(SearchKey::Draft),
+        b"UNDRAFT" => Some(SearchKey::Undraft),
+        b"RECENT" => Some(SearchKey::Recent),
+        b"NEW" => Some(SearchKey::Recent),
+        _ => None,
+    };
+    if let Some(k) = flag {
+        *i += 1;
+        return Some(k);
+    }
+
+    // one-argument keys
+    macro_rules! arg1 {
+        ($ctor:expr) => {{
+            if *i + 1 < tokens.len() {
+                let v = unquote(&tokens[*i + 1]);
+                *i += 2;
+                return Some($ctor(v));
+            }
+            *i += 1;
+            return None;
+        }};
+    }
+    match kw {
+        b"FROM" => arg1!(SearchKey::From),
+        b"TO" => arg1!(SearchKey::To),
+        b"CC" => arg1!(SearchKey::To), // best-effort: match recipients
+        b"SUBJECT" => arg1!(SearchKey::Subject),
+        b"TEXT" => arg1!(SearchKey::Text),
+        b"BODY" => arg1!(SearchKey::Body),
+        b"UID" => {
+            if *i + 1 < tokens.len() {
+                let v = tokens[*i + 1].clone();
+                *i += 2;
+                return Some(SearchKey::Uid(v));
+            }
+            *i += 1;
+            None
+        }
+        b"SINCE" | b"BEFORE" | b"ON" | b"SENTSINCE" | b"SENTBEFORE" | b"SENTON" => {
+            if *i + 1 < tokens.len() {
+                let ts = parse_imap_date(&tokens[*i + 1]);
+                let is_since = matches!(kw, b"SINCE" | b"SENTSINCE");
+                let is_before = matches!(kw, b"BEFORE" | b"SENTBEFORE");
+                *i += 2;
+                return ts.map(|t| {
+                    if is_since {
+                        SearchKey::Since(t)
+                    } else if is_before {
+                        SearchKey::Before(t)
+                    } else {
+                        SearchKey::On(t)
+                    }
+                });
+            }
+            *i += 1;
+            None
+        }
+        b"LARGER" | b"SMALLER" => {
+            if *i + 1 < tokens.len() {
+                let n: Option<u32> = tokens[*i + 1].parse().ok();
+                let is_larger = kw == b"LARGER";
+                *i += 2;
+                return n.map(|n| {
+                    if is_larger {
+                        SearchKey::Larger(n)
+                    } else {
+                        SearchKey::Smaller(n)
+                    }
+                });
+            }
+            *i += 1;
+            None
+        }
+        b"HEADER" => {
+            if *i + 2 < tokens.len() {
+                let field = unquote(&tokens[*i + 1]);
+                let value = unquote(&tokens[*i + 2]);
+                *i += 3;
+                return Some(SearchKey::Header(field, value));
+            }
+            *i += 1;
+            None
+        }
+        b"NOT" => {
+            *i += 1;
+            let inner = parse_one_key(tokens, i)?;
+            Some(SearchKey::Not(Box::new(inner)))
+        }
+        b"OR" => {
+            *i += 1;
+            let a = parse_one_key(tokens, i)?;
+            let b = parse_one_key(tokens, i)?;
+            Some(SearchKey::Or(Box::new(a), Box::new(b)))
+        }
+        b"CHARSET" => {
+            // CHARSET <name> — consume the argument, matching is
+            // byte-substring anyway (UTF-8 assumed)
+            *i += 2;
+            None
+        }
+        _ => None,
+    }
+}
+
 fn tokenize_search(input: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -169,6 +275,13 @@ fn tokenize_search(input: &str) -> Vec<String> {
                     tokens.push(current.clone());
                     current.clear();
                 }
+            }
+            '(' | ')' if !in_quote => {
+                if !current.is_empty() {
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+                tokens.push(ch.to_string());
             }
             _ => current.push(ch),
         }
@@ -395,6 +508,68 @@ mod tests {
         // CHARSET UTF-8 is commonly sent by clients, should be skipped
         let keys = parse_search_criteria("CHARSET UTF-8 UNSEEN");
         assert_eq!(keys, vec![SearchKey::Unseen]);
+    }
+
+    #[test]
+    fn search_or_combines_two_operands() {
+        let keys = parse_search_criteria("OR SEEN FLAGGED");
+        assert_eq!(
+            keys,
+            vec![SearchKey::Or(
+                Box::new(SearchKey::Seen),
+                Box::new(SearchKey::Flagged)
+            )]
+        );
+    }
+
+    #[test]
+    fn search_not_wraps_inner_key() {
+        let keys = parse_search_criteria("NOT FROM \"spam\"");
+        assert_eq!(
+            keys,
+            vec![SearchKey::Not(Box::new(SearchKey::From("spam".into())))]
+        );
+    }
+
+    #[test]
+    fn search_paren_group_is_and() {
+        let keys = parse_search_criteria("OR (UNSEEN FLAGGED) DELETED");
+        assert_eq!(
+            keys,
+            vec![SearchKey::Or(
+                Box::new(SearchKey::And(vec![SearchKey::Unseen, SearchKey::Flagged])),
+                Box::new(SearchKey::Deleted)
+            )]
+        );
+    }
+
+    #[test]
+    fn search_header_larger_smaller() {
+        let keys = parse_search_criteria("HEADER List-Id \"dev\" LARGER 1024 SMALLER 99999");
+        assert_eq!(
+            keys,
+            vec![
+                SearchKey::Header("List-Id".into(), "dev".into()),
+                SearchKey::Larger(1024),
+                SearchKey::Smaller(99999),
+            ]
+        );
+    }
+
+    #[test]
+    fn search_nested_or_not() {
+        // OR NOT SEEN (FROM "a" SUBJECT "b")
+        let keys = parse_search_criteria("OR NOT SEEN (FROM \"a\" SUBJECT \"b\")");
+        assert_eq!(
+            keys,
+            vec![SearchKey::Or(
+                Box::new(SearchKey::Not(Box::new(SearchKey::Seen))),
+                Box::new(SearchKey::And(vec![
+                    SearchKey::From("a".into()),
+                    SearchKey::Subject("b".into())
+                ]))
+            )]
+        );
     }
 
     #[test]

@@ -3,6 +3,7 @@
 //! backend, and [`spawn`] / [`spawn_tls`] for the listener wiring.
 
 pub mod backend;
+pub mod search_eval;
 pub mod session;
 
 use std::path::Path;
