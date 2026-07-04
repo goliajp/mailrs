@@ -74,6 +74,7 @@ services:
       - "143:143"
       - "993:993"
       - "110:110"
+      - "4190:4190"
       - "995:995"
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
