@@ -268,6 +268,7 @@ fn parse_failure_type(s: Option<&str>) -> FailureType {
         "sts-policy-fetch-error" => FailureType::StsPolicyFetchError,
         "sts-webpki-invalid" => FailureType::StsWebpkiInvalid,
         "mx-mismatch" => FailureType::MxMismatch,
+        "dane-required" => FailureType::DaneRequired,
         _ => FailureType::ValidationFailure,
     }
 }
