@@ -123,6 +123,24 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                     }
                 })
             };
+            // SRS reverse (G6): a bounce addressed to
+            // SRS0=...@<our-domain> is the return path for mail we
+            // forwarded. Reverse it to the original sender and relay
+            // the bounce outward — never deliver it locally.
+            if fwd.to_ascii_uppercase().starts_with("SRS0=")
+                && let Ok(secret) = std::env::var("MAILRS_SRS_SECRET")
+                && let Some(original) =
+                    mailrs_srs::reverse(fwd, &secret, mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS)
+            {
+                match enqueue_outbound(&original, "", body) {
+                    Ok(()) => {
+                        tracing::info!(srs = %fwd, %original, "SRS bounce relayed");
+                        delivered_here += 1;
+                    }
+                    Err(e) => tracing::warn!(srs = %fwd, error = %e, "SRS relay failed"),
+                }
+                continue;
+            }
             let Some(addr) = resolved_addr else {
                 unresolved.push(fwd.clone());
                 continue;
@@ -389,11 +407,29 @@ fn enqueue_redirect(
     };
     let id = format!("{now_ms}-{nonce}");
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
+    // SRS forward-rewrite the MAIL FROM (G6): when we forward on behalf
+    // of an external sender, the receiving MX runs SPF against OUR IP —
+    // an un-rewritten foreign reverse-path fails SPF and the forward is
+    // dropped. SRS0=...@<our-domain> is SPF-aligned to us and reverses
+    // so bounces route back to the original sender. Null senders (system
+    // notifications) and same-domain senders stay as-is.
+    let mail_from = match std::env::var("MAILRS_SRS_SECRET").ok() {
+        Some(secret) if !reverse_path.trim().trim_matches(['<', '>']).is_empty() => {
+            let our_domain = original_recipient.split('@').nth(1).unwrap_or("");
+            let rp = reverse_path.trim().trim_matches(['<', '>']);
+            if rp.split('@').nth(1) == Some(our_domain) {
+                rp.to_string() // already our domain — SPF-aligned
+            } else {
+                mailrs_srs::rewrite(rp, our_domain, &secret)
+            }
+        }
+        _ => original_recipient.to_string(),
+    };
     // NOTE `recipient` singular — the sender process reads that exact
     // field; the earlier `recipients` array made every redirect
     // envelope land in move_to_failed as "malformed"
     let envelope = serde_json::json!({
-        "sender": original_recipient,
+        "sender": mail_from,
         "recipient": target,
         "message_data_b64": b64_body,
         "attempts": 0,
@@ -557,5 +593,24 @@ mod tests {
             alice_base.join("new").join("1000003.M1P1Q1.host").exists(),
             "aliased delivery must land in the resolved user's maildir"
         );
+    }
+
+    #[test]
+    fn srs_roundtrip_reverses_to_original() {
+        // forward-rewrite an external sender through our domain, then
+        // reverse it back — this is the exact path the redirect MAIL
+        // FROM + bounce-return use (G6)
+        let secret = "test-secret";
+        let rewritten = mailrs_srs::rewrite("bob@remote.example", "golia.jp", secret);
+        assert!(rewritten.to_ascii_uppercase().starts_with("SRS0="));
+        assert!(rewritten.ends_with("@golia.jp"));
+        let back = mailrs_srs::reverse(
+            &rewritten,
+            secret,
+            mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS,
+        );
+        assert_eq!(back.as_deref(), Some("bob@remote.example"));
+        // wrong secret must fail verification
+        assert!(mailrs_srs::reverse(&rewritten, "other", 14).is_none());
     }
 }
