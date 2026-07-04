@@ -15,9 +15,11 @@
 //! - `mark_all_read` — zero every unread counter
 //! - `get_categories` — inbox category histogram
 //!
-//! 14 tools (was 6). Admin/ops tools (accounts, aliases, queue,
-//! signatures, encryption, audit — the remaining ~48 the monolith
-//! had) fill in as follow-on G11 work.
+//! - `search_contacts` / `list_signatures` / `get_queue`
+//! - `list_accounts` / `list_domains` (admin-gated)
+//!
+//! 19 tools (was 6). Remaining monolith tools (alias/domain/account
+//! CRUD, encryption, full audit) fill in as follow-on G11 batches.
 //!
 //! Each session gets its own service instance; the authenticated user
 //! flows in through a tokio task-local set by [`mcp_auth_middleware`].
@@ -96,6 +98,19 @@ pub struct SearchConversationsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct SearchContactsParams {
+    /// Substring to match against contact addresses / names.
+    pub q: String,
+    /// Max contacts to return (default 20).
+    #[serde(default = "default_contacts_limit")]
+    pub limit: u32,
+}
+
+fn default_contacts_limit() -> u32 {
+    20
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct MarkThreadReadParams {
     /// Thread ID as returned by `list_conversations`.
     pub thread_id: String,
@@ -129,6 +144,14 @@ impl MailrsMcpService {
             user,
             tool_router: Self::tool_router(),
         }
+    }
+
+    /// Gate an admin tool: the authed user must carry an admin.*
+    /// permission (or be super). Maps a FORBIDDEN to an MCP error.
+    async fn require_admin(&self, user: &str) -> Result<(), McpError> {
+        crate::handlers::kevy_util::require_admin(&self.state, user)
+            .await
+            .map_err(|_| McpError::invalid_request("admin permission required", None))
     }
 
     fn require_user(&self) -> Result<&str, McpError> {
@@ -467,6 +490,81 @@ impl MailrsMcpService {
             .collect();
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "categories": items }).to_string(),
+        )]))
+    }
+
+    #[tool(description = "Search the authenticated user's contacts (autocomplete addresses).")]
+    async fn search_contacts(
+        &self,
+        Parameters(params): Parameters<SearchContactsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        let resp = self
+            .state
+            .fast()
+            .search_contacts(user, &params.q, params.limit)
+            .await
+            .map_err(|e| McpError::internal_error(format!("search_contacts: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({ "contacts": resp.items }).to_string(),
+        )]))
+    }
+
+    #[tool(description = "List the authenticated user's saved signatures.")]
+    async fn list_signatures(&self) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        let resp = self
+            .state
+            .fast()
+            .list_signatures(user)
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_signatures: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Outbound queue stats (pending + inflight counts).")]
+    async fn get_queue(&self) -> Result<CallToolResult, McpError> {
+        let _user = self.require_user()?;
+        let resp = self
+            .state
+            .fast()
+            .outbound_stats()
+            .await
+            .map_err(|e| McpError::internal_error(format!("get_queue: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({ "pending": resp.pending, "inflight": resp.inflight }).to_string(),
+        )]))
+    }
+
+    #[tool(description = "List all accounts (requires an admin permission).")]
+    async fn list_accounts(&self) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        let resp = self
+            .state
+            .fast()
+            .list_accounts()
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_accounts: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "List all managed domains (requires an admin permission).")]
+    async fn list_domains(&self) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        let resp = self
+            .state
+            .fast()
+            .list_domains()
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_domains: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
         )]))
     }
 }
