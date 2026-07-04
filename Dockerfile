@@ -120,6 +120,8 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/m
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-meili /usr/local/bin/mailrs-fastcore-backfill-meili
 # Fastcore-native outbound SMTP sender. Drains mailrs:outbound:pending
 # and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
 # to `mailrs-fastcore-sender`.
