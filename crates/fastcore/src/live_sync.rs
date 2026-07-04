@@ -208,9 +208,20 @@ pub(crate) fn network_kevy_url() -> Option<String> {
 }
 
 fn meili_auth_header() -> String {
-    match std::env::var("MAILRS_MEILI_MASTER_KEY") {
-        Ok(k) if !k.is_empty() => format!("Bearer {k}"),
-        _ => String::new(),
+    // MAILRS_MEILI_KEY is the compose/service convention (webapi reads
+    // the same); MAILRS_MEILI_MASTER_KEY is the fallback the one-shot
+    // backfill bin passes explicitly. Empty = unauthenticated meili.
+    let key = std::env::var("MAILRS_MEILI_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| {
+            std::env::var("MAILRS_MEILI_MASTER_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+        });
+    match key {
+        Some(k) => format!("Bearer {k}"),
+        None => String::new(),
     }
 }
 

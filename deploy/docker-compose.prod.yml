@@ -84,6 +84,7 @@ services:
       MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mailrs}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
@@ -108,6 +109,8 @@ services:
       MAILRS_WEB_BIND: 0.0.0.0:3100
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir
+      MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
+      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
@@ -155,7 +158,7 @@ services:
     environment:
       MEILI_NO_ANALYTICS: "true"
       MEILI_ENV: production
-      MEILI_MASTER_KEY: mailrs-meili-key
+      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
     volumes:
       - meili-data:/meili_data
     restart: unless-stopped
