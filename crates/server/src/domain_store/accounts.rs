@@ -263,4 +263,19 @@ impl DomainStore {
         self.kevy_del(&format!("acct:{address}"));
         Ok(res.rows_affected() > 0)
     }
+
+    /// Set an already-Argon2-hashed password (webapi hashes plaintext
+    /// before the RPC, mirroring fastcore's set_password route so the
+    /// two cores accept identical requests).
+    pub async fn set_password_hash(&self, address: &str, password_hash: &str) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query("UPDATE accounts SET password_hash = $1 WHERE address = $2")
+            .bind(password_hash)
+            .bind(address)
+            .execute(pool)
+            .await?;
+        self.account_cache.remove(address);
+        self.kevy_del(&format!("acct:{address}"));
+        Ok(res.rows_affected() > 0)
+    }
 }

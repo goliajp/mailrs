@@ -313,11 +313,27 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         )
         .route(
             adm_paths::PATH_LIST_ACCOUNTS,
-            get(handlers::admin::list_accounts),
+            get(handlers::admin::list_accounts).post(handlers::admin::add_account),
         )
+        // GET_ACCOUNT / UPDATE_ACCOUNT / REMOVE_ACCOUNT share one URL
         .route(
             adm_paths::PATH_GET_ACCOUNT,
-            get(handlers::admin::get_account),
+            get(handlers::admin::get_account)
+                .put(handlers::admin::update_account)
+                .delete(handlers::admin::remove_account),
+        )
+        .route(adm_paths::PATH_SET_QUOTA, post(handlers::admin::set_quota))
+        .route(
+            adm_paths::PATH_UPDATE_RECOVERY_EMAIL,
+            post(handlers::admin::set_recovery_email),
+        )
+        .route(
+            adm_paths::PATH_SET_ACCOUNT_PASSWORD,
+            post(handlers::admin::set_account_password),
+        )
+        .route(
+            adm_paths::PATH_SET_MESSAGE_FLAGS,
+            post(handlers::admin::set_message_flags),
         )
         // aliases (id-based, legacy) + source-keyed (v2 backend-neutral)
         .route(
