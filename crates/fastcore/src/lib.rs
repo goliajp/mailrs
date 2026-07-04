@@ -1012,6 +1012,8 @@ pub(crate) fn ingest_delivered_file(
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::index_meili(addr, &root, &subject, &from, "", date);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
+    let m = crate::imap::backend::bump_modseq(state, addr);
+    crate::imap::backend::set_file_modseq(state, addr, bare, m);
     let _ = state.notify.send(addr.to_string());
     crate::live_sync::publish_new_mail(addr, &root, &from, &subject, "");
     let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);

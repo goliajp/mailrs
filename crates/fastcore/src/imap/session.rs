@@ -59,7 +59,7 @@ where
     let mut framed = Framed::new(io, ImapCodec::new());
     // Greeting per RFC 3501 §7.5. Sent before the client says anything.
     let greeting = format!(
-        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE SORT QUOTA] {} ready\r\n",
+        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE SORT QUOTA CONDSTORE] {} ready\r\n",
         state
             .mailbox
             .store_ref()
@@ -129,6 +129,7 @@ where
                 "SPECIAL-USE",
                 "SORT",
                 "QUOTA",
+                "CONDSTORE",
             ]),
             format_ok(tag, "CAPABILITY completed"),
         ],
@@ -324,6 +325,7 @@ fn select(
     let recent = count; // We don't distinguish; every scan is fresh.
     let uidnext = backend::uid_next(state, &user);
     let uidvalidity = backend::uidvalidity(state, &user, mailbox);
+    let highestmodseq = backend::highest_modseq(state, &user);
     let flags_line = format_flags(&["\\Seen", "\\Answered", "\\Flagged", "\\Deleted", "\\Draft"]);
     let permanent = if read_only {
         "* OK [PERMANENTFLAGS ()] Read-only\r\n".to_string()
@@ -337,6 +339,7 @@ fn select(
         format_recent(recent),
         format!("* OK [UIDVALIDITY {uidvalidity}] Version 1\r\n"),
         format!("* OK [UIDNEXT {uidnext}] Predicted next UID\r\n"),
+        format!("* OK [HIGHESTMODSEQ {highestmodseq}] Modseq\r\n"),
         permanent,
         format_ok(
             tag,
@@ -375,9 +378,28 @@ fn fetch_response(
         return vec![format_no(tag, "not in SELECTED state")];
     };
     let ids = expand_sequence(sequence, messages, by_uid);
+    // CHANGEDSINCE modifier (RFC 7162): `FETCH 1:* (FLAGS) (CHANGEDSINCE 42)`
+    let attrs_upper = attributes.to_uppercase();
+    let changedsince = attrs_upper.find("CHANGEDSINCE").and_then(|pos| {
+        attributes
+            .get(pos + "CHANGEDSINCE".len()..)
+            .unwrap_or("")
+            .split_whitespace()
+            .next()
+            .and_then(|t| t.trim_end_matches(')').parse::<u64>().ok())
+    });
     let mut out = Vec::with_capacity(ids.len() + 1);
     for msg in ids {
-        let items = fetch_items(&msg, attributes, by_uid);
+        if let Some(since) = changedsince
+            && msg.modseq <= since
+        {
+            continue;
+        }
+        let mut items = fetch_items(&msg, attributes, by_uid);
+        // MODSEQ item: explicit request or implied by CHANGEDSINCE
+        if changedsince.is_some() || attrs_upper.contains("MODSEQ") {
+            items.push(("MODSEQ".into(), format!("({})", msg.modseq)));
+        }
         out.push(format_fetch(msg.seqno, &items));
     }
     out.push(format_ok(tag, "FETCH completed"));
@@ -471,6 +493,7 @@ fn store_response(
     by_uid: bool,
 ) -> Vec<String> {
     let State::Selected {
+        user,
         messages,
         read_only,
         ..
@@ -481,11 +504,40 @@ fn store_response(
     if *read_only {
         return vec![format_no(tag, "mailbox is read-only")];
     }
+    let user_owned = user.clone();
     let ids = expand_sequence(sequence, messages, by_uid);
-    let new_flags = parse_imap_flags(flags);
-    let action_upper = action.to_uppercase();
+    // UNCHANGEDSINCE modifier (RFC 7162). Proto splits STORE args as
+    // (sequence, action, flags); with the modifier present the pieces
+    // arrive as action="(UNCHANGEDSINCE", flags="<n>) +FLAGS (...)" —
+    // same reassembly the monolith session used.
+    let (unchangedsince, action_owned, flags_owned) =
+        if action.to_ascii_uppercase().starts_with("(UNCHANGEDSINCE") {
+            match flags.split_once(')') {
+                Some((n, rest)) => {
+                    let modseq = n.trim().parse::<u64>().ok();
+                    let rest = rest.trim();
+                    match rest.split_once(' ') {
+                        Some((act, flg)) => (modseq, act.to_string(), flg.to_string()),
+                        None => (modseq, rest.to_string(), String::new()),
+                    }
+                }
+                None => (None, action.to_string(), flags.to_string()),
+            }
+        } else {
+            (None, action.to_string(), flags.to_string())
+        };
+    let new_flags = parse_imap_flags(&flags_owned);
+    let action_upper = action_owned.to_uppercase();
+    let mut modified: Vec<u32> = Vec::new();
     let mut out = Vec::with_capacity(ids.len() + 1);
     for msg in ids {
+        if let Some(since) = unchangedsince
+            && msg.modseq > since
+        {
+            // changed behind the client's back — refuse this one
+            modified.push(if by_uid { msg.uid } else { msg.seqno });
+            continue;
+        }
         let mut merged: Vec<Flag> = match action_upper.as_str() {
             a if a.starts_with("+FLAGS") => {
                 let mut m = msg.flags.clone();
@@ -506,7 +558,17 @@ fn store_response(
         };
         merged.sort_by_key(|f| *f as u32);
         merged.dedup();
-        let _ = backend::set_flags(&msg, &merged);
+        if backend::set_flags(&msg, &merged).is_ok() {
+            let m = backend::bump_modseq(state, &user_owned);
+            if let Some(base) = msg
+                .path
+                .file_name()
+                .and_then(|f| f.to_str())
+                .and_then(|f| f.split(':').next())
+            {
+                backend::set_file_modseq(state, &user_owned, base, m);
+            }
+        }
         if !action_upper.ends_with(".SILENT") {
             let flags_str = flags_to_imap(&merged);
             out.push(format_fetch(
@@ -525,7 +587,18 @@ fn store_response(
     {
         *messages = backend::list_messages(state, user, mailbox);
     }
-    out.push(format_ok(tag, "STORE completed"));
+    if modified.is_empty() {
+        out.push(format_ok(tag, "STORE completed"));
+    } else {
+        let list = modified
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        out.push(format!(
+            "{tag} OK [MODIFIED {list}] Conditional STORE failed for some messages\r\n"
+        ));
+    }
     out
 }
 
