@@ -59,7 +59,7 @@ where
     let mut framed = Framed::new(io, ImapCodec::new());
     // Greeting per RFC 3501 §7.5. Sent before the client says anything.
     let greeting = format!(
-        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE] {} ready\r\n",
+        "* OK [CAPABILITY IMAP4rev1 IDLE STARTTLS AUTH=PLAIN NAMESPACE ENABLE SORT QUOTA] {} ready\r\n",
         state
             .mailbox
             .store_ref()
@@ -127,6 +127,8 @@ where
                 "UNSELECT",
                 "MOVE",
                 "SPECIAL-USE",
+                "SORT",
+                "QUOTA",
             ]),
             format_ok(tag, "CAPABILITY completed"),
         ],
@@ -160,6 +162,11 @@ where
                 flags,
             } => store_response(state, session, tag, &sequence, &action, &flags, true),
             ImapCommand::Search { criteria } => search_response(session, tag, &criteria, true),
+            ImapCommand::Sort {
+                criteria,
+                charset: _,
+                search_criteria,
+            } => sort_response(session, tag, &criteria, &search_criteria, true),
             ImapCommand::Copy { sequence, mailbox } => {
                 copy_response(state, session, tag, &sequence, &mailbox, false, true)
             }
@@ -187,6 +194,17 @@ where
             literal_size,
         } => append_flow(state, session, tag, framed, &mailbox, literal_size).await,
         ImapCommand::Idle => idle_flow(state, session, tag, framed).await,
+        ImapCommand::Sort {
+            criteria,
+            charset: _,
+            search_criteria,
+        } => sort_response(session, tag, &criteria, &search_criteria, false),
+        ImapCommand::GetQuota { quotaroot: _ } => quota_response(state, session, tag),
+        ImapCommand::GetQuotaRoot { mailbox } => {
+            let mut out = vec![format!("* QUOTAROOT \"{mailbox}\" \"\"\r\n")];
+            out.extend(quota_response(state, session, tag));
+            out
+        }
         _ => vec![format_bad(tag, "command not implemented")],
     }
 }
@@ -515,20 +533,11 @@ fn search_response(session: &State, tag: &str, criteria: &str, by_uid: bool) -> 
     let State::Selected { messages, .. } = session else {
         return vec![format_no(tag, "not in SELECTED state")];
     };
-    let upper = criteria.to_uppercase();
-    let matches: Vec<u32> = messages
-        .iter()
-        .filter(|m| match upper.as_str() {
-            "ALL" | "" => true,
-            "UNSEEN" => !m.flags.contains(&Flag::Seen),
-            "SEEN" => m.flags.contains(&Flag::Seen),
-            "FLAGGED" => m.flags.contains(&Flag::Flagged),
-            "DELETED" => m.flags.contains(&Flag::Trashed),
-            "DRAFT" => m.flags.contains(&Flag::Draft),
-            "ANSWERED" => m.flags.contains(&Flag::Replied),
-            "NEW" => !m.flags.contains(&Flag::Seen),
-            _ => true,
-        })
+    // full RFC 3501 grammar: implicit AND, OR / NOT, parenthesized
+    // groups, HEADER / LARGER / SMALLER, dates, UID sets (G3.5)
+    let keys = mailrs_imap_proto::parse_search_criteria(criteria);
+    let matches: Vec<u32> = super::search_eval::filter(&keys, messages)
+        .into_iter()
         .map(|m| if by_uid { m.uid } else { m.seqno })
         .collect();
     let list = matches
@@ -542,6 +551,57 @@ fn search_response(session: &State, tag: &str, criteria: &str, by_uid: bool) -> 
         format!("* SEARCH {list}\r\n")
     };
     vec![untagged, format_ok(tag, "SEARCH completed")]
+}
+
+/// `SORT (criteria) charset search-keys` (RFC 5256) — filter via the
+/// same evaluator SEARCH uses, then order per criteria (G3.4).
+fn sort_response(
+    session: &State,
+    tag: &str,
+    criteria: &str,
+    search: &str,
+    by_uid: bool,
+) -> Vec<String> {
+    let State::Selected { messages, .. } = session else {
+        return vec![format_no(tag, "not in SELECTED state")];
+    };
+    let keys = mailrs_imap_proto::parse_search_criteria(search);
+    let matched = super::search_eval::filter(&keys, messages);
+    let (reverse, crits) = super::search_eval::parse_sort_criteria(criteria);
+    let sorted = super::search_eval::sort(matched, reverse, &crits);
+    let list = sorted
+        .iter()
+        .map(|m| if by_uid { m.uid } else { m.seqno })
+        .map(|n| n.to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let untagged = if list.is_empty() {
+        "* SORT\r\n".to_string()
+    } else {
+        format!("* SORT {list}\r\n")
+    };
+    vec![untagged, format_ok(tag, "SORT completed")]
+}
+
+/// `GETQUOTA` / the quota half of `GETQUOTAROOT` (RFC 2087). Reads the
+/// same network-kevy counters the receiver's 452 gate uses (G3.3 / G7).
+/// STORAGE units are KiB per the RFC. No limit configured → empty
+/// resource list (unlimited).
+fn quota_response(_state: &Arc<FastcoreState>, session: &State, tag: &str) -> Vec<String> {
+    let Some(user) = session.user() else {
+        return vec![format_no(tag, "not authenticated")];
+    };
+    let (limit, used) = crate::live_sync::quota_read(user);
+    let line = if limit > 0 {
+        format!(
+            "* QUOTA \"\" (STORAGE {} {})\r\n",
+            used / 1024,
+            limit / 1024
+        )
+    } else {
+        "* QUOTA \"\" ()\r\n".to_string()
+    };
+    vec![line, format_ok(tag, "GETQUOTA completed")]
 }
 
 fn expunge(state: &Arc<FastcoreState>, session: &mut State, tag: &str) -> Vec<String> {
