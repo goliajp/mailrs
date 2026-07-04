@@ -228,24 +228,25 @@ pub async fn deliver_message(
     })?;
 
     // ensure the destination mailbox exists (sync lands everything in INBOX;
-    // per-mailbox placement is not preserved cross-backend by design)
+    // per-mailbox placement is not preserved cross-backend by design).
+    // Direct idempotent INSERT rather than get_mailbox-then-create — the
+    // DomainStore read path can serve a stale cached miss, after which
+    // create_mailbox is skipped and index_message's `UPDATE mailboxes …
+    // RETURNING` finds no row ("no rows returned"). ON CONFLICT makes this
+    // safe + cache-independent.
     const MAILBOX: &str = "INBOX";
-    if state
-        .mailbox
-        .get_mailbox(&user, MAILBOX)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .is_none()
-    {
-        state
-            .mailbox
-            .create_mailbox(&user, MAILBOX)
-            .await
-            .map_err(|e| {
-                tracing::warn!(error = %e, user = %user, "deliver_message: create INBOX failed");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-    }
+    sqlx::query(
+        "INSERT INTO mailboxes (user_address, name, uidvalidity) VALUES ($1, $2, 1) \
+         ON CONFLICT (user_address, name) DO NOTHING",
+    )
+    .bind(&user)
+    .bind(MAILBOX)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::warn!(error = %e, user = %user, "deliver_message: ensure INBOX failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let input = InsertMessage {
         user: &user,
