@@ -3158,7 +3158,11 @@ dependencies = [
 name = "mailrs-core-sync"
 version = "0.0.1"
 dependencies = [
+ "axum",
+ "kevy-embedded",
  "mailrs-core-api",
+ "mailrs-fastcore",
+ "mailrs-mailbox-kevy",
  "serde",
  "serde_json",
  "tokio",
