@@ -10,6 +10,14 @@
 //! - `mark_thread_read` — flip a thread's unread → seen
 //! - `send_email` — compose + enqueue outbound
 //! - `list_mailboxes` — folder enumeration
+//! - `mark_thread_unread` / `star_thread` / `unstar_thread`
+//! - `archive_thread` / `unarchive_thread` / `delete_thread`
+//! - `mark_all_read` — zero every unread counter
+//! - `get_categories` — inbox category histogram
+//!
+//! 14 tools (was 6). Admin/ops tools (accounts, aliases, queue,
+//! signatures, encryption, audit — the remaining ~48 the monolith
+//! had) fill in as follow-on G11 work.
 //!
 //! Each session gets its own service instance; the authenticated user
 //! flows in through a tokio task-local set by [`mcp_auth_middleware`].
@@ -345,6 +353,129 @@ impl MailrsMcpService {
             serde_json::json!({ "mailboxes": items }).to_string(),
         )]))
     }
+
+    #[tool(description = "Mark a thread as unread (restore its unread counter).")]
+    async fn mark_thread_unread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .mark_thread_unread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("mark_thread_unread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Star (flag) a thread.")]
+    async fn star_thread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .star_thread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("star_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Remove the star (flag) from a thread.")]
+    async fn unstar_thread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .unstar_thread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("unstar_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Archive a thread (remove it from the inbox view).")]
+    async fn archive_thread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .archive_thread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("archive_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Move an archived thread back into the inbox.")]
+    async fn unarchive_thread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .unarchive_thread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("unarchive_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Delete a thread (moves it out of every folder view).")]
+    async fn delete_thread(
+        &self,
+        Parameters(params): Parameters<MarkThreadReadParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .delete_thread(user, &params.thread_id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("delete_thread: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Mark every conversation as read in one call.")]
+    async fn mark_all_read(&self) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        self.state
+            .fast()
+            .mark_all_conversations_read(user)
+            .await
+            .map_err(|e| McpError::internal_error(format!("mark_all_read: {e}"), None))?;
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Category histogram for the inbox (personal / bulk / spam / ... with thread counts)."
+    )]
+    async fn get_categories(&self) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?;
+        let resp = self
+            .state
+            .fast()
+            .conversation_categories(user)
+            .await
+            .map_err(|e| McpError::internal_error(format!("get_categories: {e}"), None))?;
+        let items: Vec<_> = resp
+            .categories
+            .into_iter()
+            .map(|c| serde_json::json!({ "category": c.category, "count": c.count }))
+            .collect();
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({ "categories": items }).to_string(),
+        )]))
+    }
+}
+
+/// Shared `{ "ok": true }` success body for mutation tools.
+fn ok_result() -> CallToolResult {
+    CallToolResult::success(vec![Content::text(
+        serde_json::json!({ "ok": true }).to_string(),
+    )])
 }
 
 #[tool_handler]
