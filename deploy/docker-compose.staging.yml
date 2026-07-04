@@ -118,6 +118,7 @@ services:
       - "172.31.11.182:993:993"
       - "172.31.11.182:110:110"
       - "172.31.11.182:995:995"
+      - "172.31.11.182:4190:4190"
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
