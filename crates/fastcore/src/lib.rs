@@ -22,6 +22,7 @@ pub mod bounce;
 mod imap;
 mod live_sync;
 mod pop3;
+pub mod sender_sts;
 mod sieve_apply;
 mod spool_drain;
 

@@ -321,10 +321,29 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
         return Outcome::Transient(format!("no MX for {domain}"));
     }
 
+    // MTA-STS policy (G8): enforce mode forbids plaintext downgrade and
+    // restricts delivery to the policy's mx: set. testing/none/absent =
+    // opportunistic (unchanged). Fail-open on any discovery error.
+    let sts_policy = mailrs_fastcore::sender_sts::fetch_policy(&cfg.kevy_url, domain).await;
+    let sts_enforce = sts_policy
+        .as_ref()
+        .map(mailrs_fastcore::sender_sts::is_enforce)
+        .unwrap_or(false);
+
     let timeouts = TimeoutConfig::default();
     let mut last_err = String::from("no MX host attempted");
 
     for mx in &mx_records {
+        // enforce: skip MX not covered by the policy's mx: patterns
+        if let Some(policy) = &sts_policy
+            && sts_enforce
+            && mailrs_fastcore::sender_sts::mx_decision(policy, &mx.exchange)
+                == mailrs_mta_sts::Decision::Deny
+        {
+            last_err = format!("mta-sts enforce: {} not in policy mx:", mx.exchange);
+            tracing::warn!(err = %last_err, "MX excluded by STS policy, next MX");
+            continue;
+        }
         tracing::info!(mx = %mx.exchange, priority = mx.priority, %recipient, "attempt");
         let conn = match SmtpConnection::connect_with_timeout(&mx.exchange, 25, &timeouts).await {
             Ok(c) => c,
@@ -367,10 +386,22 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                 code,
                 message: msg,
             } => {
+                if sts_enforce {
+                    last_err = format!("mta-sts enforce: {} refused STARTTLS", mx.exchange);
+                    tracing::warn!(err = %last_err, "STARTTLS refused under STS enforce, next MX");
+                    let mut c = conn;
+                    let _ = c.quit().await;
+                    continue;
+                }
                 tracing::info!(code, %msg, "STARTTLS rejected, continuing plaintext");
                 conn
             }
             mailrs_smtp_client::StarttlsResult::HandshakeFailed { source, .. } => {
+                if sts_enforce {
+                    last_err = format!("mta-sts enforce: {} TLS handshake failed", mx.exchange);
+                    tracing::warn!(err = %last_err, "TLS handshake failed under STS enforce, next MX");
+                    continue;
+                }
                 tracing::warn!(
                     err = %source,
                     mx = %mx.exchange,
