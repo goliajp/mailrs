@@ -37,6 +37,10 @@ services:
     entrypoint: ["mailrs-receiver"]
     pull_policy: always
     mem_limit: 2g
+    # no web server in the receiver — the image default healthcheck
+    # curls :3100 and flags a perfectly healthy receiver unhealthy
+    healthcheck:
+      disable: true
     ports:
       - "25:25"
       - "465:465"
