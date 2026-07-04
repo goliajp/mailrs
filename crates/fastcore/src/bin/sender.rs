@@ -127,6 +127,32 @@ async fn pop_next(cfg: Cfg) -> std::io::Result<Option<String>> {
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
 }
 
+/// Move scheduled outbound whose send time has arrived into pending.
+/// The scheduled zset is score-ordered by send-at epoch, so we walk
+/// from the front and stop at the first future item.
+const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled";
+async fn promote_due(cfg: Cfg) -> std::io::Result<()> {
+    spawn_blocking(move || {
+        let mut c = kevy(&cfg.kevy_url)?;
+        let now = now_secs() as f64;
+        // ascending by score; batch of 100 due items per tick is plenty
+        let members = c.zrange(SCHEDULED_KEY, 0, 99)?;
+        for m in members {
+            let score = c.zscore(SCHEDULED_KEY, &m)?.unwrap_or(f64::MAX);
+            if score > now {
+                break; // rest are future
+            }
+            // due: pending first, then remove from scheduled — a crash
+            // between the two re-promotes harmlessly (idempotent)
+            c.lpush(PENDING_KEY, &[m.as_slice()])?;
+            c.zrem(SCHEDULED_KEY, &[m.as_slice()])?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| std::io::Error::other(format!("join: {e}")))?
+}
+
 /// Fetch the envelope for `id`. Returns `Ok(None)` if blob missing.
 async fn load_envelope(cfg: Cfg, id: String) -> std::io::Result<Option<serde_json::Value>> {
     spawn_blocking(move || {
@@ -645,6 +671,10 @@ async fn main() {
 
     let mut consecutive_errors: u32 = 0;
     loop {
+        // promote any scheduled sends whose time has arrived (G13)
+        if let Err(e) = promote_due((*cfg).clone()).await {
+            tracing::warn!(err = %e, "scheduled due-sweep failed");
+        }
         match pop_next((*cfg).clone()).await {
             Ok(Some(id)) => {
                 consecutive_errors = 0;
