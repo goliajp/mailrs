@@ -79,6 +79,8 @@ services:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       MAILRS_MAILDIR: /data/maildir
+      MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
+      MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mailrs}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
       MAILRS_KEVY_URL: kevy://kevy-server:6379
