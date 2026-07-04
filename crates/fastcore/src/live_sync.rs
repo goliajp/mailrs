@@ -86,8 +86,14 @@ pub fn index_meili(
         return;
     };
     let index = format!("mailrs_{}", user.replace('@', "_at_"));
-    let url = format!("{base}/indexes/{index}/documents");
+    // Meili primary keys must match ^[a-zA-Z0-9_-]{1,511}$; real
+    // thread_ids carry @ . = / which Meili rejects — so every document
+    // POSTed with thread_id-as-key was silently 400'd and NOTHING got
+    // indexed. Use a sanitized `id` as the key + keep thread_id for
+    // retrieval. primaryKey=id is set explicitly on the URL.
+    let url = format!("{base}/indexes/{index}/documents?primaryKey=id");
     let doc = serde_json::json!([{
+        "id": meili_doc_id(thread_id),
         "thread_id": thread_id,
         "subject": subject,
         "participants": senders_csv,
@@ -105,6 +111,46 @@ pub fn index_meili(
             .set("content-type", "application/json")
             .set("Authorization", &meili_auth_header())
             .send_string(&body);
+    });
+}
+
+/// Sanitize a thread_id into a Meili-legal document id: keep
+/// `[a-zA-Z0-9_-]`, map everything else to `_`, cap at 511 chars. The
+/// mapping is deterministic so re-indexing the same thread upserts.
+pub fn meili_doc_id(thread_id: &str) -> String {
+    let mut out: String = thread_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if out.len() > 511 {
+        out.truncate(511);
+    }
+    if out.is_empty() {
+        out.push('_');
+    }
+    out
+}
+
+/// Remove a thread's document from the user's Meili index (delete_thread).
+pub fn delete_meili(user: &str, thread_id: &str) {
+    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
+        return;
+    };
+    let index = format!("mailrs_{}", user.replace('@', "_at_"));
+    let doc_id = meili_doc_id(thread_id);
+    let url = format!("{base}/indexes/{index}/documents/{doc_id}");
+    std::thread::spawn(move || {
+        let client = ureq_client();
+        let _ = client
+            .delete(&url)
+            .set("Authorization", &meili_auth_header())
+            .call();
     });
 }
 
@@ -219,6 +265,21 @@ pub fn quota_exceeded(user: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::meili_doc_id;
+
+    #[test]
+    fn meili_doc_id_sanitizes_illegal_chars() {
+        assert_eq!(
+            meili_doc_id("926f778fbea65115@golia.jp"),
+            "926f778fbea65115_golia_jp"
+        );
+        assert_eq!(meili_doc_id("a/b=c"), "a_b_c");
+        // already-legal ids pass through
+        assert_eq!(meili_doc_id("plain-id_123"), "plain-id_123");
+        // empty never yields an empty (illegal) key
+        assert_eq!(meili_doc_id(""), "_");
+    }
+
     use super::*;
 
     #[test]

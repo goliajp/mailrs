@@ -20,7 +20,7 @@
 mod acme_task;
 pub mod bounce;
 mod imap;
-mod live_sync;
+pub mod live_sync;
 mod pop3;
 pub mod sender_sts;
 mod sieve_apply;
@@ -1069,6 +1069,10 @@ fn build_router(state: Arc<FastcoreState>) -> Router {
     // single Router with all routes registered side-by-side resolves it.
     let business = Router::new()
         .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
+        .route(
+            conv::PATH_CONVERSATIONS_BY_THREAD_IDS,
+            post(conversations_by_thread_ids),
+        )
         .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
         .route(conv::PATH_ACTION_COUNT, get(get_action_count))
         .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
@@ -1541,12 +1545,37 @@ async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    crate::live_sync::delete_meili(&user, &thread_id);
     action_result(
         state
             .mailbox
             .delete_thread(&user, &thread_id)
             .unwrap_or(false),
     )
+}
+
+/// `POST /v1/users/{user}/conversations:by-thread-ids` — hydrate full
+/// conversation rows for a set of thread_ids (meili search results),
+/// preserving the requested order (G10).
+async fn conversations_by_thread_ids(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+    Json(req): Json<conv::ConversationsByIdsRequest>,
+) -> Json<conv::ConversationsByIdsResponse> {
+    let _ = user;
+    let items = req
+        .thread_ids
+        .iter()
+        .filter_map(|tid| {
+            state
+                .mailbox
+                .get_thread(tid)
+                .ok()
+                .flatten()
+                .map(row_to_wire)
+        })
+        .collect();
+    Json(conv::ConversationsByIdsResponse { items })
 }
 
 use axum::response::IntoResponse;
