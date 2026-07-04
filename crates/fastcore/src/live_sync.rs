@@ -172,6 +172,37 @@ pub fn delete_meili(user: &str, thread_id: &str) {
     });
 }
 
+/// Append a system-event audit fact to the shared `admin:audit_log`
+/// stream (G12.3) — the same list webapi's admin API and audit UI
+/// read. fastcore's system events (bounce delivered, sender permanent
+/// failure, quota reject) belong in the same operator-visible trail as
+/// UI-driven admin actions. Best-effort; actor is always "system".
+pub fn audit_system(action: &str, target: &str, detail: &str) {
+    let Some(url) = network_kevy_url() else {
+        return;
+    };
+    let Ok(mut conn) = Connection::open(&url) else {
+        return;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let id = conn.incr(b"admin:audit_log:counter").unwrap_or(0);
+    let fact = serde_json::json!({
+        "id": id,
+        "occurred_at": now,
+        "recorded_at": now,
+        "actor": "system",
+        "action": action,
+        "target": target,
+        "detail": detail,
+    });
+    if let Ok(bytes) = serde_json::to_vec(&fact) {
+        let _ = conn.lpush(b"admin:audit_log", &[bytes.as_slice()]);
+    }
+}
+
 pub(crate) fn network_kevy_url() -> Option<String> {
     std::env::var("MAILRS_KEVY_URL").ok()
 }

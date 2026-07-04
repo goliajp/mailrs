@@ -616,6 +616,7 @@ async fn process_one(cfg: Cfg, id: String) {
         }
         Outcome::Permanent(reason) => {
             tracing::warn!(%id, reason = %reason, "permanent — moving to failed");
+            mailrs_fastcore::live_sync::audit_system("mail.send_failed", &recipient, &reason);
             enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
             if let Err(e) = move_to_failed(cfg, id.clone(), reason, true).await {
                 tracing::error!(%id, err = %e, "move_to_failed after permanent failed");
