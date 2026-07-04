@@ -85,7 +85,7 @@ pub fn index_meili(
     let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
         return;
     };
-    let index = format!("mailrs_{}", user.replace('@', "_at_"));
+    let index = meili_index(user);
     // Meili primary keys must match ^[a-zA-Z0-9_-]{1,511}$; real
     // thread_ids carry @ . = / which Meili rejects — so every document
     // POSTed with thread_id-as-key was silently 400'd and NOTHING got
@@ -137,12 +137,30 @@ pub fn meili_doc_id(thread_id: &str) -> String {
     out
 }
 
+/// Meili index uid for a user. Index uids share the doc-id charset
+/// constraint (`^[a-zA-Z0-9_-]+$`), so `lihao@golia.jp` must sanitize
+/// to `mailrs_lihao_at_golia_jp` — the `.` in the domain is illegal
+/// and silently 400'd the whole index otherwise.
+pub fn meili_index(user: &str) -> String {
+    let mut out = String::from("mailrs_");
+    for c in user.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+            out.push(c);
+        } else if c == '@' {
+            out.push_str("_at_");
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
 /// Remove a thread's document from the user's Meili index (delete_thread).
 pub fn delete_meili(user: &str, thread_id: &str) {
     let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
         return;
     };
-    let index = format!("mailrs_{}", user.replace('@', "_at_"));
+    let index = meili_index(user);
     let doc_id = meili_doc_id(thread_id);
     let url = format!("{base}/indexes/{index}/documents/{doc_id}");
     std::thread::spawn(move || {
@@ -266,6 +284,15 @@ pub fn quota_exceeded(user: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::meili_doc_id;
+
+    #[test]
+    fn meili_index_sanitizes_domain_dot() {
+        assert_eq!(
+            super::meili_index("lihao@golia.jp"),
+            "mailrs_lihao_at_golia_jp"
+        );
+        assert_eq!(super::meili_index("a-b_c@x.y.z"), "mailrs_a-b_c_at_x_y_z");
+    }
 
     #[test]
     fn meili_doc_id_sanitizes_illegal_chars() {
