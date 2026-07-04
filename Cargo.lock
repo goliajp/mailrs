@@ -3276,6 +3276,7 @@ dependencies = [
  "mailrs-imap-proto 1.0.5",
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
+ "mailrs-mta-sts 1.0.0",
  "mailrs-outbound-queue",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-sieve",
@@ -3284,6 +3285,7 @@ dependencies = [
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "password-hash",
  "rand_core 0.6.4",
+ "reqwest 0.13.4",
  "rustls",
  "serde",
  "serde_json",
@@ -3528,6 +3530,16 @@ version = "0.1.0"
 dependencies = [
  "criterion 0.5.1",
  "mailrs-syscall",
+]
+
+[[package]]
+name = "mailrs-mta-sts"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "636f8285787f696010ffde326eb52a2b5d97da73929029aba7e1ef6f531fddfe"
+dependencies = [
+ "async-trait",
+ "tokio",
 ]
 
 [[package]]

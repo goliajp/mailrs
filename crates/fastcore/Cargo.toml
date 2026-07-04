@@ -59,8 +59,10 @@ argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
 base64 = "0.22"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 mailrs-rfc2047 = "1"
 mailrs-srs = "1"
+mailrs-mta-sts = "1"
 ureq = "2"
 mailrs-acme = "1"
 mailrs-tls-reload = "1"
