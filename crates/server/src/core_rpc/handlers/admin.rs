@@ -230,6 +230,15 @@ pub async fn add_account(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .to_string();
     let domain = req.address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+    // ensure the domain row exists so the accounts FK is satisfied —
+    // domains are shared side-state (not synced), so a freshly-migrated
+    // pg-core may not have them yet. Makes account creation self-sufficient.
+    if !domain.is_empty() {
+        let _ = sqlx::query("INSERT INTO domains (name) VALUES ($1) ON CONFLICT DO NOTHING")
+            .bind(domain)
+            .execute(&state.pool)
+            .await;
+    }
     state
         .domain
         .add_account(
