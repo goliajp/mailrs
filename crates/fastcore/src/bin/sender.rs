@@ -408,7 +408,18 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
         //   and continue there. This matches how Gmail/O365/Postfix
         //   handle opportunistic-TLS failures — SPF/DKIM/DMARC (not TLS)
         //   are the real integrity guarantees for interpersonal mail.
-        let conn = match conn.try_starttls(&mx.exchange).await {
+        // DANE (RFC 7672 / G8.2): if the MX publishes DNSSEC-anchored
+        // TLSA records, TLS is mandatory and the cert is verified
+        // against them — a missing/failed handshake must NOT downgrade.
+        let tlsa = mailrs_smtp_client::resolve_tlsa(&resolver, &mx.exchange).await;
+        let dane_active = !tlsa.is_empty();
+        let starttls = if dane_active {
+            let cfg = mailrs_smtp_client::dane_tls_config(tlsa);
+            conn.try_starttls_with_config(&mx.exchange, cfg).await
+        } else {
+            conn.try_starttls(&mx.exchange).await
+        };
+        let conn = match starttls {
             mailrs_smtp_client::StarttlsResult::Success(c) => {
                 let mut c = c;
                 if let Err(e) = c.ehlo(&cfg.helo).await {
@@ -424,7 +435,7 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                 code,
                 message: msg,
             } => {
-                if sts_enforce {
+                if sts_enforce || dane_active {
                     last_err = format!("mta-sts enforce: {} refused STARTTLS", mx.exchange);
                     tracing::warn!(err = %last_err, "STARTTLS refused under STS enforce, next MX");
                     mailrs_fastcore::tlsrpt::record(
@@ -445,7 +456,7 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
                 conn
             }
             mailrs_smtp_client::StarttlsResult::HandshakeFailed { source, .. } => {
-                if sts_enforce {
+                if sts_enforce || dane_active {
                     last_err = format!("mta-sts enforce: {} TLS handshake failed", mx.exchange);
                     tracing::warn!(err = %last_err, "TLS handshake failed under STS enforce, next MX");
                     continue;
