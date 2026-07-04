@@ -85,6 +85,34 @@ pub async fn get_message_by_uid(
     Ok(Json((&row).into()))
 }
 
+/// GET /v1/users/{user}/messages/by-uid/{uid} — user-scoped uid lookup,
+/// the route webapi's attachment/IMAP path calls. fastcore serves this
+/// natively via its per-user uid index; the PG core resolves the user's
+/// INBOX then reads by uid, so both cores answer identical requests.
+pub async fn get_message_by_uid_for_user(
+    State(state): State<Arc<CoreRpcState>>,
+    Path((user, uid)): Path<(String, u32)>,
+) -> Result<Json<wire::MessageWire>, StatusCode> {
+    let mb = state
+        .mailbox
+        .get_mailbox(&user, "INBOX")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let row = state
+        .mailbox
+        .get_message(mb.id, uid)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, user = %user, uid, "get_message_by_uid_for_user failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let mut w: wire::MessageWire = (&row).into();
+    w.user_address = user;
+    Ok(Json(w))
+}
+
 /// GET /v1/mailboxes/{id}/messages?offset=&limit=
 pub async fn list_messages(
     State(state): State<Arc<CoreRpcState>>,

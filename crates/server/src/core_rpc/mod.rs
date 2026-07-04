@@ -255,6 +255,10 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             get(handlers::message::get_message_by_uid),
         )
         .route(
+            msg_paths::PATH_GET_MESSAGE_BY_UID_USER,
+            get(handlers::message::get_message_by_uid_for_user),
+        )
+        .route(
             msg_paths::PATH_LIST_MESSAGES,
             get(handlers::message::list_messages),
         )
@@ -315,7 +319,7 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             adm_paths::PATH_GET_ACCOUNT,
             get(handlers::admin::get_account),
         )
-        // aliases
+        // aliases (id-based, legacy) + source-keyed (v2 backend-neutral)
         .route(
             adm_paths::PATH_LIST_ALIASES,
             get(handlers::admin::list_aliases).post(handlers::admin::add_alias),
@@ -323,6 +327,14 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .route(
             adm_paths::PATH_REMOVE_ALIAS,
             delete(handlers::admin::remove_alias),
+        )
+        .route(
+            "/v1/admin/aliases:local",
+            get(handlers::admin::list_local_aliases).post(handlers::admin::upsert_local_alias),
+        )
+        .route(
+            "/v1/admin/aliases:local/{source}",
+            delete(handlers::admin::delete_local_alias),
         )
         // domains
         .route(

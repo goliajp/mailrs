@@ -78,6 +78,39 @@ impl DomainStore {
         Ok(res.rows_affected() > 0)
     }
 
+    /// Source-keyed upsert — the backend-neutral alias API both cores
+    /// serve for the v2 switchable-core boundary (kevy is source-keyed;
+    /// PG gets this so webapi + `mailrs-core-sync` drive one identical
+    /// route on either backend). `domain` is derived from the source's
+    /// `@` part; `alias_type` defaults to `alias`. Idempotent per source.
+    pub async fn upsert_alias_by_source(&self, source: &str, target: &str) -> Result<()> {
+        let pool = self.pg()?;
+        let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+        sqlx::query(
+            "INSERT INTO aliases (source_address, target_address, domain, alias_type) \
+             VALUES ($1, $2, $3, 'alias') \
+             ON CONFLICT (source_address) DO UPDATE SET target_address = EXCLUDED.target_address",
+        )
+        .bind(source)
+        .bind(target)
+        .bind(domain)
+        .execute(pool)
+        .await?;
+        self.kevy_del(&format!("rcpt:{source}"));
+        Ok(())
+    }
+
+    /// Source-keyed delete — companion to [`Self::upsert_alias_by_source`].
+    pub async fn remove_alias_by_source(&self, source: &str) -> Result<bool> {
+        let pool = self.pg()?;
+        let res = sqlx::query("DELETE FROM aliases WHERE source_address = $1")
+            .bind(source)
+            .execute(pool)
+            .await?;
+        self.kevy_del(&format!("rcpt:{source}"));
+        Ok(res.rows_affected() > 0)
+    }
+
     /// resolve a recipient address to local account, forward, or reject
     /// resolution order: exact account → exact alias → catch-all → Reject
     pub async fn resolve_recipient(&self, address: &str) -> ResolvedRecipient {
