@@ -54,6 +54,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore-backfill-meili \
     && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
+    && cargo build --release -p mailrs-core-sync \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
@@ -66,7 +67,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
     && cp /build/target/release/mailrs-fastcore-backfill-meili /usr/local/bin/mailrs-fastcore-backfill-meili \
     && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
-    && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
+    && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump \
+    && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
 
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
@@ -130,6 +132,7 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-sender /usr/local/bin/ma
 # Run via `docker exec mailrs mailrs-pg-dump [--user X] [--since T]`
 # and pipe stdout into mailrs-fastcore-migrate.
 COPY --from=rust-builder /usr/local/bin/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
+COPY --from=rust-builder /usr/local/bin/mailrs-core-sync /usr/local/bin/mailrs-core-sync
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it
