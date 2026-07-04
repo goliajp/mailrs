@@ -167,20 +167,28 @@ services:
       - kevy-server
     restart: unless-stopped
 
-  # Phase 4 — sender worker. Outbound queue claim + SMTP deliver + webhook
-  # fan-out + DMARC daily report. Today this is a scaffold that just
-  # health-probes the core; worker loops fill in over checklist 4.3–4.9.
+  # Sender worker — the SAME kevy-draining binary prod's fastcore stack
+  # runs (mailrs-fastcore-sender), so the sender is IDENTICAL in both
+  # core modes and is transparent to the fastcore↔core switch (v2 audit
+  # point 2). The outbound queue lives in the INDEPENDENT network kevy
+  # (mailrs:outbound:pending) — webapi enqueues there and this drains it,
+  # regardless of which core serves the mail store. The legacy
+  # core-RPC mailrs-sender (which claimed from the PG outbound_queue
+  # table) is retired: it would orphan webapi's kevy-written outbound.
   sender:
     container_name: mailrs-sender
     image: ghcr.io/goliajp/mailrs:${MAILRS_TAG:-latest}
-    entrypoint: ["/usr/local/bin/mailrs-sender"]
+    entrypoint: ["mailrs-fastcore-sender"]
     profiles: ["sender"]
     environment:
-      MAILRS_CORE_RPC_BASE: http://mailrs:3300
-      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:?required}
-      RUST_LOG: info,mailrs_sender=debug
+      MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mail.golia.jp}
+      MAILRS_SENDER_MAX_ATTEMPTS: "10"
+      MAILRS_SENDER_POLL_MS: "500"
+      MAILRS_SENDER_RETRY_MIN_SECS: "60"
+      RUST_LOG: info
     depends_on:
-      - mailrs
+      - kevy-server
     restart: unless-stopped
 
   # Phase 3 — webapi front. Talks to the core via mailrs-core-api HTTP
