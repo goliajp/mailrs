@@ -1189,6 +1189,31 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             adm::PATH_DELETE_TEMPLATE,
             delete(routes::prefs::delete_template),
         )
+        // reactions / webhooks / audit (network kevy)
+        .route(
+            adm::PATH_GET_THREAD_REACTIONS,
+            get(routes::admin_state::get_thread_reactions),
+        )
+        .route(
+            adm::PATH_TOGGLE_REACTION,
+            put(routes::admin_state::toggle_reaction),
+        )
+        .route(
+            adm::PATH_CREATE_WEBHOOK,
+            post(routes::admin_state::create_webhook),
+        )
+        .route(
+            adm::PATH_LIST_WEBHOOKS,
+            get(routes::admin_state::list_webhooks),
+        )
+        .route(
+            adm::PATH_DELETE_WEBHOOK,
+            delete(routes::admin_state::delete_webhook),
+        )
+        .route(
+            adm::PATH_LIST_AUDIT_LOG,
+            get(routes::admin_state::list_audit_log),
+        )
         .with_state(state);
 
     base.merge(business)

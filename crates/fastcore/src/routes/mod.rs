@@ -8,4 +8,5 @@
 //!   INDEPENDENT network kevy (the same keys webapi + pg-core read), so
 //!   both cores serve them identically. Reached via `state.net_conn()`.
 
+pub mod admin_state;
 pub mod prefs;
