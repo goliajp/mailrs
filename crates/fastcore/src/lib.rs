@@ -1337,6 +1337,25 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             mb::PATH_MAILBOX_STATUS,
             get(routes::mailbox::mailbox_status),
         )
+        // message ops — thread-store reads/flags + maildir copy/move/expunge
+        .route(
+            msg::PATH_GET_MESSAGE_BY_UID,
+            get(routes::message::get_message_by_uid),
+        )
+        .route(
+            msg::PATH_FIND_BY_MESSAGE_ID,
+            get(routes::message::find_by_message_id),
+        )
+        .route(msg::PATH_LIST_MESSAGES, get(routes::message::list_messages))
+        .route(msg::PATH_CHANGED_SINCE, get(routes::message::changed_since))
+        .route(msg::PATH_SET_FLAGS, put(routes::message::set_flags))
+        .route(
+            msg::PATH_FLAGS_IF_UNCHANGED,
+            post(routes::message::flags_if_unchanged),
+        )
+        .route(msg::PATH_COPY_MESSAGE, post(routes::message::copy_message))
+        .route(msg::PATH_MOVE_MESSAGE, post(routes::message::move_message))
+        .route(msg::PATH_EXPUNGE, post(routes::message::expunge))
         .with_state(state);
 
     base.merge(business)
