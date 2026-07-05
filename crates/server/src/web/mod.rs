@@ -253,6 +253,12 @@ pub struct WebState {
     pub outbound_queue: Option<crate::pg::BackendPool>,
     pub mailbox_store: Option<Arc<PgMailboxStore>>,
     pub domain_store: Option<Arc<DomainStore>>,
+    /// Backend-agnostic alias table — Step 3 of RFC 20260705.
+    /// `Some` = shared kevy (network backend) is source of truth,
+    /// `None` = legacy PG-backed DomainStore.aliases path. Populated
+    /// from `MAILRS_ALIAS_STORE_BACKEND=network` at boot; unset keeps
+    /// current behaviour so existing deploys are undisturbed.
+    pub alias_store: Option<Arc<dyn mailrs_alias_store::AliasStore>>,
     /// Swappable delivered-message backend (maildir today). Local web
     /// delivery (INBOX + Sent copy) writes through this seam; see
     /// [`crate::message_store`].
@@ -331,6 +337,7 @@ impl WebState {
             outbound_queue: None,
             mailbox_store: None,
             domain_store: None,
+            alias_store: None,
             message_store: crate::message_store::default_store(),
             maildir_root: String::new(),
             hostname: String::new(),
@@ -398,6 +405,18 @@ impl WebState {
 
     pub fn with_domain_store(mut self, store: Arc<DomainStore>) -> Self {
         self.domain_store = Some(store);
+        self
+    }
+
+    /// Attach a backend-agnostic AliasStore (Step 3 of RFC 20260705).
+    /// When present, monolith admin handlers + inbound alias resolve go
+    /// through this trait — a `NetworkKevyAliasStore` here makes pg-core
+    /// mode read the same shared kevy that fastcore mode reads, so the
+    /// v2 dual-mode switch preserves alias data across cutover.
+    ///
+    /// When None, existing PG-backed DomainStore.aliases path stays.
+    pub fn with_alias_store(mut self, store: Arc<dyn mailrs_alias_store::AliasStore>) -> Self {
+        self.alias_store = Some(store);
         self
     }
 

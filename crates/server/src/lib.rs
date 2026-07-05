@@ -349,13 +349,53 @@ pub async fn run() {
         .as_ref()
         .map(|pool| Arc::new(PgMailboxStore::new(pool.clone())));
 
-    // domain store (PG + Kevy + process cache)
+    // AliasStore backend selector — RFC 20260705 Step 3. Constructed
+    // ahead of DomainStore so it can be attached to both the store's
+    // internal alias path AND the WebState top-level field, keeping
+    // both sides on the same Arc. Env `MAILRS_ALIAS_STORE_BACKEND`:
+    // `network` + `MAILRS_KEVY_URL` = shared network kevy (v2 dual-mode
+    // sync); anything else = None → legacy PG-backed DomainStore.aliases.
+    let alias_store: Option<Arc<dyn mailrs_alias_store::AliasStore>> = match std::env::var(
+        "MAILRS_ALIAS_STORE_BACKEND",
+    )
+    .as_deref()
+    {
+        Ok("network") => match std::env::var("MAILRS_KEVY_URL") {
+            Ok(url) if !url.is_empty() => {
+                tracing::info!(
+                    url = %url,
+                    "alias-store backend = network kevy (monolith, RFC 20260705 Step 3)"
+                );
+                Some(Arc::new(
+                    mailrs_alias_store_net::NetworkKevyAliasStore::new(url),
+                ))
+            }
+            _ => {
+                tracing::warn!(
+                    "MAILRS_ALIAS_STORE_BACKEND=network but MAILRS_KEVY_URL is unset — falling back to PG-backed DomainStore.aliases"
+                );
+                None
+            }
+        },
+        _ => {
+            tracing::info!("alias-store backend = PG (DomainStore.aliases, default)");
+            None
+        }
+    };
+
+    // domain store (PG + Kevy + process cache); attach the alias_store
+    // seam so its `resolve_recipient` alias steps + CRUD go through the
+    // trait when a network backend is configured.
     let domain_store = if pg_pool.is_some() {
-        let ds = Arc::new(domain_store::DomainStore::new(
+        let mut ds = domain_store::DomainStore::new(
             pg_pool.clone(),
             kevy_embedded_store.clone(),
             health_state.clone(),
-        ));
+        );
+        if let Some(ref store) = alias_store {
+            ds = ds.with_alias_store(store.clone());
+        }
+        let ds = Arc::new(ds);
         ds.preload_accounts().await;
         tracing::info!("domain store ready (PG-backed)");
         Some(ds)
@@ -481,6 +521,7 @@ pub async fn run() {
         outbound_queue: &outbound_queue,
         mailbox_store: &mailbox_store,
         domain_store: &domain_store,
+        alias_store: &alias_store,
         llm_provider: &llm_provider,
         resolver: &resolver,
         ldap_config: &ldap_config,

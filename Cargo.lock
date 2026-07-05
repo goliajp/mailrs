@@ -3828,6 +3828,8 @@ dependencies = [
  "kevy-client",
  "kevy-embedded",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-alias-store",
+ "mailrs-alias-store-net",
  "mailrs-arc",
  "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-attachment-extract 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",

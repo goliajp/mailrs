@@ -35,6 +35,11 @@ pub struct DomainStore {
     pub(super) health: HealthState,
     // process-level cache for L3 degradation
     pub(super) account_cache: DashMap<String, CachedAccount>,
+    /// Optional backend-agnostic alias table — RFC 20260705 Step 3.
+    /// When set, `resolve_recipient_inner`'s alias steps and the alias
+    /// CRUD methods delegate to this trait instead of hitting PG. Left
+    /// `None` for existing PG-only deploys.
+    pub(super) alias_store: Option<std::sync::Arc<dyn mailrs_alias_store::AliasStore>>,
 }
 
 #[derive(Clone)]
@@ -121,7 +126,20 @@ impl DomainStore {
             kevy,
             health,
             account_cache: DashMap::new(),
+            alias_store: None,
         }
+    }
+
+    /// Attach a backend-agnostic `AliasStore` for RFC 20260705 Step 3.
+    /// When set, alias reads/writes go through this trait — a
+    /// `NetworkKevyAliasStore` here makes monolith and fastcore share
+    /// the same alias source of truth across v2 dual-mode cutover.
+    pub fn with_alias_store(
+        mut self,
+        alias_store: std::sync::Arc<dyn mailrs_alias_store::AliasStore>,
+    ) -> Self {
+        self.alias_store = Some(alias_store);
+        self
     }
 
     /// number of entries in the in-process account cache

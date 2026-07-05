@@ -29,6 +29,7 @@ pub(crate) struct WebStateInputs<'a> {
     pub(crate) outbound_queue: &'a Option<crate::pg::BackendPool>,
     pub(crate) mailbox_store: &'a Option<Arc<PgMailboxStore>>,
     pub(crate) domain_store: &'a Option<Arc<domain_store::DomainStore>>,
+    pub(crate) alias_store: &'a Option<Arc<dyn mailrs_alias_store::AliasStore>>,
     pub(crate) llm_provider: &'a Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub(crate) resolver: &'a Option<Arc<hickory_resolver::TokioResolver>>,
     pub(crate) ldap_config: &'a Option<Arc<crate::ldap_auth::LdapConfig>>,
@@ -90,6 +91,13 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     }
     if let Some(ds) = i.domain_store {
         ws = ws.with_domain_store(ds.clone());
+    }
+
+    // AliasStore (RFC 20260705 Step 3): env-driven backend was chosen
+    // upstream in `lib.rs` so both DomainStore and WebState share the
+    // same Arc. Attach here whenever the caller resolved a store.
+    if let Some(store) = i.alias_store {
+        ws = ws.with_alias_store(store.clone());
     }
     if let Some(ref mode) = i.cfg.mta_sts_mode {
         ws = ws.with_mta_sts(

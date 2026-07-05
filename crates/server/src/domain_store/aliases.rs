@@ -5,8 +5,47 @@ use crate::pg::BackendPool;
 
 use super::{Alias, CachedResolution, DomainStore, ResolvedRecipient, Result};
 
+/// Stable i64 id derived from an alias source address. Matches the
+/// `alias_id` helper in `fastcore/src/routes/mail_admin.rs` so
+/// consumers who look up by id (webapi remove) can carry an id
+/// across backends — network-kevy has no serial PK to lean on.
+fn alias_id_of(source: &str) -> i64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    source.hash(&mut h);
+    (h.finish() >> 1) as i64
+}
+
+fn domain_of(addr: &str) -> String {
+    addr.rsplit_once('@').map(|(_, d)| d).unwrap_or("").into()
+}
+
 impl DomainStore {
     pub async fn list_aliases(&self) -> Result<Vec<Alias>> {
+        // RFC 20260705 Step 3: when the alias_store seam is wired
+        // (network kevy backend), it is authoritative — the PG rows
+        // stop being written and reading both would show a stale mix.
+        if let Some(store) = self.alias_store.clone() {
+            let pairs = tokio::task::spawn_blocking(move || store.list())
+                .await
+                .map_err(|_| super::StoreError::Unavailable)?
+                .map_err(|_| super::StoreError::Unavailable)?;
+            let mut out: Vec<Alias> = pairs
+                .into_iter()
+                .map(|(source, target)| Alias {
+                    id: alias_id_of(&source),
+                    domain: domain_of(&source),
+                    source_address: source,
+                    target_address: target,
+                    alias_type: "alias".into(),
+                    active: true,
+                    created_at: 0,
+                })
+                .collect();
+            out.sort_by(|a, b| a.source_address.cmp(&b.source_address));
+            return Ok(out);
+        }
+
         let pool = self.pg()?;
         let rows = sqlx::query_as::<_, (i64, String, String, String, String, bool, i64)>(
             "SELECT id, source_address, target_address, domain, alias_type, active, \
@@ -42,6 +81,19 @@ impl DomainStore {
         alias_type: &str,
         _now: i64,
     ) -> Result<i64> {
+        if let Some(store) = self.alias_store.clone() {
+            let source_owned = source.to_string();
+            let target_owned = target.to_string();
+            tokio::task::spawn_blocking(move || store.upsert(&source_owned, &target_owned))
+                .await
+                .map_err(|_| super::StoreError::Unavailable)?
+                .map_err(|_| super::StoreError::Unavailable)?;
+            self.kevy_del(&format!("rcpt:{source}"));
+            let _ = domain;
+            let _ = alias_type; // trait has no type; monolith only writes plain aliases
+            return Ok(alias_id_of(source));
+        }
+
         let pool = self.pg()?;
         let row = sqlx::query_as::<_, (i64,)>(
             "INSERT INTO aliases (source_address, target_address, domain, alias_type) \
@@ -59,6 +111,29 @@ impl DomainStore {
     }
 
     pub async fn remove_alias(&self, id: i64) -> Result<bool> {
+        if let Some(store) = self.alias_store.clone() {
+            // network kevy has no PK; find by scanning list and matching
+            // the deterministic hash so webapi's id-keyed delete route
+            // still works after cutover.
+            let list = {
+                let s = store.clone();
+                tokio::task::spawn_blocking(move || s.list())
+                    .await
+                    .map_err(|_| super::StoreError::Unavailable)?
+                    .map_err(|_| super::StoreError::Unavailable)?
+            };
+            let Some((source, _)) = list.into_iter().find(|(s, _)| alias_id_of(s) == id) else {
+                return Ok(false);
+            };
+            let src_for_del = source.clone();
+            let removed = tokio::task::spawn_blocking(move || store.delete(&src_for_del))
+                .await
+                .map_err(|_| super::StoreError::Unavailable)?
+                .map_err(|_| super::StoreError::Unavailable)?;
+            self.kevy_del(&format!("rcpt:{source}"));
+            return Ok(removed);
+        }
+
         let pool = self.pg()?;
         // get source_address before deleting for cache invalidation
         let source =
@@ -85,6 +160,16 @@ impl DomainStore {
     /// route on either backend). `domain` is derived from the source's
     /// `@` part; `alias_type` defaults to `alias`. Idempotent per source.
     pub async fn upsert_alias_by_source(&self, source: &str, target: &str) -> Result<()> {
+        if let Some(store) = self.alias_store.clone() {
+            let source_owned = source.to_string();
+            let target_owned = target.to_string();
+            tokio::task::spawn_blocking(move || store.upsert(&source_owned, &target_owned))
+                .await
+                .map_err(|_| super::StoreError::Unavailable)?
+                .map_err(|_| super::StoreError::Unavailable)?;
+            self.kevy_del(&format!("rcpt:{source}"));
+            return Ok(());
+        }
         let pool = self.pg()?;
         let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         sqlx::query(
@@ -104,6 +189,15 @@ impl DomainStore {
     #[cfg(feature = "core-rpc")]
     /// Source-keyed delete — companion to [`Self::upsert_alias_by_source`].
     pub async fn remove_alias_by_source(&self, source: &str) -> Result<bool> {
+        if let Some(store) = self.alias_store.clone() {
+            let source_owned = source.to_string();
+            let removed = tokio::task::spawn_blocking(move || store.delete(&source_owned))
+                .await
+                .map_err(|_| super::StoreError::Unavailable)?
+                .map_err(|_| super::StoreError::Unavailable)?;
+            self.kevy_del(&format!("rcpt:{source}"));
+            return Ok(removed);
+        }
         let pool = self.pg()?;
         let res = sqlx::query("DELETE FROM aliases WHERE source_address = $1")
             .bind(source)
@@ -175,28 +269,23 @@ impl DomainStore {
             return ResolvedRecipient::Group(members);
         }
 
-        // 3. exact alias match
-        let targets: Vec<(String, String)> = sqlx::query_as(
-            "SELECT target_address, alias_type FROM aliases \
-             WHERE source_address = $1 AND active = true",
-        )
-        .bind(address)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
-
-        if !targets.is_empty() {
+        // 3. exact alias match — RFC 20260705 Step 3: when an
+        // AliasStore is wired (network kevy), consult it first so the
+        // monolith reads the same alias source of truth as fastcore.
+        // The trait is sync; we run it on a blocking pool.
+        if let Some(target) = self.resolve_alias_via_store(address).await {
+            let targets = vec![(target, "alias".to_string())];
             return self.resolve_targets(pool, &targets).await;
         }
-
-        // 3. catch-all (*@domain)
-        if let Some((_, domain)) = address.split_once('@') {
-            let catchall = format!("*@{domain}");
+        if self.alias_store.is_none() {
+            // Legacy PG path — only run when no alias_store is attached,
+            // otherwise the AliasStore is authoritative and its miss is
+            // final (matches fastcore's alias-then-reject semantics).
             let targets: Vec<(String, String)> = sqlx::query_as(
                 "SELECT target_address, alias_type FROM aliases \
                  WHERE source_address = $1 AND active = true",
             )
-            .bind(&catchall)
+            .bind(address)
             .fetch_all(pool)
             .await
             .unwrap_or_default();
@@ -206,7 +295,58 @@ impl DomainStore {
             }
         }
 
+        // 4. catch-all (*@domain) — same split as above.
+        if let Some((_, domain)) = address.split_once('@') {
+            let catchall = format!("*@{domain}");
+            if let Some(target) = self.resolve_alias_via_store(&catchall).await {
+                let targets = vec![(target, "alias".to_string())];
+                return self.resolve_targets(pool, &targets).await;
+            }
+            if self.alias_store.is_none() {
+                let targets: Vec<(String, String)> = sqlx::query_as(
+                    "SELECT target_address, alias_type FROM aliases \
+                     WHERE source_address = $1 AND active = true",
+                )
+                .bind(&catchall)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
+
+                if !targets.is_empty() {
+                    return self.resolve_targets(pool, &targets).await;
+                }
+            }
+        }
+
         ResolvedRecipient::Reject
+    }
+
+    /// If a backend-agnostic `AliasStore` is attached, resolve `source`
+    /// through it on a blocking pool (the trait is sync). Returns
+    /// `None` on miss OR on network error — hot-path callers should
+    /// treat both as "no alias" and fall through. IO errors are
+    /// logged so an oncall can spot a bad network kevy without
+    /// silently rejecting mail.
+    async fn resolve_alias_via_store(&self, source: &str) -> Option<String> {
+        let store = self.alias_store.as_ref()?.clone();
+        let source_owned = source.to_string();
+        match tokio::task::spawn_blocking(move || store.resolve(&source_owned)).await {
+            Ok(Ok(target)) => target,
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    error = %e, source = %source,
+                    "alias_store.resolve returned io error — treating as miss"
+                );
+                None
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e, source = %source,
+                    "alias_store.resolve blocking task panicked — treating as miss"
+                );
+                None
+            }
+        }
     }
 
     async fn resolve_targets(
