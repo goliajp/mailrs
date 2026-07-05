@@ -70,6 +70,7 @@ mod domain;
 pub mod keys;
 mod list_threads;
 mod mark_seen;
+pub mod mbid;
 mod message_arrival;
 mod messages;
 mod move_category;
