@@ -37,6 +37,7 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post, put};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::admin as adm;
+use mailrs_core_api::method::analysis as an;
 use mailrs_core_api::method::contact as ct;
 use mailrs_core_api::method::conversation as conv;
 use mailrs_core_api::method::mailbox as mb;
@@ -1250,6 +1251,24 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(
             ct::PATH_SENDER_FEEDBACK,
             post(routes::contacts::sender_feedback),
+        )
+        // analysis — shared derived side-state (network kevy); semantic 501
+        .route(an::PATH_GET_ANALYSIS, get(routes::analysis::get_analysis))
+        .route(
+            an::PATH_COUNT_UNANALYZED,
+            get(routes::analysis::count_unanalyzed),
+        )
+        .route(
+            an::PATH_BOOST_IMPORTANCE,
+            post(routes::analysis::boost_importance),
+        )
+        .route(
+            an::PATH_ATTACHMENT_TEXTS,
+            get(routes::analysis::attachment_texts),
+        )
+        .route(
+            an::PATH_SEMANTIC_SEARCH,
+            post(routes::analysis::semantic_search),
         )
         .with_state(state);
 
