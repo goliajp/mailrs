@@ -18,7 +18,7 @@ use mailrs_core_api::method::admin::{
     WebhookSubWire,
 };
 
-use crate::FastcoreState;
+use crate::NetKevy;
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
@@ -56,8 +56,8 @@ fn aggregate(
     rows
 }
 
-pub async fn get_thread_reactions(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn get_thread_reactions<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> Json<ReactionsResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -77,8 +77,8 @@ pub async fn get_thread_reactions(
     Json(ReactionsResponse { reactions })
 }
 
-pub async fn toggle_reaction(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn toggle_reaction<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, thread_id, uid)): Path<(String, String, i64)>,
     Json(req): Json<ToggleReactionRequest>,
 ) -> Result<Json<ReactionsResponse>, StatusCode> {
@@ -119,8 +119,8 @@ pub async fn toggle_reaction(
 
 // ── webhooks ────────────────────────────────────────────────────────
 
-pub async fn create_webhook(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn create_webhook<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Json(req): Json<CreateWebhookRequest>,
 ) -> Result<Json<CreateWebhookResponse>, StatusCode> {
     use base64::Engine as _;
@@ -151,8 +151,8 @@ pub async fn create_webhook(
     Ok(Json(CreateWebhookResponse { id, signing_secret }))
 }
 
-pub async fn list_webhooks(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn list_webhooks<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(address): Path<String>,
 ) -> Json<WebhookListResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -170,8 +170,8 @@ pub async fn list_webhooks(
     Json(WebhookListResponse { items })
 }
 
-pub async fn delete_webhook(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn delete_webhook<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -193,8 +193,8 @@ pub async fn delete_webhook(
 
 // ── audit log ───────────────────────────────────────────────────────
 
-pub async fn list_audit_log(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn list_audit_log<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Query(q): Query<ListAuditQuery>,
 ) -> Json<AuditListResponse> {
     let Some(mut conn) = state.net_conn() else {

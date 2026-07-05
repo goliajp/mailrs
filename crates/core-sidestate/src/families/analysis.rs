@@ -19,10 +19,10 @@ use mailrs_core_api::method::analysis::{
     ListUnanalyzedQuery,
 };
 
-use crate::FastcoreState;
+use crate::NetKevy;
 
-pub async fn get_analysis(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn get_analysis<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(message_id): Path<i64>,
 ) -> Json<GetAnalysisResponse> {
     let analysis = state.net_conn().and_then(|mut conn| {
@@ -34,8 +34,8 @@ pub async fn get_analysis(
     Json(GetAnalysisResponse { analysis })
 }
 
-pub async fn count_unanalyzed(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn count_unanalyzed<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Query(_q): Query<ListUnanalyzedQuery>,
 ) -> Json<CountUnanalyzedResponse> {
     let count = state
@@ -45,8 +45,8 @@ pub async fn count_unanalyzed(
     Json(CountUnanalyzedResponse { count })
 }
 
-pub async fn boost_importance(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn boost_importance<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(message_id): Path<i64>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -65,8 +65,8 @@ pub async fn boost_importance(
     StatusCode::NO_CONTENT
 }
 
-pub async fn attachment_texts(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn attachment_texts<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(message_id): Path<i64>,
 ) -> Json<AttachmentTextsResponse> {
     let texts = state

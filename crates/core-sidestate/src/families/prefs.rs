@@ -16,7 +16,7 @@ use mailrs_core_api::method::admin::{
     SignatureWire, TemplateListResponse, TemplateWire,
 };
 
-use crate::FastcoreState;
+use crate::NetKevy;
 
 /// Best-effort epoch seconds. Fastcore forbids `Date::now`-style calls in
 /// hot loops elsewhere, but a wall clock for a user-facing timestamp is
@@ -74,8 +74,8 @@ fn hdel_id(conn: &mut kevy_client::Connection, key: &str, id: i64) -> StatusCode
 
 // ── drafts ──────────────────────────────────────────────────────────
 
-pub async fn list_drafts(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn list_drafts<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
 ) -> Json<DraftListResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -86,8 +86,8 @@ pub async fn list_drafts(
     Json(DraftListResponse { items })
 }
 
-pub async fn save_draft(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn save_draft<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
     Json(req): Json<SaveDraftRequest>,
 ) -> Result<Json<SaveDraftResponse>, StatusCode> {
@@ -110,8 +110,8 @@ pub async fn save_draft(
     Ok(Json(SaveDraftResponse { id }))
 }
 
-pub async fn delete_draft(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn delete_draft<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, id)): Path<(String, i64)>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -122,8 +122,8 @@ pub async fn delete_draft(
 
 // ── signatures ──────────────────────────────────────────────────────
 
-pub async fn list_signatures(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn list_signatures<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
 ) -> Json<SignatureListResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -134,8 +134,8 @@ pub async fn list_signatures(
     Json(SignatureListResponse { items })
 }
 
-pub async fn save_signature(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn save_signature<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
     Json(req): Json<SaveSignatureRequest>,
 ) -> Result<Json<SaveSignatureResponse>, StatusCode> {
@@ -154,8 +154,8 @@ pub async fn save_signature(
     Ok(Json(SaveSignatureResponse { id }))
 }
 
-pub async fn delete_signature(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn delete_signature<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, id)): Path<(String, i64)>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -166,8 +166,8 @@ pub async fn delete_signature(
 
 // ── templates ───────────────────────────────────────────────────────
 
-pub async fn list_templates(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn list_templates<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
 ) -> Json<TemplateListResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -178,8 +178,8 @@ pub async fn list_templates(
     Json(TemplateListResponse { items })
 }
 
-pub async fn save_template(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn save_template<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
     Json(req): Json<SaveTemplateRequest>,
 ) -> Result<Json<SaveTemplateResponse>, StatusCode> {
@@ -202,8 +202,8 @@ pub async fn save_template(
     Ok(Json(SaveTemplateResponse { id }))
 }
 
-pub async fn delete_template(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn delete_template<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, id)): Path<(String, i64)>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {

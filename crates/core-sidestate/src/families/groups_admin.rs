@@ -18,7 +18,7 @@ use mailrs_core_api::method::admin::{
     SieveScriptResponse,
 };
 
-use crate::FastcoreState;
+use crate::NetKevy;
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
@@ -58,7 +58,7 @@ fn all_groups(conn: &mut kevy_client::Connection) -> Vec<GroupWire> {
         .collect()
 }
 
-pub async fn list_groups(State(state): State<Arc<FastcoreState>>) -> Json<GroupListResponse> {
+pub async fn list_groups<S: NetKevy>(State(state): State<Arc<S>>) -> Json<GroupListResponse> {
     let Some(mut conn) = state.net_conn() else {
         return Json(GroupListResponse { items: Vec::new() });
     };
@@ -67,8 +67,8 @@ pub async fn list_groups(State(state): State<Arc<FastcoreState>>) -> Json<GroupL
     Json(GroupListResponse { items })
 }
 
-pub async fn get_group_permissions(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn get_group_permissions<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
 ) -> Json<GroupPermissionsResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -85,8 +85,8 @@ pub async fn get_group_permissions(
     Json(GroupPermissionsResponse { permissions })
 }
 
-pub async fn list_group_members(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn list_group_members<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
 ) -> Json<GroupMembersResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -103,8 +103,8 @@ pub async fn list_group_members(
     Json(GroupMembersResponse { members })
 }
 
-pub async fn get_account_groups(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn get_account_groups<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(address): Path<String>,
 ) -> Json<GroupListResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -126,8 +126,8 @@ pub async fn get_account_groups(
     Json(GroupListResponse { items })
 }
 
-pub async fn remove_account_from_group(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn remove_account_from_group<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((id, address)): Path<(i64, String)>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -144,8 +144,8 @@ pub async fn remove_account_from_group(
 
 // ── api keys ────────────────────────────────────────────────────────
 
-pub async fn get_api_key_by_prefix(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn get_api_key_by_prefix<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(prefix): Path<String>,
 ) -> Result<Json<ApiKeyWire>, StatusCode> {
     let mut conn = state.net_conn().ok_or(StatusCode::NOT_FOUND)?;
@@ -158,8 +158,8 @@ pub async fn get_api_key_by_prefix(
     Ok(Json(key))
 }
 
-pub async fn touch_api_key(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn touch_api_key<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -174,8 +174,8 @@ pub async fn touch_api_key(
 
 // ── sieve ───────────────────────────────────────────────────────────
 
-pub async fn get_sieve(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn get_sieve<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(address): Path<String>,
 ) -> Json<SieveScriptResponse> {
     let script = state.net_conn().and_then(|mut conn| {

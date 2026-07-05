@@ -1,0 +1,23 @@
+[package]
+name = "mailrs-core-sidestate"
+version = "0.0.1"
+edition = "2024"
+description = "Shared network-kevy side-state handlers (drafts/signatures/templates/reactions/webhooks/audit/contacts/analysis/outbound/groups/apikeys/sieve) mounted identically by both mailrs cores (fastcore + pg-core) so their contract behaviour is byte-identical. v2 point 3."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "mailrs_core_sidestate"
+path = "src/lib.rs"
+
+[dependencies]
+mailrs-core-api = { path = "../core-api", features = ["server"] }
+kevy-client = { workspace = true }
+axum = { version = "0.8" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+rand_core = { workspace = true }

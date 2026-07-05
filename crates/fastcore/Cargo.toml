@@ -53,6 +53,7 @@ mailrs-outbound-queue = { path = "../outbound-queue" }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "tls12", "std"] }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
+mailrs-core-sidestate = { path = "../core-sidestate" }
 axum = { version = "0.8" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
