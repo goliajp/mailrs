@@ -60,6 +60,7 @@ members = [
     "crates/fastcore",
     "crates/pg-dump",
     "crates/core-sync",
+    "crates/core-sidestate",
 ]
 
 [workspace.dependencies]

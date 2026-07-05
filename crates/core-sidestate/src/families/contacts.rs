@@ -17,7 +17,7 @@ use mailrs_core_api::method::contact::{
     SenderFeedbackRequest, UpsertInboundContactRequest,
 };
 
-use crate::FastcoreState;
+use crate::NetKevy;
 
 fn contact_key(user: &str, email: &str) -> String {
     format!("mailrs:contact:{user}:{email}")
@@ -40,8 +40,8 @@ fn hget_u32(conn: &mut kevy_client::Connection, key: &str, field: &str) -> u32 {
         .unwrap_or(0)
 }
 
-pub async fn search_contacts(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn search_contacts<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(user): Path<String>,
     Query(q): Query<SearchContactsQuery>,
 ) -> Json<SearchContactsResponse> {
@@ -69,8 +69,8 @@ pub async fn search_contacts(
     Json(SearchContactsResponse { items })
 }
 
-pub async fn upsert_inbound(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn upsert_inbound<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, email)): Path<(String, String)>,
     Json(req): Json<UpsertInboundContactRequest>,
 ) -> StatusCode {
@@ -94,8 +94,8 @@ pub async fn upsert_inbound(
     }
 }
 
-pub async fn contact_scoring(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn contact_scoring<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, email)): Path<(String, String)>,
 ) -> Json<ContactScoring> {
     let Some(mut conn) = state.net_conn() else {
@@ -125,8 +125,8 @@ pub async fn contact_scoring(
     })
 }
 
-pub async fn has_sent_to(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn has_sent_to<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, email)): Path<(String, String)>,
 ) -> Json<HasSentToResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -136,8 +136,8 @@ pub async fn has_sent_to(
     Json(HasSentToResponse { has_sent: sent > 0 })
 }
 
-pub async fn sender_feedback(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn sender_feedback<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path((user, email)): Path<(String, String)>,
     Json(req): Json<SenderFeedbackRequest>,
 ) -> StatusCode {

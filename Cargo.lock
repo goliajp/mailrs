@@ -3155,6 +3155,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-core-sidestate"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "base64",
+ "kevy-client",
+ "mailrs-core-api",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mailrs-core-sync"
 version = "0.0.1"
 dependencies = [
@@ -3287,6 +3300,7 @@ dependencies = [
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-core",
  "mailrs-core-api",
+ "mailrs-core-sidestate",
  "mailrs-imap-codec 1.0.0",
  "mailrs-imap-format 1.0.0",
  "mailrs-imap-proto 1.0.5",
@@ -3808,6 +3822,7 @@ dependencies = [
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-core",
  "mailrs-core-api",
+ "mailrs-core-sidestate",
  "mailrs-core-sync",
  "mailrs-dav 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-delivery-executor",

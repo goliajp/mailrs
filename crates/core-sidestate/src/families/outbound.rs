@@ -24,7 +24,7 @@ use mailrs_core_api::method::outbound::{
     RecoverStaleResponse,
 };
 
-use crate::FastcoreState;
+use crate::NetKevy;
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
@@ -95,8 +95,8 @@ fn write_row(conn: &mut kevy_client::Connection, row: &OutboundMessageWire) {
     );
 }
 
-pub async fn enqueue(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn enqueue<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Json(req): Json<EnqueueRequest>,
 ) -> Result<Json<EnqueueResponse>, StatusCode> {
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
@@ -133,8 +133,8 @@ pub async fn enqueue(
     Ok(Json(EnqueueResponse { id }))
 }
 
-pub async fn claim(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn claim<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Json(req): Json<ClaimRequest>,
 ) -> Json<ClaimResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -160,7 +160,7 @@ pub async fn claim(
     Json(ClaimResponse { items })
 }
 
-pub async fn stats(State(state): State<Arc<FastcoreState>>) -> Json<QueueStatsResponse> {
+pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsResponse> {
     let Some(mut conn) = state.net_conn() else {
         return Json(QueueStatsResponse {
             pending: 0,
@@ -186,8 +186,8 @@ pub async fn stats(State(state): State<Arc<FastcoreState>>) -> Json<QueueStatsRe
     })
 }
 
-pub async fn recover_stale(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn recover_stale<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Json(_req): Json<RecoverStaleRequest>,
 ) -> Json<RecoverStaleResponse> {
     let Some(mut conn) = state.net_conn() else {
@@ -217,8 +217,8 @@ fn remove_inflight_and_del(conn: &mut kevy_client::Connection, id: i64) {
     let _ = conn.del(&[format!("mailrs:outbound:{id}").as_bytes()]);
 }
 
-pub async fn mark_delivered(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn mark_delivered<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
 ) -> StatusCode {
     let Some(mut conn) = state.net_conn() else {
@@ -229,8 +229,8 @@ pub async fn mark_delivered(
     StatusCode::NO_CONTENT
 }
 
-pub async fn mark_failed(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn mark_failed<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
     Json(req): Json<MarkFailedRequest>,
 ) -> StatusCode {
@@ -265,8 +265,8 @@ pub async fn mark_failed(
     StatusCode::NO_CONTENT
 }
 
-pub async fn mark_bounced(
-    State(state): State<Arc<FastcoreState>>,
+pub async fn mark_bounced<S: NetKevy>(
+    State(state): State<Arc<S>>,
     Path(id): Path<i64>,
     Json(req): Json<MarkBouncedRequest>,
 ) -> StatusCode {

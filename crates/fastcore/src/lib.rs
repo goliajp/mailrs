@@ -90,6 +90,12 @@ impl FastcoreState {
     }
 }
 
+impl mailrs_core_sidestate::NetKevy for FastcoreState {
+    fn net_conn(&self) -> Option<kevy_client::Connection> {
+        FastcoreState::net_conn(self)
+    }
+}
+
 impl Handler for FastcoreState {
     async fn healthz(&self) -> HealthResponse {
         HealthResponse {
@@ -1101,262 +1107,319 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
     // probable matchit collision between `conversations:list` (literal
     // ":list") and `conversations/categories` (path-separator). A
     // single Router with all routes registered side-by-side resolves it.
-    let business = Router::new()
-        .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
-        .route(
-            conv::PATH_CONVERSATIONS_BY_THREAD_IDS,
-            post(conversations_by_thread_ids),
-        )
-        .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
-        .route(conv::PATH_ACTION_COUNT, get(get_action_count))
-        .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
-        .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
-        .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
-        .route(th::PATH_MARK_READ, post(mark_read))
-        .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
-        .route(th::PATH_MARK_UNREAD, post(mark_unread_route))
-        .route(th::PATH_SNOOZE, put(snooze_thread_route))
-        .route(th::PATH_UNSNOOZE, delete(unsnooze_thread_route))
-        .route(th::PATH_PIN, post(pin_thread))
-        .route(th::PATH_UNPIN, post(unpin_thread))
-        .route(th::PATH_STAR, post(star_thread))
-        .route(th::PATH_UNSTAR, post(unstar_thread))
-        .route(th::PATH_ARCHIVE, post(archive_thread))
-        .route(th::PATH_UNARCHIVE, post(unarchive_thread))
-        .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
-        .route(th::PATH_DELETE_THREAD, delete(delete_thread))
-        .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
-        .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
-        .route(
-            adm::PATH_LIST_ACCOUNTS,
-            get(list_accounts).post(add_account_route),
-        )
-        .route(
-            adm::PATH_UPDATE_ACCOUNT,
-            put(update_account_route).delete(remove_account_route),
-        )
-        .route(adm::PATH_SET_QUOTA, post(set_quota_route))
-        .route(
-            adm::PATH_UPDATE_RECOVERY_EMAIL,
-            post(set_recovery_email_route),
-        )
-        .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
-        .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
-        // Aliases live in the fastcore-embedded kevy so the spool drain
-        // (also in-process) can resolve `contact@golia.jp -> lihao` and
-        // similar single-hop forwards. Distinct namespace from webapi's
-        // network-kevy `admin:aliases` hash — that older store is not
-        // consulted by the drain and stays around only until UI wiring
-        // catches up.
-        .route(
-            "/v1/admin/aliases:local",
-            get(list_local_aliases).post(upsert_local_alias),
-        )
-        .route(
-            "/v1/admin/aliases:local/{source}",
-            delete(delete_local_alias_route),
-        )
-        // Ops endpoint — reset every user's ingest cursor to 0 so the
-        // next sync tick re-processes historic threads and (via the
-        // Group F diff path) backfills messages fastcore missed under
-        // the older "skip-existing" ingest behaviour.
-        .route(
-            "/v1/admin/sync/reset-cursors",
-            post(reset_sync_cursors_route),
-        )
-        .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
-        .route(
-            msg::PATH_GET_MESSAGE_BY_UID_USER,
-            get(get_message_by_uid_for_user),
-        )
-        // ── shared side-state (network kevy): drafts / signatures /
-        // templates — same keys webapi + pg-core read (v2 point 3) ──
-        .route(
-            adm::PATH_LIST_DRAFTS,
-            get(routes::prefs::list_drafts).post(routes::prefs::save_draft),
-        )
-        .route(adm::PATH_DELETE_DRAFT, delete(routes::prefs::delete_draft))
-        .route(
-            adm::PATH_LIST_SIGNATURES,
-            get(routes::prefs::list_signatures).post(routes::prefs::save_signature),
-        )
-        .route(
-            adm::PATH_DELETE_SIGNATURE,
-            delete(routes::prefs::delete_signature),
-        )
-        .route(
-            adm::PATH_LIST_TEMPLATES,
-            get(routes::prefs::list_templates).post(routes::prefs::save_template),
-        )
-        .route(
-            adm::PATH_DELETE_TEMPLATE,
-            delete(routes::prefs::delete_template),
-        )
-        // reactions / webhooks / audit (network kevy)
-        .route(
-            adm::PATH_GET_THREAD_REACTIONS,
-            get(routes::admin_state::get_thread_reactions),
-        )
-        .route(
-            adm::PATH_TOGGLE_REACTION,
-            put(routes::admin_state::toggle_reaction),
-        )
-        .route(
-            adm::PATH_CREATE_WEBHOOK,
-            post(routes::admin_state::create_webhook),
-        )
-        .route(
-            adm::PATH_LIST_WEBHOOKS,
-            get(routes::admin_state::list_webhooks),
-        )
-        .route(
-            adm::PATH_DELETE_WEBHOOK,
-            delete(routes::admin_state::delete_webhook),
-        )
-        .route(
-            adm::PATH_LIST_AUDIT_LOG,
-            get(routes::admin_state::list_audit_log),
-        )
-        // account / alias / domain — switchable mail store (embedded kevy)
-        .route(adm::PATH_GET_ACCOUNT, get(routes::mail_admin::get_account))
-        .route(
-            adm::PATH_LIST_ALIASES,
-            get(routes::mail_admin::list_aliases).post(routes::mail_admin::add_alias),
-        )
-        .route(
-            adm::PATH_REMOVE_ALIAS,
-            delete(routes::mail_admin::remove_alias),
-        )
-        .route(
-            adm::PATH_LIST_DOMAINS,
-            get(routes::mail_admin::list_domains).post(routes::mail_admin::add_domain),
-        )
-        .route(
-            adm::PATH_REMOVE_DOMAIN,
-            delete(routes::mail_admin::remove_domain),
-        )
-        // contacts — shared derived side-state (network kevy)
-        .route(
-            ct::PATH_SEARCH_CONTACTS,
-            get(routes::contacts::search_contacts),
-        )
-        .route(
-            ct::PATH_UPSERT_INBOUND,
-            post(routes::contacts::upsert_inbound),
-        )
-        .route(
-            ct::PATH_CONTACT_SCORING,
-            get(routes::contacts::contact_scoring),
-        )
-        .route(ct::PATH_HAS_SENT_TO, get(routes::contacts::has_sent_to))
-        .route(
-            ct::PATH_SENDER_FEEDBACK,
-            post(routes::contacts::sender_feedback),
-        )
-        // analysis — shared derived side-state (network kevy); semantic 501
-        .route(an::PATH_GET_ANALYSIS, get(routes::analysis::get_analysis))
-        .route(
-            an::PATH_COUNT_UNANALYZED,
-            get(routes::analysis::count_unanalyzed),
-        )
-        .route(
-            an::PATH_BOOST_IMPORTANCE,
-            post(routes::analysis::boost_importance),
-        )
-        .route(
-            an::PATH_ATTACHMENT_TEXTS,
-            get(routes::analysis::attachment_texts),
-        )
-        .route(
-            an::PATH_SEMANTIC_SEARCH,
-            post(routes::analysis::semantic_search),
-        )
-        // outbound queue — shared network kevy (same keys the sender drains)
-        .route(ob::PATH_ENQUEUE, post(routes::outbound::enqueue))
-        .route(ob::PATH_CLAIM, post(routes::outbound::claim))
-        .route(ob::PATH_STATS, get(routes::outbound::stats))
-        .route(
-            ob::PATH_RECOVER_STALE,
-            post(routes::outbound::recover_stale),
-        )
-        .route(
-            ob::PATH_MARK_DELIVERED,
-            post(routes::outbound::mark_delivered),
-        )
-        .route(ob::PATH_MARK_FAILED, post(routes::outbound::mark_failed))
-        .route(ob::PATH_MARK_BOUNCED, post(routes::outbound::mark_bounced))
-        // groups / permissions / api-keys / sieve (network kevy)
-        .route(
-            adm::PATH_LIST_GROUPS,
-            get(routes::groups_admin::list_groups),
-        )
-        .route(
-            adm::PATH_GET_GROUP_PERMISSIONS,
-            get(routes::groups_admin::get_group_permissions),
-        )
-        .route(
-            adm::PATH_LIST_GROUP_MEMBERS,
-            get(routes::groups_admin::list_group_members),
-        )
-        .route(
-            adm::PATH_GET_ACCOUNT_GROUPS,
-            get(routes::groups_admin::get_account_groups),
-        )
-        .route(
-            adm::PATH_REMOVE_ACCOUNT_FROM_GROUP,
-            delete(routes::groups_admin::remove_account_from_group),
-        )
-        .route(
-            adm::PATH_GET_API_KEY_BY_PREFIX,
-            get(routes::groups_admin::get_api_key_by_prefix),
-        )
-        .route(
-            adm::PATH_TOUCH_API_KEY,
-            post(routes::groups_admin::touch_api_key),
-        )
-        .route(adm::PATH_GET_SIEVE, get(routes::groups_admin::get_sieve))
-        // mailbox CRUD — reuse the maildir IMAP backend
-        .route(mb::PATH_GET_MAILBOX, get(routes::mailbox::get_mailbox))
-        .route(
-            mb::PATH_GET_MAILBOX_BY_ID,
-            get(routes::mailbox::get_mailbox_by_id),
-        )
-        .route(
-            mb::PATH_CREATE_MAILBOX,
-            post(routes::mailbox::create_mailbox),
-        )
-        .route(
-            mb::PATH_DELETE_MAILBOX,
-            delete(routes::mailbox::delete_mailbox),
-        )
-        .route(
-            mb::PATH_RENAME_MAILBOX,
-            post(routes::mailbox::rename_mailbox),
-        )
-        .route(
-            mb::PATH_MAILBOX_STATUS,
-            get(routes::mailbox::mailbox_status),
-        )
-        // message ops — thread-store reads/flags + maildir copy/move/expunge
-        .route(
-            msg::PATH_GET_MESSAGE_BY_UID,
-            get(routes::message::get_message_by_uid),
-        )
-        .route(
-            msg::PATH_FIND_BY_MESSAGE_ID,
-            get(routes::message::find_by_message_id),
-        )
-        .route(msg::PATH_LIST_MESSAGES, get(routes::message::list_messages))
-        .route(msg::PATH_CHANGED_SINCE, get(routes::message::changed_since))
-        .route(msg::PATH_SET_FLAGS, put(routes::message::set_flags))
-        .route(
-            msg::PATH_FLAGS_IF_UNCHANGED,
-            post(routes::message::flags_if_unchanged),
-        )
-        .route(msg::PATH_COPY_MESSAGE, post(routes::message::copy_message))
-        .route(msg::PATH_MOVE_MESSAGE, post(routes::message::move_message))
-        .route(msg::PATH_EXPUNGE, post(routes::message::expunge))
-        .with_state(state);
+    let business =
+        Router::new()
+            .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
+            .route(
+                conv::PATH_CONVERSATIONS_BY_THREAD_IDS,
+                post(conversations_by_thread_ids),
+            )
+            .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
+            .route(conv::PATH_ACTION_COUNT, get(get_action_count))
+            .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
+            .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
+            .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
+            .route(th::PATH_MARK_READ, post(mark_read))
+            .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
+            .route(th::PATH_MARK_UNREAD, post(mark_unread_route))
+            .route(th::PATH_SNOOZE, put(snooze_thread_route))
+            .route(th::PATH_UNSNOOZE, delete(unsnooze_thread_route))
+            .route(th::PATH_PIN, post(pin_thread))
+            .route(th::PATH_UNPIN, post(unpin_thread))
+            .route(th::PATH_STAR, post(star_thread))
+            .route(th::PATH_UNSTAR, post(unstar_thread))
+            .route(th::PATH_ARCHIVE, post(archive_thread))
+            .route(th::PATH_UNARCHIVE, post(unarchive_thread))
+            .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
+            .route(th::PATH_DELETE_THREAD, delete(delete_thread))
+            .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
+            .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
+            .route(
+                adm::PATH_LIST_ACCOUNTS,
+                get(list_accounts).post(add_account_route),
+            )
+            .route(
+                adm::PATH_UPDATE_ACCOUNT,
+                put(update_account_route).delete(remove_account_route),
+            )
+            .route(adm::PATH_SET_QUOTA, post(set_quota_route))
+            .route(
+                adm::PATH_UPDATE_RECOVERY_EMAIL,
+                post(set_recovery_email_route),
+            )
+            .route(adm::PATH_SET_ACCOUNT_PASSWORD, post(set_password_route))
+            .route(adm::PATH_SET_MESSAGE_FLAGS, post(set_message_flags_route))
+            // Aliases live in the fastcore-embedded kevy so the spool drain
+            // (also in-process) can resolve `contact@golia.jp -> lihao` and
+            // similar single-hop forwards. Distinct namespace from webapi's
+            // network-kevy `admin:aliases` hash — that older store is not
+            // consulted by the drain and stays around only until UI wiring
+            // catches up.
+            .route(
+                "/v1/admin/aliases:local",
+                get(list_local_aliases).post(upsert_local_alias),
+            )
+            .route(
+                "/v1/admin/aliases:local/{source}",
+                delete(delete_local_alias_route),
+            )
+            // Ops endpoint — reset every user's ingest cursor to 0 so the
+            // next sync tick re-processes historic threads and (via the
+            // Group F diff path) backfills messages fastcore missed under
+            // the older "skip-existing" ingest behaviour.
+            .route(
+                "/v1/admin/sync/reset-cursors",
+                post(reset_sync_cursors_route),
+            )
+            .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
+            .route(
+                msg::PATH_GET_MESSAGE_BY_UID_USER,
+                get(get_message_by_uid_for_user),
+            )
+            // ── shared side-state (network kevy): drafts / signatures /
+            // templates — same keys webapi + pg-core read (v2 point 3) ──
+            .route(
+                adm::PATH_LIST_DRAFTS,
+                get(mailrs_core_sidestate::families::prefs::list_drafts::<FastcoreState>)
+                    .post(mailrs_core_sidestate::families::prefs::save_draft::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_DELETE_DRAFT,
+                delete(mailrs_core_sidestate::families::prefs::delete_draft::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_LIST_SIGNATURES,
+                get(mailrs_core_sidestate::families::prefs::list_signatures::<FastcoreState>)
+                    .post(mailrs_core_sidestate::families::prefs::save_signature::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_DELETE_SIGNATURE,
+                delete(mailrs_core_sidestate::families::prefs::delete_signature::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_LIST_TEMPLATES,
+                get(mailrs_core_sidestate::families::prefs::list_templates::<FastcoreState>)
+                    .post(mailrs_core_sidestate::families::prefs::save_template::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_DELETE_TEMPLATE,
+                delete(mailrs_core_sidestate::families::prefs::delete_template::<FastcoreState>),
+            )
+            // reactions / webhooks / audit (network kevy)
+            .route(
+                adm::PATH_GET_THREAD_REACTIONS,
+                get(
+                    mailrs_core_sidestate::families::admin_state::get_thread_reactions::<
+                        FastcoreState,
+                    >,
+                ),
+            )
+            .route(
+                adm::PATH_TOGGLE_REACTION,
+                put(mailrs_core_sidestate::families::admin_state::toggle_reaction::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_CREATE_WEBHOOK,
+                post(mailrs_core_sidestate::families::admin_state::create_webhook::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_LIST_WEBHOOKS,
+                get(mailrs_core_sidestate::families::admin_state::list_webhooks::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_DELETE_WEBHOOK,
+                delete(
+                    mailrs_core_sidestate::families::admin_state::delete_webhook::<FastcoreState>,
+                ),
+            )
+            .route(
+                adm::PATH_LIST_AUDIT_LOG,
+                get(mailrs_core_sidestate::families::admin_state::list_audit_log::<FastcoreState>),
+            )
+            // account / alias / domain — switchable mail store (embedded kevy)
+            .route(adm::PATH_GET_ACCOUNT, get(routes::mail_admin::get_account))
+            .route(
+                adm::PATH_LIST_ALIASES,
+                get(routes::mail_admin::list_aliases).post(routes::mail_admin::add_alias),
+            )
+            .route(
+                adm::PATH_REMOVE_ALIAS,
+                delete(routes::mail_admin::remove_alias),
+            )
+            .route(
+                adm::PATH_LIST_DOMAINS,
+                get(routes::mail_admin::list_domains).post(routes::mail_admin::add_domain),
+            )
+            .route(
+                adm::PATH_REMOVE_DOMAIN,
+                delete(routes::mail_admin::remove_domain),
+            )
+            // contacts — shared derived side-state (network kevy)
+            .route(
+                ct::PATH_SEARCH_CONTACTS,
+                get(mailrs_core_sidestate::families::contacts::search_contacts::<FastcoreState>),
+            )
+            .route(
+                ct::PATH_UPSERT_INBOUND,
+                post(mailrs_core_sidestate::families::contacts::upsert_inbound::<FastcoreState>),
+            )
+            .route(
+                ct::PATH_CONTACT_SCORING,
+                get(mailrs_core_sidestate::families::contacts::contact_scoring::<FastcoreState>),
+            )
+            .route(
+                ct::PATH_HAS_SENT_TO,
+                get(mailrs_core_sidestate::families::contacts::has_sent_to::<FastcoreState>),
+            )
+            .route(
+                ct::PATH_SENDER_FEEDBACK,
+                post(mailrs_core_sidestate::families::contacts::sender_feedback::<FastcoreState>),
+            )
+            // analysis — shared derived side-state (network kevy); semantic 501
+            .route(
+                an::PATH_GET_ANALYSIS,
+                get(mailrs_core_sidestate::families::analysis::get_analysis::<FastcoreState>),
+            )
+            .route(
+                an::PATH_COUNT_UNANALYZED,
+                get(mailrs_core_sidestate::families::analysis::count_unanalyzed::<FastcoreState>),
+            )
+            .route(
+                an::PATH_BOOST_IMPORTANCE,
+                post(mailrs_core_sidestate::families::analysis::boost_importance::<FastcoreState>),
+            )
+            .route(
+                an::PATH_ATTACHMENT_TEXTS,
+                get(mailrs_core_sidestate::families::analysis::attachment_texts::<FastcoreState>),
+            )
+            .route(
+                an::PATH_SEMANTIC_SEARCH,
+                post(mailrs_core_sidestate::families::analysis::semantic_search),
+            )
+            // outbound queue — shared network kevy (same keys the sender drains)
+            .route(
+                ob::PATH_ENQUEUE,
+                post(mailrs_core_sidestate::families::outbound::enqueue::<FastcoreState>),
+            )
+            .route(
+                ob::PATH_CLAIM,
+                post(mailrs_core_sidestate::families::outbound::claim::<FastcoreState>),
+            )
+            .route(
+                ob::PATH_STATS,
+                get(mailrs_core_sidestate::families::outbound::stats::<FastcoreState>),
+            )
+            .route(
+                ob::PATH_RECOVER_STALE,
+                post(mailrs_core_sidestate::families::outbound::recover_stale::<FastcoreState>),
+            )
+            .route(
+                ob::PATH_MARK_DELIVERED,
+                post(mailrs_core_sidestate::families::outbound::mark_delivered::<FastcoreState>),
+            )
+            .route(
+                ob::PATH_MARK_FAILED,
+                post(mailrs_core_sidestate::families::outbound::mark_failed::<FastcoreState>),
+            )
+            .route(
+                ob::PATH_MARK_BOUNCED,
+                post(mailrs_core_sidestate::families::outbound::mark_bounced::<FastcoreState>),
+            )
+            // groups / permissions / api-keys / sieve (network kevy)
+            .route(
+                adm::PATH_LIST_GROUPS,
+                get(mailrs_core_sidestate::families::groups_admin::list_groups::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_GET_GROUP_PERMISSIONS,
+                get(
+                    mailrs_core_sidestate::families::groups_admin::get_group_permissions::<
+                        FastcoreState,
+                    >,
+                ),
+            )
+            .route(
+                adm::PATH_LIST_GROUP_MEMBERS,
+                get(
+                    mailrs_core_sidestate::families::groups_admin::list_group_members::<
+                        FastcoreState,
+                    >,
+                ),
+            )
+            .route(
+                adm::PATH_GET_ACCOUNT_GROUPS,
+                get(
+                    mailrs_core_sidestate::families::groups_admin::get_account_groups::<
+                        FastcoreState,
+                    >,
+                ),
+            )
+            .route(
+                adm::PATH_REMOVE_ACCOUNT_FROM_GROUP,
+                delete(
+                    mailrs_core_sidestate::families::groups_admin::remove_account_from_group::<
+                        FastcoreState,
+                    >,
+                ),
+            )
+            .route(
+                adm::PATH_GET_API_KEY_BY_PREFIX,
+                get(
+                    mailrs_core_sidestate::families::groups_admin::get_api_key_by_prefix::<
+                        FastcoreState,
+                    >,
+                ),
+            )
+            .route(
+                adm::PATH_TOUCH_API_KEY,
+                post(mailrs_core_sidestate::families::groups_admin::touch_api_key::<FastcoreState>),
+            )
+            .route(
+                adm::PATH_GET_SIEVE,
+                get(mailrs_core_sidestate::families::groups_admin::get_sieve::<FastcoreState>),
+            )
+            // mailbox CRUD — reuse the maildir IMAP backend
+            .route(mb::PATH_GET_MAILBOX, get(routes::mailbox::get_mailbox))
+            .route(
+                mb::PATH_GET_MAILBOX_BY_ID,
+                get(routes::mailbox::get_mailbox_by_id),
+            )
+            .route(
+                mb::PATH_CREATE_MAILBOX,
+                post(routes::mailbox::create_mailbox),
+            )
+            .route(
+                mb::PATH_DELETE_MAILBOX,
+                delete(routes::mailbox::delete_mailbox),
+            )
+            .route(
+                mb::PATH_RENAME_MAILBOX,
+                post(routes::mailbox::rename_mailbox),
+            )
+            .route(
+                mb::PATH_MAILBOX_STATUS,
+                get(routes::mailbox::mailbox_status),
+            )
+            // message ops — thread-store reads/flags + maildir copy/move/expunge
+            .route(
+                msg::PATH_GET_MESSAGE_BY_UID,
+                get(routes::message::get_message_by_uid),
+            )
+            .route(
+                msg::PATH_FIND_BY_MESSAGE_ID,
+                get(routes::message::find_by_message_id),
+            )
+            .route(msg::PATH_LIST_MESSAGES, get(routes::message::list_messages))
+            .route(msg::PATH_CHANGED_SINCE, get(routes::message::changed_since))
+            .route(msg::PATH_SET_FLAGS, put(routes::message::set_flags))
+            .route(
+                msg::PATH_FLAGS_IF_UNCHANGED,
+                post(routes::message::flags_if_unchanged),
+            )
+            .route(msg::PATH_COPY_MESSAGE, post(routes::message::copy_message))
+            .route(msg::PATH_MOVE_MESSAGE, post(routes::message::move_message))
+            .route(msg::PATH_EXPUNGE, post(routes::message::expunge))
+            .with_state(state);
 
     base.merge(business)
 }
