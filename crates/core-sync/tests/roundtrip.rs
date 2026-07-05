@@ -150,3 +150,70 @@ async fn sync_mirrors_and_is_idempotent() {
         "A unchanged after reverse"
     );
 }
+
+/// Deliver two distinct messages that share a Message-ID (real mail has
+/// duplicate + empty Message-IDs — a staging migration hit 7 dup groups
+/// + 1 empty). The sync must dedup on blob_ref (the physically-unique
+/// key), NOT message_id: both must cross once, and a re-run must deliver
+/// zero. A message_id-keyed set collapsed these and re-delivered them.
+#[tokio::test]
+async fn sync_dedupes_on_blob_ref_not_message_id() {
+    let base_a = spawn_core().await;
+    let base_b = spawn_core().await;
+    let (a, b) = (client(&base_a), client(&base_b));
+    let user = "dup@test";
+    let thread = "dup-thread@test";
+
+    a.add_account(&AddAccountRequest {
+        address: user.into(),
+        display_name: "Dup".into(),
+        password: "pw".into(),
+    })
+    .await
+    .unwrap();
+
+    // two messages, SAME message_id (""/shared), DISTINCT blob_ref
+    for (i, mid) in ["", "shared@id"].iter().enumerate() {
+        let uid = (i + 1) as u32;
+        let ts = 1_700_000_000i64 + i as i64;
+        let wire = serde_json::json!({
+            "id": 0, "mailbox_id": 0, "uid": uid,
+            "blob_ref": format!("{ts}.M{uid}.uniq"),
+            "sender": "x@remote.test", "recipients": user, "subject": "Dup",
+            "date": ts, "internal_date": ts, "size": 10, "flags": 0,
+            "message_id": mid, "in_reply_to": "", "thread_id": thread,
+            "modseq": 0, "user_address": user,
+        });
+        a.deliver_message(
+            user,
+            thread,
+            &DeliverMessageRequest {
+                message_id: mid.to_string(),
+                subject: "Dup".into(),
+                senders_csv: "x@remote.test".into(),
+                latest_date: ts,
+                latest_preview: String::new(),
+                category: "inbox".into(),
+                unread: true,
+                uid,
+                payload_wire_json: wire.to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    // both cross (blob_ref-keyed), even sharing a message_id
+    let r1 = sync(&a, &b, &SyncOpts::default()).await.unwrap();
+    assert_eq!(r1.messages_delivered, 2, "both distinct blobs cross");
+    let msgs = b.list_thread_messages(user, thread).await.unwrap();
+    assert_eq!(msgs.items.len(), 2, "B holds both messages");
+
+    // re-run: zero re-delivery (the bug that inflated the 56 on staging)
+    let r2 = sync(&a, &b, &SyncOpts::default()).await.unwrap();
+    assert_eq!(
+        r2.messages_delivered, 0,
+        "re-run must deliver nothing despite shared/empty message_id"
+    );
+    assert_eq!(r2.messages_skipped_dupe, 2, "both skipped by blob_ref");
+}

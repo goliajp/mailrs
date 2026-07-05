@@ -203,14 +203,21 @@ async fn sync_thread(
 ) -> Result<(), CoreApiError> {
     let src_msgs = src.list_thread_messages(user, thread_id).await?;
 
-    // client-side dedup: what does the destination already have?
-    let existing: HashSet<String> = match dst.list_thread_messages(user, thread_id).await {
-        Ok(r) => r.items.iter().map(|m| m.message_id.clone()).collect(),
+    // client-side dedup keyed on blob_ref — the maildir filename is the
+    // physically-unique per-message key the store dedupes on
+    // (index_message's `(mailbox, maildir_id)`). message_id is NOT
+    // reliable: real mail has duplicate Message-IDs and empties, which
+    // made a message_id-keyed set collapse rows and re-deliver them on
+    // re-run (harmless — the store's uniqueness backstop absorbed it —
+    // but it inflated the delivered count). Seed from the destination and
+    // update in-loop so intra-run duplicates are caught too.
+    let mut existing: HashSet<String> = match dst.list_thread_messages(user, thread_id).await {
+        Ok(r) => r.items.iter().map(|m| m.blob_ref.clone()).collect(),
         Err(_) => HashSet::new(), // thread not present yet on dst
     };
 
     for wire in &src_msgs.items {
-        if existing.contains(&wire.message_id) {
+        if !existing.insert(wire.blob_ref.clone()) {
             report.messages_skipped_dupe += 1;
             continue;
         }
