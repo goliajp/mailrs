@@ -85,6 +85,14 @@ pub fn alias(address: &str) -> String {
 /// on write so admin tooling can list them without SCAN.
 pub const ALIAS_INDEX: &str = "mailrs:aliases:index";
 
+/// Per-domain row: `mailrs:domain:<name>` string, value = created_at epoch.
+pub fn domain(name: &str) -> String {
+    format!("mailrs:domain:{name}")
+}
+
+/// Set-of-domains index: `mailrs:domains:index` — SADD every domain name.
+pub const DOMAIN_INDEX: &str = "mailrs:domains:index";
+
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the
 /// full message timeline in order.
