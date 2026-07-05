@@ -42,6 +42,7 @@ use mailrs_core_api::method::contact as ct;
 use mailrs_core_api::method::conversation as conv;
 use mailrs_core_api::method::mailbox as mb;
 use mailrs_core_api::method::message as msg;
+use mailrs_core_api::method::outbound as ob;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
@@ -1270,6 +1271,20 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             an::PATH_SEMANTIC_SEARCH,
             post(routes::analysis::semantic_search),
         )
+        // outbound queue — shared network kevy (same keys the sender drains)
+        .route(ob::PATH_ENQUEUE, post(routes::outbound::enqueue))
+        .route(ob::PATH_CLAIM, post(routes::outbound::claim))
+        .route(ob::PATH_STATS, get(routes::outbound::stats))
+        .route(
+            ob::PATH_RECOVER_STALE,
+            post(routes::outbound::recover_stale),
+        )
+        .route(
+            ob::PATH_MARK_DELIVERED,
+            post(routes::outbound::mark_delivered),
+        )
+        .route(ob::PATH_MARK_FAILED, post(routes::outbound::mark_failed))
+        .route(ob::PATH_MARK_BOUNCED, post(routes::outbound::mark_bounced))
         .with_state(state);
 
     base.merge(business)
