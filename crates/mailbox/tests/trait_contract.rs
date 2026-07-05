@@ -170,9 +170,25 @@ async fn insert_message_allocates_monotonic_uids_and_bumps_modseq() {
 async fn insert_message_with_initial_flags_persists_them() {
     let s = store();
     s.create_mailbox(EXAMPLE_USER, "INBOX").await.unwrap();
-    let mut input = sample_input(EXAMPLE_USER, "INBOX", 1);
+    // Insert plain messages first so the flagged message's row id (3) is
+    // NOT equal to the mailbox id (1). A single-message store hid a real
+    // bug for a long time: insert_message's flags path passed the MESSAGE
+    // id where set_flags expects the MAILBOX id, and with one message the
+    // two ids coincidentally matched. With id divergence, that bug makes
+    // this insert fail ("no rows returned" from bump_modseq).
+    s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 1))
+        .await
+        .unwrap();
+    s.insert_message(sample_input(EXAMPLE_USER, "INBOX", 2))
+        .await
+        .unwrap();
+    let mut input = sample_input(EXAMPLE_USER, "INBOX", 3);
     input.flags = FLAG_SEEN | FLAG_FLAGGED;
     let inserted = s.insert_message(input).await.unwrap();
+    assert!(
+        inserted.id > 1,
+        "flagged message id must diverge from mailbox id"
+    );
     let msg = s.get_message(inserted.id).await.unwrap().unwrap();
     assert_eq!(msg.flags, FLAG_SEEN | FLAG_FLAGGED);
 }
