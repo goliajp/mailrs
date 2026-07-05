@@ -1285,6 +1285,36 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
         )
         .route(ob::PATH_MARK_FAILED, post(routes::outbound::mark_failed))
         .route(ob::PATH_MARK_BOUNCED, post(routes::outbound::mark_bounced))
+        // groups / permissions / api-keys / sieve (network kevy)
+        .route(
+            adm::PATH_LIST_GROUPS,
+            get(routes::groups_admin::list_groups),
+        )
+        .route(
+            adm::PATH_GET_GROUP_PERMISSIONS,
+            get(routes::groups_admin::get_group_permissions),
+        )
+        .route(
+            adm::PATH_LIST_GROUP_MEMBERS,
+            get(routes::groups_admin::list_group_members),
+        )
+        .route(
+            adm::PATH_GET_ACCOUNT_GROUPS,
+            get(routes::groups_admin::get_account_groups),
+        )
+        .route(
+            adm::PATH_REMOVE_ACCOUNT_FROM_GROUP,
+            delete(routes::groups_admin::remove_account_from_group),
+        )
+        .route(
+            adm::PATH_GET_API_KEY_BY_PREFIX,
+            get(routes::groups_admin::get_api_key_by_prefix),
+        )
+        .route(
+            adm::PATH_TOUCH_API_KEY,
+            post(routes::groups_admin::touch_api_key),
+        )
+        .route(adm::PATH_GET_SIEVE, get(routes::groups_admin::get_sieve))
         .with_state(state);
 
     base.merge(business)
