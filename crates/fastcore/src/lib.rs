@@ -23,6 +23,7 @@ mod imap;
 pub mod live_sync;
 mod managesieve;
 mod pop3;
+mod routes;
 pub mod sender_sts;
 mod sieve_apply;
 mod spool_drain;
@@ -52,13 +53,37 @@ pub struct FastcoreState {
     /// `* n EXISTS` to their client (RFC 2177). Drain + RPC + IMAP all
     /// live in this process, so no kevy pub/sub hop is needed.
     pub notify: tokio::sync::broadcast::Sender<String>,
+    /// Network-kevy URL (`MAILRS_KEVY_URL`) for the shared side-state
+    /// routes (drafts / signatures / templates / reactions / webhooks /
+    /// audit / outbound / groups). These live in the INDEPENDENT network
+    /// kevy — the same keys webapi + the pg-core read — so both cores
+    /// serve them identically. `None` in tests / when unset: side-state
+    /// routes return empty results rather than erroring.
+    pub net_url: Option<String>,
 }
 
 impl FastcoreState {
-    /// Construct state with a fresh notify channel.
+    /// Construct state with a fresh notify channel. Reads the network-kevy
+    /// URL from `MAILRS_KEVY_URL` (absent in tests → side-state disabled).
     pub fn new(mailbox: KevyMailboxStore) -> Self {
         let (notify, _) = tokio::sync::broadcast::channel(256);
-        Self { mailbox, notify }
+        let net_url = std::env::var("MAILRS_KEVY_URL")
+            .ok()
+            .filter(|s| !s.is_empty());
+        Self {
+            mailbox,
+            notify,
+            net_url,
+        }
+    }
+
+    /// Open a fresh network-kevy connection for a side-state handler.
+    /// Follows the per-use `Connection::open` pattern the auxiliary tasks
+    /// use (spool_drain / live_sync / sieve_apply). Returns `None` when no
+    /// network kevy is configured so handlers can serve an empty result.
+    pub fn net_conn(&self) -> Option<kevy_client::Connection> {
+        let url = self.net_url.as_ref()?;
+        kevy_client::Connection::open(url).ok()
     }
 }
 
@@ -1140,6 +1165,29 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(
             msg::PATH_GET_MESSAGE_BY_UID_USER,
             get(get_message_by_uid_for_user),
+        )
+        // ── shared side-state (network kevy): drafts / signatures /
+        // templates — same keys webapi + pg-core read (v2 point 3) ──
+        .route(
+            adm::PATH_LIST_DRAFTS,
+            get(routes::prefs::list_drafts).post(routes::prefs::save_draft),
+        )
+        .route(adm::PATH_DELETE_DRAFT, delete(routes::prefs::delete_draft))
+        .route(
+            adm::PATH_LIST_SIGNATURES,
+            get(routes::prefs::list_signatures).post(routes::prefs::save_signature),
+        )
+        .route(
+            adm::PATH_DELETE_SIGNATURE,
+            delete(routes::prefs::delete_signature),
+        )
+        .route(
+            adm::PATH_LIST_TEMPLATES,
+            get(routes::prefs::list_templates).post(routes::prefs::save_template),
+        )
+        .route(
+            adm::PATH_DELETE_TEMPLATE,
+            delete(routes::prefs::delete_template),
         )
         .with_state(state);
 
