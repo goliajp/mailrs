@@ -826,7 +826,13 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         }
     }
 
-    // Walk empty-messages threads and heal each from its bucket.
+    // Walk threads and heal — two branches, both idempotent:
+    // (a) zset empty → populate all bucket messages (original behaviour)
+    // (b) zset non-empty but bucket has message-ids not in it → G14.2
+    //     diff branch. Catches the "spool_drain crashed / dropped a file
+    //     mid-tick" case: the file's on disk but the wire never got
+    //     written, so the message is invisible to the API. Diffing by
+    //     message-id closes that gap without touching the fast path.
     let activity_key = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
     let tids = state
         .mailbox
@@ -835,31 +841,75 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         .unwrap_or_default();
     let mut healed_threads = 0u32;
     let mut healed_msgs = 0u32;
+    let mut diff_healed_threads = 0u32;
+    let mut diff_healed_msgs = 0u32;
     for (tid_bytes, _score) in tids {
         let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
             continue;
         };
         let msg_zset = mailrs_mailbox_kevy::keys::thread_messages(tid);
-        if state
+        let existing_count = state
             .mailbox
             .store_ref()
             .zcard(msg_zset.as_bytes())
-            .unwrap_or(0)
-            > 0
-        {
-            continue;
-        }
+            .unwrap_or(0);
         let Some(bucket) = by_root.get(tid) else {
             continue;
         };
-        // Sort by date so upsert_message's zadd scores are chronological.
-        let mut ordered: Vec<&MailFile> = bucket.to_vec();
-        ordered.sort_by_key(|m| m.date);
-        for m in &ordered {
-            // Allocate a stable per-user uid before writing the wire so
-            // /api/mail/messages/{uid}/attachments/… can resolve the
-            // message. allocate_uid is idempotent — reruns return the
-            // previously-issued uid via the uid_by_mid reverse index.
+
+        // Compute (message_id → &MailFile) index for the bucket up front —
+        // used by both branches. Filter out entries with no Message-ID so
+        // upsert_message doesn't key on an empty string (which would
+        // conflate distinct files into one wire).
+        let bucket_by_mid: std::collections::HashMap<&str, &&MailFile> = bucket
+            .iter()
+            .filter(|m| !m.message_id.is_empty())
+            .map(|m| (m.message_id.as_str(), m))
+            .collect();
+        if bucket_by_mid.is_empty() {
+            continue;
+        }
+
+        // Determine which of the bucket's messages need writing:
+        // empty zset → all of them; non-empty → diff against existing
+        // wire payloads' message_id field.
+        let missing_mids: Vec<&str> = if existing_count == 0 {
+            bucket_by_mid.keys().copied().collect()
+        } else {
+            let existing_mids: std::collections::HashSet<String> = state
+                .mailbox
+                .list_thread_messages(tid)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|payload| {
+                    serde_json::from_slice::<
+                        mailrs_core_api::method::message::MessageWire,
+                    >(&payload)
+                    .ok()
+                })
+                .map(|w| w.message_id)
+                .collect();
+            bucket_by_mid
+                .keys()
+                .copied()
+                .filter(|mid| !existing_mids.contains(*mid))
+                .collect()
+        };
+        if missing_mids.is_empty() {
+            continue;
+        }
+        // Sort by date so zadd scores are chronological — matches the
+        // spool_drain write path so mixed populate/diff runs produce the
+        // same ordering.
+        let mut to_write: Vec<&MailFile> = missing_mids
+            .into_iter()
+            .filter_map(|mid| bucket_by_mid.get(mid).copied().copied())
+            .collect();
+        to_write.sort_by_key(|m| m.date);
+        for m in &to_write {
+            // allocate_uid is idempotent — reruns return the previously-
+            // issued uid via the uid_by_mid reverse index, so it's safe
+            // to run either branch multiple times.
             let uid = state.mailbox.allocate_uid(user, &m.message_id).unwrap_or(0);
             let wire = mailrs_core_api::method::message::MessageWire {
                 id: 0,
@@ -886,14 +936,34 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             let _ = state
                 .mailbox
                 .upsert_message(tid, &wire.message_id, m.date, &payload);
-            healed_msgs += 1;
+            if existing_count == 0 {
+                healed_msgs += 1;
+            } else {
+                diff_healed_msgs += 1;
+            }
         }
-        healed_threads += 1;
+        if existing_count == 0 {
+            healed_threads += 1;
+        } else {
+            diff_healed_threads += 1;
+        }
     }
     if healed_threads > 0 {
         tracing::info!(
             %user, healed_threads, healed_msgs, files_scanned = parsed.len(),
             "self-heal (maildir): populated missing messages"
+        );
+    }
+    if diff_healed_threads > 0 {
+        // G14.2 diff branch fired — surface it separately so an oncall
+        // can distinguish "brand-new thread stitched from scratch" from
+        // "existing thread patched with a message the drain missed".
+        tracing::info!(
+            %user,
+            diff_healed_threads,
+            diff_healed_msgs,
+            files_scanned = parsed.len(),
+            "self-heal (maildir): diff branch patched missed messages (G14.2)"
         );
     }
 
