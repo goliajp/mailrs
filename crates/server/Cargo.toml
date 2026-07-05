@@ -73,6 +73,8 @@ mailrs-imap-proto = "1"
 mailrs-ical = { path = "../ical", version = "2" }
 mailrs-intelligence = { path = "../intelligence", version = "3" }
 mailrs-mailbox = { path = "../mailbox", version = "1" }
+mailrs-alias-store = { path = "../alias-store" }
+mailrs-alias-store-net = { path = "../alias-store-net" }
 # Optional — pulled in by the `core-rpc` feature only.
 mailrs-core-api = { path = "../core-api", optional = true, features = ["server"] }
 mailrs-core-sidestate = { path = "../core-sidestate", optional = true }
