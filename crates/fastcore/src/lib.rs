@@ -46,11 +46,18 @@ use mailrs_core_api::method::outbound as ob;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
+use mailrs_alias_store::AliasStore;
 use mailrs_mailbox_kevy::{KevyMailboxStore, ListThreadsFilter, ThreadRow};
 
 /// Server state — owns the kevy store and is cloned into axum handlers.
 pub struct FastcoreState {
     pub mailbox: KevyMailboxStore,
+    /// Alias resolver / admin. Backend-agnostic: fastcore's boot code
+    /// currently constructs an `Arc<KevyMailboxStore>` here (embedded
+    /// kevy), but any [`AliasStore`] impl works — the planned
+    /// network-kevy backend (RFC 20260705) drops in without touching
+    /// call sites. Handlers hold `state.clone()`, so `Arc` is required.
+    pub alias_store: std::sync::Arc<dyn AliasStore>,
     /// In-process delivery fanout: every write path publishes the
     /// recipient address here; IMAP IDLE sessions subscribe and push
     /// `* n EXISTS` to their client (RFC 2177). Drain + RPC + IMAP all
@@ -68,13 +75,29 @@ pub struct FastcoreState {
 impl FastcoreState {
     /// Construct state with a fresh notify channel. Reads the network-kevy
     /// URL from `MAILRS_KEVY_URL` (absent in tests → side-state disabled).
+    /// Alias store defaults to the embedded-kevy backend backed by the
+    /// same `mailbox` handle; swap in a network-kevy impl at the boot
+    /// site when RFC 20260705 Step 2 lands.
     pub fn new(mailbox: KevyMailboxStore) -> Self {
+        let alias_store: std::sync::Arc<dyn AliasStore> =
+            std::sync::Arc::new(mailbox.clone());
+        Self::new_with_alias_store(mailbox, alias_store)
+    }
+
+    /// Construct with an explicit alias-store backend. Used by tests and
+    /// by the planned network-kevy boot path; the default constructor
+    /// wires the embedded-kevy impl for backwards compatibility.
+    pub fn new_with_alias_store(
+        mailbox: KevyMailboxStore,
+        alias_store: std::sync::Arc<dyn AliasStore>,
+    ) -> Self {
         let (notify, _) = tokio::sync::broadcast::channel(256);
         let net_url = std::env::var("MAILRS_KEVY_URL")
             .ok()
             .filter(|s| !s.is_empty());
         Self {
             mailbox,
+            alias_store,
             notify,
             net_url,
         }
@@ -2258,7 +2281,7 @@ async fn set_message_flags_route(
 
 /// GET `/v1/admin/aliases:local` — list every fastcore-embedded alias.
 async fn list_local_aliases(State(state): State<Arc<FastcoreState>>) -> Json<serde_json::Value> {
-    let items = state.mailbox.list_aliases().unwrap_or_default();
+    let items = state.alias_store.list().unwrap_or_default();
     let payload: Vec<serde_json::Value> = items
         .into_iter()
         .map(|(source, target)| serde_json::json!({"source": source, "target": target}))
@@ -2280,7 +2303,7 @@ async fn upsert_local_alias(
     if body.source.is_empty() || body.target.is_empty() {
         return axum::http::StatusCode::BAD_REQUEST.into_response();
     }
-    match state.mailbox.upsert_alias(&body.source, &body.target) {
+    match state.alias_store.upsert(&body.source, &body.target) {
         Ok(()) => axum::http::StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             tracing::error!(err = %e, source = %body.source, "upsert_alias failed");
@@ -2294,8 +2317,8 @@ async fn delete_local_alias_route(
     State(state): State<Arc<FastcoreState>>,
     Path(source): Path<String>,
 ) -> axum::response::Response {
-    match state.mailbox.delete_alias(&source) {
-        Ok(()) => axum::http::StatusCode::NO_CONTENT.into_response(),
+    match state.alias_store.delete(&source) {
+        Ok(_) => axum::http::StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             tracing::error!(err = %e, %source, "delete_alias failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()

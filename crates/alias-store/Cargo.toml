@@ -1,0 +1,12 @@
+[package]
+name = "mailrs-alias-store"
+version = "0.0.1"
+edition = "2024"
+description = "Backend-agnostic alias table trait. Fastcore / pg-core each mount their own AliasStore impl behind the same core-api contract."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]

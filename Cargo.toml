@@ -61,6 +61,7 @@ members = [
     "crates/pg-dump",
     "crates/core-sync",
     "crates/core-sidestate",
+    "crates/alias-store",
 ]
 
 [workspace.dependencies]
