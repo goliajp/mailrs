@@ -14,5 +14,6 @@ pub mod contacts;
 pub mod groups_admin;
 pub mod mail_admin;
 pub mod mailbox;
+pub mod message;
 pub mod outbound;
 pub mod prefs;
