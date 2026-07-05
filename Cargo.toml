@@ -62,6 +62,7 @@ members = [
     "crates/core-sync",
     "crates/core-sidestate",
     "crates/alias-store",
+    "crates/alias-store-net",
 ]
 
 [workspace.dependencies]

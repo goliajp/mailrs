@@ -1,0 +1,14 @@
+[package]
+name = "mailrs-alias-store-net"
+version = "0.0.1"
+edition = "2024"
+description = "AliasStore backed by shared network kevy — the sync-across-stacks impl (RFC 20260705 Step 2)."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-alias-store = { path = "../alias-store" }
+kevy-client = { workspace = true }
