@@ -36,6 +36,7 @@ use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::{delete, get, post, put};
 use kevy_embedded::{Config, Store};
+use mailrs_alias_store::AliasStore;
 use mailrs_core_api::method::admin as adm;
 use mailrs_core_api::method::analysis as an;
 use mailrs_core_api::method::contact as ct;
@@ -46,7 +47,6 @@ use mailrs_core_api::method::outbound as ob;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
-use mailrs_alias_store::AliasStore;
 use mailrs_mailbox_kevy::{KevyMailboxStore, ListThreadsFilter, ThreadRow};
 
 /// Server state — owns the kevy store and is cloned into axum handlers.
@@ -79,8 +79,7 @@ impl FastcoreState {
     /// same `mailbox` handle; swap in a network-kevy impl at the boot
     /// site when RFC 20260705 Step 2 lands.
     pub fn new(mailbox: KevyMailboxStore) -> Self {
-        let alias_store: std::sync::Arc<dyn AliasStore> =
-            std::sync::Arc::new(mailbox.clone());
+        let alias_store: std::sync::Arc<dyn AliasStore> = std::sync::Arc::new(mailbox.clone());
         Self::new_with_alias_store(mailbox, alias_store)
     }
 
@@ -160,7 +159,29 @@ pub async fn run() {
     let cfg = Config::default().with_persist(&kevy_dir);
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
     let mailbox = KevyMailboxStore::new(store);
-    let state = Arc::new(FastcoreState::new(mailbox));
+
+    // Alias-store backend selector — RFC 20260705 Step 2.
+    // Default (`embed` / unset): historical fastcore-owned alias table
+    // in the local kevy AOF. Cutover flip: `MAILRS_ALIAS_STORE_BACKEND=network`
+    // + `MAILRS_KEVY_URL=…` moves the source of truth into the shared
+    // network kevy so pg-core / monolith read the same rows during
+    // stack switches — no per-cutover dump/load needed.
+    let alias_backend =
+        std::env::var("MAILRS_ALIAS_STORE_BACKEND").unwrap_or_else(|_| "embed".into());
+    let alias_store: Arc<dyn AliasStore> = match alias_backend.as_str() {
+        "network" => {
+            let url = std::env::var("MAILRS_KEVY_URL").expect(
+                "MAILRS_ALIAS_STORE_BACKEND=network requires MAILRS_KEVY_URL to point at the shared kevy",
+            );
+            tracing::info!(url = %url, "alias-store backend = network kevy");
+            Arc::new(mailrs_alias_store_net::NetworkKevyAliasStore::new(url))
+        }
+        _ => {
+            tracing::info!("alias-store backend = embed kevy (default)");
+            Arc::new(mailbox.clone())
+        }
+    };
+    let state = Arc::new(FastcoreState::new_with_alias_store(mailbox, alias_store));
 
     // Spawn the ingestion sync loop before the HTTP listener so new
     // messages start replicating as soon as the process boots. Failures
