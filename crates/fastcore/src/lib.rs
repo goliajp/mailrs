@@ -37,6 +37,7 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post, put};
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::admin as adm;
+use mailrs_core_api::method::contact as ct;
 use mailrs_core_api::method::conversation as conv;
 use mailrs_core_api::method::mailbox as mb;
 use mailrs_core_api::method::message as msg;
@@ -1231,6 +1232,24 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
         .route(
             adm::PATH_REMOVE_DOMAIN,
             delete(routes::mail_admin::remove_domain),
+        )
+        // contacts — shared derived side-state (network kevy)
+        .route(
+            ct::PATH_SEARCH_CONTACTS,
+            get(routes::contacts::search_contacts),
+        )
+        .route(
+            ct::PATH_UPSERT_INBOUND,
+            post(routes::contacts::upsert_inbound),
+        )
+        .route(
+            ct::PATH_CONTACT_SCORING,
+            get(routes::contacts::contact_scoring),
+        )
+        .route(ct::PATH_HAS_SENT_TO, get(routes::contacts::has_sent_to))
+        .route(
+            ct::PATH_SENDER_FEEDBACK,
+            post(routes::contacts::sender_feedback),
         )
         .with_state(state);
 
