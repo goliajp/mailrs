@@ -19,10 +19,11 @@
 //! - `list_accounts` / `list_domains` (admin-gated)
 //!
 //! - `create_account` / `remove_account` / `get_audit_log` (admin-gated)
+//! - `add_alias` / `remove_alias` / `add_domain` / `remove_domain` (admin-gated)
 //!
-//! 22 tools (was 6). Remaining monolith tools (alias/domain CRUD,
-//! groups, encryption, signatures save/delete) fill in as follow-on
-//! G11 batches.
+//! 26 tools (was 6). Remaining monolith tools (groups, permissions,
+//! signatures save/delete, encryption, email-groups, greylist, apps,
+//! webhooks, system-config) fill in as follow-on G11 batches.
 //!
 //! Each session gets its own service instance; the authenticated user
 //! flows in through a tokio task-local set by [`mcp_auth_middleware`].
@@ -114,6 +115,29 @@ pub struct CreateAccountParams {
 pub struct AddressParams {
     /// Account address to act on.
     pub address: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AddAliasParams {
+    /// Alias source address, e.g. `sales@example.com`.
+    pub source_address: String,
+    /// Target address the alias forwards to.
+    pub target_address: String,
+    /// Alias type: `alias` (default, deliver to local target) or `forward`.
+    #[serde(default)]
+    pub alias_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RemoveAliasParams {
+    /// Deterministic alias id returned by `list_aliases`.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DomainNameParams {
+    /// Domain name, e.g. `example.com`.
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -652,6 +676,98 @@ impl MailrsMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("remove_account: {e}"), None))?;
         crate::handlers::audit::record(&user, "account.delete", &params.address, "via mcp");
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Add an email alias/forward (requires an admin permission). Type 'alias' delivers to a local account; 'forward' relays outbound."
+    )]
+    async fn add_alias(
+        &self,
+        Parameters(params): Parameters<AddAliasParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        let domain = params
+            .source_address
+            .rsplit_once('@')
+            .map(|(_, d)| d.to_string())
+            .unwrap_or_default();
+        let req = mailrs_core_api::method::admin::AddAliasRequest {
+            source_address: params.source_address.clone(),
+            target_address: params.target_address.clone(),
+            domain,
+            alias_type: params.alias_type.unwrap_or_else(|| "alias".into()),
+        };
+        let resp = self
+            .state
+            .core
+            .add_alias(&req)
+            .await
+            .map_err(|e| McpError::internal_error(format!("add_alias: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "alias.create",
+            &params.source_address,
+            &format!("→ {}", params.target_address),
+        );
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Remove an alias by id (requires an admin permission).")]
+    async fn remove_alias(
+        &self,
+        Parameters(params): Parameters<RemoveAliasParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        self.state
+            .core
+            .remove_alias(params.id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("remove_alias: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "alias.delete",
+            &params.id.to_string(),
+            "via mcp",
+        );
+        Ok(ok_result())
+    }
+
+    #[tool(description = "Add a managed domain (requires an admin permission).")]
+    async fn add_domain(
+        &self,
+        Parameters(params): Parameters<DomainNameParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        self.state
+            .core
+            .add_domain(&params.name)
+            .await
+            .map_err(|e| McpError::internal_error(format!("add_domain: {e}"), None))?;
+        crate::handlers::audit::record(&user, "domain.create", &params.name, "via mcp");
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Remove a managed domain and its dependent accounts/aliases (requires an admin permission)."
+    )]
+    async fn remove_domain(
+        &self,
+        Parameters(params): Parameters<DomainNameParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        self.state
+            .core
+            .remove_domain(&params.name)
+            .await
+            .map_err(|e| McpError::internal_error(format!("remove_domain: {e}"), None))?;
+        crate::handlers::audit::record(&user, "domain.delete", &params.name, "via mcp");
         Ok(ok_result())
     }
 
