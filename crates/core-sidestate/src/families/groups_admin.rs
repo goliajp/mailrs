@@ -14,8 +14,8 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 
 use mailrs_core_api::method::admin::{
-    ApiKeyWire, GroupListResponse, GroupMembersResponse, GroupPermissionsResponse, GroupWire,
-    SieveScriptResponse,
+    AddGroupMemberRequest, ApiKeyWire, GroupListResponse, GroupMembersResponse,
+    GroupPermissionsResponse, GroupWire, SetGroupPermissionsRequest, SieveScriptResponse,
 };
 
 use crate::NetKevy;
@@ -185,4 +185,38 @@ pub async fn get_sieve<S: NetKevy>(
             .map(|v| String::from_utf8_lossy(&v).into_owned())
     });
     Json(SieveScriptResponse { script })
+}
+
+pub async fn set_group_permissions<S: NetKevy>(
+    State(state): State<Arc<S>>,
+    Path(id): Path<i64>,
+    Json(req): Json<SetGroupPermissionsRequest>,
+) -> StatusCode {
+    let Some(mut conn) = state.net_conn() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    let key = format!("admin:groups:{id}:permissions");
+    let _ = conn.del(&[key.as_bytes()]);
+    if !req.permissions.is_empty() {
+        let refs: Vec<&[u8]> = req.permissions.iter().map(|p| p.as_bytes()).collect();
+        let _ = conn.sadd(key.as_bytes(), &refs);
+    }
+    StatusCode::NO_CONTENT
+}
+
+pub async fn add_account_to_group<S: NetKevy>(
+    State(state): State<Arc<S>>,
+    Path(id): Path<i64>,
+    Json(req): Json<AddGroupMemberRequest>,
+) -> StatusCode {
+    let Some(mut conn) = state.net_conn() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    match conn.sadd(
+        format!("admin:groups:{id}:members").as_bytes(),
+        &[req.account_address.as_bytes()],
+    ) {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
 }

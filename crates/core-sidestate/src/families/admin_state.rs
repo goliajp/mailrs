@@ -14,8 +14,8 @@ use axum::http::StatusCode;
 
 use mailrs_core_api::method::admin::{
     AuditListResponse, AuditRowWire, CreateWebhookRequest, CreateWebhookResponse, ListAuditQuery,
-    ReactionAggregateRow, ReactionsResponse, ToggleReactionRequest, WebhookListResponse,
-    WebhookSubWire,
+    LogAuditRequest, ReactionAggregateRow, ReactionsResponse, ToggleReactionRequest,
+    WebhookListResponse, WebhookSubWire,
 };
 
 use crate::NetKevy;
@@ -209,4 +209,27 @@ pub async fn list_audit_log<S: NetKevy>(
         .filter_map(|v| serde_json::from_slice::<AuditRowWire>(&v).ok())
         .collect();
     Json(AuditListResponse { items })
+}
+
+pub async fn log_audit<S: NetKevy>(
+    State(state): State<Arc<S>>,
+    Json(req): Json<LogAuditRequest>,
+) -> StatusCode {
+    let Some(mut conn) = state.net_conn() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    let id = conn.incr(b"admin:audit_log:counter").unwrap_or(0);
+    let row = AuditRowWire {
+        id,
+        timestamp: now_secs(),
+        actor: req.actor,
+        action: req.action,
+        target: req.target,
+        detail: req.detail,
+    };
+    if let Ok(json) = serde_json::to_vec(&row) {
+        // newest-first: LPUSH so lrange 0.. returns recent entries first
+        let _ = conn.lpush(b"admin:audit_log", &[json.as_slice()]);
+    }
+    StatusCode::NO_CONTENT
 }

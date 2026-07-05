@@ -52,6 +52,20 @@ pub struct CoreRpcState {
     /// Maildir root — handlers that serve raw bytes look up the file
     /// under `{maildir_root}/{user}/cur|new/{maildir_id}`.
     pub maildir_root: String,
+    /// Network-kevy URL (`MAILRS_KEVY_URL`) for the SHARED side-state
+    /// families (drafts/signatures/templates/reactions/webhooks/audit/
+    /// contacts/analysis/outbound/groups/api-keys/sieve). The pg-core
+    /// serves these from the same network kevy fastcore + webapi use, so
+    /// the two cores' side-state routes are byte-identical. `None` when
+    /// unset (side-state routes then serve empty).
+    pub net_url: Option<String>,
+}
+
+impl mailrs_core_sidestate::NetKevy for CoreRpcState {
+    fn net_conn(&self) -> Option<kevy_client::Connection> {
+        let url = self.net_url.as_ref()?;
+        kevy_client::Connection::open(url).ok()
+    }
 }
 
 impl Handler for CoreRpcState {
@@ -297,11 +311,11 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let adm = Router::new()
         .route(
             adm_paths::PATH_GET_API_KEY_BY_PREFIX,
-            get(handlers::admin::get_api_key_by_prefix),
+            get(mailrs_core_sidestate::families::groups_admin::get_api_key_by_prefix::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_TOUCH_API_KEY,
-            post(handlers::admin::touch_api_key),
+            post(mailrs_core_sidestate::families::groups_admin::touch_api_key::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_EFFECTIVE_PERMISSIONS,
@@ -364,35 +378,35 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         // sieve
         .route(
             adm_paths::PATH_GET_SIEVE,
-            get(handlers::admin::get_sieve)
+            get(mailrs_core_sidestate::families::groups_admin::get_sieve::<CoreRpcState>)
                 .post(handlers::admin::set_sieve)
                 .delete(handlers::admin::delete_sieve),
         )
         // audit log
         .route(
             adm_paths::PATH_LIST_AUDIT_LOG,
-            get(handlers::admin::list_audit_log).post(handlers::admin::log_audit),
+            get(mailrs_core_sidestate::families::admin_state::list_audit_log::<CoreRpcState>).post(mailrs_core_sidestate::families::admin_state::log_audit::<CoreRpcState>),
         )
         // groups + permissions
         .route(
             adm_paths::PATH_LIST_GROUPS,
-            get(handlers::admin::list_groups),
+            get(mailrs_core_sidestate::families::groups_admin::list_groups::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_GET_GROUP_PERMISSIONS,
-            get(handlers::admin::get_group_permissions).put(handlers::admin::set_group_permissions),
+            get(mailrs_core_sidestate::families::groups_admin::get_group_permissions::<CoreRpcState>).put(mailrs_core_sidestate::families::groups_admin::set_group_permissions::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_LIST_GROUP_MEMBERS,
-            get(handlers::admin::list_group_members).post(handlers::admin::add_account_to_group),
+            get(mailrs_core_sidestate::families::groups_admin::list_group_members::<CoreRpcState>).post(mailrs_core_sidestate::families::groups_admin::add_account_to_group::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_REMOVE_ACCOUNT_FROM_GROUP,
-            delete(handlers::admin::remove_account_from_group),
+            delete(mailrs_core_sidestate::families::groups_admin::remove_account_from_group::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_GET_ACCOUNT_GROUPS,
-            get(handlers::admin::get_account_groups),
+            get(mailrs_core_sidestate::families::groups_admin::get_account_groups::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -400,23 +414,23 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let anal = Router::new()
         .route(
             analysis_paths::PATH_GET_ANALYSIS,
-            get(handlers::analysis::get_analysis),
+            get(mailrs_core_sidestate::families::analysis::get_analysis::<CoreRpcState>),
         )
         .route(
             analysis_paths::PATH_COUNT_UNANALYZED,
-            get(handlers::analysis::count_unanalyzed),
+            get(mailrs_core_sidestate::families::analysis::count_unanalyzed::<CoreRpcState>),
         )
         .route(
             analysis_paths::PATH_BOOST_IMPORTANCE,
-            post(handlers::analysis::boost_importance),
+            post(mailrs_core_sidestate::families::analysis::boost_importance::<CoreRpcState>),
         )
         .route(
             analysis_paths::PATH_ATTACHMENT_TEXTS,
-            get(handlers::analysis::attachment_texts),
+            get(mailrs_core_sidestate::families::analysis::attachment_texts::<CoreRpcState>),
         )
         .route(
             analysis_paths::PATH_SEMANTIC_SEARCH,
-            post(handlers::analysis::semantic_search),
+            post(mailrs_core_sidestate::families::analysis::semantic_search),
         )
         .with_state(state.clone());
 
@@ -424,23 +438,23 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let ct = Router::new()
         .route(
             contact_paths::PATH_SEARCH_CONTACTS,
-            get(handlers::contact::search_contacts),
+            get(mailrs_core_sidestate::families::contacts::search_contacts::<CoreRpcState>),
         )
         .route(
             contact_paths::PATH_UPSERT_INBOUND,
-            post(handlers::contact::upsert_inbound),
+            post(mailrs_core_sidestate::families::contacts::upsert_inbound::<CoreRpcState>),
         )
         .route(
             contact_paths::PATH_CONTACT_SCORING,
-            get(handlers::contact::contact_scoring),
+            get(mailrs_core_sidestate::families::contacts::contact_scoring::<CoreRpcState>),
         )
         .route(
             contact_paths::PATH_HAS_SENT_TO,
-            get(handlers::contact::has_sent_to),
+            get(mailrs_core_sidestate::families::contacts::has_sent_to::<CoreRpcState>),
         )
         .route(
             contact_paths::PATH_SENDER_FEEDBACK,
-            post(handlers::contact::sender_feedback),
+            post(mailrs_core_sidestate::families::contacts::sender_feedback::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -448,11 +462,12 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let drafts = Router::new()
         .route(
             adm_paths::PATH_LIST_DRAFTS,
-            get(handlers::drafts::list_drafts).post(handlers::drafts::save_draft),
+            get(mailrs_core_sidestate::families::prefs::list_drafts::<CoreRpcState>)
+                .post(mailrs_core_sidestate::families::prefs::save_draft::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_DELETE_DRAFT,
-            delete(handlers::drafts::delete_draft),
+            delete(mailrs_core_sidestate::families::prefs::delete_draft::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -460,11 +475,12 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let signatures = Router::new()
         .route(
             adm_paths::PATH_LIST_SIGNATURES,
-            get(handlers::signatures::list_signatures).post(handlers::signatures::save_signature),
+            get(mailrs_core_sidestate::families::prefs::list_signatures::<CoreRpcState>)
+                .post(mailrs_core_sidestate::families::prefs::save_signature::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_DELETE_SIGNATURE,
-            delete(handlers::signatures::delete_signature),
+            delete(mailrs_core_sidestate::families::prefs::delete_signature::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -472,15 +488,15 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let webhooks = Router::new()
         .route(
             adm_paths::PATH_CREATE_WEBHOOK,
-            post(handlers::webhooks::create_webhook),
+            post(mailrs_core_sidestate::families::admin_state::create_webhook::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_LIST_WEBHOOKS,
-            get(handlers::webhooks::list_webhooks),
+            get(mailrs_core_sidestate::families::admin_state::list_webhooks::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_DELETE_WEBHOOK,
-            delete(handlers::webhooks::delete_webhook),
+            delete(mailrs_core_sidestate::families::admin_state::delete_webhook::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -488,11 +504,12 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let templates = Router::new()
         .route(
             adm_paths::PATH_LIST_TEMPLATES,
-            get(handlers::templates::list_templates).post(handlers::templates::save_template),
+            get(mailrs_core_sidestate::families::prefs::list_templates::<CoreRpcState>)
+                .post(mailrs_core_sidestate::families::prefs::save_template::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_DELETE_TEMPLATE,
-            delete(handlers::templates::delete_template),
+            delete(mailrs_core_sidestate::families::prefs::delete_template::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -500,34 +517,43 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     let rx = Router::new()
         .route(
             adm_paths::PATH_GET_THREAD_REACTIONS,
-            get(handlers::reactions::get_thread_reactions),
+            get(mailrs_core_sidestate::families::admin_state::get_thread_reactions::<CoreRpcState>),
         )
         .route(
             adm_paths::PATH_TOGGLE_REACTION,
-            put(handlers::reactions::toggle_reaction),
+            put(mailrs_core_sidestate::families::admin_state::toggle_reaction::<CoreRpcState>),
         )
         .with_state(state.clone());
 
     // ── outbound (sender ↔ core) ─────────────────────────────────────
     let ob = Router::new()
-        .route(ob_paths::PATH_ENQUEUE, post(handlers::outbound::enqueue))
-        .route(ob_paths::PATH_CLAIM, post(handlers::outbound::claim))
-        .route(ob_paths::PATH_STATS, get(handlers::outbound::stats))
+        .route(
+            ob_paths::PATH_ENQUEUE,
+            post(mailrs_core_sidestate::families::outbound::enqueue::<CoreRpcState>),
+        )
+        .route(
+            ob_paths::PATH_CLAIM,
+            post(mailrs_core_sidestate::families::outbound::claim::<CoreRpcState>),
+        )
+        .route(
+            ob_paths::PATH_STATS,
+            get(mailrs_core_sidestate::families::outbound::stats::<CoreRpcState>),
+        )
         .route(
             ob_paths::PATH_RECOVER_STALE,
-            post(handlers::outbound::recover_stale),
+            post(mailrs_core_sidestate::families::outbound::recover_stale::<CoreRpcState>),
         )
         .route(
             ob_paths::PATH_MARK_DELIVERED,
-            post(handlers::outbound::mark_delivered),
+            post(mailrs_core_sidestate::families::outbound::mark_delivered::<CoreRpcState>),
         )
         .route(
             ob_paths::PATH_MARK_FAILED,
-            post(handlers::outbound::mark_failed),
+            post(mailrs_core_sidestate::families::outbound::mark_failed::<CoreRpcState>),
         )
         .route(
             ob_paths::PATH_MARK_BOUNCED,
-            post(handlers::outbound::mark_bounced),
+            post(mailrs_core_sidestate::families::outbound::mark_bounced::<CoreRpcState>),
         )
         .with_state(state.clone());
 
@@ -647,6 +673,7 @@ mod pg_core_tests {
             domain,
             pool,
             maildir_root: "/tmp/pg-core-test".into(),
+            net_url: None,
         });
         let router = build_full_router(state, String::new());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -1106,6 +1133,7 @@ mod real_pg_sync_tests {
             domain,
             pool,
             maildir_root: "/tmp/real-pg-core-test".into(),
+            net_url: None,
         });
         let router = build_full_router(state, String::new());
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

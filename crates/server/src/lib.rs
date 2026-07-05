@@ -710,6 +710,9 @@ pub async fn run() {
             domain: ds.clone(),
             pool: pool.clone(),
             maildir_root: cfg.maildir_root.clone(),
+            net_url: std::env::var("MAILRS_KEVY_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
         });
         core_rpc::spawn_core_rpc(core_rpc_state, shutdown_rx.clone());
     }
