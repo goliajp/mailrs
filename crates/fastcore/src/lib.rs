@@ -1214,6 +1214,24 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             adm::PATH_LIST_AUDIT_LOG,
             get(routes::admin_state::list_audit_log),
         )
+        // account / alias / domain — switchable mail store (embedded kevy)
+        .route(adm::PATH_GET_ACCOUNT, get(routes::mail_admin::get_account))
+        .route(
+            adm::PATH_LIST_ALIASES,
+            get(routes::mail_admin::list_aliases).post(routes::mail_admin::add_alias),
+        )
+        .route(
+            adm::PATH_REMOVE_ALIAS,
+            delete(routes::mail_admin::remove_alias),
+        )
+        .route(
+            adm::PATH_LIST_DOMAINS,
+            get(routes::mail_admin::list_domains).post(routes::mail_admin::add_domain),
+        )
+        .route(
+            adm::PATH_REMOVE_DOMAIN,
+            delete(routes::mail_admin::remove_domain),
+        )
         .with_state(state);
 
     base.merge(business)

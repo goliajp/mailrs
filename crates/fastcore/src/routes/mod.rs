@@ -9,4 +9,5 @@
 //!   both cores serve them identically. Reached via `state.net_conn()`.
 
 pub mod admin_state;
+pub mod mail_admin;
 pub mod prefs;

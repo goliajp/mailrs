@@ -66,6 +66,7 @@ use kevy_embedded::Store;
 mod account;
 mod alias;
 mod deliver;
+mod domain;
 pub mod keys;
 mod list_threads;
 mod mark_seen;
