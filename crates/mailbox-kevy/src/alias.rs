@@ -32,7 +32,7 @@ impl KevyMailboxStore {
             let Ok(next) = std::str::from_utf8(&raw) else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
-            if next.is_empty() || next.eq_ignore_ascii_case(&current) {
+            if next.is_empty() || next == current {
                 return Ok(if hit_any { Some(current) } else { None });
             }
             hit_any = true;
@@ -133,6 +133,26 @@ mod tests {
         let s = store();
         s.upsert_alias("a@x", "a@x").unwrap();
         assert!(s.resolve_alias("a@x").unwrap().is_none());
+    }
+
+    // Regression: case-normalization alias (`Lihao@x -> lihao@x`) must
+    // resolve as a legitimate one-hop mapping, not be mistaken for a
+    // self-loop. The pre-fix code compared `next` and `current` with
+    // `eq_ignore_ascii_case`, which treated the case-differing pair as
+    // a cycle and returned None even though a valid target existed.
+    #[test]
+    fn case_normalization_alias_resolves() {
+        let s = store();
+        s.upsert_alias("Lihao@x", "lihao@x").unwrap();
+        assert_eq!(
+            s.resolve_alias("Lihao@x").unwrap().as_deref(),
+            Some("lihao@x")
+        );
+        s.upsert_alias("INFO@golia.jp", "lihao@golia.jp").unwrap();
+        assert_eq!(
+            s.resolve_alias("INFO@golia.jp").unwrap().as_deref(),
+            Some("lihao@golia.jp")
+        );
     }
 
     #[test]
