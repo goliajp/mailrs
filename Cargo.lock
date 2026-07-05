@@ -3008,6 +3008,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-alias-store"
+version = "0.0.1"
+
+[[package]]
 name = "mailrs-arc"
 version = "3.0.0"
 dependencies = [
@@ -3298,6 +3302,7 @@ dependencies = [
  "kevy-client",
  "kevy-embedded",
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-alias-store",
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
@@ -3510,6 +3515,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "kevy-embedded",
+ "mailrs-alias-store",
  "mailrs-mailbox",
  "serde",
  "serde_json",

@@ -61,8 +61,8 @@ pub async fn list_aliases(
     State(state): State<Arc<FastcoreState>>,
 ) -> Result<Json<AliasListResponse>, StatusCode> {
     let pairs = state
-        .mailbox
-        .list_aliases()
+        .alias_store
+        .list()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut items: Vec<AliasWire> = pairs
         .into_iter()
@@ -85,8 +85,8 @@ pub async fn add_alias(
     Json(req): Json<AddAliasRequest>,
 ) -> Result<Json<AddAliasResponse>, StatusCode> {
     state
-        .mailbox
-        .upsert_alias(&req.source_address, &req.target_address)
+        .alias_store
+        .upsert(&req.source_address, &req.target_address)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(AddAliasResponse {
         id: alias_id(&req.source_address),
@@ -97,14 +97,14 @@ pub async fn remove_alias(
     State(state): State<Arc<FastcoreState>>,
     Path(id): Path<i64>,
 ) -> StatusCode {
-    let pairs = match state.mailbox.list_aliases() {
+    let pairs = match state.alias_store.list() {
         Ok(p) => p,
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
     };
     let Some((source, _)) = pairs.into_iter().find(|(s, _)| alias_id(s) == id) else {
         return StatusCode::NOT_FOUND;
     };
-    match state.mailbox.delete_alias(&source) {
+    match state.alias_store.delete(&source) {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }

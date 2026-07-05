@@ -7,8 +7,15 @@
 //! Follows a chain up to 4 hops so `a → b → c → d` works while cycles
 //! (`a → b → a`) still terminate. Read-only in the hot path — callers
 //! that need to mutate use [`upsert_alias`] / [`delete_alias`].
+//!
+//! Exposes both the historical inherent-method surface (used by existing
+//! call sites) and the backend-agnostic [`mailrs_alias_store::AliasStore`]
+//! trait so fastcore / pg-core state can hold `Arc<dyn AliasStore>`
+//! without caring which store is behind it.
 
 use std::io;
+
+use mailrs_alias_store::AliasStore;
 
 use crate::KevyMailboxStore;
 use crate::keys;
@@ -82,6 +89,32 @@ impl KevyMailboxStore {
     }
 }
 
+/// Bridge the embedded-kevy alias implementation to the shared
+/// [`AliasStore`] contract. Every method delegates to the inherent one
+/// so the historical call sites and the trait-based ones are two names
+/// for the same code — no behaviour drift possible.
+impl AliasStore for KevyMailboxStore {
+    fn resolve(&self, address: &str) -> io::Result<Option<String>> {
+        self.resolve_alias(address)
+    }
+
+    fn upsert(&self, source: &str, target: &str) -> io::Result<()> {
+        self.upsert_alias(source, target)
+    }
+
+    fn delete(&self, source: &str) -> io::Result<bool> {
+        let key = keys::alias(source);
+        let removed = self.store().del(&[key.as_bytes()])?;
+        self.store()
+            .srem(keys::ALIAS_INDEX.as_bytes(), &[source.as_bytes()])?;
+        Ok(removed > 0)
+    }
+
+    fn list(&self) -> io::Result<Vec<(String, String)>> {
+        self.list_aliases()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +166,20 @@ mod tests {
         let s = store();
         s.upsert_alias("a@x", "a@x").unwrap();
         assert!(s.resolve_alias("a@x").unwrap().is_none());
+    }
+
+    #[test]
+    fn trait_contract_case_and_delete() {
+        // Exercise the KevyMailboxStore via the AliasStore trait so the
+        // fastcore state's `Arc<dyn AliasStore>` path is covered by the
+        // same guarantees the inherent-method tests give.
+        let s = store();
+        let t: &dyn mailrs_alias_store::AliasStore = &s;
+        t.upsert("Lihao@x", "lihao@x").unwrap();
+        assert_eq!(t.resolve("Lihao@x").unwrap().as_deref(), Some("lihao@x"));
+        assert!(t.delete("Lihao@x").unwrap());
+        assert!(!t.delete("Lihao@x").unwrap()); // idempotent second delete
+        assert!(t.resolve("Lihao@x").unwrap().is_none());
     }
 
     // Regression: case-normalization alias (`Lihao@x -> lihao@x`) must

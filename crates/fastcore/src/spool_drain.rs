@@ -111,7 +111,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                 // its very first mail is deliverable
                 Some(fwd.clone())
             } else {
-                let via_alias = state.mailbox.resolve_alias(fwd).ok().flatten();
+                let via_alias = state.alias_store.resolve(fwd).ok().flatten();
                 via_alias.and_then(|a| {
                     if has_maildir(maildir_root, &a)
                         || provision_if_account(state, maildir_root, &a)
