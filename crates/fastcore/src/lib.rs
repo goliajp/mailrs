@@ -1315,6 +1315,28 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             post(routes::groups_admin::touch_api_key),
         )
         .route(adm::PATH_GET_SIEVE, get(routes::groups_admin::get_sieve))
+        // mailbox CRUD — reuse the maildir IMAP backend
+        .route(mb::PATH_GET_MAILBOX, get(routes::mailbox::get_mailbox))
+        .route(
+            mb::PATH_GET_MAILBOX_BY_ID,
+            get(routes::mailbox::get_mailbox_by_id),
+        )
+        .route(
+            mb::PATH_CREATE_MAILBOX,
+            post(routes::mailbox::create_mailbox),
+        )
+        .route(
+            mb::PATH_DELETE_MAILBOX,
+            delete(routes::mailbox::delete_mailbox),
+        )
+        .route(
+            mb::PATH_RENAME_MAILBOX,
+            post(routes::mailbox::rename_mailbox),
+        )
+        .route(
+            mb::PATH_MAILBOX_STATUS,
+            get(routes::mailbox::mailbox_status),
+        )
         .with_state(state);
 
     base.merge(business)
