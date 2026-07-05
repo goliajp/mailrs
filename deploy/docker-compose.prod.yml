@@ -86,6 +86,7 @@ services:
       MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
       MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_ALIAS_STORE_BACKEND: network
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
       RUST_LOG: info

@@ -127,6 +127,7 @@ services:
       MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mailrs}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
+      MAILRS_ALIAS_STORE_BACKEND: network
       MAILRS_MEILI_URL: http://meilisearch:7700
       MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY}
       MAILRS_TLS_CERT: /certs/fullchain.pem
