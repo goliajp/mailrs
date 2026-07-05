@@ -20,10 +20,12 @@
 //!
 //! - `create_account` / `remove_account` / `get_audit_log` (admin-gated)
 //! - `add_alias` / `remove_alias` / `add_domain` / `remove_domain` (admin-gated)
+//! - `save_signature` / `delete_signature` (per-user, no admin)
+//! - `list_webhooks` / `create_webhook` / `delete_webhook`
 //!
-//! 26 tools (was 6). Remaining monolith tools (groups, permissions,
-//! signatures save/delete, encryption, email-groups, greylist, apps,
-//! webhooks, system-config) fill in as follow-on G11 batches.
+//! 31 tools (was 6). Remaining monolith tools (groups, permissions,
+//! encryption, email-groups, greylist, apps, system-config) fill in
+//! as follow-on G11 batches.
 //!
 //! Each session gets its own service instance; the authenticated user
 //! flows in through a tokio task-local set by [`mcp_auth_middleware`].
@@ -138,6 +140,49 @@ pub struct RemoveAliasParams {
 pub struct DomainNameParams {
     /// Domain name, e.g. `example.com`.
     pub name: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SaveSignatureParams {
+    /// Signature display name.
+    pub name: String,
+    /// HTML body of the signature.
+    #[serde(default)]
+    pub html: String,
+    /// Plain-text fallback body.
+    #[serde(default)]
+    pub text_content: String,
+    /// If true, make this the caller's default signature.
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SignatureIdParams {
+    /// Signature id returned by `list_signatures` / `save_signature`.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateWebhookParams {
+    /// Account address that owns the subscription.
+    pub account_address: String,
+    /// HTTPS URL webhook events are POSTed to.
+    pub url: String,
+    /// Event class the webhook fires on (e.g. `mail.new`, `mail.bounce`).
+    pub event_type: String,
+    /// Optional: only fire when the sender address matches (glob-free).
+    #[serde(default)]
+    pub filter_sender: Option<String>,
+    /// Optional: only fire for events on this thread id.
+    #[serde(default)]
+    pub filter_thread_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct WebhookIdParams {
+    /// Webhook id returned by `list_webhooks` / `create_webhook`.
+    pub id: i64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -768,6 +813,135 @@ impl MailrsMcpService {
             .await
             .map_err(|e| McpError::internal_error(format!("remove_domain: {e}"), None))?;
         crate::handlers::audit::record(&user, "domain.delete", &params.name, "via mcp");
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "Save or update the caller's own email signature. Returns the new id — pass it to `delete_signature` to remove."
+    )]
+    async fn save_signature(
+        &self,
+        Parameters(params): Parameters<SaveSignatureParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let req = mailrs_core_api::method::admin::SaveSignatureRequest {
+            name: params.name.clone(),
+            html: params.html,
+            text_content: params.text_content,
+            is_default: params.is_default,
+        };
+        let resp = self
+            .state
+            .core
+            .save_signature(&user, &req)
+            .await
+            .map_err(|e| McpError::internal_error(format!("save_signature: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "signature.save",
+            &format!("id={}", resp.id),
+            &params.name,
+        );
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Delete one of the caller's own signatures by id.")]
+    async fn delete_signature(
+        &self,
+        Parameters(params): Parameters<SignatureIdParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.state
+            .core
+            .delete_signature(&user, params.id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("delete_signature: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "signature.delete",
+            &format!("id={}", params.id),
+            "via mcp",
+        );
+        Ok(ok_result())
+    }
+
+    #[tool(
+        description = "List webhook subscriptions for an account (requires admin OR the caller owning the account)."
+    )]
+    async fn list_webhooks(
+        &self,
+        Parameters(params): Parameters<AddressParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        if user != params.address {
+            self.require_admin(&user).await?;
+        }
+        let resp = self
+            .state
+            .core
+            .list_webhooks(&params.address)
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_webhooks: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(
+        description = "Create a webhook subscription. Returns id + signing_secret — store the secret, it isn't returned again."
+    )]
+    async fn create_webhook(
+        &self,
+        Parameters(params): Parameters<CreateWebhookParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        if user != params.account_address {
+            self.require_admin(&user).await?;
+        }
+        let req = mailrs_core_api::method::admin::CreateWebhookRequest {
+            account_address: params.account_address.clone(),
+            url: params.url.clone(),
+            event_type: params.event_type.clone(),
+            filter_sender: params.filter_sender,
+            filter_thread_id: params.filter_thread_id,
+        };
+        let resp = self
+            .state
+            .core
+            .create_webhook(&req)
+            .await
+            .map_err(|e| McpError::internal_error(format!("create_webhook: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "webhook.create",
+            &params.account_address,
+            &format!("url={} event={}", params.url, params.event_type),
+        );
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Delete a webhook subscription by id (requires an admin permission).")]
+    async fn delete_webhook(
+        &self,
+        Parameters(params): Parameters<WebhookIdParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.require_admin(&user).await?;
+        self.state
+            .core
+            .delete_webhook(params.id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("delete_webhook: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "webhook.delete",
+            &format!("id={}", params.id),
+            "via mcp",
+        );
         Ok(ok_result())
     }
 
