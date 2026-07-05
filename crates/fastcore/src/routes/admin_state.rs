@@ -49,7 +49,7 @@ fn aggregate(
             message_uid: uid,
             emoji,
             count: users.len() as i64,
-            me: users.iter().any(|u| *u == user),
+            me: users.contains(&user),
         });
         i += 2;
     }
