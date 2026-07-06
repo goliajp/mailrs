@@ -205,11 +205,37 @@ function MobileThreadView() {
 
   // thread messages now live in react-query; we bridge to the legacy
   // threadMessagesAtom for downstream consumers, mirroring thread-view.tsx.
+  //
+  // messagesOwnerRef tracks which selectedId owns the currently-published
+  // atom value. Without this the mobile view kept feeding the atom
+  // whatever cache react-query happened to have on hand, and because
+  // both this component and desktop ThreadView are simultaneously mounted
+  // in chat.tsx (mobile-only display via `md:hidden`, but hooks always
+  // run), a click that reused a stale hook state could leave a
+  // previously-viewed thread's messages sitting under the new
+  // selectedId until the new fetch resolved — presenting a "conversation
+  // panel" that mixed messages from two unrelated threads.
+  //
+  // Fix mirrors ThreadView.tsx L155-180: clear atom on selectedId change
+  // before the new fetch resolves, and only republish when the fetched
+  // data actually belongs to the current selectedId.
   const threadQuery = useThreadQuery(selectedId, [])
   const loading = threadQuery.isPending && !!selectedId
+  const messagesOwnerRef = useRef<null | string>(null)
   useEffect(() => {
-    if (threadQuery.data) setMessages(threadQuery.data)
-  }, [threadQuery.data, setMessages])
+    if (!selectedId) return
+    if (threadQuery.data) {
+      setMessages(threadQuery.data)
+      messagesOwnerRef.current = selectedId
+      return
+    }
+    // No data yet for selectedId. If the atom currently holds messages
+    // from a different (previous) thread, clear them so we don't leak.
+    if (messagesOwnerRef.current !== null && messagesOwnerRef.current !== selectedId) {
+      setMessages([])
+      messagesOwnerRef.current = null
+    }
+  }, [threadQuery.data, selectedId, setMessages])
   // reset the active message + scroll when the thread id changes; the
   // latest-message auto-pick re-fires below as data populates.
   useEffect(() => {
