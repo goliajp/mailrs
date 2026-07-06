@@ -156,7 +156,16 @@ pub async fn run() {
 
     let kevy_dir =
         std::env::var("MAILRS_KEVY_DATA_DIR").unwrap_or_else(|_| "/data/kevy-fastcore".to_string());
-    let cfg = Config::default().with_persist(&kevy_dir);
+    // v2 Stage B.8: enable the kevy 3.17 change feed so IMAP IDLE (and
+    // future JMAP push, WS bridges) can subscribe via changes_since
+    // instead of the in-memory tokio broadcast channel. The feed is
+    // durable across restarts (offset resumes) and buffers writes so
+    // a slow consumer doesn't lose events. 16 MiB buffer ≈ 250K
+    // change frames (~64 B each) — plenty for a per-user IDLE
+    // consumer under normal load.
+    let cfg = Config::default()
+        .with_persist(&kevy_dir)
+        .with_feed(16 * 1024 * 1024);
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
     let mailbox = KevyMailboxStore::new(store);
 

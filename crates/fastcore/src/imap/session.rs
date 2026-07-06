@@ -933,12 +933,22 @@ where
     if framed.send(b"+ idling\r\n".to_vec()).await.is_err() {
         return Vec::new();
     }
-    let mut rx = state.notify.subscribe();
+    // v2 Stage B.8: subscribe to the kevy 3.17 change feed instead of
+    // the tokio broadcast::channel. The feed is durable — a fastcore
+    // restart resumes from the last delivered offset, so events that
+    // fire mid-restart are not lost (broadcast::channel is in-memory
+    // and drops on restart). Consumer polls at ~500 ms cadence, well
+    // within the RFC 2177 IDLE spec's "poll frequently enough that
+    // clients see mail within a few seconds" guidance.
+    let (mut feed_gen, mut feed_off) = state.mailbox.store_ref().changes_tail().unwrap_or((0, 0));
+    let user_prefix = format!("mailrs:user:{user}:");
     let mut known = match &session {
         State::Selected { messages, .. } => messages.len(),
         _ => 0,
     };
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(29 * 60);
+    let mut change_tick = tokio::time::interval(std::time::Duration::from_millis(500));
+    change_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         tokio::select! {
             frame = framed.next() => {
@@ -950,11 +960,17 @@ where
                     _ => return Vec::new(),  // connection gone
                 }
             }
-            evt = rx.recv() => {
-                let Ok(delivered_user) = evt else { continue }; // lagged — resync below anyway
-                if user.is_empty() || !delivered_user.eq_ignore_ascii_case(&user) {
+            _ = change_tick.tick() => {
+                let batch = state
+                    .mailbox
+                    .store_ref()
+                    .changes_since(feed_gen, feed_off, 100, &[user_prefix.as_bytes()]);
+                let Ok(batch) = batch else { continue }; // Disabled | Resync — silently skip; a re-select recovers
+                if batch.changes.is_empty() {
+                    (feed_gen, feed_off) = batch.next;
                     continue;
                 }
+                (feed_gen, feed_off) = batch.next;
                 let fresh = backend::list_messages(state, &user, &mailbox);
                 if fresh.len() > known {
                     known = fresh.len();
