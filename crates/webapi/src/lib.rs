@@ -276,6 +276,15 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/mail/pending/{message_id}",
             delete(handlers::messages::cancel_pending_send),
         )
+        // G13.3 scheduled outbound queue control
+        .route(
+            "/api/scheduled/{id}/cancel",
+            post(handlers::messages::cancel_scheduled),
+        )
+        .route(
+            "/api/scheduled/{id}/reschedule",
+            post(handlers::messages::reschedule_scheduled),
+        )
         .route(
             "/api/mail/messages/{uid}",
             delete(handlers::messages::delete_message),
@@ -541,6 +550,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::admin::list_webhooks),
         )
         .route("/api/admin/audit-log", get(handlers::admin::list_audit_log))
+        .route(
+            "/api/admin/audit-log/export",
+            get(handlers::admin::export_audit_log),
+        )
         .route("/api/admin/export", get(handlers::admin::admin_export))
         .route(
             "/api/admin/oauth-clients",
