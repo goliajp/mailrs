@@ -53,7 +53,7 @@ services:
 
   kevy-server:
     container_name: mailrs-staging-kevy
-    image: ghcr.io/goliajp/kevy:latest
+    image: ghcr.io/goliajp/kevy:3.17.1
     mem_limit: 1g
     environment:
       KEVY_PORT: "6379"

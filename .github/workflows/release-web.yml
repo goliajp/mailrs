@@ -98,22 +98,19 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      # Sync the compose file first. Without this, any change to compose
-      # (e.g. the v1.7.132 ./web bind mount) sits in git but never
-      # reaches the host, and the container keeps running with the
-      # baked-in /opt/mailrs/web — making every web-only rsync a no-op.
-      - name: scp docker-compose.prod.yml + recreate if changed
-        run: |
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            docker-compose.prod.yml \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/apps/mailrs/docker-compose.prod.yml"
-          # `docker compose up -d` is a no-op when compose + image are
-          # unchanged; recreates the mailrs container only if the YAML
-          # actually differs (e.g. new bind mount, new env). Brief
-          # downtime only on the one release that introduces a change.
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            'cd /apps/mailrs && docker compose -f docker-compose.prod.yml up -d mailrs'
+      # Compose sync: web-v* lane does NOT touch compose. The v1.9 fastcore
+      # stack (canonical `deploy/docker-compose.prod.yml`, shipped by
+      # release.yml on every v* tag) bind-mounts /apps/mailrs/web into
+      # webapi-fc read-only — the container's ServeDir reads disk on
+      # every request, so an rsync into /apps/mailrs/web/ takes effect
+      # immediately without any container restart.
+      #
+      # If a web release genuinely needs a compose change (new bind
+      # mount, new env), that's a v* release, not a web-v*. The legacy
+      # `scp + up -d mailrs` step used to target the pre-fastcore monolith
+      # service `mailrs`, which doesn't exist in the fastcore compose —
+      # every recent web-v* release ran it as a silent no-op. Removed
+      # for clarity in v2 Stage A.
 
       - name: rsync dist to prod
         run: |

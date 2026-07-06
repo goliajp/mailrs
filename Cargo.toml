@@ -82,13 +82,21 @@ spg-embedded = "7.37"
 # persistence + native pub/sub bus. Zero network hop, ~10× faster than
 # the network kevy/redis container path. The only kvdb backend mailrs
 # ships with after Phase C (v1.7.95+); the `redis` crate dep is gone.
-kevy-embedded = "1.15"
+#
+# v2 Stage A · v1.9.0: bumped 1.15 → 3.17.2 (2 major versions). Core op
+# signatures (get/set/hget/hset/zadd/zrange...) are byte-identical
+# between 1.15 and 3.x, so migration is a version-only lift.
+# 3.x introduces pipeline/atomic/view/brpop/hexpire/zinterstore/idx/
+# change-stream that Stage B (H1-H8) refactor consumes. RFC:
+# .claude/rfcs/20260706-kevy-3x-upgrade-and-fastcore-refactor.md.
+# AOF gate: 1.x AOF replays intact on 3.x binary (RESP stream stable).
+kevy-embedded = "3.17"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used only when MAILRS_KEVY_URL is set (receiver-split topology): the
 # anti subsystems (greylist / rate / auth-guard) read+write shared state
 # over the network instead of the in-process embedded Store. Blocking
 # `&mut self` client → wrapped in spawn_blocking. dogfood, same org.
-kevy-client = "1.12"
+kevy-client = "1.13"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }

@@ -9,7 +9,13 @@
 # action-count / unseen-count.
 #
 # Usage:
-#   ./scripts/staging-fastcore-up.sh [--image-tag arch-split-fastcore] [--with-webapi]
+#   ./scripts/staging-fastcore-up.sh [--image-tag <tag>] [--with-webapi]
+#
+# Default --image-tag is `staging-local` (canonical since 2026-07-04,
+# per rules/dev-deploy-workflow.md: local buildx arm64 → save|ssh load →
+# t01 has `ghcr.io/goliajp/mailrs:staging-local` never in registry).
+# Historical: pre-fastcore-cutover this defaulted to `arch-split-fastcore`
+# from a GHCR-published dev tag; that tag is stale.
 #
 # --with-webapi: also bring up the shadow webapi pointing at fastcore
 #   instead of the monolith core-rpc. Useful for A/B testing the
@@ -23,7 +29,7 @@ set -euo pipefail
 HOST="${STAGING_SSH_HOST:-t01.golia.jp}"
 USER="${STAGING_SSH_USER:-root}"
 KEY="${STAGING_SSH_KEY:-$HOME/.ssh/id_ed25519}"
-IMAGE_TAG="arch-split-fastcore"
+IMAGE_TAG="${MAILRS_IMAGE_TAG:-staging-local}"
 WITH_WEBAPI=0
 
 while [[ $# -gt 0 ]]; do

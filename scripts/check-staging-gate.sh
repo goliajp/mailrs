@@ -11,8 +11,8 @@
 # Exit 0 = green, 1 = fail. Use in release.yml after the deploy-staging
 # job completes to block prod release when staging regressed.
 #
-# Why these numbers (baseline captured 2026-06-22 17:58 UTC against
-# v1.7.175 + spg 7.37.7 + kevy 1.26.6 on prod-shape catalog):
+# Why these numbers (original baseline 2026-06-22 against v1.7.175 +
+# spg 7.37.7 + kevy 1.26.6 on prod-shape catalog):
 #
 #   conv-list?limit=50   2.12% slow ≥ 500 ms / max 10.23 s
 #   mail/stats           2.79% slow ≥ 500 ms / max 10.42 s
@@ -20,10 +20,16 @@
 #   action-count         0.55% slow / max 4.60 s
 #   overall              ≈ 1.5 % slow rate
 #
+# v2 Stage A (kevy 3.17 + fastcore refactor): the spg lane is no longer
+# on the prod serving path — those numbers describe monolith+spg latency
+# tail, which no longer exists in prod. The 3.0% / 15s ceiling below
+# stays as a conservative safety net until Stage B lands the pipeline /
+# view refactor + we re-baseline against fastcore's actual list p95
+# (expected sub-10ms). Ratchet DOWN as each Stage B tag lands, per
+# memory feedback-staging-stricter-than-prod.
+#
 # Budget = baseline × 1.3 ceiling. New ships have to STAY at-or-below
 # the current cascade noise; introducing new cascade hotspots fails.
-# Tighten as SPG team lands Class A/B/C planner fixes (memory
-# feedback-staging-stricter-than-prod: ratchet down, never up).
 
 set -u
 LOG="${LOG:-/var/log/staging-traffic-gen.log}"
