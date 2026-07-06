@@ -36,8 +36,8 @@ B-H work accumulates on `develop` and ships together as v2.0.0.
   `/reschedule` — outbound queue control on the SCHEDULED zset.
   Sender-verified; reschedule enforces future timestamp; sender
   mismatch returns 404 to prevent id enumeration.
-- **Stage C.1 (partial):** MCP tool surface expanded from 37 to
-  **53** tools across 6 v2 batches:
+- **Stage C.1:** MCP tool surface expanded from 37 to **62** tools
+  across 10 v2 batches — hits the plan target:
     - Batch 1 (admin-read): `list_groups`, `list_apps`,
       `list_email_groups`, `list_greylist_local`, `list_aliases_admin`.
     - Batch 2 (admin-misc): `reconcile_maildir`, `list_scheduled_outbound`,
@@ -49,6 +49,11 @@ B-H work accumulates on `develop` and ships together as v2.0.0.
     - Batch 5 (encryption keys): `list_own_encryption_keys`,
       `get_public_key_of`.
     - Batch 6 (admin queue): `list_admin_queue`, `list_failed_outbound`.
+    - Batch 7 (server info + retry): `get_server_info`, `retry_queue_message`.
+    - Batch 8 (thread summary): `get_thread_summary`.
+    - Batch 9 (thread mutations): `snooze_thread`, `unsnooze_thread`,
+      `pin_thread`, `unpin_thread`, `dismiss_thread_action`.
+    - Batch 10 (dashboard metrics): `get_inbox_metrics`.
 - **Stage C.5 (partial):** `mcp.rs` → `mcp/{mod,params,tools_v2_batchN}.rs`
   named-router split. Each new batch file <500 lines (file-size
   hard rule); the 37 legacy tools remain in mod.rs pending a
