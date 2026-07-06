@@ -1,9 +1,10 @@
 //! Thread-level mutations — archive / unarchive / pin / unpin / delete.
 //!
-//! Phase 7.9. Same two-step pattern as `mark_seen` (hset + zrem outside
-//! the atomic block) until kevy 1.16 lands `AtomicCtx::{zrem, hdel}`.
-//! `delete_thread` is the heaviest one: drops the row from 6 indexes
-//! and the hash itself.
+//! v2 Stage B.1: kevy 3.17 `AtomicCtx` gained `zrem` and `hdel`, so
+//! the old two-step "hset in atomic + zrem outside" workaround is gone
+//! — every mutator collapses into a single closure holding one shard
+//! write lock. `delete_thread` is the heaviest one: 1 hget + 1 hdel +
+//! 7 zrem now serialize atomically.
 
 use std::io;
 
@@ -73,31 +74,30 @@ impl KevyMailboxStore {
         F: FnOnce(&str) -> String,
     {
         let thread_key = keys::thread(thread_id);
-        if !self.store().hexists(thread_key.as_bytes(), b"count")? {
-            return Ok(false);
-        }
-        let val: &[u8] = if on { b"1" } else { b"0" };
-        self.store()
-            .hset(thread_key.as_bytes(), &[(field.as_bytes(), val)])?;
         let idx = index_key_fn(user);
-        if on {
-            // Need a score — use the row's latest_date so the index
-            // stays sortable by recency.
-            let score = self
-                .store()
-                .hget(thread_key.as_bytes(), b"latest_date")?
-                .and_then(|v| {
-                    std::str::from_utf8(&v)
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                })
-                .unwrap_or(0);
-            self.store()
-                .zadd(idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-        } else {
-            self.store().zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-        }
-        Ok(true)
+        let val: &[u8] = if on { b"1" } else { b"0" };
+        self.store().atomic(|ctx| {
+            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                return Ok(false);
+            }
+            ctx.hset(thread_key.as_bytes(), &[(field.as_bytes(), val)])?;
+            if on {
+                // Need a score — use the row's latest_date so the index
+                // stays sortable by recency.
+                let score = ctx
+                    .hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| {
+                        std::str::from_utf8(&v)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                    })
+                    .unwrap_or(0);
+                ctx.zadd(idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+            } else {
+                ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
+            }
+            Ok(true)
+        })
     }
 
     /// Flip a thread back to unread. Mirrors `mark_seen` in the
@@ -108,35 +108,33 @@ impl KevyMailboxStore {
     /// Returns `true` when the row existed. Idempotent.
     pub fn mark_unread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        if !self.store().hexists(thread_key.as_bytes(), b"count")? {
-            return Ok(false);
-        }
-        let latest = self
-            .store()
-            .hget(thread_key.as_bytes(), b"latest_date")?
-            .and_then(|v| {
-                std::str::from_utf8(&v)
-                    .ok()
-                    .and_then(|s| s.parse::<i64>().ok())
-            })
-            .unwrap_or(0);
-        let cur = self
-            .store()
-            .hget(thread_key.as_bytes(), b"unread_count")?
-            .and_then(|v| {
-                std::str::from_utf8(&v)
-                    .ok()
-                    .and_then(|s| s.parse::<i64>().ok())
-            })
-            .unwrap_or(0);
-        if cur < 1 {
-            self.store()
-                .hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
-        }
         let idx = keys::user_threads_has_unread(user);
-        self.store()
-            .zadd(idx.as_bytes(), &[(latest as f64, thread_id.as_bytes())])?;
-        Ok(true)
+        self.store().atomic(|ctx| {
+            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                return Ok(false);
+            }
+            let latest = ctx
+                .hget(thread_key.as_bytes(), b"latest_date")?
+                .and_then(|v| {
+                    std::str::from_utf8(&v)
+                        .ok()
+                        .and_then(|s| s.parse::<i64>().ok())
+                })
+                .unwrap_or(0);
+            let cur = ctx
+                .hget(thread_key.as_bytes(), b"unread_count")?
+                .and_then(|v| {
+                    std::str::from_utf8(&v)
+                        .ok()
+                        .and_then(|s| s.parse::<i64>().ok())
+                })
+                .unwrap_or(0);
+            if cur < 1 {
+                ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
+            }
+            ctx.zadd(idx.as_bytes(), &[(latest as f64, thread_id.as_bytes())])?;
+            Ok(true)
+        })
     }
 
     /// Set `snoozed_until` (epoch seconds; `0` = unsnooze) on the
@@ -153,15 +151,17 @@ impl KevyMailboxStore {
         snoozed_until: i64,
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        if !self.store().hexists(thread_key.as_bytes(), b"count")? {
-            return Ok(false);
-        }
         let val = snoozed_until.to_string();
-        self.store().hset(
-            thread_key.as_bytes(),
-            &[(b"snoozed_until" as &[u8], val.as_bytes())],
-        )?;
-        Ok(true)
+        self.store().atomic(|ctx| {
+            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                return Ok(false);
+            }
+            ctx.hset(
+                thread_key.as_bytes(),
+                &[(b"snoozed_until" as &[u8], val.as_bytes())],
+            )?;
+            Ok(true)
+        })
     }
 
     /// Hard-delete `thread_id` for `user`. Removes the row hash + drops
@@ -173,17 +173,7 @@ impl KevyMailboxStore {
     /// category string, not derivable from the tid alone.
     pub fn delete_thread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let category = self
-            .store()
-            .hget(thread_key.as_bytes(), b"category")?
-            .and_then(|v| String::from_utf8(v).ok());
-        if category.is_none() {
-            // hash doesn't exist
-            return Ok(false);
-        }
-        let cat = category.unwrap();
-        // hdel each field — kevy 1.15 has hdel but no "hclear" so we
-        // explicitly list the fields ThreadRow knows about.
+        // No "hclear" in kevy 3.17 either; keep the explicit field list.
         let fields: &[&[u8]] = &[
             b"subject",
             b"senders_csv",
@@ -201,21 +191,29 @@ impl KevyMailboxStore {
             b"sent_count",
             b"starred",
         ];
-        self.store().hdel(thread_key.as_bytes(), fields)?;
-        // drop from every index zset the row could appear in.
-        let indexes = [
-            keys::user_threads_by_activity(user),
-            keys::user_threads_by_category(user, &cat),
-            keys::user_threads_pinned(user),
-            keys::user_threads_archived(user),
-            keys::user_threads_has_unread(user),
-            keys::user_threads_has_action(user),
-            keys::user_threads_starred(user),
-        ];
-        for idx in &indexes {
-            self.store().zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-        }
-        Ok(true)
+        self.store().atomic(|ctx| {
+            let category = ctx
+                .hget(thread_key.as_bytes(), b"category")?
+                .and_then(|v| String::from_utf8(v).ok());
+            let Some(cat) = category else {
+                // hash doesn't exist
+                return Ok(false);
+            };
+            ctx.hdel(thread_key.as_bytes(), fields)?;
+            let indexes = [
+                keys::user_threads_by_activity(user),
+                keys::user_threads_by_category(user, &cat),
+                keys::user_threads_pinned(user),
+                keys::user_threads_archived(user),
+                keys::user_threads_has_unread(user),
+                keys::user_threads_has_action(user),
+                keys::user_threads_starred(user),
+            ];
+            for idx in &indexes {
+                ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
+            }
+            Ok(true)
+        })
     }
 }
 

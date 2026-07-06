@@ -15,23 +15,24 @@ impl KevyMailboxStore {
     /// write so re-adding keeps the original timestamp.
     pub fn upsert_domain(&self, name: &str, created_at: i64) -> io::Result<()> {
         let key = keys::domain(name);
-        if self.store().get(key.as_bytes())?.is_none() {
-            self.store()
-                .set(key.as_bytes(), created_at.to_string().as_bytes())?;
-        }
-        self.store()
-            .sadd(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
-        Ok(())
+        self.store().atomic(|ctx| {
+            if ctx.get(key.as_bytes())?.is_none() {
+                ctx.set(key.as_bytes(), created_at.to_string().as_bytes());
+            }
+            ctx.sadd(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
+            Ok(())
+        })
     }
 
     /// Remove a domain. Returns whether it existed.
     pub fn delete_domain(&self, name: &str) -> io::Result<bool> {
         let key = keys::domain(name);
-        let existed = self.store().get(key.as_bytes())?.is_some();
-        self.store().del(&[key.as_bytes()])?;
-        self.store()
-            .srem(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
-        Ok(existed)
+        self.store().atomic(|ctx| {
+            let existed = ctx.get(key.as_bytes())?.is_some();
+            ctx.del(&[key.as_bytes()]);
+            ctx.srem(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
+            Ok(existed)
+        })
     }
 
     /// List every domain as `(name, created_at)`, sorted by name.

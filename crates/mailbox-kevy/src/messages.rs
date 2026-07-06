@@ -28,13 +28,15 @@ impl KevyMailboxStore {
         payload: &[u8],
     ) -> io::Result<()> {
         let blob_key = keys::message_blob(message_id);
-        self.store().set(blob_key.as_bytes(), payload)?;
         let zset = keys::thread_messages(thread_id);
-        self.store().zadd(
-            zset.as_bytes(),
-            &[(internal_date as f64, message_id.as_bytes())],
-        )?;
-        Ok(())
+        self.store().atomic(|ctx| {
+            ctx.set(blob_key.as_bytes(), payload);
+            ctx.zadd(
+                zset.as_bytes(),
+                &[(internal_date as f64, message_id.as_bytes())],
+            )?;
+            Ok(())
+        })
     }
 
     /// Read message bytes for `message_id`. Returns `None` if the key

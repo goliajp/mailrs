@@ -120,31 +120,35 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         };
         let ok_code = crate::handlers::totp_util::verify_code(&secret, code);
         let ok_recovery = if !ok_code {
+            // v2 Stage B.1: read-then-write on the SAME kevy connection
+            // — halves the TCP round-trip cost and (more importantly)
+            // shrinks the race window between two concurrent logins
+            // consuming the same recovery code from ms (two round-trips)
+            // to µs (back-to-back ops on one open conn). Full atomicity
+            // would require WATCH+MULTI; deferred to a follow-up as the
+            // window is now short enough that in-practice collision is
+            // vanishing.
             let rc_key = totp_key.clone();
-            let recovery_str = crate::handlers::kevy_util::with_kevy(move |c| {
-                c.hget(rc_key.as_bytes(), b"recovery_codes")
-            })
-            .ok()
-            .flatten()
-            .and_then(|v| String::from_utf8(v).ok())
-            .unwrap_or_default();
-            let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
-            let pos = codes.iter().position(|c| *c == code);
-            if let Some(idx) = pos {
+            let code_owned = code.to_string();
+            crate::handlers::kevy_util::with_kevy(move |c| {
+                let recovery_str = c
+                    .hget(rc_key.as_bytes(), b"recovery_codes")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
+                let mut codes: Vec<&str> =
+                    recovery_str.split(',').filter(|s| !s.is_empty()).collect();
+                let Some(idx) = codes.iter().position(|c| *c == code_owned.as_str()) else {
+                    return Ok(false);
+                };
                 codes.remove(idx);
                 let joined = codes.join(",");
-                let write_key = totp_key.clone();
-                let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-                    c.hset(
-                        write_key.as_bytes(),
-                        &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-                    )?;
-                    Ok(())
-                });
-                true
-            } else {
-                false
-            }
+                c.hset(
+                    rc_key.as_bytes(),
+                    &[(b"recovery_codes" as &[u8], joined.as_bytes())],
+                )?;
+                Ok(true)
+            })
+            .unwrap_or(false)
         } else {
             false
         };
@@ -388,32 +392,30 @@ pub async fn verify_totp(
     }
     let code_valid = crate::handlers::totp_util::verify_code(&secret, &req.code);
     let recovery_valid = if !code_valid {
-        // Recovery codes consumed one-shot.
+        // v2 Stage B.1: recovery codes are one-shot — consolidate the
+        // hget + conditional hset onto a single kevy connection so the
+        // read + write happen back-to-back (µs window instead of two
+        // TCP round-trips).
         let rc_key = key.clone();
-        let recovery_str = crate::handlers::kevy_util::with_kevy(move |c| {
-            c.hget(rc_key.as_bytes(), b"recovery_codes")
-        })
-        .ok()
-        .flatten()
-        .and_then(|v| String::from_utf8(v).ok())
-        .unwrap_or_default();
-        let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
-        let pos = codes.iter().position(|c| *c == req.code);
-        if let Some(idx) = pos {
+        let code_owned = req.code.clone();
+        crate::handlers::kevy_util::with_kevy(move |c| {
+            let recovery_str = c
+                .hget(rc_key.as_bytes(), b"recovery_codes")?
+                .and_then(|v| String::from_utf8(v).ok())
+                .unwrap_or_default();
+            let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
+            let Some(idx) = codes.iter().position(|c| *c == code_owned.as_str()) else {
+                return Ok(false);
+            };
             codes.remove(idx);
             let joined = codes.join(",");
-            let write_key = key.clone();
-            let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-                c.hset(
-                    write_key.as_bytes(),
-                    &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-                )?;
-                Ok(())
-            });
-            true
-        } else {
-            false
-        }
+            c.hset(
+                rc_key.as_bytes(),
+                &[(b"recovery_codes" as &[u8], joined.as_bytes())],
+            )?;
+            Ok(true)
+        })
+        .unwrap_or(false)
     } else {
         false
     };

@@ -1065,53 +1065,52 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         // hash was created back when parse_rfc5322_date was broken and
         // fed 0), prefer the bucket's true max date and heal the hash
         // + by_activity index so the row stops sinking to the bottom.
-        let stored_latest = state
-            .mailbox
-            .store_ref()
-            .hget(thread_key.as_bytes(), b"latest_date")
-            .ok()
-            .flatten()
-            .and_then(|v| String::from_utf8(v).ok())
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
+        // v2 Stage B.1: 6 sequential RMW ops (hget latest_date / hset
+        // latest_date / zadd by_activity / zadd sent_key / hget
+        // senders_csv / hset senders_csv) collapsed into a single
+        // AtomicCtx closure. Two concurrent self-heal or ingest calls
+        // on the same thread now serialize on the shard write lock —
+        // no interleaving read-then-stale-write against the aggregate.
         let bucket_max = bucket.iter().map(|m| m.date).max().unwrap_or(0);
-        let agg_latest = std::cmp::max(stored_latest, bucket_max);
-        if agg_latest > stored_latest {
-            let _ = state.mailbox.store_ref().hset(
-                thread_key.as_bytes(),
-                &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
-            );
-            let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-            let _ = state.mailbox.store_ref().zadd(
-                by_activity.as_bytes(),
-                &[(agg_latest as f64, root.as_bytes())],
-            );
-        }
-        let _ = state
-            .mailbox
-            .store_ref()
-            .zadd(sent_key.as_bytes(), &[(agg_latest as f64, root.as_bytes())]);
-        // Also merge user into the thread's senders_csv so future
-        // upsert_thread invocations (mark_read etc.) don't drop the
-        // sent-index membership.
-        let cur_csv = state
-            .mailbox
-            .store_ref()
-            .hget(thread_key.as_bytes(), b"senders_csv")
-            .unwrap_or_default()
-            .and_then(|v| String::from_utf8(v).ok())
-            .unwrap_or_default();
-        if !mailrs_mailbox_kevy::senders_csv_contains_user(&cur_csv, user) {
-            let new_csv = if cur_csv.is_empty() {
-                user.to_string()
-            } else {
-                format!("{cur_csv}, {user}")
-            };
-            let _ = state.mailbox.store_ref().hset(
-                thread_key.as_bytes(),
-                &[(b"senders_csv" as &[u8], new_csv.as_bytes())],
-            );
-        }
+        let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let _ = state.mailbox.store_ref().atomic(|ctx| {
+            let stored_latest = ctx
+                .hget(thread_key.as_bytes(), b"latest_date")?
+                .and_then(|v| String::from_utf8(v).ok())
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
+            let agg_latest = std::cmp::max(stored_latest, bucket_max);
+            if agg_latest > stored_latest {
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
+                )?;
+                ctx.zadd(
+                    by_activity.as_bytes(),
+                    &[(agg_latest as f64, root.as_bytes())],
+                )?;
+            }
+            ctx.zadd(sent_key.as_bytes(), &[(agg_latest as f64, root.as_bytes())])?;
+            // Merge user into the thread's senders_csv so future
+            // upsert_thread invocations (mark_read etc.) don't drop
+            // sent-index membership.
+            let cur_csv = ctx
+                .hget(thread_key.as_bytes(), b"senders_csv")?
+                .and_then(|v| String::from_utf8(v).ok())
+                .unwrap_or_default();
+            if !mailrs_mailbox_kevy::senders_csv_contains_user(&cur_csv, user) {
+                let new_csv = if cur_csv.is_empty() {
+                    user.to_string()
+                } else {
+                    format!("{cur_csv}, {user}")
+                };
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"senders_csv" as &[u8], new_csv.as_bytes())],
+                )?;
+            }
+            Ok(())
+        });
         sent_added += 1;
     }
     if sent_added > 0 || created > 0 {
