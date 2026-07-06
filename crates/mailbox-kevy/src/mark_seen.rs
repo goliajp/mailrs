@@ -1,21 +1,10 @@
 //! `mark_seen` — flip a thread from unread → seen.
 //!
-//! Phase 7.8. Two ops (hset + zrem) because `AtomicCtx` in 1.15.0
-//! exposes `hset / hincrby / zadd / zincrby / zscore` but NOT `zrem`
-//! or `hdel`. Without those there's no way to remove the row from
-//! the `has_unread` index inside the atomic block.
-//!
-//! We do this:
-//!   1. `hset thread:<tid> unread_count = 0`
-//!   2. `zrem user:<u>:threads:has_unread <tid>`
-//!
-//! Step 2 outside the atomic block is acceptable here: the worst case
-//! is a millisecond window where the row reads as `unread_count = 0`
-//! but the index still says "unread". The conversation list still
-//! returns the row (just with the correct counter); a refresh
-//! reconciles. See `.claude/notes/kevy-feedback-atomicctx-zrem-hdel-2026-07-01.md`
-//! for the feedback note that asks the kevy team to add zrem/hdel
-//! to AtomicCtx so this method can collapse to a single atomic block.
+//! v2 Stage B.1: kevy 3.17 `AtomicCtx` now exposes `zrem` and `hdel`,
+//! so the two-op split (hset in atomic + zrem outside) is history.
+//! Both ops now run inside a single atomic closure — no millisecond
+//! window where the row reads `unread_count = 0` but the has_unread
+//! index still lists it.
 
 use std::io;
 
@@ -53,23 +42,21 @@ impl KevyMailboxStore {
     /// count actually flipped); `false` if the row doesn't exist.
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let exists = self
-            .store()
-            .hexists(thread_key.as_bytes(), b"unread_count")?;
-        // Always drop from the has_unread index AND always plant a
-        // concrete `unread_count = 0` on the hash. The previous version
-        // guarded the hset behind `exists`, so a thread whose hash
-        // lacked the field (self-heal-created threads that never went
-        // through `record_message_arrival`) had no persistent zero.
-        // Any subsequent `hincrby thread:<tid> unread_count 1` (fired
-        // by mirror-send / self-heal / arrival record) would count
-        // from 0 → 1 and light the row back up. Writing an explicit
-        // zero prevents that resurrection.
         let idx = keys::user_threads_has_unread(user);
-        self.store().zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-        self.store()
-            .hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
-        Ok(exists)
+        self.store().atomic(|ctx| {
+            let exists = ctx.hexists(thread_key.as_bytes(), b"unread_count")?;
+            // Always drop from the has_unread index AND always plant
+            // a concrete `unread_count = 0` on the hash. The previous
+            // version guarded the hset behind `exists`, so a thread
+            // whose hash lacked the field (self-heal-created threads
+            // that never went through `record_message_arrival`) had
+            // no persistent zero. Any subsequent `hincrby thread:<tid>
+            // unread_count 1` would count from 0 → 1 and light the
+            // row back up. Writing an explicit zero prevents that.
+            ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
+            ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
+            Ok(exists)
+        })
     }
 }
 

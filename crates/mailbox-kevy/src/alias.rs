@@ -53,19 +53,21 @@ impl KevyMailboxStore {
     /// Idempotent — a repeat call with the same target is a no-op.
     pub fn upsert_alias(&self, alias: &str, target: &str) -> io::Result<()> {
         let key = keys::alias(alias);
-        self.store().set(key.as_bytes(), target.as_bytes())?;
-        self.store()
-            .sadd(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
-        Ok(())
+        self.store().atomic(|ctx| {
+            ctx.set(key.as_bytes(), target.as_bytes());
+            ctx.sadd(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
+            Ok(())
+        })
     }
 
     /// Drop an alias entry entirely.
     pub fn delete_alias(&self, alias: &str) -> io::Result<()> {
         let key = keys::alias(alias);
-        self.store().del(&[key.as_bytes()])?;
-        self.store()
-            .srem(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
-        Ok(())
+        self.store().atomic(|ctx| {
+            ctx.del(&[key.as_bytes()]);
+            ctx.srem(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
+            Ok(())
+        })
     }
 
     /// Enumerate every alias for admin listing.
@@ -104,10 +106,11 @@ impl AliasStore for KevyMailboxStore {
 
     fn delete(&self, source: &str) -> io::Result<bool> {
         let key = keys::alias(source);
-        let removed = self.store().del(&[key.as_bytes()])?;
-        self.store()
-            .srem(keys::ALIAS_INDEX.as_bytes(), &[source.as_bytes()])?;
-        Ok(removed > 0)
+        self.store().atomic(|ctx| {
+            let removed = ctx.del(&[key.as_bytes()]);
+            ctx.srem(keys::ALIAS_INDEX.as_bytes(), &[source.as_bytes()])?;
+            Ok(removed > 0)
+        })
     }
 
     fn list(&self) -> io::Result<Vec<(String, String)>> {

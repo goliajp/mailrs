@@ -1,17 +1,9 @@
 //! `move_category` — switch a thread from one category to another.
 //!
-//! Phase 7.10. Three ops because `AtomicCtx` lacks `zrem`:
-//!   1. read old category from the row
-//!   2. hset thread:<tid> category = new
-//!   3. zrem user:<u>:threads:by_category:<old>
-//!   4. zadd user:<u>:threads:by_category:<new>
-//!
-//! Brief inconsistent window: between step 3 and step 4 the thread is
-//! in neither category index. A reader hitting
-//! `list_threads_by_activity(category=<old>)` sees a clean exit; a
-//! reader hitting `category=<new>` sees a missing row. Both reconcile
-//! on the next call. When kevy 1.16 lands `AtomicCtx::{zrem, hdel}`
-//! all 4 ops collapse into one atomic block.
+//! v2 Stage B.1: kevy 3.17 `AtomicCtx` has `zrem`; the 4-op sequence
+//! (read old / hset new / zrem old / zadd new) now runs inside one
+//! atomic closure holding a single shard write lock. No inconsistent
+//! window between zrem and zadd.
 
 use std::io;
 
@@ -29,38 +21,34 @@ impl KevyMailboxStore {
         new_category: &str,
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let old = self
-            .store()
-            .hget(thread_key.as_bytes(), b"category")?
-            .and_then(|v| String::from_utf8(v).ok());
-        let Some(old) = old else {
-            return Ok(false);
-        };
-        if old == new_category {
-            return Ok(true);
-        }
-        let score = self
-            .store()
-            .hget(thread_key.as_bytes(), b"latest_date")?
-            .and_then(|v| {
-                std::str::from_utf8(&v)
-                    .ok()
-                    .and_then(|s| s.parse::<i64>().ok())
-            })
-            .unwrap_or(0);
-
-        // Overwrite category field, then swap zset membership.
-        self.store().hset(
-            thread_key.as_bytes(),
-            &[(b"category" as &[u8], new_category.as_bytes())],
-        )?;
-        let old_idx = keys::user_threads_by_category(user, &old);
-        self.store()
-            .zrem(old_idx.as_bytes(), &[thread_id.as_bytes()])?;
         let new_idx = keys::user_threads_by_category(user, new_category);
-        self.store()
-            .zadd(new_idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-        Ok(true)
+        self.store().atomic(|ctx| {
+            let old = ctx
+                .hget(thread_key.as_bytes(), b"category")?
+                .and_then(|v| String::from_utf8(v).ok());
+            let Some(old) = old else {
+                return Ok(false);
+            };
+            if old == new_category {
+                return Ok(true);
+            }
+            let score = ctx
+                .hget(thread_key.as_bytes(), b"latest_date")?
+                .and_then(|v| {
+                    std::str::from_utf8(&v)
+                        .ok()
+                        .and_then(|s| s.parse::<i64>().ok())
+                })
+                .unwrap_or(0);
+            ctx.hset(
+                thread_key.as_bytes(),
+                &[(b"category" as &[u8], new_category.as_bytes())],
+            )?;
+            let old_idx = keys::user_threads_by_category(user, &old);
+            ctx.zrem(old_idx.as_bytes(), &[thread_id.as_bytes()])?;
+            ctx.zadd(new_idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+            Ok(true)
+        })
     }
 }
 

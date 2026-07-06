@@ -145,102 +145,72 @@ impl KevyMailboxStore {
     /// Replaces the SQL fanout in the cascade: one HSET + up to 7 ZADDs
     /// in a single closure, no PG round trip, no group-by aggregation.
     pub fn upsert_thread(&self, user: &str, row: &ThreadRow) -> io::Result<()> {
+        // v2 Stage B.1: 1 hset + 7 conditional zadd/zrem now collapse
+        // into a single AtomicCtx closure, holding one shard write
+        // lock. Prior implementation held 8 independent locks and
+        // could race concurrent list_threads calls mid-fanout.
         let key = keys::thread(&row.thread_id);
         let pairs = row.to_pairs();
         let pair_refs: Vec<(&[u8], &[u8])> = pairs
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        self.store().hset(key.as_bytes(), &pair_refs)?;
-
-        // bump activity zset (always)
         let activity = keys::user_threads_by_activity(user);
-        self.store().zadd(
-            activity.as_bytes(),
-            &[(row.latest_date as f64, row.thread_id.as_bytes())],
-        )?;
-
-        // toggle membership in secondary zsets based on row flags
         let cat = keys::user_threads_by_category(user, &row.category);
-        self.store().zadd(
-            cat.as_bytes(),
-            &[(row.latest_date as f64, row.thread_id.as_bytes())],
-        )?;
-
         let pinned = keys::user_threads_pinned(user);
-        if row.pinned {
-            self.store().zadd(
-                pinned.as_bytes(),
-                &[(row.latest_date as f64, row.thread_id.as_bytes())],
-            )?;
-        } else {
-            self.store()
-                .zrem(pinned.as_bytes(), &[row.thread_id.as_bytes()])?;
-        }
-
         let archived = keys::user_threads_archived(user);
-        if row.archived {
-            self.store().zadd(
-                archived.as_bytes(),
-                &[(row.latest_date as f64, row.thread_id.as_bytes())],
-            )?;
-        } else {
-            self.store()
-                .zrem(archived.as_bytes(), &[row.thread_id.as_bytes()])?;
-        }
-
         let has_unread = keys::user_threads_has_unread(user);
-        if row.unread_count > 0 {
-            self.store().zadd(
-                has_unread.as_bytes(),
-                &[(row.latest_date as f64, row.thread_id.as_bytes())],
-            )?;
-        } else {
-            self.store()
-                .zrem(has_unread.as_bytes(), &[row.thread_id.as_bytes()])?;
-        }
-
         let has_action = keys::user_threads_has_action(user);
-        if row.has_action {
-            self.store().zadd(
-                has_action.as_bytes(),
-                &[(row.latest_date as f64, row.thread_id.as_bytes())],
-            )?;
-        } else {
-            self.store()
-                .zrem(has_action.as_bytes(), &[row.thread_id.as_bytes()])?;
-        }
-
         let starred = keys::user_threads_starred(user);
-        if row.starred {
-            self.store().zadd(
-                starred.as_bytes(),
-                &[(row.latest_date as f64, row.thread_id.as_bytes())],
-            )?;
-        } else {
-            self.store()
-                .zrem(starred.as_bytes(), &[row.thread_id.as_bytes()])?;
-        }
-
-        // Sent-folder index — populated when the user's own email
-        // shows up in the thread's senders_csv (i.e. they sent at
-        // least one message). Fastcore trusts senders_csv here rather
-        // than the pg-dump-provided `sent_count`, which comes from a
-        // monolith SQL aggregate that also fires on inbound-direction
-        // events and produces false positives.
         let sent = keys::user_threads_sent(user);
         let is_sender = senders_csv_contains_user(&row.senders_csv, user);
-        if is_sender {
-            self.store().zadd(
-                sent.as_bytes(),
-                &[(row.latest_date as f64, row.thread_id.as_bytes())],
-            )?;
-        } else {
-            self.store()
-                .zrem(sent.as_bytes(), &[row.thread_id.as_bytes()])?;
-        }
+        let score = row.latest_date as f64;
+        let member: &[u8] = row.thread_id.as_bytes();
+        self.store().atomic(|ctx| {
+            ctx.hset(key.as_bytes(), &pair_refs)?;
 
-        Ok(())
+            ctx.zadd(activity.as_bytes(), &[(score, member)])?;
+            ctx.zadd(cat.as_bytes(), &[(score, member)])?;
+
+            if row.pinned {
+                ctx.zadd(pinned.as_bytes(), &[(score, member)])?;
+            } else {
+                ctx.zrem(pinned.as_bytes(), &[member])?;
+            }
+            if row.archived {
+                ctx.zadd(archived.as_bytes(), &[(score, member)])?;
+            } else {
+                ctx.zrem(archived.as_bytes(), &[member])?;
+            }
+            if row.unread_count > 0 {
+                ctx.zadd(has_unread.as_bytes(), &[(score, member)])?;
+            } else {
+                ctx.zrem(has_unread.as_bytes(), &[member])?;
+            }
+            if row.has_action {
+                ctx.zadd(has_action.as_bytes(), &[(score, member)])?;
+            } else {
+                ctx.zrem(has_action.as_bytes(), &[member])?;
+            }
+            if row.starred {
+                ctx.zadd(starred.as_bytes(), &[(score, member)])?;
+            } else {
+                ctx.zrem(starred.as_bytes(), &[member])?;
+            }
+
+            // Sent-folder index — populated when the user's own email
+            // shows up in the thread's senders_csv (i.e. they sent at
+            // least one message). Fastcore trusts senders_csv here
+            // rather than the pg-dump-provided `sent_count`, which
+            // comes from a monolith SQL aggregate that also fires on
+            // inbound-direction events and produces false positives.
+            if is_sender {
+                ctx.zadd(sent.as_bytes(), &[(score, member)])?;
+            } else {
+                ctx.zrem(sent.as_bytes(), &[member])?;
+            }
+            Ok(())
+        })
     }
 
     /// Read a single thread row back. Returns `None` if the hash is

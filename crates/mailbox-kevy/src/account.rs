@@ -13,11 +13,11 @@ impl KevyMailboxStore {
     /// admin/list_accounts + pg-dump can walk it.
     pub fn upsert_account(&self, address: &str, blob_json: &str) -> io::Result<()> {
         let key = keys::account(address);
-        self.store()
-            .hset(key.as_bytes(), &[(b"blob", blob_json.as_bytes())])?;
-        self.store()
-            .sadd(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
-        Ok(())
+        self.store().atomic(|ctx| {
+            ctx.hset(key.as_bytes(), &[(b"blob", blob_json.as_bytes())])?;
+            ctx.sadd(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
+            Ok(())
+        })
     }
 
     /// Load the raw JSON blob for `address`. Returns `Ok(None)` when
@@ -70,10 +70,11 @@ impl KevyMailboxStore {
     pub fn delete_account(&self, address: &str) -> io::Result<()> {
         let acct = keys::account(address);
         let perms = keys::account_permissions(address);
-        self.store().del(&[acct.as_bytes(), perms.as_bytes()])?;
-        self.store()
-            .srem(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
-        Ok(())
+        self.store().atomic(|ctx| {
+            ctx.del(&[acct.as_bytes(), perms.as_bytes()]);
+            ctx.srem(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
+            Ok(())
+        })
     }
 }
 

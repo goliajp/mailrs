@@ -123,6 +123,12 @@ impl SessionStore {
         if let Some(kevy) = self.kevy()
             && let Ok(bytes) = serde_json::to_vec(&SessionInfoWire::from(&info))
         {
+            // NB: kevy 3.17 AtomicCtx exposes set() without a TTL
+            // variant, so we cannot land set_with_ttl + sadd inside
+            // one atomic closure. Kept as two Store calls — token is
+            // a fresh unique random value with no concurrent producer,
+            // so there is no real race here; a crash between the two
+            // orphans a key that TTL will reap after 7d anyway.
             let key: Vec<u8> = [KEVY_SESSION_PREFIX, token.as_bytes()].concat();
             let _ = kevy.set_with_ttl(&key, &bytes, SESSION_TTL);
             let _ = kevy.sadd(KEVY_SESSION_INDEX, &[token.as_bytes()]);
@@ -139,9 +145,13 @@ impl SessionStore {
 
     pub(crate) fn remove(&self, token: &str) {
         if let Some(kevy) = self.kevy() {
+            // v2 Stage B.1: del value + srem index in one atomic closure.
             let key: Vec<u8> = [KEVY_SESSION_PREFIX, token.as_bytes()].concat();
-            let _ = kevy.del(&[&key]);
-            let _ = kevy.srem(KEVY_SESSION_INDEX, &[token.as_bytes()]);
+            let _ = kevy.atomic(|ctx| {
+                ctx.del(&[&key]);
+                ctx.srem(KEVY_SESSION_INDEX, &[token.as_bytes()])?;
+                Ok(())
+            });
         }
         self.cache.remove(token);
     }
@@ -158,9 +168,13 @@ impl SessionStore {
         self.cache.retain(|token, info| {
             let keep = now.saturating_sub(info.created_at_unix) < ttl_secs;
             if !keep && let Some(ref k) = kevy {
+                // v2 Stage B.1: del + srem inside one atomic closure.
                 let key: Vec<u8> = [KEVY_SESSION_PREFIX, token.as_bytes()].concat();
-                let _ = k.del(&[&key]);
-                let _ = k.srem(KEVY_SESSION_INDEX, &[token.as_bytes()]);
+                let _ = k.atomic(|ctx| {
+                    ctx.del(&[&key]);
+                    ctx.srem(KEVY_SESSION_INDEX, &[token.as_bytes()])?;
+                    Ok(())
+                });
             }
             keep
         });
@@ -192,8 +206,12 @@ impl SessionStore {
                         restored += 1;
                     }
                     _ => {
-                        let _ = kevy.del(&[&key]);
-                        let _ = kevy.srem(KEVY_SESSION_INDEX, &[&tok_bytes]);
+                        // v2 Stage B.1: cleanup del + srem atomic.
+                        let _ = kevy.atomic(|ctx| {
+                            ctx.del(&[&key]);
+                            ctx.srem(KEVY_SESSION_INDEX, &[&tok_bytes])?;
+                            Ok(())
+                        });
                     }
                 },
                 Ok(None) => {
