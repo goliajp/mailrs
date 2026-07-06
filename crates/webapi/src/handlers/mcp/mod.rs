@@ -8,6 +8,15 @@
 //! Tools live in per-category sub-modules with named routers
 //! combined here via `Self::tool_router() = tool_router_v1() +
 //! tool_router_v2_batch1() + ...`. Params moved to `params.rs`.
+//!
+//! v2.0.0 tool count = 37 (legacy `tool_router_v1`) + 16 (v2 batches
+//! 1-6) = **53 total** — up from 37 in v1.9.x. Batch layout:
+//!   1. admin-read (groups/apps/email-groups/greylist/aliases)
+//!   2. admin-misc (reconcile_maildir / list_scheduled / group members)
+//!   3. per-user outbound control (cancel + reschedule scheduled)
+//!   4. self-introspection (my permissions + own scheduled)
+//!   5. encryption keys (own list + recipient public key)
+//!   6. admin queue (list_admin_queue + list_failed_outbound)
 
 use std::sync::Arc;
 

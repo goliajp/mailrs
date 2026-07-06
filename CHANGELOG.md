@@ -36,12 +36,23 @@ B-H work accumulates on `develop` and ships together as v2.0.0.
   `/reschedule` — outbound queue control on the SCHEDULED zset.
   Sender-verified; reschedule enforces future timestamp; sender
   mismatch returns 404 to prevent id enumeration.
-- **Stage C.5 (partial):** `mcp.rs` → `mcp/{mod,params}.rs`, 21
-  Params structs extracted. mod.rs shrunk 1228 → 999 lines. Further
-  per-category tool splits + 25 additional MCP tools (groups /
-  permissions / email-groups / apps / encryption / system-config /
-  greylist / queue / audit / reconcile / list_aliases) tracked for
-  Stage C.1-C.4 within this cycle.
+- **Stage C.1 (partial):** MCP tool surface expanded from 37 to
+  **53** tools across 6 v2 batches:
+    - Batch 1 (admin-read): `list_groups`, `list_apps`,
+      `list_email_groups`, `list_greylist_local`, `list_aliases_admin`.
+    - Batch 2 (admin-misc): `reconcile_maildir`, `list_scheduled_outbound`,
+      `get_email_group_members`.
+    - Batch 3 (per-user outbound control): `cancel_scheduled`,
+      `reschedule_scheduled`.
+    - Batch 4 (self-introspection): `get_my_permissions`,
+      `list_own_scheduled`.
+    - Batch 5 (encryption keys): `list_own_encryption_keys`,
+      `get_public_key_of`.
+    - Batch 6 (admin queue): `list_admin_queue`, `list_failed_outbound`.
+- **Stage C.5 (partial):** `mcp.rs` → `mcp/{mod,params,tools_v2_batchN}.rs`
+  named-router split. Each new batch file <500 lines (file-size
+  hard rule); the 37 legacy tools remain in mod.rs pending a
+  post-v2 per-category split.
 - **Upstream tracking:** kevy-client 1.13 does not wrap kevy-server's
   3.17 features (brpop / hexpire / zinterstore / idx / changes_since).
   Phase 4 (BRPOP), Phase 5 (HEXPIRE), and Phase 7/8 for network paths
