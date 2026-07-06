@@ -41,6 +41,7 @@ mod tools_v2_batch4;
 mod tools_v2_batch5;
 mod tools_v2_batch6;
 mod tools_v2_batch7;
+mod tools_v2_batch8;
 use params::*;
 
 tokio::task_local! {
@@ -78,6 +79,7 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch5()
             + Self::tool_router_v2_batch6()
             + Self::tool_router_v2_batch7()
+            + Self::tool_router_v2_batch8()
     }
 }
 
