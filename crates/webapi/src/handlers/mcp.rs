@@ -838,12 +838,7 @@ impl MailrsMcpService {
             .remove_alias(params.id)
             .await
             .map_err(|e| McpError::internal_error(format!("remove_alias: {e}"), None))?;
-        crate::handlers::audit::record(
-            &user,
-            "alias.delete",
-            &params.id.to_string(),
-            "via mcp",
-        );
+        crate::handlers::audit::record(&user, "alias.delete", &params.id.to_string(), "via mcp");
         Ok(ok_result())
     }
 
