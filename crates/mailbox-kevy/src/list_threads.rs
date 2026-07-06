@@ -115,18 +115,26 @@ impl KevyMailboxStore {
             self.store()
                 .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)?
         };
-        let mut out = Vec::with_capacity(entries.len());
-        for (tid_bytes, _score) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
-            let hkey = keys::thread(tid);
-            let pairs = self.store().hgetall(hkey.as_bytes())?;
-            if let Some(row) = ThreadRow::from_pairs(tid.to_string(), &pairs) {
-                out.push(row);
+        // v2 Stage B.3: fetch the N thread hashes inside one atomic
+        // closure so the whole page assembles under a single shard
+        // write lock — no interleaving writer can shift a row's
+        // flags/counters between hgetalls. The initial zcard +
+        // zrevrange stay outside the closure because AtomicCtx has
+        // no zset reads in kevy 3.17.
+        self.store().atomic(|ctx| {
+            let mut out = Vec::with_capacity(entries.len());
+            for (tid_bytes, _score) in &entries {
+                let Ok(tid) = std::str::from_utf8(tid_bytes) else {
+                    continue;
+                };
+                let hkey = keys::thread(tid);
+                let pairs = ctx.hgetall(hkey.as_bytes())?;
+                if let Some(row) = ThreadRow::from_pairs(tid.to_string(), &pairs) {
+                    out.push(row);
+                }
             }
-        }
-        Ok((out, total))
+            Ok((out, total))
+        })
     }
 }
 

@@ -51,34 +51,44 @@ pub async fn semantic_search(
     }
 
     // Linear fallback: read the user's activity zset directly.
+    //
+    // v2 Stage B.3: entire scan + per-thread hgetall walks the SAME
+    // kevy connection instead of opening one per thread. Prior
+    // implementation opened up to 500 TCP connections per search —
+    // one for the zrange plus one for each candidate hgetall — and
+    // the linear-fallback path was dead-slow for busy users. Now
+    // 1 conn total; server sees O(N) HGETALL commands but no TCP
+    // reconnect churn.
     let activity_key = format!("mailrs:user:{user}:threads:by_activity");
-    let ids =
-        crate::handlers::kevy_util::with_kevy(move |c| c.zrange(activity_key.as_bytes(), 0, 199))
-            .unwrap_or_default();
     let needle = q.q.to_lowercase();
-    let mut out = Vec::new();
-    for id_bytes in ids.into_iter().take(500) {
-        let Some(tid) = String::from_utf8(id_bytes).ok() else {
-            continue;
-        };
-        let thread_key = format!("mailrs:thread:{tid}");
-        let flat = crate::handlers::kevy_util::with_kevy(move |c| c.hgetall(thread_key.as_bytes()))
-            .unwrap_or_default();
-        let mut subject = String::new();
-        let mut i = 0;
-        while i + 1 < flat.len() {
-            if flat[i] == b"subject" {
-                subject = String::from_utf8_lossy(&flat[i + 1]).to_string();
-                break;
+    let limit = q.limit;
+    let out = crate::handlers::kevy_util::with_kevy(move |c| {
+        let ids = c.zrange(activity_key.as_bytes(), 0, 199)?;
+        let mut out = Vec::new();
+        for id_bytes in ids.into_iter().take(500) {
+            let Some(tid) = String::from_utf8(id_bytes).ok() else {
+                continue;
+            };
+            let thread_key = format!("mailrs:thread:{tid}");
+            let flat = c.hgetall(thread_key.as_bytes())?;
+            let mut subject = String::new();
+            let mut i = 0;
+            while i + 1 < flat.len() {
+                if flat[i] == b"subject" {
+                    subject = String::from_utf8_lossy(&flat[i + 1]).to_string();
+                    break;
+                }
+                i += 2;
             }
-            i += 2;
-        }
-        if subject.to_lowercase().contains(&needle) {
-            out.push(serde_json::json!({ "thread_id": tid, "subject": subject, "score": 1.0 }));
-            if out.len() as u32 >= q.limit {
-                break;
+            if subject.to_lowercase().contains(&needle) {
+                out.push(serde_json::json!({ "thread_id": tid, "subject": subject, "score": 1.0 }));
+                if out.len() as u32 >= limit {
+                    break;
+                }
             }
         }
-    }
+        Ok(out)
+    })
+    .unwrap_or_default();
     Json(serde_json::json!({ "items": out, "backend": "linear_fallback" }))
 }
