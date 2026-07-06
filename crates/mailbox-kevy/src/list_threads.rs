@@ -44,31 +44,50 @@ pub struct ListThreadsFilter<'a> {
 }
 
 impl<'a> ListThreadsFilter<'a> {
-    fn pick_index_key(&self, user: &str) -> String {
-        // Order matters — most-specific predicate wins. A real fastcore
-        // implementation will use sorted-set INTERSECT once kevy ships
-        // ZINTERSTORE; for now we accept that combining > 1 of these
-        // filters returns the highest-priority predicate's superset.
+    /// Enumerate the index keys the current filter requires. When only
+    /// one predicate is set, the returned Vec has a single entry and
+    /// callers can use it directly. When ≥ 2 are set (e.g. inbox ∩
+    /// has_unread), callers must ZINTERSTORE the collected keys and
+    /// read the intersection.
+    ///
+    /// `folder = Sent` is treated as an axis switch, not a predicate
+    /// stacked on top of the others — matches the monolith's semantics.
+    fn predicate_index_keys(&self, user: &str) -> Vec<String> {
         if let Some(f) = self.folder
             && f.eq_ignore_ascii_case("sent")
         {
-            return keys::user_threads_sent(user);
+            return vec![keys::user_threads_sent(user)];
         }
+        let mut out: Vec<String> = Vec::with_capacity(4);
         if let Some(cat) = self.category {
-            keys::user_threads_by_category(user, cat)
-        } else if self.pinned {
-            keys::user_threads_pinned(user)
-        } else if self.archived {
-            keys::user_threads_archived(user)
-        } else if self.has_unread {
-            keys::user_threads_has_unread(user)
-        } else if self.has_action {
-            keys::user_threads_has_action(user)
-        } else if self.starred {
-            keys::user_threads_starred(user)
-        } else {
-            keys::user_threads_by_activity(user)
+            out.push(keys::user_threads_by_category(user, cat));
         }
+        if self.pinned {
+            out.push(keys::user_threads_pinned(user));
+        }
+        if self.archived {
+            out.push(keys::user_threads_archived(user));
+        }
+        if self.has_unread {
+            out.push(keys::user_threads_has_unread(user));
+        }
+        if self.has_action {
+            out.push(keys::user_threads_has_action(user));
+        }
+        if self.starred {
+            out.push(keys::user_threads_starred(user));
+        }
+        if out.is_empty() {
+            out.push(keys::user_threads_by_activity(user));
+        }
+        out
+    }
+
+    fn pick_index_key(&self, user: &str) -> String {
+        // Kept for callers that only need a single index key (e.g. the
+        // score-range zrevrange path). Multi-predicate callers should
+        // use predicate_index_keys() + ZINTERSTORE.
+        self.predicate_index_keys(user).remove(0)
     }
 }
 
@@ -87,7 +106,36 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let key = filter.pick_index_key(user);
+        // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
+        // caller stacks ≥ 2 predicates (e.g. inbox ∩ has_unread),
+        // materialize the intersection into a per-request temp zset
+        // scored by the max latest_date. Prior implementation walked
+        // the highest-priority single index and let the UI show
+        // over-count badges. The temp key is TTL-tagged so an orphan
+        // (e.g. panic mid-request) auto-cleans.
+        let index_keys = filter.predicate_index_keys(user);
+        let owned_temp: Option<String> = if index_keys.len() > 1 {
+            let ts_nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let temp = format!("mailrs:tmp:zinter:{user}:{ts_nanos}");
+            let refs: Vec<&[u8]> = index_keys.iter().map(|k| k.as_bytes()).collect();
+            self.store().zinterstore(
+                temp.as_bytes(),
+                &refs,
+                None,
+                kevy_embedded::ZAggregate::Max,
+            )?;
+            self.store()
+                .expire(temp.as_bytes(), std::time::Duration::from_secs(60))?;
+            Some(temp)
+        } else {
+            None
+        };
+        let key: &str = owned_temp
+            .as_deref()
+            .unwrap_or_else(|| index_keys[0].as_str());
         let total = self.store().zcard(key.as_bytes())?;
         if limit == 0 {
             return Ok((Vec::new(), total));
@@ -121,7 +169,7 @@ impl KevyMailboxStore {
         // flags/counters between hgetalls. The initial zcard +
         // zrevrange stay outside the closure because AtomicCtx has
         // no zset reads in kevy 3.17.
-        self.store().atomic(|ctx| {
+        let result = self.store().atomic(|ctx| {
             let mut out = Vec::with_capacity(entries.len());
             for (tid_bytes, _score) in &entries {
                 let Ok(tid) = std::str::from_utf8(tid_bytes) else {
@@ -134,7 +182,13 @@ impl KevyMailboxStore {
                 }
             }
             Ok((out, total))
-        })
+        });
+        // Reclaim the intersection temp promptly; TTL is a fallback
+        // for a mid-request panic, not the primary GC path.
+        if let Some(temp) = owned_temp {
+            let _ = self.store().del(&[temp.as_bytes()]);
+        }
+        result
     }
 }
 
