@@ -9,14 +9,19 @@
 //! combined here via `Self::tool_router() = tool_router_v1() +
 //! tool_router_v2_batch1() + ...`. Params moved to `params.rs`.
 //!
-//! v2.0.0 tool count = 37 (legacy `tool_router_v1`) + 16 (v2 batches
-//! 1-6) = **53 total** — up from 37 in v1.9.x. Batch layout:
+//! v2.0.0 tool count = 37 (legacy `tool_router_v1`) + 25 (v2 batches
+//! 1-10) = **62 total** — up from 37 in v1.9.x. Hits the plan
+//! target. Batch layout:
 //!   1. admin-read (groups/apps/email-groups/greylist/aliases)
 //!   2. admin-misc (reconcile_maildir / list_scheduled / group members)
 //!   3. per-user outbound control (cancel + reschedule scheduled)
 //!   4. self-introspection (my permissions + own scheduled)
 //!   5. encryption keys (own list + recipient public key)
 //!   6. admin queue (list_admin_queue + list_failed_outbound)
+//!   7. server info + retry_queue_message
+//!   8. thread summary (get_thread_summary)
+//!   9. thread mutations (snooze/unsnooze/pin/unpin/dismiss)
+//!   10. dashboard metrics (get_inbox_metrics)
 
 use std::sync::Arc;
 
@@ -35,6 +40,7 @@ use crate::WebState;
 
 mod params;
 mod tools_v2_batch1;
+mod tools_v2_batch10;
 mod tools_v2_batch2;
 mod tools_v2_batch3;
 mod tools_v2_batch4;
@@ -82,6 +88,7 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch7()
             + Self::tool_router_v2_batch8()
             + Self::tool_router_v2_batch9()
+            + Self::tool_router_v2_batch10()
     }
 }
 
