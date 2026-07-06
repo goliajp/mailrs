@@ -22,8 +22,10 @@
 //! - `add_alias` / `remove_alias` / `add_domain` / `remove_domain` (admin-gated)
 //! - `save_signature` / `delete_signature` (per-user, no admin)
 //! - `list_webhooks` / `create_webhook` / `delete_webhook`
+//! - `list_drafts` / `save_draft` / `delete_draft` (per-user)
+//! - `list_templates` / `save_template` / `delete_template` (per-user)
 //!
-//! 31 tools (was 6). Remaining monolith tools (groups, permissions,
+//! 37 tools (was 6). Remaining monolith tools (groups, permissions,
 //! encryption, email-groups, greylist, apps, system-config) fill in
 //! as follow-on G11 batches.
 //!
@@ -182,6 +184,69 @@ pub struct CreateWebhookParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct WebhookIdParams {
     /// Webhook id returned by `list_webhooks` / `create_webhook`.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListDraftsParams {
+    /// Optional: cap output. Omit to return all.
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SaveDraftParams {
+    /// Recipient list, comma-separated (stored as-is).
+    #[serde(default)]
+    pub to: String,
+    /// Cc recipients, comma-separated.
+    #[serde(default)]
+    pub cc: String,
+    /// Bcc recipients, comma-separated.
+    #[serde(default)]
+    pub bcc: String,
+    /// Subject line.
+    #[serde(default)]
+    pub subject: String,
+    /// Body text (plain UTF-8; agents can nest markup if the client
+    /// renders it — mailrs stores verbatim).
+    #[serde(default)]
+    pub body: String,
+    /// Optional: thread id this draft replies to.
+    #[serde(default)]
+    pub reply_to_thread_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DraftIdParams {
+    /// Draft id returned by `list_drafts` / `save_draft`.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SaveTemplateParams {
+    /// Template display name.
+    pub name: String,
+    /// Default subject when the template is applied to a new compose.
+    #[serde(default)]
+    pub subject: String,
+    /// HTML body.
+    #[serde(default)]
+    pub html_body: String,
+    /// Plain-text fallback body.
+    #[serde(default)]
+    pub text_body: String,
+    /// Optional category (any string; used for grouping in UI).
+    #[serde(default)]
+    pub category: String,
+    /// If true, mark as the caller's default template.
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TemplateIdParams {
+    /// Template id returned by `list_templates` / `save_template`.
     pub id: i64,
 }
 
@@ -939,6 +1004,146 @@ impl MailrsMcpService {
         crate::handlers::audit::record(
             &user,
             "webhook.delete",
+            &format!("id={}", params.id),
+            "via mcp",
+        );
+        Ok(ok_result())
+    }
+
+    #[tool(description = "List the caller's own saved drafts.")]
+    async fn list_drafts(
+        &self,
+        Parameters(params): Parameters<ListDraftsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let mut resp = self
+            .state
+            .core
+            .list_drafts(&user)
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_drafts: {e}"), None))?;
+        if let Some(limit) = params.limit {
+            resp.items.truncate(limit as usize);
+        }
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(
+        description = "Save a draft for the caller. Idempotent per body — returns the new id; overwrite by re-saving."
+    )]
+    async fn save_draft(
+        &self,
+        Parameters(params): Parameters<SaveDraftParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let req = mailrs_core_api::method::admin::SaveDraftRequest {
+            to: params.to,
+            cc: params.cc,
+            bcc: params.bcc,
+            subject: params.subject.clone(),
+            body: params.body,
+            reply_to_thread_id: params.reply_to_thread_id,
+        };
+        let resp = self
+            .state
+            .core
+            .save_draft(&user, &req)
+            .await
+            .map_err(|e| McpError::internal_error(format!("save_draft: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "draft.save",
+            &format!("id={}", resp.id),
+            &params.subject,
+        );
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Delete one of the caller's own drafts by id.")]
+    async fn delete_draft(
+        &self,
+        Parameters(params): Parameters<DraftIdParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.state
+            .core
+            .delete_draft(&user, params.id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("delete_draft: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "draft.delete",
+            &format!("id={}", params.id),
+            "via mcp",
+        );
+        Ok(ok_result())
+    }
+
+    #[tool(description = "List the caller's own compose templates.")]
+    async fn list_templates(&self) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let resp = self
+            .state
+            .core
+            .list_templates(&user)
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_templates: {e}"), None))?;
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(
+        description = "Save or update the caller's own compose template. Returns the new id — pass it to `delete_template` to remove."
+    )]
+    async fn save_template(
+        &self,
+        Parameters(params): Parameters<SaveTemplateParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        let req = mailrs_core_api::method::admin::SaveTemplateRequest {
+            name: params.name.clone(),
+            subject: params.subject,
+            html_body: params.html_body,
+            text_body: params.text_body,
+            category: params.category,
+            is_default: params.is_default,
+        };
+        let resp = self
+            .state
+            .core
+            .save_template(&user, &req)
+            .await
+            .map_err(|e| McpError::internal_error(format!("save_template: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "template.save",
+            &format!("id={}", resp.id),
+            &params.name,
+        );
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string(&resp).unwrap_or_default(),
+        )]))
+    }
+
+    #[tool(description = "Delete one of the caller's own compose templates by id.")]
+    async fn delete_template(
+        &self,
+        Parameters(params): Parameters<TemplateIdParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let user = self.require_user()?.to_string();
+        self.state
+            .core
+            .delete_template(&user, params.id)
+            .await
+            .map_err(|e| McpError::internal_error(format!("delete_template: {e}"), None))?;
+        crate::handlers::audit::record(
+            &user,
+            "template.delete",
             &format!("id={}", params.id),
             "via mcp",
         );
