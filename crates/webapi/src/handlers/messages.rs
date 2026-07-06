@@ -347,6 +347,92 @@ pub async fn update_flags(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ── G13.3 · scheduled cancel / reschedule ─────────────────────────
+
+const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled";
+
+/// POST /api/scheduled/{id}/cancel — G13.3. Removes the outbound
+/// entry from the scheduled zset and drops its envelope blob. Only
+/// the sender may cancel; a mismatch returns 404 (leaks no info).
+pub async fn cancel_scheduled(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    let hkey = format!("mailrs:outbound:{id}");
+    let hkey_c = hkey.clone();
+    let id_c = id.clone();
+    let user_c = user.clone();
+    let removed = crate::handlers::kevy_util::with_kevy(move |c| {
+        let Some(bytes) = c.hget(hkey_c.as_bytes(), b"blob")? else {
+            return Ok(false);
+        };
+        let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return Ok(false);
+        };
+        if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
+            return Ok(false);
+        }
+        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
+        c.del(&[hkey_c.as_bytes()])?;
+        Ok(true)
+    })
+    .unwrap_or(false);
+    if removed {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RescheduleRequest {
+    /// New send-time in Unix seconds. Must be in the future.
+    pub scheduled_at: i64,
+}
+
+/// POST /api/scheduled/{id}/reschedule — G13.3. Updates the send-time
+/// score on the scheduled zset. Requires caller to be the sender and
+/// `scheduled_at` to be strictly in the future.
+pub async fn reschedule_scheduled(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(id): Path<String>,
+    Json(req): Json<RescheduleRequest>,
+) -> StatusCode {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    if req.scheduled_at <= now {
+        return StatusCode::BAD_REQUEST;
+    }
+    let hkey = format!("mailrs:outbound:{id}");
+    let user_c = user.clone();
+    let id_c = id.clone();
+    let new_score = req.scheduled_at;
+    let rescheduled = crate::handlers::kevy_util::with_kevy(move |c| {
+        let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
+            return Ok(false);
+        };
+        let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return Ok(false);
+        };
+        if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
+            return Ok(false);
+        }
+        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
+        c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])?;
+        Ok(true)
+    })
+    .unwrap_or(false);
+    if rescheduled {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::blob_ref_location;
