@@ -27,6 +27,7 @@ use crate::WebState;
 mod params;
 mod tools_v2_batch1;
 mod tools_v2_batch2;
+mod tools_v2_batch3;
 use params::*;
 
 tokio::task_local! {
@@ -56,7 +57,10 @@ impl MailrsMcpService {
 
     /// Combined router: v1 (37 legacy tools) + v2 batch adds.
     fn tool_router() -> ToolRouter<Self> {
-        Self::tool_router_v1() + Self::tool_router_v2_batch1() + Self::tool_router_v2_batch2()
+        Self::tool_router_v1()
+            + Self::tool_router_v2_batch1()
+            + Self::tool_router_v2_batch2()
+            + Self::tool_router_v2_batch3()
     }
 }
 
