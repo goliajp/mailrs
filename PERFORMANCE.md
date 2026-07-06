@@ -12,6 +12,33 @@ honestly measured and which are still open. When in doubt, default to
 the latest column ("Measured?") here — not to whatever a commit message
 or marketing material says.
 
+## v2.0.0 kevy 3.17 refactor (2026-07-06 → in-flight)
+
+Following the kevy-embedded 1.15 → 3.17.2 upgrade in v1.9.0, Stage
+B.1-B.6 shipped between v1.9.1 and v1.9.4. The refactor targets:
+
+| Site | Prior shape | v2 shape | Verified |
+|---|---|---|---|
+| mailbox-kevy CRUD (10 methods) | hset outside atomic + zrem outside | one `store.atomic(\|ctx\| ...)` closure | 49/49 tests |
+| `ingest_delivered_file` self-heal | 6 sequential Store ops | one atomic closure | fastcore 52/52 |
+| `allocate_uid` / `register_uid` | hget-miss → INCR race window | one atomic closure holding the shard write lock; **100-thread same-mid regression test = same uid returned** | v1.9.2 |
+| `next_id` helpers ×3 (complete / prefs / admin) | get + parse + set | bare `c.incr()` (kevy server-side atomic) | v1.9.2 |
+| `list_threads_by_activity` fanout | N hgetalls under separate shard locks | one atomic snapshot closure | v1.9.3 |
+| `search.rs` linear-fallback | 1 zrange + 500 hgetalls each opening its own TCP conn | single `kevy_client::Connection` walk | v1.9.3 |
+| `list_threads_by_activity` multi-filter | walks the highest-priority single index (over-count badge) | `store.zinterstore(dst, [idx_a, idx_b, ...], ZAggregate::Max)` + orphan-TTL + del post-use | v1.9.4 |
+| IMAP IDLE consumer | tokio `broadcast::channel(256)` (drops on restart) | `store.changes_since` with 500 ms poll cadence, durable via `Config::with_feed(16 MiB)` | v1.9.5 develop |
+
+Staging soak trend (slow_pct on the traffic-gen 15-min window):
+`0.72 %` (v1.9.0 baseline) → `0.69 %` (v1.9.1) → `0.64 %` (v1.9.2) →
+`0.59 %` (v1.9.3, best) → `0.67 %` (v1.9.4). Every drop trailed a
+stage that reduced kevy shard-lock contention.
+
+Not benched separately: throughput on individual embedded ops. The
+refactor targeted **consistency + shard-lock amortization**, not
+per-op speedup. Where perf claims appear ("N+1 disaster fixed"),
+the mechanism is TCP round-trip reduction (webapi/search.rs), not
+CPU.
+
 ## v4 closed (2026-06-03, ckpt 44)
 
 All 43 stones spot-checked or optimized. **31 ckpts shipped** between
