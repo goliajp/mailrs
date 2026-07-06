@@ -307,11 +307,12 @@ jobs:
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # Sync the compose file to host BEFORE the SSH script runs. If the
-      # compose file changed (e.g. v1.7.132 added the ./web bind mount),
-      # the host needs the new YAML before `docker compose up -d`
-      # otherwise the container is recreated with the OLD config and any
-      # mount / env change introduced by this release is silently lost.
+      # Sync the compose file to host BEFORE the SSH script runs. If
+      # this tag changed compose (e.g. new bind mount, new env, new
+      # image pin), the host needs the new YAML before `docker compose
+      # up -d`; otherwise the container is recreated with the OLD
+      # config and any mount / env change introduced by this release
+      # is silently lost. (Precedent: v1.7.132 web bind-mount rollout.)
       - name: scp docker-compose.prod.yml
         run: |
           mkdir -p ~/.ssh
