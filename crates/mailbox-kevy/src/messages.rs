@@ -153,20 +153,29 @@ impl KevyMailboxStore {
     }
 
     /// List all messages in `thread_id` in chronological order
-    /// (lowest internal_date first). One ZRANGE + N × GET.
+    /// (lowest internal_date first).
+    ///
+    /// v2 Stage B.3: N × get is amortized in one atomic closure —
+    /// the initial zrange runs outside (AtomicCtx has no zset reads
+    /// in kevy 3.17), then the get fanout serializes under a single
+    /// shard lock so callers observe a consistent snapshot for the
+    /// per-message payloads.
     pub fn list_thread_messages(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
         let zset = keys::thread_messages(thread_id);
         let entries = self.store().zrange(zset.as_bytes(), 0, -1)?;
-        let mut out = Vec::with_capacity(entries.len());
-        for (mid_bytes, _score) in entries {
-            let Ok(mid) = std::str::from_utf8(&mid_bytes) else {
-                continue;
-            };
-            if let Some(bytes) = self.get_message(mid)? {
-                out.push(bytes);
+        self.store().atomic(|ctx| {
+            let mut out = Vec::with_capacity(entries.len());
+            for (mid_bytes, _score) in &entries {
+                let Ok(mid) = std::str::from_utf8(mid_bytes) else {
+                    continue;
+                };
+                let blob_key = keys::message_blob(mid);
+                if let Some(bytes) = ctx.get(blob_key.as_bytes())? {
+                    out.push(bytes);
+                }
             }
-        }
-        Ok(out)
+            Ok(out)
+        })
     }
 }
 
