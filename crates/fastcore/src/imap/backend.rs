@@ -281,22 +281,32 @@ pub fn list_messages(state: &Arc<FastcoreState>, user: &str, mb: &MailboxInfo) -
 /// may cache uids forever.
 pub fn uidvalidity(state: &Arc<FastcoreState>, user: &str, mailbox_name: &str) -> u32 {
     let key = format!("mailrs:user:{user}:imap:uidvalidity:{mailbox_name}");
-    if let Ok(Some(v)) = state.mailbox.store_ref().get(key.as_bytes())
-        && let Ok(s) = std::str::from_utf8(&v)
-        && let Ok(n) = s.parse::<u32>()
-    {
-        return n;
-    }
+    // v2 Stage B.2 · Phase 2: get + conditional-set collapsed into
+    // one atomic closure. Prior implementation could race the initial
+    // get miss with a concurrent first-select on the same mailbox —
+    // both callers picked their own `now` and one raced ahead with
+    // its stamp, leaving the loser's return value diverging from
+    // what was persisted. Two IMAP clients briefly saw different
+    // UIDVALIDITY values for the same mailbox.
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as u32)
         .unwrap_or(1)
         .max(1);
-    let _ = state
+    state
         .mailbox
         .store_ref()
-        .set(key.as_bytes(), now.to_string().as_bytes());
-    now
+        .atomic(|ctx| {
+            if let Some(v) = ctx.get(key.as_bytes())?
+                && let Ok(s) = std::str::from_utf8(&v)
+                && let Ok(n) = s.parse::<u32>()
+            {
+                return Ok(n);
+            }
+            ctx.set(key.as_bytes(), now.to_string().as_bytes());
+            Ok(now)
+        })
+        .unwrap_or(now)
 }
 
 /// Predicted next uid — the per-user allocation counter + 1. Strictly

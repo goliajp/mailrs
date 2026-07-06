@@ -53,13 +53,8 @@ fn now_secs() -> i64 {
 
 /// Next id from a `<hash>:counter` string.
 fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Result<i64> {
-    let cur = c.get(counter_key.as_bytes())?;
-    let n = match cur {
-        Some(bytes) => String::from_utf8_lossy(&bytes).parse::<i64>().unwrap_or(0) + 1,
-        None => 1,
-    };
-    c.set(counter_key.as_bytes(), n.to_string().as_bytes())?;
-    Ok(n)
+    // v2 Stage B.2: single-op INCR — kevy-side atomic, no race.
+    c.incr(counter_key.as_bytes())
 }
 
 // ── drafts ─────────────────────────────────────────────────────────

@@ -74,24 +74,35 @@ impl KevyMailboxStore {
         if uid == 0 {
             return Ok(());
         }
+        // v2 Stage B.2: rev + forward + counter-max collapsed into one
+        // atomic closure. Prior implementation could race the counter
+        // read with a concurrent allocate_uid's incr — the pre-fix
+        // counter cur could be stale and the conditional set could
+        // shrink the counter back below the value allocate_uid already
+        // moved past, letting future allocations collide with a uid
+        // this backfill just installed.
         let rev_key = keys::user_uid_by_mid(user);
-        self.store().hset(
-            rev_key.as_bytes(),
-            &[(message_id.as_bytes(), uid.to_string().as_bytes())],
-        )?;
-        self.index_uid(user, uid, message_id)?;
+        let idx_key = keys::user_msg_by_uid(user);
         let counter_key = keys::user_next_uid(user);
-        let cur = self
-            .store()
-            .get(counter_key.as_bytes())?
-            .and_then(|b| String::from_utf8(b).ok())
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-        if cur < uid as i64 {
-            self.store()
-                .set(counter_key.as_bytes(), uid.to_string().as_bytes())?;
-        }
-        Ok(())
+        self.store().atomic(|ctx| {
+            ctx.hset(
+                rev_key.as_bytes(),
+                &[(message_id.as_bytes(), uid.to_string().as_bytes())],
+            )?;
+            ctx.hset(
+                idx_key.as_bytes(),
+                &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+            )?;
+            let cur = ctx
+                .get(counter_key.as_bytes())?
+                .and_then(|b| String::from_utf8(b).ok())
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
+            if cur < uid as i64 {
+                ctx.set(counter_key.as_bytes(), uid.to_string().as_bytes());
+            }
+            Ok(())
+        })
     }
 
     pub fn index_uid(&self, user: &str, uid: u32, message_id: &str) -> io::Result<()> {
@@ -111,24 +122,34 @@ impl KevyMailboxStore {
     /// endpoints (raw source, attachments) can resolve messages that
     /// weren't handed a uid by the monolith migration.
     pub fn allocate_uid(&self, user: &str, message_id: &str) -> io::Result<u32> {
+        // v2 Stage B.2 · Phase 2: entire idempotent-check + counter-incr
+        // + reverse+forward index write runs inside one shard-write
+        // lock. Prior implementation could race between the initial
+        // hget miss and the incr — two concurrent allocate_uid calls
+        // for the same message_id issued two different uids and left
+        // one orphaned in the forward index.
         let rev_key = keys::user_uid_by_mid(user);
-        if let Some(existing) = self
-            .store()
-            .hget(rev_key.as_bytes(), message_id.as_bytes())?
-            && let Ok(s) = std::str::from_utf8(&existing)
-            && let Ok(uid) = s.parse::<u32>()
-        {
-            return Ok(uid);
-        }
         let counter_key = keys::user_next_uid(user);
-        let uid = self.store().incr(counter_key.as_bytes())?;
-        let uid = uid.clamp(1, u32::MAX as i64) as u32;
-        self.store().hset(
-            rev_key.as_bytes(),
-            &[(message_id.as_bytes(), uid.to_string().as_bytes())],
-        )?;
-        self.index_uid(user, uid, message_id)?;
-        Ok(uid)
+        let idx_key = keys::user_msg_by_uid(user);
+        self.store().atomic(|ctx| {
+            if let Some(existing) = ctx.hget(rev_key.as_bytes(), message_id.as_bytes())?
+                && let Ok(s) = std::str::from_utf8(&existing)
+                && let Ok(uid) = s.parse::<u32>()
+            {
+                return Ok(uid);
+            }
+            let uid_i = ctx.incr(counter_key.as_bytes())?;
+            let uid = uid_i.clamp(1, u32::MAX as i64) as u32;
+            ctx.hset(
+                rev_key.as_bytes(),
+                &[(message_id.as_bytes(), uid.to_string().as_bytes())],
+            )?;
+            ctx.hset(
+                idx_key.as_bytes(),
+                &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+            )?;
+            Ok(uid)
+        })
     }
 
     /// List all messages in `thread_id` in chronological order
@@ -207,6 +228,43 @@ mod tests {
         // idempotent re-register never lowers the counter
         s.register_uid("u@x.y", 5, "old-mid").unwrap();
         assert_eq!(s.allocate_uid("u@x.y", "new-mid-2").unwrap(), 27759);
+    }
+
+    #[test]
+    fn allocate_uid_concurrent_same_mid_is_idempotent() {
+        // 100 threads calling allocate_uid(user, same-mid) must all
+        // return the SAME uid and leave the counter at exactly 1.
+        // Prior to Stage B.2 the race between the initial hget-miss
+        // and incr let two concurrent callers issue two different
+        // uids for the same mid.
+        use std::sync::Arc;
+        use std::thread;
+        let s = Arc::new(store());
+        let mut handles = Vec::new();
+        for _ in 0..100 {
+            let sc = Arc::clone(&s);
+            handles.push(thread::spawn(move || {
+                sc.allocate_uid("u@x.y", "shared-mid").unwrap()
+            }));
+        }
+        let uids: Vec<u32> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        assert!(
+            uids.iter().all(|u| *u == uids[0]),
+            "uids diverged: {uids:?}"
+        );
+        // Counter must have been bumped exactly once — next fresh
+        // allocation reads uids[0] + 1.
+        assert_eq!(s.allocate_uid("u@x.y", "next-mid").unwrap(), uids[0] + 1,);
+        // Reverse + forward mapping consistent.
+        let fwd = s
+            .store()
+            .hget(
+                keys::user_msg_by_uid("u@x.y").as_bytes(),
+                uids[0].to_string().as_bytes(),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(fwd, b"shared-mid");
     }
 
     #[test]
