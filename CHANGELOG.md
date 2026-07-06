@@ -62,9 +62,17 @@ B-H work accumulates on `develop` and ships together as v2.0.0.
   3.17 features (brpop / hexpire / zinterstore / idx / changes_since).
   Phase 4 (BRPOP), Phase 5 (HEXPIRE), and Phase 7/8 for network paths
   remain blocked. See `.claude-profile-2/.../memory/feedback-kevy-client-1.13-gaps.md`.
-- **Docs / rules:** ARCHITECTURE.md rewrite, PERFORMANCE.md v2 row,
-  DEPS_AUDIT.md updates, `.claude/rules/kevy-patterns.md`, DEPLOY.md
-  runbook — pending, will land within the v2.0.0 window.
+- **Docs / rules:** ARCHITECTURE.md fastcore-topology refresh + crate
+  count 44 → 59, README.md dropped legacy `docker compose up postgres
+  kevy` (both engines in-process since v1.7.95), PERFORMANCE.md
+  added a v2 kevy 3.17 refactor row with a per-site table and the
+  staging soak `slow_pct` trend (0.72 % → 0.59 % → 0.67 %),
+  DEPS_AUDIT.md marker for the kevy stack + kevy-client 1.13 gap
+  callout, DEPLOY.md rewritten end-to-end for the release.yml + git
+  flow model with a manual rollback runbook, `web/public/openapi.json`
+  version 0.9.3 → 2.0.0, CHANGELOG.md (this file) established.
+  `.claude/rules/kevy-patterns.md` skeleton exists locally (gitignored
+  per project convention).
 
 ## v1.9.4 — 2026-07-06
 
