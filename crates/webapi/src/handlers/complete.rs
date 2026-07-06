@@ -48,13 +48,11 @@ fn now_secs() -> i64 {
 }
 
 fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Result<i64> {
-    let cur = c.get(counter_key.as_bytes())?;
-    let n = match cur {
-        Some(bytes) => String::from_utf8_lossy(&bytes).parse::<i64>().unwrap_or(0) + 1,
-        None => 1,
-    };
-    c.set(counter_key.as_bytes(), n.to_string().as_bytes())?;
-    Ok(n)
+    // v2 Stage B.2: single-op INCR — kevy-side atomic, no read-modify-
+    // write race. Prior get + parse + set could let two concurrent
+    // /api/prefs writes both read the same current value and both
+    // set the same next id, losing one row.
+    c.incr(counter_key.as_bytes())
 }
 
 fn random_hex(bytes: usize) -> String {
