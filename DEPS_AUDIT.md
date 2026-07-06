@@ -13,6 +13,17 @@ library crate?
 the original audit are all resolved.** What follows is the audited
 state, not a fresh plan.
 
+**v2.0.0 update (2026-07-06):** the `kevy-embedded` (in-process store)
+and `kevy-client` (network wrapper) deps track the sibling
+`goliajp/kevy` repo. Currently pinned to `kevy-embedded 3.17` and
+`kevy-client 1.13` in the workspace root Cargo.toml. Note that
+`kevy-client 1.13` does not yet wrap several 3.17-only server ops
+(BRPOP / HEXPIRE / ZINTERSTORE / IDX_CREATE / CHANGES_SINCE); until
+that lands, the network kevy paths (webapi, sender, bounce) do not
+benefit from Stage B.4-B.8 embedded refactors. See
+`.claude-profile-2/.../memory/feedback-kevy-client-1.13-gaps.md` for
+the tracked upstream gap.
+
 ## ✅ Candidates resolved
 
 ### #1 — `mail-auth` (SPF + DKIM + DMARC + ARC) → **fully replaced**
