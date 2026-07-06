@@ -139,12 +139,13 @@ This starts PostgreSQL (with pgvector), Kevy, and the mailrs server. Ports expos
 
 ### Local Development
 
-Prerequisites: PostgreSQL and Kevy running locally.
+No external database containers needed: since v1.7.95 the SQL engine
+runs in-process via `spg-embedded` and the KV store runs in-process
+via `kevy-embedded`. `./scripts/dev.sh` bootstraps a fresh SPG
+catalog from `scripts/init-schema.sql` and opens the kevy store at
+the local scratch dir on first run.
 
 ```bash
-# start dependencies
-docker compose up postgres kevy -d
-
 # run the full dev stack (SMTP + IMAP + Web API + Vite dev server)
 ./scripts/dev.sh
 ```

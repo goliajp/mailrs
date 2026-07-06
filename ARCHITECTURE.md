@@ -1,8 +1,18 @@
 # Architecture
 
-mailrs is a Cargo workspace of **44 crates** — **43 reusable library crates**
-(42 of them published on [crates.io](https://crates.io/users/golia-jp)) plus
-the `mailrs-server` binary that wires them into a deployable mail server.
+mailrs is a Cargo workspace of **59 crates** — the reusable library crates
+(most of them published on [crates.io](https://crates.io/users/golia-jp))
+plus five binary crates that wire them into a deployable mail server:
+`mailrs-server` (legacy monolith, retained for staging as the spg-dogfood
+lane), `mailrs-fastcore` (kevy-backed core RPC + IMAP/POP3), `mailrs-webapi`
+(REST + web UI), `mailrs-receiver` (SMTP inbound → spool), and
+`mailrs-sender` / `mailrs-fastcore-sender` (outbound queue + DKIM).
+
+Since v1.8.x prod runs the 4-process fastcore stack (`receiver` +
+`fastcore` + `webapi-fc` + `fastcore-sender`) with a shared kevy container.
+The monolith stays on staging as the pg-core dogfood partner in the
+v2 dual-mode design; either lane can serve, switchable via
+`MAILRS_CORE_RPC_BASE`.
 
 The split is deliberate: anything that implements an RFC or a self-contained
 concept lives in its own library crate — independently versioned, tested,
