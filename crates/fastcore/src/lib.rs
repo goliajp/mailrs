@@ -882,9 +882,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(|payload| {
-                    serde_json::from_slice::<
-                        mailrs_core_api::method::message::MessageWire,
-                    >(&payload)
+                    serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(
+                        &payload,
+                    )
                     .ok()
                 })
                 .map(|w| w.message_id)
