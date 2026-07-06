@@ -1,41 +1,13 @@
 //! MCP (Model Context Protocol) surface — fastcore-native.
 //!
-//! Mounts `/mcp` as a Streamable HTTP transport (rmcp 1.7) so AI
-//! agents can drive mailrs the same way they drive the monolith's
-//! /mcp used to be driven. Six core tools cover the daily flows:
-//!
-//! - `list_conversations` — inbox listing with pagination + filters
-//! - `read_thread` — fetch every message in a thread
-//! - `search_conversations` — free-text over subject + participants
-//! - `mark_thread_read` — flip a thread's unread → seen
-//! - `send_email` — compose + enqueue outbound
-//! - `list_mailboxes` — folder enumeration
-//! - `mark_thread_unread` / `star_thread` / `unstar_thread`
-//! - `archive_thread` / `unarchive_thread` / `delete_thread`
-//! - `mark_all_read` — zero every unread counter
-//! - `get_categories` — inbox category histogram
-//!
-//! - `search_contacts` / `list_signatures` / `get_queue`
-//! - `list_accounts` / `list_domains` (admin-gated)
-//!
-//! - `create_account` / `remove_account` / `get_audit_log` (admin-gated)
-//! - `add_alias` / `remove_alias` / `add_domain` / `remove_domain` (admin-gated)
-//! - `save_signature` / `delete_signature` (per-user, no admin)
-//! - `list_webhooks` / `create_webhook` / `delete_webhook`
-//! - `list_drafts` / `save_draft` / `delete_draft` (per-user)
-//! - `list_templates` / `save_template` / `delete_template` (per-user)
-//!
-//! 37 tools (was 6). Remaining monolith tools (groups, permissions,
-//! encryption, email-groups, greylist, apps, system-config) fill in
-//! as follow-on G11 batches.
-//!
-//! Each session gets its own service instance; the authenticated user
+//! Mounts `/mcp` as a Streamable HTTP transport (rmcp 1.7). Each
+//! session gets its own service instance; the authenticated user
 //! flows in through a tokio task-local set by [`mcp_auth_middleware`].
 //! Auth is Bearer-token only (same session cookie the web UI uses).
 //!
-//! The full 62-tool monolith surface (admin ops, queue management,
-//! analysis, backfills) is a follow-up port; this covers the read/
-//! write path end-to-end.
+//! Tools live in per-category sub-modules with named routers
+//! combined here via `Self::tool_router() = tool_router_v1() +
+//! tool_router_v2_batch1() + ...`. Params moved to `params.rs`.
 
 use std::sync::Arc;
 
@@ -53,6 +25,7 @@ use rmcp::{tool, tool_handler, tool_router};
 use crate::WebState;
 
 mod params;
+mod tools_v2_batch1;
 use params::*;
 
 tokio::task_local! {
@@ -71,7 +44,6 @@ pub struct MailrsMcpService {
     tool_router: ToolRouter<Self>,
 }
 
-#[tool_router]
 impl MailrsMcpService {
     pub fn new(state: Arc<WebState>, user: String) -> Self {
         Self {
@@ -81,15 +53,24 @@ impl MailrsMcpService {
         }
     }
 
+    /// Combined router: v1 (37 legacy tools) + v2 batch adds.
+    fn tool_router() -> ToolRouter<Self> {
+        Self::tool_router_v1() + Self::tool_router_v2_batch1()
+    }
+}
+
+#[tool_router(router = tool_router_v1, vis = "pub")]
+impl MailrsMcpService {
     /// Gate an admin tool: the authed user must carry an admin.*
     /// permission (or be super). Maps a FORBIDDEN to an MCP error.
-    async fn require_admin(&self, user: &str) -> Result<(), McpError> {
+    /// `pub(super)` so sibling tool modules can call it.
+    pub(super) async fn require_admin(&self, user: &str) -> Result<(), McpError> {
         crate::handlers::kevy_util::require_admin(&self.state, user)
             .await
             .map_err(|_| McpError::invalid_request("admin permission required", None))
     }
 
-    fn require_user(&self) -> Result<&str, McpError> {
+    pub(super) fn require_user(&self) -> Result<&str, McpError> {
         if self.user.is_empty() {
             return Err(McpError::invalid_params("not authenticated", None));
         }
