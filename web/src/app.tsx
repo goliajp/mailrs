@@ -12,7 +12,7 @@ import {
 import { useAtomValue } from 'jotai'
 import { getDefaultStore } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
@@ -37,91 +37,51 @@ const Settings = lazy(() => import('@/pages/settings').then((m) => ({ default: m
 // apply zinc-neutral preset before first render — no effect race conditions
 initMailrsTheme()
 
-export function App() {
-  useDocumentTitle()
-  useThemeEffect()
-  useFonts()
-  useThemeColor()
+// v2.1 phase-8: routes expressed as a data-router config
+// (RFC decision #2). `createBrowserRouter` + `<RouterProvider>`
+// replaces the old v6-style `<BrowserRouter><Routes>` tree. Route
+// definitions move from JSX children in `<Routes>` to plain
+// objects here — one entry per route, `element` is the rendered
+// tree, `children` nests under layout routes.
+const router = createBrowserRouter([
+  {
+    children: [
+      { element: <Login />, path: '/login' },
+      { element: <ResetPassword />, path: '/reset-password' },
+      {
+        element: (
+          <Suspense fallback={<LoadingFallback />}>
+            <Playground />
+          </Suspense>
+        ),
+        path: '/playground',
+      },
+      {
+        children: [
+          { element: <PageProtocol />, path: '/protocol' },
+          { element: <PageAdmin />, path: '/admin/*' },
+          { element: <PageSettings />, path: '/settings' },
+          { element: <PageChat />, path: '/mail/*' },
+          { element: <PageDashboard />, path: '/*' },
+        ],
+        Component: AuthShellLayout,
+      },
+    ],
+    Component: RootLayout,
+  },
+])
 
-  return (
-    <>
-      <ToastProvider position="top-right" />
-      <CommandPalette />
-      <Routes>
-        <Route element={<Login />} path="/login" />
-        <Route element={<ResetPassword />} path="/reset-password" />
-        <Route
-          element={
-            <Suspense fallback={<LoadingFallback />}>
-              <Playground />
-            </Suspense>
-          }
-          path="/playground"
-        />
-        <Route
-          element={
-            <AuthShell>
-              <PagePane>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Protocol />
-                </Suspense>
-              </PagePane>
-            </AuthShell>
-          }
-          path="/protocol"
-        />
-        <Route
-          element={
-            <AuthShell>
-              <PagePane>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Admin />
-                </Suspense>
-              </PagePane>
-            </AuthShell>
-          }
-          path="/admin/*"
-        />
-        <Route
-          element={
-            <AuthShell>
-              <PagePane>
-                <Suspense fallback={<LoadingFallback />}>
-                  <Settings />
-                </Suspense>
-              </PagePane>
-            </AuthShell>
-          }
-          path="/settings"
-        />
-        <Route
-          element={
-            <AuthShell>
-              <Suspense fallback={<LoadingFallback />}>
-                <Chat />
-              </Suspense>
-            </AuthShell>
-          }
-          path="/mail/*"
-        />
-        <Route
-          element={
-            <AuthShell>
-              <PagePane>
-                <Suspense fallback={<DashboardShellSkeleton />}>
-                  <Dashboard />
-                </Suspense>
-              </PagePane>
-            </AuthShell>
-          }
-          path="/*"
-        />
-      </Routes>
-    </>
-  )
+export function App() {
+  return <RouterProvider router={router} />
 }
 
-function AuthShell({ children }: { children: React.ReactNode }) {
+/**
+ * `AuthShell` as a route layout — checks auth, then renders the
+ * shell (desktop `AppShell` + mobile `MobileShell`). Both call sites
+ * used to receive `children` explicitly; here the child page comes
+ * from `<Outlet />`.
+ */
+function AuthShellLayout() {
   return (
     <RequireAuth>
       {/* desktop: AppShell with sidebar + status bar */}
@@ -133,12 +93,14 @@ function AuthShell({ children }: { children: React.ReactNode }) {
           sidebarWidth={56}
           statusBar={<StatusBar />}
         >
-          {children}
+          <Outlet />
         </AppShell>
       </div>
       {/* mobile: independent shell with bottom nav */}
       <div className="contents md:hidden">
-        <MobileShell>{children}</MobileShell>
+        <MobileShell>
+          <Outlet />
+        </MobileShell>
       </div>
     </RequireAuth>
   )
@@ -163,12 +125,44 @@ function initMailrsTheme() {
   })
 }
 
+// Each `PageX` is `PagePane` + `Suspense` + the lazy-loaded page —
+// hoisted out of the JSX-in-a-Route form so the router config stays
+// declarative.
+
 function LoadingFallback() {
   return (
     <div className="text-fg-muted flex flex-1 flex-col items-center justify-center gap-3 p-8">
       <div className="border-border border-t-accent h-8 w-8 animate-spin rounded-full border-2" />
       <span className="text-sm">Loading…</span>
     </div>
+  )
+}
+
+function PageAdmin() {
+  return (
+    <PagePane>
+      <Suspense fallback={<LoadingFallback />}>
+        <Admin />
+      </Suspense>
+    </PagePane>
+  )
+}
+
+function PageChat() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <Chat />
+    </Suspense>
+  )
+}
+
+function PageDashboard() {
+  return (
+    <PagePane>
+      <Suspense fallback={<DashboardShellSkeleton />}>
+        <Dashboard />
+      </Suspense>
+    </PagePane>
   )
 }
 
@@ -183,10 +177,51 @@ function PagePane({ children }: { children: React.ReactNode }) {
   )
 }
 
+function PageProtocol() {
+  return (
+    <PagePane>
+      <Suspense fallback={<LoadingFallback />}>
+        <Protocol />
+      </Suspense>
+    </PagePane>
+  )
+}
+
+function PageSettings() {
+  return (
+    <PagePane>
+      <Suspense fallback={<LoadingFallback />}>
+        <Settings />
+      </Suspense>
+    </PagePane>
+  )
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAtomValue(authAtom)
   if (!auth) return <Navigate replace to="/login" />
   return children
+}
+
+/**
+ * Root-layout route element. Owns the global side-effect hooks
+ * (document title, theme, fonts, `<meta name="theme-color">`) plus
+ * the persistent chrome (`ToastProvider`, `CommandPalette`) that
+ * every route sees. `<Outlet />` renders the child route.
+ */
+function RootLayout() {
+  useDocumentTitle()
+  useThemeEffect()
+  useFonts()
+  useThemeColor()
+
+  return (
+    <>
+      <ToastProvider position="top-right" />
+      <CommandPalette />
+      <Outlet />
+    </>
+  )
 }
 
 declare const __WEB_VERSION__: string | undefined
