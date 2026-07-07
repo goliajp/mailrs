@@ -5,6 +5,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useSmtpEvents } from '@/hooks/use-smtp-events'
 import { formatUptime } from '@/lib/format'
 
+// Format a counter that may legitimately be `null` from the backend.
+// A `null` here means "this webapi process does not observe that
+// counter" (see /api/status handler); render `-` so users can tell
+// "unknown" apart from "zero".
+function fmt(n: null | number | undefined): string {
+  if (n == null) return '-'
+  return n.toLocaleString('en-US')
+}
+
 const EVENT_COLORS: Record<string, string> = {
   Authenticated: 'text-info',
   CommandReceived: 'text-accent',
@@ -38,27 +47,30 @@ export function Protocol() {
         </div>
       </div>
 
-      {/* status cards */}
+      {/* status cards. Backend nulls a counter when this webapi process
+       * can't observe it directly (fastcore split: SMTP counters live in
+       * mailrs-receiver, not here). Show `-` for those instead of a
+       * misleading zero. */}
       <div className="border-border grid grid-cols-2 gap-3 border-b px-6 py-3 md:grid-cols-4">
         <StatusCard
           color="text-success"
           label="Active Connections"
-          value={status?.active_connections ?? 0}
+          value={fmt(status?.active_connections)}
         />
         <StatusCard
           color="text-accent"
           label="Total Connections"
-          value={status?.total_connections ?? 0}
+          value={fmt(status?.total_connections)}
         />
         <StatusCard
           color="text-warning"
           label="Messages Delivered"
-          value={status?.total_messages ?? 0}
+          value={fmt(status?.total_messages)}
         />
         <StatusCard
           color="text-fg-secondary"
           label="Uptime"
-          value={status ? formatUptime(status.uptime_secs) : '-'}
+          value={formatUptime(status?.uptime_secs)}
         />
       </div>
 

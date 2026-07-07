@@ -49,6 +49,12 @@ pub struct WebState {
     /// `/api/events` upgrade. Held here so all WS clients share
     /// a single kevy subscribe loop.
     pub event_bus: std::sync::OnceLock<handlers::events::EventBus>,
+    /// Wall-clock start of this webapi process, used to compute the
+    /// `uptime_secs` field surfaced by `/api/health` + `/api/status`.
+    /// UI status bars and SMTP-monitor cards read this to render a
+    /// live uptime badge; before it existed both endpoints returned
+    /// no uptime field and the frontend rendered `NaN`.
+    pub started_at: std::time::Instant,
 }
 
 impl WebState {
@@ -64,6 +70,7 @@ impl WebState {
             core,
             bind_addr,
             event_bus: std::sync::OnceLock::new(),
+            started_at: std::time::Instant::now(),
         }
     }
 }
@@ -715,8 +722,23 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     app
 }
 
-async fn health_handler() -> axum::Json<serde_json::Value> {
-    axum::Json(serde_json::json!({"status": "healthy"}))
+/// /api/health — public liveness probe. No auth required. Returns a
+/// stable shape (`{status, ok, version, uptime_secs, service}`) so the
+/// web StatusBar can render a full identity line without a second
+/// authenticated call. Health is intentionally always `healthy` here
+/// because if this process weren't healthy it wouldn't be handling
+/// requests at all; the deep readiness probe is `/api/readiness`.
+async fn health_handler(
+    axum::extract::State(state): axum::extract::State<Arc<WebState>>,
+) -> axum::Json<serde_json::Value> {
+    let uptime_secs = state.started_at.elapsed().as_secs();
+    axum::Json(serde_json::json!({
+        "status": "healthy",
+        "ok": true,
+        "service": "mailrs-webapi",
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_secs": uptime_secs,
+    }))
 }
 
 /// /api/readiness — deep probe: does core RPC answer?
@@ -733,11 +755,25 @@ async fn readiness_handler(
     }
 }
 
-/// /api/status — version + build info. No auth required.
-async fn status_handler() -> axum::Json<serde_json::Value> {
+/// /api/status — version + build info + webapi lifetime. No auth
+/// required. Additional metric fields (SMTP counters, queue depth) are
+/// nulled out here rather than pretending they're zero: in the fastcore
+/// 4-process split those counters live in `mailrs-receiver` +
+/// `mailrs-fastcore-sender`, not in this webapi process. UIs that render
+/// them treat `null` as "no data" (a dash), which is the truthful thing
+/// to show — v1.9.4 shipped a monitor page that read the absent fields
+/// as `0` and displayed `NaN` uptime; explicit nulls fix both.
+async fn status_handler(
+    axum::extract::State(state): axum::extract::State<Arc<WebState>>,
+) -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::json!({
-        "version": env!("CARGO_PKG_VERSION"),
         "service": "mailrs-webapi",
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_secs": state.started_at.elapsed().as_secs(),
+        "active_connections": serde_json::Value::Null,
+        "total_connections": serde_json::Value::Null,
+        "total_messages": serde_json::Value::Null,
+        "queue": serde_json::Value::Null,
     }))
 }
 

@@ -1,3 +1,15 @@
+import '@testing-library/jest-dom/vitest'
+
+import { cleanup } from '@testing-library/react'
+import { afterEach } from 'vitest'
+
+// Vitest doesn't auto-cleanup React test roots between tests; without
+// this you get "found multiple elements by data-testid" the moment two
+// tests mount the same component.
+afterEach(() => {
+  cleanup()
+})
+
 // global test setup — mock browser APIs that gds modules require at import time
 
 // bun runtime omits localStorage from jsdom (it normally needs --localstorage-file).

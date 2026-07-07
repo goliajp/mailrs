@@ -210,12 +210,16 @@ export type Reservation = {
   type: string
 }
 
+// v2 fastcore split: `/api/status` is served by mailrs-webapi, which
+// doesn't own SMTP counters (those live in mailrs-receiver). The webapi
+// returns `null` for fields it can't populate; the UI shows a `-` there
+// rather than a lying `0`.
 export type ServerStatus = {
-  active_connections: number
-  queue?: QueueStats
-  total_connections: number
-  total_messages: number
-  uptime_secs: number
+  active_connections: null | number
+  queue?: null | QueueStats
+  total_connections: null | number
+  total_messages: null | number
+  uptime_secs: null | number
 }
 
 export type SmtpEvent =

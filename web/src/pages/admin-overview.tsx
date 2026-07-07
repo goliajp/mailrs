@@ -319,17 +319,29 @@ function ServicePill({ detail, name, ok }: { detail?: string; name: string; ok: 
 }
 
 function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
+  // Guard every field — the fastcore webapi's /api/admin/config/smtp
+  // endpoint may return a subset (or nothing) if the config isn't
+  // populated. Prior to this guard, `config.local_domains.join(', ')`
+  // crashed the entire page with a TypeError, giving the appearance
+  // of a "black screen" after a route transition to /admin.
+  const domains =
+    Array.isArray(config.local_domains) && config.local_domains.length > 0
+      ? config.local_domains.join(', ')
+      : '-'
+  const ports = [
+    config.smtp_port != null ? `SMTP :${config.smtp_port}` : null,
+    config.submission_port != null ? `Submission :${config.submission_port}` : null,
+    config.imap_port != null ? `IMAP :${config.imap_port}` : null,
+  ]
+    .filter(Boolean)
+    .join(' / ')
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
       <h3 className="text-fg-muted mb-3 text-sm font-medium">SMTP Configuration</h3>
       <div className="space-y-2">
-        <Row label="Hostname" mono value={config.hostname} />
-        <Row
-          label="Ports"
-          mono
-          value={`SMTP :${config.smtp_port} / Submission :${config.submission_port} / IMAP :${config.imap_port}`}
-        />
-        <Row label="Domains" mono value={config.local_domains.join(', ')} />
+        <Row label="Hostname" mono value={config.hostname || '-'} />
+        <Row label="Ports" mono value={ports || '-'} />
+        <Row label="Domains" mono value={domains} />
         <Row label="TLS" value={config.tls_enabled ? 'Enabled' : 'Disabled'} />
         {config.max_message_size != null && (
           <Row label="Max Size" value={`${Math.round(config.max_message_size / 1024 / 1024)}MB`} />

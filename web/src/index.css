@@ -238,9 +238,15 @@ label,
 
 /* AppShell renders the status bar with `h-7 text-xs` by default —
  * enlarge to give the labels + version strings enough breathing room
- * (2026-07-07 user feedback: the bar was too short and unreadable). */
+ * (2026-07-07 user feedback: the bar was too short and unreadable, and
+ * the wrapping content read as a broken layout). The taller strip lets
+ * the inner content stay on one line at every viewport width without
+ * the text visibly clipping at the top and bottom edges. */
 [data-component='status-bar'] {
-  height: 2.25rem; /* 36px */
+  height: 2.5rem; /* 40px */
   font-size: 0.75rem; /* 12px */
   line-height: 1rem;
+}
+[data-component='status-bar'] > * {
+  height: 100%;
 }
