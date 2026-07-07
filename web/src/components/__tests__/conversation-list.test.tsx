@@ -27,7 +27,7 @@ vi.mock('@/hooks/use-mail-queries', () => ({
   useActionCountQuery: () => ({ data: { count: 0 } }),
   useCategoriesQuery: () => ({ data: [] }),
   useConversationsQuery: () => ({
-    data: { pages: [], pageParams: [] },
+    data: { pageParams: [], pages: [] },
     hasNextPage: false,
     isFetchingNextPage: false,
     isPending: false,
@@ -42,9 +42,8 @@ vi.mock('@/hooks/use-current-mail-filters', () => ({
 // the atom so the test scaffolding keeps working while production
 // runs through RQ.
 vi.mock('@/hooks/use-flat-conversations', async () => {
-  const { conversationsAtom, hasMoreAtom, initialLoadingAtom, loadingMoreAtom } = await import(
-    '@/store/chat'
-  )
+  const { conversationsAtom, hasMoreAtom, initialLoadingAtom, loadingMoreAtom } =
+    await import('@/store/chat')
   return {
     useFlatConversations: () => ({
       conversations: useAtomValue(conversationsAtom),

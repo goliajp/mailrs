@@ -9,16 +9,13 @@ import { useEffect, useRef, useState } from 'react'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
-import {
-  conversationsAtom,
-  mobileViewAtom,
-  selectedThreadIdAtom,
-  threadMessagesAtom,
-} from '@/store/chat'
+import { mobileViewAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
 
 // ─── mobile mail router ─────────────────────────────────────
 
@@ -44,7 +41,10 @@ function MobileConversationView() {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   const setMobileView = useSetAtom(mobileViewAtom)
-  const conversations = useAtomValue(conversationsAtom)
+  // v2.1 phase-5b: reader migrated off `conversationsAtom` — reads
+  // directly from the same RQ cache line the mail list owns.
+  const filters = useCurrentMailFilters()
+  const { conversations } = useFlatConversations(filters)
   const selectedId = useAtomValue(selectedThreadIdAtom)
   const conversation = conversations.find((c) => c.thread_id === selectedId)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -127,7 +127,8 @@ function MobileReplyView() {
   const selectedId = useAtomValue(selectedThreadIdAtom)
   const messages = useAtomValue(threadMessagesAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
-  const conversations = useAtomValue(conversationsAtom)
+  const filters = useCurrentMailFilters()
+  const { conversations } = useFlatConversations(filters)
   const conversation = conversations.find((c) => c.thread_id === selectedId)
 
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
@@ -198,7 +199,8 @@ function MobileThreadView() {
   const selectedId = useAtomValue(selectedThreadIdAtom)
   const [messages, setMessages] = useAtom(threadMessagesAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
-  const conversations = useAtomValue(conversationsAtom)
+  const filters = useCurrentMailFilters()
+  const { conversations } = useFlatConversations(filters)
 
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
