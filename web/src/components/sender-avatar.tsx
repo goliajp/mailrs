@@ -2,6 +2,7 @@ import { cx } from '@goliapkg/gds'
 import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
+import { getToken } from '@/store/auth'
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
@@ -81,15 +82,32 @@ function resolveIcon(domain: string): Promise<null | string> {
   if (existing) return existing
 
   const p = (async () => {
-    // 1. try BIMI (DNS-backed, always a real SVG)
+    // 1. try BIMI (DNS-backed, always a real SVG). The endpoint is
+    // Bearer-authed like the rest of the API — an anonymous fetch
+    // spams 401s in the console for every distinct sender domain
+    // rendered in the inbox. Pass the auth header if we have one, and
+    // if we don't (logged-out avatar) skip the network entirely.
+    const token = getToken()
+    if (!token) {
+      iconCache.set(domain, null)
+      iconInflight.delete(domain)
+      return null
+    }
     try {
-      const r = await fetch(`/api/bimi/${domain}`)
+      const r = await fetch(`/api/bimi/${domain}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       if (r.ok) {
         const data = await r.json()
-        if (data?.logo_url) {
-          iconCache.set(domain, data.logo_url)
+        // Backend returns `{ l: "https://…svg", a: "https://…pem" }`
+        // (from the raw BIMI TXT record) — the legacy `logo_url` name
+        // never existed on the wire. Accept the real key first and
+        // keep the legacy key as a fallback for future rewrites.
+        const url: string | undefined = data?.l ?? data?.logo_url
+        if (url) {
+          iconCache.set(domain, url)
           iconInflight.delete(domain)
-          return data.logo_url
+          return url
         }
       }
     } catch {
