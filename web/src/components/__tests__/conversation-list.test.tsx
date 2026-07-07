@@ -2,17 +2,27 @@ import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createStore, Provider, useAtomValue } from 'jotai'
+import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authAtom } from '@/store/auth'
-import {
-  batchModeAtom,
-  conversationsAtom,
-  hasMoreAtom,
-  initialLoadingAtom,
-  selectedThreadIdsAtom,
-} from '@/store/chat'
+import { batchModeAtom, selectedThreadIdsAtom } from '@/store/chat'
+
+// v2.1 phase-5d: the mail-list conversations shape lives entirely in
+// React Query in production. Tests hoist a mutable stub and mock
+// `useFlatConversations` to read it — same idea as seeding an atom,
+// no jotai plumbing. Set fields before calling `render(...)`.
+const flatStub: {
+  conversations: ConversationSummary[]
+  hasMore: boolean
+  initialLoading: boolean
+  loadingMore: boolean
+} = {
+  conversations: [],
+  hasMore: true,
+  initialLoading: false,
+  loadingMore: false,
+}
 
 // mock api module
 vi.mock('@/lib/api', () => ({
@@ -36,23 +46,9 @@ vi.mock('@/hooks/use-mail-queries', () => ({
 vi.mock('@/hooks/use-current-mail-filters', () => ({
   useCurrentMailFilters: () => ({}),
 }))
-// v2.1 phase-5b test bridge: production reads conversations from the
-// `useFlatConversations` hook. The existing tests seed
-// `conversationsAtom` directly. Mock the hook to return whatever's in
-// the atom so the test scaffolding keeps working while production
-// runs through RQ.
-vi.mock('@/hooks/use-flat-conversations', async () => {
-  const { conversationsAtom, hasMoreAtom, initialLoadingAtom, loadingMoreAtom } =
-    await import('@/store/chat')
-  return {
-    useFlatConversations: () => ({
-      conversations: useAtomValue(conversationsAtom),
-      hasMore: useAtomValue(hasMoreAtom),
-      initialLoading: useAtomValue(initialLoadingAtom),
-      loadingMore: useAtomValue(loadingMoreAtom),
-    }),
-  }
-})
+vi.mock('@/hooks/use-flat-conversations', () => ({
+  useFlatConversations: () => flatStub,
+}))
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
@@ -155,7 +151,7 @@ function makeStore() {
     permissions: [],
     token: 'test-token',
   })
-  store.set(initialLoadingAtom, false)
+  flatStub.initialLoading = false
   return store
 }
 
@@ -189,7 +185,7 @@ describe('FilterBar — sort', () => {
 
   beforeEach(() => {
     store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
   })
 
   it('shows sort options in filter dropdown', () => {
@@ -208,7 +204,7 @@ describe('FilterBar — sort', () => {
 
   it('applies oldest sort to conversations', () => {
     const now = Math.floor(Date.now() / 1000)
-    store.set(conversationsAtom, [
+    flatStub.conversations = [
       makeConversation({
         last_date: now,
         subject: 'Newer',
@@ -219,7 +215,7 @@ describe('FilterBar — sort', () => {
         subject: 'Older',
         thread_id: 'older',
       }),
-    ])
+    ]
 
     render(
       <Wrapper store={store}>
@@ -244,7 +240,7 @@ describe('FilterBar — archived toggle', () => {
   })
 
   it('shows Active/Archived in filter dropdown', () => {
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
 
     render(
       <Wrapper store={store}>
@@ -258,7 +254,7 @@ describe('FilterBar — archived toggle', () => {
   })
 
   it('shows archived conversations when Archived clicked', () => {
-    store.set(conversationsAtom, [
+    flatStub.conversations = [
       makeConversation({
         archived: false,
         subject: 'Normal Item',
@@ -269,7 +265,7 @@ describe('FilterBar — archived toggle', () => {
         subject: 'Archived Item',
         thread_id: 'archived',
       }),
-    ])
+    ]
 
     render(
       <Wrapper store={store}>
@@ -290,10 +286,10 @@ describe('BatchActionBar', () => {
 
   beforeEach(() => {
     store = makeStore()
-    store.set(conversationsAtom, [
+    flatStub.conversations = [
       makeConversation({ subject: 'Thread 1', thread_id: 't1' }),
       makeConversation({ subject: 'Thread 2', thread_id: 't2' }),
-    ])
+    ]
   })
 
   it('does not show batch action bar initially', () => {
@@ -378,7 +374,7 @@ describe('ConversationList empty states', () => {
   })
 
   it('shows empty state when no conversations', () => {
-    store.set(conversationsAtom, [])
+    flatStub.conversations = []
 
     render(
       <Wrapper store={store}>
@@ -390,7 +386,7 @@ describe('ConversationList empty states', () => {
   })
 
   it('shows search-specific empty state during search', () => {
-    store.set(conversationsAtom, [])
+    flatStub.conversations = []
 
     render(
       <Wrapper store={store}>
@@ -406,8 +402,8 @@ describe('ConversationList empty states', () => {
   })
 
   it('shows "No more conversations" when hasMore is false', () => {
-    store.set(conversationsAtom, [makeConversation()])
-    store.set(hasMoreAtom, false)
+    flatStub.conversations = [makeConversation()]
+    flatStub.hasMore = false
 
     render(
       <Wrapper store={store}>
@@ -427,12 +423,12 @@ describe('ConversationItem rendering', () => {
   })
 
   it('renders subject and participant name', () => {
-    store.set(conversationsAtom, [
+    flatStub.conversations = [
       makeConversation({
         participants: ['Alice Smith <alice@example.com>'],
         subject: 'Important Email',
       }),
-    ])
+    ]
 
     render(
       <Wrapper store={store}>
@@ -445,7 +441,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows unread count badge', () => {
-    store.set(conversationsAtom, [makeConversation({ unread_count: 5 })])
+    flatStub.conversations = [makeConversation({ unread_count: 5 })]
 
     render(
       <Wrapper store={store}>
@@ -457,7 +453,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows (no subject) for empty subject', () => {
-    store.set(conversationsAtom, [makeConversation({ subject: '' })])
+    flatStub.conversations = [makeConversation({ subject: '' })]
 
     render(
       <Wrapper store={store}>
@@ -469,11 +465,11 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows participant count when multiple participants', () => {
-    store.set(conversationsAtom, [
+    flatStub.conversations = [
       makeConversation({
         participants: ['alice@example.com', 'bob@example.com', 'charlie@example.com'],
       }),
-    ])
+    ]
 
     render(
       <Wrapper store={store}>
@@ -485,7 +481,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows snippet when available', () => {
-    store.set(conversationsAtom, [makeConversation({ snippet: 'This is a preview...' })])
+    flatStub.conversations = [makeConversation({ snippet: 'This is a preview...' })]
 
     render(
       <Wrapper store={store}>
@@ -497,7 +493,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('shows category badge for non-general categories', () => {
-    store.set(conversationsAtom, [makeConversation({ category: 'newsletter' })])
+    flatStub.conversations = [makeConversation({ category: 'newsletter' })]
 
     render(
       <Wrapper store={store}>
@@ -509,7 +505,7 @@ describe('ConversationItem rendering', () => {
   })
 
   it('does not show category badge for general category', () => {
-    store.set(conversationsAtom, [makeConversation({ category: 'general' })])
+    flatStub.conversations = [makeConversation({ category: 'general' })]
 
     render(
       <Wrapper store={store}>

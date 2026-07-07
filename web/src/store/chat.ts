@@ -1,31 +1,22 @@
-import type { ConversationSummary } from '@/lib/types'
-
 import { atom } from 'jotai'
 
 /**
- * v2.1 phase-5d: `threadMessagesAtom` deleted — thread-view /
- * MobileThreadView keep messages in component-local `useState`; the
- * three read-only callers (mobile-mail views, reply-box) go through
- * `useCurrentThreadMessages()` (RQ-native).
+ * v2.1 phase-5d COMPLETE: `conversationsAtom` / `threadMessagesAtom`
+ * / `unreadCountAtom` / `hasMoreAtom` / `loadingMoreAtom` /
+ * `initialLoadingAtom` all deleted. The mail-list conversations,
+ * thread messages, and their loading flags now live entirely in
+ * React Query (`conversationKeys.infinite(filter)` +
+ * `mailKeys.thread(threadId)`). Every reader goes through
+ * `useFlatConversations` / `useCurrentThreadMessages` /
+ * `useCurrentUnreadCount`; every writer goes through
+ * `patchAllInfiniteLists` or `reducers/commands/conversation.ts`.
  *
- * `conversationsAtom` still exists during the transition because
- * `conversation-list.test.tsx` mocks `useFlatConversations` to read
- * from it. When that test migrates to seed the RQ cache directly,
- * this atom deletes too — see the RFC's Phase 5d completion criteria.
+ * Next: rename this file to `store/ui.ts` — everything left below
+ * is a genuine local-UI atom.
  */
-export const conversationsAtom = atom<ConversationSummary[]>([])
 export const selectedThreadIdAtom = atom<null | string>(null)
 export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
-// v2.1 phase-5d: no production reader / writer left for these.
-// They're kept only as a test-bridge seed for two component test
-// files (`conversation-list.test.tsx`, `thread-view.test.tsx`) that
-// still mock `useFlatConversations` to read from the seeded atom.
-// Delete these + the mocks together once those two test files
-// migrate to seeding the RQ cache directly.
-export const hasMoreAtom = atom(true)
-export const loadingMoreAtom = atom(false)
-export const initialLoadingAtom = atom(true)
 export const categoryFilterAtom = atom<null | string>(null)
 export const selectedDomainsAtom = atom<string[]>([])
 export type MobileView = 'conversation' | 'list' | 'reply' | 'thread'

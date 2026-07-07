@@ -22,7 +22,22 @@ vi.stubGlobal('localStorage', {
 })
 
 import { authAtom } from '@/store/auth'
-import { conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
+import { selectedThreadIdAtom } from '@/store/chat'
+
+// v2.1 phase-5d: production reads the conversations list through
+// React Query; tests write to this mutable stub and the mocked
+// `useFlatConversations` (below) reads it.
+const flatStub: {
+  conversations: ConversationSummary[]
+  hasMore: boolean
+  initialLoading: boolean
+  loadingMore: boolean
+} = {
+  conversations: [],
+  hasMore: false,
+  initialLoading: false,
+  loadingMore: false,
+}
 
 vi.mock('@/lib/api', () => ({
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
@@ -59,21 +74,9 @@ vi.mock('@/hooks/use-mail-queries', () => ({
 vi.mock('@/hooks/use-current-mail-filters', () => ({
   useCurrentMailFilters: () => ({}),
 }))
-// v2.1 phase-5b test bridge — production reads via
-// `useFlatConversations`; tests seed `conversationsAtom` directly.
-vi.mock('@/hooks/use-flat-conversations', async () => {
-  const { useAtomValue } = await import('jotai')
-  const { conversationsAtom, hasMoreAtom, initialLoadingAtom, loadingMoreAtom } =
-    await import('@/store/chat')
-  return {
-    useFlatConversations: () => ({
-      conversations: useAtomValue(conversationsAtom),
-      hasMore: useAtomValue(hasMoreAtom),
-      initialLoading: useAtomValue(initialLoadingAtom),
-      loadingMore: useAtomValue(loadingMoreAtom),
-    }),
-  }
-})
+vi.mock('@/hooks/use-flat-conversations', () => ({
+  useFlatConversations: () => flatStub,
+}))
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useDeleteMutation: stubMutation,
@@ -251,7 +254,7 @@ describe('ThreadView — with messages', () => {
 
   beforeEach(() => {
     store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
     store.set(selectedThreadIdAtom, 'thread-1')
   })
 
@@ -326,7 +329,7 @@ describe('ThreadView — selected message detail', () => {
     // Thread fetch lives in react-query (mocked at file top), so seed the
     // messages atom directly — the component reads from there for rendering.
     const store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
     store.set(selectedThreadIdAtom, 'thread-1')
     mockUseThreadQuery.mockReturnValue({ data: [msg], isPending: false })
 
@@ -377,7 +380,7 @@ describe('ThreadView — loading state', () => {
     mockUseThreadQuery.mockReturnValue({ data: undefined, isPending: true })
 
     const store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
     store.set(selectedThreadIdAtom, 'thread-1')
 
     const { container } = render(
@@ -398,7 +401,7 @@ describe('ThreadView — loading state', () => {
     mockUseThreadQuery.mockReturnValue({ data: undefined, isPending: true })
 
     const store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
     store.set(selectedThreadIdAtom, 'thread-1')
 
     render(
@@ -418,7 +421,7 @@ describe('ThreadView — delete dialog', () => {
 
   beforeEach(() => {
     store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
     store.set(selectedThreadIdAtom, 'thread-1')
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
@@ -450,7 +453,7 @@ describe('ThreadView — toolbar', () => {
 
   beforeEach(() => {
     store = makeStore()
-    store.set(conversationsAtom, [makeConversation()])
+    flatStub.conversations = [makeConversation()]
     store.set(selectedThreadIdAtom, 'thread-1')
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
