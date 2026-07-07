@@ -13,6 +13,8 @@ import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SwipeableRow } from '@/components/swipeable-row'
+import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import {
   useArchiveMutation,
   useDeleteMutation,
@@ -35,10 +37,7 @@ import {
   composingNewAtom,
   conversationsAtom,
   folderAtom,
-  hasMoreAtom,
   importanceSectionAtom,
-  initialLoadingAtom,
-  loadingMoreAtom,
   quickFilterAtom,
   searchQueryAtom,
   selectedThreadIdAtom,
@@ -327,14 +326,20 @@ export function ConversationList({
 }) {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
-  const [conversations, setConversations] = useAtom(conversationsAtom)
+  // v2.1 phase-5b: reader migrated off `conversationsAtom` — the
+  // component now reads the same conversations directly from the
+  // `conversationKeys.infinite(...)` cache line the mail-list query
+  // owns. `setConversations` still comes from the atom (Phase 5c
+  // will redirect the writes to RQ), and the sync effect in
+  // `chat.tsx` keeps atom and RQ aligned so unread badges from BOTH
+  // stores agree during the transition.
+  const filters = useCurrentMailFilters()
+  const { conversations, hasMore, initialLoading, loadingMore } = useFlatConversations(filters)
+  const setConversations = useSetAtom(conversationsAtom)
   const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
-  const hasMore = useAtomValue(hasMoreAtom)
-  const loadingMore = useAtomValue(loadingMoreAtom)
-  const initialLoading = useAtomValue(initialLoadingAtom)
 
   // batch mode state
   const [batchMode, setBatchMode] = useAtom(batchModeAtom)

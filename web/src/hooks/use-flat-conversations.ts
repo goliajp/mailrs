@@ -36,10 +36,10 @@ export function useFlatConversations(
   filters: MailListFilters,
   enabled: boolean = true
 ): {
-  readonly conversations: readonly ConversationSummary[]
-  readonly hasMore: boolean
-  readonly initialLoading: boolean
-  readonly loadingMore: boolean
+  conversations: ConversationSummary[]
+  hasMore: boolean
+  initialLoading: boolean
+  loadingMore: boolean
 } {
   const query = useConversationsQuery(filters, enabled)
   const prevFlat = useRef<ConversationSummary[]>([])
