@@ -245,6 +245,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
     }
     throw new Error(message)
   }
+  // 204 No Content (and any other empty-body success) — many mutation
+  // endpoints (star / unstar / pin / archive / mark-unread / mark-read /
+  // dismiss-action / snooze delete / etc.) return 204 with zero content
+  // length. Calling `res.json()` on an empty body throws
+  // `SyntaxError: Unexpected end of JSON input`, which then fires the
+  // mutation's onError (rollback + toast). Return undefined instead —
+  // every current caller of postJson/putJson/deleteJson for a 204
+  // endpoint ignores the return value.
+  if (res.status === 204 || res.headers?.get?.('Content-Length') === '0') {
+    return undefined as T
+  }
   return res.json()
 }
 
