@@ -60,7 +60,6 @@ import {
   mobileThreadTabAtom,
   selectedDomainsAtom,
   selectedThreadIdAtom,
-  threadMessagesAtom,
   timelineCollapsedAtom,
   visibleConversationIdsAtom,
 } from '@/store/chat'
@@ -84,8 +83,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const auth = useAtomValue(authAtom)
   const selectedId = useAtomValue(selectedThreadIdAtom)
   const setSelectedId = useSetAtom(selectedThreadIdAtom)
-  const messages = useAtomValue(threadMessagesAtom)
-  const setMessages = useSetAtom(threadMessagesAtom)
+  // v2.1 phase-5d finale: thread messages live in component-local
+  // state, populated by the `useThreadQuery` bridge effect below.
+  // The shared `threadMessagesAtom` used to communicate this state
+  // to `reply-box` and `mobile-mail`; those readers migrated to
+  // `useCurrentThreadMessages()` (RQ-native), so no shared handoff
+  // is needed anymore.
+  const [messages, setMessages] = useState<ThreadMessage[]>([])
   // Subscribe only to the *selected thread's unread count* — a single
   // number — instead of the entire conversations array. Previously every
   // WebSocket-driven refetch (which produces a new array reference even

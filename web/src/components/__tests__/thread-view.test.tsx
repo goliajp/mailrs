@@ -22,7 +22,7 @@ vi.stubGlobal('localStorage', {
 })
 
 import { authAtom } from '@/store/auth'
-import { conversationsAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { conversationsAtom, selectedThreadIdAtom } from '@/store/chat'
 
 vi.mock('@/lib/api', () => ({
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
@@ -44,7 +44,9 @@ vi.mock('@/store/auth', async (importOriginal) => {
 // React Query hooks: test runs without a real QueryClientProvider; stub
 // useThreadQuery so the component can read state without setup overhead.
 // Declared as a vi.fn so individual tests can override return via mockReturnValueOnce.
-const mockUseThreadQuery = vi.fn(() => ({ data: undefined, isPending: false }))
+const mockUseThreadQuery = vi.fn<() => { data: ThreadMessage[] | undefined; isPending: boolean }>(
+  () => ({ data: undefined, isPending: false })
+)
 vi.mock('@/hooks/use-mail-queries', () => ({
   useThreadQuery: mockUseThreadQuery,
   useConversationsQuery: () => ({
@@ -254,7 +256,10 @@ describe('ThreadView — with messages', () => {
   })
 
   it('renders thread subject in header', () => {
-    store.set(threadMessagesAtom, [makeMessage({ subject: 'Important Email' })])
+    mockUseThreadQuery.mockReturnValue({
+      data: [makeMessage({ subject: 'Important Email' })],
+      isPending: false,
+    })
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -265,7 +270,7 @@ describe('ThreadView — with messages', () => {
   })
 
   it('shows "(no subject)" when subject is empty', () => {
-    store.set(threadMessagesAtom, [makeMessage({ subject: '' })])
+    mockUseThreadQuery.mockReturnValue({ data: [makeMessage({ subject: '' })], isPending: false })
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -275,10 +280,13 @@ describe('ThreadView — with messages', () => {
   })
 
   it('displays message count', () => {
-    store.set(threadMessagesAtom, [
-      makeMessage({ id: 1, uid: 100 }),
-      makeMessage({ id: 2, sender: 'Bob <bob@example.com>', uid: 101 }),
-    ])
+    mockUseThreadQuery.mockReturnValue({
+      data: [
+        makeMessage({ id: 1, uid: 100 }),
+        makeMessage({ id: 2, sender: 'Bob <bob@example.com>', uid: 101 }),
+      ],
+      isPending: false,
+    })
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -289,7 +297,7 @@ describe('ThreadView — with messages', () => {
   })
 
   it('hides count badge for single message', () => {
-    store.set(threadMessagesAtom, [makeMessage()])
+    mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -299,7 +307,10 @@ describe('ThreadView — with messages', () => {
   })
 
   it('renders sender name in chat bubble', () => {
-    store.set(threadMessagesAtom, [makeMessage({ sender: 'Charlie Brown <charlie@example.com>' })])
+    mockUseThreadQuery.mockReturnValue({
+      data: [makeMessage({ sender: 'Charlie Brown <charlie@example.com>' })],
+      isPending: false,
+    })
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -317,7 +328,7 @@ describe('ThreadView — selected message detail', () => {
     const store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
     store.set(selectedThreadIdAtom, 'thread-1')
-    store.set(threadMessagesAtom, [msg])
+    mockUseThreadQuery.mockReturnValue({ data: [msg], isPending: false })
 
     render(
       <Wrapper store={store}>
@@ -367,7 +378,6 @@ describe('ThreadView — loading state', () => {
 
     const store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
-    store.set(threadMessagesAtom, [])
     store.set(selectedThreadIdAtom, 'thread-1')
 
     const { container } = render(
@@ -389,7 +399,6 @@ describe('ThreadView — loading state', () => {
 
     const store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
-    store.set(threadMessagesAtom, [])
     store.set(selectedThreadIdAtom, 'thread-1')
 
     render(
@@ -411,7 +420,7 @@ describe('ThreadView — delete dialog', () => {
     store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
     store.set(selectedThreadIdAtom, 'thread-1')
-    store.set(threadMessagesAtom, [makeMessage()])
+    mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
 
   it('shows delete dialog', () => {
@@ -443,7 +452,7 @@ describe('ThreadView — toolbar', () => {
     store = makeStore()
     store.set(conversationsAtom, [makeConversation()])
     store.set(selectedThreadIdAtom, 'thread-1')
-    store.set(threadMessagesAtom, [makeMessage()])
+    mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
 
   it('close button clears selection', () => {
