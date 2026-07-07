@@ -799,17 +799,125 @@ pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<Statu
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// GET /api/admin/system-config
+///
+/// Returns the `{success, entries}` envelope the admin UI expects.
+/// Each entry describes a single tunable — its current value, where
+/// the value came from (env / database / default), and enough metadata
+/// for the UI to render an editor.
+///
+/// The fastcore lane treats runtime tuning as a small collection of
+/// well-known keys rather than a fully-dynamic catalog. If the operator
+/// has overridden a key via `POST /api/admin/system-config/{k}`, it's
+/// read from kevy; otherwise the `source: "env"` reading (or the built-
+/// in default) wins. UI renders "Environment" pill next to the value.
 pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> {
     let flat = with_kevy(|c| c.hgetall(b"admin:system-config"))?;
-    let mut items = serde_json::Map::new();
+    let mut overrides: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut i = 0;
     while i + 1 < flat.len() {
         let k = String::from_utf8_lossy(&flat[i]).to_string();
         let v = String::from_utf8_lossy(&flat[i + 1]).to_string();
-        items.insert(k, serde_json::Value::String(v));
+        overrides.insert(k, v);
         i += 2;
     }
-    Ok(Json(serde_json::Value::Object(items)))
+    // The catalog is the union of what the operator has already
+    // overridden and a small built-in list of tunables the UI wants to
+    // surface even on a fresh install. Keeps the page useful when
+    // kevy has no override rows yet.
+    const CATALOG: &[(&str, &str, &str, &str, &str)] = &[
+        // (key, group, description, env_var, default)
+        (
+            "hostname",
+            "smtp",
+            "Public SMTP hostname (HELO / greeting)",
+            "MAILRS_HOSTNAME",
+            "",
+        ),
+        (
+            "smtp_port",
+            "smtp",
+            "Inbound SMTP port on the receiver process",
+            "MAILRS_SMTP_PORT",
+            "25",
+        ),
+        (
+            "submission_port",
+            "smtp",
+            "Authenticated submission port",
+            "MAILRS_SUBMISSION_PORT",
+            "587",
+        ),
+        (
+            "imap_port",
+            "imap",
+            "IMAP port on the fastcore process",
+            "MAILRS_IMAP_PORT",
+            "143",
+        ),
+        (
+            "local_domains",
+            "smtp",
+            "Comma-separated list of accepted local domains",
+            "MAILRS_LOCAL_DOMAINS",
+            "",
+        ),
+        (
+            "tls_enabled",
+            "security",
+            "Serve STARTTLS / IMAPS with certificates",
+            "MAILRS_TLS_ENABLED",
+            "true",
+        ),
+        (
+            "max_message_size_bytes",
+            "smtp",
+            "Reject inbound mail larger than this (bytes)",
+            "MAILRS_MAX_MESSAGE_SIZE_BYTES",
+            "",
+        ),
+    ];
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut entries: Vec<serde_json::Value> = Vec::new();
+    for (key, group, description, env_var, default) in CATALOG {
+        seen.insert(key.to_string());
+        let (value, source) = if let Some(v) = overrides.get(*key) {
+            (v.clone(), "database")
+        } else if let Ok(v) = std::env::var(env_var) {
+            (v, "env")
+        } else {
+            (default.to_string(), "default")
+        };
+        entries.push(serde_json::json!({
+            "key": key,
+            "value": value,
+            "default_value": default,
+            "description": description,
+            "group": group,
+            "source": source,
+            "value_type": "string",
+        }));
+    }
+    // Any operator override that isn't in the built-in catalog still
+    // gets surfaced so the UI can show / edit / remove it.
+    for (k, v) in &overrides {
+        if seen.contains(k) {
+            continue;
+        }
+        entries.push(serde_json::json!({
+            "key": k,
+            "value": v,
+            "default_value": "",
+            "description": "Operator-defined key (no built-in metadata).",
+            "group": "custom",
+            "source": "database",
+            "value_type": "string",
+        }));
+    }
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "entries": entries,
+    })))
 }
 
 pub async fn set_system_config_key(
