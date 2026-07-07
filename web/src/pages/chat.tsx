@@ -11,14 +11,13 @@ import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { shallowEqualConvo, useMailEvents } from '@/hooks/use-mail-events'
+import { useMailEvents } from '@/hooks/use-mail-events'
 import { useConversationsQuery } from '@/hooks/use-mail-queries'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
   composingNewAtom,
-  conversationsAtom,
   folderAtom,
   importanceSectionAtom,
   mobileViewAtom,
@@ -33,7 +32,6 @@ import {
 export function Chat() {
   const auth = useAtomValue(authAtom)
   const composingNew = useAtomValue(composingNewAtom)
-  const [conversations, setConversations] = useAtom(conversationsAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
@@ -186,20 +184,11 @@ export function Chat() {
     return flat
   }, [conversationsQuery.data])
 
-  useEffect(() => {
-    setConversations((prev) => {
-      const byId = new Map<string, ConversationSummary>()
-      for (const c of prev) byId.set(c.thread_id, c)
-      let allSame = prev.length === flatConversations.length
-      const next = flatConversations.map((f, i) => {
-        const existing = byId.get(f.thread_id)
-        const kept = existing && shallowEqualConvo(existing, f) ? existing : f
-        if (allSame && prev[i] !== kept) allSame = false
-        return kept
-      })
-      return allSame ? prev : next
-    })
-  }, [flatConversations, setConversations])
+  // v2.1 phase-5d: the atom-sync effect that used to write
+  // `flatConversations` → `conversationsAtom` here is gone. Every
+  // production caller reads the same shape from
+  // `useFlatConversations` (RQ-native). The atom stays only as a
+  // test bridge — see `store/chat.ts::conversationsAtom` note.
 
   // v2.1 phase-5d: `initialLoadingAtom` / `hasMoreAtom` /
   // `loadingMoreAtom` deleted. `conversation-list.tsx` +
@@ -222,7 +211,7 @@ export function Chat() {
   // — the array reference flips on every WebSocket refetch even when the
   // top item is identical, which used to fire this effect (a no-op) on
   // every tick and pull the whole chat page into the re-render path.
-  const firstThreadId = conversations[0]?.thread_id
+  const firstThreadId = flatConversations[0]?.thread_id
   useEffect(() => {
     if (window.innerWidth >= 768 && !selectedThreadId && !composingNew && firstThreadId) {
       setSelectedThreadId(firstThreadId)
