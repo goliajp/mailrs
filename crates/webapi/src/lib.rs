@@ -723,22 +723,46 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     app
 }
 
-/// /api/health — public liveness probe. No auth required. Returns a
-/// stable shape (`{status, ok, version, uptime_secs, service}`) so the
-/// web StatusBar can render a full identity line without a second
-/// authenticated call. Health is intentionally always `healthy` here
-/// because if this process weren't healthy it wouldn't be handling
-/// requests at all; the deep readiness probe is `/api/readiness`.
+/// /api/health — public liveness probe. No auth required. Shape is:
+///
+/// ```json
+/// {
+///   "status": "healthy",
+///   "ok": true,
+///   "service": "mailrs-webapi",
+///   "version": "<pkg-version>",
+///   "uptime_secs": 42,
+///   "kevy": true,
+///   "pg": null
+/// }
+/// ```
+///
+/// Callers can rely on:
+///   - the four `service` / `version` / `uptime_secs` / `status` fields
+///     always being present.
+///   - `kevy` reporting the real ping status (this handler round-trips
+///     a kevy op to compute the boolean, so it's not just a config
+///     flag).
+///   - `pg` being `null` in the fastcore lane (no PostgreSQL backend
+///     exists), so the frontend can hide the PG pill instead of
+///     drawing it as "down". In the spg-backed lane the same handler
+///     ships with `pg` set to a real probe.
 async fn health_handler(
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> axum::Json<serde_json::Value> {
     let uptime_secs = state.started_at.elapsed().as_secs();
+    // Cheap kevy round-trip. Any success => backend healthy; any error
+    // => backend unreachable. Runs on the shared shard connection, no
+    // fresh TCP per request.
+    let kevy_ok = handlers::kevy_util::with_kevy(|c| c.ping()).is_ok();
     axum::Json(serde_json::json!({
-        "status": "healthy",
-        "ok": true,
+        "status": if kevy_ok { "healthy" } else { "degraded" },
+        "ok": kevy_ok,
         "service": "mailrs-webapi",
         "version": env!("CARGO_PKG_VERSION"),
         "uptime_secs": uptime_secs,
+        "kevy": kevy_ok,
+        "pg": serde_json::Value::Null,
     }))
 }
 

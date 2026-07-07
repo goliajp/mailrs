@@ -743,18 +743,51 @@ pub async fn audit_message_raw(
 // ── Admin: config/smtp + system-config ─────────────────────────────
 
 pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
+    // Prefer an operator-provided override in kevy (set via
+    // `set_smtp_config`), otherwise synthesise the shape the admin UI
+    // expects from the process env. The webapi doesn't own the SMTP
+    // listeners in the fastcore split — `mailrs-receiver` does — so
+    // the ports come from the same env vars the receiver reads.
     let key = b"admin:config:smtp".to_vec();
-    let raw = with_kevy(move |c| c.get(&key))?;
-    if let Some(bytes) = raw
+    if let Ok(Some(bytes)) = with_kevy(move |c| c.get(&key))
         && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
     {
         return Ok(Json(v));
     }
-    Ok(Json(serde_json::json!({
-        "host": "",
-        "port": 25,
-        "starttls": true,
-    })))
+    fn env_u16(name: &str, default: u16) -> u16 {
+        std::env::var(name)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(default)
+    }
+    let hostname =
+        std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mail.example.com".into());
+    let domains: Vec<String> = std::env::var("MAILRS_LOCAL_DOMAINS")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let tls_enabled = std::env::var("MAILRS_TLS_ENABLED")
+        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
+    let max_message_size = std::env::var("MAILRS_MAX_MESSAGE_SIZE_BYTES")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok());
+    let mut out = serde_json::json!({
+        "hostname": hostname,
+        "smtp_port": env_u16("MAILRS_SMTP_PORT", 25),
+        "submission_port": env_u16("MAILRS_SUBMISSION_PORT", 587),
+        "imap_port": env_u16("MAILRS_IMAP_PORT", 143),
+        "local_domains": domains,
+        "tls_enabled": tls_enabled,
+    });
+    if let Some(sz) = max_message_size
+        && let Some(o) = out.as_object_mut()
+    {
+        o.insert("max_message_size".into(), serde_json::json!(sz));
+    }
+    Ok(Json(out))
 }
 
 pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<StatusCode, StatusCode> {
