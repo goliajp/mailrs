@@ -43,7 +43,7 @@ function MobileNav() {
         return (
           <Link
             aria-current={active ? 'page' : undefined}
-            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-colors ${
+            className={`text-mini relative flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors ${
               active ? 'text-accent' : 'text-fg-muted'
             }`}
             key={item.href}
@@ -52,7 +52,7 @@ function MobileNav() {
             <item.icon className="h-5 w-5" />
             <span>{item.label}</span>
             {item.href === '/mail' && unreadCount > 0 && (
-              <span className="bg-danger absolute top-1 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full px-0.5 text-[10px] leading-none font-bold text-white">
+              <span className="bg-danger text-tiny absolute top-1 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full px-0.5 leading-none font-bold text-white">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}

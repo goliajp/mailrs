@@ -180,7 +180,7 @@ const ConversationItem = memo(function ConversationItem({
             <div className="flex shrink-0 items-center gap-1.5">
               {convo.message_count > 1 && (
                 <span
-                  className="bg-bg-secondary text-fg-muted rounded px-1 py-px text-xs tabular-nums md:text-[10px]"
+                  className="bg-bg-secondary text-fg-muted md:text-tiny rounded px-1 py-px text-xs tabular-nums"
                   title={`${convo.received_count} received · ${convo.sent_count} sent`}
                 >
                   {convo.sent_count > 0 && convo.received_count > 0 ? (
@@ -790,7 +790,7 @@ export function ConversationList({
 function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
-      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-xs font-medium md:text-[10px]">
+      <span className="bg-bg-secondary text-fg-muted md:text-tiny rounded-full px-2.5 py-0.5 text-xs font-medium">
         {label}
       </span>
     </div>

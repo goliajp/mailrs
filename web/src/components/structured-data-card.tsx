@@ -38,7 +38,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               </span>
               {r.reservation_id && (
                 <Copyable value={r.reservation_id}>
-                  <span className="bg-border text-fg-secondary rounded px-1.5 py-0.5 font-mono text-xs md:text-[11px]">
+                  <span className="bg-border text-fg-secondary md:text-mini rounded px-1.5 py-0.5 font-mono text-xs">
                     {r.reservation_id}
                   </span>
                 </Copyable>
@@ -76,7 +76,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
               <span className="text-fg-secondary text-xs font-medium">Order</span>
               {o.order_number && (
                 <Copyable value={o.order_number}>
-                  <span className="bg-border text-fg-secondary rounded px-1.5 py-0.5 font-mono text-xs md:text-[11px]">
+                  <span className="bg-border text-fg-secondary md:text-mini rounded px-1.5 py-0.5 font-mono text-xs">
                     #{o.order_number}
                   </span>
                 </Copyable>

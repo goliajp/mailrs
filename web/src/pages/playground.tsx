@@ -74,7 +74,7 @@ export function Playground() {
             {SURFACE_TOKENS.map((t) => (
               <div className="flex flex-col items-center gap-1" key={t.label}>
                 <div className={`border-border h-12 w-12 border ${t.className}`} />
-                <span className="text-fg-muted text-[10px]">{t.label}</span>
+                <span className="text-fg-muted text-tiny">{t.label}</span>
               </div>
             ))}
           </Row>
@@ -262,10 +262,10 @@ export function Playground() {
             <p className="text-fg text-sm">
               Body base (14px) — The quick brown fox jumps over the lazy dog.
             </p>
-            <p className="text-fg-secondary text-[13px]">
+            <p className="text-fg-secondary text-mid">
               Body SM (13px) — Secondary text for descriptions and metadata.
             </p>
-            <p className="text-fg-muted text-[11px]">
+            <p className="text-fg-muted text-mini">
               Caption XS (11px) — Timestamps, counts, and fine print.
             </p>
           </div>
@@ -292,7 +292,7 @@ export function Playground() {
             {SPACING_STEPS.map((n) => (
               <div className="flex flex-col items-center gap-1" key={n}>
                 <div className={`bg-accent ${SPACING_SIZE_CLASS[n]}`} />
-                <span className="text-fg-muted text-[10px]">{n}</span>
+                <span className="text-fg-muted text-tiny">{n}</span>
               </div>
             ))}
           </div>

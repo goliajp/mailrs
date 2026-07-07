@@ -122,10 +122,7 @@ export function ActionBar({
       )}
 
       <div className="flex-1" />
-      <kbd
-        aria-hidden="true"
-        className="text-fg-muted mr-1 hidden text-[10px] select-none sm:inline"
-      >
+      <kbd aria-hidden="true" className="text-fg-muted text-tiny mr-1 hidden select-none sm:inline">
         {isMacLike() ? '⌘' : 'Ctrl+'}↵
       </kbd>
       <button

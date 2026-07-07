@@ -670,13 +670,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           {formatFullDate(selectedMsg.internal_date)}
                         </span>
                         {selectedMsg.action_deadline && (
-                          <span className="bg-warning/10 text-warning inline-flex h-4 items-center rounded px-1.5 text-[11px] leading-none font-medium">
+                          <span className="bg-warning/10 text-warning text-mini inline-flex h-4 items-center rounded px-1.5 leading-none font-medium">
                             Due: {selectedMsg.action_deadline}
                           </span>
                         )}
                         {selectedMsg.risk_score >= 40 && (
                           <span
-                            className={`inline-flex h-4 items-center rounded px-1.5 text-[11px] leading-none font-medium ${
+                            className={`text-mini inline-flex h-4 items-center rounded px-1.5 leading-none font-medium ${
                               selectedMsg.risk_score >= 60
                                 ? 'bg-danger/10 text-danger'
                                 : 'bg-warning/10 text-warning'
@@ -719,7 +719,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 )}
                 {!selectedMsg.html_body && (
                   <div className="px-4 py-3 select-text">
-                    <div className="text-fg font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap">
+                    <div className="text-fg text-mid font-sans leading-relaxed break-words whitespace-pre-wrap">
                       {highlightMentions(
                         selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
                         myEmail,

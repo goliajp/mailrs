@@ -204,7 +204,7 @@ export function InviteCard({
         <span className="text-fg min-w-0 truncate font-medium">{payload.summary}</span>
         {compactR && <span className="min-w-0 shrink truncate opacity-70">· {compactR}</span>}
         {statusLabel && (
-          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${statusLabel.className}`}>
+          <span className={`text-tiny shrink-0 rounded px-1.5 py-0.5 ${statusLabel.className}`}>
             {statusLabel.label}
           </span>
         )}

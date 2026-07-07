@@ -24,13 +24,13 @@ function CodeBlock({ children, className, ...props }: React.HTMLAttributes<HTMLE
   return (
     <div className="group relative overflow-hidden">
       {lang && (
-        <span className="text-fg-muted absolute top-2 right-10 text-xs opacity-100 transition-opacity md:text-[11px] md:opacity-0 md:group-hover:opacity-100">
+        <span className="text-fg-muted md:text-mini absolute top-2 right-10 text-xs opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
           {lang}
         </span>
       )}
       <button
         aria-label={copied ? 'Copied to clipboard' : 'Copy code'}
-        className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-xs opacity-100 transition-opacity md:text-[11px] md:opacity-0 md:group-hover:opacity-100"
+        className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg md:text-mini absolute top-2 right-2 rounded-md px-1.5 py-0.5 text-xs opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
         onClick={copy}
       >
         {copied ? 'Copied!' : 'Copy'}
