@@ -18,13 +18,13 @@ type AuditEntry = {
 
 type HealthInfo = {
   active_sessions?: number
-  kevy: boolean
-  pg: boolean
-  status: string
+  kevy?: boolean | null
+  pg?: boolean | null
+  status?: string
   total_connections?: number
   total_messages?: number
-  uptime_secs: number
-  version: string
+  uptime_secs?: number
+  version?: string
 }
 
 type SmtpConfig = {
@@ -142,27 +142,31 @@ export function AdminOverview() {
         />
       </div>
 
-      {/* service health — reserved height so pills don't push later sections */}
+      {/* Service health — render only services the backend actually
+       * reports on. Fastcore's `/api/health` populates `kevy` but not
+       * `pg` (fastcore has no PG backend), and `/api/admin/config/smtp`
+       * ships default zero-ports on a fresh install; we hide the pill
+       * rather than drawing "down" or ":undefined". */}
       <div className="mb-6 min-h-[88px]">
         <h3 className="text-fg-muted mb-3 text-sm font-medium">Services</h3>
         {health ? (
           <div className="flex flex-wrap gap-3">
-            <ServicePill detail={health.pg ? 'up' : 'down'} name="PostgreSQL" ok={health.pg} />
-            <ServicePill detail={health.kevy ? 'up' : 'down'} name="Kevy" ok={health.kevy} />
-            <ServicePill
-              detail={smtp ? `:${smtp.smtp_port}` : undefined}
-              name="SMTP"
-              ok={health.pg}
-            />
-            <ServicePill
-              detail={smtp ? `:${smtp.imap_port}` : undefined}
-              name="IMAP"
-              ok={health.pg}
-            />
+            {typeof health.kevy === 'boolean' && (
+              <ServicePill detail={health.kevy ? 'up' : 'down'} name="Kevy" ok={health.kevy} />
+            )}
+            {typeof health.pg === 'boolean' && (
+              <ServicePill detail={health.pg ? 'up' : 'down'} name="PostgreSQL" ok={health.pg} />
+            )}
+            {smtp && typeof smtp.smtp_port === 'number' && smtp.smtp_port > 0 && (
+              <ServicePill detail={`:${smtp.smtp_port}`} name="SMTP" ok={true} />
+            )}
+            {smtp && typeof smtp.imap_port === 'number' && smtp.imap_port > 0 && (
+              <ServicePill detail={`:${smtp.imap_port}`} name="IMAP" ok={true} />
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-3">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 2 }).map((_, i) => (
               <div className="bg-border h-12 w-32 animate-pulse rounded-lg" key={i} />
             ))}
           </div>
