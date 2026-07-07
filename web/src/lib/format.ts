@@ -75,7 +75,8 @@ export function formatTimeOfDay(ts: number): string {
   })
 }
 
-export function formatUptime(secs: number): string {
+export function formatUptime(secs: null | number | undefined): string {
+  if (secs == null || !Number.isFinite(secs) || secs < 0) return '-'
   const h = Math.floor(secs / 3600)
   const m = Math.floor((secs % 3600) / 60)
   const s = secs % 60

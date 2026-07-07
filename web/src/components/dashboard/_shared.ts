@@ -1,13 +1,20 @@
 // shared pure helpers + color maps used by multiple dashboard widgets.
 
+import { decodeMimeHeader } from '@/lib/avatar'
+
 export function extractEmail(sender: string): string {
-  const m = sender.match(/<([^>]+)>/)
-  return m ? m[1] : sender
+  const decoded = decodeMimeHeader(sender)
+  const m = decoded.match(/<([^>]+)>/)
+  return m ? m[1] : decoded
 }
 
 export function extractName(sender: string): string {
-  const m = sender.match(/^"?([^"<]+)"?\s*</)
-  return m ? m[1].trim() : sender.split('@')[0]
+  // decode RFC 2047 encoded-words (e.g. `=?UTF-8?B?...?=`) first so
+  // both the "Name <email>" pattern and the raw-email fallback see
+  // the real text, not the on-wire mime encoding
+  const decoded = decodeMimeHeader(sender)
+  const m = decoded.match(/^"?([^"<]+)"?\s*</)
+  return m ? m[1].trim() : decoded.split('@')[0]
 }
 
 export function formatBytes(bytes: number): string {

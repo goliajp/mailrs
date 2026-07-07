@@ -235,3 +235,12 @@ label,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* AppShell renders the status bar with `h-7 text-xs` by default —
+ * enlarge to give the labels + version strings enough breathing room
+ * (2026-07-07 user feedback: the bar was too short and unreadable). */
+[data-component='status-bar'] {
+  height: 2.25rem; /* 36px */
+  font-size: 0.75rem; /* 12px */
+  line-height: 1rem;
+}
