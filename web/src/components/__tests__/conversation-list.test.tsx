@@ -2,7 +2,7 @@ import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createStore, Provider } from 'jotai'
+import { createStore, Provider, useAtomValue } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authAtom } from '@/store/auth'
@@ -26,7 +26,34 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/hooks/use-mail-queries', () => ({
   useActionCountQuery: () => ({ data: { count: 0 } }),
   useCategoriesQuery: () => ({ data: [] }),
+  useConversationsQuery: () => ({
+    data: { pages: [], pageParams: [] },
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isPending: false,
+  }),
 }))
+vi.mock('@/hooks/use-current-mail-filters', () => ({
+  useCurrentMailFilters: () => ({}),
+}))
+// v2.1 phase-5b test bridge: production reads conversations from the
+// `useFlatConversations` hook. The existing tests seed
+// `conversationsAtom` directly. Mock the hook to return whatever's in
+// the atom so the test scaffolding keeps working while production
+// runs through RQ.
+vi.mock('@/hooks/use-flat-conversations', async () => {
+  const { conversationsAtom, hasMoreAtom, initialLoadingAtom, loadingMoreAtom } = await import(
+    '@/store/chat'
+  )
+  return {
+    useFlatConversations: () => ({
+      conversations: useAtomValue(conversationsAtom),
+      hasMore: useAtomValue(hasMoreAtom),
+      initialLoading: useAtomValue(initialLoadingAtom),
+      loadingMore: useAtomValue(loadingMoreAtom),
+    }),
+  }
+})
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
