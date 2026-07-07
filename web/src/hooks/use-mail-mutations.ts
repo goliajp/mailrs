@@ -12,6 +12,7 @@ import {
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { stickyUnreadIdsAtom } from '@/store/chat'
+import { conversationKeys } from '@/store/query-keys-v21'
 
 export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
 
@@ -329,6 +330,11 @@ function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
+  // v2.1 bridge: any screen already reading via the new
+  // `conversationKeys.*` factory (dashboard from Phase 2 onwards)
+  // gets a refetch too. Once the mail list itself migrates to the
+  // new keys (Phase 3), the two `invalidate` blocks collapse into one.
+  queryClient.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
 }
 
 // ---- batch operations ----
@@ -341,6 +347,12 @@ function invalidateMail() {
 function invalidateMailAggregatesOnly() {
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
+  // v2.1 bridge — see `invalidateMail` above for context.
+  // mark-read patches the old conversationsAtom + `mailKeys` cache
+  // synchronously; here we prod the new conversationKeys cache too so
+  // any migrated reader (dashboard, sidebar badge) refetches within a
+  // frame.
+  queryClient.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
 }
 
 function patchConversations(

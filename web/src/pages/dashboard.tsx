@@ -28,6 +28,7 @@ import {
   searchQueryAtom,
   selectedThreadIdAtom,
 } from '@/store/chat'
+import { conversationKeys } from '@/store/query-keys-v21'
 
 type DashboardData = {
   conversations: ConversationSummary[]
@@ -65,7 +66,16 @@ export function Dashboard() {
   const queries = useQueries({
     queries: [
       {
-        queryKey: dashboardKeys.conversations(),
+        // v2.1 phase-2 reader migration — dashboard subscribes to the
+        // entity-oriented `conversationKeys.list({folder: 'INBOX'})`
+        // cache line. Any mutation on `/mail` invalidates this key via
+        // the bridge in `use-mail-mutations.ts::invalidateMail`, so
+        // the home unread badge refreshes without a manual reload.
+        // The queryFn shape stays `ConversationSummary[]` during the
+        // migration; Phase 3 moves the fetch to
+        // `wire/endpoints/conversations::fetchConversationList` and
+        // switches downstream reads to the domain shape.
+        queryKey: conversationKeys.list({ folder: 'INBOX', limit: 200 }),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           fetchList<ConversationSummary>('/conversations?limit=200', signal),
