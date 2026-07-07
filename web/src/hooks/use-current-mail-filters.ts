@@ -14,11 +14,14 @@
  * mirror in chat.tsx).
  */
 
+import type { ThreadMessage } from '@/lib/types'
+
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useFlatConversations } from '@/hooks/use-flat-conversations'
+import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { type MailListFilters } from '@/lib/query-keys'
 import {
   categoryFilterAtom,
@@ -27,8 +30,16 @@ import {
   quickFilterAtom,
   searchQueryAtom,
   selectedDomainsAtom,
+  selectedThreadIdAtom,
   showArchivedAtom,
 } from '@/store/chat'
+
+/**
+ * Stable empty-array reference so `?? []` doesn't manufacture a fresh
+ * array reference on every render (which would defeat React.memo on
+ * downstream children).
+ */
+const EMPTY_MESSAGES: readonly ThreadMessage[] = []
 
 /** Same 200 ms search debounce as chat.tsx. */
 const SEARCH_DEBOUNCE_MS = 200
@@ -64,6 +75,24 @@ export function useCurrentMailFilters(): MailListFilters {
       quickFilter,
     ]
   )
+}
+
+/**
+ * The messages of the currently-selected thread, as the mail list
+ * defines "current." Wraps `useThreadQuery` with the same
+ * selectedThreadId + selectedDomains atoms every reader would
+ * otherwise pluck separately.
+ *
+ * v2.1 phase-5d finale: replaces `useAtomValue(threadMessagesAtom)`
+ * for read-only callers (`reply-box`, `mobile-mail` views). RQ dedupes
+ * the underlying query, so N components subscribing here still results
+ * in one fetch, one cache line, one identity-stable value.
+ */
+export function useCurrentThreadMessages() {
+  const selectedThreadId = useAtomValue(selectedThreadIdAtom)
+  const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const { data } = useThreadQuery(selectedThreadId, selectedDomains)
+  return data ?? EMPTY_MESSAGES
 }
 
 /**
