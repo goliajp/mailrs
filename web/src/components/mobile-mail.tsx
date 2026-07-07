@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useCurrentMailFilters, useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
 import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { extractEmail, extractName } from '@/lib/avatar'
@@ -37,7 +37,8 @@ export function MobileMail() {
 // ─── thread view (full-screen email reader) ──────────────────
 
 function MobileConversationView() {
-  const messages = useAtomValue(threadMessagesAtom)
+  // v2.1 phase-5d: read thread messages from RQ instead of the atom.
+  const messages = useCurrentThreadMessages()
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   const setMobileView = useSetAtom(mobileViewAtom)
@@ -125,7 +126,7 @@ function MobileConversationView() {
 function MobileReplyView() {
   const auth = useAtomValue(authAtom)
   const selectedId = useAtomValue(selectedThreadIdAtom)
-  const messages = useAtomValue(threadMessagesAtom)
+  const messages = useCurrentThreadMessages()
   const setMobileView = useSetAtom(mobileViewAtom)
   const filters = useCurrentMailFilters()
   const { conversations } = useFlatConversations(filters)

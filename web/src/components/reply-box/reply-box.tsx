@@ -2,15 +2,15 @@ import type { ReplyMode } from './types'
 import type { StructuredComposeHandle } from '@/components/structured-compose'
 
 import { toast } from '@goliapkg/gds'
-import { useAtomValue, useStore } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
+import { useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
 import { deleteJson, postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
-import { threadMessagesAtom } from '@/store/chat'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 
 const StructuredCompose = lazy(() =>
@@ -63,10 +63,13 @@ export function ReplyBox({
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
   const signatureEnabled = useAtomValue(signatureEnabledAtom)
-  // Read threadMessages imperatively in the suggest handler — subscribing
-  // via useAtomValue re-renders the TipTap editor (heavy) on every WS
-  // refetch of the open thread.
-  const store = useStore()
+  // v2.1 phase-5d: read thread messages from RQ but pin the value into
+  // a ref so the suggest() callback reads the latest without subscribing
+  // the whole component to every WS refetch of the open thread (which
+  // would re-render TipTap on every arrive/change).
+  const threadMessages = useCurrentThreadMessages()
+  const threadMessagesRef = useRef(threadMessages)
+  threadMessagesRef.current = threadMessages
   const [forwardTo, setForwardTo] = useState('')
   const [sending, setSending] = useState(false)
   // MRS-15: preview-before-send. After the broken-list incident where
@@ -271,7 +274,7 @@ export function ReplyBox({
     setSuggesting(true)
     try {
       // build thread context from prior messages (up to 3, excluding the latest)
-      const priorMessages = store.get(threadMessagesAtom).slice(0, -1).slice(-3)
+      const priorMessages = threadMessagesRef.current.slice(0, -1).slice(-3)
       const threadContext =
         priorMessages.length > 0
           ? priorMessages
