@@ -9,10 +9,80 @@ binary + fastcore stack, and `web-v<YYYY.MM.DD>-<seq>` for the React
 web UI. Only the Rust stream is enumerated below; web releases are
 tracked separately in the release-web workflow.
 
-## Unreleased — accumulating on `develop`, ships as **v2.0.0 GA**
+## Unreleased — accumulating on `develop`, ships as **web-v2.1.0**
 
-Per user directive 2026-07-06: no interim tags, all remaining Stage
-B-H work accumulates on `develop` and ships together as v2.0.0.
+Web-side architectural redesign begun 2026-07-07 (RFC
+`.claude/rfcs/20260707-v2.1-webapp-reconstruction.md`). The Rust
+binary + fastcore stack landed as `v2.0.0` on 2026-07-07; this
+section covers the web-only redesign that ships next.
+
+### Web v2.1 — Phase 1-6 shipped 2026-07-07 → 08
+
+- **RQ single-source-of-truth.** The mail list, dashboard, and thread
+  view now share one cache line
+  (`conversationKeys.infinite(filter)` +
+  `conversationKeys.list(filter)`). Any mutation invalidates the
+  entire prefix, so a mark-read on `/mail` immediately reflects in
+  the home-page unread badge — the original user-reported bug that
+  triggered the redesign.
+- **Deleted atoms.** `conversationsAtom`, `threadMessagesAtom`,
+  `unreadCountAtom`, `initialLoadingAtom`, `hasMoreAtom`,
+  `loadingMoreAtom` are gone. Jotai now holds only genuine local-UI
+  state (selection, batch mode, mobile view, filter chips, sort
+  order, compose source). `store/chat.ts` renamed to
+  `store/ui.ts` to reflect the new scope.
+- **New primitives.**
+  - `hooks/use-flat-conversations.ts::useFlatConversations(filters)`
+    — identity-preserving flatten over
+    `conversationKeys.infinite(filter)`.
+  - `hooks/use-current-mail-filters.ts::useCurrentMailFilters`,
+    `::useCurrentThreadMessages`, `::useCurrentUnreadCount` —
+    the ONE way to compose atoms into a `MailListFilters`, read the
+    open thread's messages, or derive an unread total. All go
+    through RQ.
+  - `reducers/snapshot.ts::patchAllInfiniteLists(qc, updater)` —
+    walks every `conversationKeys.infinites()` cache line and
+    applies a pure updater; the sole primitive for optimistic
+    patches (used by the 6 keyboard shortcuts + mark-all-read + the
+    reducers in `reducers/commands/conversation.ts`).
+  - `wire/client.ts::wireFetch<T>(schema, req)` — the only fetch
+    wrapper. Uses Zod schemas at the wire boundary for runtime
+    validation.
+  - `domain/ids.ts` branded ID types (`ThreadId`, `MessageId`,
+    `Uid`, `AccountId`, `DraftId`, `DomainName`, `AliasAddress`)
+    with narrow constructors enforced at wire parse.
+- **Anti-flash discipline.** Global `queryClient` defaults include
+  `placeholderData: keepPreviousData` — filter changes and page
+  transitions never blank the screen.
+- **Design tokens.** Three sub-`text-xs` sizes (`text-tiny` = 10 px,
+  `text-mini` = 11 px, `text-mid` = 13 px) formalised in
+  `index.css`; 34 inline `text-[Xpx]` literals migrated. Total
+  arbitrary-value literal count: 99 → 65 (remaining are all
+  documented legitimate uses — CSS-variable references, viewport
+  units, animation keyframes, and `pctToWidth` bucket lookups).
+
+### Locked RFC decisions
+
+1. Zod runtime validation at the wire boundary.
+2. `react-router` v7 data routes via `createBrowserRouter` +
+   `RouterProvider` (Phase 8 — pending).
+3. `openapi-typescript` output generated at build time from
+   `web/public/openapi.json`.
+4. `syncStoragePersister` for React Query cache persistence to
+   localStorage.
+5. Env-only feature flags via `__FLAGS__` vite define.
+
+### Deployment protocol during this cycle
+
+Per user directive 2026-07-07: every phase built locally and
+direct-rsync'd to prod + staging, no CI. Only the final v2.1.0 tag
+runs through `release.yml` on explicit user go-ahead.
+
+## v2.0.0 — 2026-07-07
+
+GA release of the Rust binary + fastcore stack. Landed at commit
+`4f01bc64`. Consolidates every Stage B / C / D increment that had
+been accumulating on `develop` since v1.9.4.
 
 - **Stage B.6 (v1.9.4 landed 2026-07-06):** ZINTERSTORE materializes
   multi-filter conversation lists so combined predicates (inbox ∩
