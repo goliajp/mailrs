@@ -5,9 +5,6 @@ import {
   batchModeAtom,
   categoryFilterAtom,
   composingNewAtom,
-  hasMoreAtom,
-  initialLoadingAtom,
-  loadingMoreAtom,
   mobileViewAtom,
   searchQueryAtom,
   selectedDomainsAtom,
@@ -61,15 +58,10 @@ describe('primitive atoms — initial values', () => {
     expect(store.get(searchQueryAtom)).toBe('')
   })
 
-  it('hasMoreAtom defaults to true', () => {
-    const store = createStore()
-    expect(store.get(hasMoreAtom)).toBe(true)
-  })
-
-  it('loadingMoreAtom defaults to false', () => {
-    const store = createStore()
-    expect(store.get(loadingMoreAtom)).toBe(false)
-  })
+  // v2.1 phase-5d COMPLETE: hasMoreAtom / loadingMoreAtom /
+  // initialLoadingAtom all deleted — their signals now live in
+  // `useFlatConversations` (isPending, hasNextPage,
+  // isFetchingNextPage) directly from React Query.
 
   it('categoryFilterAtom defaults to null', () => {
     const store = createStore()
@@ -79,11 +71,6 @@ describe('primitive atoms — initial values', () => {
   it('selectedDomainsAtom defaults to empty array', () => {
     const store = createStore()
     expect(store.get(selectedDomainsAtom)).toEqual([])
-  })
-
-  it('initialLoadingAtom defaults to true', () => {
-    const store = createStore()
-    expect(store.get(initialLoadingAtom)).toBe(true)
   })
 
   it('mobileViewAtom defaults to "list"', () => {

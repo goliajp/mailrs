@@ -49,14 +49,12 @@ vi.mock('@/lib/notification-sound', () => ({ playNotificationSound: mockPlaySoun
 vi.mock('@/store/chat', () => ({
   categoryFilterAtom: Symbol('category'),
   connectionStatusAtom: Symbol('connectionStatus'),
-  conversationsAtom: Symbol('conversations'),
   folderAtom: Symbol('folder'),
   importanceSectionAtom: Symbol('section'),
   quickFilterAtom: Symbol('quickFilter'),
   searchQueryAtom: Symbol('search'),
   selectedDomainsAtom: Symbol('domains'),
   selectedThreadIdAtom: Symbol('selected'),
-  threadMessagesAtom: Symbol('messages'),
 }))
 vi.mock('@/store/settings', () => ({
   notificationsAtom: Symbol('notifications'),
