@@ -30,12 +30,13 @@ import {
 import { postJson } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
+import { queryClient } from '@/lib/query-client'
+import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import { authAtom } from '@/store/auth'
 import {
   batchModeAtom,
   composeReplySourceAtom,
   composingNewAtom,
-  conversationsAtom,
   folderAtom,
   importanceSectionAtom,
   quickFilterAtom,
@@ -326,16 +327,14 @@ export function ConversationList({
 }) {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
-  // v2.1 phase-5b: reader migrated off `conversationsAtom` — the
-  // component now reads the same conversations directly from the
+  // v2.1 phase-5b/c: reader migrated off `conversationsAtom` — the
+  // component reads the same conversations directly from the
   // `conversationKeys.infinite(...)` cache line the mail-list query
-  // owns. `setConversations` still comes from the atom (Phase 5c
-  // will redirect the writes to RQ), and the sync effect in
-  // `chat.tsx` keeps atom and RQ aligned so unread badges from BOTH
-  // stores agree during the transition.
+  // owns. The mark-all-read writer (see line ~720) patches the RQ
+  // cache via `patchAllInfiniteLists`; every screen subscribing to
+  // that cache re-renders together on the next paint.
   const filters = useCurrentMailFilters()
   const { conversations, hasMore, initialLoading, loadingMore } = useFlatConversations(filters)
-  const setConversations = useSetAtom(conversationsAtom)
   const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
@@ -722,7 +721,10 @@ export function ConversationList({
                   '/conversations/mark-all-read',
                   {}
                 )
-                setConversations((prev) => prev.map((c) => ({ ...c, unread_count: 0 })))
+                // v2.1 phase-5c — patch the RQ cache directly. Every
+                // reader subscribing to `conversationKeys.infinites()`
+                // sees `unread_count = 0` on the next paint.
+                patchAllInfiniteLists(queryClient, (c) => ({ ...c, unread_count: 0 }))
                 toast.success(`Marked ${resp.flipped ?? 0} as read`)
               } catch {
                 toast.error('Failed')
