@@ -1,5 +1,3 @@
-import type { ConversationSummary } from '@/lib/types'
-
 import { createStore } from 'jotai/vanilla'
 import { describe, expect, it } from 'vitest'
 
@@ -7,7 +5,6 @@ import {
   batchModeAtom,
   categoryFilterAtom,
   composingNewAtom,
-  conversationsAtom,
   hasMoreAtom,
   initialLoadingAtom,
   loadingMoreAtom,
@@ -20,29 +17,6 @@ import {
   sortOrderAtom,
   threadMessagesAtom,
 } from '../chat'
-
-function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
-  return {
-    archived: false,
-    category: 'inbox',
-    flagged: false,
-    importance_level: 'normal',
-    importance_score: 0.3,
-    last_date: Date.now(),
-    last_sender: 'alice@example.com',
-    message_count: 1,
-    participants: ['alice@example.com'],
-    pinned: false,
-    received_count: 1,
-    requires_action: false,
-    sent_count: 0,
-    snippet: '',
-    subject: 'Test subject',
-    thread_id: 'thread-1',
-    unread_count: 0,
-    ...overrides,
-  }
-}
 
 // v2.1 phase-5d: `unreadCountAtom` deleted. The equivalent logic lives
 // in `hooks/use-current-mail-filters::useCurrentUnreadCount`, which
