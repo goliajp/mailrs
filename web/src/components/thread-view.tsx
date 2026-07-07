@@ -1,9 +1,8 @@
-import type { ConversationSummary, ThreadMessage } from '@/lib/types'
+import type { ThreadMessage } from '@/lib/types'
 
 import { toast } from '@goliapkg/gds'
 import DOMPurify from 'dompurify'
-import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
-import { selectAtom } from 'jotai/utils'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   ArrowLeft,
   ChevronDown,
@@ -35,6 +34,8 @@ import { SenderAvatar } from '@/components/sender-avatar'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, HdrBtn, SmBtn, ThreadTimelineItem } from '@/components/thread-view-bubble'
 import { bubbleDateLabel, formatRecipients } from '@/components/thread-view-helpers'
+import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import {
   useDeleteMutation,
   useMarkReadMutation,
@@ -54,7 +55,6 @@ import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
   composingNewAtom,
-  conversationsAtom,
   crossAccountReadAtom,
   mobileReplyOpenAtom,
   mobileThreadTabAtom,
@@ -93,16 +93,17 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // selectAtom + Object.is equality means we only re-render when that
   // primitive actually moves. The mount-time existing-row lookup at
   // selectedId change reads imperatively via `useStore().get(...)`.
-  const store = useStore()
-  const selectedUnreadAtom = useMemo(
-    () =>
-      selectAtom(conversationsAtom, (list: ConversationSummary[]) => {
-        if (!selectedId) return 0
-        return list.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
-      }),
-    [selectedId]
-  )
-  const selectedUnreadCount = useAtomValue(selectedUnreadAtom)
+  // v2.1 phase-5b: the `selectAtom` primitive-subscription optimisation
+  // moves onto RQ's `useFlatConversations` reader — same conversations
+  // list, memoised flatten, `useMemo` yields a primitive that React
+  // compares with Object.is (Number primitives), so unrelated array
+  // changes don't re-render the ThreadView subtree.
+  const currentFilters = useCurrentMailFilters()
+  const { conversations: currentConversations } = useFlatConversations(currentFilters)
+  const selectedUnreadCount = useMemo(() => {
+    if (!selectedId) return 0
+    return currentConversations.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
+  }, [selectedId, currentConversations])
   const visibleIds = useAtomValue(visibleConversationIdsAtom)
   const currentIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
   const hasPrev = currentIdx > 0
@@ -353,13 +354,16 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setShowAllMessages(false)
     setMobileThreadTab('content')
     setMobileReplyOpen(false)
-    const existing = store
-      .get(conversationsAtom)
-      .find((c: ConversationSummary) => c.thread_id === selectedId)
+    // v2.1 phase-5b: imperative lookup used to read
+    // `store.get(conversationsAtom).find(...)`. Now walks the RQ cache
+    // directly — one flatten over the current `conversationKeys.infinites`
+    // entries. Latest patch (mark-read etc.) is reflected without needing
+    // the atom-sync effect in chat.tsx to run first.
+    const existing = currentConversations.find((c) => c.thread_id === selectedId)
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
-  }, [selectedId, store, setMessages, setMobileThreadTab, setMobileReplyOpen])
+  }, [selectedId, currentConversations, setMessages, setMobileThreadTab, setMobileReplyOpen])
 
   // auto mark-as-read whenever the currently-displayed thread is unread.
   // covers: first open, list-filter switch where selection happens to stay

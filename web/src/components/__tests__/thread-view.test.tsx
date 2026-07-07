@@ -47,7 +47,31 @@ vi.mock('@/store/auth', async (importOriginal) => {
 const mockUseThreadQuery = vi.fn(() => ({ data: undefined, isPending: false }))
 vi.mock('@/hooks/use-mail-queries', () => ({
   useThreadQuery: mockUseThreadQuery,
+  useConversationsQuery: () => ({
+    data: { pageParams: [], pages: [] },
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isPending: false,
+  }),
 }))
+vi.mock('@/hooks/use-current-mail-filters', () => ({
+  useCurrentMailFilters: () => ({}),
+}))
+// v2.1 phase-5b test bridge — production reads via
+// `useFlatConversations`; tests seed `conversationsAtom` directly.
+vi.mock('@/hooks/use-flat-conversations', async () => {
+  const { useAtomValue } = await import('jotai')
+  const { conversationsAtom, hasMoreAtom, initialLoadingAtom, loadingMoreAtom } =
+    await import('@/store/chat')
+  return {
+    useFlatConversations: () => ({
+      conversations: useAtomValue(conversationsAtom),
+      hasMore: useAtomValue(hasMoreAtom),
+      initialLoading: useAtomValue(initialLoadingAtom),
+      loadingMore: useAtomValue(loadingMoreAtom),
+    }),
+  }
+})
 const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useDeleteMutation: stubMutation,
