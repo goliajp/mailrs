@@ -77,11 +77,23 @@ export function AdminOverview() {
     refetchInterval: 10_000,
     queryFn: ({ signal }) => fetchJson<SmtpConfig>('/admin/config/smtp', signal),
   })
-  const { data: audit = [] } = useQuery({
+  // Backend wraps the audit-log response in `{items:[...]}`; earlier code
+  // typed it as a bare array and blew up with `entries.map is not a
+  // function` on landing. Accept either shape defensively so a future
+  // API tweak doesn't reintroduce the crash, and coalesce to `[]` when
+  // the shape is unexpected (401 body etc.) so AuditLogPanel always
+  // gets an iterable.
+  const { data: auditRaw } = useQuery({
     queryKey: adminKeys.overviewAuditLog(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) => fetchJson<AuditEntry[]>('/admin/audit-log?limit=10', signal),
+    queryFn: ({ signal }) =>
+      fetchJson<AuditEntry[] | { items: AuditEntry[] }>('/admin/audit-log?limit=10', signal),
   })
+  const audit: AuditEntry[] = Array.isArray(auditRaw)
+    ? auditRaw
+    : Array.isArray(auditRaw?.items)
+      ? auditRaw.items
+      : []
 
   if (healthError || statusError) {
     return (
@@ -180,17 +192,21 @@ export function AdminOverview() {
 }
 
 function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
+  // Belt-and-braces: the queryFn normalizes the shape, but if a future
+  // caller ever passes something else we still don't want an
+  // uncaught TypeError to unmount the whole overview page.
+  const rows = Array.isArray(entries) ? entries : []
   return (
     <div className="border-border bg-surface rounded-lg border p-4">
       <h3 className="text-fg-muted mb-3 text-sm font-medium">Recent Audit Log</h3>
-      {entries.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-fg-muted text-sm">No entries</p>
       ) : (
         <ScrollableTable>
           <table className="w-full text-xs">
             <tbody>
-              {entries.map((e) => {
-                const ip = e.detail.replace(/^ip=/, '').trim()
+              {rows.map((e) => {
+                const ip = (e.detail ?? '').replace(/^ip=/, '').trim()
                 return (
                   <tr className="border-border border-b last:border-0" key={e.id}>
                     <td className="text-fg-muted px-3 py-2.5 whitespace-nowrap">
@@ -206,11 +222,11 @@ function AuditLogPanel({ entries }: { entries: AuditEntry[] }) {
                               : 'bg-bg-secondary text-fg-secondary'
                         }`}
                       >
-                        {e.action.replace('_', ' ')}
+                        {(e.action ?? '').replace('_', ' ')}
                       </span>
                     </td>
                     <td className="text-fg-muted px-3 py-2.5 text-right tabular-nums">
-                      {ip || e.target}
+                      {ip || e.target || '-'}
                     </td>
                   </tr>
                 )
