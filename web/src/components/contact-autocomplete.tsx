@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fetchJson } from '@/lib/api'
+import { fetchList } from '@/lib/api'
 import { contactsKeys } from '@/lib/query-keys'
 
 export function ContactAutocomplete({
@@ -32,9 +32,7 @@ export function ContactAutocomplete({
     staleTime: 30 * 1000,
     queryFn: async () => {
       try {
-        return await fetchJson<string[]>(
-          `/contacts?q=${encodeURIComponent(debouncedQuery)}&limit=5`
-        )
+        return await fetchList<string>(`/contacts?q=${encodeURIComponent(debouncedQuery)}&limit=5`)
       } catch {
         return []
       }

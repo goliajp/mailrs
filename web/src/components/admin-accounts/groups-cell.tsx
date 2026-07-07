@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { fetchJson } from '@/lib/api'
+import { fetchList } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 type GroupInfo = {
@@ -17,7 +17,7 @@ export function GroupsCell({ address }: { address: string }) {
     enabled: open,
     queryKey: [...adminKeys.accounts(), 'groups', address],
     queryFn: ({ signal }) =>
-      fetchJson<GroupInfo[]>(`/admin/accounts/${encodeURIComponent(address)}/groups`, signal),
+      fetchList<GroupInfo>(`/admin/accounts/${encodeURIComponent(address)}/groups`, signal),
   })
 
   if (!open) {

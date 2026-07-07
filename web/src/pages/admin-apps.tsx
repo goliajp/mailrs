@@ -12,7 +12,7 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 type ApiResult = {
@@ -53,13 +53,13 @@ export function AdminApps() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.apps(),
-    queryFn: ({ signal }) => fetchJson<AppInfo[]>('/admin/apps', signal),
+    queryFn: ({ signal }) => fetchList<AppInfo>('/admin/apps', signal),
   })
   const apps = appsData ?? []
 
   const { data: permissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: ({ signal }) => fetchJson<string[]>('/admin/permissions', signal),
+    queryFn: ({ signal }) => fetchList<string>('/admin/permissions', signal),
   })
   const permissions = permissionsData ?? []
 

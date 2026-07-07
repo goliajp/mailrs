@@ -15,7 +15,7 @@ import { DomainHealthCard } from '@/components/domain-health-card'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 const HEADERS = ['Domain', 'Created', 'Actions']
@@ -23,7 +23,7 @@ const HEADERS = ['Domain', 'Created', 'Actions']
 export function AdminDomains() {
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
+    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
   })
   const domains = data ?? []
 

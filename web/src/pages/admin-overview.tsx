@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
-import { fetchJson } from '@/lib/api'
+import { fetchJson, fetchList } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 // --- types ---
@@ -77,23 +77,14 @@ export function AdminOverview() {
     refetchInterval: 10_000,
     queryFn: ({ signal }) => fetchJson<SmtpConfig>('/admin/config/smtp', signal),
   })
-  // Backend wraps the audit-log response in `{items:[...]}`; earlier code
-  // typed it as a bare array and blew up with `entries.map is not a
-  // function` on landing. Accept either shape defensively so a future
-  // API tweak doesn't reintroduce the crash, and coalesce to `[]` when
-  // the shape is unexpected (401 body etc.) so AuditLogPanel always
-  // gets an iterable.
-  const { data: auditRaw } = useQuery({
+  // `fetchList` collapses `{items:[...]}` / bare-array / 401-echo shapes
+  // into a plain `AuditEntry[]` for the panel below. See
+  // `web/src/lib/api.ts::fetchList` for the invariant.
+  const { data: audit = [] } = useQuery({
     queryKey: adminKeys.overviewAuditLog(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) =>
-      fetchJson<AuditEntry[] | { items: AuditEntry[] }>('/admin/audit-log?limit=10', signal),
+    queryFn: ({ signal }) => fetchList<AuditEntry>('/admin/audit-log?limit=10', signal),
   })
-  const audit: AuditEntry[] = Array.isArray(auditRaw)
-    ? auditRaw
-    : Array.isArray(auditRaw?.items)
-      ? auditRaw.items
-      : []
 
   if (healthError || statusError) {
     return (

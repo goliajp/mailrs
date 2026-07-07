@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Calendar, Check, Clock, MapPin, Users, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { fetchJson, postJson } from '@/lib/api'
+import { fetchJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { calendarKeys, messageKeys } from '@/lib/query-keys'
 
@@ -104,7 +104,7 @@ export function InviteCard({
           exclude_uid: conflictExcludeUid,
           start: conflictStart,
         })
-        return await fetchJson<ConflictRow[]>(`/calendar/conflicts?${params.toString()}`)
+        return await fetchList<ConflictRow>(`/calendar/conflicts?${params.toString()}`)
       } catch {
         return [] as ConflictRow[]
       }

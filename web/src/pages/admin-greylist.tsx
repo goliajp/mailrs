@@ -18,7 +18,7 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 type Form = {
@@ -58,7 +58,7 @@ export function AdminGreylist() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.greylistLocal(),
-    queryFn: ({ signal }) => fetchJson<GreylistLocalEntry[]>('/admin/greylist/local-lists', signal),
+    queryFn: ({ signal }) => fetchList<GreylistLocalEntry>('/admin/greylist/local-lists', signal),
   })
   const entries = useMemo(() => entriesData ?? [], [entriesData])
 
