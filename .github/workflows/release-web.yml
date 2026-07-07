@@ -65,8 +65,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: vite build
-        # vite output doesn't embed package.json version (we removed
-        # __MAILRS_VERSION__ define earlier), so no need to patch it.
+        # `WEB_VERSION` is baked into the bundle via vite.config.ts's
+        # `__WEB_VERSION__` define and surfaced by the StatusBar as
+        # `web <version>`. The tag looks like `web-v2026.07.07-1`; we
+        # strip the prefix so the UI shows a plain `2026.07.07-1`.
+        env:
+          WEB_VERSION: ${{ github.ref_name }}
         run: bunx --bun tsc -b && bunx --bun vite build
 
       - name: upload dist

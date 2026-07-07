@@ -14,26 +14,38 @@ import { defineConfig } from 'vitest/config'
 // new wire fields silently never reached the UI.
 const BUILD_ID = `${Date.now()}`
 
-// Webapp version — read from package.json at config-load time.
-// release-web.yml `sed`s the tag date into package.json before
-// running `vite build`, so this pulls the actual shipping version
-// into the bundle. StatusBar (see app.tsx) surfaces it beside the
-// backend version so an operator can spot a stale bundle.
-const PACKAGE_VERSION = (() => {
+// Webapp version — decides what the bottom StatusBar prints as
+// `web <version>`. Sources, in priority order:
+//   1. `WEB_VERSION` env var — set by release-web.yml so a shipped
+//      bundle carries the tag (`2026.07.07-1`) that produced it.
+//   2. `GITHUB_REF_NAME` env var stripped of the `web-v` prefix, so
+//      any workflow that already exports GITHUB_REF_NAME works.
+//   3. package.json `version` — the historical fallback; permanently
+//      pinned at "0.0.0" per repo convention, so this is only useful
+//      for a local one-off build.
+// A resolved version of "0.0.0" is treated as "dev" downstream (see
+// app.tsx), so a stale package.json placeholder never leaks into the
+// UI as if it were a real version.
+const WEB_VERSION = (() => {
+  const raw = process.env.WEB_VERSION ?? stripTagPrefix(process.env.GITHUB_REF_NAME)
+  if (raw && raw.length > 0) return raw
   try {
-    const pkg = JSON.parse(
-      readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8')
-    )
+    const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'))
     return String(pkg.version ?? 'dev')
   } catch {
     return 'dev'
   }
 })()
 
+function stripTagPrefix(ref: string | undefined): string | undefined {
+  if (!ref) return undefined
+  return ref.replace(/^web-v/, '').replace(/^v/, '')
+}
+
 export default defineConfig({
   define: {
     __APP_BUILD_ID__: JSON.stringify(BUILD_ID),
-    __WEB_VERSION__: JSON.stringify(PACKAGE_VERSION),
+    __WEB_VERSION__: JSON.stringify(WEB_VERSION),
   },
   test: {
     coverage: {

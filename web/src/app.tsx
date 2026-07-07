@@ -18,18 +18,13 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { MobileShell } from '@/components/mobile-shell'
+import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
+import { sectionForPath } from '@/components/status-bar-model'
 import { MPane } from '@/layouts/pane'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
 import { connectionStatusAtom, unreadCountAtom } from '@/store/chat'
-
-type HealthInfo = {
-  kevy: boolean
-  pg: boolean
-  status: string
-  version: string
-}
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
 const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
@@ -195,15 +190,26 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 declare const __WEB_VERSION__: string | undefined
 
+/**
+ * Thin wrapper that reads live app state (auth atom, ws atom, react-router
+ * location) and drives the pure {@link StatusBarView}. Everything ephemeral
+ * lives here; anything visible lives in the presentational component.
+ */
 function StatusBar() {
   const auth = useAtomValue(authAtom)
   const wsStatus = useAtomValue(connectionStatusAtom)
   const location = useLocation()
-  const [health, setHealth] = useState<HealthInfo | null>(null)
+  const [health, setHealth] = useState<null | StatusBarHealth>(null)
 
   const fetchHealth = useCallback(async () => {
-    const res = await fetch('/api/health')
-    if (res.ok) setHealth(await res.json())
+    try {
+      const res = await fetch('/api/health')
+      if (res.ok) setHealth(await res.json())
+    } catch {
+      // The status bar treats fetch errors as "still contacting" — the
+      // view renders a neutral dot rather than a red one on transient
+      // network hiccups.
+    }
   }, [])
 
   useEffect(() => {
@@ -212,64 +218,17 @@ function StatusBar() {
     return () => clearInterval(id)
   }, [fetchHealth])
 
-  const section = location.pathname.startsWith('/admin')
-    ? 'Admin'
-    : location.pathname.startsWith('/protocol')
-      ? 'Monitor'
-      : location.pathname.startsWith('/settings')
-        ? 'Settings'
-        : location.pathname.startsWith('/mail')
-          ? 'Mail'
-          : 'Home'
-
-  const webVersion = typeof __WEB_VERSION__ !== 'undefined' ? __WEB_VERSION__ : 'dev'
-  const backendOk = health?.status === 'healthy'
-  const backendDot = backendOk
-    ? 'bg-success'
-    : health?.status === 'degraded'
-      ? 'bg-warning'
-      : health
-        ? 'bg-danger'
-        : 'bg-fg-muted'
-  const backendLabel = health ? `Backend ${health.status}` : 'Backend contacting…'
-
-  const wsDot =
-    wsStatus === 'connected' ? 'bg-success' : wsStatus === 'connecting' ? 'bg-warning' : 'bg-danger'
-  const wsLabel =
-    wsStatus === 'connected' ? 'Live' : wsStatus === 'connecting' ? 'Connecting' : 'Offline'
+  const webVersion =
+    typeof __WEB_VERSION__ !== 'undefined' && __WEB_VERSION__ !== '0.0.0' ? __WEB_VERSION__ : 'dev'
 
   return (
-    <div className="text-fg-secondary flex h-full items-center justify-between gap-4 px-4 text-xs">
-      <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1.5" title={backendLabel}>
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${backendDot}`} />
-          <span>Backend</span>
-        </span>
-        <span className="text-border-strong">·</span>
-        <span className="flex items-center gap-1.5" title={`WebSocket: ${wsStatus}`}>
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${wsDot}`} />
-          <span>Live · {wsLabel}</span>
-        </span>
-        {health && (
-          <>
-            <span className="text-border-strong">·</span>
-            <span className="text-fg-muted">
-              PG {health.pg ? '✓' : '✗'} · Kevy {health.kevy ? '✓' : '✗'}
-            </span>
-          </>
-        )}
-        <span className="text-border-strong">·</span>
-        <span>{section}</span>
-      </div>
-      <div className="flex items-center gap-3">
-        {auth && <span className="text-fg-muted">{auth.address}</span>}
-        {auth && <span className="text-border-strong">·</span>}
-        <span title={`webapp v${webVersion}${health ? ` · backend v${health.version}` : ''}`}>
-          web v{webVersion}
-          {health ? ` · api v${health.version}` : ''}
-        </span>
-      </div>
-    </div>
+    <StatusBarView
+      backend={health}
+      identity={auth?.address}
+      realtime={wsStatus as never}
+      section={sectionForPath(location.pathname)}
+      webVersion={webVersion}
+    />
   )
 }
 
