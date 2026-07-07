@@ -27,7 +27,7 @@ import {
   selectedThreadIdAtom,
   shortcutsDialogOpenAtom,
   showArchivedAtom,
-} from '@/store/chat'
+} from '@/store/ui'
 
 export function Chat() {
   const auth = useAtomValue(authAtom)

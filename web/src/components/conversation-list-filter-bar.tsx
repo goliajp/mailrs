@@ -13,7 +13,7 @@ import {
   showArchivedAtom,
   type SortOrder,
   sortOrderAtom,
-} from '@/store/chat'
+} from '@/store/ui'
 
 const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },

@@ -22,7 +22,7 @@ vi.stubGlobal('localStorage', {
 })
 
 import { authAtom } from '@/store/auth'
-import { selectedThreadIdAtom } from '@/store/chat'
+import { selectedThreadIdAtom } from '@/store/ui'
 
 // v2.1 phase-5d: production reads the conversations list through
 // React Query; tests write to this mutable stub and the mocked

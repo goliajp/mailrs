@@ -7,8 +7,8 @@ import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { onNewMessage } from '@/reducers/events/conversation'
-import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/chat'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
+import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/ui'
 
 // shallow equality over the conversation fields ConversationItem actually
 // renders. Used to preserve object identity across refetches so memo'd

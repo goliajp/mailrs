@@ -32,7 +32,7 @@ import {
   selectedDomainsAtom,
   selectedThreadIdAtom,
   showArchivedAtom,
-} from '@/store/chat'
+} from '@/store/ui'
 
 /**
  * Stable empty-array reference so `?? []` doesn't manufacture a fresh

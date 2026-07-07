@@ -18,7 +18,7 @@ import {
   selectedThreadIdAtom,
   shortcutsDialogOpenAtom,
   visibleConversationIdsAtom,
-} from '@/store/chat'
+} from '@/store/ui'
 
 export function useKeyboardNav() {
   // v2.1 phase-5c: conversations read via the RQ-native

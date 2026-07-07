@@ -47,7 +47,7 @@ import {
   sortOrderAtom,
   stickyUnreadIdsAtom,
   visibleConversationIdsAtom,
-} from '@/store/chat'
+} from '@/store/ui'
 
 type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
 

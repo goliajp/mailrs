@@ -12,7 +12,7 @@ import {
   selectedThreadIdsAtom,
   shortcutsDialogOpenAtom,
   sortOrderAtom,
-} from '../chat'
+} from '../ui'
 
 // v2.1 phase-5d: `unreadCountAtom` deleted. The equivalent logic lives
 // in `hooks/use-current-mail-filters::useCurrentUnreadCount`, which

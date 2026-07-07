@@ -11,8 +11,8 @@ import {
 } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
-import { stickyUnreadIdsAtom } from '@/store/chat'
 import { conversationKeys } from '@/store/query-keys-v21'
+import { stickyUnreadIdsAtom } from '@/store/ui'
 
 export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
 

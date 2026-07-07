@@ -46,7 +46,7 @@ vi.mock('@/lib/query-keys', () => ({
 }))
 const mockPlaySound = vi.fn()
 vi.mock('@/lib/notification-sound', () => ({ playNotificationSound: mockPlaySound }))
-vi.mock('@/store/chat', () => ({
+vi.mock('@/store/ui', () => ({
   categoryFilterAtom: Symbol('category'),
   connectionStatusAtom: Symbol('connectionStatus'),
   folderAtom: Symbol('folder'),
