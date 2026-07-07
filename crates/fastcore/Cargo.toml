@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-fastcore"
-version = "0.0.1"
+version.workspace = true
 edition = "2024"
 description = "Kevy-backed `mailrs-core-api` server. Drop-in for the PG/spg core when the workload fits the cascade-killer KV layout."
 license = "Apache-2.0 OR MIT"

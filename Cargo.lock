@@ -3295,7 +3295,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-fastcore"
-version = "0.0.1"
+version = "0.0.0"
 dependencies = [
  "argon2",
  "axum",
@@ -4090,7 +4090,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-webapi"
-version = "0.0.1"
+version = "0.0.0"
 dependencies = [
  "argon2",
  "async-trait",
