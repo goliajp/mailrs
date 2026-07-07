@@ -25,7 +25,7 @@ import { MPane } from '@/layouts/pane'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
-import { connectionStatusAtom } from '@/store/chat'
+import { connectionStatusAtom } from '@/store/ui'
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
 const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))

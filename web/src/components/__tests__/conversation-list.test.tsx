@@ -6,7 +6,7 @@ import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authAtom } from '@/store/auth'
-import { batchModeAtom, selectedThreadIdsAtom } from '@/store/chat'
+import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
 
 // v2.1 phase-5d: the mail-list conversations shape lives entirely in
 // React Query in production. Tests hoist a mutable stub and mock

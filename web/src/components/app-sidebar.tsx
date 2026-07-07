@@ -11,8 +11,8 @@ import { BottomSheet } from '@/components/bottom-sheet'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
-import { selectedDomainsAtom } from '@/store/chat'
 import { themeModeAtom } from '@/store/theme'
+import { selectedDomainsAtom } from '@/store/ui'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 

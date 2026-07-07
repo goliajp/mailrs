@@ -17,7 +17,7 @@ import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
-import { mobileViewAtom, selectedThreadIdAtom } from '@/store/chat'
+import { mobileViewAtom, selectedThreadIdAtom } from '@/store/ui'
 
 // ─── mobile mail router ─────────────────────────────────────
 

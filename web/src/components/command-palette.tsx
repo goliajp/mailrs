@@ -17,8 +17,8 @@ import { useNavigate } from 'react-router'
 
 import { MobileModal } from '@/components/mobile-modal'
 import { authAtom } from '@/store/auth'
-import { composeReplySourceAtom, composingNewAtom } from '@/store/chat'
 import { themeModeAtom } from '@/store/theme'
+import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
 
 type Command = {
   action: () => void

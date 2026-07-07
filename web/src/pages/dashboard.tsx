@@ -21,14 +21,14 @@ import { fetchJson, fetchList } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
+import { conversationKeys } from '@/store/query-keys-v21'
 import {
   composeReplySourceAtom,
   composingNewAtom,
   quickFilterAtom,
   searchQueryAtom,
   selectedThreadIdAtom,
-} from '@/store/chat'
-import { conversationKeys } from '@/store/query-keys-v21'
+} from '@/store/ui'
 
 type DashboardData = {
   conversations: ConversationSummary[]

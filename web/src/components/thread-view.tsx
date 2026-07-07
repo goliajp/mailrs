@@ -62,7 +62,7 @@ import {
   selectedThreadIdAtom,
   timelineCollapsedAtom,
   visibleConversationIdsAtom,
-} from '@/store/chat'
+} from '@/store/ui'
 
 type ForwardSource = {
   body: string
