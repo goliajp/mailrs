@@ -30,7 +30,7 @@ export const SenderAvatar = memo(function SenderAvatar({
   const initial = avatarInitial(sender)
   const color = avatarColor(sender)
   const sizeClass =
-    size <= 28 ? 'h-7 w-7 text-[11px]' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
+    size <= 28 ? 'h-7 w-7 text-mini' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
 
   useEffect(() => {
     if (!domain) return

@@ -29,7 +29,7 @@ type ThreadTimelineItemProps = {
 function BubbleDateDivider({ label }: { label: string }) {
   return (
     <div className="flex justify-center py-2 select-none">
-      <span className="bg-bg-secondary text-fg-muted rounded-full px-2.5 py-0.5 text-xs font-medium md:text-[10px]">
+      <span className="bg-bg-secondary text-fg-muted md:text-tiny rounded-full px-2.5 py-0.5 text-xs font-medium">
         {label}
       </span>
     </div>
@@ -115,7 +115,7 @@ const BubbleBody = memo(function BubbleBody({
   // 1) AI summary is always clean — use it when present
   if (msg.summary) {
     return (
-      <p className="text-fg line-clamp-3 text-[13px] leading-relaxed select-text">
+      <p className="text-fg text-mid line-clamp-3 leading-relaxed select-text">
         {highlightMentions(msg.summary, myEmail, myName)}
       </p>
     )
@@ -130,7 +130,7 @@ const BubbleBody = memo(function BubbleBody({
     const preview = trimmed.length > 280 ? smartTruncate(trimmed, 280) : trimmed
     if (preview.length > 0) {
       return (
-        <p className="text-fg line-clamp-3 text-[13px] leading-relaxed select-text">
+        <p className="text-fg text-mid line-clamp-3 leading-relaxed select-text">
           {highlightMentions(preview, myEmail, myName)}
         </p>
       )
@@ -423,9 +423,7 @@ export function FeedbackMenu({ senderEmail }: { senderEmail: string }) {
             </div>
           ) : (
             <>
-              <p className="text-fg-muted truncate px-3 py-1 text-xs md:text-[11px]">
-                {senderEmail}
-              </p>
+              <p className="text-fg-muted md:text-mini truncate px-3 py-1 text-xs">{senderEmail}</p>
               {FEEDBACK_ITEMS.map((item) => (
                 <button
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${

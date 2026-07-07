@@ -277,7 +277,7 @@ export function AdminMailAudit() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <p className="truncate text-sm font-medium">{c.subject || '(no subject)'}</p>
-                <span className="bg-bg-secondary text-fg-muted shrink-0 rounded-full px-1.5 py-0.5 text-xs md:text-[10px]">
+                <span className="bg-bg-secondary text-fg-muted md:text-tiny shrink-0 rounded-full px-1.5 py-0.5 text-xs">
                   {c.message_count}
                 </span>
               </div>

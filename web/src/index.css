@@ -11,6 +11,27 @@
 
 @custom-variant dark (&:where([data-theme-mode="dark"], [data-theme-mode="dark"] *));
 
+/* v2.1 phase-7.1: sub-`text-xs` (12px) and between-xs-and-sm sizes used
+   frequently throughout the app (badges, chip labels, dense metadata
+   in conversation rows). Formalising them as utilities kills the
+   `text-[10px]` / `text-[11px]` / `text-[13px]` inline literals — see
+   RFC §3.6 (design-token discipline). Line-height mirrors Tailwind's
+   `text-xs` scale: leading-tight for very small labels, leading-snug
+   for the 13px middle tier.
+
+   Sizes:
+   - `text-tiny` = 10px  (used for meta/legal captions)
+   - `text-mini` = 11px  (used for chip labels / dense metadata)
+   - `text-mid`  = 13px  (used for compact-list content) */
+@theme {
+  --text-tiny: 10px;
+  --text-tiny--line-height: 14px;
+  --text-mini: 11px;
+  --text-mini--line-height: 14px;
+  --text-mid: 13px;
+  --text-mid--line-height: 18px;
+}
+
 html {
   color-scheme: light dark;
   --safe-area-top: env(safe-area-inset-top, 0px);

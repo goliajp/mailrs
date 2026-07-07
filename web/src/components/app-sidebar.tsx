@@ -178,7 +178,7 @@ export function AppSidebar() {
         />
         <button
           aria-label="Sign out"
-          className="text-fg-muted flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors md:text-[10px]"
+          className="text-fg-muted md:text-tiny flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors"
           onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut className="h-5 w-5" />
@@ -243,7 +243,7 @@ function MobileNavLink({
       aria-current={active ? 'page' : undefined}
       aria-label={label}
       className={cx(
-        'relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors md:text-[10px]',
+        'md:text-tiny relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-xs transition-colors',
         active ? 'text-accent' : 'text-fg-muted'
       )}
       to={href}
@@ -251,7 +251,7 @@ function MobileNavLink({
       <Icon className="h-5 w-5" />
       <span>{label}</span>
       {badge != null && badge > 0 && (
-        <span className="bg-danger absolute top-0.5 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full px-0.5 pb-px text-[10px] leading-none font-bold text-white">
+        <span className="bg-danger text-tiny absolute top-0.5 left-1/2 ml-2 grid h-4 min-w-4 place-items-center rounded-full px-0.5 pb-px leading-none font-bold text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -282,7 +282,7 @@ function SidebarLink({
     >
       <Icon className="h-5 w-5" />
       {badge != null && badge > 0 && (
-        <span className="bg-danger absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full px-0.5 pb-px text-[10px] leading-none font-bold text-white">
+        <span className="bg-danger text-tiny absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full px-0.5 pb-px leading-none font-bold text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}

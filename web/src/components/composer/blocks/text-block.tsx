@@ -161,7 +161,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
         <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
           Preview
         </TabButton>
-        <span className="text-fg-muted ml-auto text-[11px]">Markdown · Cmd+Enter to send</span>
+        <span className="text-fg-muted text-mini ml-auto">Markdown · Cmd+Enter to send</span>
       </div>
 
       {tab === 'edit' ? (

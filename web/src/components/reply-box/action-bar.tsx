@@ -63,7 +63,7 @@ export function ActionBar({
         </button>
         <select
           aria-label="Polish tone"
-          className="border-border text-accent hover:bg-accent/10 h-8 appearance-none rounded-r-md border-l bg-transparent px-1 text-[10px] outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="border-border text-accent hover:bg-accent/10 text-tiny h-8 appearance-none rounded-r-md border-l bg-transparent px-1 outline-none disabled:cursor-not-allowed disabled:opacity-50"
           disabled={polishing || sending}
           onChange={(e) => onToneChange(e.target.value)}
           value={tone}

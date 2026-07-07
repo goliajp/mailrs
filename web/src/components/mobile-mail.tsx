@@ -95,7 +95,7 @@ function MobileConversationView() {
                     >
                       {isOwn ? 'Me' : name}
                     </span>
-                    <span className="text-fg-muted shrink-0 text-[10px]">
+                    <span className="text-fg-muted text-tiny shrink-0">
                       {formatDate(msg.internal_date)}
                     </span>
                   </div>
