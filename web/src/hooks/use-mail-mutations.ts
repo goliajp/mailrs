@@ -309,7 +309,14 @@ function addStickyUnread(threadId: string) {
 }
 
 async function cancelConversationFetches() {
-  await queryClient.cancelQueries({ queryKey: mailKeys.conversations() })
+  // Cancel both the legacy key (still used by any not-yet-migrated
+  // caller during Phase 3) AND the new v2.1 key that
+  // `useConversationsQuery` moved onto.
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: mailKeys.conversations() }),
+    queryClient.cancelQueries({ queryKey: conversationKeys.infinites() }),
+    queryClient.cancelQueries({ queryKey: conversationKeys.lists() }),
+  ])
 }
 
 // ---- delete (single + batch share the same backend) ----
@@ -330,11 +337,12 @@ function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
-  // v2.1 bridge: any screen already reading via the new
-  // `conversationKeys.*` factory (dashboard from Phase 2 onwards)
-  // gets a refetch too. Once the mail list itself migrates to the
-  // new keys (Phase 3), the two `invalidate` blocks collapse into one.
-  queryClient.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
+  // v2.1 phase-3 — after the mail list migrated onto
+  // `conversationKeys.infinite`, we broaden the invalidation to the
+  // whole `conversation` entity namespace so both list + infinite
+  // sub-caches refetch on the same trip. Cross-screen consistency
+  // holds regardless of which screen a caller is on.
+  queryClient.invalidateQueries({ queryKey: conversationKeys.all() }).catch(() => {})
 }
 
 // ---- batch operations ----
@@ -347,22 +355,23 @@ function invalidateMail() {
 function invalidateMailAggregatesOnly() {
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
-  // v2.1 bridge — see `invalidateMail` above for context.
-  // mark-read patches the old conversationsAtom + `mailKeys` cache
-  // synchronously; here we prod the new conversationKeys cache too so
-  // any migrated reader (dashboard, sidebar badge) refetches within a
-  // frame.
+  // v2.1 phase-3 — cover the non-paginated `list` sub-namespace so
+  // dashboard / sidebar aggregates recompute. The `infinite` cache is
+  // left alone here (mark-read's optimistic patch already matches
+  // server truth; a race-refetch would flicker rows back to unread).
   queryClient.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
 }
 
 function patchConversations(
   patch: (c: ConversationSummary) => ConversationSummary | null
 ): Array<[QueryKey, InfinitePages | undefined]> {
-  // snapshot before any writes so onError can revert exactly what we mutated
-  const snapshots = queryClient.getQueriesData<InfinitePages>({
-    queryKey: mailKeys.conversations(),
-  })
-  queryClient.setQueriesData<InfinitePages>({ queryKey: mailKeys.conversations() }, (old) => {
+  // v2.1 phase-3: patch every cache line under both the legacy
+  // `mailKeys.conversations()` prefix AND the new
+  // `conversationKeys.infinites()` prefix. `useConversationsQuery`
+  // (the mail-list) moved onto the new key; the old key survives only
+  // for callers not yet migrated. Both are snapshotted so rollback
+  // returns each cache line to its exact pre-mutation state.
+  const applyPatch = (old: InfinitePages | undefined): InfinitePages | undefined => {
     if (!old) return old
     return {
       ...old,
@@ -375,7 +384,13 @@ function patchConversations(
         return next
       }),
     }
-  })
+  }
+  const snapshots: Array<[QueryKey, InfinitePages | undefined]> = []
+  for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
+    const entries = queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })
+    for (const entry of entries) snapshots.push(entry)
+    queryClient.setQueriesData<InfinitePages>({ queryKey: prefix }, applyPatch)
+  }
   return snapshots
 }
 

@@ -8,6 +8,7 @@ import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/chat'
+import { conversationKeys } from '@/store/query-keys-v21'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 // shallow equality over the conversation fields ConversationItem actually
@@ -245,9 +246,19 @@ export function useMailEvents(user: string) {
 // that's 5+ HTTP round-trips per inbound message; here it's 0 for the
 // common reply-in-existing-thread case.
 function patchConversationCaches(event: NewMessageEvent): void {
-  const entries = queryClient.getQueriesData<InfiniteData<ConversationSummary[]>>({
-    queryKey: mailKeys.conversations(),
-  })
+  // v2.1 phase-3: iterate BOTH the legacy `mailKeys.conversations()`
+  // and the new `conversationKeys.infinites()` prefixes so any screen
+  // reading via either factory sees the inbound message land
+  // in-place. Once every reader migrates and `mailKeys.conversations`
+  // is deleted (Phase 5), this collapses to a single prefix.
+  const entries = [
+    ...queryClient.getQueriesData<InfiniteData<ConversationSummary[]>>({
+      queryKey: mailKeys.conversations(),
+    }),
+    ...queryClient.getQueriesData<InfiniteData<ConversationSummary[]>>({
+      queryKey: conversationKeys.infinites(),
+    }),
+  ]
   for (const [key, data] of entries) {
     if (!data) continue
     let foundPage = -1

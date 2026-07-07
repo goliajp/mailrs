@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { fetchJson, fetchList } from '@/lib/api'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
+import { conversationKeys } from '@/store/query-keys-v21'
 
 const PAGE_SIZE = 50
 
@@ -32,17 +33,31 @@ export function useCategoriesQuery(domains: string[]) {
 // useInfiniteQuery so loadMore (older messages) lands as additional pages
 // inside the same cache entry — refresh restores the whole stack, not just
 // the first 50.
+//
+// v2.1 phase-3 migration: the queryKey is now the entity-oriented
+// `conversationKeys.infinite(filter)` — one cache-line per filter,
+// scoped under the `conversation.infinite` namespace so the dashboard's
+// `list` reads (see `pages/dashboard.tsx`) don't collide with the
+// scroll state. Bridge invalidation in `use-mail-mutations` covers
+// both sub-namespaces via `conversationKeys.all()`.
 export function useConversationsQuery(filters: MailListFilters, enabled: boolean = true) {
   return useInfiniteQuery<
     ConversationSummary[],
     Error,
     { pageParams: (number | undefined)[]; pages: ConversationSummary[][] },
-    ReturnType<typeof mailKeys.conversations>,
+    ReturnType<typeof conversationKeys.infinite>,
     number | undefined
   >({
     enabled,
     initialPageParam: undefined,
-    queryKey: mailKeys.conversations(filters),
+    queryKey: conversationKeys.infinite({
+      archived: filters.archived,
+      category: filters.category as never,
+      domains: filters.domains,
+      folder: filters.folder as never,
+      starred: filters.starred,
+      unread: filters.unread,
+    }),
     getNextPageParam: (lastPage) => {
       if (lastPage.length < PAGE_SIZE) return undefined
       const last = lastPage[lastPage.length - 1]

@@ -22,9 +22,22 @@ import { canonicaliseFilter, type ConversationFilter } from '@/domain'
 
 export const conversationKeys = {
   all: () => ['conversation'] as const,
+
+  // Non-paginated list — single-page reads (dashboard, mobile inbox
+  // preview, sidebar aggregates). `useConversationList(filter)` keys
+  // on this.
   list: (filter?: ConversationFilter) =>
     [...conversationKeys.lists(), canonicaliseFilter(filter)] as const,
   lists: () => [...conversationKeys.all(), 'list'] as const,
+
+  // Paginated infinite list — the `/mail` scroll cursor. RQ stores
+  // this shape as `{pages: T[][], pageParams: ...}` and it's NOT
+  // interchangeable with a single-page list. Kept as a distinct
+  // sub-namespace so a `list` invalidate doesn't blow away all the
+  // scroll state, and vice-versa. See RFC §2.4.
+  infinite: (filter?: ConversationFilter) =>
+    [...conversationKeys.infinites(), canonicaliseFilter(filter)] as const,
+  infinites: () => [...conversationKeys.all(), 'infinite'] as const,
 
   detail: (threadId: ThreadId) => [...conversationKeys.details(), threadId] as const,
   details: () => [...conversationKeys.all(), 'detail'] as const,
