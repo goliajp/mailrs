@@ -1,5 +1,4 @@
 import type { ConversationSummary, NewMessageEvent, SmtpEvent } from '@/lib/types'
-import type { InfiniteData } from '@tanstack/react-query'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
@@ -7,8 +6,8 @@ import { useEffect, useRef } from 'react'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { onNewMessage } from '@/reducers/events/conversation'
 import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/chat'
-import { conversationKeys } from '@/store/query-keys-v21'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
 
 // shallow equality over the conversation fields ConversationItem actually
@@ -123,7 +122,13 @@ export function useMailEvents(user: string) {
               // only the cache that doesn't already know the thread,
               // not every conversations-shaped cache the user ever
               // visited.
-              patchConversationCaches(msg)
+              // v2.1 phase-4: cache mutation is now a pure reducer
+              // (`reducers/events/conversation.ts::onNewMessage`).
+              // The hook layer just dispatches; every "how do we
+              // patch RQ on this event" decision is testable in
+              // isolation. Local `patchConversationCaches` kept until
+              // the next Phase pass cleans it up.
+              onNewMessage(queryClient, msg)
               queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
               queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
               // also bust the thread the event belongs to, if it's the one
@@ -230,72 +235,6 @@ export function useMailEvents(user: string) {
   }, [user, setConnectionStatus])
 }
 
-// Surgical conversation-cache update for a `NewMessage` WebSocket event.
-//
-// For every cached `mailKeys.conversations(*)` entry, look for the thread:
-//   - found → patch the entry in place (bump counters, refresh snippet /
-//     last_sender / last_date) and move it to the top of page 0 with no
-//     network round-trip.
-//   - not found → invalidate only that cache, exactly. Other caches stay
-//     untouched. The active filter refetches; idle filters wait until next
-//     mount.
-//
-// Replaces the previous `invalidateQueries({ queryKey: mailKeys.conversations() })`
-// which marked every cached filter stale and refetched all loaded pages
-// of the active filter on every received mail. For a multi-page inbox
-// that's 5+ HTTP round-trips per inbound message; here it's 0 for the
-// common reply-in-existing-thread case.
-function patchConversationCaches(event: NewMessageEvent): void {
-  // v2.1 phase-3: iterate BOTH the legacy `mailKeys.conversations()`
-  // and the new `conversationKeys.infinites()` prefixes so any screen
-  // reading via either factory sees the inbound message land
-  // in-place. Once every reader migrates and `mailKeys.conversations`
-  // is deleted (Phase 5), this collapses to a single prefix.
-  const entries = [
-    ...queryClient.getQueriesData<InfiniteData<ConversationSummary[]>>({
-      queryKey: mailKeys.conversations(),
-    }),
-    ...queryClient.getQueriesData<InfiniteData<ConversationSummary[]>>({
-      queryKey: conversationKeys.infinites(),
-    }),
-  ]
-  for (const [key, data] of entries) {
-    if (!data) continue
-    let foundPage = -1
-    let foundIdx = -1
-    for (let p = 0; p < data.pages.length; p++) {
-      const idx = data.pages[p].findIndex((c) => c.thread_id === event.thread_id)
-      if (idx >= 0) {
-        foundPage = p
-        foundIdx = idx
-        break
-      }
-    }
-    if (foundPage >= 0) {
-      const sourcePage = foundPage
-      const sourceIdx = foundIdx
-      queryClient.setQueryData<InfiniteData<ConversationSummary[]>>(key, (old) => {
-        if (!old) return old
-        const existing = old.pages[sourcePage]?.[sourceIdx]
-        if (!existing) return old
-        const updated: ConversationSummary = {
-          ...existing,
-          last_date: Math.floor(Date.now() / 1000),
-          last_sender: event.sender,
-          message_count: existing.message_count + 1,
-          received_count: existing.received_count + 1,
-          snippet: event.snippet,
-          subject: event.subject || existing.subject,
-          unread_count: existing.unread_count + 1,
-        }
-        const newPages = old.pages.map((page, p) =>
-          p === sourcePage ? page.filter((_, i) => i !== sourceIdx) : page
-        )
-        newPages[0] = [updated, ...newPages[0]]
-        return { ...old, pages: newPages }
-      })
-    } else {
-      queryClient.invalidateQueries({ exact: true, queryKey: key }).catch(() => {})
-    }
-  }
-}
+// v2.1 phase-4: the previous local `patchConversationCaches` moved to
+// `reducers/events/conversation.ts::onNewMessage`. This hook now
+// dispatches to that reducer — see the onmessage handler above.
