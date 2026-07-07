@@ -20,10 +20,7 @@ import {
   composingNewAtom,
   conversationsAtom,
   folderAtom,
-  hasMoreAtom,
   importanceSectionAtom,
-  initialLoadingAtom,
-  loadingMoreAtom,
   mobileViewAtom,
   quickFilterAtom,
   searchQueryAtom,
@@ -41,9 +38,6 @@ export function Chat() {
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const folder = useAtomValue(folderAtom)
-  const setHasMore = useSetAtom(hasMoreAtom)
-  const setLoadingMore = useSetAtom(loadingMoreAtom)
-  const setInitialLoading = useSetAtom(initialLoadingAtom)
   const [mobileView, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
   const showArchived = useAtomValue(showArchivedAtom)
@@ -207,17 +201,10 @@ export function Chat() {
     })
   }, [flatConversations, setConversations])
 
-  useEffect(() => {
-    setInitialLoading(conversationsQuery.isPending && flatConversations.length === 0)
-  }, [conversationsQuery.isPending, flatConversations.length, setInitialLoading])
-
-  useEffect(() => {
-    setHasMore(conversationsQuery.hasNextPage)
-  }, [conversationsQuery.hasNextPage, setHasMore])
-
-  useEffect(() => {
-    setLoadingMore(conversationsQuery.isFetchingNextPage)
-  }, [conversationsQuery.isFetchingNextPage, setLoadingMore])
+  // v2.1 phase-5d: `initialLoadingAtom` / `hasMoreAtom` /
+  // `loadingMoreAtom` deleted. `conversation-list.tsx` +
+  // `useFlatConversations` now derive these signals from the RQ query
+  // directly. The atom-shadow effects that used to live here are gone.
 
   const loadMore = useCallback(() => {
     if (!conversationsQuery.hasNextPage) return Promise.resolve()

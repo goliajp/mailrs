@@ -20,11 +20,17 @@ export const selectedThreadIdAtom = atom<null | string>(null)
 export const threadMessagesAtom = atom<ThreadMessage[]>([])
 export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
+// v2.1 phase-5d: no production reader / writer left for these.
+// They're kept only as a test-bridge seed for two component test
+// files (`conversation-list.test.tsx`, `thread-view.test.tsx`) that
+// still mock `useFlatConversations` to read from the seeded atom.
+// Delete these + the mocks together once those two test files
+// migrate to seeding the RQ cache directly.
 export const hasMoreAtom = atom(true)
 export const loadingMoreAtom = atom(false)
+export const initialLoadingAtom = atom(true)
 export const categoryFilterAtom = atom<null | string>(null)
 export const selectedDomainsAtom = atom<string[]>([])
-export const initialLoadingAtom = atom(true)
 export type MobileView = 'conversation' | 'list' | 'reply' | 'thread'
 export const mobileViewAtom = atom<MobileView>('list')
 
