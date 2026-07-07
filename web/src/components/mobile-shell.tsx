@@ -1,8 +1,7 @@
-import { useAtomValue } from 'jotai'
 import { Home, Inbox, Server, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 
-import { unreadCountAtom } from '@/store/chat'
+import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 
 // independent mobile app shell — no AppShell/Pane dependency
 // fixed height viewport with bottom navigation
@@ -24,7 +23,7 @@ const NAV_ITEMS = [
 
 function MobileNav() {
   const { pathname } = useLocation()
-  const unreadCount = useAtomValue(unreadCountAtom)
+  const unreadCount = useCurrentUnreadCount()
 
   const activeSection = pathname.startsWith('/admin')
     ? '/admin'

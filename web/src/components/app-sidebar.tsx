@@ -8,9 +8,10 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 
 import { BottomSheet } from '@/components/bottom-sheet'
+import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
-import { selectedDomainsAtom, unreadCountAtom } from '@/store/chat'
+import { selectedDomainsAtom } from '@/store/chat'
 import { themeModeAtom } from '@/store/theme'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
@@ -32,7 +33,7 @@ export function AppSidebar() {
     setTheme(next)
   }
 
-  const unreadCount = useAtomValue(unreadCountAtom)
+  const unreadCount = useCurrentUnreadCount()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const domains = auth?.accessible_domains ?? []

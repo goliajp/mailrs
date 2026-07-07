@@ -18,6 +18,7 @@ import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { type MailListFilters } from '@/lib/query-keys'
 import {
   categoryFilterAtom,
@@ -63,4 +64,19 @@ export function useCurrentMailFilters(): MailListFilters {
       quickFilter,
     ]
   )
+}
+
+/**
+ * Sum unread_count over the currently-visible conversation list.
+ *
+ * v2.1 phase-5d — this replaces the derived `unreadCountAtom`, which
+ * summed over the atom-shadowed conversation list. Same semantic:
+ * whatever filter the mail list is currently showing is what this
+ * badge reflects. The AppSidebar / mobile-shell / document-title
+ * effect all subscribe to it.
+ */
+export function useCurrentUnreadCount(): number {
+  const filters = useCurrentMailFilters()
+  const { conversations } = useFlatConversations(filters)
+  return useMemo(() => conversations.reduce((sum, c) => sum + c.unread_count, 0), [conversations])
 }

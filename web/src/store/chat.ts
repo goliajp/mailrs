@@ -2,11 +2,20 @@ import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 
 import { atom } from 'jotai'
 
+/**
+ * v2.1 phase-5d: `unreadCountAtom` deleted. Every reader migrated to
+ * `useCurrentUnreadCount()` in `hooks/use-current-mail-filters.ts`
+ * — a pure derivation over `useFlatConversations()` (i.e. the RQ
+ * cache line the mail list owns).
+ *
+ * `conversationsAtom` still exists during the transition because
+ * `chat.tsx` populates it as a shadow copy of the RQ cache, and
+ * three test files (conversation-list, thread-view) mock
+ * `useFlatConversations` to read from it. When the tests migrate to
+ * seed RQ directly, this atom deletes too — see the RFC's Phase 5d
+ * completion criteria.
+ */
 export const conversationsAtom = atom<ConversationSummary[]>([])
-export const unreadCountAtom = atom((get) => {
-  const conversations = get(conversationsAtom)
-  return conversations.reduce((sum, c) => sum + c.unread_count, 0)
-})
 export const selectedThreadIdAtom = atom<null | string>(null)
 export const threadMessagesAtom = atom<ThreadMessage[]>([])
 export const composingNewAtom = atom(false)

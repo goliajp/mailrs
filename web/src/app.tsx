@@ -20,11 +20,12 @@ import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { MobileShell } from '@/components/mobile-shell'
 import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
 import { sectionForPath } from '@/components/status-bar-model'
+import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { MPane } from '@/layouts/pane'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
-import { connectionStatusAtom, unreadCountAtom } from '@/store/chat'
+import { connectionStatusAtom } from '@/store/chat'
 
 const Admin = lazy(() => import('@/pages/admin').then((m) => ({ default: m.Admin })))
 const Chat = lazy(() => import('@/pages/chat').then((m) => ({ default: m.Chat })))
@@ -233,7 +234,7 @@ function StatusBar() {
 }
 
 function useDocumentTitle() {
-  const unreadCount = useAtomValue(unreadCountAtom)
+  const unreadCount = useCurrentUnreadCount()
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) Mailrs` : 'Mailrs'
   }, [unreadCount])
