@@ -169,8 +169,9 @@ function initMailrsTheme() {
 
 function LoadingFallback() {
   return (
-    <div className="flex flex-1 items-center justify-center p-8">
-      <div className="border-border border-t-accent h-5 w-5 animate-spin rounded-full border-2" />
+    <div className="text-fg-muted flex flex-1 flex-col items-center justify-center gap-3 p-8">
+      <div className="border-border border-t-accent h-8 w-8 animate-spin rounded-full border-2" />
+      <span className="text-sm">Loading…</span>
     </div>
   )
 }
@@ -191,6 +192,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!auth) return <Navigate replace to="/login" />
   return children
 }
+
+declare const __WEB_VERSION__: string | undefined
 
 function StatusBar() {
   const auth = useAtomValue(authAtom)
@@ -219,33 +222,52 @@ function StatusBar() {
           ? 'Mail'
           : 'Home'
 
+  const webVersion = typeof __WEB_VERSION__ !== 'undefined' ? __WEB_VERSION__ : 'dev'
+  const backendOk = health?.status === 'healthy'
+  const backendDot = backendOk
+    ? 'bg-success'
+    : health?.status === 'degraded'
+      ? 'bg-warning'
+      : health
+        ? 'bg-danger'
+        : 'bg-fg-muted'
+  const backendLabel = health ? `Backend ${health.status}` : 'Backend contacting…'
+
+  const wsDot =
+    wsStatus === 'connected' ? 'bg-success' : wsStatus === 'connecting' ? 'bg-warning' : 'bg-danger'
+  const wsLabel =
+    wsStatus === 'connected' ? 'Live' : wsStatus === 'connecting' ? 'Connecting' : 'Offline'
+
   return (
-    <div className="text-fg-muted flex h-full items-center justify-between px-3 text-[11px]">
-      <div className="flex items-center gap-2">
-        {health && (
-          <span className="flex items-center gap-1">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-success' : health.status === 'degraded' ? 'bg-warning' : 'bg-danger'}`}
-            />
-            {health.pg ? 'PG' : ''}
-            {health.pg && health.kevy ? ' · ' : ''}
-            {health.kevy ? 'Kevy' : ''}
-          </span>
-        )}
-        <span className="flex items-center gap-1">
-          <span
-            className={`inline-block h-2 w-2 rounded-full ${wsStatus === 'connected' ? 'bg-success' : wsStatus === 'connecting' ? 'bg-warning' : 'bg-danger'}`}
-            title={`WS: ${wsStatus}`}
-          />
-          <span className="hidden sm:inline">{wsStatus === 'offline' ? 'Offline' : ''}</span>
+    <div className="text-fg-secondary flex h-full items-center justify-between gap-4 px-4 text-xs">
+      <div className="flex items-center gap-3">
+        <span className="flex items-center gap-1.5" title={backendLabel}>
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${backendDot}`} />
+          <span>Backend</span>
         </span>
+        <span className="text-border-strong">·</span>
+        <span className="flex items-center gap-1.5" title={`WebSocket: ${wsStatus}`}>
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${wsDot}`} />
+          <span>Live · {wsLabel}</span>
+        </span>
+        {health && (
+          <>
+            <span className="text-border-strong">·</span>
+            <span className="text-fg-muted">
+              PG {health.pg ? '✓' : '✗'} · Kevy {health.kevy ? '✓' : '✗'}
+            </span>
+          </>
+        )}
         <span className="text-border-strong">·</span>
         <span>{section}</span>
       </div>
-      <div className="flex items-center gap-2">
-        {auth && <span>{auth.address}</span>}
-        {auth && health && <span className="text-border-strong">·</span>}
-        {health && <span>v{health.version}</span>}
+      <div className="flex items-center gap-3">
+        {auth && <span className="text-fg-muted">{auth.address}</span>}
+        {auth && <span className="text-border-strong">·</span>}
+        <span title={`webapp v${webVersion}${health ? ` · backend v${health.version}` : ''}`}>
+          web v{webVersion}
+          {health ? ` · api v${health.version}` : ''}
+        </span>
       </div>
     </div>
   )

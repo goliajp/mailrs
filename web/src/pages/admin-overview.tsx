@@ -248,7 +248,8 @@ function formatRelativeTime(epochSecs: number): string {
 
 // --- sub-components ---
 
-function formatUptime(secs: number): string {
+function formatUptime(secs: null | number | undefined): string {
+  if (secs == null || !Number.isFinite(secs) || secs < 0) return '-'
   const days = Math.floor(secs / 86400)
   const hours = Math.floor((secs % 86400) / 3600)
   const mins = Math.floor((secs % 3600) / 60)
@@ -341,19 +342,18 @@ function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
 // --- main ---
 
 function StatusBanner({ health }: { health: HealthInfo }) {
+  const status = health.status ?? 'unknown'
   const statusColor =
-    health.status === 'healthy'
+    status === 'healthy'
       ? 'bg-success/10 text-success'
-      : health.status === 'degraded'
+      : status === 'degraded'
         ? 'bg-warning/10 text-warning'
         : 'bg-danger/10 text-danger'
 
   const dotColor =
-    health.status === 'healthy'
-      ? 'bg-success'
-      : health.status === 'degraded'
-        ? 'bg-warning'
-        : 'bg-danger'
+    status === 'healthy' ? 'bg-success' : status === 'degraded' ? 'bg-warning' : 'bg-danger'
+
+  const label = status.length > 0 ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown'
 
   return (
     <div className="border-border bg-surface flex items-center gap-4 rounded-lg border px-5 py-3">
@@ -361,9 +361,9 @@ function StatusBanner({ health }: { health: HealthInfo }) {
         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}
       >
         <span className={`h-2 w-2 rounded-full ${dotColor}`} />
-        {health.status.charAt(0).toUpperCase() + health.status.slice(1)}
+        {label}
       </span>
-      <span className="text-fg-muted text-sm">v{health.version}</span>
+      <span className="text-fg-muted text-sm">v{health.version ?? '-'}</span>
       <span className="text-fg-muted text-sm">Uptime {formatUptime(health.uptime_secs)}</span>
     </div>
   )

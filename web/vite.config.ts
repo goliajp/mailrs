@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
@@ -13,9 +14,26 @@ import { defineConfig } from 'vitest/config'
 // new wire fields silently never reached the UI.
 const BUILD_ID = `${Date.now()}`
 
+// Webapp version — read from package.json at config-load time.
+// release-web.yml `sed`s the tag date into package.json before
+// running `vite build`, so this pulls the actual shipping version
+// into the bundle. StatusBar (see app.tsx) surfaces it beside the
+// backend version so an operator can spot a stale bundle.
+const PACKAGE_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8')
+    )
+    return String(pkg.version ?? 'dev')
+  } catch {
+    return 'dev'
+  }
+})()
+
 export default defineConfig({
   define: {
     __APP_BUILD_ID__: JSON.stringify(BUILD_ID),
+    __WEB_VERSION__: JSON.stringify(PACKAGE_VERSION),
   },
   test: {
     coverage: {
