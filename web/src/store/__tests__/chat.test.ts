@@ -15,7 +15,6 @@ import {
   selectedThreadIdsAtom,
   shortcutsDialogOpenAtom,
   sortOrderAtom,
-  threadMessagesAtom,
 } from '../chat'
 
 // v2.1 phase-5d: `unreadCountAtom` deleted. The equivalent logic lives
@@ -48,10 +47,9 @@ describe('primitive atoms — initial values', () => {
     expect(store.get(selectedThreadIdAtom)).toBeNull()
   })
 
-  it('threadMessagesAtom defaults to empty array', () => {
-    const store = createStore()
-    expect(store.get(threadMessagesAtom)).toEqual([])
-  })
+  // v2.1 phase-5d: threadMessagesAtom deleted. Thread-view /
+  // MobileThreadView own the messages in component-local `useState`,
+  // populated by the `useThreadQuery` bridge effect.
 
   it('composingNewAtom defaults to false', () => {
     const store = createStore()
