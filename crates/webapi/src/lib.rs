@@ -221,6 +221,7 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             delete(handlers::prefs::delete_template),
         )
         .route("/api/bimi/{domain}", get(handlers::prefs::get_bimi))
+        .route("/api/icon/{domain}", get(handlers::icon::get_icon))
         .route("/api/proxy/image", get(handlers::prefs::proxy_image))
         .route("/api/proxy/link", get(handlers::prefs::proxy_link))
         // Phase 13 — remaining route coverage.

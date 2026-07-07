@@ -10,6 +10,7 @@ pub mod complete;
 pub mod conversations;
 pub mod dav;
 pub mod events;
+pub mod icon;
 pub mod inline;
 pub mod invites;
 pub mod jmap;

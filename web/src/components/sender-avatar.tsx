@@ -75,18 +75,30 @@ export const SenderAvatar = memo(function SenderAvatar({
   )
 })
 
-// try BIMI logo lookup, cache the result
+/**
+ * Fetch a small pixmap for `domain` through the mailrs icon cascade
+ * (`/api/icon/{domain}` — BIMI → Google favicons → DDG icons). The
+ * backend caches the result in kevy so this call is a single kevy
+ * hit on a warm cache, not a fanout to external services per render.
+ *
+ * Wire contract of `/api/icon/{domain}`:
+ *   - 200 + image bytes → resolve to a blob URL
+ *   - 204 No Content     → resolve to `null` (no icon anywhere;
+ *                          fall back to the coloured initial)
+ *   - anything else      → resolve to `null` and don't retry within
+ *                          the module lifetime
+ *
+ * The endpoint intentionally uses 204, not 404, so the browser
+ * devtools network panel doesn't paint a red row for every unknown
+ * sender domain rendered in the inbox — a 401/404 wall was the
+ * 2026-07-07 UX regression this replaces.
+ */
 function resolveIcon(domain: string): Promise<null | string> {
   if (iconCache.has(domain)) return Promise.resolve(iconCache.get(domain)!)
   const existing = iconInflight.get(domain)
   if (existing) return existing
 
   const p = (async () => {
-    // 1. try BIMI (DNS-backed, always a real SVG). The endpoint is
-    // Bearer-authed like the rest of the API — an anonymous fetch
-    // spams 401s in the console for every distinct sender domain
-    // rendered in the inbox. Pass the auth header if we have one, and
-    // if we don't (logged-out avatar) skip the network entirely.
     const token = getToken()
     if (!token) {
       iconCache.set(domain, null)
@@ -94,28 +106,24 @@ function resolveIcon(domain: string): Promise<null | string> {
       return null
     }
     try {
-      const r = await fetch(`/api/bimi/${domain}`, {
+      const r = await fetch(`/api/icon/${encodeURIComponent(domain)}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (r.ok) {
-        const data = await r.json()
-        // Backend returns `{ l: "https://…svg", a: "https://…pem" }`
-        // (from the raw BIMI TXT record) — the legacy `logo_url` name
-        // never existed on the wire. Accept the real key first and
-        // keep the legacy key as a fallback for future rewrites.
-        const url: string | undefined = data?.l ?? data?.logo_url
-        if (url) {
+      if (r.status === 200) {
+        const blob = await r.blob()
+        if (blob.size > 0) {
+          const url = URL.createObjectURL(blob)
           iconCache.set(domain, url)
           iconInflight.delete(domain)
           return url
         }
       }
+      // 204 or non-2xx → no icon available, cache the null so we
+      // don't retry within this page lifetime.
     } catch {
-      /* continue */
+      /* network error: same handling as "not available" */
     }
 
-    // no apple-touch-icon fallback — too many 404s and false positives
-    // just use letter avatar when BIMI is not available
     iconCache.set(domain, null)
     iconInflight.delete(domain)
     return null
