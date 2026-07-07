@@ -2,7 +2,9 @@
 // replaces desktop Chat (MPaneGroup/MPane) with full-screen view switching
 // shares data layer (atoms, API) but independent UI
 
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import type { ThreadMessage } from '@/lib/types'
+
+import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Mail, MessageSquare, Reply } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -15,7 +17,7 @@ import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
-import { mobileViewAtom, selectedThreadIdAtom, threadMessagesAtom } from '@/store/chat'
+import { mobileViewAtom, selectedThreadIdAtom } from '@/store/chat'
 
 // ─── mobile mail router ─────────────────────────────────────
 
@@ -198,7 +200,11 @@ function MobileThreadView() {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   const selectedId = useAtomValue(selectedThreadIdAtom)
-  const [messages, setMessages] = useAtom(threadMessagesAtom)
+  // v2.1 phase-5d finale: transition state is now component-local;
+  // the shared `threadMessagesAtom` used to communicate to mobile-
+  // reply / mobile-convo views but those readers migrated to
+  // `useCurrentThreadMessages()` (RQ-native).
+  const [messages, setMessages] = useState<ThreadMessage[]>([])
   const setMobileView = useSetAtom(mobileViewAtom)
   const filters = useCurrentMailFilters()
   const { conversations } = useFlatConversations(filters)
