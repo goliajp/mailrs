@@ -1,23 +1,20 @@
-import type { ConversationSummary, ThreadMessage } from '@/lib/types'
+import type { ConversationSummary } from '@/lib/types'
 
 import { atom } from 'jotai'
 
 /**
- * v2.1 phase-5d: `unreadCountAtom` deleted. Every reader migrated to
- * `useCurrentUnreadCount()` in `hooks/use-current-mail-filters.ts`
- * — a pure derivation over `useFlatConversations()` (i.e. the RQ
- * cache line the mail list owns).
+ * v2.1 phase-5d: `threadMessagesAtom` deleted — thread-view /
+ * MobileThreadView keep messages in component-local `useState`; the
+ * three read-only callers (mobile-mail views, reply-box) go through
+ * `useCurrentThreadMessages()` (RQ-native).
  *
  * `conversationsAtom` still exists during the transition because
- * `chat.tsx` populates it as a shadow copy of the RQ cache, and
- * three test files (conversation-list, thread-view) mock
- * `useFlatConversations` to read from it. When the tests migrate to
- * seed RQ directly, this atom deletes too — see the RFC's Phase 5d
- * completion criteria.
+ * `conversation-list.test.tsx` mocks `useFlatConversations` to read
+ * from it. When that test migrates to seed the RQ cache directly,
+ * this atom deletes too — see the RFC's Phase 5d completion criteria.
  */
 export const conversationsAtom = atom<ConversationSummary[]>([])
 export const selectedThreadIdAtom = atom<null | string>(null)
-export const threadMessagesAtom = atom<ThreadMessage[]>([])
 export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
 // v2.1 phase-5d: no production reader / writer left for these.
