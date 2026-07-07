@@ -19,7 +19,6 @@ import {
   shortcutsDialogOpenAtom,
   sortOrderAtom,
   threadMessagesAtom,
-  unreadCountAtom,
 } from '../chat'
 
 function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
@@ -45,49 +44,10 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
   }
 }
 
-describe('unreadCountAtom', () => {
-  it('returns 0 when conversations list is empty', () => {
-    const store = createStore()
-    expect(store.get(unreadCountAtom)).toBe(0)
-  })
-
-  it('sums unread_count across all conversations', () => {
-    const store = createStore()
-    store.set(conversationsAtom, [
-      makeConversation({ thread_id: 't1', unread_count: 3 }),
-      makeConversation({ thread_id: 't2', unread_count: 5 }),
-      makeConversation({ thread_id: 't3', unread_count: 0 }),
-    ])
-    expect(store.get(unreadCountAtom)).toBe(8)
-  })
-
-  it('updates reactively when conversations change', () => {
-    const store = createStore()
-    store.set(conversationsAtom, [makeConversation({ thread_id: 't1', unread_count: 2 })])
-    expect(store.get(unreadCountAtom)).toBe(2)
-
-    store.set(conversationsAtom, [
-      makeConversation({ thread_id: 't1', unread_count: 2 }),
-      makeConversation({ thread_id: 't2', unread_count: 7 }),
-    ])
-    expect(store.get(unreadCountAtom)).toBe(9)
-  })
-
-  it('returns 0 when all conversations have 0 unread', () => {
-    const store = createStore()
-    store.set(conversationsAtom, [
-      makeConversation({ thread_id: 't1', unread_count: 0 }),
-      makeConversation({ thread_id: 't2', unread_count: 0 }),
-    ])
-    expect(store.get(unreadCountAtom)).toBe(0)
-  })
-
-  it('handles single conversation correctly', () => {
-    const store = createStore()
-    store.set(conversationsAtom, [makeConversation({ thread_id: 't1', unread_count: 12 })])
-    expect(store.get(unreadCountAtom)).toBe(12)
-  })
-})
+// v2.1 phase-5d: `unreadCountAtom` deleted. The equivalent logic lives
+// in `hooks/use-current-mail-filters::useCurrentUnreadCount`, which
+// derives from the RQ-native `useFlatConversations` hook. The
+// derivation semantics haven't changed; only the source of truth did.
 
 describe('sortOrderAtom', () => {
   it('defaults to "newest"', () => {
