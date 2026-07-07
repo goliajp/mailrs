@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-webapi"
-version = "0.0.1"
+version.workspace = true
 edition = "2024"
 description = "REST + MCP + JMAP + CalDAV/CardDAV web frontend for mailrs. Talks to core via mailrs-core-api over HTTP."
 license = "Apache-2.0 OR MIT"
