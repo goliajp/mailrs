@@ -4,7 +4,7 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 
@@ -20,7 +20,7 @@ import {
 export function SignaturesSection() {
   const { data: signatures = [] } = useQuery({
     queryKey: settingsKeys.signatures(),
-    queryFn: () => fetchJson<Signature[]>('/mail/signatures'),
+    queryFn: () => fetchList<Signature>('/mail/signatures'),
   })
   const [editing, setEditing] = useState<null | Partial<Signature>>(null)
   const [saving, setSaving] = useState(false)

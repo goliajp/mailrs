@@ -13,7 +13,7 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 type EmailGroupInfo = {
@@ -35,13 +35,13 @@ export function AdminEmailGroups() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.emailGroups(),
-    queryFn: ({ signal }) => fetchJson<EmailGroupInfo[]>('/admin/email-groups', signal),
+    queryFn: ({ signal }) => fetchList<EmailGroupInfo>('/admin/email-groups', signal),
   })
   const groups = groupsData ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
+    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
   })
   const domains = domainsData ?? []
 
@@ -262,7 +262,7 @@ function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
 
   const { data: membersData } = useQuery({
     queryKey: adminKeys.emailGroupMembers(group.id),
-    queryFn: ({ signal }) => fetchJson<string[]>(`/admin/email-groups/${group.id}/members`, signal),
+    queryFn: ({ signal }) => fetchList<string>(`/admin/email-groups/${group.id}/members`, signal),
   })
   const members = membersData ?? null
 

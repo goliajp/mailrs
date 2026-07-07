@@ -4,7 +4,7 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 
@@ -20,7 +20,7 @@ import {
 export function ApiKeysSection() {
   const { data: keys = [] } = useQuery({
     queryKey: settingsKeys.agentKeys(),
-    queryFn: () => fetchJson<AgentKey[]>('/agent/keys'),
+    queryFn: () => fetchList<AgentKey>('/agent/keys'),
   })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ expires_in_days: '', name: '' })

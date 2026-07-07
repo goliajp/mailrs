@@ -22,7 +22,7 @@ import { Copyable } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 const PAGE_SIZE = 20
@@ -54,7 +54,7 @@ export function AdminAccounts() {
 
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.accounts(),
-    queryFn: ({ signal }) => fetchJson<AccountInfo[]>('/admin/accounts', signal),
+    queryFn: ({ signal }) => fetchList<AccountInfo>('/admin/accounts', signal),
   })
   const accounts = useMemo(() => data ?? [], [data])
 

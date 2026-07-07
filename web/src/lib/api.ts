@@ -75,6 +75,53 @@ export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<
   return handleResponse<T>(res)
 }
 
+/**
+ * List-endpoint reader that hides the "bare array or `{items:[]}` envelope"
+ * ambiguity from every caller.
+ *
+ * Every admin list endpoint on the mailrs webapi wraps its payload in
+ * `{ items: [...] }` (`crates/core-api/src/method/admin.rs` ->
+ * `*ListResponse`). Historically some monolith endpoints returned a bare
+ * array, and the frontend was written against the bare shape. When the
+ * fastcore-native handlers took over, every admin page hit `TypeError:
+ * X.map is not a function` because the wire shape shifted under the
+ * lie the `fetchJson<X[]>` type had been telling.
+ *
+ * This helper collapses every plausible shape a list endpoint might
+ * return — bare array, `{items}`, `{results}`, `{data}`, `{list}`, and
+ * whatever `wire::*ListResponse` exposes as its single-array-field name
+ * — into a plain `T[]`. The single-array-field discovery is important:
+ * the webapi's `WebhookListResponse` might tomorrow rename `items` to
+ * `webhooks` and this helper will still work.
+ *
+ * On anything that isn't parseable as a list (a 401 body echoed as
+ * data, a `{error}` object, a null), the helper resolves to `[]` rather
+ * than throwing — the page renders "No entries" instead of unmounting.
+ *
+ * **All future admin queries MUST use `fetchList<T>()`, not
+ * `fetchJson<T[]>()`.** The bare shape is a liability.
+ */
+export async function fetchList<T>(path: string, signal?: AbortSignal): Promise<T[]> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+    signal,
+  })
+  if (res.status === 401) {
+    redirectToLogin()
+    throw new Error('unauthorized')
+  }
+  // 204 No Content is a legitimate "empty list" from endpoints like
+  // /api/icon that intentionally avoid 404s. Anything non-2xx else is
+  // still a hard error the caller should see.
+  if (res.status === 204) return []
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  // Some servers hand back `application/json` with an empty body on
+  // 200 (uncommon, but possible with reverse proxies). Treat it as [].
+  const text = await res.text()
+  if (text.length === 0) return []
+  return unwrapList<T>(JSON.parse(text))
+}
+
 export async function getThreadReactions(
   threadId: string
 ): Promise<Record<number, ReactionSummary[]>> {
@@ -85,7 +132,7 @@ export async function getThreadReactions(
 }
 
 export async function listDrafts(): Promise<Draft[]> {
-  return fetchJson<Draft[]>('/mail/drafts')
+  return fetchList<Draft>('/mail/drafts')
 }
 
 export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
@@ -108,10 +155,6 @@ export async function putJson<T>(path: string, body: unknown, signal?: AbortSign
   return handleResponse<T>(res)
 }
 
-// --- reactions API ---
-
-import type { ReactionSummary } from '@/lib/types'
-
 export async function recordFeedback(
   senderEmail: string,
   action: FeedbackAction
@@ -119,11 +162,13 @@ export async function recordFeedback(
   return postJson('/mail/feedback', { action, sender_email: senderEmail })
 }
 
+// --- reactions API ---
+
+import type { ReactionSummary } from '@/lib/types'
+
 export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResult> {
   return postJson<SaveDraftResult>('/mail/drafts', draft)
 }
-
-// --- snooze API ---
 
 export async function snoozeConversation(
   threadId: string,
@@ -133,6 +178,8 @@ export async function snoozeConversation(
     until,
   })
 }
+
+// --- snooze API ---
 
 export async function toggleReaction(
   threadId: string,
@@ -146,12 +193,34 @@ export async function toggleReaction(
   return result.reactions
 }
 
-// --- sender feedback API ---
-
 export async function unsnoozeConversation(
   threadId: string
 ): Promise<{ message?: string; success: boolean }> {
   return deleteJson(`/conversations/${encodeURIComponent(threadId)}/snooze`)
+}
+
+// --- sender feedback API ---
+
+/**
+ * Public for testing. Extracts a `T[]` from whatever shape a list
+ * endpoint might return. See `fetchList` for the full list of shapes.
+ */
+export function unwrapList<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[]
+  if (raw == null || typeof raw !== 'object') return []
+  const obj = raw as Record<string, unknown>
+  // Common envelope keys first (fast path — matches every current
+  // wire::*ListResponse shape and every historical alternative).
+  for (const key of ['items', 'results', 'data', 'list', 'rows']) {
+    if (Array.isArray(obj[key])) return obj[key] as T[]
+  }
+  // Fallback: pick the single array-valued property. Handles a future
+  // wire type that names its list field after the resource (e.g.
+  // `{ webhooks: [...] }`) without needing this helper to know the
+  // resource name.
+  const arrayValues = Object.values(obj).filter(Array.isArray)
+  if (arrayValues.length === 1) return arrayValues[0] as T[]
+  return []
 }
 
 function authHeaders(): Record<string, string> {

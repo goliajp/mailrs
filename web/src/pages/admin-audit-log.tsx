@@ -10,7 +10,7 @@ import {
   AdminTableSkeleton,
 } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
-import { fetchJson } from '@/lib/api'
+import { fetchList } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 type AuditEntry = {
@@ -66,7 +66,7 @@ export function AdminAuditLog() {
 
   const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: adminKeys.auditLog(),
-    queryFn: ({ signal }) => fetchJson<AuditEntry[]>('/admin/audit-log?limit=200', signal),
+    queryFn: ({ signal }) => fetchList<AuditEntry>('/admin/audit-log?limit=200', signal),
   })
   const entries = useMemo(() => data ?? [], [data])
 

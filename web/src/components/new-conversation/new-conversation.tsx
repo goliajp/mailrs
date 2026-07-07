@@ -7,7 +7,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -52,7 +52,7 @@ export function NewConversation() {
   const { data: templates = [] } = useQuery({
     queryKey: mailKeys.templates(),
     staleTime: 5 * 60 * 1000,
-    queryFn: () => fetchJson<TemplateInfo[]>('/mail/templates'),
+    queryFn: () => fetchList<TemplateInfo>('/mail/templates'),
   })
 
   // composer opens by flipping an atom, which doesn't push a history entry.

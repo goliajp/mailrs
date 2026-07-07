@@ -17,7 +17,7 @@ import {
   todayStart,
   useGreeting,
 } from '@/components/dashboard'
-import { fetchJson } from '@/lib/api'
+import { fetchJson, fetchList } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -68,7 +68,7 @@ export function Dashboard() {
         queryKey: dashboardKeys.conversations(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchJson<ConversationSummary[]>('/conversations?limit=200', signal),
+          fetchList<ConversationSummary>('/conversations?limit=200', signal),
       },
       {
         queryKey: dashboardKeys.stats(),
@@ -80,7 +80,7 @@ export function Dashboard() {
         queryKey: dashboardKeys.folders(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchJson<FolderInfo[]>('/mail/folders', signal),
+          fetchList<FolderInfo>('/mail/folders', signal),
       },
     ],
   })

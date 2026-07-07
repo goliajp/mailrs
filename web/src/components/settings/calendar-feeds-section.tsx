@@ -3,7 +3,7 @@ import type { CalendarFeed } from './_shared'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 
@@ -13,7 +13,7 @@ export function CalendarFeedsSection() {
   const feedsQuery = useQuery({
     queryKey: settingsKeys.calendarFeeds(),
     queryFn: async () => {
-      const list = await fetchJson<CalendarFeed[]>('/calendar/feeds')
+      const list = await fetchList<CalendarFeed>('/calendar/feeds')
       return list ?? []
     },
   })

@@ -33,6 +33,9 @@ function makeFetchMock(status: number, body: unknown, isJson = true): typeof fet
       : vi.fn().mockRejectedValue(new SyntaxError('not json')),
     ok: status >= 200 && status < 300,
     status,
+    text: vi
+      .fn()
+      .mockResolvedValue(isJson && body !== undefined ? JSON.stringify(body) : ''),
   } as unknown as Response)
 }
 

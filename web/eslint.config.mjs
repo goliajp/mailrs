@@ -42,6 +42,19 @@ export default eslintTs.config(
       '@typescript-eslint/no-explicit-any': 0,
       '@typescript-eslint/no-unused-expressions': 0,
       '@typescript-eslint/no-unused-vars': 'off',
+      // Every admin list endpoint returns `{items:[...]}`; typing it as
+      // a bare array via `fetchJson<T[]>` is a lie and blows up at
+      // runtime. Use `fetchList<T>` from `@/lib/api` — it handles both
+      // the enveloped and bare shapes and returns `T[]`.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.name="fetchJson"] > TSTypeParameterInstantiation > TSArrayType',
+          message:
+            'Do not use fetchJson<T[]>. Use fetchList<T>() from @/lib/api — the backend wraps list responses as {items: T[]} and a bare-array type crashes on .map at runtime.',
+        },
+      ],
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
         'error',

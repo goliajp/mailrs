@@ -13,7 +13,7 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson, putJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 type GroupInfo = {
@@ -34,19 +34,19 @@ export function AdminGroups() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.groups(),
-    queryFn: ({ signal }) => fetchJson<GroupInfo[]>('/admin/groups', signal),
+    queryFn: ({ signal }) => fetchList<GroupInfo>('/admin/groups', signal),
   })
   const groups = groupsData ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
+    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
   })
   const domains = domainsData ?? []
 
   const { data: allPermissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: ({ signal }) => fetchJson<string[]>('/admin/permissions', signal),
+    queryFn: ({ signal }) => fetchList<string>('/admin/permissions', signal),
   })
   const allPermissions = allPermissionsData ?? []
 
@@ -265,13 +265,13 @@ function GroupDetail({ allPermissions, group }: { allPermissions: string[]; grou
 
   const { data: permissionsData } = useQuery({
     queryKey: adminKeys.groupPermissions(group.id),
-    queryFn: ({ signal }) => fetchJson<string[]>(`/admin/groups/${group.id}/permissions`, signal),
+    queryFn: ({ signal }) => fetchList<string>(`/admin/groups/${group.id}/permissions`, signal),
   })
   const permissions = permissionsData ?? []
 
   const { data: membersData } = useQuery({
     queryKey: adminKeys.groupMembers(group.id),
-    queryFn: ({ signal }) => fetchJson<string[]>(`/admin/groups/${group.id}/members`, signal),
+    queryFn: ({ signal }) => fetchList<string>(`/admin/groups/${group.id}/members`, signal),
   })
   const members = membersData ?? []
 

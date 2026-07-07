@@ -13,7 +13,7 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
+import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 
 const EMPTY_FORM = {
@@ -35,13 +35,13 @@ export function AdminAliases() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.aliases(),
-    queryFn: ({ signal }) => fetchJson<AliasInfo[]>('/admin/aliases', signal),
+    queryFn: ({ signal }) => fetchList<AliasInfo>('/admin/aliases', signal),
   })
   const aliases = aliasesData ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchJson<DomainInfo[]>('/admin/domains', signal),
+    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
   })
   const domains = domainsData ?? []
 

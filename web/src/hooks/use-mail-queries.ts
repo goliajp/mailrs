@@ -2,7 +2,7 @@ import type { CategoryCount, ConversationSummary, ThreadMessage } from '@/lib/ty
 
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
-import { fetchJson } from '@/lib/api'
+import { fetchJson, fetchList } from '@/lib/api'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 
 const PAGE_SIZE = 50
@@ -24,7 +24,7 @@ export function useCategoriesQuery(domains: string[]) {
     staleTime: 60 * 1000,
     queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchJson<CategoryCount[]>(`/conversations/categories${q}`, signal)
+      return fetchList<CategoryCount>(`/conversations/categories${q}`, signal)
     },
   })
 }
@@ -49,7 +49,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       return last?.last_date
     },
     queryFn: ({ pageParam, signal }) =>
-      fetchJson<ConversationSummary[]>(listPath(filters, pageParam), signal),
+      fetchList<ConversationSummary>(listPath(filters, pageParam), signal),
   })
 }
 
@@ -58,7 +58,7 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
     enabled: !!threadId,
     queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchJson<ThreadMessage[]>(
+      return fetchList<ThreadMessage>(
         `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
         signal
       )
