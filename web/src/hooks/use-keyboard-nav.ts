@@ -2,12 +2,15 @@ import { toast } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
+import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
+import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { postJson } from '@/lib/api'
+import { queryClient } from '@/lib/query-client'
+import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import {
   categoryFilterAtom,
   composeReplySourceAtom,
   composingNewAtom,
-  conversationsAtom,
   folderAtom,
   importanceSectionAtom,
   mobileViewAtom,
@@ -18,7 +21,14 @@ import {
 } from '@/store/chat'
 
 export function useKeyboardNav() {
-  const [conversations, setConversations] = useAtom(conversationsAtom)
+  // v2.1 phase-5c: conversations read via the RQ-native
+  // `useFlatConversations` hook. Optimistic patches (delete / archive /
+  // read / pin / star / unread / mark-all-read) are dispatched to the
+  // `conversationKeys.infinites()` cache via `patchAllInfiniteLists` —
+  // every screen subscribing to that cache line re-renders on the
+  // next tick with the mutation applied.
+  const filters = useCurrentMailFilters()
+  const { conversations } = useFlatConversations(filters)
   const visibleIds = useAtomValue(visibleConversationIdsAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
@@ -52,7 +62,9 @@ export function useKeyboardNav() {
           })
             .then(() => {
               toast.success('Deleted')
-              setConversations((prev) => prev.filter((c) => c.thread_id !== selectedThreadId))
+              patchAllInfiniteLists(queryClient, (c) =>
+                c.thread_id === selectedThreadId ? null : c
+              )
               const idx = visibleIds.indexOf(selectedThreadId)
               const next = visibleIds[idx + 1] ?? visibleIds[idx - 1] ?? null
               setSelectedThreadId(next)
@@ -119,10 +131,8 @@ export function useKeyboardNav() {
           postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${action}`, {})
             .then(() => {
               toast.success(action === 'archive' ? 'Archived' : 'Unarchived')
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
-                )
+              patchAllInfiniteLists(queryClient, (c) =>
+                c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
               )
               // auto-advance to next thread after archive
               if (action === 'archive') {
@@ -180,8 +190,8 @@ export function useKeyboardNav() {
           postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/read`, {}).catch(
             () => {}
           )
-          setConversations((prev) =>
-            prev.map((c) => (c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c))
+          patchAllInfiniteLists(queryClient, (c) =>
+            c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c
           )
           const readIdx = visibleIds.indexOf(selectedThreadId)
           const nextThread = visibleIds[readIdx + 1] ?? visibleIds[readIdx - 1] ?? null
@@ -218,8 +228,8 @@ export function useKeyboardNav() {
           postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${pinAct}`, {})
             .then(() => {
               toast.success(pinned ? 'Unpinned' : 'Pinned')
-              setConversations((prev) =>
-                prev.map((c) => (c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c))
+              patchAllInfiniteLists(queryClient, (c) =>
+                c.thread_id === selectedThreadId ? { ...c, pinned: !pinned } : c
               )
             })
             .catch(() => toast.error('Failed'))
@@ -249,10 +259,8 @@ export function useKeyboardNav() {
           const act = flagged ? 'unstar' : 'star'
           postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${act}`, {})
             .then(() => {
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c
-                )
+              patchAllInfiniteLists(queryClient, (c) =>
+                c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c
               )
             })
             .catch(() => toast.error('Failed'))
@@ -269,12 +277,10 @@ export function useKeyboardNav() {
           })
             .then(() => {
               toast.success('Marked unread')
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.thread_id === selectedThreadId
-                    ? { ...c, unread_count: Math.max(1, c.unread_count) }
-                    : c
-                )
+              patchAllInfiniteLists(queryClient, (c) =>
+                c.thread_id === selectedThreadId
+                  ? { ...c, unread_count: Math.max(1, c.unread_count) }
+                  : c
               )
             })
             .catch(() => toast.error('Failed'))
@@ -312,7 +318,6 @@ export function useKeyboardNav() {
     setSelectedThreadId,
     setComposingNew,
     setComposeReplySource,
-    setConversations,
     setMobileView,
     setShortcutsOpen,
     setCategory,
