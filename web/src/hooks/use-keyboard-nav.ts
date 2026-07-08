@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
 import { useFlatConversations } from '@/hooks/use-flat-conversations'
-import { postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import {
@@ -19,6 +18,16 @@ import {
   shortcutsDialogOpenAtom,
   visibleConversationIdsAtom,
 } from '@/store/ui'
+import {
+  wireArchiveThread,
+  wireBatchMutation,
+  wireMarkThreadRead,
+  wirePinThread,
+  wireStarThread,
+  wireUnarchiveThread,
+  wireUnpinThread,
+  wireUnstarThread,
+} from '@/wire/endpoints/mutations'
 
 export function useKeyboardNav() {
   // v2.1 phase-5c: conversations read via the RQ-native
@@ -56,10 +65,7 @@ export function useKeyboardNav() {
           // delete current thread
           if (!selectedThreadId) break
           e.preventDefault()
-          postJson(`/conversations/batch`, {
-            action: 'delete',
-            thread_ids: [selectedThreadId],
-          })
+          wireBatchMutation('delete', [selectedThreadId])
             .then(() => {
               toast.success('Deleted')
               patchAllInfiniteLists(queryClient, (c) =>
@@ -128,7 +134,11 @@ export function useKeyboardNav() {
           e.preventDefault()
           const convo = conversations.find((c) => c.thread_id === selectedThreadId)
           const action = convo?.archived ? 'unarchive' : 'archive'
-          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${action}`, {})
+          const req =
+            action === 'archive'
+              ? wireArchiveThread(selectedThreadId)
+              : wireUnarchiveThread(selectedThreadId)
+          req
             .then(() => {
               toast.success(action === 'archive' ? 'Archived' : 'Unarchived')
               patchAllInfiniteLists(queryClient, (c) =>
@@ -187,9 +197,7 @@ export function useKeyboardNav() {
           // Shift+I: mark read and go to next
           if (!selectedThreadId) break
           e.preventDefault()
-          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/read`, {}).catch(
-            () => {}
-          )
+          wireMarkThreadRead(selectedThreadId).catch(() => {})
           patchAllInfiniteLists(queryClient, (c) =>
             c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c
           )
@@ -224,8 +232,8 @@ export function useKeyboardNav() {
           if (!selectedThreadId) break
           e.preventDefault()
           const pinned = conversations.find((c) => c.thread_id === selectedThreadId)?.pinned
-          const pinAct = pinned ? 'unpin' : 'pin'
-          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${pinAct}`, {})
+          const req = pinned ? wireUnpinThread(selectedThreadId) : wirePinThread(selectedThreadId)
+          req
             .then(() => {
               toast.success(pinned ? 'Unpinned' : 'Pinned')
               patchAllInfiniteLists(queryClient, (c) =>
@@ -256,11 +264,14 @@ export function useKeyboardNav() {
           if (!selectedThreadId) break
           e.preventDefault()
           const flagged = conversations.find((c) => c.thread_id === selectedThreadId)?.flagged
-          const act = flagged ? 'unstar' : 'star'
-          postJson(`/conversations/${encodeURIComponent(selectedThreadId)}/${act}`, {})
+          const nextFlagged = !flagged
+          const req = flagged
+            ? wireUnstarThread(selectedThreadId)
+            : wireStarThread(selectedThreadId)
+          req
             .then(() => {
               patchAllInfiniteLists(queryClient, (c) =>
-                c.thread_id === selectedThreadId ? { ...c, flagged: act === 'star' } : c
+                c.thread_id === selectedThreadId ? { ...c, flagged: nextFlagged } : c
               )
             })
             .catch(() => toast.error('Failed'))
@@ -271,10 +282,7 @@ export function useKeyboardNav() {
           // mark current thread unread
           if (!selectedThreadId) break
           e.preventDefault()
-          postJson(`/conversations/batch`, {
-            action: 'unread',
-            thread_ids: [selectedThreadId],
-          })
+          wireBatchMutation('unread', [selectedThreadId])
             .then(() => {
               toast.success('Marked unread')
               patchAllInfiniteLists(queryClient, (c) =>

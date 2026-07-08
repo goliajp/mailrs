@@ -27,7 +27,6 @@ import {
   useUnpinMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
-import { postJson } from '@/lib/api'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
 import { queryClient } from '@/lib/query-client'
@@ -48,15 +47,9 @@ import {
   stickyUnreadIdsAtom,
   visibleConversationIdsAtom,
 } from '@/store/ui'
+import { wireBatchMutation, wireMarkAllRead } from '@/wire/endpoints/mutations'
 
 type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
-
-type BatchResult = {
-  failed: number
-  message?: string
-  processed: number
-  success: boolean
-}
 
 type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction
 
@@ -459,10 +452,7 @@ export function ConversationList({
 
       setBatchLoading(true)
       try {
-        const result = await postJson<BatchResult>('/conversations/batch', {
-          action,
-          thread_ids: ids,
-        })
+        const result = await wireBatchMutation(action, ids)
         const msg = result.message ?? (result.success ? 'Done' : 'Some operations failed')
         if (result.success) {
           toast.success(msg)
@@ -717,10 +707,7 @@ export function ConversationList({
             className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
             onClick={async () => {
               try {
-                const resp = await postJson<{ flipped: number; success: boolean }>(
-                  '/conversations/mark-all-read',
-                  {}
-                )
+                const resp = await wireMarkAllRead()
                 // v2.1 phase-5c — patch the RQ cache directly. Every
                 // reader subscribing to `conversationKeys.infinites()`
                 // sees `unread_count = 0` on the next paint.
