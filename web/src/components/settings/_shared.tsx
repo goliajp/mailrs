@@ -3,6 +3,11 @@ import { MobileModal } from '@/components/mobile-modal'
 // shared types reused by multiple sections — colocated here so the section
 // files don't import each other for type-only references.
 
+// v2.1 §10-audit (2026-07-08): schemas at `wire/schemas/settings.ts`
+// now `.transform()` raw backend shapes into these UI-facing types,
+// so this file stays as-is even though field-name aliasing happens
+// at the wire boundary.
+
 export type AgentKey = {
   created_at: string
   expires_at: null | string
