@@ -45,7 +45,7 @@ export function BottomSheet({ children, onClose, open }: BottomSheetProps) {
       {/* mobile: bottom sheet */}
       <MobileModal className="items-end md:items-center" onClose={onClose} open>
         <div
-          className="bg-surface w-full animate-[slideUp_200ms_ease-out] rounded-t-2xl shadow-xl md:mx-4 md:max-w-lg md:rounded-lg md:rounded-t-lg"
+          className="bg-surface animate-slide-up w-full rounded-t-2xl shadow-xl md:mx-4 md:max-w-lg md:rounded-lg md:rounded-t-lg"
           onClick={(e) => e.stopPropagation()}
           style={{
             paddingBottom: 'var(--safe-area-bottom)',
