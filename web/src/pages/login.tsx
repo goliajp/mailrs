@@ -10,6 +10,8 @@ import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
 import { authAtom } from '@/store/auth'
+import { wireForgotPassword, wireGetMe, wireGetOidcConfig, wireLogin } from '@/wire/endpoints/auth'
+import { WireErrorException } from '@/wire/errors'
 
 type OidcClientConfig = {
   enabled: boolean
@@ -37,9 +39,8 @@ export function Login() {
 
   // fetch OIDC config
   useEffect(() => {
-    fetch('/api/auth/oidc/config')
-      .then((r) => r.json())
-      .then(setOidcConfig)
+    wireGetOidcConfig()
+      .then((cfg) => setOidcConfig(cfg as unknown as OidcClientConfig))
       .catch(() => {})
   }, [])
 
@@ -58,14 +59,13 @@ export function Login() {
       }
       setAuth(auth)
       // refresh permissions by calling /auth/me
-      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
+      wireGetMe(token)
         .then((me) => {
           setAuth({
-            accessible_domains: me.accessible_domains ?? [],
-            address: me.address ?? addr,
-            display_name: me.display_name ?? displayName ?? '',
-            permissions: me.permissions ?? [],
+            accessible_domains: me.accessible_domains,
+            address: me.address || addr,
+            display_name: me.display_name || (displayName ?? ''),
+            permissions: me.permissions,
             token,
           })
         })
@@ -79,14 +79,7 @@ export function Login() {
     setForgotLoading(true)
     setForgotMessage('')
     try {
-      await fetch('/api/auth/forgot-password', {
-        body: JSON.stringify({
-          address: forgotAddress,
-          recovery_email: forgotRecoveryEmail,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
+      await wireForgotPassword(forgotAddress, forgotRecoveryEmail || undefined)
       setForgotMessage('If the account and recovery email match, a reset link has been sent.')
     } catch {
       setForgotMessage('If the account and recovery email match, a reset link has been sent.')
@@ -101,34 +94,23 @@ export function Login() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/login', {
-        body: JSON.stringify({
-          address,
-          password,
-          ...(totpRequired && totpCode ? { totp_code: totpCode } : {}),
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error ?? 'Login failed')
-        return
-      }
+      const data = await wireLogin(
+        address,
+        password,
+        totpRequired && totpCode ? totpCode : undefined
+      )
 
       // server asks for TOTP code
-      if (data.requires_totp) {
+      if (data.requires_totp === true) {
         setTotpRequired(true)
         return
       }
 
       const auth: AuthInfo = {
-        accessible_domains: data.accessible_domains ?? [],
+        accessible_domains: data.accessible_domains,
         address: data.address,
         display_name: data.display_name,
-        permissions: data.permissions ?? [],
+        permissions: data.permissions,
         token: data.token,
       }
       if (rememberMe) {
@@ -145,8 +127,20 @@ export function Login() {
       } else {
         navigate('/', { replace: true })
       }
-    } catch {
-      setError('Network error')
+    } catch (e) {
+      if (e instanceof WireErrorException) {
+        setError(
+          e.detail.kind === 'server'
+            ? (e.detail.message ?? 'Login failed')
+            : e.detail.kind === 'network'
+              ? 'Network error'
+              : e.detail.kind === 'auth'
+                ? 'Login failed'
+                : 'Login failed'
+        )
+      } else {
+        setError('Network error')
+      }
     } finally {
       setLoading(false)
     }

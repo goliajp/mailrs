@@ -5,6 +5,8 @@ import { Link, useSearchParams } from 'react-router'
 import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
+import { wireResetPassword } from '@/wire/endpoints/auth'
+import { WireErrorException } from '@/wire/errors'
 
 export function ResetPassword() {
   const [searchParams] = useSearchParams()
@@ -33,21 +35,20 @@ export function ResetPassword() {
 
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/reset-password', {
-        body: JSON.stringify({ new_password: password, token }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error ?? 'Failed to reset password')
-        return
-      }
-
+      await wireResetPassword(token, password)
       setSuccess(true)
-    } catch {
-      setError('Network error')
+    } catch (e) {
+      if (e instanceof WireErrorException) {
+        setError(
+          e.detail.kind === 'server'
+            ? (e.detail.message ?? 'Failed to reset password')
+            : e.detail.kind === 'network'
+              ? 'Network error'
+              : 'Failed to reset password'
+        )
+      } else {
+        setError('Network error')
+      }
     } finally {
       setLoading(false)
     }
