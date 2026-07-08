@@ -292,7 +292,7 @@ describe('getThreadReactions', () => {
 
   it('fetches reactions and returns the reactions record', async () => {
     mockGetToken.mockReturnValue(null)
-    const reactions = { 1: [{ count: 2, emoji: '👍', reacted: true }] }
+    const reactions = { 1: [{ count: 2, emoji: '👍', me: true }] }
     vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
     const result = await getThreadReactions('thread-abc')
     expect(result).toEqual(reactions)
@@ -317,7 +317,19 @@ describe('listDrafts', () => {
 
   it('fetches drafts list via GET', async () => {
     mockGetToken.mockReturnValue(null)
-    const drafts = [{ id: 1, subject: 'Draft 1' }]
+    const drafts = [
+      {
+        bcc_addresses: '',
+        body: '',
+        cc_addresses: '',
+        created_at: '2026-07-08T00:00:00Z',
+        id: 1,
+        reply_to_thread_id: null,
+        subject: 'Draft 1',
+        to_addresses: '',
+        updated_at: '2026-07-08T00:00:00Z',
+      },
+    ]
     vi.stubGlobal('fetch', makeFetchMock(200, drafts))
     const result = await listDrafts()
     expect(result).toEqual(drafts)
@@ -394,7 +406,7 @@ describe('toggleReaction', () => {
 
   it('sends PUT with emoji and returns reactions array', async () => {
     mockGetToken.mockReturnValue('tok')
-    const reactions = [{ count: 1, emoji: '👍', reacted: true }]
+    const reactions = [{ count: 1, emoji: '👍', me: true }]
     vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
     const result = await toggleReaction('thread-1', 5, '👍')
     expect(result).toEqual(reactions)

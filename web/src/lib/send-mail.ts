@@ -1,4 +1,4 @@
-import { postJson } from '@/lib/api'
+import { wireSendMailJson } from '@/wire/endpoints/mail'
 
 export type SendMailParams = {
   attachments?: File[]
@@ -45,7 +45,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     if (p.scheduledAt) payload['scheduled_at'] = p.scheduledAt
     if (p.forwardMessageId) payload['forward_message_id'] = p.forwardMessageId
     if (p.forwardAttachmentsFrom) payload['forward_attachments_from'] = p.forwardAttachmentsFrom
-    return postJson<SendResult>('/mail/send', payload)
+    return wireSendMailJson(payload)
   }
 
   const fd = new FormData()

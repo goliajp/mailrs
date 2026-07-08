@@ -7,11 +7,12 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
-import { deleteJson, postJson } from '@/lib/api'
+import { postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
+import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
 const StructuredCompose = lazy(() =>
   import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
@@ -208,7 +209,7 @@ export function ReplyBox({
                 label: 'Undo',
                 onClick: async () => {
                   try {
-                    await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
+                    await wireDeletePendingSend(sentMessageId)
                     toast.success('Send cancelled')
                   } catch {
                     toast.error('Could not cancel — already delivered')
