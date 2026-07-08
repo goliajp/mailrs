@@ -30,6 +30,32 @@
   --text-mini--line-height: 14px;
   --text-mid: 13px;
   --text-mid--line-height: 18px;
+
+  /* v2.1 §12.1 (2026-07-08): motion tokens. Prior code used
+     `animate-[slideUp_200ms_ease-out]` inline. Formalising as
+     `--animate-slide-up` lets both Tailwind + hand-written CSS
+     reference the same duration + easing curve. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --animate-slide-up: slideUp var(--duration-base) var(--ease-standard);
+
+  /* v2.1 §12.2 (2026-07-08): elevation tokens. Semantic shadow
+     scale — level 0 = flat, level 1 = raised card, level 2 =
+     hovered / floating card, level 3 = modal / dropdown. Dark
+     mode overrides sit alongside GDS surface tokens. */
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-elevation-2: 0 2px 8px -1px rgba(0, 0, 0, 0.1), 0 1px 3px -1px rgba(0, 0, 0, 0.06);
+  --shadow-elevation-3: 0 10px 24px -6px rgba(0, 0, 0, 0.12), 0 4px 8px -4px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme-mode='dark'] {
+  --shadow-elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-elevation-2: 0 2px 8px -1px rgba(0, 0, 0, 0.55), 0 1px 3px -1px rgba(0, 0, 0, 0.3);
+  --shadow-elevation-3: 0 10px 24px -6px rgba(0, 0, 0, 0.65), 0 4px 8px -4px rgba(0, 0, 0, 0.4);
 }
 
 html {

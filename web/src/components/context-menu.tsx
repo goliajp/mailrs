@@ -27,7 +27,7 @@ export function ActionSheet({
   return (
     <MobileModal className="items-end md:hidden" onClose={onClose} open>
       <div
-        className="bg-surface w-full animate-[slideUp_200ms_ease-out] rounded-t-2xl"
+        className="bg-surface animate-slide-up w-full rounded-t-2xl"
         onClick={(e) => e.stopPropagation()}
         style={{ paddingBottom: 'var(--safe-area-bottom)' }}
       >
