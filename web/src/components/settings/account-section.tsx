@@ -3,11 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 
-import { fetchJson, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
+import {
+  wireChangePassword,
+  wireGetRecoveryEmail,
+  wireLogout,
+  wireSetRecoveryEmail,
+} from '@/wire/endpoints/auth'
 
 import {
   btnDanger,
@@ -32,7 +37,7 @@ export function AccountSection() {
     queryKey: settingsKeys.recoveryEmail(),
     queryFn: async () => {
       try {
-        return await fetchJson<{ recovery_email: string }>('/auth/recovery-email')
+        return await wireGetRecoveryEmail()
       } catch {
         return { recovery_email: '' }
       }
@@ -50,7 +55,7 @@ export function AccountSection() {
   const handleRecoveryEmailSave = async () => {
     setSavingRecovery(true)
     try {
-      await postJson('/auth/recovery-email', { recovery_email: recoveryEmail })
+      await wireSetRecoveryEmail(recoveryEmail)
       toast.success('Recovery email updated')
       void queryClient.invalidateQueries({ queryKey: settingsKeys.recoveryEmail() })
     } catch (e) {
@@ -72,10 +77,7 @@ export function AccountSection() {
     }
     setSaving(true)
     try {
-      await postJson('/auth/change-password', {
-        current_password: pw.current,
-        new_password: pw.next,
-      })
+      await wireChangePassword(pw.current, pw.next)
       toast.success('Password updated')
       setPw({ confirm: '', current: '', next: '' })
     } catch (e) {
@@ -87,7 +89,7 @@ export function AccountSection() {
 
   const doLogout = async () => {
     try {
-      await postJson('/auth/logout', {})
+      await wireLogout()
     } catch {
       // ignore
     }

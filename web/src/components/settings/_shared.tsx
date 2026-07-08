@@ -46,7 +46,7 @@ export type Signature = {
 }
 
 export type TotpSetup = {
-  qr_url: string
+  otpauth_url: string
   recovery_codes: string[]
   secret: string
 }

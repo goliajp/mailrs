@@ -1,19 +1,24 @@
-import type { TotpSetup, TotpStatus } from './_shared'
+import type { TotpSetup } from './_shared'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { fetchJson, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
+import {
+  wireGetTotpStatus,
+  wireTotpDisable,
+  wireTotpEnable,
+  wireTotpSetup,
+} from '@/wire/endpoints/auth'
 
 import { btnDanger, btnPrimary, cardClass, Field, inputClass, SectionHeader } from './_shared'
 
 export function SecuritySection() {
   const statusQuery = useQuery({
     queryKey: settingsKeys.totpStatus(),
-    queryFn: () => fetchJson<TotpStatus>('/auth/totp/status'),
+    queryFn: () => wireGetTotpStatus(),
   })
   const status = statusQuery.data ?? null
   const loading = statusQuery.isLoading
@@ -26,7 +31,7 @@ export function SecuritySection() {
 
   const handleSetup = async () => {
     try {
-      const data = await postJson<TotpSetup>('/auth/totp/setup', {})
+      const data = await wireTotpSetup()
       setSetup(data)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to set up 2FA')
@@ -37,7 +42,7 @@ export function SecuritySection() {
     if (!code.trim()) return
     setSubmitting(true)
     try {
-      await postJson('/auth/totp/enable', { code: code.trim() })
+      await wireTotpEnable(code.trim())
       toast.success('2FA enabled')
       setSetup(null)
       setCode('')
@@ -53,7 +58,7 @@ export function SecuritySection() {
     if (!code.trim()) return
     setSubmitting(true)
     try {
-      await postJson('/auth/totp/disable', { code: code.trim() })
+      await wireTotpDisable(code.trim())
       toast.success('2FA disabled')
       setCode('')
       void invalidateStatus()
@@ -99,7 +104,7 @@ export function SecuritySection() {
         <div className={cardClass + ' space-y-4'}>
           <h3 className="text-sm font-medium">Scan QR Code</h3>
           <div className="bg-surface rounded-md p-3">
-            <p className="text-fg-secondary font-mono text-xs break-all">{setup.qr_url}</p>
+            <p className="text-fg-secondary font-mono text-xs break-all">{setup.otpauth_url}</p>
           </div>
 
           {setup.recovery_codes.length > 0 && (

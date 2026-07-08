@@ -9,10 +9,10 @@ import { Link, useLocation, useNavigate } from 'react-router'
 
 import { BottomSheet } from '@/components/bottom-sheet'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
-import { postJson } from '@/lib/api'
 import { authAtom } from '@/store/auth'
 import { themeModeAtom } from '@/store/theme'
 import { selectedDomainsAtom } from '@/store/ui'
+import { wireLogout } from '@/wire/endpoints/auth'
 
 const THEME_CYCLE: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -42,7 +42,7 @@ export function AppSidebar() {
 
   const doLogout = async () => {
     try {
-      await postJson('/auth/logout', {})
+      await wireLogout()
     } catch {
       // ignore
     }
