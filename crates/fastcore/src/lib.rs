@@ -1555,7 +1555,7 @@ fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         unread_count: r.unread_count.max(0) as u32,
         last_date: r.latest_date,
         category: r.category,
-        flagged: r.requires_action,
+        flagged: r.starred,
         snippet: r.latest_preview,
         pinned: r.pinned,
         archived: r.archived,
