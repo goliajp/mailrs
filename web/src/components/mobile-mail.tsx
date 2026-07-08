@@ -19,6 +19,12 @@ import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
 import { mobileViewAtom, selectedThreadIdAtom } from '@/store/ui'
 
+/**
+ * Stable empty-array reference so `?? []` doesn't manufacture a fresh
+ * array reference on every render — matches ThreadView's convention.
+ */
+const EMPTY_MESSAGES: readonly ThreadMessage[] = []
+
 // ─── mobile mail router ─────────────────────────────────────
 
 export function MobileMail() {
@@ -86,7 +92,7 @@ function MobileConversationView() {
             const preview = text.length > 200 ? text.slice(0, 200) + '...' : text
 
             return (
-              <div className="border-border flex gap-3 border-b pb-3 last:border-b-0" key={msg.id}>
+              <div className="border-border flex gap-3 border-b pb-3 last:border-b-0" key={msg.uid}>
                 <SenderAvatar sender={msg.sender} size={28} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -200,11 +206,6 @@ function MobileThreadView() {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
   const selectedId = useAtomValue(selectedThreadIdAtom)
-  // v2.1 phase-5d finale: transition state is now component-local;
-  // the shared `threadMessagesAtom` used to communicate to mobile-
-  // reply / mobile-convo views but those readers migrated to
-  // `useCurrentThreadMessages()` (RQ-native).
-  const [messages, setMessages] = useState<ThreadMessage[]>([])
   const setMobileView = useSetAtom(mobileViewAtom)
   const filters = useCurrentMailFilters()
   const { conversations } = useFlatConversations(filters)
@@ -212,49 +213,28 @@ function MobileThreadView() {
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // thread messages now live in react-query; we bridge to the legacy
-  // threadMessagesAtom for downstream consumers, mirroring thread-view.tsx.
-  //
-  // messagesOwnerRef tracks which selectedId owns the currently-published
-  // atom value. Without this the mobile view kept feeding the atom
-  // whatever cache react-query happened to have on hand, and because
-  // both this component and desktop ThreadView are simultaneously mounted
-  // in chat.tsx (mobile-only display via `md:hidden`, but hooks always
-  // run), a click that reused a stale hook state could leave a
-  // previously-viewed thread's messages sitting under the new
-  // selectedId until the new fetch resolved — presenting a "conversation
-  // panel" that mixed messages from two unrelated threads.
-  //
-  // Fix mirrors ThreadView.tsx L155-180: clear atom on selectedId change
-  // before the new fetch resolves, and only republish when the fetched
-  // data actually belongs to the current selectedId.
+  // v2.1 2026-07-08: read `messages` straight from the RQ cache — the
+  // desktop ThreadView already dropped its `useState` + bridge for the
+  // same reason (repeated cache-hit round-trips leaked stale copies of
+  // the previous thread's messages into the new thread's timeline).
+  // Two independent mirrors would just recreate the same accumulation
+  // path here.
   const threadQuery = useThreadQuery(selectedId, [])
   const loading = threadQuery.isPending && !!selectedId
-  const messagesOwnerRef = useRef<null | string>(null)
-  useEffect(() => {
-    if (!selectedId) return
-    if (threadQuery.data) {
-      setMessages(threadQuery.data)
-      messagesOwnerRef.current = selectedId
-      return
-    }
-    // No data yet for selectedId. If the atom currently holds messages
-    // from a different (previous) thread, clear them so we don't leak.
-    if (messagesOwnerRef.current !== null && messagesOwnerRef.current !== selectedId) {
-      setMessages([])
-      messagesOwnerRef.current = null
-    }
-  }, [threadQuery.data, selectedId, setMessages])
-  // reset the active message + scroll when the thread id changes; the
-  // latest-message auto-pick re-fires below as data populates.
+  const messages: readonly ThreadMessage[] = threadQuery.data ?? EMPTY_MESSAGES
+
+  // reset the active message pointer on thread switch; the auto-pick
+  // below re-seeks to the last message once the new thread resolves.
   useEffect(() => {
     setSelectedMsgIdx(null)
   }, [selectedId])
+  const lastResolvedRef = useRef<null | string>(null)
   useEffect(() => {
-    if (messages.length > 0 && selectedMsgIdx === null) {
-      setSelectedMsgIdx(messages.length - 1)
-    }
-  }, [messages.length, selectedMsgIdx])
+    if (!selectedId || !threadQuery.data) return
+    if (lastResolvedRef.current === selectedId) return
+    lastResolvedRef.current = selectedId
+    if (threadQuery.data.length > 0) setSelectedMsgIdx(threadQuery.data.length - 1)
+  }, [threadQuery.data, selectedId])
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, 0)

@@ -66,8 +66,14 @@ impl JmapAdapter {
 }
 
 fn bridge_wire_to_jmap(w: mailrs_core_api::method::message::MessageWire) -> JmapMessage {
+    // MessageWire.id is a PG-era holdover, always 0 under the kevy-only
+    // fastcore architecture (see 2026-07-08 timeline-duplication bug).
+    // Synthesise a stable per-account JMAP identity from (mailbox_id,
+    // uid) — the pair the IMAP layer already uses to key flag updates.
+    // Rendered on the JMAP wire as `msg-{synthetic_id}`.
+    let synthetic_id: i64 = ((w.mailbox_id) << 32) | i64::from(w.uid);
     JmapMessage {
-        id: w.id,
+        id: synthetic_id,
         mailbox_id: w.mailbox_id,
         uid: w.uid,
         sender: w.sender,

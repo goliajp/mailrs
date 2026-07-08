@@ -237,7 +237,7 @@ export function AdminMailAudit() {
             <p className="text-fg-muted py-8 text-center text-sm">Loading...</p>
           )}
           {messages.map((msg) => (
-            <MessageView key={msg.id} msg={msg} targetUser={selectedAccount} />
+            <MessageView key={msg.uid} msg={msg} targetUser={selectedAccount} />
           ))}
           {!messagesLoading && messages.length === 0 && (
             <p className="text-fg-muted py-8 text-center text-sm">No messages</p>

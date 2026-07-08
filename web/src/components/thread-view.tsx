@@ -793,7 +793,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                   idx={item.idx}
                   isOwn={item.isOwn}
                   isSelected={selectedMsgIdx === item.idx}
-                  key={item.msg.id}
+                  key={item.msg.uid}
                   msg={item.msg}
                   myEmail={myEmail}
                   myName={auth?.display_name}

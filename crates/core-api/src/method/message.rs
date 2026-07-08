@@ -36,7 +36,15 @@ pub const PATH_GET_INVITE_METHODS: &str = "/v1/invites/by-message-ids";
 /// Wire mirror of `mailrs_mailbox::types::Message`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MessageWire {
-    /// Store-native primary key.
+    /// **DEPRECATED under the fastcore/kevy-only architecture.** Was the
+    /// SQL primary key of the PG-backed monolith. Fastcore has no
+    /// equivalent primary key and always writes `id: 0`, which caused
+    /// timeline duplication when the client used it as a React key
+    /// (2026-07-08 bug). Every consumer (`ThreadMessageResponse`,
+    /// `audit_message_raw`, JMAP bridge) now derives identity from
+    /// (mailbox_id, uid) instead. The field is retained only for
+    /// serde-compat with kevy blobs written before the fix; new writes
+    /// still emit `0` and readers ignore it.
     pub id: MessageId,
     /// FK into mailboxes.
     pub mailbox_id: MailboxId,

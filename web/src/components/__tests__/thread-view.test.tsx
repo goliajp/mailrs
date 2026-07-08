@@ -173,7 +173,6 @@ function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
     flags: 0,
     has_tracking_pixel: false,
     html_body: null,
-    id: 1,
     importance_level: 'normal',
     importance_score: 0.3,
     internal_date: 1700000000,
@@ -284,10 +283,7 @@ describe('ThreadView — with messages', () => {
 
   it('displays message count', () => {
     mockUseThreadQuery.mockReturnValue({
-      data: [
-        makeMessage({ id: 1, uid: 100 }),
-        makeMessage({ id: 2, sender: 'Bob <bob@example.com>', uid: 101 }),
-      ],
+      data: [makeMessage({ uid: 100 }), makeMessage({ sender: 'Bob <bob@example.com>', uid: 101 })],
       isPending: false,
     })
     render(

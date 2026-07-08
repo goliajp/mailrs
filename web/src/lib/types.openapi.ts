@@ -4667,8 +4667,6 @@ export interface components {
             importance_score: number;
         };
         ThreadMessageResponse: {
-            /** Format: int64 */
-            id: number;
             uid: number;
             sender: string;
             recipients: string;

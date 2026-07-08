@@ -267,7 +267,6 @@ export type ThreadMessage = {
   flags: number
   has_tracking_pixel: boolean
   html_body: null | string
-  id: number
   importance_level: string
   importance_score: number
   internal_date: number
