@@ -18,6 +18,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { CommandPalette } from '@/components/command-palette'
 import { DashboardShellSkeleton } from '@/components/dashboard-skeleton'
 import { MobileShell } from '@/components/mobile-shell'
+import { RouteErrorFallback } from '@/components/route-error-fallback'
 import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
 import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
@@ -43,31 +44,42 @@ initMailrsTheme()
 // definitions move from JSX children in `<Routes>` to plain
 // objects here — one entry per route, `element` is the rendered
 // tree, `children` nests under layout routes.
+// v2.1 §13.4 (2026-07-08): every route branch declares an
+// `errorElement`, so a thrown wire error, render crash, or 401 in a
+// child page renders the fallback instead of the browser default
+// grey unstyled reload prompt.
 const router = createBrowserRouter([
   {
     children: [
-      { element: <Login />, path: '/login' },
-      { element: <ResetPassword />, path: '/reset-password' },
+      { element: <Login />, errorElement: <RouteErrorFallback />, path: '/login' },
+      {
+        element: <ResetPassword />,
+        errorElement: <RouteErrorFallback />,
+        path: '/reset-password',
+      },
       {
         element: (
           <Suspense fallback={<LoadingFallback />}>
             <Playground />
           </Suspense>
         ),
+        errorElement: <RouteErrorFallback />,
         path: '/playground',
       },
       {
         children: [
-          { element: <PageProtocol />, path: '/protocol' },
-          { element: <PageAdmin />, path: '/admin/*' },
-          { element: <PageSettings />, path: '/settings' },
-          { element: <PageChat />, path: '/mail/*' },
-          { element: <PageDashboard />, path: '/*' },
+          { element: <PageProtocol />, errorElement: <RouteErrorFallback />, path: '/protocol' },
+          { element: <PageAdmin />, errorElement: <RouteErrorFallback />, path: '/admin/*' },
+          { element: <PageSettings />, errorElement: <RouteErrorFallback />, path: '/settings' },
+          { element: <PageChat />, errorElement: <RouteErrorFallback />, path: '/mail/*' },
+          { element: <PageDashboard />, errorElement: <RouteErrorFallback />, path: '/*' },
         ],
         Component: AuthShellLayout,
+        errorElement: <RouteErrorFallback />,
       },
     ],
     Component: RootLayout,
+    errorElement: <RouteErrorFallback />,
   },
 ])
 
