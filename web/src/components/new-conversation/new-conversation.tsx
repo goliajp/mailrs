@@ -7,7 +7,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
-import { deleteJson, fetchList, postJson } from '@/lib/api'
+import { fetchList, postJson } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -16,6 +16,7 @@ import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
 import { ActionBar } from './action-bar'
 import { AddressFields } from './address-fields'
@@ -180,7 +181,7 @@ export function NewConversation() {
                   label: 'Undo',
                   onClick: async () => {
                     try {
-                      await deleteJson(`/mail/pending/${encodeURIComponent(sentMessageId)}`)
+                      await wireDeletePendingSend(sentMessageId)
                       toast.success('Send cancelled')
                     } catch {
                       toast.error('Could not cancel — already delivered')

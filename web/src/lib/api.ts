@@ -38,7 +38,9 @@ type SaveDraftResult = {
 }
 
 export async function deleteDraft(id: number): Promise<{ message?: string; success: boolean }> {
-  return deleteJson<{ message?: string; success: boolean }>(`/mail/drafts/${id}`)
+  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
+  const { wireDeleteDraft } = await import('@/wire/endpoints/mail')
+  return wireDeleteDraft(id)
 }
 
 export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -125,14 +127,22 @@ export async function fetchList<T>(path: string, signal?: AbortSignal): Promise<
 export async function getThreadReactions(
   threadId: string
 ): Promise<Record<number, ReactionSummary[]>> {
-  const result = await fetchJson<{
-    reactions: Record<number, ReactionSummary[]>
-  }>(`/conversations/${encodeURIComponent(threadId)}/reactions`)
-  return result.reactions
+  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
+  const { wireGetThreadReactions } = await import('@/wire/endpoints/mail')
+  const raw = await wireGetThreadReactions(threadId)
+  // Convert Record<string, ...> keys back to Record<number, ...> for
+  // caller compat. Backend sends string keys in JSON either way.
+  const out: Record<number, ReactionSummary[]> = {}
+  for (const [k, v] of Object.entries(raw)) {
+    out[Number(k)] = v as ReactionSummary[]
+  }
+  return out
 }
 
 export async function listDrafts(): Promise<Draft[]> {
-  return fetchList<Draft>('/mail/drafts')
+  const { wireListDrafts } = await import('@/wire/endpoints/mail')
+  const items = await wireListDrafts()
+  return [...items] as Draft[]
 }
 
 export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
@@ -159,7 +169,9 @@ export async function recordFeedback(
   senderEmail: string,
   action: FeedbackAction
 ): Promise<{ message?: string; success: boolean }> {
-  return postJson('/mail/feedback', { action, sender_email: senderEmail })
+  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
+  const { wireRecordFeedback } = await import('@/wire/endpoints/mail')
+  return wireRecordFeedback(senderEmail, action)
 }
 
 // --- reactions API ---
@@ -167,7 +179,9 @@ export async function recordFeedback(
 import type { ReactionSummary } from '@/lib/types'
 
 export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResult> {
-  return postJson<SaveDraftResult>('/mail/drafts', draft)
+  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
+  const { wireSaveDraft } = await import('@/wire/endpoints/mail')
+  return wireSaveDraft(draft as unknown as Record<string, unknown>)
 }
 
 export async function snoozeConversation(
@@ -186,11 +200,10 @@ export async function toggleReaction(
   uid: number,
   emoji: string
 ): Promise<ReactionSummary[]> {
-  const result = await putJson<{ reactions: ReactionSummary[] }>(
-    `/conversations/${encodeURIComponent(threadId)}/messages/${uid}/reactions`,
-    { emoji }
-  )
-  return result.reactions
+  // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
+  const { wireToggleReaction } = await import('@/wire/endpoints/mail')
+  const items = await wireToggleReaction(threadId, uid, emoji)
+  return [...items] as ReactionSummary[]
 }
 
 export async function unsnoozeConversation(
