@@ -441,8 +441,11 @@ pub async fn get_message_single(
             }
         }
     }
+    // NOTE: legacy `id` field dropped 2026-07-08 (was always 0 under
+    // fastcore's kevy-only architecture). Callers must use `uid` as
+    // the per-user unique identity. See ThreadMessageResponse for the
+    // matching rationale.
     Ok(Json(serde_json::json!({
-        "id": w.id,
         "uid": w.uid,
         "sender": w.sender,
         "recipients": w.recipients,

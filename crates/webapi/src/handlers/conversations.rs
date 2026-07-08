@@ -168,7 +168,11 @@ pub async fn get_action_count(
 /// the source `MessageWire` lacks the analysis fields.
 #[derive(serde::Serialize)]
 pub struct ThreadMessageResponse {
-    pub id: i64,
+    /// Per-user unique, stable message identity. The client uses this
+    /// as the React key for timeline items. `MessageWire.id` used to
+    /// live here but was always 0 under the kevy-only architecture
+    /// (no PG primary key), and duplicate keys drove undefined React
+    /// reconciliation (see 2026-07-08 timeline-duplication reports).
     pub uid: u32,
     pub sender: String,
     pub recipients: String,
@@ -204,7 +208,6 @@ pub struct ThreadMessageResponse {
 impl ThreadMessageResponse {
     fn from_wire_no_body(w: mailrs_core_api::method::message::MessageWire) -> Self {
         Self {
-            id: w.id,
             uid: w.uid,
             sender: w.sender,
             recipients: w.recipients,
