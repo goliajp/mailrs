@@ -5,6 +5,11 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { fetchJson, fetchList } from '@/lib/api'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
+import { wireFetch } from '@/wire/client'
+import {
+  wireThreadDetailResponseSchema,
+  wireThreadListResponseSchema,
+} from '@/wire/schemas/conversation'
 
 const PAGE_SIZE = 50
 
@@ -63,20 +68,36 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       const last = lastPage[lastPage.length - 1]
       return last?.last_date
     },
-    queryFn: ({ pageParam, signal }) =>
-      fetchList<ConversationSummary>(listPath(filters, pageParam), signal),
+    queryFn: async ({ pageParam, signal }) => {
+      // v2.1 §7 (2026-07-08): Zod-parse the wire response.
+      // wireThreadListResponseSchema accepts both envelope shapes
+      // (`{items: [...]}` and bare array), so this is a drop-in for
+      // `fetchList` — just adds shape validation at the boundary.
+      const parsed = await wireFetch(wireThreadListResponseSchema, {
+        path: listPath(filters, pageParam),
+        signal,
+      })
+      // Cast is safe: wire schema has strict subset guarantee that
+      // downstream `ConversationSummary` needs. TODO §D: migrate to
+      // domain `ThreadSummary` shape and drop the cast.
+      return parsed.items as unknown as ConversationSummary[]
+    },
   })
 }
 
 export function useThreadQuery(threadId: null | string, domains: string[]) {
   return useQuery({
     enabled: !!threadId,
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
+      // v2.1 §7 (2026-07-08): Zod-parse the wire response.
+      // wireThreadDetailResponseSchema accepts both envelope shapes.
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchList<ThreadMessage>(
-        `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
-        signal
-      )
+      const parsed = await wireFetch(wireThreadDetailResponseSchema, {
+        path: `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
+        signal,
+      })
+      const items = 'items' in parsed ? parsed.items : parsed.messages
+      return items as unknown as ThreadMessage[]
     },
     // Thread content is mutation-invariant from the client's point of view —
     // mark-read / star / pin / archive all act on list-shape flags only, not

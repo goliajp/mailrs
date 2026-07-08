@@ -97,7 +97,7 @@ export async function fetchThread(threadId: string, signal?: AbortSignal): Promi
     signal,
   })
   const wireMessages = 'items' in raw ? raw.items : raw.messages
-  const messages = wireMessages.map(wireMessageToDomain)
+  const messages = wireMessages.map((m) => wireMessageToDomain(m, threadId))
   const first = messages[0]
   return {
     messages,
@@ -175,20 +175,35 @@ function participantFromWire(raw: string): Participant {
   return { address: trimmed.toLowerCase(), displayName: trimmed }
 }
 
-function wireMessageToDomain(w: WireMessage): Message {
+function splitAddressList(raw: null | string): string[] {
+  if (!raw) return []
+  return raw
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/**
+ * v2.1 §7 (2026-07-08): backend now sends `recipients` / `cc` /
+ * `bcc` as comma-separated strings, not arrays (matches Rust
+ * `ThreadMessageResponse` field types). `thread_id` isn't on the
+ * wire — it's URL-scoped in the request path. The caller passes
+ * the request path's thread_id explicitly.
+ */
+function wireMessageToDomain(w: WireMessage, threadId: string): Message {
   return {
     attachments: w.attachments.map(attachmentFromWire),
-    bcc: w.bcc.map(participantFromWire),
-    cc: w.cc.map(participantFromWire),
+    bcc: splitAddressList(null).map(participantFromWire),
+    cc: splitAddressList(w.cc ?? null).map(participantFromWire),
     flags: w.flags,
     htmlBody: w.html_body ?? null,
     internalDate: w.internal_date,
     messageId: w.message_id,
-    recipients: w.recipients.map(participantFromWire),
+    recipients: splitAddressList(w.recipients).map(participantFromWire),
     sender: participantFromWire(w.sender),
     subject: decodeMimeHeader(w.subject),
-    textBody: w.text_body,
-    threadId: asThreadId(w.thread_id),
+    textBody: w.text_body ?? '',
+    threadId: asThreadId(threadId),
     uid: asUid(w.uid),
   }
 }
