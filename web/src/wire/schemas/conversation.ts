@@ -140,11 +140,23 @@ export const wireMessageSchema = z.object({
 
 export type WireMessage = z.infer<typeof wireMessageSchema>
 
+/**
+ * Backend `GET /api/conversations/{id}` returns a **bare** `Vec<
+ * ThreadMessageResponse>` (see `crates/webapi/src/handlers/
+ * conversations.rs::get_thread_messages` — `Json<Vec<_>>`). The
+ * earlier union of `{messages, thread_id}` / `{items}` never
+ * matched, so Zod threw `validation` and the thread view rendered
+ * empty (user-reported 2026-07-08 "看不到邮件正文" regression).
+ * Every observed shape now normalises to `{items: WireMessage[]}`.
+ */
 export const wireThreadDetailResponseSchema = z.union([
-  z.object({
-    messages: z.array(wireMessageSchema),
-    thread_id: z.string(),
-  }),
+  z.array(wireMessageSchema).transform((items) => ({ items })),
+  z
+    .object({
+      messages: z.array(wireMessageSchema),
+      thread_id: z.string(),
+    })
+    .transform((v) => ({ items: v.messages })),
   z.object({
     items: z.array(wireMessageSchema),
   }),

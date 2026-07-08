@@ -96,8 +96,7 @@ export async function fetchThread(threadId: string, signal?: AbortSignal): Promi
     path: `/conversations/${encodeURIComponent(threadId)}/messages`,
     signal,
   })
-  const wireMessages = 'items' in raw ? raw.items : raw.messages
-  const messages = wireMessages.map((m) => wireMessageToDomain(m, threadId))
+  const messages = raw.items.map((m) => wireMessageToDomain(m, threadId))
   const first = messages[0]
   return {
     messages,
