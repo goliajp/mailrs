@@ -78,18 +78,19 @@ type ForwardSource = {
 // render hands MessageBubble a fresh `[]` and React.memo's shallow compare
 // always says "props changed", undoing the memo wrap entirely.
 const EMPTY_ATTACHMENTS: never[] = []
+const EMPTY_MESSAGES: readonly ThreadMessage[] = []
 
 export function ThreadView({ onBack }: { onBack?: () => void }) {
   const auth = useAtomValue(authAtom)
   const selectedId = useAtomValue(selectedThreadIdAtom)
   const setSelectedId = useSetAtom(selectedThreadIdAtom)
-  // v2.1 phase-5d finale: thread messages live in component-local
-  // state, populated by the `useThreadQuery` bridge effect below.
-  // The shared `threadMessagesAtom` used to communicate this state
-  // to `reply-box` and `mobile-mail`; those readers migrated to
-  // `useCurrentThreadMessages()` (RQ-native), so no shared handoff
-  // is needed anymore.
-  const [messages, setMessages] = useState<ThreadMessage[]>([])
+  // v2.1 2026-07-08: read `messages` straight from the RQ cache. The
+  // previous local `useState<ThreadMessage[]>` mirror + bridge effect
+  // repeatedly leaked stale copies of the previous thread's messages
+  // into the new thread's timeline on cache-hit round-trips (5-duplicate
+  // "Me" bubbles and cross-thread merges reported 2026-07-08). RQ is
+  // already the canonical store — the mirror added nothing but a
+  // rehydration path for bugs.
   // Subscribe only to the *selected thread's unread count* — a single
   // number — instead of the entire conversations array. Previously every
   // WebSocket-driven refetch (which produces a new array reference even
@@ -150,64 +151,35 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // empty state, no flicker.
   const threadQuery = useThreadQuery(selectedId, selectedDomains)
   const loadingThread = threadQuery.isPending && !!selectedId
-  // Tracks which threadId the currently-displayed messages belong to, so we
-  // can detect "user switched threads while the previous thread's body is
-  // still on screen" and clear the stale body before the new one paints.
-  // Test seed paths never set this ref (they bypass the bridge below), so
-  // they're never subject to the eager clear.
-  const messagesOwnerRef = useRef<null | string>(null)
+  // `messages` is the RQ query result directly — no mirror, no bridge,
+  // no accumulation path. `EMPTY_MESSAGES` is a stable reference so
+  // `React.memo`d children with array-typed props keep identity across
+  // loading frames.
+  const messages: readonly ThreadMessage[] = threadQuery.data ?? EMPTY_MESSAGES
 
-  // v2.1 2026-07-08: unconditionally clear the local `messages` +
-  // `selectedMsgIdx` on every `selectedId` change, BEFORE the RQ
-  // bridge runs. The bridge below re-publishes fresh data whenever
-  // `threadQuery.data` genuinely belongs to the currently-open
-  // thread. Previously the "clear stale" branch was gated on
-  // `messagesOwnerRef.current !== selectedId AND data === undefined`,
-  // which under React's batched-state rules could skip the clear if
-  // the effect saw a truthy `data` (a leftover from the previous
-  // thread cached in `useThreadQuery`) — every click A→B→A that
-  // observed a stale-but-truthy `data` was appending a fresh
-  // `setMessages(data)` invocation without ever tripping the clear
-  // branch, and the timeline accumulated one duplicate `Me` bubble
-  // per round-trip (user report 2026-07-08).
+  // On selectedId change, drop the highlighted message pointer so the
+  // next paint of the timeline doesn't briefly point at the previous
+  // thread's msg index. The auto-pick effect below re-seeks to the
+  // last message once the new thread's data arrives.
   useEffect(() => {
-    if (!selectedId) return
-    // Any messages currently on screen belong to a different thread
-    // — drop them, force a spinner while the new thread lands.
-    if (messagesOwnerRef.current !== selectedId) {
-      setMessages([])
-      setSelectedMsgIdx(null)
-      messagesOwnerRef.current = null
-    }
-  }, [selectedId, setMessages])
+    setSelectedMsgIdx(null)
+  }, [selectedId])
 
+  // Auto-pick the latest message + scroll to bottom when a thread's
+  // data first resolves for the current selectedId.
+  const lastResolvedRef = useRef<null | string>(null)
   useEffect(() => {
-    const data = threadQuery.data
-    if (!selectedId || !data) return
-    // Only publish RQ data as `messages` when this same effect run's
-    // `selectedId` is the one that owns the fetched payload. That's
-    // trivially the case here — RQ tells us `data` is the result of
-    // `mailKeys.thread(selectedId)`. Track that we've published so a
-    // later `selectedId` change trips the clear-branch above.
-    setMessages(data)
-    messagesOwnerRef.current = selectedId
-    setSelectedMsgIdx(data.length > 0 ? data.length - 1 : null)
+    if (!selectedId || !threadQuery.data) return
+    if (lastResolvedRef.current === selectedId) return
+    lastResolvedRef.current = selectedId
+    setSelectedMsgIdx(threadQuery.data.length > 0 ? threadQuery.data.length - 1 : null)
     if (typeof contentScrollRef.current?.scrollTo === 'function') {
       contentScrollRef.current.scrollTo(0, 0)
     }
     if (typeof bottomRef.current?.scrollIntoView === 'function') {
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
     }
-  }, [threadQuery.data, selectedId, setMessages])
-  // Fallback for paths that seed `threadMessagesAtom` directly (mobile-mail,
-  // tests) without a useThreadQuery fetch: auto-pick the latest message
-  // when none is selected yet. Doesn't fire on thread switch in normal use
-  // because selectedMsgIdx stays non-null until the bridge above swaps it.
-  useEffect(() => {
-    if (messages.length > 0 && selectedMsgIdx === null) {
-      setSelectedMsgIdx(messages.length - 1)
-    }
-  }, [messages, selectedMsgIdx])
+  }, [threadQuery.data, selectedId])
 
   // invalidate the active thread (used after Reply / Forward send so the
   // new outbound message shows up immediately)
@@ -278,12 +250,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         onSuccess: () => {
           toast.success('Deleted')
           setSelectedId(null)
-          setMessages([])
           setShowDeleteConfirm(false)
+          // messages come from RQ; invalidation happens via
+          // `onSettled` in `useDeleteMutation`, so no local reset here.
         },
       }
     )
-  }, [selectedId, deleteMutation, setSelectedId, setMessages])
+  }, [selectedId, deleteMutation, setSelectedId])
 
   const handlePrint = useCallback((msg: ThreadMessage) => {
     const w = window.open('', '_blank')
@@ -363,7 +336,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   useEffect(() => {
     if (!selectedId) {
-      setMessages([])
       setSelectedMsgIdx(null)
       setShowDeleteConfirm(false)
       setForwardSource(null)
@@ -383,7 +355,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setIsRead(!existing || existing.unread_count === 0)
     setIsFlagged(existing?.flagged ?? false)
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
-  }, [selectedId, currentConversations, setMessages, setMobileThreadTab, setMobileReplyOpen])
+  }, [selectedId, currentConversations, setMobileThreadTab, setMobileReplyOpen])
 
   // auto mark-as-read whenever the currently-displayed thread is unread.
   // covers: first open, list-filter switch where selection happens to stay
