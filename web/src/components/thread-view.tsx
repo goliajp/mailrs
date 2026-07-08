@@ -157,30 +157,46 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // they're never subject to the eager clear.
   const messagesOwnerRef = useRef<null | string>(null)
 
+  // v2.1 2026-07-08: unconditionally clear the local `messages` +
+  // `selectedMsgIdx` on every `selectedId` change, BEFORE the RQ
+  // bridge runs. The bridge below re-publishes fresh data whenever
+  // `threadQuery.data` genuinely belongs to the currently-open
+  // thread. Previously the "clear stale" branch was gated on
+  // `messagesOwnerRef.current !== selectedId AND data === undefined`,
+  // which under React's batched-state rules could skip the clear if
+  // the effect saw a truthy `data` (a leftover from the previous
+  // thread cached in `useThreadQuery`) — every click A→B→A that
+  // observed a stale-but-truthy `data` was appending a fresh
+  // `setMessages(data)` invocation without ever tripping the clear
+  // branch, and the timeline accumulated one duplicate `Me` bubble
+  // per round-trip (user report 2026-07-08).
   useEffect(() => {
-    const data = threadQuery.data
     if (!selectedId) return
-    if (data) {
-      setMessages(data)
-      messagesOwnerRef.current = selectedId
-      setSelectedMsgIdx(data.length > 0 ? data.length - 1 : null)
-      if (typeof contentScrollRef.current?.scrollTo === 'function') {
-        contentScrollRef.current.scrollTo(0, 0)
-      }
-      if (typeof bottomRef.current?.scrollIntoView === 'function') {
-        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
-      }
-      return
-    }
-    // No data yet for selectedId. If the messages currently on screen belong
-    // to a different (previous) thread, clear them so the spinner overlay
-    // isn't sitting on top of the wrong email. Previously this branch was an
-    // early return, which produced the user-reported "open a mail and the
-    // spinner just hangs over the wrong body for 1-2 s" experience.
-    if (messagesOwnerRef.current !== null && messagesOwnerRef.current !== selectedId) {
+    // Any messages currently on screen belong to a different thread
+    // — drop them, force a spinner while the new thread lands.
+    if (messagesOwnerRef.current !== selectedId) {
       setMessages([])
       setSelectedMsgIdx(null)
       messagesOwnerRef.current = null
+    }
+  }, [selectedId, setMessages])
+
+  useEffect(() => {
+    const data = threadQuery.data
+    if (!selectedId || !data) return
+    // Only publish RQ data as `messages` when this same effect run's
+    // `selectedId` is the one that owns the fetched payload. That's
+    // trivially the case here — RQ tells us `data` is the result of
+    // `mailKeys.thread(selectedId)`. Track that we've published so a
+    // later `selectedId` change trips the clear-branch above.
+    setMessages(data)
+    messagesOwnerRef.current = selectedId
+    setSelectedMsgIdx(data.length > 0 ? data.length - 1 : null)
+    if (typeof contentScrollRef.current?.scrollTo === 'function') {
+      contentScrollRef.current.scrollTo(0, 0)
+    }
+    if (typeof bottomRef.current?.scrollIntoView === 'function') {
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
     }
   }, [threadQuery.data, selectedId, setMessages])
   // Fallback for paths that seed `threadMessagesAtom` directly (mobile-mail,
