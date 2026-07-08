@@ -7,7 +7,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
-import { fetchList, postJson } from '@/lib/api'
+import { fetchList } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -16,6 +16,7 @@ import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import { wireGenerateSubject, wirePolishText } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
 import { ActionBar } from './action-bar'
@@ -24,8 +25,6 @@ import { AddressFields } from './address-fields'
 const StructuredCompose = lazy(() =>
   import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
 )
-
-type PolishResult = { message?: string; polished?: string; success: boolean }
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
@@ -86,7 +85,7 @@ export function NewConversation() {
     if (!text.trim()) return
     setPolishing(true)
     try {
-      const result = await postJson<PolishResult>('/mail/ai/polish', { text })
+      const result = await wirePolishText(text)
       if (result.success && result.polished) {
         handle.setMarkdown(result.polished)
         toast.success('Text polished')
@@ -108,11 +107,7 @@ export function NewConversation() {
     }
     setGeneratingSubject(true)
     try {
-      const result = await postJson<{
-        message?: string
-        subject?: string
-        success: boolean
-      }>('/mail/ai/generate-subject', {
+      const result = await wireGenerateSubject({
         body: content.compose.text,
         context: to ? `To: ${to}` : undefined,
       })
