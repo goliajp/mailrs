@@ -7,7 +7,6 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
-import { fetchList } from '@/lib/api'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -16,6 +15,7 @@ import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import { adminListGet } from '@/wire/endpoints/admin'
 import { wireGenerateSubject, wirePolishText } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
@@ -52,7 +52,7 @@ export function NewConversation() {
   const { data: templates = [] } = useQuery({
     queryKey: mailKeys.templates(),
     staleTime: 5 * 60 * 1000,
-    queryFn: () => fetchList<TemplateInfo>('/mail/templates'),
+    queryFn: () => adminListGet<TemplateInfo>('/mail/templates'),
   })
 
   // composer opens by flipping an atom, which doesn't push a history entry.

@@ -22,8 +22,8 @@ import { Copyable } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
 const HEADERS = ['Address', 'Display Name', 'Domain', 'Quota', 'Status', 'Password', 'Actions']
@@ -54,7 +54,7 @@ export function AdminAccounts() {
 
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.accounts(),
-    queryFn: ({ signal }) => fetchList<AccountInfo>('/admin/accounts', signal),
+    queryFn: ({ signal }) => adminListGet<AccountInfo>('/admin/accounts', signal),
   })
   const accounts = useMemo(() => data ?? [], [data])
 
@@ -74,7 +74,7 @@ export function AdminAccounts() {
       domain: string
       password: string
     }) =>
-      postJson<{ message?: string; success: boolean }>('/admin/accounts', {
+      adminPost<{ message?: string; success: boolean }>('/admin/accounts', {
         address: vars.address,
         display_name: vars.displayName,
         domain: vars.domain,
@@ -85,7 +85,7 @@ export function AdminAccounts() {
 
   const deleteAccount = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
-    mutationFn: (address: string) => deleteJson(`/admin/accounts/${encodeURIComponent(address)}`),
+    mutationFn: (address: string) => adminDelete(`/admin/accounts/${encodeURIComponent(address)}`),
     successMsg: (address) => `Account "${address}" removed`,
   })
 

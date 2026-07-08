@@ -13,8 +13,8 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchList, postJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminPost, adminPut } from '@/wire/endpoints/admin'
 
 type GroupInfo = {
   description: string
@@ -34,19 +34,19 @@ export function AdminGroups() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.groups(),
-    queryFn: ({ signal }) => fetchList<GroupInfo>('/admin/groups', signal),
+    queryFn: ({ signal }) => adminListGet<GroupInfo>('/admin/groups', signal),
   })
   const groups = groupsData ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
+    queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
   })
   const domains = domainsData ?? []
 
   const { data: allPermissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: ({ signal }) => fetchList<string>('/admin/permissions', signal),
+    queryFn: ({ signal }) => adminListGet<string>('/admin/permissions', signal),
   })
   const allPermissions = allPermissionsData ?? []
 
@@ -62,14 +62,14 @@ export function AdminGroups() {
   const addGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
     mutationFn: (vars: { description: string; domain: string | undefined; name: string }) =>
-      postJson('/admin/groups', vars),
+      adminPost('/admin/groups', vars),
     successMsg: (vars) => `Group "${vars.name}" added`,
   })
 
   const deleteGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
     successMsg: 'Group removed',
-    mutationFn: (id: number) => deleteJson(`/admin/groups/${id}`),
+    mutationFn: (id: number) => adminDelete(`/admin/groups/${id}`),
   })
 
   const handleAdd = () => {
@@ -265,13 +265,13 @@ function GroupDetail({ allPermissions, group }: { allPermissions: string[]; grou
 
   const { data: permissionsData } = useQuery({
     queryKey: adminKeys.groupPermissions(group.id),
-    queryFn: ({ signal }) => fetchList<string>(`/admin/groups/${group.id}/permissions`, signal),
+    queryFn: ({ signal }) => adminListGet<string>(`/admin/groups/${group.id}/permissions`, signal),
   })
   const permissions = permissionsData ?? []
 
   const { data: membersData } = useQuery({
     queryKey: adminKeys.groupMembers(group.id),
-    queryFn: ({ signal }) => fetchList<string>(`/admin/groups/${group.id}/members`, signal),
+    queryFn: ({ signal }) => adminListGet<string>(`/admin/groups/${group.id}/members`, signal),
   })
   const members = membersData ?? []
 
@@ -279,19 +279,19 @@ function GroupDetail({ allPermissions, group }: { allPermissions: string[]; grou
     invalidateKey: adminKeys.groupPermissions(group.id),
     successMsg: 'Permissions updated',
     mutationFn: (perms: string[]) =>
-      putJson(`/admin/groups/${group.id}/permissions`, { permissions: perms }),
+      adminPut(`/admin/groups/${group.id}/permissions`, { permissions: perms }),
   })
 
   const addMember = useAdminMutation({
     invalidateKey: adminKeys.groupMembers(group.id),
-    mutationFn: (address: string) => postJson(`/admin/groups/${group.id}/members`, { address }),
+    mutationFn: (address: string) => adminPost(`/admin/groups/${group.id}/members`, { address }),
     successMsg: (address) => `Member "${address}" added`,
   })
 
   const removeMember = useAdminMutation({
     invalidateKey: adminKeys.groupMembers(group.id),
     mutationFn: (address: string) =>
-      deleteJson(`/admin/groups/${group.id}/members/${encodeURIComponent(address)}`),
+      adminDelete(`/admin/groups/${group.id}/members/${encodeURIComponent(address)}`),
     successMsg: (address) => `Member "${address}" removed`,
   })
 

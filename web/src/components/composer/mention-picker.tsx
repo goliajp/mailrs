@@ -2,8 +2,8 @@ import type { Editor } from '@tiptap/react'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fetchList } from '@/lib/api'
 import { escapeHtml } from '@/lib/html-utils'
+import { adminListGet } from '@/wire/endpoints/admin'
 
 type Contact = { email: string; name: string; raw: string }
 
@@ -93,7 +93,9 @@ export function MentionPicker({ editor }: { editor: Editor | null }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        const results = await fetchList<string>(`/contacts?q=${encodeURIComponent(query)}&limit=8`)
+        const results = await adminListGet<string>(
+          `/contacts?q=${encodeURIComponent(query)}&limit=8`
+        )
         // ignore out-of-order responses
         if (lastQueryRef.current !== query) return
         setContacts(results.map(parseContact))

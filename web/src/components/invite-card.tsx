@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Calendar, Check, Clock, MapPin, Users, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { fetchJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { calendarKeys, messageKeys } from '@/lib/query-keys'
+import { adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
 type Attendee = {
   cn: null | string
@@ -77,7 +77,7 @@ export function InviteCard({
     queryKey: messageKeys.detail(messageUid),
     queryFn: async () => {
       try {
-        return await fetchJson<MessageDetail | null>(`/mail/messages/${messageUid}`)
+        return await adminObjectGet<MessageDetail | null>(`/mail/messages/${messageUid}`)
       } catch {
         // network / auth failure — silently leave card empty
         return null
@@ -104,7 +104,7 @@ export function InviteCard({
           exclude_uid: conflictExcludeUid,
           start: conflictStart,
         })
-        return await fetchList<ConflictRow>(`/calendar/conflicts?${params.toString()}`)
+        return await adminListGet<ConflictRow>(`/calendar/conflicts?${params.toString()}`)
       } catch {
         return [] as ConflictRow[]
       }
@@ -130,7 +130,7 @@ export function InviteCard({
       // the invite (route mismatch, RBAC, race). HTTP-level success alone
       // is not enough — fail loud here so the UI doesn't lie about the
       // reply going out (MRS-20 incident).
-      const res = await postJson<{ message?: string; success: boolean }>(
+      const res = await adminPost<{ message?: string; success: boolean }>(
         `/invites/${messageUid}/rsvp`,
         body
       )
@@ -158,7 +158,7 @@ export function InviteCard({
       const endIso = counterEnd ? new Date(counterEnd).toISOString() : null
       const body: { dtend?: null | string; dtstart: string } = { dtstart: startIso }
       if (endIso) body.dtend = endIso
-      const res = await postJson<{ message?: string; success: boolean }>(
+      const res = await adminPost<{ message?: string; success: boolean }>(
         `/invites/${messageUid}/counter`,
         body
       )

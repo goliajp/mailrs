@@ -3,8 +3,8 @@ import type { AccountInfo } from '@/lib/types'
 import { useState } from 'react'
 
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminPut } from '@/wire/endpoints/admin'
 
 export function DisplayNameCell({ account }: { account: AccountInfo }) {
   const [editing, setEditing] = useState(false)
@@ -13,7 +13,7 @@ export function DisplayNameCell({ account }: { account: AccountInfo }) {
   const updateName = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
     mutationFn: (displayName: string) =>
-      putJson(`/admin/accounts/${encodeURIComponent(account.address)}`, {
+      adminPut(`/admin/accounts/${encodeURIComponent(account.address)}`, {
         display_name: displayName,
       }),
     successMsg: () => `Display name updated for "${account.address}"`,

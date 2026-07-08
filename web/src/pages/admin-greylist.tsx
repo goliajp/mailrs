@@ -18,8 +18,8 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
 type Form = {
   kind: GreylistLocalKind
@@ -58,14 +58,16 @@ export function AdminGreylist() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.greylistLocal(),
-    queryFn: ({ signal }) => fetchList<GreylistLocalEntry>('/admin/greylist/local-lists', signal),
+    queryFn: ({ signal }) =>
+      adminListGet<GreylistLocalEntry>('/admin/greylist/local-lists', signal),
   })
   const entries = useMemo(() => entriesData ?? [], [entriesData])
 
   const { data: healthData } = useQuery({
     queryKey: adminKeys.greylistLocalHealth(),
     refetchInterval: 30_000,
-    queryFn: ({ signal }) => fetchJson<{ greylist_local?: GreylistLocalHealth }>('/health', signal),
+    queryFn: ({ signal }) =>
+      adminObjectGet<{ greylist_local?: GreylistLocalHealth }>('/health', signal),
   })
   const health = healthData?.greylist_local
 
@@ -82,7 +84,7 @@ export function AdminGreylist() {
   const addEntry = useAdminMutation({
     invalidateKey: adminKeys.greylistLocal(),
     mutationFn: (f: Form) =>
-      postJson('/admin/greylist/local-lists', {
+      adminPost('/admin/greylist/local-lists', {
         kind: f.kind,
         list: f.list,
         note: f.note.trim() || null,
@@ -94,7 +96,7 @@ export function AdminGreylist() {
   const deleteEntry = useAdminMutation({
     invalidateKey: adminKeys.greylistLocal(),
     successMsg: 'Entry removed',
-    mutationFn: (id: number) => deleteJson(`/admin/greylist/local-lists/${id}`),
+    mutationFn: (id: number) => adminDelete(`/admin/greylist/local-lists/${id}`),
   })
 
   const handleAdd = () => {

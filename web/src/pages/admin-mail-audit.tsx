@@ -13,9 +13,9 @@ import {
 } from '@/components/admin-page'
 import { HtmlFrame } from '@/components/html-frame'
 import { ScrollableTable } from '@/components/scrollable-table'
-import { fetchList } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
+import { adminListGet } from '@/wire/endpoints/admin'
 
 type AuditAccount = {
   active: boolean
@@ -94,7 +94,7 @@ export function AdminMailAudit() {
     refetch: refetchAccounts,
   } = useQuery({
     queryKey: adminKeys.mailAuditAccounts(),
-    queryFn: ({ signal }) => fetchList<AuditAccount>('/admin/audit/accounts', signal),
+    queryFn: ({ signal }) => adminListGet<AuditAccount>('/admin/audit/accounts', signal),
   })
   const accounts = useMemo(() => accountsData ?? [], [accountsData])
 
@@ -102,7 +102,7 @@ export function AdminMailAudit() {
     enabled: !!selectedAccount,
     queryKey: adminKeys.mailAuditConversations(selectedAccount ?? ''),
     queryFn: async ({ signal }) => {
-      const data = await fetchList<AuditConversation>(
+      const data = await adminListGet<AuditConversation>(
         `/admin/audit/conversations?target_user=${encodeURIComponent(selectedAccount ?? '')}&limit=50`,
         signal
       )
@@ -114,7 +114,7 @@ export function AdminMailAudit() {
     enabled: !!selectedAccount && !!selectedThread,
     queryKey: adminKeys.mailAuditThread(selectedAccount ?? '', selectedThread ?? ''),
     queryFn: async ({ signal }) => {
-      const data = await fetchList<AuditMessage>(
+      const data = await adminListGet<AuditMessage>(
         `/admin/audit/conversations/${encodeURIComponent(selectedThread ?? '')}/messages?target_user=${encodeURIComponent(selectedAccount ?? '')}`,
         signal
       )

@@ -19,8 +19,8 @@ import type { ThreadId, ThreadSummary } from '@/domain'
 import type { QueryClient } from '@tanstack/react-query'
 
 import { OPTIMISTIC_VERSION } from '@/domain'
-import { deleteJson, postJson } from '@/lib/api'
 import { conversationKeys } from '@/store/query-keys-v21'
+import { adminDelete, adminPost } from '@/wire/endpoints/admin'
 
 import { patchMatching, restoreSnapshot, type Snapshot, snapshotMatching } from '../snapshot'
 
@@ -46,7 +46,7 @@ export async function markThreadRead(
   try {
     const q =
       domains && domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-    await postJson(`/conversations/${encodeURIComponent(threadId)}/read${q}`, {})
+    await adminPost(`/conversations/${encodeURIComponent(threadId)}/read${q}`, {})
     qc.invalidateQueries({ queryKey: conversationKeys.lists() })
   } catch (err) {
     restoreSnapshot(qc, snap)
@@ -67,7 +67,7 @@ export async function markThreadUnread(
   try {
     const q =
       domains && domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-    await postJson(`/conversations/${encodeURIComponent(threadId)}/unread${q}`, {})
+    await adminPost(`/conversations/${encodeURIComponent(threadId)}/unread${q}`, {})
     qc.invalidateQueries({ queryKey: conversationKeys.lists() })
   } catch (err) {
     restoreSnapshot(qc, snap)
@@ -86,9 +86,9 @@ export async function starThread(
   )
   try {
     if (starred) {
-      await postJson(`/conversations/${encodeURIComponent(threadId)}/star`, {})
+      await adminPost(`/conversations/${encodeURIComponent(threadId)}/star`, {})
     } else {
-      await deleteJson(`/conversations/${encodeURIComponent(threadId)}/star`)
+      await adminDelete(`/conversations/${encodeURIComponent(threadId)}/star`)
     }
     qc.invalidateQueries({ queryKey: conversationKeys.lists() })
   } catch (err) {

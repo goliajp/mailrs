@@ -2,15 +2,15 @@ import type { QuotaInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
 
-import { fetchJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminObjectGet } from '@/wire/endpoints/admin'
 
 export function QuotaCell({ address }: { address: string }) {
   const { data, isError, isPending } = useQuery({
     queryKey: [...adminKeys.accounts(), 'quota', address],
     retry: false,
     queryFn: ({ signal }) =>
-      fetchJson<QuotaInfo>(`/admin/accounts/${encodeURIComponent(address)}/quota`, signal),
+      adminObjectGet<QuotaInfo>(`/admin/accounts/${encodeURIComponent(address)}/quota`, signal),
   })
 
   if (isPending) {
