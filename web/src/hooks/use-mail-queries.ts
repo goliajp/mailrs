@@ -91,16 +91,17 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
     // wrong for a per-thread query: on a thread switch we WANT
     // `data === undefined` until the new thread resolves, so ThreadView's
     // bridge effect can clear the previous thread's messages instead of
-    // mistakenly attributing them to the new thread. Without this opt-out,
-    // switching from thread A to B under `keepPreviousData` returns A's
-    // messages as the placeholder for B's query — the bridge sees "data
-    // truthy, selectedId=B → publish these as B's messages" and only swaps
-    // when B resolves. Between the two frames the reply sent to A leaks
-    // into B's view (see the 2026-07-08 user report of a "Me reply +
-    // unrelated new message" mixed timeline).
-    placeholderData: undefined,
+    // mistakenly attributing them to the new thread. Setting the option
+    // to `undefined` here does NOT override the global default (RQ 5 reads
+    // `undefined` as "not specified" and falls through) — the correct
+    // opt-out is a function that returns undefined for any prior data.
+    // Without this opt-out, thread A's messages leak into thread B's
+    // timeline during the fetch window, and every A→B→A round-trip
+    // append a stale bubble (2026-07-08 user report of 5 duplicate "Me"
+    // rows accumulating after repeated clicks).
     queryKey: mailKeys.thread(threadId),
     staleTime: Infinity,
+    placeholderData: () => undefined,
   })
 }
 
