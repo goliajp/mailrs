@@ -96,8 +96,7 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
         path: `/conversations/${encodeURIComponent(threadId ?? '')}${q}`,
         signal,
       })
-      const items = 'items' in parsed ? parsed.items : parsed.messages
-      return items as unknown as ThreadMessage[]
+      return parsed.items as unknown as ThreadMessage[]
     },
     // Thread content is mutation-invariant from the client's point of view —
     // mark-read / star / pin / archive all act on list-shape flags only, not
