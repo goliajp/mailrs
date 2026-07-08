@@ -151,6 +151,32 @@ export default eslintTs.config(
     },
   },
 
+  // v2.1 §10.5 (2026-07-08) — wire boundary enforcement. `lib/api.ts`
+  // is the legacy raw-fetch shim; direct imports of its `postJson` /
+  // `fetchJson` / `fetchList` / `putJson` / `deleteJson` from anywhere
+  // outside `wire/` re-open the "raw JSON in, no schema, silent shape
+  // drift" hole the wire boundary exists to close. New callers must
+  // add or reuse a `wire/endpoints/<domain>.ts` adapter.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/wire/**', 'src/lib/api.ts', 'src/lib/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              importNames: ['postJson', 'putJson', 'deleteJson', 'fetchJson', 'fetchList'],
+              message:
+                'v2.1 wire boundary: use `wire/endpoints/<domain>` adapters instead of raw `lib/api.ts` helpers. Every network call must Zod-validate the response — see `.claude/plans/v2.1-webapp-linear-checklist-2026-07-08.md`.',
+              name: '@/lib/api',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // prettier must be last
   eslintConfigPrettier,
 )

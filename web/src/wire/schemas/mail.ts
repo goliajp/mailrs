@@ -15,6 +15,21 @@ export const sendResultSchema = z.object({
 
 export type WireSendResult = z.infer<typeof sendResultSchema>
 
+export const inlineUploadResultSchema = z.object({
+  message: z.string().optional(),
+  success: z.boolean().default(false),
+  url: z.string().optional(),
+})
+
+export type WireInlineUploadResult = z.infer<typeof inlineUploadResultSchema>
+
+export const snoozeResultSchema = z.object({
+  message: z.string().optional(),
+  success: z.boolean().default(true),
+})
+
+export type WireSnoozeResult = z.infer<typeof snoozeResultSchema>
+
 // ── /mail/drafts ──────────────────────────────────────────────────
 
 export const draftSchema = z.object({

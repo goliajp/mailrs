@@ -16,7 +16,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
 import { useRef } from 'react'
 
-import { getToken } from '@/store/auth'
+import { wireUploadInlineImage } from '@/wire/endpoints/mail'
 
 const lowlight = createLowlight(common)
 
@@ -73,19 +73,9 @@ export function createMinimalExtensions(placeholder?: string): Extensions {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export async function uploadInlineImage(file: File): Promise<null | string> {
-  const form = new FormData()
-  form.append('image', file)
-  const token = getToken()
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
   try {
-    const res = await fetch('/api/mail/inline-upload', {
-      body: form,
-      headers,
-      method: 'POST',
-    })
-    const data = await res.json()
-    if (data.success && data.url) return data.url as string
+    const data = await wireUploadInlineImage(file)
+    if (data.success && data.url) return data.url
   } catch {
     // fallback handled by caller
   }

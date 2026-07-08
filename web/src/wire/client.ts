@@ -26,6 +26,15 @@ export type WireRequest = {
    */
   readonly allowEmpty?: boolean
   readonly body?: unknown
+  /**
+   * When set, treat `body` as an already-encoded body (`FormData`,
+   * `Blob`, `ReadableStream`, raw string). Skip `JSON.stringify`,
+   * skip the `Content-Type: application/json` header — the browser
+   * fills in the correct multipart boundary for `FormData`, and
+   * caller can set custom headers via `extraHeaders`.
+   */
+  readonly bodyRaw?: BodyInit
+  readonly extraHeaders?: Record<string, string>
   readonly method?: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
   readonly path: string
   readonly signal?: AbortSignal
@@ -42,9 +51,14 @@ export async function wireFetch<T>(schema: z.ZodType<T>, req: WireRequest): Prom
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
   let body: BodyInit | undefined
-  if (req.body !== undefined) {
+  if (req.bodyRaw !== undefined) {
+    body = req.bodyRaw
+  } else if (req.body !== undefined) {
     headers['Content-Type'] = 'application/json'
     body = JSON.stringify(req.body)
+  }
+  if (req.extraHeaders) {
+    for (const [k, v] of Object.entries(req.extraHeaders)) headers[k] = v
   }
 
   let res: Response
