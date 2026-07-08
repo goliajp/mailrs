@@ -292,16 +292,25 @@ describe('getThreadReactions', () => {
 
   it('fetches reactions and returns the reactions record', async () => {
     mockGetToken.mockReturnValue(null)
-    const reactions = { 1: [{ count: 2, emoji: '👍', me: true }] }
-    vi.stubGlobal('fetch', makeFetchMock(200, { reactions }))
+    // v2.1 §10-audit (2026-07-08): backend `ReactionsResponse` is a
+    // flat list `{reactions: [{message_uid, emoji, count, me}, ...]}`
+    // — the wire adapter groups by `message_uid` client-side.
+    vi.stubGlobal(
+      'fetch',
+      makeFetchMock(200, {
+        reactions: [{ count: 2, emoji: '👍', me: true, message_uid: 1 }],
+      })
+    )
     const result = await getThreadReactions('thread-abc')
-    expect(result).toEqual(reactions)
+    expect(result).toEqual({
+      1: [{ count: 2, emoji: '👍', me: true, message_uid: 1 }],
+    })
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/conversations/thread-abc/reactions')
   })
 
   it('encodes threadId in URL', async () => {
     mockGetToken.mockReturnValue(null)
-    vi.stubGlobal('fetch', makeFetchMock(200, { reactions: {} }))
+    vi.stubGlobal('fetch', makeFetchMock(200, { reactions: [] }))
     await getThreadReactions('thread with spaces')
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
       '/api/conversations/thread%20with%20spaces/reactions'
@@ -317,22 +326,38 @@ describe('listDrafts', () => {
 
   it('fetches drafts list via GET', async () => {
     mockGetToken.mockReturnValue(null)
-    const drafts = [
+    // v2.1 §10-audit (2026-07-08): backend `DraftWire` uses short
+    // `to/cc/bcc` names and numeric epoch `created_at/updated_at`
+    // (not `_addresses`, not ISO). `id` normalises to string at the
+    // wire boundary.
+    const backendDrafts = [
       {
-        bcc_addresses: '',
+        bcc: '',
         body: '',
-        cc_addresses: '',
-        created_at: '2026-07-08T00:00:00Z',
+        cc: '',
+        created_at: 1720392000,
         id: 1,
         reply_to_thread_id: null,
         subject: 'Draft 1',
-        to_addresses: '',
-        updated_at: '2026-07-08T00:00:00Z',
+        to: '',
+        updated_at: 1720392000,
       },
     ]
-    vi.stubGlobal('fetch', makeFetchMock(200, drafts))
+    vi.stubGlobal('fetch', makeFetchMock(200, backendDrafts))
     const result = await listDrafts()
-    expect(result).toEqual(drafts)
+    expect(result).toEqual([
+      {
+        bcc: '',
+        body: '',
+        cc: '',
+        created_at: 1720392000,
+        id: '1',
+        reply_to_thread_id: null,
+        subject: 'Draft 1',
+        to: '',
+        updated_at: 1720392000,
+      },
+    ])
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/mail/drafts')
   })
 })
@@ -370,7 +395,9 @@ describe('saveDraft', () => {
     const draft = { body: 'Hello', subject: 'Hi', to: ['a@b.com'] }
     vi.stubGlobal('fetch', makeFetchMock(200, { id: 1, success: true }))
     const result = await saveDraft(draft as never)
-    expect(result).toEqual({ id: 1, success: true })
+    // v2.1 §10-audit (2026-07-08): wire adapter normalises `id` to
+    // string (backend can send u32 or i64 depending on entity type).
+    expect(result).toEqual({ id: '1', success: true })
     const call = vi.mocked(fetch).mock.calls[0]
     expect(call[0]).toBe('/api/mail/drafts')
     expect((call[1] as RequestInit).method).toBe('POST')

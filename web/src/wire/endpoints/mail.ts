@@ -126,13 +126,25 @@ export const wireRecordFeedback = (
 
 // ── reactions ────────────────────────────────────────────────────
 
+/**
+ * Backend `get_thread_reactions` returns a flat
+ * `{reactions: [{message_uid, emoji, count, me}, ...]}` — one row
+ * per (uid, emoji) pair. Group by `message_uid` client-side for
+ * per-message rendering.
+ */
 export async function wireGetThreadReactions(
   threadId: string
-): Promise<Record<string, readonly WireReactionSummary[]>> {
+): Promise<Record<number, readonly WireReactionSummary[]>> {
   const raw = await wireFetch(threadReactionsSchema, {
     path: `/conversations/${encodeURIComponent(threadId)}/reactions`,
   })
-  return raw.reactions
+  const grouped: Record<number, WireReactionSummary[]> = {}
+  for (const r of raw.reactions) {
+    const uid = r.message_uid ?? 0
+    if (!grouped[uid]) grouped[uid] = []
+    grouped[uid].push(r)
+  }
+  return grouped
 }
 
 export async function wireToggleReaction(

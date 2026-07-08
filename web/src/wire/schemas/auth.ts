@@ -81,10 +81,18 @@ export const totpSetupSchema = z.object({
 export type WireTotpSetup = z.infer<typeof totpSetupSchema>
 
 // ── /auth/recovery-email ─────────────────────────────────────────
+//
+// Backend `get_recovery_email` (complete.rs) returns
+// `{recovery_email: null | String}` — `null` when the user has no
+// recovery email configured. Frontend schema previously required
+// a string; Zod validation error would surface for every fresh
+// account (2026-07-08 §10-audit).
 
-export const recoveryEmailSchema = z.object({
-  recovery_email: z.string(),
-})
+export const recoveryEmailSchema = z
+  .object({
+    recovery_email: z.string().nullable().default(null),
+  })
+  .transform((v) => ({ recovery_email: v.recovery_email ?? '' }))
 
 export type WireRecoveryEmail = z.infer<typeof recoveryEmailSchema>
 

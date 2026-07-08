@@ -2,16 +2,20 @@ import { getToken } from '@/store/auth'
 
 const API_BASE = '/api'
 
+// v2.1 §10-audit (2026-07-08): backend `DraftWire` uses short
+// `to/cc/bcc` field names and numeric epoch timestamps — the
+// `to_addresses` / `_addresses` variants shown in openapi.json /
+// llm-full.txt are stale documentation, never matched runtime.
 export type Draft = {
-  bcc_addresses: string
+  bcc: string
   body: string
-  cc_addresses: string
-  created_at: string
-  id: number
+  cc: string
+  created_at: null | number | string
+  id: number | string
   reply_to_thread_id: null | string
   subject: string
-  to_addresses: string
-  updated_at: string
+  to: string
+  updated_at: null | number | string
 }
 
 export type FeedbackAction =
@@ -32,7 +36,7 @@ export type SaveDraftRequest = {
 }
 
 type SaveDraftResult = {
-  id?: number
+  id?: number | string
   message?: string
   success: boolean
 }
@@ -128,15 +132,11 @@ export async function getThreadReactions(
   threadId: string
 ): Promise<Record<number, ReactionSummary[]>> {
   // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
+  // v2.1 §10-audit (2026-07-08): wire adapter now returns
+  // Record<number, ...> (grouped from backend's flat list).
   const { wireGetThreadReactions } = await import('@/wire/endpoints/mail')
   const raw = await wireGetThreadReactions(threadId)
-  // Convert Record<string, ...> keys back to Record<number, ...> for
-  // caller compat. Backend sends string keys in JSON either way.
-  const out: Record<number, ReactionSummary[]> = {}
-  for (const [k, v] of Object.entries(raw)) {
-    out[Number(k)] = v as ReactionSummary[]
-  }
-  return out
+  return raw as unknown as Record<number, ReactionSummary[]>
 }
 
 export async function listDrafts(): Promise<Draft[]> {
