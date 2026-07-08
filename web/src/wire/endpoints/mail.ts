@@ -14,16 +14,20 @@ import {
   deleteDraftResultSchema,
   draftListSchema,
   feedbackResultSchema,
+  inlineUploadResultSchema,
   reactionsListSchema,
   saveDraftResultSchema,
   sendResultSchema,
+  snoozeResultSchema,
   threadReactionsSchema,
   type WireDeleteDraftResult,
   type WireDraft,
   type WireFeedbackResult,
+  type WireInlineUploadResult,
   type WireReactionSummary,
   type WireSaveDraftResult,
   type WireSendResult,
+  type WireSnoozeResult,
 } from '../schemas/mail'
 import { emptyResponseSchema } from '../schemas/mutations'
 
@@ -35,6 +39,48 @@ export const wireSendMailJson = (payload: Record<string, unknown>): Promise<Wire
     method: 'POST',
     path: '/mail/send',
   })
+
+/**
+ * Multipart send — attachments path. The browser derives the correct
+ * multipart boundary from FormData, so we pass `bodyRaw` and let the
+ * transport skip the JSON path.
+ */
+export const wireSendMailMultipart = (fd: FormData): Promise<WireSendResult> =>
+  wireFetch(sendResultSchema, {
+    bodyRaw: fd,
+    method: 'POST',
+    path: '/mail/send-multipart',
+  })
+
+// ── snooze / unsnooze conversation ────────────────────────────────
+
+export const wireSnoozeConversation = (
+  threadId: string,
+  until: string
+): Promise<WireSnoozeResult> =>
+  wireFetch(snoozeResultSchema, {
+    body: { until },
+    method: 'PUT',
+    path: `/conversations/${encodeURIComponent(threadId)}/snooze`,
+  })
+
+export const wireUnsnoozeConversation = (threadId: string): Promise<WireSnoozeResult> =>
+  wireFetch(snoozeResultSchema, {
+    method: 'DELETE',
+    path: `/conversations/${encodeURIComponent(threadId)}/snooze`,
+  })
+
+// ── /mail/inline-upload ──────────────────────────────────────────
+
+export const wireUploadInlineImage = (file: File): Promise<WireInlineUploadResult> => {
+  const fd = new FormData()
+  fd.append('image', file)
+  return wireFetch(inlineUploadResultSchema, {
+    bodyRaw: fd,
+    method: 'POST',
+    path: '/mail/inline-upload',
+  })
+}
 
 // ── /mail/pending (undo send) ─────────────────────────────────────
 

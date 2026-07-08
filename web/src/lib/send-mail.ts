@@ -1,4 +1,5 @@
-import { wireSendMailJson } from '@/wire/endpoints/mail'
+import { wireSendMailJson, wireSendMailMultipart } from '@/wire/endpoints/mail'
+import { WireErrorException } from '@/wire/errors'
 
 export type SendMailParams = {
   attachments?: File[]
@@ -64,11 +65,12 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     fd.append('forward_attachments_from', String(p.forwardAttachmentsFrom))
   }
 
-  const res = await fetch('/api/mail/send-multipart', {
-    body: fd,
-    headers: { Authorization: `Bearer ${p.token}` },
-    method: 'POST',
-  })
-  if (!res.ok) return { message: `Send failed (${res.status})`, success: false }
-  return (await res.json()) as SendResult
+  try {
+    return await wireSendMailMultipart(fd)
+  } catch (e) {
+    if (e instanceof WireErrorException && e.detail.kind === 'server') {
+      return { message: e.detail.message ?? `Send failed (${e.detail.status})`, success: false }
+    }
+    return { message: 'Send failed', success: false }
+  }
 }

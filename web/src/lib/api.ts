@@ -188,9 +188,9 @@ export async function snoozeConversation(
   threadId: string,
   until: string
 ): Promise<{ message?: string; success: boolean }> {
-  return putJson(`/conversations/${encodeURIComponent(threadId)}/snooze`, {
-    until,
-  })
+  // v2.1 §10.6 (2026-07-08): delegated to wire adapter.
+  const { wireSnoozeConversation } = await import('@/wire/endpoints/mail')
+  return wireSnoozeConversation(threadId, until)
 }
 
 // --- snooze API ---
@@ -209,7 +209,9 @@ export async function toggleReaction(
 export async function unsnoozeConversation(
   threadId: string
 ): Promise<{ message?: string; success: boolean }> {
-  return deleteJson(`/conversations/${encodeURIComponent(threadId)}/snooze`)
+  // v2.1 §10.6 (2026-07-08): delegated to wire adapter.
+  const { wireUnsnoozeConversation } = await import('@/wire/endpoints/mail')
+  return wireUnsnoozeConversation(threadId)
 }
 
 // --- sender feedback API ---
