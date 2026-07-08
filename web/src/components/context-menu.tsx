@@ -36,12 +36,12 @@ export function ActionSheet({
           <div className="bg-border-strong h-1 w-10 rounded-full" />
         </div>
         <div className="px-2 pb-2">
-          {items.map((item) => (
+          {items.map((item, idx) => (
             <button
               className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${
                 item.danger ? 'text-danger active:bg-danger/10' : 'text-fg active:bg-bg-secondary'
               }`}
-              key={item.label}
+              key={`${item.label}-${idx}`}
               onClick={() => {
                 item.onClick()
                 onClose()

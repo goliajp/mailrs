@@ -77,10 +77,10 @@ export function InsightsColumn({
       {topSenders.length > 0 && (
         <Section icon={Users} title="Top Contacts">
           <div className="space-y-0.5">
-            {topSenders.map((s) => (
+            {topSenders.map((s, idx) => (
               <div
                 className="hover:bg-bg-secondary flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors"
-                key={s.email}
+                key={`${s.email}-${idx}`}
               >
                 <SenderAvatar sender={`${s.name} <${s.email}>`} size={28} />
                 <div className="min-w-0 flex-1">
