@@ -145,8 +145,20 @@ export function Dashboard() {
     [searchInput, setSearchQuery, navigate]
   )
 
-  const totalUnread =
-    data?.stats?.unread_messages ?? data?.folders.find((f) => f.name === 'INBOX')?.unseen ?? 0
+  // v2.1-fix (2026-07-09): derive from the RQ-cached conversation list,
+  // not the server-side `/mail/stats::unread_messages` or
+  // `/mail/folders::unseen` aggregates. Those two are point-in-time
+  // server computations that never invalidate on a client-side
+  // mark-read — the optimistic `patchAllInfiniteLists` mutation only
+  // touches `conversationKeys.list()`, so a stats-derived badge stays
+  // stuck at the pre-mutation total. Reading through
+  // `data.conversations` (the same cache line the mutation patches)
+  // makes the badge fall to 0 the instant the user marks the last
+  // unread thread read.
+  const totalUnread = useMemo(
+    () => (data?.conversations ?? []).reduce((sum, c) => sum + (c.unread_count > 0 ? 1 : 0), 0),
+    [data?.conversations]
+  )
   const totalMessages = data?.stats?.total_messages ?? 0
   const storageBytes = data?.stats?.storage_bytes ?? 0
   const {
