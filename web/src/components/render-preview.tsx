@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { postJson } from '@/lib/api'
+import { wireRenderPreview } from '@/wire/endpoints/ai'
 
 type Preview = {
   height: number
@@ -32,10 +32,10 @@ export function RenderPreview({ html }: { html: string }) {
     setLoading(true)
     setError('')
     try {
-      const result = await postJson<RenderResult>('/mail/render-preview', {
+      const result = (await wireRenderPreview({
         html,
         presets: ['desktop', 'mobile', 'gmail', 'outlook'],
-      })
+      })) as unknown as RenderResult
 
       if (result.error) {
         setError(result.error)

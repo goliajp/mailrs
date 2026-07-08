@@ -7,11 +7,11 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
-import { postJson } from '@/lib/api'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
+import { wirePolishText, wireReplySuggest } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
 const StructuredCompose = lazy(() =>
@@ -23,7 +23,6 @@ import { ModeToggle } from './mode-toggle'
 import { PreviewDialog } from './preview-dialog'
 import { SuggestionsRow } from './suggestions-row'
 
-type PolishResult = { message?: string; polished?: string; success: boolean }
 type ReplyBoxProps = {
   forwardAttachmentsUid?: null | number
   forwardMessageId?: null | string
@@ -40,12 +39,6 @@ type ReplyBoxProps = {
   subject: string
   threadId: string
 }
-type ReplySuggestResult = {
-  message?: string
-  success: boolean
-  suggestions: string[]
-}
-
 export function ReplyBox({
   forwardAttachmentsUid,
   forwardMessageId,
@@ -241,10 +234,7 @@ export function ReplyBox({
     prePolishRef.current = text
     setPolishing(true)
     try {
-      const result = await postJson<PolishResult>('/mail/ai/polish', {
-        text,
-        tone: tone ?? polishTone,
-      })
+      const result = await wirePolishText(text, tone ?? polishTone)
       if (result.success && result.polished) {
         handle.setMarkdown(result.polished)
         toast.success('Text polished', {
@@ -282,10 +272,10 @@ export function ReplyBox({
               .map((m) => `From: ${m.sender}\n${m.clean_text || m.text_body || ''}`)
               .join('\n---\n')
           : undefined
-      const result = await postJson<ReplySuggestResult>('/mail/ai/reply-suggest', {
+      const result = await wireReplySuggest({
         original_body: originalBody,
-        original_sender: originalFrom,
-        original_subject: subject,
+        sender: originalFrom,
+        subject,
         thread_context: threadContext,
       })
       if (result.success && result.suggestions.length > 0) {
