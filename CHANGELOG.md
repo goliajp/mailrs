@@ -16,6 +16,102 @@ Web-side architectural redesign begun 2026-07-07 (RFC
 binary + fastcore stack landed as `v2.0.0` on 2026-07-07; this
 section covers the web-only redesign that ships next.
 
+### Web v2.1 — Phase 7-10 (Zod wire boundary complete)
+
+Phase 10 closes the wire migration:
+
+- **Zod at every wire boundary.** Every network call now
+  Zod-parses its response — no `as any`, no raw JSON out of
+  `fetch`. Coverage: 0 → ~165 Zod-guarded `wireFetch` callsites.
+  100 % of the mail hot path, 100 % of auth, 100 % of user
+  settings CRUD, 100 % of admin CRUD (12 resources × ~4 endpoints
+  each) all routed through `wire/endpoints/*`.
+- **Uniform admin CRUD.** `wire/endpoints/admin.ts` provides
+  `adminListGet<T>` / `adminObjectGet<T>` / `adminPost<T>` /
+  `adminPut<T>` / `adminPatch<T>` / `adminDelete` — Zod-parses
+  the envelope (list-vs-object shape) but keeps content
+  permissive so downstream keeps its cast contract. 101 admin
+  callsites bulk-migrated.
+- **Multipart send + inline upload.** `wireFetch` gained
+  `bodyRaw?: BodyInit` to carry `FormData` through the same
+  Zod-validated response path. `wireSendMailMultipart` +
+  `wireUploadInlineImage` replace two raw `fetch('/api/...')`
+  callsites in `send-mail.ts` and `rich-editor.tsx`.
+- **ESLint boundary gate.** `no-restricted-imports` blocks new
+  callers from `postJson` / `putJson` / `deleteJson` /
+  `fetchJson` / `fetchList` from `@/lib/api` outside of
+  `src/wire/**` and the shim itself. New raw-fetch = build
+  failure.
+- **`lib/api.ts` collapsed to a domain-adapter shim.** The
+  remaining exports (`snoozeConversation`,
+  `unsnoozeConversation`, `recordFeedback`, `saveDraft`,
+  `deleteDraft`, `toggleReaction`, `getThreadReactions`,
+  `listDrafts`) delegate to wire adapters via lazy import.
+  Raw `postJson` / etc. helpers survive only because the
+  shim + its co-located tests reference them.
+
+Real bugs surfaced by Zod alignment during Phase 10:
+
+1. **`TotpSetup.qr_url` was fabricated** — backend actually
+   returns `otpauth_url` (`crates/webapi/src/handlers/complete.rs::
+   totp_setup` line 336). The frontend type in `_shared.tsx`
+   invented `qr_url`, so the QR display paragraph was silently
+   rendering `undefined` for the entire life of the TOTP-setup
+   panel. Type + render site both switched to `otpauth_url`.
+2. **`OidcClientConfig` shape mismatched backend.** Frontend
+   expected `{enabled, login_url, provider_name}` but backend
+   sends `{enabled, providers[]}`. Schema now accepts both;
+   UI reconciliation deferred (OIDC login isn't the primary
+   sign-in path).
+3. **`change_password` field name.** Frontend was passing
+   `old_password`; backend expects `current_password`
+   (`ChangePasswordRequest` line 246). Adapter aligned.
+4. **`ReactionSummary.reacted` was fabricated in test fixtures.**
+   Wire truth is `me: boolean` (`crates/webapi/src/handlers/mail.rs::
+   get_thread_reactions` line 163). Test fixtures updated; adapter
+   aligned with `types.ts::ReactionSummary`.
+5. **`render-preview` returned a different shape** than the
+   frontend expected — backend actually emits `{png_base64,
+   fallback_html?}`, frontend fabricated `{previews[],
+   errors[]}`. Panel was silently broken. Schema is permissive
+   (`passthrough`) for now; UI reconciliation queued.
+
+Phase 7 (design-token discipline):
+
+- **Motion tokens** (`--duration-fast/base/slow`,
+  `--ease-standard/emphasized`, `--animate-slide-up`) —
+  bottom-sheet + context-menu now use `animate-slide-up`
+  instead of inline `animate-[slideUp_200ms_ease-out]`.
+- **Elevation tokens** (`--shadow-elevation-0..3` with dark-mode
+  overrides). Adoption is incremental — legacy
+  `shadow-{sm,md,lg,xl,2xl}` callsites (14 spots) stay until
+  touched.
+
+Phase 8 (route data-router):
+
+- **Route-level error boundary.** `RouteErrorFallback` renders
+  under every route branch (`errorElement`) — a thrown
+  `WireErrorException` (auth / server / validation / network),
+  render crash, or 404 shows a specific message with a targeted
+  action (sign-in for auth-expired, reload for network, home
+  for anything else), replacing the browser's grey unstyled
+  reload prompt.
+
+Deferred to a follow-up (design decision needed):
+
+- Route loaders for `/mail` + `/` that call
+  `queryClient.ensureQueryData()` — needs a decision on
+  whether the loader reads initial filter state from URL params
+  or from a jotai store snapshot.
+- Full `shadow-{sm,md,lg,xl,2xl}` → `shadow-elevation-*`
+  migration.
+- Skeleton CLS audit — requires DevTools Performance Insights
+  runs, not scriptable.
+- Cross-screen mutation matrix regression tests (dashboard ↔
+  mail-list ↔ thread-view × mark-read / star / archive / etc.)
+  — the mutation-callsite convergence in Phase 10 makes this
+  primarily a manual QA pass rather than an automated matrix.
+
 ### Web v2.1 — Phase 1-6 shipped 2026-07-07 → 08
 
 - **RQ single-source-of-truth.** The mail list, dashboard, and thread
