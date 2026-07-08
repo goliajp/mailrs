@@ -173,6 +173,14 @@ pub fn compose_dsn(
 /// recipient's maildir and run the standard ingest write-through.
 /// Unknown recipients (not a kevy account, no maildir) are dropped
 /// with a warn — a bounce must never itself bounce.
+///
+/// v2.2 §3 (2026-07-08): the outer 10 s polling sleep is gone —
+/// `drain_one` blocks on `brpop(BOUNCE_PENDING, Some(10s))`, so a
+/// newly-enqueued bounce is processed synchronously with the
+/// producer's `LPUSH`; the timer only fires when the queue has been
+/// empty for the whole 10 s window, at which point the task loops
+/// straight back into another blocking `BRPOP`. No wall-clock
+/// budget spent on polling an empty queue.
 pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let Some(url) = crate::live_sync::network_kevy_url() else {
@@ -182,19 +190,30 @@ pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<
         let maildir_root =
             std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
         loop {
-            drain_once(&state, &url, &maildir_root);
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            drain_one(&state, &url, &maildir_root);
         }
     })
 }
 
-fn drain_once(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
+fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
     let Ok(mut conn) = kevy_client::Connection::open(url) else {
         return;
     };
+    // First pop blocks up to 10 s (matches prior wake-up cadence); after
+    // that first hit we drain remaining items with non-blocking RPOPs to
+    // avoid re-arming the blocking timer per item on a bursty queue.
+    let mut first = true;
     loop {
-        let popped = conn.rpop(BOUNCE_PENDING, 1).unwrap_or_default();
-        let Some(id_bytes) = popped.into_iter().next() else {
+        let popped_bytes: Option<Vec<u8>> = if first {
+            first = false;
+            match conn.brpop(&[BOUNCE_PENDING], Some(std::time::Duration::from_secs(10))) {
+                Ok(Some((_key, value))) => Some(value),
+                Ok(None) | Err(_) => None,
+            }
+        } else {
+            conn.rpop(BOUNCE_PENDING, 1).unwrap_or_default().into_iter().next()
+        };
+        let Some(id_bytes) = popped_bytes else {
             return;
         };
         let Ok(id) = String::from_utf8(id_bytes) else {
