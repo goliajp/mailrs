@@ -3,16 +3,26 @@ import type { ConversationSummary } from '@/lib/types'
 import { type QueryKey, useMutation } from '@tanstack/react-query'
 import { getDefaultStore } from 'jotai'
 
-import {
-  deleteJson,
-  postJson,
-  snoozeConversation as snoozeApi,
-  unsnoozeConversation as unsnoozeApi,
-} from '@/lib/api'
+import { snoozeConversation as snoozeApi, unsnoozeConversation as unsnoozeApi } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { stickyUnreadIdsAtom } from '@/store/ui'
+// v2.1 §7 batch 1 (2026-07-08): every mutation path routes through
+// the wire adapter — Zod-parsed responses, structured errors, 204
+// handled explicitly.
+import {
+  wireArchiveThread,
+  wireBatchMutation,
+  wireDeleteThread,
+  wireMarkThreadRead,
+  wireMarkThreadUnread,
+  wirePinThread,
+  wireStarThread,
+  wireUnarchiveThread,
+  wireUnpinThread,
+  wireUnstarThread,
+} from '@/wire/endpoints/mutations'
 
 export type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
 
@@ -45,8 +55,7 @@ type InfinitePages = { pageParams: (number | undefined)[]; pages: ConversationSu
 
 export function useArchiveMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/archive`, {}),
+    mutationFn: ({ threadId }) => wireArchiveThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -63,8 +72,7 @@ export function useArchiveMutation() {
 
 export function useBatchMutation() {
   return useMutation<BatchResult, Error, { action: BatchAction; threadIds: string[] }, Context>({
-    mutationFn: ({ action, threadIds }) =>
-      postJson<BatchResult>('/conversations/batch', { action, thread_ids: threadIds }),
+    mutationFn: ({ action, threadIds }) => wireBatchMutation(action, threadIds),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -98,7 +106,7 @@ export function useBatchMutation() {
 
 export function useDeleteMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) => deleteJson(`/conversations/${encodeURIComponent(threadId)}`),
+    mutationFn: ({ threadId }) => wireDeleteThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -113,11 +121,7 @@ export function useDeleteMutation() {
 
 export function useMarkReadMutation() {
   return useMutation<unknown, Error, { domains?: string[]; threadId: string }, Context>({
-    mutationFn: ({ domains, threadId }) => {
-      const q =
-        domains && domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return postJson(`/conversations/${encodeURIComponent(threadId)}/read${q}`, {})
-    },
+    mutationFn: ({ domains, threadId }) => wireMarkThreadRead(threadId, domains),
     onError: (_e, _vars, _ctx) => {
       // Do NOT rollback the optimistic patch on network / server error.
       // The retry path (auto-mark effect keyed on selectedUnreadCount)
@@ -159,8 +163,7 @@ export function useMarkReadMutation() {
 
 export function useMarkUnreadMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/unread`, {}),
+    mutationFn: ({ threadId }) => wireMarkThreadUnread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -183,8 +186,7 @@ export function useMarkUnreadMutation() {
 
 export function usePinMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/pin`, {}),
+    mutationFn: ({ threadId }) => wirePinThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -218,8 +220,7 @@ export function useSnoozeMutation() {
 
 export function useStarMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/star`, {}),
+    mutationFn: ({ threadId }) => wireStarThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -238,8 +239,7 @@ export function useStarMutation() {
 
 export function useUnarchiveMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/unarchive`, {}),
+    mutationFn: ({ threadId }) => wireUnarchiveThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -256,8 +256,7 @@ export function useUnarchiveMutation() {
 
 export function useUnpinMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/unpin`, {}),
+    mutationFn: ({ threadId }) => wireUnpinThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
@@ -283,8 +282,7 @@ export function useUnsnoozeMutation() {
 
 export function useUnstarMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
-    mutationFn: ({ threadId }) =>
-      postJson(`/conversations/${encodeURIComponent(threadId)}/unstar`, {}),
+    mutationFn: ({ threadId }) => wireUnstarThread(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },
