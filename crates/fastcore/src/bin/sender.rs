@@ -113,15 +113,18 @@ fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
-/// Attempt to pop one id from pending. Returns `Ok(None)` on empty.
-async fn pop_next(cfg: Cfg) -> std::io::Result<Option<String>> {
+/// Blocks up to `wait` waiting for the next id to arrive in pending;
+/// returns `Ok(None)` only when the timer expires with the queue still
+/// empty. v2.2 §2 (2026-07-08) — replaces the earlier
+/// `rpop + sleep(poll_ms)` polling loop with kevy-client 1.14's
+/// wrapped `BRPOP`; the queue-empty case releases the blocking thread
+/// promptly on wake-up, and the queue-arrival case fires the moment
+/// the producer's `LPUSH` lands (no ~poll_ms/2 average wake latency).
+async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option<String>> {
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let popped = c.rpop(PENDING_KEY, 1)?;
-        Ok(popped
-            .into_iter()
-            .next()
-            .map(|v| String::from_utf8_lossy(&v).to_string()))
+        let popped = c.brpop(&[PENDING_KEY], Some(wait))?;
+        Ok(popped.map(|(_key, value)| String::from_utf8_lossy(&value).to_string()))
     })
     .await
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
@@ -681,19 +684,28 @@ async fn main() {
         std::process::exit(2);
     }
 
+    // BRPOP timer bound. Short enough to promote_due at cadence, long
+    // enough that idle brpop dominates wall-clock over the wake-up +
+    // reissue overhead. 5 s makes a due-sweep miss at most 5 s from
+    // wall-clock — the sender loop's scheduled-sweep resolution.
+    // v2.2 §2 (2026-07-08): supersedes MAILRS_SENDER_POLL_MS as the
+    // idle-cadence knob (poll_ms retained only for error backoff).
+    let brpop_wait = Duration::from_secs(5);
     let mut consecutive_errors: u32 = 0;
     loop {
         // promote any scheduled sends whose time has arrived (G13)
         if let Err(e) = promote_due((*cfg).clone()).await {
             tracing::warn!(err = %e, "scheduled due-sweep failed");
         }
-        match pop_next((*cfg).clone()).await {
+        match pop_next((*cfg).clone(), brpop_wait).await {
             Ok(Some(id)) => {
                 consecutive_errors = 0;
                 process_one((*cfg).clone(), id).await;
             }
             Ok(None) => {
-                tokio::time::sleep(Duration::from_millis(cfg.poll_ms)).await;
+                // BRPOP timer expired with queue empty. Loop back
+                // immediately — no sleep needed; the next brpop() will
+                // itself block for up to `brpop_wait`.
             }
             Err(e) => {
                 consecutive_errors = consecutive_errors.saturating_add(1);
