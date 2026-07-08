@@ -96,7 +96,7 @@ kevy-embedded = "3.17"
 # anti subsystems (greylist / rate / auth-guard) read+write shared state
 # over the network instead of the in-process embedded Store. Blocking
 # `&mut self` client → wrapped in spawn_blocking. dogfood, same org.
-kevy-client = "1.13"
+kevy-client = "1.14"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
