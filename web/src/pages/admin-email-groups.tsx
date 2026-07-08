@@ -13,8 +13,8 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 type EmailGroupInfo = {
   address: string
@@ -35,13 +35,13 @@ export function AdminEmailGroups() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.emailGroups(),
-    queryFn: ({ signal }) => fetchList<EmailGroupInfo>('/admin/email-groups', signal),
+    queryFn: ({ signal }) => adminListGet<EmailGroupInfo>('/admin/email-groups', signal),
   })
   const groups = groupsData ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
+    queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
   })
   const domains = domainsData ?? []
 
@@ -58,7 +58,7 @@ export function AdminEmailGroups() {
   const addGroup = useAdminMutation({
     invalidateKey: adminKeys.emailGroups(),
     mutationFn: (vars: typeof form) =>
-      postJson('/admin/email-groups', {
+      adminPost('/admin/email-groups', {
         address: vars.address.trim(),
         description: vars.description.trim(),
         domain: vars.domain,
@@ -70,7 +70,7 @@ export function AdminEmailGroups() {
   const deleteGroup = useAdminMutation({
     invalidateKey: adminKeys.emailGroups(),
     successMsg: 'Email group deleted',
-    mutationFn: (id: number) => deleteJson(`/admin/email-groups/${id}`),
+    mutationFn: (id: number) => adminDelete(`/admin/email-groups/${id}`),
   })
 
   const formValid = !!form.address.trim() && !!form.domain && !!form.name.trim()
@@ -262,21 +262,22 @@ function EmailGroupMembers({ group }: { group: EmailGroupInfo }) {
 
   const { data: membersData } = useQuery({
     queryKey: adminKeys.emailGroupMembers(group.id),
-    queryFn: ({ signal }) => fetchList<string>(`/admin/email-groups/${group.id}/members`, signal),
+    queryFn: ({ signal }) =>
+      adminListGet<string>(`/admin/email-groups/${group.id}/members`, signal),
   })
   const members = membersData ?? null
 
   const addMember = useAdminMutation({
     invalidateKey: adminKeys.emailGroupMembers(group.id),
     mutationFn: (address: string) =>
-      postJson(`/admin/email-groups/${group.id}/members`, { address }),
+      adminPost(`/admin/email-groups/${group.id}/members`, { address }),
     successMsg: (address) => `Member "${address}" added`,
   })
 
   const removeMember = useAdminMutation({
     invalidateKey: adminKeys.emailGroupMembers(group.id),
     mutationFn: (address: string) =>
-      deleteJson(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`),
+      adminDelete(`/admin/email-groups/${group.id}/members/${encodeURIComponent(address)}`),
     successMsg: (address) => `Member "${address}" removed`,
   })
 

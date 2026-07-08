@@ -12,8 +12,8 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchList, postJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminPost, adminPut } from '@/wire/endpoints/admin'
 
 type ApiResult = {
   success: boolean
@@ -53,13 +53,13 @@ export function AdminApps() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.apps(),
-    queryFn: ({ signal }) => fetchList<AppInfo>('/admin/apps', signal),
+    queryFn: ({ signal }) => adminListGet<AppInfo>('/admin/apps', signal),
   })
   const apps = appsData ?? []
 
   const { data: permissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
-    queryFn: ({ signal }) => fetchList<string>('/admin/permissions', signal),
+    queryFn: ({ signal }) => adminListGet<string>('/admin/permissions', signal),
   })
   const permissions = permissionsData ?? []
 
@@ -74,21 +74,21 @@ export function AdminApps() {
   const addApp = useAdminMutation({
     invalidateKey: adminKeys.apps(),
     mutationFn: (vars: { description: string; name: string; scopes: string }) =>
-      postJson<CreateAppResponse>('/admin/apps', vars),
+      adminPost<CreateAppResponse>('/admin/apps', vars),
     successMsg: (vars) => `App "${vars.name}" created`,
   })
 
   const deleteApp = useAdminMutation({
     invalidateKey: adminKeys.apps(),
     successMsg: 'App deleted',
-    mutationFn: (appId: string) => deleteJson<ApiResult>(`/admin/apps/${appId}`),
+    mutationFn: (appId: string) => adminDelete(`/admin/apps/${appId}`),
   })
 
   const saveScopes = useAdminMutation({
     invalidateKey: adminKeys.apps(),
     successMsg: 'Scopes updated',
     mutationFn: (vars: { appId: string; scopes: string }) =>
-      putJson<ApiResult>(`/admin/apps/${vars.appId}/scopes`, { scopes: vars.scopes }),
+      adminPut<ApiResult>(`/admin/apps/${vars.appId}/scopes`, { scopes: vars.scopes }),
   })
 
   const savingScopes = saveScopes.isPending

@@ -2,10 +2,10 @@ import type { CategoryCount, ConversationSummary, ThreadMessage } from '@/lib/ty
 
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
-import { fetchJson, fetchList } from '@/lib/api'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { wireFetch } from '@/wire/client'
+import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 import {
   wireThreadDetailResponseSchema,
   wireThreadListResponseSchema,
@@ -19,7 +19,7 @@ export function useActionCountQuery(domains: string[]) {
     staleTime: 60 * 1000,
     queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchJson<{ count: number }>(`/conversations/action-count${q}`, signal)
+      return adminObjectGet<{ count: number }>(`/conversations/action-count${q}`, signal)
     },
   })
 }
@@ -30,7 +30,7 @@ export function useCategoriesQuery(domains: string[]) {
     staleTime: 60 * 1000,
     queryFn: ({ signal }) => {
       const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return fetchList<CategoryCount>(`/conversations/categories${q}`, signal)
+      return adminListGet<CategoryCount>(`/conversations/categories${q}`, signal)
     },
   })
 }
@@ -72,7 +72,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       // v2.1 §7 (2026-07-08): Zod-parse the wire response.
       // wireThreadListResponseSchema accepts both envelope shapes
       // (`{items: [...]}` and bare array), so this is a drop-in for
-      // `fetchList` — just adds shape validation at the boundary.
+      // `adminListGet` — just adds shape validation at the boundary.
       const parsed = await wireFetch(wireThreadListResponseSchema, {
         path: listPath(filters, pageParam),
         signal,

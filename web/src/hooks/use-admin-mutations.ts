@@ -12,7 +12,7 @@ import { queryClient } from '@/lib/query-client'
 //   3. on error, show a red toast with the server-provided message
 //
 // Wrapping this in one place gives us three things that hand-rolled
-// `await postJson(); invalidate(); toast(); catch { toast(); }` blocks
+// `await adminPost(); invalidate(); toast(); catch { toast(); }` blocks
 // in the page didn't: (a) `isPending` so buttons can render a busy
 // state, (b) automatic dedupe of duplicate clicks, (c) a single place
 // to add rollback / optimistic update if we want it later.

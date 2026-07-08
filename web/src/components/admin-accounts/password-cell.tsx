@@ -3,8 +3,8 @@ import type { AccountInfo } from '@/lib/types'
 import { useState } from 'react'
 
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminPost } from '@/wire/endpoints/admin'
 
 export function PasswordCell({ account }: { account: AccountInfo }) {
   const [editing, setEditing] = useState(false)
@@ -13,7 +13,7 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
   const updatePassword = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
     mutationFn: (newPassword: string) =>
-      postJson('/admin/accounts', {
+      adminPost('/admin/accounts', {
         address: account.address,
         display_name: account.display_name,
         domain: account.domain,

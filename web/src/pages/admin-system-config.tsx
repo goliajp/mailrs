@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react'
 
 import { AdminEmptyState, AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, putJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminObjectGet, adminPut } from '@/wire/endpoints/admin'
 
 type ConfigEntry = {
   default_value: string
@@ -56,7 +56,7 @@ export function AdminSystemConfig() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.systemConfig(),
-    queryFn: ({ signal }) => fetchJson<SystemConfigResponse>('/admin/system-config', signal),
+    queryFn: ({ signal }) => adminObjectGet<SystemConfigResponse>('/admin/system-config', signal),
   })
 
   const entries: ConfigEntry[] = response && response.success ? (response.entries ?? []) : []
@@ -70,13 +70,13 @@ export function AdminSystemConfig() {
   const saveConfig = useAdminMutation({
     invalidateKey: adminKeys.systemConfig(),
     mutationFn: (vars: { key: string; value: string }) =>
-      putJson(`/admin/system-config/${encodeURIComponent(vars.key)}`, { value: vars.value }),
+      adminPut(`/admin/system-config/${encodeURIComponent(vars.key)}`, { value: vars.value }),
     successMsg: (vars) => `"${vars.key}" updated`,
   })
 
   const resetConfig = useAdminMutation({
     invalidateKey: adminKeys.systemConfig(),
-    mutationFn: (key: string) => deleteJson(`/admin/system-config/${encodeURIComponent(key)}`),
+    mutationFn: (key: string) => adminDelete(`/admin/system-config/${encodeURIComponent(key)}`),
     successMsg: (key) => `"${key}" reset to default`,
   })
 

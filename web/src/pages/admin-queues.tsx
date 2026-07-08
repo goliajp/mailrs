@@ -14,8 +14,8 @@ import {
 } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
 
@@ -63,13 +63,13 @@ export function AdminQueues() {
   const { data, error, isFetching, isPending, refetch } = useQuery({
     queryKey: adminKeys.queues(),
     refetchInterval: 5000,
-    queryFn: ({ signal }) => fetchList<QueueEntry>('/queue', signal),
+    queryFn: ({ signal }) => adminListGet<QueueEntry>('/queue', signal),
   })
   const queue = useMemo(() => data ?? [], [data])
 
   const retryQueueItem = useAdminMutation({
     invalidateKey: adminKeys.queues(),
-    mutationFn: (id: number) => postJson(`/queue/${id}/retry`, {}),
+    mutationFn: (id: number) => adminPost(`/queue/${id}/retry`, {}),
     successMsg: (id) => `Retrying queue item #${id}`,
   })
 

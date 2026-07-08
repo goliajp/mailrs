@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchJson, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
 export function SieveCell({ address }: { address: string }) {
   const [open, setOpen] = useState(false)
@@ -16,7 +16,7 @@ export function SieveCell({ address }: { address: string }) {
     queryKey: sieveKey,
     queryFn: async ({ signal }) => {
       try {
-        const result = await fetchJson<{ script: string }>(
+        const result = await adminObjectGet<{ script: string }>(
           `/admin/accounts/${encodeURIComponent(address)}/sieve`,
           signal
         )
@@ -35,13 +35,13 @@ export function SieveCell({ address }: { address: string }) {
     invalidateKey: sieveKey,
     successMsg: 'Sieve script saved',
     mutationFn: (text: string) =>
-      postJson(`/admin/accounts/${encodeURIComponent(address)}/sieve`, { script: text }),
+      adminPost(`/admin/accounts/${encodeURIComponent(address)}/sieve`, { script: text }),
   })
 
   const deleteScript = useAdminMutation({
     invalidateKey: sieveKey,
     successMsg: 'Sieve script deleted',
-    mutationFn: () => deleteJson(`/admin/accounts/${encodeURIComponent(address)}/sieve`),
+    mutationFn: () => adminDelete(`/admin/accounts/${encodeURIComponent(address)}/sieve`),
   })
 
   const handleDelete = () => {

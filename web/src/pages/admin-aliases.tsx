@@ -13,8 +13,8 @@ import {
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const EMPTY_FORM = {
   alias_type: 'alias',
@@ -35,13 +35,13 @@ export function AdminAliases() {
     refetch,
   } = useQuery({
     queryKey: adminKeys.aliases(),
-    queryFn: ({ signal }) => fetchList<AliasInfo>('/admin/aliases', signal),
+    queryFn: ({ signal }) => adminListGet<AliasInfo>('/admin/aliases', signal),
   })
   const aliases = aliasesData ?? []
 
   const { data: domainsData } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
+    queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
   })
   const domains = domainsData ?? []
 
@@ -52,7 +52,7 @@ export function AdminAliases() {
   const addAlias = useAdminMutation({
     invalidateKey: adminKeys.aliases(),
     mutationFn: (f: AliasForm) =>
-      postJson('/admin/aliases', {
+      adminPost('/admin/aliases', {
         alias_type: f.alias_type,
         domain: f.domain,
         source_address: f.source_address.trim(),
@@ -64,7 +64,7 @@ export function AdminAliases() {
   const deleteAlias = useAdminMutation({
     invalidateKey: adminKeys.aliases(),
     successMsg: 'Alias removed',
-    mutationFn: (id: number) => deleteJson(`/admin/aliases/${id}`),
+    mutationFn: (id: number) => adminDelete(`/admin/aliases/${id}`),
   })
 
   const formValid = !!form.source_address.trim() && !!form.target_address.trim() && !!form.domain

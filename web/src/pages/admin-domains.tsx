@@ -15,15 +15,15 @@ import { DomainHealthCard } from '@/components/domain-health-card'
 import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const HEADERS = ['Domain', 'Created', 'Actions']
 
 export function AdminDomains() {
   const { data, error, isPending, refetch } = useQuery({
     queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => fetchList<DomainInfo>('/admin/domains', signal),
+    queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
   })
   const domains = data ?? []
 
@@ -35,13 +35,13 @@ export function AdminDomains() {
 
   const addDomain = useAdminMutation({
     invalidateKey: adminKeys.domains(),
-    mutationFn: (name: string) => postJson('/admin/domains', { name }),
+    mutationFn: (name: string) => adminPost('/admin/domains', { name }),
     successMsg: (name) => `Domain "${name}" added`,
   })
 
   const deleteDomain = useAdminMutation({
     invalidateKey: adminKeys.domains(),
-    mutationFn: (name: string) => deleteJson(`/admin/domains/${encodeURIComponent(name)}`),
+    mutationFn: (name: string) => adminDelete(`/admin/domains/${encodeURIComponent(name)}`),
     successMsg: (name) => `Domain "${name}" removed`,
   })
 
@@ -65,7 +65,7 @@ export function AdminDomains() {
   const handleCheck = async (name: string) => {
     setChecking(name)
     try {
-      const report = await postJson<DomainCheckReport>(
+      const report = await adminPost<DomainCheckReport>(
         `/admin/domains/${encodeURIComponent(name)}/check`,
         {}
       )

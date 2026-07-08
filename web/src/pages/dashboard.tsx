@@ -17,7 +17,6 @@ import {
   todayStart,
   useGreeting,
 } from '@/components/dashboard'
-import { fetchJson, fetchList } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { dashboardKeys } from '@/lib/query-keys'
 import { authAtom } from '@/store/auth'
@@ -29,6 +28,7 @@ import {
   searchQueryAtom,
   selectedThreadIdAtom,
 } from '@/store/ui'
+import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 
 type DashboardData = {
   conversations: ConversationSummary[]
@@ -78,19 +78,19 @@ export function Dashboard() {
         queryKey: conversationKeys.list({ folder: 'INBOX', limit: 200 }),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchList<ConversationSummary>('/conversations?limit=200', signal),
+          adminListGet<ConversationSummary>('/conversations?limit=200', signal),
       },
       {
         queryKey: dashboardKeys.stats(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchJson<MailStats>('/mail/stats', signal).catch(() => null),
+          adminObjectGet<MailStats>('/mail/stats', signal).catch(() => null),
       },
       {
         queryKey: dashboardKeys.folders(),
         refetchInterval: REFRESH_INTERVAL,
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          fetchList<FolderInfo>('/mail/folders', signal),
+          adminListGet<FolderInfo>('/mail/folders', signal),
       },
     ],
   })

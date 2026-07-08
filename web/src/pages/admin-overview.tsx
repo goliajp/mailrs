@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
-import { fetchJson, fetchList } from '@/lib/api'
 import { adminKeys } from '@/lib/query-keys'
+import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 
 // --- types ---
 
@@ -61,7 +61,7 @@ export function AdminOverview() {
   } = useQuery({
     queryKey: adminKeys.overviewHealth(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) => fetchJson<HealthInfo>('/health', signal),
+    queryFn: ({ signal }) => adminObjectGet<HealthInfo>('/health', signal),
   })
   const {
     data: status = null,
@@ -70,20 +70,20 @@ export function AdminOverview() {
   } = useQuery({
     queryKey: adminKeys.overviewStatus(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) => fetchJson<StatusInfo>('/status', signal),
+    queryFn: ({ signal }) => adminObjectGet<StatusInfo>('/status', signal),
   })
   const { data: smtp = null } = useQuery({
     queryKey: adminKeys.overviewSmtp(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) => fetchJson<SmtpConfig>('/admin/config/smtp', signal),
+    queryFn: ({ signal }) => adminObjectGet<SmtpConfig>('/admin/config/smtp', signal),
   })
-  // `fetchList` collapses `{items:[...]}` / bare-array / 401-echo shapes
+  // `adminListGet` collapses `{items:[...]}` / bare-array / 401-echo shapes
   // into a plain `AuditEntry[]` for the panel below. See
-  // `web/src/lib/api.ts::fetchList` for the invariant.
+  // `web/src/lib/api.ts::adminListGet` for the invariant.
   const { data: audit = [] } = useQuery({
     queryKey: adminKeys.overviewAuditLog(),
     refetchInterval: 10_000,
-    queryFn: ({ signal }) => fetchList<AuditEntry>('/admin/audit-log?limit=10', signal),
+    queryFn: ({ signal }) => adminListGet<AuditEntry>('/admin/audit-log?limit=10', signal),
   })
 
   if (healthError || statusError) {
