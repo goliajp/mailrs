@@ -1,12 +1,10 @@
-import type { KeyStatus } from './_shared'
-
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { deleteJson, fetchJson, putJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
+import { wireDeleteKey, wireGetKeyStatus, wireUploadKey } from '@/wire/endpoints/settings'
 
 import {
   btnDanger,
@@ -21,7 +19,7 @@ import {
 export function EncryptionKeysSection() {
   const { data: status = null } = useQuery({
     queryKey: settingsKeys.encryptionKeysStatus(),
-    queryFn: () => fetchJson<KeyStatus>('/mail/keys/status'),
+    queryFn: () => wireGetKeyStatus(),
   })
   const [pgpKey, setPgpKey] = useState('')
   const [smimeCert, setSmimeCert] = useState('')
@@ -35,7 +33,7 @@ export function EncryptionKeysSection() {
     if (!content.trim()) return
     setSaving(type)
     try {
-      await putJson(`/mail/keys/${type}`, { content: content.trim() })
+      await wireUploadKey(type, content.trim())
       toast.success(`${type.toUpperCase()} key saved`)
       if (type === 'pgp') {
         setPgpKey('')
@@ -53,7 +51,7 @@ export function EncryptionKeysSection() {
   const handleDelete = async (type: 'pgp' | 'smime') => {
     setSaving(type)
     try {
-      await deleteJson(`/mail/keys/${type}`)
+      await wireDeleteKey(type)
       toast.success(`${type.toUpperCase()} key deleted`)
       void invalidate()
     } catch (e) {

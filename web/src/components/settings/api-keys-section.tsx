@@ -1,12 +1,16 @@
-import type { AgentKey, CreatedAgentKey } from './_shared'
+import type { CreatedAgentKey } from './_shared'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
+import {
+  wireCreateAgentKey,
+  wireDeleteAgentKey,
+  wireListAgentKeys,
+} from '@/wire/endpoints/settings'
 
 import {
   btnPrimary,
@@ -20,7 +24,7 @@ import {
 export function ApiKeysSection() {
   const { data: keys = [] } = useQuery({
     queryKey: settingsKeys.agentKeys(),
-    queryFn: () => fetchList<AgentKey>('/agent/keys'),
+    queryFn: () => wireListAgentKeys().then((items) => [...items]),
   })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ expires_in_days: '', name: '' })
@@ -33,10 +37,7 @@ export function ApiKeysSection() {
     if (!form.name.trim()) return
     try {
       const expires_in_days = form.expires_in_days ? parseInt(form.expires_in_days, 10) : undefined
-      const data = await postJson<CreatedAgentKey>('/agent/keys', {
-        expires_in_days,
-        name: form.name.trim(),
-      })
+      const data = await wireCreateAgentKey({ expires_in_days, name: form.name.trim() })
       toast.success('API key created')
       setCreatedKey(data)
       setForm({ expires_in_days: '', name: '' })
@@ -49,7 +50,7 @@ export function ApiKeysSection() {
 
   const handleRevoke = async (id: string) => {
     try {
-      await deleteJson(`/agent/keys/${id}`)
+      await wireDeleteAgentKey(id)
       toast.success('API key revoked')
       setDeleteTarget(null)
       void invalidate()

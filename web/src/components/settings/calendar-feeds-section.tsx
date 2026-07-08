@@ -1,21 +1,20 @@
-import type { CalendarFeed } from './_shared'
-
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
+import {
+  wireCreateCalendarFeed,
+  wireDeleteCalendarFeed,
+  wireListCalendarFeeds,
+} from '@/wire/endpoints/settings'
 
 import { btnPrimary, inputClass, SectionHeader } from './_shared'
 
 export function CalendarFeedsSection() {
   const feedsQuery = useQuery({
     queryKey: settingsKeys.calendarFeeds(),
-    queryFn: async () => {
-      const list = await fetchList<CalendarFeed>('/calendar/feeds')
-      return list ?? []
-    },
+    queryFn: () => wireListCalendarFeeds().then((items) => [...items]),
   })
   const feeds = feedsQuery.data ?? []
   const loading = feedsQuery.isFetching
@@ -42,7 +41,7 @@ export function CalendarFeedsSection() {
     }
     setCreating(true)
     try {
-      await postJson('/calendar/feeds', {
+      await wireCreateCalendarFeed({
         basic_auth_pass: authPass.trim() || null,
         basic_auth_user: authUser.trim() || null,
         name: name.trim(),
@@ -63,7 +62,7 @@ export function CalendarFeedsSection() {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Remove this feed and all its synced events?')) return
     try {
-      await deleteJson(`/calendar/feeds/${id}`)
+      await wireDeleteCalendarFeed(id)
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed')

@@ -4,9 +4,13 @@ import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
+import {
+  wireCreateSignature,
+  wireDeleteSignature,
+  wireListSignatures,
+} from '@/wire/endpoints/settings'
 
 import {
   btnPrimary,
@@ -20,7 +24,7 @@ import {
 export function SignaturesSection() {
   const { data: signatures = [] } = useQuery({
     queryKey: settingsKeys.signatures(),
-    queryFn: () => fetchList<Signature>('/mail/signatures'),
+    queryFn: () => wireListSignatures().then((items) => [...items]),
   })
   const [editing, setEditing] = useState<null | Partial<Signature>>(null)
   const [saving, setSaving] = useState(false)
@@ -32,7 +36,7 @@ export function SignaturesSection() {
     if (!editing?.name?.trim()) return
     setSaving(true)
     try {
-      await postJson('/mail/signatures', {
+      await wireCreateSignature({
         html_content: editing.html_content ?? '',
         id: editing.id,
         is_default: editing.is_default ?? false,
@@ -51,7 +55,7 @@ export function SignaturesSection() {
 
   const handleDelete = async (id: number) => {
     try {
-      await deleteJson(`/mail/signatures/${id}`)
+      await wireDeleteSignature(id)
       toast.success('Signature deleted')
       setDeleteTarget(null)
       void invalidate()

@@ -1,12 +1,10 @@
-import type { CreatedWebhook, Webhook } from './_shared'
-
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { deleteJson, fetchList, postJson } from '@/lib/api'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
+import { wireCreateWebhook, wireDeleteWebhook, wireListWebhooks } from '@/wire/endpoints/settings'
 
 import {
   btnPrimary,
@@ -20,7 +18,7 @@ import {
 export function WebhooksSection() {
   const { data: webhooks = [] } = useQuery({
     queryKey: settingsKeys.webhooks(),
-    queryFn: () => fetchList<Webhook>('/agent/webhooks'),
+    queryFn: () => wireListWebhooks().then((items) => [...items]),
   })
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({
@@ -39,7 +37,7 @@ export function WebhooksSection() {
     if (!form.url.trim() || creating) return
     setCreating(true)
     try {
-      const data = await postJson<CreatedWebhook>('/agent/webhooks', {
+      const data = await wireCreateWebhook({
         event_type: form.event_type,
         url: form.url.trim(),
         ...(form.filter_sender.trim() ? { filter_sender: form.filter_sender.trim() } : {}),
@@ -64,7 +62,7 @@ export function WebhooksSection() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteJson(`/agent/webhooks/${id}`)
+      await wireDeleteWebhook(id)
       toast.success('Webhook deleted')
       setDeleteTarget(null)
       void invalidate()
