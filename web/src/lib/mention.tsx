@@ -23,14 +23,19 @@ export function highlightMentions(text: string, myEmail: string, myName?: string
   const parts: ReactNode[] = []
   let lastIndex = 0
   let match: null | RegExpExecArray
-  let key = 0
 
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index))
     }
+    // v2.1 §4 (2026-07-08): key derived from match position — unique
+    // within a single highlightMentions call, stable across renders of
+    // the same input text. Was `key={key++}` which relied on a
+    // render-scoped `let key = 0` counter — semantically correct but
+    // the mutating-during-render pattern reads as a red flag and
+    // trips future ESLint rules for `no-render-mutation`.
     parts.push(
-      <mark className="bg-accent/10 text-accent px-0.5 font-medium" key={key++}>
+      <mark className="bg-accent/10 text-accent px-0.5 font-medium" key={`m-${match.index}`}>
         {match[0]}
       </mark>
     )
