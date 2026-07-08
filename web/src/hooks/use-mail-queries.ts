@@ -86,6 +86,19 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
     // use-mail-events.ts which explicitly invalidates this query.
     // staleTime: Infinity here means clicking back to a previously-opened
     // thread renders instantly from cache, no refetch, no spinner.
+    // v2.1 phase-6 anti-flash defaults set `placeholderData: keepPreviousData`
+    // globally so mail-list filter changes never blank the screen. That's
+    // wrong for a per-thread query: on a thread switch we WANT
+    // `data === undefined` until the new thread resolves, so ThreadView's
+    // bridge effect can clear the previous thread's messages instead of
+    // mistakenly attributing them to the new thread. Without this opt-out,
+    // switching from thread A to B under `keepPreviousData` returns A's
+    // messages as the placeholder for B's query — the bridge sees "data
+    // truthy, selectedId=B → publish these as B's messages" and only swaps
+    // when B resolves. Between the two frames the reply sent to A leaks
+    // into B's view (see the 2026-07-08 user report of a "Me reply +
+    // unrelated new message" mixed timeline).
+    placeholderData: undefined,
     queryKey: mailKeys.thread(threadId),
     staleTime: Infinity,
   })
