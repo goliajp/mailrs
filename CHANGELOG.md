@@ -9,7 +9,110 @@ binary + fastcore stack, and `web-v<YYYY.MM.DD>-<seq>` for the React
 web UI. Only the Rust stream is enumerated below; web releases are
 tracked separately in the release-web workflow.
 
-## Unreleased — accumulating on `develop`, ships as **web-v2.1.0**
+## Unreleased — accumulating on `develop`, ships as **v2.2.0**
+
+Rust-side kevy 3.17 network-op adoption + admin-panel data-source
+repair. Sits on top of the shipped `v2.0.0` GA and `web-v2026.07.08-1`
+web release; v2.1 web work is complete and covered further down.
+
+### kevy 3.17 network path (Phase 1-3)
+
+kevy team shipped `kevy-client 1.14.0` on 2026-07-08
+(`.claude/notes/kevy-team-response-2026-07-08.md`) with the wraps
+that were gating every network-side kevy 3.x adoption path —
+BRPOP / BLPOP / BZPOPMIN / HEXPIRE / HPEXPIRE / HPERSIST /
+ZINTERSTORE-with-weights / IDX_* / FEED_READ / pipeline. Workspace
+lifted 1.13 → 1.14 (API-compatible, no code churn).
+
+- **`mailrs-fastcore-sender`** — main loop was
+  `rpop(PENDING_KEY, 1) + sleep(cfg.poll_ms.max(500))` polling.
+  Migrated to `brpop(&[PENDING_KEY], Some(5s))` on a
+  `spawn_blocking` thread. Queue-arrival wake-up: `~poll_ms/2` avg
+  → **0 ms**; idle CPU: 2 kevy RTTs per `poll_ms` → **~zero**;
+  wake-up floor unchanged on a hot queue. Commit `4f073eb6`.
+- **`mailrs-fastcore::bounce::spawn_bounce_drain`** — outer
+  `sleep(10 s)` between `drain_once` invocations replaced by an
+  in-drain `brpop(&[BOUNCE_PENDING], Some(10 s))` on the first
+  pop, followed by non-blocking `rpop` for burst throughput.
+  Bounce delivery latency: uniform 0-10 s → **0 ms** on hot,
+  timer-bounded on idle. Commit `15f953cc`.
+
+`.claude/rules/kevy-patterns.md::kevy/no-blocking-pop-wrap`
+updated with the concrete `spawn_blocking` + timer-bound pattern
+and points at both landings as reference callers.
+
+Phases 4-8 status (from `.claude/plans/v2.2-kevy-3x-adoption-
+2026-07-08.md`) after this cycle's audit:
+
+- Phase 4 · HEXPIRE for sidecar TTL — **N/A**. Every `HSET +
+  EXPIRE` pattern in webapi expires the whole hash key, which is
+  normal Redis usage, not the sidecar-key antipattern kevy team
+  warned about. No `<key>:expires_at` sidecar keys grep in the
+  codebase.
+- Phase 5 · ZINTERSTORE for webapi conversation-list filter —
+  **already done**. webapi's list handler delegates to fastcore
+  RPC; fastcore's `list_threads_by_activity` in
+  `mailbox-kevy/src/list_threads.rs` already uses `zinterstore`
+  (landed v1.9.4 Stage B.6).
+- Phase 6 · idx_query for admin CRUD — **deferred**, needs a
+  data-model migration to hash-field entries. Called out in the
+  existing `.claude/rules/kevy-patterns.md::kevy/secondary-index`
+  Exceptions block.
+- Phase 7 · feed_read for WS bridge — **deferred**, no
+  user-visible regression from the current pubsub broadcast.
+  WS clients refetch full state on reconnect, so lost pubsub
+  events between webapi restarts self-recover.
+- Phase 8 · core-sidestate 4-shard `atomic()` risk — **blocked**
+  on the kevy team's internal `docs/KEVY_ADOPTION_GUIDE.md`
+  (`atomic_all_shards` pattern; note flagged this in the
+  2026-07-08 response).
+
+### Admin data-source repair
+
+Session-observed regressions from the fastcore-split /
+network-kevy-alias flip: several webapi admin handlers still
+walked legacy pre-split keys that were emptied at cutover, so the
+admin UI rendered empty state for a super-admin caller.
+
+- `handlers::admin::list_aliases` / `add_alias` / `remove_alias`
+  → route through fastcore `state.core.list_local_aliases` /
+  `upsert_local_alias` / `delete_local_alias`. `id` field is a
+  deterministic i64 hash of `source_address` (JS safe-integer
+  bounded) so the frontend's delete-by-id round-trip works
+  without a schema break. Commit `a23a2cf3`.
+- `handlers::complete::audit_accounts` → route through
+  `state.core.list_accounts` (fastcore embedded kevy). Populates
+  the `AuditAccount` shape from `AccountWire`. Commit `a23a2cf3`.
+- `handlers::admin::list_domains` / `add_domain` / `remove_domain`
+  → route through fastcore `state.core.list_domains` /
+  `add_domain` / `remove_domain`. Unblocks the alias-create form's
+  domain dropdown (it was a required field, so empty dropdown
+  meant no aliases could be added through the UI). Commit
+  `b1fa90f5`.
+- **Domain-index self-heal.** `fastcore::add_account_route`
+  auto-`upsert_domain(a.domain)`; webapi `handlers::admin::add_alias`
+  auto-`state.core.add_domain(domain_from_source)`. Prior gap:
+  neither path touched the domain index, so a fresh domain was
+  invisible in the UI until manual `POST /admin/domains`. Failure
+  swallowed with warn — the account/alias write is authoritative,
+  the domain index is a UI derived view. Commit `2994f700`.
+
+### Web-only fixes bundled into this cycle
+
+Session-observed:
+
+- Dashboard "Unread" badge was reading
+  `data.stats.unread_messages` (`/mail/stats`) with a fallback to
+  `data.folders.INBOX.unseen` (`/mail/folders`) — both server-side
+  aggregates that don't invalidate on mark-read. Optimistic
+  `patchAllInfiniteLists` only touches `conversationKeys.list()`,
+  so the badge stayed stuck at the pre-mutation count for the 60 s
+  `REFRESH_INTERVAL`. Derive from `data.conversations` instead
+  (same cache line the mutation patches). Semantic is now
+  thread-count-of-unread, matching `useCurrentUnreadCount`. Commit
+  `a69420b6`.
+
+## Unreleased-web — accumulating on `develop`, ships as **web-v2.1.0**
 
 Web-side architectural redesign begun 2026-07-07 (RFC
 `.claude/rfcs/20260707-v2.1-webapp-reconstruction.md`). The Rust
