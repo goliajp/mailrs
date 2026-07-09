@@ -2185,6 +2185,17 @@ async fn add_account_route(
         tracing::error!(err = %e, addr = %req.address, "upsert_account failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    // v2.2 (2026-07-09): domain index self-heal. The admin UI's
+    // account-form + alias-form domain dropdown reads
+    // `mailrs:domains:index` — if the operator provisioned an account
+    // with a fresh domain we hadn't seen before, the dropdown would
+    // still be missing that value until the operator remembers to
+    // POST /admin/domains. Idempotent upsert.
+    if !domain.is_empty()
+        && let Err(e) = state.mailbox.upsert_domain(&domain, now_secs())
+    {
+        tracing::warn!(err = %e, %domain, "upsert_domain self-heal from add_account failed");
+    }
     let perms = serde_json::json!({
         "address": &req.address,
         "permissions": Vec::<String>::new(),

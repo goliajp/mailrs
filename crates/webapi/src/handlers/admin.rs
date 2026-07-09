@@ -221,6 +221,16 @@ pub async fn add_alias(
         .upsert_local_alias(&req.source_address, &req.target_address)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // v2.2 (2026-07-09): domain index self-heal. Same reasoning as
+    // fastcore's add_account_route — if the source address introduces
+    // a domain we haven't indexed yet, the admin UI dropdowns would
+    // miss it until the operator manually adds it. Idempotent; ignore
+    // the error since the alias write already succeeded.
+    if let Some((_, domain)) = req.source_address.split_once('@')
+        && let Err(e) = state.core.add_domain(domain).await
+    {
+        tracing::warn!(err = %e, %domain, "add_domain self-heal from add_alias failed");
+    }
     super::audit::record(
         &actor,
         "alias.create",
