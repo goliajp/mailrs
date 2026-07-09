@@ -306,6 +306,10 @@ fn parse_imap_date(s: &str) -> Option<i64> {
     if mb.len() != 3 {
         return None;
     }
+    // Clippy 1.97's `byte_char_slices` would prefer `*b"JAN"` etc.,
+    // but the match subject is a by-value `[u8; 3]` so a `[b'J', b'A',
+    // b'N']` array pattern is the only spelling that compiles.
+    #[allow(clippy::byte_char_slices)]
     let month = match [
         mb[0].to_ascii_uppercase(),
         mb[1].to_ascii_uppercase(),

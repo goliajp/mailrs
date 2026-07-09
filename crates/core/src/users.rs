@@ -62,10 +62,9 @@ impl UserStore {
             .filter_map(|(k, v)| {
                 let stored = if let Some(hash) = v.password_hash {
                     StoredPassword::Hash(hash)
-                } else if let Some(plain) = v.password {
-                    StoredPassword::Plain(plain)
                 } else {
-                    return None;
+                    let plain = v.password?;
+                    StoredPassword::Plain(plain)
                 };
                 Some((k, stored))
             })
@@ -157,10 +156,9 @@ mod tests {
             .filter_map(|(k, v)| {
                 let stored = if let Some(hash) = v.password_hash {
                     StoredPassword::Hash(hash)
-                } else if let Some(plain) = v.password {
-                    StoredPassword::Plain(plain)
                 } else {
-                    return None;
+                    let plain = v.password?;
+                    StoredPassword::Plain(plain)
                 };
                 Some((k, stored))
             })
