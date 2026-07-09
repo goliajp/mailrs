@@ -271,21 +271,21 @@ pub async fn remove_alias(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ── domains (network kevy) ─────────────────────────────────────────
-
-const DOMAIN_KEY: &str = "admin:domains";
+// ── domains (via fastcore RPC) ─────────────────────────────────────
 
 /// GET /api/admin/domains
+///
+/// v2.2-fix (2026-07-09): read through fastcore RPC (embedded kevy
+/// `mailrs:domains:index` set + per-name entries), same reason the
+/// alias handler moved above — the legacy `admin:domains` network-kevy
+/// hash was emptied at the fastcore split and returned `[]`, breaking
+/// the alias-create form's domain dropdown and every downstream
+/// domain-gated UI.
 pub async fn list_domains(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<wire::DomainListResponse>, StatusCode> {
-    let vals = with_kevy(|c| hgetall_values(c, DOMAIN_KEY))?;
-    let items: Vec<wire::DomainWire> = vals
-        .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
-        .collect();
-    Ok(Json(wire::DomainListResponse { items }))
+    state.core.list_domains().await.map(Json).map_err(map_err)
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -293,42 +293,25 @@ pub struct AddDomainBody {
     pub name: String,
 }
 
-/// POST /api/admin/domains
+/// POST /api/admin/domains — writes through fastcore RPC.
 pub async fn add_domain(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<AddDomainBody>,
 ) -> Result<StatusCode, StatusCode> {
-    let d = wire::DomainWire {
-        name: req.name.clone(),
-        created_at: now_secs(),
-    };
-    let json = serde_json::to_vec(&d).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let name = req.name;
-    super::audit::record(&actor, "domain.create", &name, "");
-    let name2 = name.clone();
-    with_kevy(move |c| {
-        c.hset(
-            DOMAIN_KEY.as_bytes(),
-            &[(name2.as_bytes(), json.as_slice())],
-        )?;
-        Ok(())
-    })?;
+    state.core.add_domain(&req.name).await.map_err(map_err)?;
+    super::audit::record(&actor, "domain.create", &req.name, "");
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// DELETE /api/admin/domains/{name}
+/// DELETE /api/admin/domains/{name} — deletes through fastcore RPC.
 pub async fn remove_domain(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<StatusCode, StatusCode> {
+    state.core.remove_domain(&name).await.map_err(map_err)?;
     super::audit::record(&actor, "domain.delete", &name, "");
-    let name2 = name.clone();
-    with_kevy(move |c| {
-        c.hdel(DOMAIN_KEY.as_bytes(), &[name2.as_bytes()])?;
-        Ok(())
-    })?;
     Ok(StatusCode::NO_CONTENT)
 }
 
