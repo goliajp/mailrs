@@ -106,8 +106,12 @@ pub async fn remove_account(
 
 // ── aliases (network kevy) ─────────────────────────────────────────
 
+/// Legacy hash key populated by the pre-fastcore-split admin panel.
+/// Retained for `sync_aliases_to_fastcore` boot-time mirror that
+/// migrates leftover rows out to the canonical alias-store; every
+/// runtime read/write now goes through `state.core.list_local_aliases`
+/// etc. (see v2.2-fix 2026-07-09).
 const ALIAS_KEY: &str = "admin:aliases";
-const ALIAS_CTR: &str = "admin:aliases:counter";
 
 /// One-shot boot-time mirror of network-kevy alias entries into the
 /// fastcore-embedded alias table. Reads every `admin:aliases` hash row,
@@ -140,85 +144,130 @@ pub async fn sync_aliases_to_fastcore(state: &Arc<WebState>) -> usize {
 }
 
 /// GET /api/admin/aliases
+///
+/// v2.2-fix (2026-07-09): reads from the canonical fastcore-hosted
+/// alias-store (`mailrs:aliases:index` set + per-source
+/// `mailrs:alias:<addr>` string). The legacy `admin:aliases` hash
+/// this used to walk was emptied when the alias data flipped to
+/// network-kevy back-end (`project-alias-recovery-2026-07-05`), so
+/// this handler returned `[]` regardless of the 40+ live aliases —
+/// the admin panel showed "no aliases configured" even for a
+/// super-admin. `id` is a deterministic i64 hash of `source` so the
+/// frontend's delete-by-id semantic still works round-trip through
+/// `remove_alias` below.
 pub async fn list_aliases(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<wire::AliasListResponse>, StatusCode> {
-    let vals = with_kevy(|c| hgetall_values(c, ALIAS_KEY))?;
-    let items: Vec<wire::AliasWire> = vals
+    let raw = state
+        .core
+        .list_local_aliases()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let items: Vec<wire::AliasWire> = raw
+        .get("items")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default()
         .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
+        .filter_map(|it| {
+            let source = it.get("source").and_then(|v| v.as_str())?.to_string();
+            let target = it.get("target").and_then(|v| v.as_str())?.to_string();
+            let domain = source.split('@').nth(1).unwrap_or("").to_string();
+            Some(wire::AliasWire {
+                id: stable_alias_id(&source),
+                source_address: source,
+                target_address: target,
+                domain,
+                alias_type: "alias".to_string(),
+                active: true,
+                created_at: 0,
+            })
+        })
         .collect();
     Ok(Json(wire::AliasListResponse { items }))
 }
 
-/// POST /api/admin/aliases — dual-write: the wire record lives in the
-/// network kevy (UI listing reads from there); the resolvable
-/// `source→target` pair also goes to fastcore's embedded kevy so the
-/// spool drain can honor it.
+/// Deterministic i64 hash of an alias source address. Round-trippable
+/// via `list → delete-by-id → find(id) → source` in `remove_alias`.
+fn stable_alias_id(source: &str) -> i64 {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    source.hash(&mut h);
+    // Cap at positive-i64 range so JSON round-trip through the frontend's
+    // `number` type is lossless (JS safe-integer is 2^53 - 1, hash is
+    // truncated below that ceiling).
+    (h.finish() & 0x001F_FFFF_FFFF_FFFF) as i64
+}
+
+/// POST /api/admin/aliases — writes the `source → target` pair to
+/// fastcore's shared alias-store (network kevy `mailrs:alias:<addr>`).
+///
+/// v2.2-fix (2026-07-09): the pre-fix version dual-wrote to a
+/// `admin:aliases` hash + the canonical alias-store, but the list
+/// endpoint only read from the hash — after the alias flip that hash
+/// stayed empty in prod, so aliases added through the admin panel
+/// appeared to vanish. Now single-writes to the canonical store;
+/// `id` in the response is `stable_alias_id(source)` so the caller's
+/// invalidate-and-refetch sees the same synthesized identity on the
+/// next list.
 pub async fn add_alias(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::AddAliasRequest>,
 ) -> Result<Json<wire::AddAliasResponse>, StatusCode> {
-    let id = with_kevy(|c| next_id(c, ALIAS_CTR))?;
-    let alias = wire::AliasWire {
-        id,
-        source_address: req.source_address.clone(),
-        target_address: req.target_address.clone(),
-        domain: req.domain,
-        alias_type: req.alias_type,
-        active: true,
-        created_at: now_secs(),
-    };
-    let json = serde_json::to_vec(&alias).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            ALIAS_KEY.as_bytes(),
-            &[(id.to_string().as_bytes(), json.as_slice())],
-        )?;
-        Ok(())
-    })?;
-    if let Err(e) = state
+    state
         .core
         .upsert_local_alias(&req.source_address, &req.target_address)
         .await
-    {
-        tracing::warn!(err = %e, source = %req.source_address,
-            "add_alias: fastcore mirror failed; drain won't see alias until re-added");
-    }
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     super::audit::record(
         &actor,
         "alias.create",
         &req.source_address,
         &format!("-> {}", req.target_address),
     );
-    Ok(Json(wire::AddAliasResponse { id }))
+    Ok(Json(wire::AddAliasResponse {
+        id: stable_alias_id(&req.source_address),
+    }))
 }
 
-/// DELETE /api/admin/aliases/{id} — dual-delete from network kevy +
-/// fastcore. Reads the wire back first so we know which source to drop.
+/// DELETE /api/admin/aliases/{id} — resolves `id` back to the source
+/// address via `stable_alias_id(source)` reverse-lookup over the
+/// current alias list, then drops it from the canonical alias-store.
+///
+/// v2.2-fix (2026-07-09): pre-fix version resolved the source via the
+/// legacy `admin:aliases` hash (empty in prod), so every delete
+/// call 404'd silently and left the alias in place. Now walks
+/// fastcore's live list to find the matching source and calls
+/// `delete_local_alias(source)`.
 pub async fn remove_alias(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(id): axum::extract::Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = id.to_string();
-    let source = with_kevy(move |c| {
-        let raw = c.hget(ALIAS_KEY.as_bytes(), key.as_bytes())?;
-        let s = raw
-            .and_then(|b| serde_json::from_slice::<wire::AliasWire>(&b).ok())
-            .map(|a| a.source_address);
-        c.hdel(ALIAS_KEY.as_bytes(), &[key.as_bytes()])?;
-        Ok(s)
-    })?;
-    super::audit::record(&actor, "alias.delete", source.as_deref().unwrap_or(""), "");
-    if let Some(src) = source.clone()
-        && let Err(e) = state.core.delete_local_alias(&src).await
-    {
-        tracing::warn!(err = %e, source = %src,
-            "remove_alias: fastcore mirror delete failed");
-    }
+    let raw = state
+        .core
+        .list_local_aliases()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let source = raw
+        .get("items")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .find_map(|it| {
+            let s = it.get("source").and_then(|v| v.as_str())?.to_string();
+            (stable_alias_id(&s) == id).then_some(s)
+        })
+        .ok_or(StatusCode::NOT_FOUND)?;
+    state
+        .core
+        .delete_local_alias(&source)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    super::audit::record(&actor, "alias.delete", &source, "");
     Ok(StatusCode::NO_CONTENT)
 }
 
