@@ -419,7 +419,7 @@ fn split_multipart<'a>(body: &'a [u8], boundary: &str) -> Vec<Part<'a>> {
         }
         // Is this the close delimiter (`--boundary--`)?
         let close_end = pos + close_len;
-        let is_close = close_end <= body.len() && body[pos + delim_len..close_end] == [b'-', b'-'];
+        let is_close = close_end <= body.len() && body[pos + delim_len..close_end] == *b"--";
         if is_close {
             break;
         }

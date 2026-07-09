@@ -729,7 +729,7 @@ mod tests {
         assert!(
             actions
                 .iter()
-                .any(|a| matches!(a, SieveAction::FileInto { mailbox: _, .. }))
+                .any(|a| matches!(a, SieveAction::FileInto { .. }))
         );
         assert!(actions.iter().any(|a| matches!(a, SieveAction::Discard)));
     }
@@ -954,7 +954,7 @@ mod tests {
         let actions = evaluate_sieve(&compiled, MSG);
         let fileinto_count = actions
             .iter()
-            .filter(|a| matches!(a, SieveAction::FileInto { mailbox: _, .. }))
+            .filter(|a| matches!(a, SieveAction::FileInto { .. }))
             .count();
         assert!(
             fileinto_count >= 3,

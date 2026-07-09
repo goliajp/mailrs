@@ -296,13 +296,7 @@ fn process_jsonld_item(item: &serde_json::Value, data: &mut StructuredData) {
                     .map(|s| s.replace("http://schema.org/Order", "")),
                 items,
                 total: get_nested_str(item, &["totalPrice", "value"]).or_else(|| {
-                    get_str(Some(item), "totalPrice").and_then(|v| {
-                        if v.parse::<f64>().is_ok() {
-                            Some(v)
-                        } else {
-                            None
-                        }
-                    })
+                    get_str(Some(item), "totalPrice").filter(|v| v.parse::<f64>().is_ok())
                 }),
                 currency: get_nested_str(item, &["totalPrice", "currency"])
                     .or_else(|| get_str(Some(item), "priceCurrency")),
