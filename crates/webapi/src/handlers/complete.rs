@@ -583,16 +583,35 @@ pub async fn delete_app(Path(app_id): Path<String>) -> Result<StatusCode, Status
 // ── Admin: audit-log messages/raw + audit/accounts + audit/conversations ────
 
 /// GET /api/admin/audit/accounts — return the registered accounts
-/// (from `mailrs:accounts:index`) shaped for the audit panel.
+/// shaped for the audit panel.
+///
+/// v2.2-fix (2026-07-09): pre-fix version read from network-kevy set
+/// `mailrs:accounts:index` — a legacy key that fastcore never wrote
+/// to after the split; the set was empty in prod so the audit page
+/// showed "No auditable accounts" even for super-admin. Now calls
+/// fastcore's `list_accounts` RPC (embedded kevy — where the
+/// accounts actually live). Populates address / domain / display_name
+/// / active shape the frontend `AuditAccount` type expects.
 pub async fn audit_accounts(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let members = with_kevy(|c| c.smembers(b"mailrs:accounts:index"))?;
-    let items: Vec<serde_json::Value> = members
+    let accounts = state
+        .core
+        .list_accounts()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let items: Vec<serde_json::Value> = accounts
+        .items
         .into_iter()
-        .filter_map(|v| String::from_utf8(v).ok())
-        .map(|addr| serde_json::json!({ "address": addr }))
+        .map(|a| {
+            serde_json::json!({
+                "address": a.address,
+                "domain": a.domain,
+                "display_name": a.display_name,
+                "active": a.active,
+            })
+        })
         .collect();
     Ok(Json(serde_json::json!({ "items": items })))
 }
