@@ -79,16 +79,7 @@ fn read_row(conn: &mut kevy_client::Connection, id: i64) -> Option<OutboundMessa
 }
 
 fn write_row(conn: &mut kevy_client::Connection, row: &OutboundMessageWire) {
-    let blob = serde_json::json!({
-        "id": row.id, "sender": row.sender, "recipient": row.recipient,
-        "original_sender": row.original_sender,
-        "message_data_b64": row.message_data_base64,
-        "status": format!("{:?}", row.status).to_lowercase(),
-        "attempts": row.attempts, "last_error": row.last_error,
-        "next_retry": row.next_retry, "scheduled_at": row.scheduled_at,
-        "created_at": row.created_at, "updated_at": row.updated_at,
-    })
-    .to_string();
+    let blob = row_blob(row);
     let _ = conn.hset(
         format!("mailrs:outbound:{}", row.id).as_bytes(),
         &[(b"blob".as_slice(), blob.as_bytes())],
@@ -118,19 +109,48 @@ pub async fn enqueue<S: NetKevy>(
         created_at: now,
         updated_at: now,
     };
-    write_row(&mut conn, &row);
-    match req.scheduled_at {
-        Some(t) => {
-            let _ = conn.zadd(
-                b"mailrs:outbound:scheduled",
-                &[(t as f64, id.to_string().as_bytes())],
-            );
+    // v2.3 §P8-A (2026-07-09): batch the HSET + (ZADD or LPUSH) into
+    // one pipeline. Both ops are non-CAS best-effort writes (their
+    // pre-fix _ = ignored the error), so pipeline non-atomicity is
+    // functionally equivalent — same crash-window as before, one
+    // less RTT on the enqueue path.
+    let blob = row_blob(&row);
+    let key = format!("mailrs:outbound:{id}");
+    let id_str = id.to_string();
+    let sched_score = req.scheduled_at.map(|t| t.to_string());
+    let _ = conn.pipeline(|p| {
+        p.cmd(&[b"HSET", key.as_bytes(), b"blob", blob.as_bytes()]);
+        match sched_score.as_deref() {
+            Some(score) => {
+                p.cmd(&[
+                    b"ZADD",
+                    b"mailrs:outbound:scheduled",
+                    score.as_bytes(),
+                    id_str.as_bytes(),
+                ]);
+            }
+            None => {
+                p.cmd(&[b"LPUSH", b"mailrs:outbound:pending", id_str.as_bytes()]);
+            }
         }
-        None => {
-            let _ = conn.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()]);
-        }
-    }
+    });
     Ok(Json(EnqueueResponse { id }))
+}
+
+/// Serialize a queue row's blob field the way the sender consumes it.
+/// Extracted from `write_row` so both the single-op helper and the
+/// pipeline path can share the shape without diverging.
+fn row_blob(row: &OutboundMessageWire) -> String {
+    serde_json::json!({
+        "id": row.id, "sender": row.sender, "recipient": row.recipient,
+        "original_sender": row.original_sender,
+        "message_data_b64": row.message_data_base64,
+        "status": format!("{:?}", row.status).to_lowercase(),
+        "attempts": row.attempts, "last_error": row.last_error,
+        "next_retry": row.next_retry, "scheduled_at": row.scheduled_at,
+        "created_at": row.created_at, "updated_at": row.updated_at,
+    })
+    .to_string()
 }
 
 pub async fn claim<S: NetKevy>(
@@ -170,19 +190,40 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
             bounced: 0,
         });
     };
-    let cnt = |conn: &mut kevy_client::Connection, k: &str| -> i64 {
-        conn.get(k.as_bytes())
-            .ok()
-            .flatten()
-            .and_then(|v| String::from_utf8_lossy(&v).parse().ok())
-            .unwrap_or(0)
-    };
+    // v2.3 §P8-A (2026-07-09): batched read — 5 sequential RTTs
+    // (LLEN×2 + GET×3) → 1 RTT via kevy-client 1.14 pipeline.
+    // Reply positions are indexed against the queued command order.
+    // Any per-reply Error / Nil / shape mismatch falls back to `0`
+    // — the pre-fix version's `.unwrap_or(0)` had the same contract.
+    let replies = conn
+        .pipeline(|p| {
+            p.cmd(&[b"LLEN", b"mailrs:outbound:pending"]);
+            p.cmd(&[b"LLEN", b"mailrs:outbound:inflight"]);
+            p.cmd(&[b"GET", b"mailrs:outbound:delivered:count"]);
+            p.cmd(&[b"GET", b"mailrs:outbound:failed:count"]);
+            p.cmd(&[b"GET", b"mailrs:outbound:bounced:count"]);
+        })
+        .unwrap_or_default();
+    fn int_at(replies: &[kevy_client::Reply], i: usize) -> i64 {
+        match replies.get(i) {
+            Some(kevy_client::Reply::Int(n)) => *n,
+            _ => 0,
+        }
+    }
+    fn cnt_at(replies: &[kevy_client::Reply], i: usize) -> i64 {
+        match replies.get(i) {
+            Some(kevy_client::Reply::Bulk(b)) => {
+                std::str::from_utf8(b).ok().and_then(|s| s.parse().ok()).unwrap_or(0)
+            }
+            _ => 0,
+        }
+    }
     Json(QueueStatsResponse {
-        pending: conn.llen(b"mailrs:outbound:pending").unwrap_or(0) as i64,
-        inflight: conn.llen(b"mailrs:outbound:inflight").unwrap_or(0) as i64,
-        delivered: cnt(&mut conn, "mailrs:outbound:delivered:count"),
-        failed: cnt(&mut conn, "mailrs:outbound:failed:count"),
-        bounced: cnt(&mut conn, "mailrs:outbound:bounced:count"),
+        pending: int_at(&replies, 0),
+        inflight: int_at(&replies, 1),
+        delivered: cnt_at(&replies, 2),
+        failed: cnt_at(&replies, 3),
+        bounced: cnt_at(&replies, 4),
     })
 }
 
