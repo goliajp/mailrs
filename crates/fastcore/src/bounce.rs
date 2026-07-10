@@ -211,7 +211,10 @@ fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
                 Ok(None) | Err(_) => None,
             }
         } else {
-            conn.rpop(BOUNCE_PENDING, 1).unwrap_or_default().into_iter().next()
+            conn.rpop(BOUNCE_PENDING, 1)
+                .unwrap_or_default()
+                .into_iter()
+                .next()
         };
         let Some(id_bytes) = popped_bytes else {
             return;

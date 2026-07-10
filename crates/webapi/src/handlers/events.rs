@@ -190,12 +190,18 @@ fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
                 // Only SET frames carry a publishable payload — EXPIRE /
                 // DEL / etc. also match the prefix but their argv layout
                 // has no value at position 2.
-                let Some(verb) = frame.argv.first() else { continue };
+                let Some(verb) = frame.argv.first() else {
+                    continue;
+                };
                 if verb.as_slice() != b"SET" {
                     continue;
                 }
-                let Some(value) = frame.argv.get(2) else { continue };
-                let Ok(msg) = std::str::from_utf8(value) else { continue };
+                let Some(value) = frame.argv.get(2) else {
+                    continue;
+                };
+                let Ok(msg) = std::str::from_utf8(value) else {
+                    continue;
+                };
                 // Shape unchanged from pubsub — same JSON envelope the
                 // frontend `use-mail-events.ts` parses today.
                 let _ = tx.send(msg.to_string());

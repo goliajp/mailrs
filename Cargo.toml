@@ -1,5 +1,10 @@
 [workspace.package]
 version = "0.0.0"
+# v2.3 (2026-07-10): pin MSRV to the toolchain CI + rust-toolchain.toml
+# lock in. Every published stone advertises this floor; downstream
+# consumers see it in crates.io metadata. Bump this in lock-step with
+# rust-toolchain.toml so the two never drift.
+rust-version = "1.97"
 
 [workspace]
 resolver = "2"
