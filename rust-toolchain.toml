@@ -1,2 +1,17 @@
+# Pinned toolchain for reproducibility. Bumped together with
+# `Cargo.toml` `[workspace.package].rust-version` so local /
+# CI / release builds always share exactly the same rustc.
+#
+# Bumping procedure:
+# 1. `rustup update stable && rustc --version` to see what's newest.
+# 2. Change the `channel` below AND the workspace `rust-version`.
+# 3. `cargo clippy --workspace --all-targets -- -D warnings` locally
+#    to catch new lints; fix or `#[allow(...)]` per-site with a note.
+# 4. `cargo test --workspace` to catch any behavior differences.
+# 5. Ship in a dedicated commit with the lints diff called out.
+#
+# v2.3 (2026-07-10): 1.97.0 — the version CI has been floating on
+# since 2026-07-07 anyway; pinning removes rustc drift as a source
+# of "worked on my machine" surprises.
 [toolchain]
-channel = "stable"
+channel = "1.97"

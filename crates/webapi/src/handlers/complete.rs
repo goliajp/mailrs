@@ -782,8 +782,7 @@ pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
             .and_then(|s| s.parse().ok())
             .unwrap_or(default)
     }
-    let hostname =
-        std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mail.example.com".into());
+    let hostname = std::env::var("MAILRS_HOSTNAME").unwrap_or_else(|_| "mail.example.com".into());
     let domains: Vec<String> = std::env::var("MAILRS_LOCAL_DOMAINS")
         .unwrap_or_default()
         .split(',')

@@ -133,12 +133,14 @@ fn build_ok(content_type: &str, body: Vec<u8>) -> Response {
                 "public, max-age=86400, stale-while-revalidate=604800",
             );
     }
-    builder.body(axum::body::Body::from(body)).unwrap_or_else(|_| {
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(axum::body::Body::empty())
-            .expect("empty body")
-    })
+    builder
+        .body(axum::body::Body::from(body))
+        .unwrap_or_else(|_| {
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(axum::body::Body::empty())
+                .expect("empty body")
+        })
 }
 
 fn no_content() -> Response {
@@ -254,8 +256,14 @@ mod tests {
         let urls = tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(build_upstream_urls("example.com"));
-        assert!(urls.iter().any(|u| u.starts_with("https://www.google.com/s2/favicons")));
-        assert!(urls.iter().any(|u| u.starts_with("https://icons.duckduckgo.com/ip3/")));
+        assert!(
+            urls.iter()
+                .any(|u| u.starts_with("https://www.google.com/s2/favicons"))
+        );
+        assert!(
+            urls.iter()
+                .any(|u| u.starts_with("https://icons.duckduckgo.com/ip3/"))
+        );
         let google_pos = urls
             .iter()
             .position(|u| u.contains("google.com"))

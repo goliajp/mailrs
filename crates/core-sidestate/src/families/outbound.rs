@@ -212,9 +212,10 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
     }
     fn cnt_at(replies: &[kevy_client::Reply], i: usize) -> i64 {
         match replies.get(i) {
-            Some(kevy_client::Reply::Bulk(b)) => {
-                std::str::from_utf8(b).ok().and_then(|s| s.parse().ok()).unwrap_or(0)
-            }
+            Some(kevy_client::Reply::Bulk(b)) => std::str::from_utf8(b)
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0),
             _ => 0,
         }
     }
