@@ -99,10 +99,108 @@ async fn get_or_init_bus(state: Arc<WebState>) -> EventBus {
     // Best-effort insert — if another task raced ahead, use their bus.
     match state.event_bus.set(tx.clone()) {
         Ok(()) => {
-            spawn_kevy_subscriber(state, tx.clone());
+            // v2.3 §P7-B (2026-07-10): DUAL consumer. The legacy pubsub
+            // subscriber stays live — it still fires today because
+            // producers publish to `notify:new-mail`, and it's the only
+            // path that has been proven in production. In parallel we
+            // stand up the kevy 3.17 change-feed consumer, which reads
+            // the SET frames producers dual-write per §P7-A. Both feed
+            // the same broadcast::channel; frontend RQ layer treats a
+            // duplicate "nudge to refetch" as a no-op, so the temporary
+            // double-fire during migration is safe. §P7-C removes the
+            // legacy publish + this pubsub subscriber together, ~1-2
+            // weeks after this consumer has proven itself.
+            spawn_kevy_subscriber(state.clone(), tx.clone());
+            spawn_kevy_feed_consumers(tx.clone());
             tx
         }
         Err(_) => state.event_bus.get().unwrap().clone(),
+    }
+}
+
+fn spawn_kevy_feed_consumers(tx: EventBus) {
+    let Some(kevy_url) = std::env::var("MAILRS_KEVY_URL").ok() else {
+        return;
+    };
+    // Discover shard count in a scratch connection. If the discovery
+    // itself fails the migration path is a no-op — pubsub is still up.
+    let shards = match kevy_client::Connection::open(&kevy_url) {
+        Ok(mut c) => c.feed_shards().unwrap_or(1),
+        Err(e) => {
+            tracing::warn!(err = %e, url = %kevy_url, "feed_shards probe failed; skipping feed consumer");
+            return;
+        }
+    };
+    tracing::info!(shards, "spawning kevy feed consumers");
+    for shard in 0..shards {
+        let tx = tx.clone();
+        let kevy_url = kevy_url.clone();
+        tokio::task::spawn_blocking(move || feed_consumer_loop(&kevy_url, shard, tx));
+    }
+}
+
+fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
+    const PREFIX: &[u8] = b"mailrs:events:notify:";
+    const IDLE_SLEEP: std::time::Duration = std::time::Duration::from_millis(250);
+    const RECONNECT_SLEEP: std::time::Duration = std::time::Duration::from_secs(5);
+    'outer: loop {
+        let mut conn = match kevy_client::Connection::open(kevy_url) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(err = %e, shard, "feed consumer connect failed; retry 5s");
+                std::thread::sleep(RECONNECT_SLEEP);
+                continue;
+            }
+        };
+        let (mut generation, mut off) = match conn.feed_tail(shard) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(err = %e, shard, "feed_tail failed; retry 5s");
+                std::thread::sleep(RECONNECT_SLEEP);
+                continue;
+            }
+        };
+        tracing::info!(shard, generation, off, "feed consumer online");
+        loop {
+            let batch = match conn.feed_read(shard, generation, off, Some(256), &[PREFIX]) {
+                Ok(b) => b,
+                Err(e) => {
+                    // FeedError::Resync surfaces as an io::Error whose
+                    // Display contains the wire verb "FEEDRESYNC".
+                    // Recover by re-tailing so we skip the invalidated
+                    // window; the frontend refetches full state on the
+                    // next WS reconnect, so brief resync gaps are
+                    // acceptable.
+                    if e.to_string().contains("FEEDRESYNC") {
+                        tracing::info!(shard, "feed resync; re-tailing");
+                        continue 'outer;
+                    }
+                    tracing::warn!(err = %e, shard, "feed_read failed; reconnect 5s");
+                    std::thread::sleep(RECONNECT_SLEEP);
+                    continue 'outer;
+                }
+            };
+            generation = batch.generation;
+            off = batch.next_offset;
+            if batch.frames.is_empty() {
+                std::thread::sleep(IDLE_SLEEP);
+                continue;
+            }
+            for frame in batch.frames {
+                // Only SET frames carry a publishable payload — EXPIRE /
+                // DEL / etc. also match the prefix but their argv layout
+                // has no value at position 2.
+                let Some(verb) = frame.argv.first() else { continue };
+                if verb.as_slice() != b"SET" {
+                    continue;
+                }
+                let Some(value) = frame.argv.get(2) else { continue };
+                let Ok(msg) = std::str::from_utf8(value) else { continue };
+                // Shape unchanged from pubsub — same JSON envelope the
+                // frontend `use-mail-events.ts` parses today.
+                let _ = tx.send(msg.to_string());
+            }
+        }
     }
 }
 
