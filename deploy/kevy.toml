@@ -1,0 +1,22 @@
+# mailrs / kevy sidecar config
+#
+# Mounted into the kevy container at `/etc/kevy/kevy.toml` (an
+# auto-detected path per `kevy --help`). The binary reads this before
+# the reactor starts.
+#
+# The rest of the runtime knobs (bind, port, dir, AOF) come from the
+# env vars we set in docker-compose (KEVY_BIND / KEVY_PORT / KEVY_DIR
+# / KEVY_AOF) — precedence order per kevy docs is CLI > env > TOML >
+# built-in defaults, so those env vars still win where they overlap.
+
+# Required for the v2.3 §P7-B webapi feed_read consumer. Without this
+# feed_tail / feed_read return `ERR feed disabled (start with
+# feed_enabled or replication on)`, so the WS event bridge falls back
+# to the legacy pubsub path — functional but no durability across
+# restarts (feed is what gives us that).
+#
+# Keeping the buffer_size at default (64 MB / shard); prod event rate
+# is < 10/s at ~200 B per event, so the 4-shard default budget of
+# 256 MB total is orders of magnitude over what we generate.
+[feed]
+enabled = true

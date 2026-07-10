@@ -61,6 +61,7 @@ services:
       KEVY_DIR: /data
     volumes:
       - kevy-server-data:/data
+      - /apps/mailrs/kevy.toml:/etc/kevy/kevy.toml:ro
     healthcheck:
       test: ["CMD", "kevy-cli", "-p", "6379", "ping"]
       interval: 5s
