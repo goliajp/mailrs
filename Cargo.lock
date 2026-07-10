@@ -2628,9 +2628,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-bytes"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0200a0a5a4d3652b0ed03523c7a6b3a6c95e79172168de0a7b7cd29882e8700"
+checksum = "0d9566a0eec301426f805aa9134e901a5582400e2c3230062147a70c46a9e56f"
 dependencies = [
  "kevy-hash",
 ]
@@ -2649,9 +2649,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-embedded"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1e727edcc3cd65867aff90eed38382c7fee4f00971f538b0a77cb1600e4e8e2"
+checksum = "aab3e3226e64c7557dfe0c4f1d538a28ade1684a3fa6a15283e55d6d209ef324"
 dependencies = [
  "kevy-hash",
  "kevy-index",
@@ -2665,27 +2665,27 @@ dependencies = [
 
 [[package]]
 name = "kevy-hash"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "371f7971ddfac6b1eea51874d21b16de645d58464ba17d3ca6357a5a25454003"
+checksum = "a2e06c4a19356c02b63bdf1fb936c7c452a2049ee8dbc99192e37e173df3aa39"
 
 [[package]]
 name = "kevy-index"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06f5ddc4c1258cbb95b5b78b8bdd0497c919055a9bd1560b43c295db1e0b5ff1"
+checksum = "b75305b57ad3b60c266ccf84d188326a20ff2440f80874bc9374a6222045ca3e"
 
 [[package]]
 name = "kevy-madvise"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be3063c80c0c87bd2a280457a7147f57a3668dc9d75d73119cb1c08dddaec383"
+checksum = "febc0ee24fb836c6016369a70870a08f3ed77abd60ab60b3a72123b3d7497ddc"
 
 [[package]]
 name = "kevy-map"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a099faa29ed113ebbdd11d6a478887dc4034ae727f434cd9433931ff3f1b138e"
+checksum = "39fade9ba6ad695351e1e00a7ff5d8d447144f99c65a4e68913afb5c91dfec85"
 dependencies = [
  "kevy-hash",
  "kevy-madvise",
@@ -2693,9 +2693,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-persist"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b40aa5fc11f2678b3b67006dc51e0bd98d9881a82d42d71343b4b6a04eeec97"
+checksum = "1cfc6385b56e8c1fd3c8744d4696bda7462101bd74d0cd047e05446f4f57675c"
 dependencies = [
  "kevy-resp",
  "kevy-store",
@@ -2703,18 +2703,18 @@ dependencies = [
 
 [[package]]
 name = "kevy-replicate"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db5f5ef990255b5cc8716311f6f435bb3a7a81272493e95354b35413202e4c0e"
+checksum = "1f0bf1c72d438f722ef4d8c90fffa29cac11fe083120879aa10f4ee6beb341cf"
 dependencies = [
  "kevy-resp",
 ]
 
 [[package]]
 name = "kevy-resp"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9acc75198ed6a8d02c05ba2cfbb94a3aa7fcd9c3f00a572f77536ebd4fdb7207"
+checksum = "f7b880ce952c3bcee0f078d11ff6f37216846b33fb393c0ae5668bd129eb122f"
 dependencies = [
  "kevy-bytes",
 ]
@@ -2730,9 +2730,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-store"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6fddbbb911bb487eb835c70e84438fbcb6807fc6b183fa7f4d095ebfdab6f51"
+checksum = "20118ac2db107d25cd79be8fa7eb5207d96efe5e03e256687f0bf9b49df5e118"
 dependencies = [
  "kevy-bytes",
  "kevy-hash",
@@ -2741,15 +2741,15 @@ dependencies = [
 
 [[package]]
 name = "kevy-text"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4115e1fa4910ee8ad51cf9c2ef726fd45e4e298987981cf27475e7f4203dbafc"
+checksum = "a0f632dec8d096353062189335850ac18058c33e229b29ab410676880e7e335f"
 
 [[package]]
 name = "kevy-vector"
-version = "3.17.3"
+version = "3.17.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ddea95b5beb2d8660c506de4d0ed3dc544f8e7c8be2146817e636e7e298407"
+checksum = "c005bc0845bd0ad589dfb787879b8ebe1b6212d5f10c2ebe2b5db6adddafd33a"
 
 [[package]]
 name = "lazy_static"
