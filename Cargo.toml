@@ -95,7 +95,16 @@ spg-embedded = "7.37"
 # change-stream that Stage B (H1-H8) refactor consumes. RFC:
 # .claude/rfcs/20260706-kevy-3x-upgrade-and-fastcore-refactor.md.
 # AOF gate: 1.x AOF replays intact on 3.x binary (RESP stream stable).
-kevy-embedded = "3.17"
+#
+# v2.3 (2026-07-10): 3.17 → 3.18 ("the structure release"). kevy team
+# calls out four bug harvests from new fuzz coverage — the notable
+# one for us is config-REWRITE silently dropping 6 sections (both
+# hand-kept TOML serializers now share one canonical source). We
+# ship a `[feed]` section in `deploy/kevy.toml`; on 3.17.x a REWRITE
+# would erase it silently. 3.18 also folds all 32 crates onto Rust
+# 1.97, matching our own `rust-toolchain.toml` pin. Zero pub-API
+# change per the release notes; version bump only, no code churn.
+kevy-embedded = "3.18"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used only when MAILRS_KEVY_URL is set (receiver-split topology): the
 # anti subsystems (greylist / rate / auth-guard) read+write shared state
