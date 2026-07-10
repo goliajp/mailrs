@@ -33,21 +33,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: install rust toolchain
-        # v2.3.2 hotfix (2026-07-10): revert action ref `@1.97` back to
-        # `@stable`. The `@1.97` variant installed rustc 1.97 correctly
-        # but the `components: clippy` step didn't attach clippy to the
-        # 1.97 channel, so `cargo clippy` errored out
-        # "'cargo-clippy' is not installed for the toolchain
-        # '1.97-x86_64-unknown-linux-gnu'".
-        #
-        # Truth source stays `rust-toolchain.toml` (`channel = "1.97"`).
-        # dtolnay@stable installs latest stable (also 1.97 today); when
-        # they diverge, cargo respects rust-toolchain.toml and pulls
-        # 1.97 on first invocation. Clippy attaches to the channel
-        # dtolnay actually installs, so this path is warning-clean.
+        # rust-toolchain.toml pins `channel = "1.97"`, which rustup
+        # honors on every cargo invocation regardless of what dtolnay
+        # installed. Don't pass components here — they'd attach to
+        # dtolnay's channel (e.g. `stable`) and be invisible when
+        # rustup switches to `1.97`. Attach explicitly below so they
+        # land on the pinned channel.
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      - name: attach clippy to the toolchain.toml-pinned channel
+        # Works no matter which alias dtolnay used above: rustup reads
+        # rust-toolchain.toml here and adds the component to `1.97`.
+        run: rustup component add clippy
 
       - name: cache cargo
         uses: actions/cache@v4
