@@ -153,6 +153,7 @@ services:
     mem_limit: 1g
     volumes:
       - kevy-server-data:/data
+      - /apps/mailrs/kevy.toml:/etc/kevy/kevy.toml:ro
     restart: unless-stopped
 
   meilisearch:
