@@ -260,6 +260,26 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
     let Ok(bytes) = serde_json::to_vec(&payload) else {
         return;
     };
+    // v2.3 §P7-A (2026-07-10): dual-write. Legacy pubsub PUBLISH
+    // (below) still fires so the current webapi consumer keeps
+    // working during the migration window; the new SET+EXPIRE write
+    // exposes the same event to kevy's change feed so a future
+    // feed_read consumer (§P7-B) can pick it up with durability
+    // across webapi restarts. `EXPIRE 300` bounds AOF growth — a
+    // hypothetical consumer that's offline > 5 min will miss those
+    // events, which is fine because the frontend refetches full
+    // state on WS reconnect.
+    let key = format!(
+        "mailrs:events:notify:{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    );
+    let _ = conn.pipeline(|p| {
+        p.cmd(&[b"SET", key.as_bytes(), bytes.as_slice()]);
+        p.cmd(&[b"EXPIRE", key.as_bytes(), b"300"]);
+    });
     let _ = conn.publish(b"notify:new-mail", &bytes);
 }
 
