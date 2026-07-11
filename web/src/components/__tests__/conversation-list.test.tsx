@@ -53,6 +53,8 @@ const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi
 vi.mock('@/hooks/use-mail-mutations', () => ({
   useArchiveMutation: stubMutation,
   useDeleteMutation: stubMutation,
+  useMarkJunkMutation: stubMutation,
+  useMarkNotJunkMutation: stubMutation,
   useMarkReadMutation: stubMutation,
   useMarkUnreadMutation: stubMutation,
   usePinMutation: stubMutation,
