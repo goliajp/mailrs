@@ -14,6 +14,7 @@
 //! without caring which store is behind it.
 
 use std::io;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use mailrs_alias_store::AliasStore;
 
@@ -21,6 +22,13 @@ use crate::KevyMailboxStore;
 use crate::keys;
 
 const MAX_HOPS: usize = 4;
+
+fn now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
 
 impl KevyMailboxStore {
     /// Resolve `address` through the alias chain. Returns the terminal
@@ -53,9 +61,23 @@ impl KevyMailboxStore {
     /// Idempotent — a repeat call with the same target is a no-op.
     pub fn upsert_alias(&self, alias: &str, target: &str) -> io::Result<()> {
         let key = keys::alias(alias);
+        let key_v2 = keys::alias_v2(alias);
+        let domain = alias.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+        let created_at = now_secs().to_string();
         self.store().atomic(|ctx| {
+            // Legacy string + set (still authoritative for reads).
             ctx.set(key.as_bytes(), target.as_bytes());
             ctx.sadd(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
+            // v2.6.0 §P6 dual-write: hash + range-indexed fields.
+            ctx.hset(
+                key_v2.as_bytes(),
+                &[
+                    (b"target".as_slice(), target.as_bytes()),
+                    (b"domain".as_slice(), domain.as_bytes()),
+                    (b"created_at".as_slice(), created_at.as_bytes()),
+                    (b"active".as_slice(), b"1".as_slice()),
+                ],
+            )?;
             Ok(())
         })
     }
@@ -63,8 +85,9 @@ impl KevyMailboxStore {
     /// Drop an alias entry entirely.
     pub fn delete_alias(&self, alias: &str) -> io::Result<()> {
         let key = keys::alias(alias);
+        let key_v2 = keys::alias_v2(alias);
         self.store().atomic(|ctx| {
-            ctx.del(&[key.as_bytes()]);
+            ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
             ctx.srem(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
             Ok(())
         })
@@ -106,8 +129,9 @@ impl AliasStore for KevyMailboxStore {
 
     fn delete(&self, source: &str) -> io::Result<bool> {
         let key = keys::alias(source);
+        let key_v2 = keys::alias_v2(source);
         self.store().atomic(|ctx| {
-            let removed = ctx.del(&[key.as_bytes()]);
+            let removed = ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
             ctx.srem(keys::ALIAS_INDEX.as_bytes(), &[source.as_bytes()])?;
             Ok(removed > 0)
         })

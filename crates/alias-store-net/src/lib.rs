@@ -31,6 +31,22 @@ const ALIAS_INDEX: &[u8] = b"mailrs:aliases:index";
 
 const MAX_HOPS: usize = 4;
 
+/// v2.6.0 §P6 dual-write: parallel hash keyspace for the alias table.
+/// Mirrors `mailrs_mailbox_kevy::keys::alias_v2`.
+fn alias_key_v2(address: &str) -> String {
+    format!("mailrs:alias:v2:{address}")
+}
+const ALIAS_V2_PREFIX: &[u8] = b"mailrs:alias:v2:";
+const IDX_ALIASES_BY_DOMAIN: &[u8] = b"aliases_by_domain";
+const IDX_ALIASES_BY_TARGET: &[u8] = b"aliases_by_target";
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 /// AliasStore against a shared network kevy. Cheap to construct; the URL
 /// is kept as-is and dialed per call.
 pub struct NetworkKevyAliasStore {
@@ -44,6 +60,27 @@ impl NetworkKevyAliasStore {
 
     fn connect(&self) -> io::Result<kevy_client::Connection> {
         kevy_client::Connection::open(&self.url)
+    }
+
+    /// v2.6.0 §P6 dual-write: idempotently declare the alias-side range
+    /// indexes on the network kevy. Callers invoke once at startup;
+    /// duplicate declarations on the server return an error which we
+    /// swallow (the catalog persists the spec on first call).
+    pub fn ensure_indexes(&self) -> io::Result<()> {
+        let mut conn = self.connect()?;
+        let _ = conn.idx_create_range(
+            IDX_ALIASES_BY_DOMAIN,
+            ALIAS_V2_PREFIX,
+            b"domain",
+            kevy_client::IdxType::Str,
+        );
+        let _ = conn.idx_create_range(
+            IDX_ALIASES_BY_TARGET,
+            ALIAS_V2_PREFIX,
+            b"target",
+            kevy_client::IdxType::Str,
+        );
+        Ok(())
     }
 }
 
@@ -74,13 +111,29 @@ impl AliasStore for NetworkKevyAliasStore {
         let key = alias_key(source);
         conn.set(key.as_bytes(), target.as_bytes())?;
         conn.sadd(ALIAS_INDEX, &[source.as_bytes()])?;
+        // v2.6.0 §P6 dual-write: hash + range-indexed fields on the
+        // parallel `mailrs:alias:v2:*` keyspace. Best-effort; failure
+        // here leaves the legacy layout intact (read paths untouched).
+        let key_v2 = alias_key_v2(source);
+        let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+        let created_at = now_secs().to_string();
+        let _ = conn.hset(
+            key_v2.as_bytes(),
+            &[
+                (b"target".as_slice(), target.as_bytes()),
+                (b"domain".as_slice(), domain.as_bytes()),
+                (b"created_at".as_slice(), created_at.as_bytes()),
+                (b"active".as_slice(), b"1".as_slice()),
+            ],
+        );
         Ok(())
     }
 
     fn delete(&self, source: &str) -> io::Result<bool> {
         let mut conn = self.connect()?;
         let key = alias_key(source);
-        let removed = conn.del(&[key.as_bytes()])?;
+        let key_v2 = alias_key_v2(source);
+        let removed = conn.del(&[key.as_bytes(), key_v2.as_bytes()])?;
         conn.srem(ALIAS_INDEX, &[source.as_bytes()])?;
         Ok(removed > 0)
     }

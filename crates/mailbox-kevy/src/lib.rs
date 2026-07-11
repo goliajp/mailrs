@@ -109,6 +109,52 @@ impl KevyMailboxStore {
     pub fn store_ref(&self) -> &Store {
         &self.store
     }
+
+    /// v2.6.0 §P6 dual-write: register the admin-CRUD range indexes
+    /// idempotently at boot. Duplicate declarations return an
+    /// InvalidInput error which we swallow — the catalog persists the
+    /// spec on first call and refuses to re-declare on subsequent
+    /// boots. Callers should invoke once during startup after the
+    /// store handle is available.
+    pub fn ensure_admin_indexes(&self) {
+        use kevy_embedded::{IndexKind, IndexValType};
+        let s = &self.store;
+        let _ = s.idx_create(
+            keys::IDX_ALIASES_BY_DOMAIN,
+            keys::ALIAS_V2_PREFIX,
+            b"domain",
+            IndexValType::Str,
+            IndexKind::Range,
+        );
+        let _ = s.idx_create(
+            keys::IDX_ALIASES_BY_TARGET,
+            keys::ALIAS_V2_PREFIX,
+            b"target",
+            IndexValType::Str,
+            IndexKind::Range,
+        );
+        let _ = s.idx_create(
+            keys::IDX_DOMAINS_BY_CREATED,
+            keys::DOMAIN_V2_PREFIX,
+            b"created_at",
+            IndexValType::I64,
+            IndexKind::Range,
+        );
+        let _ = s.idx_create(
+            keys::IDX_ACCOUNTS_BY_DOMAIN,
+            keys::ACCOUNT_PREFIX,
+            b"domain",
+            IndexValType::Str,
+            IndexKind::Range,
+        );
+        let _ = s.idx_create(
+            keys::IDX_ACCOUNTS_BY_ACTIVE,
+            keys::ACCOUNT_PREFIX,
+            b"active",
+            IndexValType::Str,
+            IndexKind::Range,
+        );
+    }
 }
 
 // MailboxStore trait impl + per-method bodies land in subsequent loops.

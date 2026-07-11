@@ -15,11 +15,18 @@ impl KevyMailboxStore {
     /// write so re-adding keeps the original timestamp.
     pub fn upsert_domain(&self, name: &str, created_at: i64) -> io::Result<()> {
         let key = keys::domain(name);
+        let key_v2 = keys::domain_v2(name);
+        let created_str = created_at.to_string();
         self.store().atomic(|ctx| {
             if ctx.get(key.as_bytes())?.is_none() {
-                ctx.set(key.as_bytes(), created_at.to_string().as_bytes());
+                ctx.set(key.as_bytes(), created_str.as_bytes());
             }
             ctx.sadd(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
+            // v2.6.0 §P6 dual-write: hash + range-indexed created_at.
+            ctx.hset(
+                key_v2.as_bytes(),
+                &[(b"created_at".as_slice(), created_str.as_bytes())],
+            )?;
             Ok(())
         })
     }
@@ -27,9 +34,10 @@ impl KevyMailboxStore {
     /// Remove a domain. Returns whether it existed.
     pub fn delete_domain(&self, name: &str) -> io::Result<bool> {
         let key = keys::domain(name);
+        let key_v2 = keys::domain_v2(name);
         self.store().atomic(|ctx| {
             let existed = ctx.get(key.as_bytes())?.is_some();
-            ctx.del(&[key.as_bytes()]);
+            ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
             ctx.srem(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
             Ok(existed)
         })

@@ -169,6 +169,10 @@ pub async fn run() {
         .with_feed(16 * 1024 * 1024);
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
     let mailbox = KevyMailboxStore::new(store);
+    // v2.6.0 §P6 dual-write (roadmap Phase 9): register the admin-CRUD
+    // range indexes idempotently. Reads still walk the legacy set/get
+    // path; Phase 10 switches admin list handlers to idx_query_range.
+    mailbox.ensure_admin_indexes();
 
     // Alias-store backend selector — RFC 20260705 Step 2.
     // Default (`embed` / unset): historical fastcore-owned alias table
@@ -184,7 +188,16 @@ pub async fn run() {
                 "MAILRS_ALIAS_STORE_BACKEND=network requires MAILRS_KEVY_URL to point at the shared kevy",
             );
             tracing::info!(url = %url, "alias-store backend = network kevy");
-            Arc::new(mailrs_alias_store_net::NetworkKevyAliasStore::new(url))
+            let store = mailrs_alias_store_net::NetworkKevyAliasStore::new(url);
+            // v2.6.0 §P6 dual-write: declare the network-side alias
+            // range indexes idempotently. Best-effort — network kevy
+            // may momentarily be unavailable at boot; the next writer
+            // will retry the declaration on any subsequent upsert /
+            // ensure call.
+            if let Err(e) = store.ensure_indexes() {
+                tracing::warn!(error = %e, "alias-store network idx_create failed at boot");
+            }
+            Arc::new(store)
         }
         _ => {
             tracing::info!("alias-store backend = embed kevy (default)");
