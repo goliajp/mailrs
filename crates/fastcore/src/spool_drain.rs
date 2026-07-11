@@ -197,7 +197,13 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                                 Ok(true) => {
                                     delivered_here += 1;
                                     delivered_locally = true;
-                                    crate::ingest_delivered_file(state, &addr, &filename, body);
+                                    crate::ingest_delivered_file(
+                                        state,
+                                        &addr,
+                                        &filename,
+                                        body,
+                                        &env.target_folder,
+                                    );
                                 }
                                 _ => unresolved.push(addr.clone()),
                             }
@@ -212,7 +218,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                             delivered_locally = true;
                             tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
                             let blob_ref = format!("{subfolder}/{filename}");
-                            crate::ingest_delivered_file(state, &addr, &blob_ref, body);
+                            crate::ingest_delivered_file(state, &addr, &blob_ref, body, &folder);
                         }
                         Ok(false) => {
                             tracing::warn!(recipient = %addr, %subfolder,
@@ -220,7 +226,13 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                             if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
                                 delivered_here += 1;
                                 delivered_locally = true;
-                                crate::ingest_delivered_file(state, &addr, &filename, body);
+                                crate::ingest_delivered_file(
+                                    state,
+                                    &addr,
+                                    &filename,
+                                    body,
+                                    &env.target_folder,
+                                );
                             } else {
                                 unresolved.push(addr.clone());
                             }
@@ -231,7 +243,13 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                             if let Ok(true) = deliver(maildir_root, &addr, "", &filename, body) {
                                 delivered_here += 1;
                                 delivered_locally = true;
-                                crate::ingest_delivered_file(state, &addr, &filename, body);
+                                crate::ingest_delivered_file(
+                                    state,
+                                    &addr,
+                                    &filename,
+                                    body,
+                                    &env.target_folder,
+                                );
                             } else {
                                 unresolved.push(addr.clone());
                             }
@@ -243,7 +261,13 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                         Ok(true) => {
                             delivered_here += 1;
                             delivered_locally = true;
-                            crate::ingest_delivered_file(state, &addr, &filename, body);
+                            crate::ingest_delivered_file(
+                                state,
+                                &addr,
+                                &filename,
+                                body,
+                                &env.target_folder,
+                            );
                         }
                         Ok(false) => unresolved.push(addr.clone()),
                         Err(e) => {

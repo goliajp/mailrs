@@ -269,7 +269,9 @@ fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
             tracing::warn!(error = %e, %recipient, "bounce maildir write failed");
             continue;
         }
-        crate::ingest_delivered_file(state, &recipient, &filename, &bytes);
+        // Bounce DSNs are inbound-side notifications to the sender —
+        // always route to INBOX, never Junk (v2.4.0 Phase 2).
+        crate::ingest_delivered_file(state, &recipient, &filename, &bytes, "INBOX");
         crate::live_sync::audit_system("mail.bounce", &recipient, "DSN delivered to sender");
         tracing::info!(%recipient, %id, "bounce DSN delivered");
     }
