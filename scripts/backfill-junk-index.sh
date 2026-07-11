@@ -1,25 +1,44 @@
 #!/usr/bin/env bash
-# One-shot backfill script for the Junk folder zset (v2.4.0 Phase 2).
+# ⚠ HISTORICAL / DEFERRED — see note below.
 #
-# Copies every pre-cutover spam-categorized thread from the legacy
-# `mailrs:user:<u>:threads:by_category:spam` zset into the new
-# `mailrs:user:<u>:threads:junk` zset. Runs in-process via the
-# fastcore container's shell so no extra network hop.
+# Intent: one-shot backfill for the Junk folder zset (v2.4.0 Phase 2).
+# Copies every pre-cutover spam/scam-categorized thread from
+# `mailrs:user:<u>:threads:by_category:{spam,scam}` into the new
+# `mailrs:user:<u>:threads:junk` zset so the Junk tab shows history
+# as well as new arrivals.
 #
-# Idempotent — zadd with an existing member just refreshes its score.
+# **Why deferred (2026-07-11 Phase 2 checkpoint deploy audit):** the
+# `by_category:*` and `threads:junk` keys live in fastcore's EMBEDDED
+# kevy Store (`/data/kevy-fastcore/` inside `mailrs-fastcore`), not
+# in the shared network sidecar `mailrs-kevy`. `kevy-cli` ships only
+# in the `mailrs-kevy` sidecar image; the fastcore image doesn't
+# bundle it. So this script (which assumed `docker exec
+# mailrs-fastcore kevy-cli ...`) can't run.
 #
-# Usage on prod (t02):
-#   docker exec -it mailrs-fastcore kevy-cli SCAN 0 MATCH 'mailrs:user:*:threads:by_category:spam' COUNT 500
-# then for each key returned:
-#   docker exec -it mailrs-fastcore \
-#     kevy-cli ZRANGEBYSCORE '<src-key>' '-inf' '+inf' WITHSCORES \
-#     | while read tid && read score; do
-#       docker exec -it mailrs-fastcore kevy-cli ZADD '<dst-key>' "$score" "$tid"
-#     done
+# Follow-up plan (moved to Phase 4 term sweep — see plan §4.3):
+#   1. Add `crates/fastcore/src/bin/backfill_junk_index.rs` that
+#      opens the embedded Store directly, iterates
+#      `mailrs:user:*:threads:by_category:{spam,scam}` zsets, and
+#      ZADDs each member into the corresponding `...threads:junk`
+#      zset. Ship as a binary in the fastcore Docker image.
+#   2. `docker exec mailrs-fastcore mailrs-fastcore-backfill-junk`
+#      on prod once, post-Phase-4 deploy.
 #
-# The below wrapper does the same, driven by kevy's SCAN + a per-user
-# loop. Run on prod ONCE after v2.4.0 checkpoint deploy.
+# Meanwhile:
+#   - New arrivals from v2.4.0 checkpoint (306c0a60+) onward DO
+#     populate `user_threads_junk` correctly.
+#   - Historical junk stays visible via the "Spam" category tab in
+#     the filter bar. Users don't lose data; the Junk tab just
+#     shows a subset until the backfill runs.
+#
+# The script body below is preserved as reference for the intended
+# ZUNIONSTORE semantics but exits early with a helpful message.
 set -euo pipefail
+
+echo "backfill-junk-index.sh is DEFERRED — see script header comment." >&2
+echo "kevy-cli is not shipped inside mailrs-fastcore container." >&2
+echo "Track the follow-up rust binary at plan §4.3." >&2
+exit 2
 
 CONTAINER="${1:-mailrs-fastcore}"
 
