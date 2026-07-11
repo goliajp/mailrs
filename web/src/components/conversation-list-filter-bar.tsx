@@ -15,12 +15,19 @@ import {
   sortOrderAtom,
 } from '@/store/ui'
 
+// v2.4.2 Phase 4.3 — the pre-Phase-2 "Spam" tab (which set
+// `activeCategory='spam'` and filtered on the by_category:spam zset)
+// is superseded by the Junk folder tab. Both showed AI-classified
+// junk mail; Junk is the top-level folder, Spam was a subfilter on
+// Inbox that shared the same threads post-Phase-2 anyway. Keeping
+// only Junk removes user confusion about which one to click. The
+// internal `activeCategory === 'spam'` is still honored by the
+// backend for legacy links / stored filters.
 const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
   { label: 'Unread', value: 'unread' },
   { label: 'Starred', value: 'starred' },
   { label: 'Sent', value: 'sent' },
-  { label: 'Spam', value: 'spam' },
   { label: 'Junk', value: 'junk' },
 ]
 
@@ -56,8 +63,11 @@ export const FilterBar = memo(function FilterBar() {
   }, [filtersOpen])
 
   const activeTab =
+    // v2.4.2 Phase 4.3: legacy spam / scam category filters land on
+    // the Junk tab so the UI collapses to a single spam-adjacent
+    // control.
     activeCategory === 'spam' || activeCategory === 'scam'
-      ? 'spam'
+      ? 'junk'
       : folder === 'Sent'
         ? 'sent'
         : folder === 'Junk'
@@ -72,9 +82,7 @@ export const FilterBar = memo(function FilterBar() {
     setFolder(null)
     setQuickFilter('all')
     setSection(null)
-    if (tab === 'spam') {
-      setActiveCategory('spam')
-    } else if (tab === 'sent') {
+    if (tab === 'sent') {
       setFolder('Sent')
     } else if (tab === 'junk') {
       setFolder('Junk')
@@ -101,7 +109,7 @@ export const FilterBar = memo(function FilterBar() {
           const base =
             'snap-start shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
           const color =
-            t.value === 'spam'
+            t.value === 'junk'
               ? 'bg-danger/10 text-danger'
               : t.value === 'starred'
                 ? 'bg-warning/10 text-warning'

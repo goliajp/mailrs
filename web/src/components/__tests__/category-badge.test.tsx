@@ -18,11 +18,22 @@ describe('CategoryBadge', () => {
     expect(screen.getByText('Newsletter')).toBeDefined()
   })
 
-  it('renders scam category with red styles', () => {
+  it('renders scam category with red styles and Junk label', () => {
+    // v2.4.2 Phase 4.3 — scam maps to the user-visible "Junk"
+    // label. `text-danger` red is preserved so the classifier
+    // still visually distinguishes suspected phishing from
+    // ordinary junk mail; only the label collapses.
     const { container } = render(<CategoryBadge category="scam" />)
-    expect(screen.getByText('Scam')).toBeDefined()
+    expect(screen.getByText('Junk')).toBeDefined()
     const span = container.querySelector('span')
     expect(span?.className).toContain('text-danger')
+  })
+
+  it('renders spam category with the Junk label (v2.4.2 term sweep)', () => {
+    const { container } = render(<CategoryBadge category="spam" />)
+    expect(screen.getByText('Junk')).toBeDefined()
+    const span = container.querySelector('span')
+    expect(span?.className).toContain('text-warning')
   })
 
   it('renders unknown category as-is', () => {

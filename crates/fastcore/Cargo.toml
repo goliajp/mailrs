@@ -38,6 +38,10 @@ name = "mailrs-fastcore-backfill-meili"
 path = "src/bin/backfill_meili.rs"
 
 [[bin]]
+name = "mailrs-fastcore-backfill-junk-index"
+path = "src/bin/backfill_junk_index.rs"
+
+[[bin]]
 name = "mailrs-fastcore-sender"
 path = "src/bin/sender.rs"
 

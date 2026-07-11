@@ -34,9 +34,16 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
     label: 'Receipt',
     text: 'text-success',
   },
+  // v2.4.2 Phase 4.3 — terminology sweep: the category axis keeps
+  // its internal `'spam'` / `'scam'` values (kevy key names,
+  // decision.rs thresholds, backfill scripts all reference them by
+  // these strings), but the user-visible label converges on "Junk"
+  // so we match the Junk top-level folder introduced in Phase 2.
+  // The finer classifier signal stays in the wire, but doesn't
+  // split the UI.
   scam: {
     bg: 'bg-danger/10',
-    label: 'Scam',
+    label: 'Junk',
     text: 'text-danger',
   },
   shipping: {
@@ -46,7 +53,7 @@ const styles: Record<string, { bg: string; label: string; text: string }> = {
   },
   spam: {
     bg: 'bg-warning/10',
-    label: 'Spam',
+    label: 'Junk',
     text: 'text-warning',
   },
   travel: {
