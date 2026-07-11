@@ -286,9 +286,8 @@ impl ServerConfig {
         );
     }
 
-    /// Chrome CDP for HTML preview + Meilisearch full-text index.
+    /// Meilisearch full-text index.
     pub(super) fn load_external_services(&mut self) {
-        set_opt_string_nonempty("MAILRS_CHROME_CDP_URL", &mut self.chrome_cdp_url);
         set_opt_string_nonempty("MAILRS_MEILI_URL", &mut self.meili_url);
         set_opt_string_nonempty("MAILRS_MEILI_KEY", &mut self.meili_key);
     }

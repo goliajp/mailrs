@@ -11,12 +11,6 @@ services:
       - ./init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     restart: unless-stopped
 
-  chromium:
-    container_name: mailrs-chromium
-    image: zenika/alpine-chrome:124
-    command: ["--no-sandbox", "--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222", "--disable-gpu", "--headless"]
-    restart: unless-stopped
-
   meilisearch:
     container_name: mailrs-meilisearch
     image: getmeili/meilisearch:v1.44
@@ -80,8 +74,6 @@ services:
       MAILRS_LLM_API_KEY: "${MAILRS_LLM_API_KEY:-}"
       # anti-spam
       MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-true}"
-      # chrome cdp
-      MAILRS_CHROME_CDP_URL: ws://chromium:9222
       # webhook
       MAILRS_WEBHOOK_URL: "${MAILRS_WEBHOOK_URL:-}"
       MAILRS_WEBHOOK_API_KEY: "${MAILRS_WEBHOOK_API_KEY:-}"
@@ -94,7 +86,6 @@ services:
       - ./dkim:/dkim:ro
     depends_on:
       - postgres
-      - chromium
       - meilisearch
     restart: unless-stopped
 

@@ -5,7 +5,6 @@ import { lazy, memo, Suspense, useCallback, useDeferredValue, useMemo, useState 
 
 import { HtmlFrame } from '@/components/html-frame'
 import { MobileModal } from '@/components/mobile-modal'
-import { RenderPreview } from '@/components/render-preview'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
@@ -54,10 +53,7 @@ export const MessageBubble = memo(function MessageBubble({
           {/* html mail is light-mode by design — container stays white in
               both themes to match the :host background inside HtmlFrame */}
           <div className="border-border overflow-hidden border bg-white select-text">
-            <HtmlFrame html={parts.body} />
-          </div>
-          <div className="px-2 py-1.5">
-            <RenderPreview html={parts.body} />
+            <HtmlFrame attachments={attachments} html={parts.body} uid={uid} />
           </div>
         </div>
       ) : (

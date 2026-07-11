@@ -964,7 +964,7 @@ mod pg_core_tests {
             "fastcore and pg-core must agree on threads+messages"
         );
         assert_eq!(kmap.len(), 3, "3 threads on both");
-        for (_t, ids) in &kmap {
+        for ids in kmap.values() {
             assert_eq!(ids.len(), 2, "2 messages per thread on both");
         }
 

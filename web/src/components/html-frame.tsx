@@ -1,3 +1,5 @@
+import type { AttachmentInfo } from '@/lib/types'
+
 import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useRef } from 'react'
 
@@ -49,6 +51,38 @@ function proxyLinks(html: string): string {
     (_match, before, url, after) => {
       const cleanUrl = decodeHtmlEntities(url)
       return `${before}/api/proxy/link?url=${encodeURIComponent(cleanUrl)}${tokenParam}${after}`
+    }
+  )
+}
+
+// v2.5.0 Phase 5 (RFC-B §5) — MIME `multipart/related` inline images
+// are referenced from HTML via `<img src="cid:abc@d.com">` and the
+// browser has no idea how to fetch a `cid:` URI. Walk every img tag
+// and, when the src matches a known Content-ID, rewrite it to
+// `/api/mail/messages/<uid>/attachments/<index>/content`. Any cid:
+// with no matching attachment falls through and DOMPurify's default
+// `ALLOW_UNKNOWN_PROTOCOLS: false` strips it — the previous behavior.
+function rewriteCidImages(html: string, uid: number, attachments: AttachmentInfo[]): string {
+  if (!html.includes('cid:')) return html
+  // Build the cid → attachment-index map once. cid comparison is
+  // case-insensitive per RFC 2392 and reads without angle brackets
+  // (the wire type already strips them; strip again defensively).
+  const cidToIndex = new Map<string, number>()
+  attachments.forEach((att, idx) => {
+    if (!att.content_id) return
+    const key = att.content_id.replace(/^<|>$/g, '').trim().toLowerCase()
+    if (key) cidToIndex.set(key, idx)
+  })
+  if (cidToIndex.size === 0) return html
+  const token = getToken()
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : ''
+  return html.replace(
+    /(<img\b[^>]*\bsrc\s*=\s*["'])cid:([^"']+)(["'])/gi,
+    (match, before, rawCid, after) => {
+      const key = rawCid.replace(/^<|>$/g, '').trim().toLowerCase()
+      const idx = cidToIndex.get(key)
+      if (idx === undefined) return match
+      return `${before}/api/mail/messages/${uid}/attachments/${idx}/content${tokenParam}${after}`
     }
   )
 }
@@ -154,9 +188,34 @@ const SHADOW_STYLES = `
 // External image privacy is preserved by setting
 // `referrerpolicy="no-referrer"` on every <img>, so the recipient
 // server can't see what user the request originated from.
-export function HtmlFrame({ html, maxHeight }: { html: string; maxHeight?: string }) {
+export function HtmlFrame({
+  attachments,
+  html,
+  maxHeight,
+  uid,
+}: {
+  /**
+   * v2.5.0 Phase 5 (RFC-B §5) — attachment list used to rewrite
+   * `<img src="cid:...">` references to the runtime attachment
+   * URL. Empty array (default) preserves the pre-Phase-5 behavior
+   * — the DOMPurify pass strips any surviving cid: URIs since
+   * `ALLOW_UNKNOWN_PROTOCOLS` is false.
+   */
+  attachments?: AttachmentInfo[]
+  html: string
+  maxHeight?: string
+  /** Message uid — needed to construct the attachment URL. */
+  uid?: number
+}) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const sanitized = useMemo(() => cachedSanitize(html), [html])
+  // Rewrite cid: images BEFORE the sanitize cache lookup so
+  // different uid / attachments combinations don't share a cached
+  // result (the cache is keyed on the html string).
+  const preprocessed = useMemo(() => {
+    if (uid === undefined || !attachments || attachments.length === 0) return html
+    return rewriteCidImages(html, uid, attachments)
+  }, [html, uid, attachments])
+  const sanitized = useMemo(() => cachedSanitize(preprocessed), [preprocessed])
 
   useEffect(() => {
     const host = hostRef.current

@@ -1,11 +1,11 @@
 //! Miscellaneous fastcore-native handlers — keys, deliverability
-//! check, spam-feedback, render-preview, mbox export, search.
+//! check, spam-feedback, mbox export, search.
 
 use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -155,66 +155,6 @@ pub async fn spam_feedback(
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-// ── Render preview (chromium sidecar) ─────────────────────────────
-
-#[derive(Debug, serde::Deserialize)]
-pub struct RenderPreviewRequest {
-    pub html: String,
-}
-
-/// POST /api/mail/render-preview — return a PNG preview of the given
-/// HTML. Uses the chromium sidecar (mailrs-chromium container). Falls
-/// back to returning the HTML wrapped in a JSON envelope if chromium
-/// isn't configured — the UI hides the preview panel gracefully.
-pub async fn render_preview(
-    Json(req): Json<RenderPreviewRequest>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let base =
-        std::env::var("MAILRS_CHROMIUM_URL").unwrap_or_else(|_| "http://chromium:9222".into());
-    let client = reqwest::Client::new();
-    // Simple screenshot payload — matches the CDP shape our chromium
-    // sidecar wrapper accepts. If the sidecar isn't running we return
-    // the HTML unchanged.
-    let resp = client
-        .post(format!("{base}/render"))
-        .json(&serde_json::json!({"html": req.html}))
-        .send()
-        .await;
-    match resp {
-        Ok(r) if r.status().is_success() => {
-            let bytes = r.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-            use base64::Engine as _;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-            Ok(Json(serde_json::json!({
-                "png_base64": b64,
-            })))
-        }
-        _ => Ok(Json(serde_json::json!({
-            "png_base64": null,
-            "fallback_html": req.html,
-        }))),
-    }
-}
-
-/// GET /api/mail/render-preview/cache/{id} — stub, returns 404 unless
-/// the id matches a cached render (kevy `render_cache:<id>`). Kept for
-/// UI-URL stability; production rendering usually bypasses the cache.
-pub async fn render_preview_cached(
-    Path(id): Path<String>,
-) -> Result<axum::response::Response, StatusCode> {
-    let key = format!("render_cache:{id}");
-    let key_c = key.clone();
-    let png = with_kevy(move |c| c.get(key_c.as_bytes()))?;
-    let Some(bytes) = png else {
-        return Err(StatusCode::NOT_FOUND);
-    };
-    axum::response::Response::builder()
-        .status(StatusCode::OK)
-        .header("content-type", "image/png")
-        .body(axum::body::Body::from(bytes))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // ── Mbox export ──────────────────────────────────────────────────

@@ -13,7 +13,7 @@
 #   webapi-fc        REST + web UI (host 127.0.0.1:3103)
 #   fastcore-sender  outbound queue drain (unsigned on staging — DKIM env
 #                    omitted on purpose; staging deliverability is not a gate)
-#   kevy-server / meilisearch / chromium — infra, same as prod
+#   kevy-server / meilisearch — infra, same as prod
 #
 # NOTE the monolith `mailrs` service (spg core, :3101) and the RPC-scaffold
 # webapi/sender shadows are GONE as of 2026-07-03 — prod runs no monolith,
@@ -36,19 +36,6 @@ services:
       MEILI_NO_ANALYTICS: "true"
     volumes:
       - meili-data:/meili_data
-    restart: unless-stopped
-
-  chromium:
-    container_name: mailrs-staging-chromium
-    image: zenika/alpine-chrome:124
-    command:
-      [
-        "--no-sandbox",
-        "--remote-debugging-address=0.0.0.0",
-        "--remote-debugging-port=9222",
-        "--disable-gpu",
-        "--headless",
-      ]
     restart: unless-stopped
 
   kevy-server:

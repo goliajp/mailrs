@@ -41,7 +41,6 @@ mod pop3_session;
 mod quota_store;
 mod rbl_monitor;
 mod reconcile_task;
-mod render_preview;
 mod reputation;
 mod search_index;
 

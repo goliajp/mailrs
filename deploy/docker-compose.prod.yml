@@ -22,7 +22,6 @@
 #   kevy-server     network kevy (sessions, queue, sieve, contacts,
 #                   calendar/DAV, cross-process notify)
 #   meilisearch     search index (fastcore live_sync writes on arrival)
-#   chromium        render-preview backend
 #
 # Deploy: scp this file to /apps/mailrs/docker-compose.prod.yml, then
 #   cd /apps/mailrs && docker compose -p mailrs -f docker-compose.prod.yml \
@@ -167,22 +166,6 @@ services:
       MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
     volumes:
       - meili-data:/meili_data
-    restart: unless-stopped
-
-  chromium:
-    container_name: mailrs-chromium
-    image: zenika/alpine-chrome:124
-    command:
-      [
-        "--no-sandbox",
-        "--remote-debugging-address=0.0.0.0",
-        "--remote-debugging-port=9222",
-        "--disable-gpu",
-        "--headless",
-      ]
-    ports:
-      - "9222:9222"
-    mem_limit: 1g
     restart: unless-stopped
 
 volumes:
