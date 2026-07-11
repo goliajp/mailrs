@@ -11,6 +11,25 @@
 //!
 //! Status/attempts (absent from the loose enqueue blob) are tracked in the
 //! blob + the count keys so `stats` matches the pg-core table counts.
+//!
+//! v2.5.1 §P8-B-A (roadmap Phase 6.2) — introduces a **dual-write** to
+//! the new single-hash job FSM layout described in
+//! `.claude/rfcs/20260709-v2.3-p8b-outbound-job-state-fsm.md`:
+//!
+//!   `mailrs:outbound:job:{id}`      hash {state, attempts, blob,
+//!                                         created_at, updated_at,
+//!                                         claimed_at?, last_error?}
+//!   `mailrs:outbound:pending-idx`   list  (LPUSH on enqueue-pending
+//!                                          / retry; drained parallel
+//!                                          to old pending list on claim)
+//!   `mailrs:outbound:scheduled-idx` zset  (score=scheduled_at)
+//!   `mailrs:outbound:done-idx`      list  (LPUSH on any terminal
+//!                                          transition)
+//!
+//! Every write path in this file now performs the equivalent op on the
+//! new keys after the existing legacy op — best-effort, `let _ =`
+//! ignored just like the legacy path. Reads still hit the legacy
+//! layout; Phase 6.3 (v2.5.2 read cutover) will swap them.
 
 use std::sync::Arc;
 
@@ -37,6 +56,14 @@ fn now_secs() -> i64 {
 fn rpop_one(conn: &mut kevy_client::Connection, key: &[u8]) -> Option<Vec<u8>> {
     conn.rpop(key, 1).ok().and_then(|v| v.into_iter().next())
 }
+
+/// v2.5.1 §P8-B-A dual-write keyspace.
+fn job_key(id: i64) -> String {
+    format!("mailrs:outbound:job:{id}")
+}
+const PENDING_IDX: &[u8] = b"mailrs:outbound:pending-idx";
+const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
+const DONE_IDX: &[u8] = b"mailrs:outbound:done-idx";
 
 /// Read `mailrs:outbound:{id}` blob → OutboundMessageWire (loose blob
 /// fields + synthesized status/attempts defaults).
@@ -116,9 +143,12 @@ pub async fn enqueue<S: NetKevy>(
     // less RTT on the enqueue path.
     let blob = row_blob(&row);
     let key = format!("mailrs:outbound:{id}");
+    let job_k = job_key(id);
     let id_str = id.to_string();
+    let now_str = now.to_string();
     let sched_score = req.scheduled_at.map(|t| t.to_string());
     let _ = conn.pipeline(|p| {
+        // Legacy: single blob field on the row hash + a per-shape list/zset push.
         p.cmd(&[b"HSET", key.as_bytes(), b"blob", blob.as_bytes()]);
         match sched_score.as_deref() {
             Some(score) => {
@@ -131,6 +161,29 @@ pub async fn enqueue<S: NetKevy>(
             }
             None => {
                 p.cmd(&[b"LPUSH", b"mailrs:outbound:pending", id_str.as_bytes()]);
+            }
+        }
+        // v2.5.1 §P8-B-A dual-write: single-hash job + parallel index push.
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            b"pending",
+            b"attempts",
+            b"0",
+            b"blob",
+            blob.as_bytes(),
+            b"created_at",
+            now_str.as_bytes(),
+            b"updated_at",
+            now_str.as_bytes(),
+        ]);
+        match sched_score.as_deref() {
+            Some(score) => {
+                p.cmd(&[b"ZADD", SCHEDULED_IDX, score.as_bytes(), id_str.as_bytes()]);
+            }
+            None => {
+                p.cmd(&[b"LPUSH", PENDING_IDX, id_str.as_bytes()]);
             }
         }
     });
@@ -176,6 +229,25 @@ pub async fn claim<S: NetKevy>(
             write_row(&mut conn, &row);
             items.push(row);
         }
+        // v2.5.1 §P8-B-A dual-write: mirror state=inflight on the new
+        // job hash + drain a matching entry from pending-idx so the two
+        // indexes stay length-consistent for the Phase 6.3 read cutover.
+        let now_str = now_secs().to_string();
+        let job_k = job_key(id);
+        let _ = conn.pipeline(|p| {
+            p.cmd(&[
+                b"HSET",
+                job_k.as_bytes(),
+                b"state",
+                b"inflight",
+                b"claimed_at",
+                now_str.as_bytes(),
+                b"updated_at",
+                now_str.as_bytes(),
+            ]);
+            p.cmd(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"]);
+        });
+        let _ = rpop_one(&mut conn, PENDING_IDX);
     }
     Json(ClaimResponse { items })
 }
@@ -268,6 +340,7 @@ pub async fn mark_delivered<S: NetKevy>(
     };
     remove_inflight_and_del(&mut conn, id);
     let _ = conn.incr(b"mailrs:outbound:delivered:count");
+    dual_write_terminal(&mut conn, id, b"delivered");
     StatusCode::NO_CONTENT
 }
 
@@ -304,6 +377,22 @@ pub async fn mark_failed<S: NetKevy>(
         let _ = conn.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()]);
     }
     let _ = conn.incr(b"mailrs:outbound:failed:count");
+    // v2.5.1 §P8-B-A dual-write: `mark_failed` is a retry (state back
+    // to pending, not terminal). Mirror the new hash + pending-idx.
+    let now_str = now_secs().to_string();
+    let job_k = job_key(id);
+    let _ = conn.pipeline(|p| {
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            b"pending",
+            b"updated_at",
+            now_str.as_bytes(),
+        ]);
+        p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
+        p.cmd(&[b"LPUSH", PENDING_IDX, id.to_string().as_bytes()]);
+    });
     StatusCode::NO_CONTENT
 }
 
@@ -321,5 +410,31 @@ pub async fn mark_bounced<S: NetKevy>(
     let _ = req.error;
     remove_inflight_and_del(&mut conn, id);
     let _ = conn.incr(b"mailrs:outbound:bounced:count");
+    dual_write_terminal(&mut conn, id, b"bounced");
     StatusCode::NO_CONTENT
+}
+
+/// v2.5.1 §P8-B-A helper: terminal transition on the new job hash.
+/// `state` = b"delivered" | b"bounced" | b"failed" (no-retry).
+/// The row hash + counter are already handled by the legacy path;
+/// this only mirrors the FSM state + done-idx tail + 24h TTL.
+fn dual_write_terminal(conn: &mut kevy_client::Connection, id: i64, state: &[u8]) {
+    let now_str = now_secs().to_string();
+    let id_str = id.to_string();
+    let job_k = job_key(id);
+    let _ = conn.pipeline(|p| {
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            state,
+            b"updated_at",
+            now_str.as_bytes(),
+        ]);
+        p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
+        p.cmd(&[b"LPUSH", DONE_IDX, id_str.as_bytes()]);
+        // 24 h retention on the terminal-state hash — enough for
+        // post-mortem inspection without ballooning AOF (per RFC §9).
+        p.cmd(&[b"EXPIRE", job_k.as_bytes(), b"86400"]);
+    });
 }
