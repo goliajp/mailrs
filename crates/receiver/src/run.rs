@@ -232,6 +232,7 @@ pub async fn run() {
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: None,
         inbound_pipeline,
+        spam_lists_client: Some(kevy_client.clone()),
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
         process_tx,
         spool_sink,

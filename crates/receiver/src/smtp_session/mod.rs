@@ -76,6 +76,13 @@ pub struct ConnectionContext {
     pub srs_secret: Option<String>,
     pub ldap_config: Option<Arc<mailrs_core::ldap_auth::LdapConfig>>,
     pub inbound_pipeline: mailrs_inbound::Pipeline,
+    /// Shared kevy sidecar handle for per-recipient whitelist /
+    /// blacklist snapshots (v2.4.1 roadmap Phase 3, RFC-B §3.3).
+    /// Read via `crate::spam_lists::load_recipient_lists_async`
+    /// right before the antispam pipeline runs. `None` in tests or
+    /// when a kevy sidecar isn't configured — the pipeline then
+    /// sees empty sets and behaves identically to pre-Phase-3.
+    pub spam_lists_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
     /// Group-commit delivery executor. Accumulates per-path
     /// Maildir deliveries from concurrent SMTP sessions and flushes
     /// them as a single `deliver_batch` call — see
