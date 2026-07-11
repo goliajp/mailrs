@@ -18,6 +18,8 @@ import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import {
   useArchiveMutation,
   useDeleteMutation,
+  useMarkJunkMutation,
+  useMarkNotJunkMutation,
   useMarkReadMutation,
   useMarkUnreadMutation,
   usePinMutation,
@@ -50,13 +52,19 @@ import {
 import { wireBatchMutation, wireMarkAllRead } from '@/wire/endpoints/mutations'
 
 type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unread' | 'unstar'
+// v2.4.1 Phase 3 (RFC-B §3.4/§3.8) — single-thread junk moves. Kept
+// out of BatchAction because the batch mutation endpoint doesn't
+// support them yet; adding them there would need a matching backend
+// batch handler.
+type JunkAction = 'mark-junk' | 'mark-not-junk'
 
-type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction
+type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction | JunkAction
 
 const ConversationItem = memo(function ConversationItem({
   batchMode,
   checked,
   convo,
+  isJunkView,
   myEmail,
   onContextAction,
   onSelect,
@@ -66,6 +74,12 @@ const ConversationItem = memo(function ConversationItem({
   batchMode: boolean
   checked: boolean
   convo: ConversationSummary
+  /**
+   * v2.4.1 Phase 3 (RFC-B §3.8) — whether this row renders inside the
+   * Junk folder view. Drives which of `Mark as junk` /
+   * `Mark as not junk` appears in the context menu.
+   */
+  isJunkView: boolean
   myEmail: string
   onContextAction: (threadId: string, action: SingleAction) => void
   onSelect: (threadId: string) => void
@@ -109,13 +123,25 @@ const ConversationItem = memo(function ConversationItem({
         label: 'Snooze until tomorrow',
         onClick: () => onContextAction(convo.thread_id, 'snooze'),
       },
+      // v2.4.1 Phase 3 (RFC-B §3.8) — Junk moves. Label + action are
+      // mirrored across Inbox / Junk views: same slot in the menu,
+      // opposite direction based on the current folder.
+      isJunkView
+        ? {
+            label: 'Mark as not junk',
+            onClick: () => onContextAction(convo.thread_id, 'mark-not-junk'),
+          }
+        : {
+            label: 'Mark as junk',
+            onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
+          },
       {
         danger: true,
         label: 'Delete',
         onClick: () => onContextAction(convo.thread_id, 'delete'),
       },
     ],
-    [convo.thread_id, hasUnread, isFlagged, isPinned, isArchived, onContextAction]
+    [convo.thread_id, hasUnread, isFlagged, isPinned, isArchived, isJunkView, onContextAction]
   )
 
   const handleClick = () => {
@@ -485,6 +511,8 @@ export function ConversationList({
   const unarchiveMutation = useUnarchiveMutation()
   const snoozeMutation = useSnoozeMutation()
   const deleteMutation = useDeleteMutation()
+  const markJunkMutation = useMarkJunkMutation()
+  const markNotJunkMutation = useMarkNotJunkMutation()
   const handleContextAction = useCallback(
     async (threadId: string, action: SingleAction) => {
       const onError = (err: unknown) => {
@@ -501,6 +529,18 @@ export function ConversationList({
           deleteMutation.mutate(
             { threadId },
             { onError, onSuccess: () => toast.success('Deleted') }
+          )
+          break
+        case 'mark-junk':
+          markJunkMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Junk') }
+          )
+          break
+        case 'mark-not-junk':
+          markNotJunkMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Marked as not junk') }
           )
           break
         case 'pin':
@@ -545,6 +585,8 @@ export function ConversationList({
     [
       archiveMutation,
       deleteMutation,
+      markJunkMutation,
+      markNotJunkMutation,
       markReadMutation,
       markUnreadMutation,
       pinMutation,
@@ -1047,6 +1089,7 @@ function VirtualConversationList({
                     batchMode={batchMode}
                     checked={selectedThreadIds.has(item.convo.thread_id)}
                     convo={item.convo}
+                    isJunkView={folder === 'Junk'}
                     myEmail={myEmail}
                     onContextAction={onContextAction}
                     onSelect={onSelect}

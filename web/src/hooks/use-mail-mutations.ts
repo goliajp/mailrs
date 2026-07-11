@@ -15,6 +15,8 @@ import {
   wireArchiveThread,
   wireBatchMutation,
   wireDeleteThread,
+  wireMarkJunk,
+  wireMarkNotJunk,
   wireMarkThreadRead,
   wireMarkThreadUnread,
   wirePinThread,
@@ -107,6 +109,44 @@ export function useBatchMutation() {
 export function useDeleteMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => wireDeleteThread(threadId),
+    onError: (_e, _vars, ctx) => {
+      if (ctx) rollbackConversations(ctx.snapshots)
+    },
+    onMutate: async ({ threadId }) => {
+      await cancelConversationFetches()
+      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      return { snapshots }
+    },
+    onSettled: () => invalidateMail(),
+  })
+}
+
+// v2.4.1 Phase 3 (RFC-B §3.4) — move thread to Junk folder.
+// Optimistic patch drops the thread from every currently-visible
+// list; the Junk view repopulates on the next refetch (which the
+// onSettled invalidateMail() call kicks off).
+export function useMarkJunkMutation() {
+  return useMutation<unknown, Error, { threadId: string }, Context>({
+    mutationFn: ({ threadId }) => wireMarkJunk(threadId),
+    onError: (_e, _vars, ctx) => {
+      if (ctx) rollbackConversations(ctx.snapshots)
+    },
+    onMutate: async ({ threadId }) => {
+      await cancelConversationFetches()
+      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      return { snapshots }
+    },
+    onSettled: () => invalidateMail(),
+  })
+}
+
+// v2.4.1 Phase 3 (RFC-B §3.4) — move thread back to Inbox and
+// auto-whitelist its senders on the backend. Same optimistic drop
+// as `useMarkJunkMutation` — the Inbox view repopulates on the
+// next refetch.
+export function useMarkNotJunkMutation() {
+  return useMutation<unknown, Error, { threadId: string }, Context>({
+    mutationFn: ({ threadId }) => wireMarkNotJunk(threadId),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },

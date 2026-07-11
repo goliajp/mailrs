@@ -58,6 +58,16 @@ export const wireMarkThreadRead = (threadId: string, domains?: string[]): Promis
 export const wireMarkThreadUnread = (threadId: string): Promise<void> =>
   postEmpty(`/conversations/${encodeURIComponent(threadId)}/unread`)
 
+// v2.4.1 Phase 3 (RFC-B §3.4) — mark-junk / mark-not-junk.
+// `mark-not-junk` auto-populates the recipient's whitelist with the
+// thread's senders; both endpoints move the thread between the Inbox
+// and Junk top-level folder zsets.
+export const wireMarkJunk = (threadId: string): Promise<void> =>
+  postEmpty(`/conversations/${encodeURIComponent(threadId)}/mark-junk`)
+
+export const wireMarkNotJunk = (threadId: string): Promise<void> =>
+  postEmpty(`/conversations/${encodeURIComponent(threadId)}/mark-not-junk`)
+
 export function wireBatchMutation(
   action: string,
   threadIds: string[]
