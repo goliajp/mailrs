@@ -51,6 +51,18 @@ pub struct ReceiveContext {
     pub ptr_score: f64,
     /// Score from an AI / ML scoring stage.
     pub ai_score: f64,
+
+    // ===== v2.4.1 Phase 3 (RFC-B) — sender allow / block =====
+    /// Envelope `From:` address (lowercased) for whitelist / blacklist
+    /// lookup. The caller (fastcore inbound handler) sets this before
+    /// running the pipeline; stages don't touch it.
+    pub from_addr: String,
+    /// Recipient's per-user whitelist. Populated by the caller with a
+    /// snapshot of `spam:{user}:whitelist` for `recipient`.
+    pub recipient_whitelist: std::collections::HashSet<String>,
+    /// Recipient's per-user blacklist. Populated by the caller with a
+    /// snapshot of `spam:{user}:blacklist` for `recipient`.
+    pub recipient_blacklist: std::collections::HashSet<String>,
 }
 
 impl ReceiveContext {
@@ -78,6 +90,9 @@ impl ReceiveContext {
             matched_rules: Vec::new(),
             ptr_score: 0.0,
             ai_score: 0.0,
+            from_addr: String::new(),
+            recipient_whitelist: std::collections::HashSet::new(),
+            recipient_blacklist: std::collections::HashSet::new(),
         }
     }
 
@@ -94,6 +109,9 @@ impl ReceiveContext {
             ai_score: self.ai_score,
             spam_threshold,
             hostname: self.hostname.clone(),
+            from_addr: self.from_addr.clone(),
+            recipient_whitelist: self.recipient_whitelist.clone(),
+            recipient_blacklist: self.recipient_blacklist.clone(),
         }
     }
 }

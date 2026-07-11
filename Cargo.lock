@@ -3418,16 +3418,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-inbound"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "802e1cc909b1158dd14fd6a1f43ae49f30571449666c7242275953539144ad27"
-dependencies = [
- "async-trait",
- "tracing",
-]
-
-[[package]]
 name = "mailrs-intelligence"
 version = "3.0.0"
 dependencies = [
@@ -3696,7 +3686,7 @@ dependencies = [
  "mailrs-delivery-executor",
  "mailrs-dkim",
  "mailrs-dmarc",
- "mailrs-inbound 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-inbound",
  "mailrs-intelligence",
  "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mailbox",
@@ -3847,7 +3837,7 @@ dependencies = [
  "mailrs-imap-codec 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-format 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-imap-proto 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-inbound 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-inbound",
  "mailrs-intelligence",
  "mailrs-jmap 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
