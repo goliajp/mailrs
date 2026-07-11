@@ -24,4 +24,5 @@ pub mod misc;
 pub mod oidc;
 pub mod prefs;
 pub mod search;
+pub mod spam_lists;
 pub mod totp_util;

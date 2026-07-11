@@ -60,6 +60,51 @@ impl KevyMailboxStore {
         )
     }
 
+    /// Move a thread between the Inbox and Junk top-level folders
+    /// (v2.4.1 roadmap Phase 3, RFC-B §3.4). `is_junk=true` writes
+    /// `category="spam"`, adds the thread to
+    /// `user_threads_junk`, and removes it from `user_threads_inbox`.
+    /// `is_junk=false` flips both memberships and rewrites `category`
+    /// to `"inbox"`.
+    ///
+    /// Returns true if the row existed. The `by_category:*` zsets
+    /// are NOT rebuilt here — the row's old category zset entry
+    /// stays behind for one arrival cycle. That's harmless because
+    /// list handlers filter by folder axis first (§Phase 2 read
+    /// path), and the entry gets cleaned up on the next
+    /// `upsert_thread`.
+    pub fn set_junk(&self, user: &str, thread_id: &str, is_junk: bool) -> io::Result<bool> {
+        let thread_key = keys::thread(thread_id);
+        let inbox = keys::user_threads_inbox(user);
+        let junk = keys::user_threads_junk(user);
+        let new_category: &[u8] = if is_junk { b"spam" } else { b"inbox" };
+        self.store().atomic(|ctx| {
+            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                return Ok(false);
+            }
+            ctx.hset(
+                thread_key.as_bytes(),
+                &[(b"category" as &[u8], new_category)],
+            )?;
+            let score = ctx
+                .hget(thread_key.as_bytes(), b"latest_date")?
+                .and_then(|v| {
+                    std::str::from_utf8(&v)
+                        .ok()
+                        .and_then(|s| s.parse::<i64>().ok())
+                })
+                .unwrap_or(0);
+            if is_junk {
+                ctx.zadd(junk.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+                ctx.zrem(inbox.as_bytes(), &[thread_id.as_bytes()])?;
+            } else {
+                ctx.zadd(inbox.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+                ctx.zrem(junk.as_bytes(), &[thread_id.as_bytes()])?;
+            }
+            Ok(true)
+        })
+    }
+
     /// Common path: read latest_date (for the zadd score), hset the
     /// boolean field, and add or remove from the matching index zset.
     fn toggle_flag<F>(

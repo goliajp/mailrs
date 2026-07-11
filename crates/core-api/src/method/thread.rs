@@ -34,6 +34,20 @@ pub const PATH_SNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/snooze";
 pub const PATH_UNSNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/unsnooze";
 pub const PATH_DELETE_THREAD: &str = "/v1/users/{user}/threads/{thread_id}";
 
+/// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
+/// Route + fastcore handler: move to `user_threads_junk` zset,
+/// stamp `category = "spam"` on the row. Does NOT modify the
+/// recipient's whitelist / blacklist (per §D4 — "只移这封,不动名单").
+pub const PATH_MARK_JUNK: &str = "/v1/users/{user}/threads/{thread_id}/mark-junk";
+
+/// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as not junk.
+/// Route + fastcore handler: move to `user_threads_inbox` zset,
+/// stamp `category = "inbox"`. The webapi handler additionally
+/// SADDs the thread's sender into `spam:{user}:whitelist` so
+/// future arrivals from the same sender bypass the score
+/// threshold when authed.
+pub const PATH_MARK_NOT_JUNK: &str = "/v1/users/{user}/threads/{thread_id}/mark-not-junk";
+
 /// `POST /v1/users/{user}/threads/{thread_id}/messages` — deliver a
 /// synthesized message (sent copy, saved draft, imported item) into the
 /// user's kevy view. Fires the same `record_message_arrival` +

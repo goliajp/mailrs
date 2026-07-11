@@ -375,6 +375,28 @@ impl Client {
             .await
     }
 
+    /// POST /v1/users/{user}/threads/{thread_id}/mark-junk
+    /// v2.4.1 Phase 3 (RFC-B §3.4).
+    pub async fn mark_junk(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "mark-junk", "mark_junk")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/mark-not-junk
+    /// v2.4.1 Phase 3 (RFC-B §3.4).
+    pub async fn mark_not_junk(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "mark-not-junk", "mark_not_junk")
+            .await
+    }
+
     /// PUT /v1/users/{user}/threads/{thread_id}/snooze
     pub async fn snooze_thread(
         &self,
