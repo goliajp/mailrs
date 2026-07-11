@@ -1145,6 +1145,7 @@ pub(crate) fn ingest_delivered_file(
     addr: &str,
     blob_ref: &str,
     body: &[u8],
+    target_folder: &str,
 ) {
     let head = &body[..body.len().min(16 * 1024)];
     let (message_id, in_reply_to, references_first, subject, date, from, to) =
@@ -1168,6 +1169,20 @@ pub(crate) fn ingest_delivered_file(
         message_id.clone()
     };
     let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
+    // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
+    // decision (from `crates/receiver/src/smtp_session/events/data/antispam.rs`
+    // where DeliveryDecision::Junk yields target_folder="Junk") into the
+    // per-thread category. mailbox-kevy's `upsert_thread` reads
+    // `category ∈ {"spam", "scam"}` as the Junk-zset trigger, so
+    // stamping "spam" here makes the antispam verdict actually route
+    // to the Junk folder on the read side. Any sieve fileinto target
+    // that maps to "Junk" is treated the same. Everything else
+    // (INBOX / custom sieve folders) keeps category="inbox".
+    let category = if target_folder.eq_ignore_ascii_case("junk") {
+        "spam"
+    } else {
+        "inbox"
+    };
     let arrival = mailrs_mailbox_kevy::MessageArrival {
         thread_id: &root,
         user: addr,
@@ -1175,7 +1190,7 @@ pub(crate) fn ingest_delivered_file(
         senders_csv: &from,
         latest_date: date,
         latest_preview: "",
-        category: "inbox",
+        category,
         unread,
     };
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
