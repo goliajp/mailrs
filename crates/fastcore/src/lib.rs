@@ -197,6 +197,19 @@ pub async fn run() {
             if let Err(e) = store.ensure_indexes() {
                 tracing::warn!(error = %e, "alias-store network idx_create failed at boot");
             }
+            // v2.6.1 §P6 backfill: promote pre-Phase-9 rows from the
+            // legacy string+set layout into the v2 hash so the read
+            // cutover (which now hits `aliases_by_domain`) covers the
+            // full dataset. Idempotent — subsequent boots skip rows
+            // that already have the v2 hash populated.
+            match store.backfill_v2() {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(
+                    promoted = n,
+                    "alias-store backfill promoted pre-Phase-9 rows"
+                ),
+                Err(e) => tracing::warn!(error = %e, "alias-store backfill failed at boot"),
+            }
             Arc::new(store)
         }
         _ => {

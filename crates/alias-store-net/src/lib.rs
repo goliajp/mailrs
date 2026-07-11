@@ -82,6 +82,54 @@ impl NetworkKevyAliasStore {
         );
         Ok(())
     }
+
+    /// v2.6.1 §P6 backfill: populate the v2 hash keyspace from the
+    /// legacy string+set layout. Idempotent — entries that already
+    /// have a `target` field are skipped. Callers invoke once at
+    /// startup after `ensure_indexes()`; the pre-Phase-9 alias rows
+    /// get promoted to v2 the moment fastcore boots on this build.
+    ///
+    /// This is the RFC §4.2 backfill run inline instead of as a
+    /// separate script — the dataset is small (dozens of aliases),
+    /// idempotent, and running it on every boot means Phase 11 has a
+    /// hard guarantee that every legacy row exists in v2.
+    pub fn backfill_v2(&self) -> io::Result<usize> {
+        let mut conn = self.connect()?;
+        let members = conn.smembers(ALIAS_INDEX)?;
+        if members.is_empty() {
+            return Ok(0);
+        }
+        let created_at = now_secs().to_string();
+        let mut promoted = 0usize;
+        for m in members {
+            let Ok(source) = String::from_utf8(m) else {
+                continue;
+            };
+            let key_v2 = alias_key_v2(&source);
+            // Skip if the v2 row already has a target field — either
+            // because dual-write already fired or because a prior
+            // backfill promoted this row.
+            if conn.hget(key_v2.as_bytes(), b"target")?.is_some() {
+                continue;
+            }
+            let key = alias_key(&source);
+            let Some(target_bytes) = conn.get(key.as_bytes())? else {
+                continue;
+            };
+            let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+            let _ = conn.hset(
+                key_v2.as_bytes(),
+                &[
+                    (b"target".as_slice(), target_bytes.as_slice()),
+                    (b"domain".as_slice(), domain.as_bytes()),
+                    (b"created_at".as_slice(), created_at.as_bytes()),
+                    (b"active".as_slice(), b"1".as_slice()),
+                ],
+            );
+            promoted += 1;
+        }
+        Ok(promoted)
+    }
 }
 
 impl AliasStore for NetworkKevyAliasStore {
@@ -138,22 +186,60 @@ impl AliasStore for NetworkKevyAliasStore {
         Ok(removed > 0)
     }
 
+    /// v2.6.1 §P6 read cutover: 2-RTT list via `IDX.QUERY RANGE` on
+    /// `aliases_by_domain` + a single pipelined `HGET target` batch.
+    /// Replaces the pre-Phase-10 `SMEMBERS + N × GET` fanout
+    /// (41 RTT for the 40-alias prod dataset → 2 RTT).
+    ///
+    /// The index is sorted by `(domain, key)` — same result set as
+    /// the legacy path, just server-sorted. The empty min / `\xff\xff`
+    /// max span every Str value. `IdxRow.key` is the full kevy key
+    /// including the `mailrs:alias:v2:` prefix which we strip to
+    /// recover the source address.
     fn list(&self) -> io::Result<Vec<(String, String)>> {
         let mut conn = self.connect()?;
-        let members = conn.smembers(ALIAS_INDEX)?;
-        let mut out = Vec::with_capacity(members.len());
-        for m in members {
-            let Ok(source) = String::from_utf8(m) else {
+        let mut keys: Vec<Vec<u8>> = Vec::new();
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = conn.idx_query_range(
+                IDX_ALIASES_BY_DOMAIN,
+                b"",
+                b"\xff\xff",
+                10_000,
+                cursor.as_deref(),
+            )?;
+            for row in page.rows {
+                keys.push(row.key);
+            }
+            match page.cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let replies = conn.pipeline(|p| {
+            for key in &keys {
+                p.cmd(&[b"HGET", key, b"target"]);
+            }
+        })?;
+        let mut out = Vec::with_capacity(keys.len());
+        for (i, reply) in replies.into_iter().enumerate() {
+            let Some(source_bytes) = keys[i].strip_prefix(ALIAS_V2_PREFIX) else {
                 continue;
             };
-            let key = alias_key(&source);
-            let Some(raw) = conn.get(key.as_bytes())? else {
+            let Ok(source) = std::str::from_utf8(source_bytes) else {
                 continue;
             };
-            let Ok(target) = String::from_utf8(raw) else {
-                continue;
+            let target = match reply {
+                kevy_client::Reply::Bulk(b) => match String::from_utf8(b) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                },
+                _ => continue,
             };
-            out.push((source, target));
+            out.push((source.to_string(), target));
         }
         Ok(out)
     }
