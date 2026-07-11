@@ -53,6 +53,32 @@ pub fn user_threads_sent(user: &str) -> String {
     format!("mailrs:user:{user}:threads:sent")
 }
 
+/// Per-user Junk-folder subset (v2.4.0 roadmap Phase 2, RFC-A). Threads
+/// classified as junk mail (currently: `category ∈ {"spam", "scam"}`;
+/// Phase 3 adds per-user blacklist + DMARC-quarantine + score-threshold
+/// sources).
+/// Same shape as the other index zsets: score = latest_date.
+///
+/// **Topology semantics:** Junk is a top-level folder (§D2), not an
+/// inbox sub-category. On arrival a message enters exactly ONE of
+/// {`user_threads_inbox`, `user_threads_junk`, `user_threads_sent`};
+/// filtering by folder is an axis switch in `ListThreadsFilter`.
+pub fn user_threads_junk(user: &str) -> String {
+    format!("mailrs:user:{user}:threads:junk")
+}
+
+/// Per-user Inbox-folder subset (v2.4.0 roadmap Phase 2). Threads that
+/// are not junk and not exclusively self-sent. Score = latest_date.
+///
+/// **Why a dedicated zset:** the existing `user_threads_by_activity`
+/// key was written to for every arrival regardless of classification,
+/// so junk threads leaked into "All"/"Inbox" list views. This zset
+/// tracks the true Inbox membership so `folder=Inbox` is an axis
+/// switch instead of a client-side subtraction.
+pub fn user_threads_inbox(user: &str) -> String {
+    format!("mailrs:user:{user}:threads:inbox")
+}
+
 /// Per-user uid → message_id index — hash where field=uid, value=message_id.
 /// Populated by the deliver path + `mailrs-fastcore-backfill-uid-index`.
 pub fn user_msg_by_uid(user: &str) -> String {
