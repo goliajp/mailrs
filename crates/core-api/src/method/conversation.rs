@@ -5,7 +5,6 @@
 //! - `crates/mailbox/src/pg/thread_ops/query.rs:240` — `get_conversations_by_thread_ids`
 //! - `crates/mailbox/src/pg/search_ops.rs:7`         — `search_conversations` (Rock 4)
 //! - `crates/mailbox/src/pg/search_ops.rs:176`       — `list_conversation_categories`
-//! - `crates/mailbox/src/pg/search_ops.rs:203`       — `count_action_threads` (Rock 2)
 //! - `crates/mailbox/src/pg/message_ops/read.rs:203` — `count_unseen` (Rock 2)
 //!
 //! These are the highest-value endpoints for the fastcore design — Rock 1
@@ -21,7 +20,6 @@ pub const PATH_LIST_CONVERSATIONS: &str = "/v1/users/{user}/conversations:list";
 pub const PATH_CONVERSATIONS_BY_THREAD_IDS: &str = "/v1/users/{user}/conversations:by-thread-ids";
 pub const PATH_SEARCH_CONVERSATIONS: &str = "/v1/users/{user}/conversations:search";
 pub const PATH_CONVERSATION_CATEGORIES: &str = "/v1/users/{user}/conversations/categories";
-pub const PATH_ACTION_COUNT: &str = "/v1/users/{user}/conversations/action-count";
 pub const PATH_UNSEEN_COUNT: &str = "/v1/users/{user}/conversations/unseen-count";
 
 // ── list_conversations (Rock 1) ─────────────────────────────────────
@@ -108,15 +106,6 @@ pub struct CategoryCount {
     pub count: i64,
 }
 
-// ── action_count (Rock 2) ───────────────────────────────────────────
-
-/// Response body for `GET /v1/users/{user}/conversations/action-count`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ActionCountResponse {
-    /// Number of non-archived, non-spam threads with `requires_action=true`.
-    pub count: i64,
-}
-
 // ── unseen_count (Rock 2) ───────────────────────────────────────────
 
 /// Response body for `GET /v1/users/{user}/conversations/unseen-count`.
@@ -173,14 +162,5 @@ mod tests {
         let back: ConversationCategoriesResponse = serde_json::from_str(&s).unwrap();
         assert_eq!(back.categories.len(), 2);
         assert_eq!(back.categories[0].count, 42);
-    }
-
-    #[test]
-    fn action_count_roundtrip() {
-        let r = ActionCountResponse { count: 13 };
-        let s = serde_json::to_string(&r).unwrap();
-        assert_eq!(s, "{\"count\":13}");
-        let back: ActionCountResponse = serde_json::from_str(&s).unwrap();
-        assert_eq!(back, r);
     }
 }

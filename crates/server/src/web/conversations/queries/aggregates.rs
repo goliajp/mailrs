@@ -50,41 +50,6 @@ pub(crate) async fn get_conversation_categories(
     Json(result).into_response()
 }
 
-pub(crate) async fn get_action_count(
-    AuthUser {
-        address: ref user,
-        ref permissions,
-        ..
-    }: AuthUser,
-    Query(dq): Query<DomainsQuery>,
-    State(state): State<Arc<WebState>>,
-) -> Response {
-    let Some(ref mb_store) = state.mailbox_store else {
-        return Json(serde_json::json!({"count": 0})).into_response();
-    };
-
-    let domains = validate_domains(dq.domains.as_deref(), permissions);
-    let cache_key = conversation_cache::action_count_key(user, domains.as_deref());
-    if let Some(ref kevy) = state.kevy_embed
-        && let Some(cached) = conversation_cache::get_json(kevy, &cache_key)
-    {
-        return cached_json_response(cached);
-    }
-
-    let count = mb_store
-        .count_action_threads(user, domains.as_deref())
-        .await
-        .unwrap_or(0);
-
-    let body = serde_json::json!({"count": count});
-    if let Some(ref kevy) = state.kevy_embed
-        && let Ok(json) = serde_json::to_string(&body)
-    {
-        conversation_cache::set_json(kevy, &cache_key, &json, conversation_cache::TTL_ACTION_SECS);
-    }
-    Json(body).into_response()
-}
-
 pub(crate) async fn get_contacts(
     AuthUser { address: user, .. }: AuthUser,
     Query(q): Query<ContactsQuery>,

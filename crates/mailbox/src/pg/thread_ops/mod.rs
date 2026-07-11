@@ -4,7 +4,7 @@
 //! - [`query`] — conversation-list SELECTs (`list_conversations`,
 //!   `get_conversations_by_thread_ids`).
 //! - [`mutate`] — flag/state mutations (mark read/unread, star, pin,
-//!   archive, snooze, delete, dismiss-action).
+//!   archive, snooze, delete).
 //!
 //! This file owns the small lookups + the maildir-driven
 //! `backfill_threading` migration tool.

@@ -103,23 +103,4 @@ impl MailrsMcpService {
             serde_json::json!({ "ok": true, "thread_id": params.thread_id }).to_string(),
         )]))
     }
-
-    #[tool(
-        description = "Dismiss the action-required flag on a thread. Complements the v1 archive_thread / star_thread ops."
-    )]
-    async fn dismiss_thread_action(
-        &self,
-        Parameters(params): Parameters<ThreadIdOnly>,
-    ) -> Result<CallToolResult, McpError> {
-        let user = self.require_user()?;
-        let _ = self
-            .state
-            .core
-            .dismiss_thread_action(user, &params.thread_id)
-            .await
-            .map_err(|e| McpError::internal_error(format!("dismiss_thread_action: {e}"), None))?;
-        Ok(CallToolResult::success(vec![Content::text(
-            serde_json::json!({ "ok": true, "thread_id": params.thread_id }).to_string(),
-        )]))
-    }
 }

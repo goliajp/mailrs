@@ -147,20 +147,6 @@ pub async fn get_categories(
         .map_err(map_err)
 }
 
-/// GET /api/conversations/action-count — return bare `{count: N}`
-/// (already the response shape, but as flat i64 not the response struct).
-pub async fn get_action_count(
-    State(state): State<Arc<WebState>>,
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    state
-        .core
-        .action_count(&user)
-        .await
-        .map(|r| Json(serde_json::json!({ "count": r.count })))
-        .map_err(map_err)
-}
-
 /// Wire shape UI expects for a message. Mirrors monolith's
 /// `ThreadMessageResponse` — critical fields the UI reaches into
 /// unconditionally (`attachments.length`, `text_body`, `html_body`,
@@ -661,20 +647,6 @@ pub async fn unarchive_thread(
     state
         .core
         .unarchive_thread(&user, &thread_id)
-        .await
-        .map(|_| StatusCode::NO_CONTENT)
-        .map_err(map_err)
-}
-
-/// POST /api/conversations/{thread_id}/dismiss-action
-pub async fn dismiss_action(
-    State(state): State<Arc<WebState>>,
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
-    Path(thread_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    state
-        .core
-        .dismiss_thread_action(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(map_err)

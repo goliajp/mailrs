@@ -91,22 +91,6 @@ pub async fn conversation_categories(
     Ok(Json(wire::ConversationCategoriesResponse { categories }))
 }
 
-/// GET /v1/users/{user}/conversations/action-count  (Rock 2)
-pub async fn action_count(
-    State(state): State<Arc<CoreRpcState>>,
-    Path(user): Path<String>,
-) -> Result<Json<wire::ActionCountResponse>, StatusCode> {
-    let count = state
-        .mailbox
-        .count_action_threads(&user, None)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, user = %user, "action_count failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    Ok(Json(wire::ActionCountResponse { count }))
-}
-
 /// GET /v1/users/{user}/conversations/unseen-count  (Rock 2)
 pub async fn unseen_count(
     State(state): State<Arc<CoreRpcState>>,

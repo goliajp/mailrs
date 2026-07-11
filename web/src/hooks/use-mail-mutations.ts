@@ -153,7 +153,7 @@ export function useMarkReadMutation() {
     // briefly overwrite the patch with stale list data, making the row flip
     // back to unread for ~100-500 ms — exactly the "mark-as-read doesn't
     // stick when I click fast" user complaint.
-    // categories / actionCount ARE server-computed aggregates that the client
+    // categories ARE server-computed aggregates that the client
     // cannot derive locally; they still need invalidation.
     onSettled: () => invalidateMailAggregatesOnly(),
   })
@@ -334,7 +334,6 @@ async function cancelConversationFetches() {
 function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
-  queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
   // v2.1 phase-3 — after the mail list migrated onto
   // `conversationKeys.infinite`, we broaden the invalidation to the
   // whole `conversation` entity namespace so both list + infinite
@@ -345,14 +344,13 @@ function invalidateMail() {
 
 // ---- batch operations ----
 
-// Invalidates only the small server-computed aggregates (categories +
-// actionCount) — leaves the conversations list cache alone. Used by
-// mark-read / mark-unread, where the optimistic patch already matches
-// what the server returns; a list refetch races against the post-POST
+// Invalidates only the small server-computed aggregate (categories) —
+// leaves the conversations list cache alone. Used by mark-read /
+// mark-unread, where the optimistic patch already matches what the
+// server returns; a list refetch races against the post-POST
 // processing window and can flip the row back to unread for 100-500 ms.
 function invalidateMailAggregatesOnly() {
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
-  queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
   // v2.1 phase-3 — cover the non-paginated `list` sub-namespace so
   // dashboard / sidebar aggregates recompute. The `infinite` cache is
   // left alone here (mark-read's optimistic patch already matches

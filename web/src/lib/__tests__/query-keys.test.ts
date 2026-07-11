@@ -42,7 +42,7 @@ describe('mailKeys', () => {
     expect(inbox).not.toEqual(sent)
   })
 
-  it('exposes thread / search / category / action-count factories', () => {
+  it('exposes thread / search / category factories', () => {
     expect(mailKeys.thread('t1')).toEqual(['mail', 'thread', 't1'])
     expect(mailKeys.thread(null)).toEqual(['mail', 'thread', ''])
     expect(mailKeys.search('hello', { folder: 'INBOX' })).toEqual([
@@ -52,7 +52,6 @@ describe('mailKeys', () => {
       { folder: 'INBOX' },
     ])
     expect(mailKeys.categories(['b.com', 'a.com'])).toEqual(['mail', 'categories', 'a.com,b.com'])
-    expect(mailKeys.actionCount(['x.com'])).toEqual(['mail', 'action-count', 'x.com'])
     expect(mailKeys.all()).toEqual(['mail'])
   })
 })

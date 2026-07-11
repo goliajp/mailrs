@@ -1237,7 +1237,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 post(conversations_by_thread_ids),
             )
             .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
-            .route(conv::PATH_ACTION_COUNT, get(get_action_count))
             .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
             .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
@@ -1252,7 +1251,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(th::PATH_UNSTAR, post(unstar_thread))
             .route(th::PATH_ARCHIVE, post(archive_thread))
             .route(th::PATH_UNARCHIVE, post(unarchive_thread))
-            .route(th::PATH_DISMISS_ACTION, post(dismiss_action))
             .route(th::PATH_DELETE_THREAD, delete(delete_thread))
             .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
             .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
@@ -1633,17 +1631,6 @@ async fn get_categories(
     Json(conv::ConversationCategoriesResponse { categories })
 }
 
-/// `GET /v1/users/{user}/conversations/action-count` — single ZCARD on
-/// the has_action zset.
-async fn get_action_count(
-    State(state): State<Arc<FastcoreState>>,
-    Path(user): Path<String>,
-) -> Json<conv::ActionCountResponse> {
-    let key = mailrs_mailbox_kevy::keys::user_threads_has_action(&user);
-    let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
-    Json(conv::ActionCountResponse { count })
-}
-
 /// `GET /v1/users/{user}/conversations/unseen-count` — single ZCARD on
 /// the has_unread zset.
 async fn get_unseen_count(
@@ -1931,18 +1918,6 @@ async fn unarchive_thread(
         state
             .mailbox
             .set_archived(&user, &thread_id, false)
-            .unwrap_or(false),
-    )
-}
-
-async fn dismiss_action(
-    State(state): State<Arc<FastcoreState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_has_action(&user, &thread_id, false)
             .unwrap_or(false),
     )
 }
@@ -2628,11 +2603,6 @@ mod tests {
             },
             Probe {
                 method: Method::GET,
-                uri: "/v1/users/u@x.com/conversations/action-count",
-                allowed: &[200],
-            },
-            Probe {
-                method: Method::GET,
                 uri: "/v1/users/u@x.com/conversations/unseen-count",
                 allowed: &[200],
             },
@@ -2676,11 +2646,6 @@ mod tests {
             Probe {
                 method: Method::POST,
                 uri: "/v1/users/u@x.com/threads/t1/unarchive",
-                allowed: &[200],
-            },
-            Probe {
-                method: Method::POST,
-                uri: "/v1/users/u@x.com/threads/t1/dismiss-action",
                 allowed: &[200],
             },
             Probe {

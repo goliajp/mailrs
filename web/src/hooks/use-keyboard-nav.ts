@@ -303,13 +303,6 @@ export function useKeyboardNav() {
             setSection(null)
             setQuickFilter('all')
             setCategory(null)
-          } else if (gPending && e.key === 'a') {
-            e.preventDefault()
-            gPending = false
-            setFolder(null)
-            setSection('action')
-            setQuickFilter('all')
-            setCategory(null)
           } else {
             gPending = false
           }
