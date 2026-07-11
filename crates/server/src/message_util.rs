@@ -11,6 +11,14 @@ pub(crate) struct AttachmentInfo {
     pub filename: String,
     pub content_type: String,
     pub size: u32,
+    /// v2.5.0 Phase 5 (RFC-B §5) — MIME `Content-ID:` header value, angle
+    /// brackets stripped. Populated when the part is a
+    /// `multipart/related` inline image referenced by a `<img src="cid:..">`
+    /// in the HTML body. The webapi's HtmlFrame rewrites those cid: URIs
+    /// to `/api/mail/messages/{uid}/attachments/{index}/content` so the
+    /// browser can fetch the referenced image inline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_id: Option<String>,
 }
 
 pub(crate) async fn read_message_raw(
@@ -118,6 +126,7 @@ pub(crate) fn parse_message(data: &[u8]) -> (Option<String>, Option<String>, Vec
                 filename,
                 content_type,
                 size: att.body.len() as u32,
+                content_id: att.content_id.clone(),
             }
         })
         .collect();

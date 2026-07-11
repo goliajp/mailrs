@@ -79,6 +79,12 @@ export type WireThreadListResponse = z.infer<typeof wireThreadListResponseSchema
 
 export const wireAttachmentSchema = z.object({
   content_type: z.string().default('application/octet-stream'),
+  // v2.5.0 Phase 5 (RFC-B §5) — MIME `Content-ID` header value with
+  // angle brackets stripped. Present on `multipart/related` inline
+  // images that the HTML body references via `<img src="cid:..">`.
+  // Frontend HtmlFrame rewrites those cid: URIs so the browser can
+  // fetch the referenced image from the attachment endpoint.
+  content_id: z.string().nullish(),
   filename: z.string().default(''),
   index: z.number().int().min(0).default(0),
   size: z.number().int().min(0).default(0),

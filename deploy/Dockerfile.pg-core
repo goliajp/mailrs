@@ -25,7 +25,7 @@ COPY crates/ crates/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-server --features render-preview,core-rpc \
+    cargo build --release --bin mailrs-server --features core-rpc \
     && cargo build --release -p mailrs-core-sync \
     && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server-pg \
     && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync

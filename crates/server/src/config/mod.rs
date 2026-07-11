@@ -143,8 +143,6 @@ pub struct ServerConfig {
     // Meilisearch
     pub meili_url: Option<String>,
     pub meili_key: Option<String>,
-    // Chrome CDP (headless browser for email rendering preview)
-    pub chrome_cdp_url: Option<String>,
     // LDAP authentication
     pub ldap_url: Option<String>,
     pub ldap_bind_dn: Option<String>,
@@ -226,7 +224,6 @@ impl Default for ServerConfig {
             kevy_url: None,
             meili_url: None,
             meili_key: None,
-            chrome_cdp_url: None,
             ldap_url: None,
             ldap_bind_dn: None,
             ldap_bind_password: None,

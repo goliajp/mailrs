@@ -6,11 +6,9 @@ import { wireFetch } from '../client'
 import {
   generateSubjectResultSchema,
   polishResultSchema,
-  renderResultSchema,
   replySuggestResultSchema,
   type WireGenerateSubjectResult,
   type WirePolishResult,
-  type WireRenderResult,
   type WireReplySuggestResult,
 } from '../schemas/ai'
 
@@ -41,14 +39,4 @@ export const wireGenerateSubject = (payload: {
     body: payload,
     method: 'POST',
     path: '/mail/ai/generate-subject',
-  })
-
-export const wireRenderPreview = (payload: {
-  html: string
-  presets: string[]
-}): Promise<WireRenderResult> =>
-  wireFetch(renderResultSchema, {
-    body: payload,
-    method: 'POST',
-    path: '/mail/render-preview',
   })

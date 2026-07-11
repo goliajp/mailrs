@@ -104,7 +104,7 @@ jobs:
         # the deploy compose mounts so a CI green means the staging
         # image has all four roles.
         run: |
-          cargo build --release -p mailrs-server --features spg,render-preview,core-rpc
+          cargo build --release -p mailrs-server --features spg,core-rpc
           cargo build --release -p mailrs-receiver
           cargo build --release -p mailrs-webapi
           cargo build --release -p mailrs-sender

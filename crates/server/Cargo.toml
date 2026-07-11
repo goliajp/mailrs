@@ -10,14 +10,7 @@ publish = false
 workspace = true
 
 [features]
-# By default the server builds without the headless-Chrome
-# render-preview backend — saves ~1 MiB of binary (chromiumoxide +
-# chromiumoxide_cdp). Enable with `--features render-preview` (or via
-# release.sh, which passes it) when you need the
-# /api/mail/render-preview endpoint. The feature is purely additive;
-# disabling it just turns the RPC into a "feature not enabled" error.
 default = []
-render-preview = ["dep:chromiumoxide"]
 # Swap the SQL backend from PostgreSQL (default) to spg-embedded —
 # the in-process engine; no postgres container, no TCP. Flips the
 # BackendPool type alias in this crate AND in every sqlx-using stone.
@@ -139,7 +132,6 @@ schemars = "1"
 uuid = { version = "1.23.1", features = ["v4"] }
 totp-rs = { version = "5.7.1", features = ["otpauth"] }
 data-encoding = "2.11.0"
-chromiumoxide = { version = "0.9", default-features = false, optional = true }
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 rsa = { version = "0.9", features = ["pem"] }
 

@@ -64,11 +64,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             post(mail::check_deliverability),
         )
         .route("/api/mail/spam-feedback", post(mail::submit_spam_feedback))
-        .route("/api/mail/render-preview", post(mail::render_preview))
-        .route(
-            "/api/mail/render-preview/cache/{id}",
-            get(mail::serve_render_cache),
-        )
         .route(
             "/api/admin/spam-feedback-stats",
             get(mail::get_spam_feedback_stats),

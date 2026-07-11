@@ -384,11 +384,25 @@ fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<serde_json::V
             } else {
                 mt
             };
-            serde_json::json!({
+            // v2.5.0 Phase 5 (RFC-B §5): Content-ID header maps a
+            // `multipart/related` inline image to its `<img src="cid:..">`
+            // reference in the HTML body. Emit it so the frontend
+            // HtmlFrame can rewrite the cid: URIs into
+            // `/api/mail/messages/{uid}/attachments/{index}/content`
+            // and the browser fetches the image inline. Omitted when
+            // the part has no Content-ID (regular non-inline
+            // attachments).
+            let mut obj = serde_json::json!({
                 "filename": filename,
                 "content_type": mt,
                 "size": att.body.len() as u32,
-            })
+            });
+            if let Some(cid) = &att.content_id
+                && let Some(map) = obj.as_object_mut()
+            {
+                map.insert("content_id".into(), serde_json::Value::String(cid.clone()));
+            }
+            obj
         })
         .collect();
     (text_body, html_body, attachments)

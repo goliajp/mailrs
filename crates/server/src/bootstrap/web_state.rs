@@ -10,8 +10,7 @@ use crate::inbound::auth_guard::AuthGuardStore;
 use crate::web::WebState;
 use crate::{
     acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, render_preview, search_index, smtp_session, system_config, tls,
-    web, webhook,
+    outbound_tls_rpt, rbl_monitor, search_index, smtp_session, system_config, tls, web, webhook,
 };
 use mailrs_mailbox::PgMailboxStore;
 
@@ -118,15 +117,6 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     }
     if let Some(ldap) = i.ldap_config {
         ws = ws.with_ldap_config(ldap.clone());
-    }
-    if let Some(ref url) = i.cfg.chrome_cdp_url {
-        let client = Arc::new(render_preview::RenderPreviewClient::new(url.clone(), 5));
-        ws = ws.with_render_preview(client);
-        tracing::info!(
-            event = "subsystem_started",
-            subsystem = "render_preview",
-            chrome_cdp = %url
-        );
     }
     if let Some(meili) = i.meili_client {
         ws = ws.with_meili(meili.clone());

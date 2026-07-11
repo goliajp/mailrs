@@ -178,14 +178,6 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/mail/spam-feedback",
             post(handlers::misc::spam_feedback),
         )
-        .route(
-            "/api/mail/render-preview",
-            post(handlers::misc::render_preview),
-        )
-        .route(
-            "/api/mail/render-preview/cache/{id}",
-            get(handlers::misc::render_preview_cached),
-        )
         .route("/api/mail/export", get(handlers::misc::export_mbox))
         .route(
             "/api/conversations/search",

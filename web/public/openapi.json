@@ -5285,52 +5285,6 @@
         }
       }
     },
-    "/api/mail/render-preview": {
-      "post": {
-        "summary": "Create mail render preview",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RenderPreviewRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/mail/render-preview/cache/{id}": {
-      "get": {
-        "summary": "Get mail render preview cache",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/mail/spam-feedback": {
       "post": {
         "summary": "Create mail spam feedback",
@@ -8122,24 +8076,6 @@
         },
         "required": [
           "recovery_email"
-        ]
-      },
-      "RenderPreviewRequest": {
-        "type": "object",
-        "properties": {
-          "html": {
-            "type": "string"
-          },
-          "presets": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "html",
-          "presets"
         ]
       },
       "SubjectGenerateRequest": {

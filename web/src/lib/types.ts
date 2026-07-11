@@ -31,6 +31,9 @@ export type AmountMention = {
   value?: number
 }
 export type AttachmentInfo = {
+  // v2.5.0 Phase 5 (RFC-B §5) — MIME Content-ID for inline
+  // `multipart/related` parts. `null` for regular attachments.
+  content_id?: null | string
   content_type: string
   filename: string
   size: number

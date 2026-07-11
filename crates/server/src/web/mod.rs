@@ -301,7 +301,6 @@ pub struct WebState {
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub oidc_config: Option<OidcConfig>,
     pub meili: Option<Arc<crate::search_index::MeiliClient>>,
-    pub render_preview: Option<Arc<crate::render_preview::RenderPreviewClient>>,
     pub system_config: Option<Arc<crate::system_config::SystemConfigStore>>,
     /// Prometheus exporter handle for `/metrics` rendering. `None`
     /// only in unit tests that don't install the global recorder.
@@ -376,7 +375,6 @@ impl WebState {
             ldap_config: None,
             oidc_config: None,
             meili: None,
-            render_preview: None,
             system_config: None,
             metrics_handle: None,
             greylist_local: crate::greylist_local::empty(),
@@ -468,14 +466,6 @@ impl WebState {
 
     pub fn with_meili(mut self, client: Arc<crate::search_index::MeiliClient>) -> Self {
         self.meili = Some(client);
-        self
-    }
-
-    pub fn with_render_preview(
-        mut self,
-        client: Arc<crate::render_preview::RenderPreviewClient>,
-    ) -> Self {
-        self.render_preview = Some(client);
         self
     }
 

@@ -27,34 +27,3 @@ export const generateSubjectResultSchema = z.object({
 })
 
 export type WireGenerateSubjectResult = z.infer<typeof generateSubjectResultSchema>
-
-/**
- * `/mail/render-preview` — backend actually returns
- * `{png_base64, fallback_html?}` (see
- * `crates/webapi/src/handlers/misc.rs::render_preview` line 190).
- * Frontend `RenderResult` in `render-preview.tsx` fabricates a
- * different `{previews[], errors[], error?}` shape that never
- * matched — the panel was silently broken. Schema is permissive
- * for now (accepts either shape) so the caller can pattern-match;
- * full UI reconciliation is a follow-up.
- */
-export const renderResultSchema = z
-  .object({
-    error: z.string().optional(),
-    errors: z.array(z.string()).optional(),
-    fallback_html: z.string().optional(),
-    png_base64: z.string().nullable().optional(),
-    previews: z
-      .array(
-        z.object({
-          height: z.number().optional(),
-          image_url: z.string().optional(),
-          name: z.string(),
-          width: z.number().optional(),
-        })
-      )
-      .optional(),
-  })
-  .passthrough()
-
-export type WireRenderResult = z.infer<typeof renderResultSchema>
