@@ -53,6 +53,25 @@ pub(super) async fn run_antispam(
         full_message,
         &ctx.hostname,
     );
+
+    // v2.4.1 Phase 3 (RFC-B §3.3) — populate the per-user
+    // whitelist / blacklist snapshot for the primary rcpt. Empty on
+    // absent client, kevy error, or missing rcpt — all fail-open
+    // and the pipeline falls back to the score-based path
+    // (identical to pre-Phase-3 behavior). Also lowercase the
+    // envelope MAIL FROM into `from_addr` so the lookup match is
+    // case-insensitive.
+    receive_ctx.from_addr = reverse_path.to_lowercase();
+    if !first_rcpt.is_empty() {
+        let (wl, bl) = crate::spam_lists::load_recipient_lists_async(
+            ctx.spam_lists_client.clone(),
+            first_rcpt,
+        )
+        .await;
+        receive_ctx.recipient_whitelist = wl;
+        receive_ctx.recipient_blacklist = bl;
+    }
+
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
     let full_message: Vec<u8> = std::mem::take(&mut receive_ctx.message);

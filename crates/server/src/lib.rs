@@ -635,6 +635,12 @@ pub async fn run() {
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: ldap_config.clone(),
         inbound_pipeline,
+        // v2.4.1 Phase 3 (RFC-B §3.3): monolith has no shared kevy
+        // sidecar handle to hand out — spam whitelist / blacklist
+        // lookups are a fastcore-topology feature. `None` here means
+        // the pipeline receives empty sets, identical to pre-Phase-3
+        // behavior.
+        spam_lists_client: None,
         delivery_executor: mailrs_delivery_executor::DeliveryExecutor::spawn(),
         process_tx,
         // monolith: inline delivery via process_tx (the receiver binary sets
