@@ -1266,6 +1266,8 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(th::PATH_UNSTAR, post(unstar_thread))
             .route(th::PATH_ARCHIVE, post(archive_thread))
             .route(th::PATH_UNARCHIVE, post(unarchive_thread))
+            .route(th::PATH_MARK_JUNK, post(mark_junk))
+            .route(th::PATH_MARK_NOT_JUNK, post(mark_not_junk))
             .route(th::PATH_DELETE_THREAD, delete(delete_thread))
             .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
             .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
@@ -1921,6 +1923,35 @@ async fn archive_thread(
         state
             .mailbox
             .set_archived(&user, &thread_id, true)
+            .unwrap_or(false),
+    )
+}
+
+/// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
+async fn mark_junk(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    action_result(
+        state
+            .mailbox
+            .set_junk(&user, &thread_id, true)
+            .unwrap_or(false),
+    )
+}
+
+/// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as not junk. The
+/// webapi layer separately writes to `spam:{user}:whitelist`; this
+/// RPC just handles the mailbox side (move the thread + stamp
+/// `category = "inbox"`).
+async fn mark_not_junk(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    action_result(
+        state
+            .mailbox
+            .set_junk(&user, &thread_id, false)
             .unwrap_or(false),
     )
 }

@@ -582,6 +582,72 @@ pub async fn archive_thread(
         .map_err(map_err)
 }
 
+/// POST /api/conversations/{thread_id}/mark-junk
+/// v2.4.1 Phase 3 (RFC-B §3.4) — move thread to Junk. Does NOT
+/// modify the recipient's whitelist / blacklist — per plan §D4,
+/// a single mark-junk is not a full sender block.
+pub async fn mark_junk(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .mark_junk(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/mark-not-junk
+/// v2.4.1 Phase 3 (RFC-B §3.4) — move thread to Inbox AND add
+/// the thread's senders to the recipient's whitelist so future
+/// arrivals from the same sender bypass the score threshold when
+/// authed (§D5 requires SPF or DKIM pass at delivery time — see
+/// `crates/inbound/src/decision.rs`).
+pub async fn mark_not_junk(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    // 1) Extract the thread's senders_csv from the mailbox hash and
+    //    SADD every distinct address into the recipient's whitelist.
+    //    Best-effort — kevy errors don't fail the mark-not-junk
+    //    action; the folder move below is the load-bearing part.
+    let user_lc = user.to_lowercase();
+    let tid = thread_id.clone();
+    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+        let hash_key = format!("mailrs:thread:{tid}");
+        let senders = c
+            .hget(hash_key.as_bytes(), b"senders_csv")
+            .ok()
+            .flatten()
+            .and_then(|v| String::from_utf8(v).ok())
+            .unwrap_or_default();
+        if senders.is_empty() {
+            return Ok(());
+        }
+        let wl_key = format!("spam:{user_lc}:whitelist");
+        for raw in senders.split(',') {
+            let addr = raw.trim().to_lowercase();
+            if addr.is_empty() || addr == user_lc {
+                // don't whitelist the owner's own address
+                continue;
+            }
+            let _ = c.sadd(wl_key.as_bytes(), &[addr.as_bytes()]);
+        }
+        Ok(())
+    });
+
+    // 2) Move the thread out of Junk into Inbox on the mailbox side.
+    state
+        .core
+        .mark_not_junk(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// POST /api/conversations/{thread_id}/unread
 pub async fn mark_thread_unread(
     State(state): State<Arc<WebState>>,

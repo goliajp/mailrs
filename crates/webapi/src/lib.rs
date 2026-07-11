@@ -116,6 +116,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             post(c::unarchive_thread),
         )
         .route(
+            "/api/conversations/{thread_id}/mark-junk",
+            post(c::mark_junk),
+        )
+        .route(
+            "/api/conversations/{thread_id}/mark-not-junk",
+            post(c::mark_not_junk),
+        )
+        .route(
             "/api/conversations/{thread_id}/snooze",
             put(c::snooze_thread).delete(c::unsnooze_thread),
         )
@@ -191,6 +199,23 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/queue", get(handlers::prefs::get_queue_stats))
         .route("/api/contacts", get(handlers::prefs::get_contacts))
         .route("/api/mail/feedback", post(handlers::prefs::submit_feedback))
+        // v2.4.1 Phase 3 (RFC-B §3.5) — per-user sender allow/block
+        .route(
+            "/api/spam/whitelist",
+            get(handlers::spam_lists::list_whitelist).post(handlers::spam_lists::add_whitelist),
+        )
+        .route(
+            "/api/spam/whitelist/{address}",
+            delete(handlers::spam_lists::remove_whitelist),
+        )
+        .route(
+            "/api/spam/blacklist",
+            get(handlers::spam_lists::list_blacklist).post(handlers::spam_lists::add_blacklist),
+        )
+        .route(
+            "/api/spam/blacklist/{address}",
+            delete(handlers::spam_lists::remove_blacklist),
+        )
         .route(
             "/api/mail/drafts",
             get(handlers::prefs::list_drafts).post(handlers::prefs::save_draft),
