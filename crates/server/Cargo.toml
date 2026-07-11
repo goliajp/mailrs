@@ -85,7 +85,7 @@ mailrs-postmaster = { path = "../postmaster", version = "1" }
 mailrs-shield = { path = "../shield", version = "3" }
 mailrs-clean = "1"
 mailrs-dmarc = { path = "../dmarc", version = "2" }
-mailrs-inbound = "1"
+mailrs-inbound = { path = "../inbound", version = "1" }
 mailrs-rate-limit = "1"
 mailrs-rfc5322 = "1"
 mailrs-rfc2047 = "1"

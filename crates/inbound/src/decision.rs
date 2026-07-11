@@ -74,6 +74,28 @@ pub struct PipelineInput {
     pub spam_threshold: f64,
     /// Server's hostname — needed to build the Authentication-Results header.
     pub hostname: String,
+    /// Envelope sender's `From:` address, lowercased for whitelist /
+    /// blacklist lookup. Empty when unavailable (very early failures
+    /// before header parse); in that case the recipient-list decisions
+    /// below fall through to the score-based path.
+    ///
+    /// v2.4.1 Phase 3 (RFC-B) addition.
+    pub from_addr: String,
+    /// Recipient's per-user whitelist — envelope sender addresses this
+    /// recipient has explicitly marked as "not junk". Populated by the
+    /// caller (fastcore inbound handler) for each `rcpt` before running
+    /// the pipeline. A whitelist hit routes to Accept **only** if SPF
+    /// or DKIM verified — prevents a phishing sender from claiming a
+    /// whitelisted `From:` and bypassing the score path.
+    ///
+    /// v2.4.1 Phase 3 (RFC-B) addition.
+    pub recipient_whitelist: std::collections::HashSet<String>,
+    /// Recipient's per-user blacklist — envelope sender addresses this
+    /// recipient has explicitly marked as junk / blocked. A blacklist
+    /// hit routes straight to Junk, bypassing the score threshold path.
+    ///
+    /// v2.4.1 Phase 3 (RFC-B) addition.
+    pub recipient_blacklist: std::collections::HashSet<String>,
 }
 
 /// Pure policy combiner. Order of precedence (high → low):
@@ -81,9 +103,18 @@ pub struct PipelineInput {
 /// 1. Greylist (highest — defer before any other work).
 /// 2. Virus found (hard 550 reject).
 /// 3. DMARC policy=reject (hard 550 reject).
-/// 4. DMARC policy=quarantine (route to Junk).
-/// 5. Combined `content_score + ptr_score + ai_score >= spam_threshold` (Junk).
-/// 6. Default: Accept.
+/// 4. **Recipient whitelist hit + SPF-or-DKIM pass → Accept** (v2.4.1
+///    Phase 3, RFC-B §D5). The auth requirement prevents a phishing
+///    sender from spoofing a whitelisted `From:` and bypassing the
+///    score path.
+/// 5. **Recipient blacklist hit → Junk** (v2.4.1 Phase 3, RFC-B §D4).
+///    Runs after virus / DMARC-reject so a blacklist entry can't save
+///    virus mail from a hard reject, but before content scoring so an
+///    explicitly-blocked sender can't accidentally clear a low-score
+///    threshold.
+/// 6. DMARC policy=quarantine (route to Junk).
+/// 7. Combined `content_score + ptr_score + ai_score >= spam_threshold` (Junk).
+/// 8. Default: Accept.
 ///
 /// The function is pure — same input always produces the same output. Use
 /// it directly if you don't want the [`Pipeline`](crate::Pipeline) framework.
@@ -118,6 +149,33 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         return DeliveryDecision::Reject {
             code: 550,
             message: "5.7.1 DMARC policy reject".to_string(),
+        };
+    }
+
+    // v2.4.1 Phase 3 (RFC-B §D5) — recipient whitelist. Bypass the
+    // score / DMARC-quarantine path only when SPF or DKIM pass; a
+    // spoofed `From:` shouldn't earn Accept just because the true
+    // owner of that address is whitelisted.
+    if !input.from_addr.is_empty() && input.recipient_whitelist.contains(&input.from_addr) {
+        let spf_pass = input.auth.spf.eq_ignore_ascii_case("pass");
+        let dkim_pass = input.auth.dkim.eq_ignore_ascii_case("pass");
+        if spf_pass || dkim_pass {
+            return DeliveryDecision::Accept { auth_header };
+        }
+        // Whitelist hit but no auth pass — fall through to normal
+        // scoring path. Do NOT log the ignored whitelist here; the
+        // score / DMARC-quarantine decision that follows is the
+        // authoritative one.
+    }
+
+    // v2.4.1 Phase 3 (RFC-B §D4) — recipient blacklist. Straight to
+    // Junk (never SMTP-reject; §D8 restricts hard 550 to virus +
+    // DMARC-reject only). Runs after virus / DMARC-reject so a
+    // blacklist entry can't override those safety gates.
+    if !input.from_addr.is_empty() && input.recipient_blacklist.contains(&input.from_addr) {
+        return DeliveryDecision::Junk {
+            auth_header,
+            reason: format!("recipient blacklist: {}", input.from_addr),
         };
     }
 
@@ -197,6 +255,9 @@ mod tests {
             ai_score: 0.0,
             spam_threshold: 5.0,
             hostname: "mx.example.com".into(),
+            from_addr: String::new(),
+            recipient_whitelist: std::collections::HashSet::new(),
+            recipient_blacklist: std::collections::HashSet::new(),
         }
     }
 
@@ -421,5 +482,145 @@ mod tests {
             }
             other => panic!("expected Junk, got {other:?}"),
         }
+    }
+
+    // ── v2.4.1 Phase 3 (RFC-B) — whitelist / blacklist ────────────
+
+    fn whitelist_of(addr: &str) -> std::collections::HashSet<String> {
+        let mut s = std::collections::HashSet::new();
+        s.insert(addr.to_lowercase());
+        s
+    }
+
+    #[test]
+    fn whitelist_hit_with_spf_pass_forces_accept_over_score() {
+        // The scoring path alone would send this to Junk (score >
+        // threshold). The whitelist entry + SPF pass overrides.
+        let mut input = baseline_input();
+        input.from_addr = "friend@golia.jp".into();
+        input.recipient_whitelist = whitelist_of("friend@golia.jp");
+        input.content_score = 10.0;
+        input.spam_threshold = 5.0;
+        // auth already has spf="pass" via passing_auth()
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+
+    #[test]
+    fn whitelist_hit_with_dkim_pass_forces_accept_over_score() {
+        // Same as above, but SPF fails and DKIM carries the auth.
+        let mut input = baseline_input();
+        input.from_addr = "friend@golia.jp".into();
+        input.recipient_whitelist = whitelist_of("friend@golia.jp");
+        input.auth.spf = "fail".into();
+        input.auth.dkim = "pass".into();
+        input.content_score = 10.0;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+
+    #[test]
+    fn whitelist_hit_without_auth_falls_through_to_score() {
+        // Neither SPF nor DKIM passed. A phishing sender spoofing a
+        // whitelisted address must NOT ride the whitelist bypass.
+        let mut input = baseline_input();
+        input.from_addr = "friend@golia.jp".into();
+        input.recipient_whitelist = whitelist_of("friend@golia.jp");
+        input.auth.spf = "fail".into();
+        input.auth.dkim = "fail".into();
+        input.content_score = 10.0;
+        // Falls through to the score-based Junk path.
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Junk { .. }
+        ));
+    }
+
+    #[test]
+    fn whitelist_hit_cannot_save_virus_from_reject() {
+        // Whitelist runs after virus. Even a fully-authed
+        // whitelisted sender doesn't get to deliver malware.
+        let mut input = baseline_input();
+        input.virus_found = Some("Eicar".into());
+        input.from_addr = "friend@golia.jp".into();
+        input.recipient_whitelist = whitelist_of("friend@golia.jp");
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Reject { .. }
+        ));
+    }
+
+    #[test]
+    fn whitelist_hit_cannot_save_dmarc_reject() {
+        let mut input = baseline_input();
+        input.auth.dmarc_policy = DmarcPolicy::Reject;
+        input.from_addr = "friend@golia.jp".into();
+        input.recipient_whitelist = whitelist_of("friend@golia.jp");
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Reject { .. }
+        ));
+    }
+
+    #[test]
+    fn blacklist_hit_forces_junk_over_low_score() {
+        // Low score would normally Accept; blacklist forces Junk.
+        let mut input = baseline_input();
+        input.from_addr = "spammer@evil.com".into();
+        input.recipient_blacklist = whitelist_of("spammer@evil.com");
+        input.content_score = 0.0;
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { reason, .. } => {
+                assert!(reason.contains("blacklist"));
+                assert!(reason.contains("spammer@evil.com"));
+            }
+            other => panic!("expected Junk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn blacklist_never_yields_smtp_reject() {
+        // Per §D8, only virus + DMARC-reject may hard-reject. A
+        // blacklist entry is always Junk, never Reject.
+        let mut input = baseline_input();
+        input.from_addr = "spammer@evil.com".into();
+        input.recipient_blacklist = whitelist_of("spammer@evil.com");
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Junk { .. }
+        ));
+    }
+
+    #[test]
+    fn blacklist_cannot_override_virus_or_dmarc_reject() {
+        let mut input = baseline_input();
+        input.virus_found = Some("Eicar".into());
+        input.from_addr = "spammer@evil.com".into();
+        input.recipient_blacklist = whitelist_of("spammer@evil.com");
+        // Virus wins — hard reject.
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Reject { .. }
+        ));
+    }
+
+    #[test]
+    fn empty_from_addr_disables_both_lists() {
+        // Both whitelist and blacklist should skip when from_addr
+        // is empty — no lookup can meaningfully hit.
+        let mut input = baseline_input();
+        input.recipient_whitelist = whitelist_of("someone@example.com");
+        input.recipient_blacklist = whitelist_of("someone@example.com");
+        input.from_addr = String::new();
+        input.content_score = 10.0;
+        // Falls through to score-based Junk (no whitelist bypass).
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Junk { .. }
+        ));
     }
 }

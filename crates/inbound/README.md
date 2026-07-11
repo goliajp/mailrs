@@ -175,6 +175,9 @@ let input = PipelineInput {
     ai_score: 0.5,
     spam_threshold: 5.0,
     hostname: "mx.example.com".into(),
+    from_addr: String::new(),
+    recipient_whitelist: std::collections::HashSet::new(),
+    recipient_blacklist: std::collections::HashSet::new(),
 };
 
 let decision = make_delivery_decision(&input);
