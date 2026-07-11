@@ -80,7 +80,7 @@ export function Chat() {
       }
       if (urlTab === 'unread' || urlTab === 'starred' || urlTab === 'attachment') {
         setQuickFilter(urlTab)
-      } else if (urlTab === 'action' || urlTab === 'important' || urlTab === 'other') {
+      } else if (urlTab === 'important' || urlTab === 'other') {
         setImportanceSection(urlTab)
       }
       if (urlCat) setCategoryFilter(urlCat)

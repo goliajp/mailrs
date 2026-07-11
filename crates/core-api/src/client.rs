@@ -240,15 +240,6 @@ impl Client {
         self.get_authed(path, "conversation_categories").await
     }
 
-    /// GET /v1/users/{user}/conversations/action-count  (Rock 2)
-    pub async fn action_count(
-        &self,
-        user: &str,
-    ) -> ApiResult<method::conversation::ActionCountResponse> {
-        let path = format!("/v1/users/{}/conversations/action-count", Self::enc(user));
-        self.get_authed(path, "action_count").await
-    }
-
     /// GET /v1/users/{user}/conversations/unseen-count  (Rock 2)
     pub async fn unseen_count(
         &self,
@@ -381,16 +372,6 @@ impl Client {
         thread_id: &str,
     ) -> ApiResult<method::thread::ThreadActionResponse> {
         self.thread_action(user, thread_id, "unarchive", "unarchive_thread")
-            .await
-    }
-
-    /// POST /v1/users/{user}/threads/{thread_id}/dismiss-action
-    pub async fn dismiss_thread_action(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> ApiResult<method::thread::ThreadActionResponse> {
-        self.thread_action(user, thread_id, "dismiss-action", "dismiss_action")
             .await
     }
 

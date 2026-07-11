@@ -42,7 +42,7 @@ export const showArchivedAtom = atom(false)
 export const crossAccountReadAtom = atom(false)
 
 // importance section filter: null = all, or 'action' | 'important' | 'other'
-export type ImportanceSection = 'action' | 'important' | 'other' | null
+export type ImportanceSection = 'important' | 'other' | null
 export const importanceSectionAtom = atom<ImportanceSection>(null)
 
 // quick filter

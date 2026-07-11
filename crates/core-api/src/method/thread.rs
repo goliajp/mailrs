@@ -33,7 +33,6 @@ pub const PATH_UNARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/unarchive
 pub const PATH_SNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/snooze";
 pub const PATH_UNSNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/unsnooze";
 pub const PATH_DELETE_THREAD: &str = "/v1/users/{user}/threads/{thread_id}";
-pub const PATH_DISMISS_ACTION: &str = "/v1/users/{user}/threads/{thread_id}/dismiss-action";
 
 /// `POST /v1/users/{user}/threads/{thread_id}/messages` — deliver a
 /// synthesized message (sent copy, saved draft, imported item) into the

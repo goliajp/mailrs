@@ -131,15 +131,6 @@ pub async fn unarchive(
     into_action_response(res, "unarchive", &user, &thread_id).await
 }
 
-/// POST /v1/users/{user}/threads/{thread_id}/dismiss-action
-pub async fn dismiss_action(
-    State(state): State<Arc<CoreRpcState>>,
-    Path((user, thread_id)): Path<(String, String)>,
-) -> Result<Json<wire::ThreadActionResponse>, StatusCode> {
-    let res = state.mailbox.dismiss_thread_action(&user, &thread_id).await;
-    into_action_response(res, "dismiss_action", &user, &thread_id).await
-}
-
 /// PUT /v1/users/{user}/threads/{thread_id}/snooze
 pub async fn snooze(
     State(state): State<Arc<CoreRpcState>>,

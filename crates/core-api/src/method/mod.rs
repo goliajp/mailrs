@@ -37,7 +37,6 @@
 //!   /v1/users/{u}/conversations:list              # conversation aggregates
 //!   /v1/users/{u}/conversations:search
 //!   /v1/users/{u}/conversations/categories
-//!   /v1/users/{u}/conversations/action-count
 //!   /v1/users/{u}/conversations/unseen-count
 //!
 //!   /v1/analysis/{message_id}                     # email_analysis

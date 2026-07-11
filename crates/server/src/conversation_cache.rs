@@ -13,10 +13,9 @@
 //   mailrs:list:{user}:{filter_hash}   → JSON of get_conversations
 //   mailrs:thread:{user}:{thread_id}   → JSON of get_thread_messages
 //   mailrs:cats:{user}:{domains_csv}   → JSON of get_conversation_categories
-//   mailrs:action:{user}:{domains_csv} → JSON of get_action_count
 //
 // Invalidation:
-//   - any mutation on a user's threads → bust_user (drops list / cats / action)
+//   - any mutation on a user's threads → bust_user (drops list / cats)
 //     plus DEL on the specific thread key if the mutation references one.
 //   - SMTP inbound delivery → bust_user once at end of inbound pipeline.
 //   - 30s list TTL caps staleness even if a write path forgets to bust.
@@ -26,12 +25,10 @@ use crate::kevy_store::KevyStore;
 const PREFIX_LIST: &str = "mailrs:list";
 const PREFIX_THREAD: &str = "mailrs:thread";
 const PREFIX_CATS: &str = "mailrs:cats";
-const PREFIX_ACTION: &str = "mailrs:action";
 
 pub const TTL_LIST_SECS: u64 = 30;
 pub const TTL_THREAD_SECS: u64 = 300;
 pub const TTL_CATS_SECS: u64 = 60;
-pub const TTL_ACTION_SECS: u64 = 60;
 
 /// Short, collision-resistant-enough hash for filter combinations in keys.
 /// Not crypto; we just want different filter sets to map to different keys.
@@ -100,10 +97,6 @@ pub fn categories_key(user: &str, domains: Option<&[String]>) -> String {
     format!("{}:{}:{}", PREFIX_CATS, user, domains_part(domains))
 }
 
-pub fn action_count_key(user: &str, domains: Option<&[String]>) -> String {
-    format!("{}:{}:{}", PREFIX_ACTION, user, domains_part(domains))
-}
-
 fn domains_part(domains: Option<&[String]>) -> String {
     match domains {
         Some(d) if !d.is_empty() => {
@@ -140,7 +133,6 @@ pub fn bust_user(kevy: &KevyStore, user: &str) {
     let patterns = [
         format!("{}:{}:*", PREFIX_LIST, user),
         format!("{}:{}:*", PREFIX_CATS, user),
-        format!("{}:{}:*", PREFIX_ACTION, user),
     ];
     for pat in &patterns {
         let keys: Vec<Vec<u8>> = kevy.collect_keys(Some(pat.as_bytes()), None);
@@ -170,7 +162,6 @@ pub fn bust_all_conversations(kevy: &KevyStore) -> usize {
         format!("{}:*", PREFIX_THREAD),
         format!("{}:*", PREFIX_LIST),
         format!("{}:*", PREFIX_CATS),
-        format!("{}:*", PREFIX_ACTION),
     ];
     let mut deleted = 0;
     for pat in &patterns {

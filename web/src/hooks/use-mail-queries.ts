@@ -5,24 +5,13 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { wireFetch } from '@/wire/client'
-import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
+import { adminListGet } from '@/wire/endpoints/admin'
 import {
   wireThreadDetailResponseSchema,
   wireThreadListResponseSchema,
 } from '@/wire/schemas/conversation'
 
 const PAGE_SIZE = 50
-
-export function useActionCountQuery(domains: string[]) {
-  return useQuery({
-    queryKey: mailKeys.actionCount(domains),
-    staleTime: 60 * 1000,
-    queryFn: ({ signal }) => {
-      const q = domains.length > 0 ? `?domains=${encodeURIComponent(domains.join(','))}` : ''
-      return adminObjectGet<{ count: number }>(`/conversations/action-count${q}`, signal)
-    },
-  })
-}
 
 export function useCategoriesQuery(domains: string[]) {
   return useQuery({

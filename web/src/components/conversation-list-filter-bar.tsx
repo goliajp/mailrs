@@ -2,7 +2,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
-import { useActionCountQuery, useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { useCategoriesQuery } from '@/hooks/use-mail-queries'
 import {
   categoryFilterAtom,
   folderAtom,
@@ -20,7 +20,6 @@ const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'Unread', value: 'unread' },
   { label: 'Starred', value: 'starred' },
   { label: 'Sent', value: 'sent' },
-  { label: 'Action', value: 'action' },
   { label: 'Spam', value: 'spam' },
   { label: 'Junk', value: 'junk' },
 ]
@@ -63,11 +62,9 @@ export const FilterBar = memo(function FilterBar() {
         ? 'sent'
         : folder === 'Junk'
           ? 'junk'
-          : section === 'action'
-            ? 'action'
-            : quickFilter !== 'all'
-              ? quickFilter
-              : 'all'
+          : quickFilter !== 'all'
+            ? quickFilter
+            : 'all'
 
   const handleTab = (tab: string) => {
     if (tab === activeTab) return
@@ -81,17 +78,12 @@ export const FilterBar = memo(function FilterBar() {
       setFolder('Sent')
     } else if (tab === 'junk') {
       setFolder('Junk')
-    } else if (tab === 'action') {
-      setSection('action')
     } else if (tab === 'unread') {
       setQuickFilter('unread')
     } else if (tab === 'starred') {
       setQuickFilter('starred')
     }
   }
-
-  const { data: actionCountData } = useActionCountQuery(selectedDomainsVal)
-  const actionCount = actionCountData?.count ?? 0
 
   const hasAdvancedFilters =
     sortOrder !== 'newest' ||
@@ -111,15 +103,13 @@ export const FilterBar = memo(function FilterBar() {
           const color =
             t.value === 'spam'
               ? 'bg-danger/10 text-danger'
-              : t.value === 'action'
-                ? 'bg-danger/10 text-danger'
-                : t.value === 'starred'
-                  ? 'bg-warning/10 text-warning'
-                  : t.value === 'sent'
-                    ? 'bg-success/10 text-success'
-                    : t.value === 'unread'
-                      ? 'bg-accent/10 text-accent'
-                      : 'bg-border text-fg-secondary'
+              : t.value === 'starred'
+                ? 'bg-warning/10 text-warning'
+                : t.value === 'sent'
+                  ? 'bg-success/10 text-success'
+                  : t.value === 'unread'
+                    ? 'bg-accent/10 text-accent'
+                    : 'bg-border text-fg-secondary'
           const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
           return (
             <button
@@ -128,9 +118,6 @@ export const FilterBar = memo(function FilterBar() {
               onClick={() => handleTab(t.value)}
             >
               {t.label}
-              {t.value === 'action' && actionCount > 0 && (
-                <span className="ml-1 opacity-70">{actionCount}</span>
-              )}
             </button>
           )
         })}

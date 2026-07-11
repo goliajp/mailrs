@@ -1,4 +1,4 @@
-//! Action-dismiss + feedback + reaction toggle.
+//! Feedback + reaction toggle.
 
 use std::sync::Arc;
 
@@ -8,36 +8,6 @@ use axum::response::IntoResponse;
 
 use super::super::super::{ApiResult, AuthUser, WebState};
 use super::super::*;
-
-pub(crate) async fn dismiss_action(
-    Path(thread_id): Path<String>,
-    AuthUser { address: user, .. }: AuthUser,
-    State(state): State<Arc<WebState>>,
-) -> impl IntoResponse {
-    if thread_id.len() > crate::web::MAX_PATH_LEN {
-        return Json(ApiResult {
-            success: false,
-            message: Some("thread id too long".into()),
-        });
-    }
-    let Some(ref mb_store) = state.mailbox_store else {
-        return Json(ApiResult {
-            success: false,
-            message: Some("mailbox not configured".into()),
-        });
-    };
-
-    match mb_store.dismiss_thread_action(&user, &thread_id).await {
-        Ok(_) => Json(ApiResult {
-            success: true,
-            message: Some("action dismissed".into()),
-        }),
-        Err(e) => Json(ApiResult {
-            success: false,
-            message: Some(e.to_string()),
-        }),
-    }
-}
 
 pub(crate) async fn record_feedback(
     AuthUser { address: user, .. }: AuthUser,

@@ -189,10 +189,6 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
             get(handlers::conversation::conversation_categories),
         )
         .route(
-            conv_paths::PATH_ACTION_COUNT,
-            get(handlers::conversation::action_count),
-        )
-        .route(
             conv_paths::PATH_UNSEEN_COUNT,
             get(handlers::conversation::unseen_count),
         )
@@ -250,10 +246,6 @@ fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
         .route(th_paths::PATH_UNPIN, post(handlers::thread::unpin))
         .route(th_paths::PATH_ARCHIVE, post(handlers::thread::archive))
         .route(th_paths::PATH_UNARCHIVE, post(handlers::thread::unarchive))
-        .route(
-            th_paths::PATH_DISMISS_ACTION,
-            post(handlers::thread::dismiss_action),
-        )
         .route(th_paths::PATH_SNOOZE, put(handlers::thread::snooze))
         .route(th_paths::PATH_UNSNOOZE, delete(handlers::thread::unsnooze))
         .route(

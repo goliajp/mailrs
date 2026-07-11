@@ -37,7 +37,6 @@ vi.mock('@/lib/query-client', () => ({
 }))
 vi.mock('@/lib/query-keys', () => ({
   mailKeys: {
-    actionCount: () => ['mail', 'action-count'],
     all: () => ['mail'],
     categories: () => ['mail', 'categories'],
     conversations: () => ['mail', 'conversations'],

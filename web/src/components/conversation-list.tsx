@@ -599,9 +599,7 @@ export function ConversationList({
     // attachment filter skipped: ConversationSummary does not have has_attachments yet
 
     // importance section filter
-    if (importanceSection === 'action') {
-      visible = visible.filter((c) => c.requires_action)
-    } else if (importanceSection === 'important') {
+    if (importanceSection === 'important') {
       visible = visible.filter(
         (c) => c.importance_level === 'critical' || c.importance_level === 'important'
       )

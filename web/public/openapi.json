@@ -5155,52 +5155,6 @@
         }
       }
     },
-    "/api/conversations/action-count": {
-      "get": {
-        "summary": "Get conversations action count",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/conversations/{thread_id}/dismiss-action": {
-      "post": {
-        "summary": "Create conversations dismiss action",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DismissActionRequest"
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/events": {
       "get": {
         "summary": "Get events",
@@ -8334,17 +8288,6 @@
         },
         "required": [
           "to"
-        ]
-      },
-      "DismissActionRequest": {
-        "type": "object",
-        "properties": {
-          "action_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "action_id"
         ]
       }
     }

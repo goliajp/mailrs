@@ -130,7 +130,6 @@ export function useMailEvents(user: string) {
               // the next Phase pass cleans it up.
               onNewMessage(queryClient, msg)
               queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
-              queryClient.invalidateQueries({ queryKey: mailKeys.actionCount([]) }).catch(() => {})
               // also bust the thread the event belongs to, if it's the one
               // we're viewing
               if (selectedRef.current && msg.thread_id === selectedRef.current) {

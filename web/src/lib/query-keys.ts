@@ -38,8 +38,6 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
 }
 
 export const mailKeys = {
-  actionCount: (domains: string[]) =>
-    [...mailKeys.all(), 'action-count', [...domains].sort().join(',')] as const,
   all: () => ['mail'] as const,
   categories: (domains: string[]) =>
     [...mailKeys.all(), 'categories', [...domains].sort().join(',')] as const,
