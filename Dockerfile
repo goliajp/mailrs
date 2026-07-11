@@ -52,6 +52,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore-backfill-uid-index \
     && cargo build --release --bin mailrs-fastcore-backfill-usage \
     && cargo build --release --bin mailrs-fastcore-backfill-meili \
+    && cargo build --release --bin mailrs-fastcore-backfill-junk-index \
     && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
     && cargo build --release -p mailrs-core-sync \
@@ -66,6 +67,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
     && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
     && cp /build/target/release/mailrs-fastcore-backfill-meili /usr/local/bin/mailrs-fastcore-backfill-meili \
+    && cp /build/target/release/mailrs-fastcore-backfill-junk-index /usr/local/bin/mailrs-fastcore-backfill-junk-index \
     && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
     && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump \
     && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
