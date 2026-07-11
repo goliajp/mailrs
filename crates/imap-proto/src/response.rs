@@ -14,6 +14,33 @@ pub fn format_list(flags: &str, delimiter: &str, name: &str) -> String {
     format!("* LIST ({flags}) \"{delimiter}\" {name}\r\n")
 }
 
+/// Compute the RFC 6154 SPECIAL-USE attribute for a mailbox name, if
+/// any (v2.4.2 roadmap Phase 4). Case-insensitive; recognizes the
+/// five names IMAP clients (Thunderbird, Apple Mail, iOS Mail)
+/// probe for when they can't rely on hard-coded folder guesses.
+///
+/// Returns an empty string when no special-use applies — the caller
+/// concatenates this after `\HasNoChildren` (or `\HasChildren`) so
+/// the result is `\HasNoChildren \Junk` etc.
+pub fn special_use_flag(name: &str) -> &'static str {
+    // The comparison is against the last hierarchy segment so
+    // `Work/Junk` is not tagged as the top-level Junk mailbox.
+    let leaf = name.rsplit(['/', '.']).next().unwrap_or(name);
+    if leaf.eq_ignore_ascii_case("Junk") || leaf.eq_ignore_ascii_case("Spam") {
+        " \\Junk"
+    } else if leaf.eq_ignore_ascii_case("Sent") {
+        " \\Sent"
+    } else if leaf.eq_ignore_ascii_case("Drafts") {
+        " \\Drafts"
+    } else if leaf.eq_ignore_ascii_case("Trash") {
+        " \\Trash"
+    } else if leaf.eq_ignore_ascii_case("Archive") {
+        " \\Archive"
+    } else {
+        ""
+    }
+}
+
 /// format FETCH response line
 pub fn format_fetch(seq: u32, items: &[(String, String)]) -> String {
     let parts: Vec<String> = items.iter().map(|(k, v)| format!("{k} {v}")).collect();
@@ -111,6 +138,46 @@ mod tests {
             format_bye("Server shutting down"),
             "* BYE Server shutting down\r\n"
         );
+    }
+
+    // v2.4.2 Phase 4 (RFC-C) — special-use flag mapping.
+
+    #[test]
+    fn special_use_maps_junk_case_insensitively() {
+        assert_eq!(special_use_flag("Junk"), " \\Junk");
+        assert_eq!(special_use_flag("junk"), " \\Junk");
+        assert_eq!(special_use_flag("JUNK"), " \\Junk");
+        assert_eq!(special_use_flag("Spam"), " \\Junk");
+    }
+
+    #[test]
+    fn special_use_maps_the_five_standard_names() {
+        assert_eq!(special_use_flag("Sent"), " \\Sent");
+        assert_eq!(special_use_flag("Drafts"), " \\Drafts");
+        assert_eq!(special_use_flag("Trash"), " \\Trash");
+        assert_eq!(special_use_flag("Archive"), " \\Archive");
+    }
+
+    #[test]
+    fn special_use_returns_empty_for_unknown_names() {
+        assert_eq!(special_use_flag("INBOX"), "");
+        assert_eq!(special_use_flag("Work"), "");
+        assert_eq!(special_use_flag(""), "");
+    }
+
+    #[test]
+    fn special_use_matches_last_hierarchy_segment() {
+        // Match happens on the leaf so we handle both `/` and `.`
+        // separators (Maildir++ uses `.`, most other stores use `/`).
+        // A nested `Work/Junk` folder still gets `\Junk` — RFC 6154
+        // doesn't forbid multiple mailboxes sharing a special-use
+        // tag, and MUAs prefer this behavior over silently
+        // stripping the annotation for user-created variants.
+        assert_eq!(special_use_flag("Work/Junk"), " \\Junk");
+        assert_eq!(special_use_flag("Work.Junk"), " \\Junk");
+        // A leaf that isn't one of the recognized names stays
+        // untagged even when its parent segment happens to match:
+        assert_eq!(special_use_flag("Junk.Sub"), "");
     }
 
     #[test]

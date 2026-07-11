@@ -17,6 +17,7 @@ use mailrs_imap_codec::{ImapCodec, ImapInput};
 use mailrs_imap_proto::{
     ImapCommand, format_bad, format_bye, format_capability, format_exists, format_fetch,
     format_flags, format_list, format_no, format_ok, format_recent, parse_command,
+    special_use_flag,
 };
 use mailrs_maildir::Flag;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -271,7 +272,14 @@ fn list_response(
     let mut out = Vec::with_capacity(mailboxes.len() + 1);
     for mb in mailboxes {
         if match_wildcard(&mb.name, pattern) {
-            out.push(format_list("\\HasNoChildren", "/", &mb.name));
+            // v2.4.2 Phase 4 (RFC-C, RFC 6154 §5.1): concatenate the
+            // SPECIAL-USE tag after `\HasNoChildren` so MUAs
+            // (Thunderbird, Apple Mail, iOS Mail) auto-map the
+            // recognized folder names to their built-in Junk / Sent
+            // / Drafts / Trash / Archive UIs. Empty string when the
+            // mailbox name isn't one of the recognized leaves.
+            let flags = format!("\\HasNoChildren{}", special_use_flag(&mb.name));
+            out.push(format_list(&flags, "/", &mb.name));
         }
     }
     out.push(format_ok(tag, "LIST completed"));

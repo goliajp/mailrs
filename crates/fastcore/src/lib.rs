@@ -20,6 +20,7 @@
 mod acme_task;
 pub mod bounce;
 mod imap;
+mod junk_ttl;
 pub mod live_sync;
 mod managesieve;
 mod pop3;
@@ -216,6 +217,11 @@ pub async fn run() {
 
     // TLS-RPT daily aggregate submission (G8.3).
     tlsrpt::spawn_submit(state.clone());
+
+    // v2.4.2 Phase 4.2 (RFC-C §4.2): Junk-folder retention sweep.
+    // Runs every 24h; expunges Junk-zset entries whose latest_date
+    // is older than the per-user TTL (default 30 days).
+    junk_ttl::spawn(state.clone());
 
     // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
     // either is unset. Binds port 80 for the HTTP-01 challenge server
