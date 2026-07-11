@@ -50,13 +50,54 @@ impl<'a> ListThreadsFilter<'a> {
     /// has_unread), callers must ZINTERSTORE the collected keys and
     /// read the intersection.
     ///
-    /// `folder = Sent` is treated as an axis switch, not a predicate
-    /// stacked on top of the others — matches the monolith's semantics.
+    /// `folder = Sent | Junk | Inbox` is treated as an axis switch, not
+    /// a predicate stacked on top of the others — matches the monolith's
+    /// semantics. Sent + Junk + Inbox each resolve to their dedicated
+    /// zset (v2.4.0 roadmap Phase 2, RFC-A).
     fn predicate_index_keys(&self, user: &str) -> Vec<String> {
-        if let Some(f) = self.folder
-            && f.eq_ignore_ascii_case("sent")
-        {
-            return vec![keys::user_threads_sent(user)];
+        if let Some(f) = self.folder {
+            if f.eq_ignore_ascii_case("sent") {
+                return vec![keys::user_threads_sent(user)];
+            }
+            if f.eq_ignore_ascii_case("junk") {
+                // v2.4.0 Phase 2 (RFC-A) — Junk folder read path.
+                // Dedicated `user_threads_junk` zset is authoritative.
+                // Every new arrival with category=="spam" fires an
+                // upsert_thread that ZADDs both this zset and (for
+                // legacy compat) `by_category:spam` in a single atomic
+                // closure — so post-cutover the two are always in
+                // sync. Pre-cutover threads only exist in
+                // `by_category:spam`; the deploy runbook runs a
+                // one-shot `scripts/backfill-junk-index.sh` to copy
+                // them into `user_threads_junk`.
+                return vec![keys::user_threads_junk(user)];
+            }
+            if f.eq_ignore_ascii_case("inbox") {
+                // Inbox axis + additional predicates below stack via
+                // ZINTERSTORE — same shape as any other multi-index
+                // path. Push the Inbox zset first and fall through.
+                let mut out: Vec<String> = Vec::with_capacity(4);
+                out.push(keys::user_threads_inbox(user));
+                if let Some(cat) = self.category {
+                    out.push(keys::user_threads_by_category(user, cat));
+                }
+                if self.pinned {
+                    out.push(keys::user_threads_pinned(user));
+                }
+                if self.archived {
+                    out.push(keys::user_threads_archived(user));
+                }
+                if self.has_unread {
+                    out.push(keys::user_threads_has_unread(user));
+                }
+                if self.has_action {
+                    out.push(keys::user_threads_has_action(user));
+                }
+                if self.starred {
+                    out.push(keys::user_threads_starred(user));
+                }
+                return out;
+            }
         }
         let mut out: Vec<String> = Vec::with_capacity(4);
         if let Some(cat) = self.category {
