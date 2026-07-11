@@ -126,6 +126,12 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/l
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-meili /usr/local/bin/mailrs-fastcore-backfill-meili
+# v2.4.3 Phase 4.3 (RFC-C): one-shot backfill of the Junk zset from
+# pre-cutover by_category:{spam,scam} rows. Idle after the single
+# `docker exec mailrs-fastcore mailrs-fastcore-backfill-junk-index`
+# run that Phase 4 deploys carry — kept in the image so the runbook
+# stays reproducible.
+COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-junk-index /usr/local/bin/mailrs-fastcore-backfill-junk-index
 # Fastcore-native outbound SMTP sender. Drains mailrs:outbound:pending
 # and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
 # to `mailrs-fastcore-sender`.
