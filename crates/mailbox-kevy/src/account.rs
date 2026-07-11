@@ -3,18 +3,66 @@
 //! straight from kevy so webapi never touches spg for auth.
 
 use std::io;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::KevyMailboxStore;
 use crate::keys;
+
+fn now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// Extract `active` from an `AccountWithHashWire` JSON blob. Defaults
+/// to `"1"` (active) when the field is absent — matches the pg-side
+/// invariant that a row without an explicit deactivation is live.
+fn extract_active(blob_json: &str) -> &'static [u8] {
+    match serde_json::from_str::<serde_json::Value>(blob_json) {
+        Ok(v) => match v.get("active").and_then(|x| x.as_bool()) {
+            Some(false) => b"0",
+            _ => b"1",
+        },
+        Err(_) => b"1",
+    }
+}
+
+/// Extract `created_at` epoch seconds from the blob, falling back to
+/// "now" when the field is absent (only on the first upsert; subsequent
+/// upserts preserve whatever the caller passes in the blob).
+fn extract_created_at(blob_json: &str) -> i64 {
+    serde_json::from_str::<serde_json::Value>(blob_json)
+        .ok()
+        .and_then(|v| v.get("created_at").and_then(|x| x.as_i64()))
+        .unwrap_or_else(now_secs)
+}
 
 impl KevyMailboxStore {
     /// UPSERT an account. `blob_json` is the JSON-serialized
     /// `AccountWithHashWire`. Adds the address to `ACCOUNT_INDEX` so
     /// admin/list_accounts + pg-dump can walk it.
+    ///
+    /// v2.6.0 §P6 dual-write: additionally stamps `domain`, `active`,
+    /// `created_at` derived from the address / blob so
+    /// `accounts_by_domain` + `accounts_by_active` range indexes stay
+    /// current. Fields are derived and safe to overwrite on every
+    /// upsert (they mirror the row's identity).
     pub fn upsert_account(&self, address: &str, blob_json: &str) -> io::Result<()> {
         let key = keys::account(address);
+        let domain = address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+        let active = extract_active(blob_json);
+        let created_at = extract_created_at(blob_json).to_string();
         self.store().atomic(|ctx| {
-            ctx.hset(key.as_bytes(), &[(b"blob", blob_json.as_bytes())])?;
+            ctx.hset(
+                key.as_bytes(),
+                &[
+                    (b"blob".as_slice(), blob_json.as_bytes()),
+                    (b"domain".as_slice(), domain.as_bytes()),
+                    (b"active".as_slice(), active),
+                    (b"created_at".as_slice(), created_at.as_bytes()),
+                ],
+            )?;
             ctx.sadd(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
             Ok(())
         })
