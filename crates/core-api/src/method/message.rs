@@ -45,12 +45,26 @@ pub struct MessageWire {
     /// (mailbox_id, uid) instead. The field is retained only for
     /// serde-compat with kevy blobs written before the fix; new writes
     /// still emit `0` and readers ignore it.
+    #[serde(default)]
     pub id: MessageId,
-    /// FK into mailboxes.
+    /// **DEPRECATED (v2.3.3 roadmap Phase 1.6).** FK into `mailboxes`
+    /// under the PG monolith; fastcore keys messages by
+    /// `(user_address, uid)` and has no numeric mailbox row. Frontend
+    /// consumers (grep 2026-07-11: zero hits in `web/src`) never read
+    /// this field; JMAP bridge derives from `user_address`. Retained
+    /// as `#[serde(default)]` so fastcore emit sites can drop it and
+    /// legacy readers still deserialize.
+    #[serde(default)]
     pub mailbox_id: MailboxId,
     /// IMAP UID within mailbox_id.
     pub uid: u32,
-    /// Opaque body reference (maildir filename for the PG impl).
+    /// **DEPRECATED (v2.3.3 roadmap Phase 1.6).** Opaque body reference
+    /// (maildir filename for the PG impl). Fastcore stores bodies by
+    /// message-id hash into `mailrs:body:*` and does not populate this
+    /// field. Zero frontend consumers; JMAP bridge writes its own
+    /// blob ref. Retained with `#[serde(default)]` for legacy blob
+    /// deserialization.
+    #[serde(default)]
     pub blob_ref: MaildirId,
     /// Raw `From:` header.
     pub sender: String,

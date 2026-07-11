@@ -23,6 +23,7 @@ import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
 import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { MPane } from '@/layouts/pane'
+import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
 import { ResetPassword } from '@/pages/reset-password'
 import { authAtom } from '@/store/auth'
@@ -71,8 +72,18 @@ const router = createBrowserRouter([
           { element: <PageProtocol />, errorElement: <RouteErrorFallback />, path: '/protocol' },
           { element: <PageAdmin />, errorElement: <RouteErrorFallback />, path: '/admin/*' },
           { element: <PageSettings />, errorElement: <RouteErrorFallback />, path: '/settings' },
-          { element: <PageChat />, errorElement: <RouteErrorFallback />, path: '/mail/*' },
-          { element: <PageDashboard />, errorElement: <RouteErrorFallback />, path: '/*' },
+          {
+            element: <PageChat />,
+            errorElement: <RouteErrorFallback />,
+            loader: mailListLoader,
+            path: '/mail/*',
+          },
+          {
+            element: <PageDashboard />,
+            errorElement: <RouteErrorFallback />,
+            loader: dashboardLoader,
+            path: '/*',
+          },
         ],
         Component: AuthShellLayout,
         errorElement: <RouteErrorFallback />,
