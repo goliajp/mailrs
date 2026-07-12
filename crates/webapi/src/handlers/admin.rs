@@ -333,7 +333,7 @@ const WEBHOOK_CTR: &str = "admin:webhooks:counter";
 /// POST /api/admin/webhook-subscriptions
 pub async fn create_webhook(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::CreateWebhookRequest>,
 ) -> Result<Json<wire::CreateWebhookResponse>, StatusCode> {
     use base64::Engine as _;
@@ -361,6 +361,12 @@ pub async fn create_webhook(
         )?;
         Ok(())
     })?;
+    super::audit::record(
+        &actor,
+        "webhook.create",
+        &req.account_address,
+        &format!("id={id}"),
+    );
     Ok(Json(wire::CreateWebhookResponse { id, signing_secret }))
 }
 
@@ -382,24 +388,26 @@ pub async fn list_webhooks(
 /// DELETE /api/admin/webhook-subscriptions/{id}
 pub async fn delete_webhook(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(id): axum::extract::Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
     // Webhook is keyed by account — scan by iterating known keys.
     // Cheap: single-user or few-user deployments dominate. If it grows,
     // we can index (id -> account) separately.
     let id_str = id.to_string();
+    let id_str_c = id_str.clone();
     with_kevy(move |c| {
         // simple scan — try all known accounts (SMEMBERS)
         let addrs = c.smembers(b"mailrs:accounts:index").unwrap_or_default();
         for addr_bytes in addrs {
             if let Ok(addr) = String::from_utf8(addr_bytes) {
                 let key = format!("{WEBHOOK_KEY_PREFIX}{addr}");
-                c.hdel(key.as_bytes(), &[id_str.as_bytes()])?;
+                c.hdel(key.as_bytes(), &[id_str_c.as_bytes()])?;
             }
         }
         Ok(())
     })?;
+    super::audit::record(&actor, "webhook.delete", &id_str, "");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -501,28 +509,43 @@ pub struct UpdateAccountRequest {
 /// new field on the account blob).
 pub async fn update_account(
     State(state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    let mut fields_changed = Vec::new();
     if let Some(dn) = req.display_name {
-        let wire_req = wire::UpdateAccountRequest { display_name: dn };
+        let wire_req = wire::UpdateAccountRequest {
+            display_name: dn.clone(),
+        };
         state
             .core
             .update_account(&address, &wire_req)
             .await
             .map_err(map_err)?;
+        fields_changed.push(format!("display_name={dn}"));
     }
     if let Some(re) = req.recovery_email {
-        let wire_req = wire::UpdateRecoveryEmailRequest { recovery_email: re };
+        let wire_req = wire::UpdateRecoveryEmailRequest {
+            recovery_email: re.clone(),
+        };
         state
             .core
             .set_recovery_email(&address, &wire_req)
             .await
             .map_err(map_err)?;
+        fields_changed.push(format!("recovery_email={re}"));
     }
     // `disabled` — TODO: needs a dedicated field/route on fastcore.
     // Silently ignored for now.
+    if !fields_changed.is_empty() {
+        super::audit::record(
+            &actor,
+            "account.update",
+            &address,
+            &fields_changed.join(","),
+        );
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -614,7 +637,7 @@ pub async fn set_account_sieve(
 
 pub async fn delete_account_sieve(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("sieve:{address}");
@@ -622,6 +645,7 @@ pub async fn delete_account_sieve(
         c.del(&[key.as_bytes()])?;
         Ok(())
     })?;
+    super::audit::record(&actor, "sieve.delete", &address, "");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -658,16 +682,23 @@ pub async fn get_account_overrides(
 
 pub async fn set_account_overrides(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("admin:account:{address}:overrides");
     let payload = serde_json::to_vec(&req).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let payload_c = payload.clone();
     with_kevy(move |c| {
-        c.set(key.as_bytes(), &payload)?;
+        c.set(key.as_bytes(), &payload_c)?;
         Ok(())
     })?;
+    super::audit::record(
+        &actor,
+        "overrides.update",
+        &address,
+        &String::from_utf8(payload).unwrap_or_default(),
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -778,12 +809,13 @@ pub async fn list_suppressions(
 
 pub async fn clear_suppressions(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
 ) -> Result<StatusCode, StatusCode> {
     with_kevy(|c| {
         c.del(&[b"mailrs:outbound:suppression".as_slice()])?;
         Ok(())
     })?;
+    super::audit::record(&actor, "suppressions.clear", "", "");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -808,29 +840,33 @@ pub struct AddMemberRequest {
 
 pub async fn add_email_group_member(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(id): Path<String>,
     Json(req): Json<AddMemberRequest>,
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("admin:email-group:{id}:members");
     let addr = req.address;
+    let addr_c = addr.clone();
     with_kevy(move |c| {
-        c.sadd(key.as_bytes(), &[addr.as_bytes()])?;
+        c.sadd(key.as_bytes(), &[addr_c.as_bytes()])?;
         Ok(())
     })?;
+    super::audit::record(&actor, "email_group.member_add", &id, &addr);
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn remove_email_group_member(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path((id, address)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("admin:email-group:{id}:members");
+    let address_c = address.clone();
     with_kevy(move |c| {
-        c.srem(key.as_bytes(), &[address.as_bytes()])?;
+        c.srem(key.as_bytes(), &[address_c.as_bytes()])?;
         Ok(())
     })?;
+    super::audit::record(&actor, "email_group.member_remove", &id, &address);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -841,16 +877,18 @@ pub struct AppScopesRequest {
 
 pub async fn set_app_scopes(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(app_id): Path<String>,
     Json(req): Json<AppScopesRequest>,
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("admin:app:{app_id}:scopes");
     let joined = req.scopes.join(",");
+    let joined_c = joined.clone();
     with_kevy(move |c| {
-        c.set(key.as_bytes(), joined.as_bytes())?;
+        c.set(key.as_bytes(), joined_c.as_bytes())?;
         Ok(())
     })?;
+    super::audit::record(&actor, "app.scopes_update", &app_id, &joined);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -859,8 +897,9 @@ pub async fn set_app_scopes(
 /// Returns 204 so admin panels showing this button don't hang.
 pub async fn flush_conversations_cache(
     State(_state): State<Arc<WebState>>,
-    Extension(_user): Extension<AuthedUser>,
+    Extension(AuthedUser(actor)): Extension<AuthedUser>,
 ) -> Result<StatusCode, StatusCode> {
+    super::audit::record(&actor, "cache.flush_conversations", "", "no-op in fastcore");
     Ok(StatusCode::NO_CONTENT)
 }
 

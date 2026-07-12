@@ -1388,7 +1388,8 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route(
                 adm::PATH_LIST_AUDIT_LOG,
-                get(mailrs_core_sidestate::families::admin_state::list_audit_log::<FastcoreState>),
+                get(mailrs_core_sidestate::families::admin_state::list_audit_log::<FastcoreState>)
+                    .post(mailrs_core_sidestate::families::admin_state::log_audit::<FastcoreState>),
             )
             // account / alias / domain — switchable mail store (embedded kevy)
             .route(adm::PATH_GET_ACCOUNT, get(routes::mail_admin::get_account))
