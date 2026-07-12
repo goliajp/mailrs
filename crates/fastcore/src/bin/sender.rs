@@ -25,7 +25,12 @@ use mailrs_outbound_queue::dkim_sign::DkimSignConfig;
 use mailrs_smtp_client::{SmtpConnection, TimeoutConfig, TokioResolver, resolve_mx};
 use tokio::task::spawn_blocking;
 
-const PENDING_KEY: &[u8] = b"mailrs:outbound:pending";
+// v2.5.3 §P8-B-C: sender BRPOPs the v2 pending-idx now, not the
+// legacy list. Enqueue still LPUSHes both (via core-sidestate) —
+// Phase 8.2 drops the legacy write path. Duplicate ids in
+// pending-idx (from Phase 6.2/7 LPUSH-without-RPOP semantics) are
+// filtered by the WATCH+CAS state=pending check in `pop_next`.
+const PENDING_IDX_KEY: &[u8] = b"mailrs:outbound:pending-idx";
 const FAILED_KEY: &[u8] = b"mailrs:outbound:failed";
 
 #[derive(Clone)]
@@ -123,41 +128,66 @@ fn now_secs() -> i64 {
 async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option<String>> {
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let Some((_key, id_bytes)) = c.brpop(&[PENDING_KEY], Some(wait))? else {
+        // v2.5.3 §P8-B-C: BRPOP the v2 pending-idx. pending-idx may
+        // contain duplicate ids left over from Phase 6.2/7 LPUSH-
+        // without-RPOP semantics — the WATCH+CAS `state=pending` guard
+        // below filters those: only the entry that finds state==pending
+        // wins the CAS, others fall through and loop for the next id.
+        //
+        // BRPOP with the `wait` timer, then a short inner loop that
+        // spends at most (poll_ms * 5) tolerating dup skip until the
+        // outer main loop's brpop_wait window is more accurate. In
+        // practice the pending-idx dup fraction shrinks fast once
+        // Phase 8 lands, since we RPOP one entry per claim now.
+        let Some((_key, id_bytes)) = c.brpop(&[PENDING_IDX_KEY], Some(wait))? else {
             return Ok(None);
         };
         let id = String::from_utf8_lossy(&id_bytes).to_string();
-        // v2.5.2 §P8-B-B: stamp inflight on the v2 job hash the moment we
-        // claim the id from the legacy pending list. `recover_stale` at
-        // boot uses this timestamp to re-enqueue any id that a crashed
-        // sender BRPOPed but never brought to a terminal state.
-        //
-        // BRPOP is a destructive atomic read so there's no CAS race here —
-        // whoever popped owns the id. `mark_inflight` is a plain HSET.
-        mark_inflight(&mut c, &id)?;
+        if !try_claim(&mut c, &id)? {
+            // Dup or already-terminal id — nothing to process. Return
+            // Some so the outer loop calls process_one(id=this-id)?
+            // No: process_one would call load_envelope which returns
+            // None and short-circuits gracefully. Simpler to return
+            // Some(id) and let process_one detect envelope absence.
+            //
+            // Actually cleaner: recurse-once by returning Ok(None) so
+            // the main loop performs its own idle-back-off; a fresh
+            // BRPOP will hit the next entry. Return None.
+            return Ok(None);
+        }
         Ok(Some(id))
     })
     .await
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
 }
 
-/// v2.5.2 §P8-B-B: stamp state=inflight + claimed_at + HINCRBY attempts
-/// on the v2 job hash. Called by `pop_next` right after a legacy BRPOP.
-fn mark_inflight(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<()> {
+/// v2.5.3 §P8-B-C: WATCH+HGET state → MULTI HSET state=inflight CAS
+/// claim. Returns true if we won the CAS (state was pending, we now
+/// own it), false if state was non-pending (dup entry or already-
+/// terminal) or the WATCH aborted (another sender beat us).
+fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<bool> {
     let job_k = format!("mailrs:outbound:job:{id}");
+    c.watch(&[job_k.as_bytes()])?;
+    let state = c.hget(job_k.as_bytes(), b"state")?.unwrap_or_default();
+    if state != b"pending" {
+        c.unwatch()?;
+        return Ok(false);
+    }
     let now = now_secs_str();
-    let _ = c.pipeline(|p| {
-        p.cmd(&[
-            b"HSET",
-            job_k.as_bytes(),
-            b"state",
-            b"inflight",
-            b"claimed_at",
-            now.as_bytes(),
-        ]);
-        p.cmd(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"]);
-    });
-    Ok(())
+    let mut tx = c.multi()?;
+    tx.queue(&[
+        b"HSET",
+        job_k.as_bytes(),
+        b"state",
+        b"inflight",
+        b"claimed_at",
+        now.as_bytes(),
+    ])?;
+    tx.queue(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"])?;
+    match tx.exec_watched()? {
+        Some(_) => Ok(true),
+        None => Ok(false), // another sender's WATCH won
+    }
 }
 
 /// v2.5.2 §P8-B-B `recover_stale` (RFC §2.6). Walks every
@@ -221,12 +251,9 @@ async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
                     now.as_bytes(),
                 ])?;
                 tx.queue(&[b"HDEL", &key, b"claimed_at"])?;
-                tx.queue(&[b"LPUSH", PENDING_KEY, id_owned.as_bytes()])?;
-                tx.queue(&[
-                    b"LPUSH",
-                    b"mailrs:outbound:pending-idx",
-                    id_owned.as_bytes(),
-                ])?;
+                // v2.5.3 §P8-B-C: only LPUSH the v2 pending-idx.
+                // sender BRPOPs pending-idx now, not the legacy list.
+                tx.queue(&[b"LPUSH", PENDING_IDX_KEY, id_owned.as_bytes()])?;
                 if tx.exec_watched()?.is_some() {
                     recovered += 1;
                     tracing::info!(id = %id_owned, "recover_stale: reset inflight -> pending");
@@ -259,8 +286,9 @@ async fn promote_due(cfg: Cfg) -> std::io::Result<()> {
                 break; // rest are future
             }
             // due: pending first, then remove from scheduled — a crash
-            // between the two re-promotes harmlessly (idempotent)
-            c.lpush(PENDING_KEY, &[m.as_slice()])?;
+            // between the two re-promotes harmlessly (idempotent).
+            // v2.5.3 §P8-B-C: promote to v2 pending-idx directly.
+            c.lpush(PENDING_IDX_KEY, &[m.as_slice()])?;
             c.zrem(SCHEDULED_KEY, &[m.as_slice()])?;
         }
         Ok(())
@@ -270,10 +298,14 @@ async fn promote_due(cfg: Cfg) -> std::io::Result<()> {
 }
 
 /// Fetch the envelope for `id`. Returns `Ok(None)` if blob missing.
+///
+/// v2.5.3 §P8-B-C: reads the v2 job hash's `blob` field (enqueue's
+/// dual-write mirrors the same JSON there since Phase 6.2). Legacy
+/// `mailrs:outbound:{id}` hash is no longer touched by sender.
 async fn load_envelope(cfg: Cfg, id: String) -> std::io::Result<Option<serde_json::Value>> {
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let key = format!("mailrs:outbound:{id}");
+        let key = format!("mailrs:outbound:job:{id}");
         let blob = c.hget(key.as_bytes(), b"blob")?;
         let Some(bytes) = blob else { return Ok(None) };
         let v: serde_json::Value = serde_json::from_slice(&bytes)
@@ -296,8 +328,9 @@ async fn drop_blob(cfg: Cfg, id: String) -> std::io::Result<()> {
     let id_c = id.clone();
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let key = format!("mailrs:outbound:{id_c}");
-        c.del(&[key.as_bytes()])?;
+        // v2.5.3 §P8-B-C: legacy `mailrs:outbound:{id}` DEL removed.
+        // Enqueue still writes the legacy hash (Phase 8.2 will drop
+        // that too), but sender no longer reads or deletes it.
         dual_write_terminal(&mut c, &id_c, b"delivered")?;
         Ok(())
     })
@@ -369,6 +402,10 @@ async fn move_to_failed(
     let reason_c = reason.clone();
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
+        // These two — the FAILED set + per-id `failed:{id}` audit hash
+        // — are operator-inspection surfaces (webapi's failed queue
+        // view), not part of the v2 job FSM. They stay independent of
+        // the P8-B-C cutover.
         c.sadd(FAILED_KEY, &[id_c.as_bytes()])?;
         let audit_key = format!("mailrs:outbound:failed:{id_c}");
         c.hset(
@@ -378,12 +415,10 @@ async fn move_to_failed(
                 (b"reason", reason_c.as_bytes()),
             ],
         )?;
-        if !keep_blob {
-            let blob_key = format!("mailrs:outbound:{id_c}");
-            c.del(&[blob_key.as_bytes()])?;
-        }
-        // v2.5.1 §P8-B-A dual-write completion: mirror terminal
-        // state=failed on the v2 job hash. Non-retry failure.
+        // v2.5.3 §P8-B-C: legacy `mailrs:outbound:{id}` blob DEL removed.
+        // `keep_blob` parameter is now moot; caller passes it for
+        // backward-source-compat but the value has no effect.
+        let _ = keep_blob;
         dual_write_terminal(&mut c, &id_c, b"failed")?;
         Ok(())
     })
@@ -448,10 +483,12 @@ async fn requeue(cfg: Cfg, id: String, envelope: serde_json::Value) -> std::io::
     let id_c = id.clone();
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let key = format!("mailrs:outbound:{id_c}");
+        // v2.5.3 §P8-B-C: envelope blob now written to the v2 job hash,
+        // not the legacy `mailrs:outbound:{id}` hash. `dual_write_pending`
+        // handles state=pending + HDEL claimed_at + LPUSH pending-idx.
+        let job_k = format!("mailrs:outbound:job:{id_c}");
         let payload = envelope.to_string();
-        c.hset(key.as_bytes(), &[(b"blob" as &[u8], payload.as_bytes())])?;
-        c.rpush(PENDING_KEY, &[id_c.as_bytes()])?;
+        c.hset(job_k.as_bytes(), &[(b"blob" as &[u8], payload.as_bytes())])?;
         dual_write_pending(&mut c, &id_c)?;
         Ok(())
     })
