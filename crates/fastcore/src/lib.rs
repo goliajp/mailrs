@@ -1325,6 +1325,13 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/sync/reset-cursors",
                 post(reset_sync_cursors_route),
             )
+            // Ops endpoint — one-shot pre-P6 legacy keyspace sweep
+            // (Phase 11.2 embedded half). In-process so no AOF
+            // double-open OOM; idempotent.
+            .route(
+                "/v1/admin/maintenance:sweep-legacy-admin-keys",
+                post(sweep_legacy_admin_keys_route),
+            )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
                 msg::PATH_GET_MESSAGE_BY_UID_USER,
@@ -2380,6 +2387,71 @@ async fn reset_sync_cursors_route(
     Json(serde_json::json!({ "cleared": cleared })).into_response()
 }
 
+/// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot
+/// in-process cleanup of the pre-P6 admin keyspace (roadmap Phase
+/// 11.2's embedded half, executed as an RPC per
+/// `feedback-junk-backfill-oom-finding`: a `docker exec` sweep binary
+/// would double-open the embedded kevy and OOM replaying the AOF;
+/// running inside the live fastcore process costs nothing).
+///
+/// Deletes:
+///   - `mailrs:alias:<addr>` legacy strings (NOT `mailrs:alias:v2:*`)
+///   - `mailrs:domain:<name>` legacy strings (NOT `mailrs:domain:v2:*`)
+///   - `mailrs:aliases:index` / `mailrs:domains:index` /
+///     `mailrs:accounts:index` legacy sets
+///
+/// Idempotent — a second call finds nothing and returns zeros. No
+/// reader has touched these keys since v2.6.2 (Phase 11.3 removed the
+/// last code references); they only weigh down the AOF.
+async fn sweep_legacy_admin_keys_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let store = state.mailbox.store_ref();
+    let mut aliases = 0u32;
+    let mut domains = 0u32;
+
+    let (_, alias_keys) = store.scan(0, Some(b"mailrs:alias:*"), usize::MAX);
+    for key in alias_keys {
+        if key.starts_with(b"mailrs:alias:v2:") {
+            continue;
+        }
+        if store.del(&[key.as_slice()]).unwrap_or(0) > 0 {
+            aliases += 1;
+        }
+    }
+
+    let (_, domain_keys) = store.scan(0, Some(b"mailrs:domain:*"), usize::MAX);
+    for key in domain_keys {
+        if key.starts_with(b"mailrs:domain:v2:") {
+            continue;
+        }
+        if store.del(&[key.as_slice()]).unwrap_or(0) > 0 {
+            domains += 1;
+        }
+    }
+
+    let indexes = store
+        .del(&[
+            b"mailrs:aliases:index".as_slice(),
+            b"mailrs:domains:index".as_slice(),
+            b"mailrs:accounts:index".as_slice(),
+        ])
+        .unwrap_or(0);
+
+    tracing::info!(
+        aliases,
+        domains,
+        indexes,
+        "legacy admin keyspace sweep complete"
+    );
+    Json(serde_json::json!({
+        "legacy_alias_strings": aliases,
+        "legacy_domain_strings": domains,
+        "legacy_index_sets": indexes,
+    }))
+    .into_response()
+}
+
 /// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
 /// bitmask on a message blob. Also reconciles the thread's `has_unread`
 /// zset via `mark_seen` / `mark_unread` when `\Seen` toggled.
@@ -2508,6 +2580,69 @@ mod tests {
     async fn body_string(resp: axum::response::Response) -> String {
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn sweep_legacy_admin_keys_clears_legacy_and_keeps_v2() {
+        let state = fresh_state();
+        let store = state.mailbox.store_ref();
+        // Seed the pre-P6 legacy layout + a v2 hash that must survive.
+        store.set(b"mailrs:alias:old@x", b"target@x").unwrap();
+        store
+            .set(b"mailrs:domain:old.example", b"1700000000")
+            .unwrap();
+        store
+            .sadd(b"mailrs:aliases:index", &[b"old@x".as_slice()])
+            .unwrap();
+        store
+            .sadd(b"mailrs:domains:index", &[b"old.example".as_slice()])
+            .unwrap();
+        store
+            .sadd(b"mailrs:accounts:index", &[b"a@x".as_slice()])
+            .unwrap();
+        state.mailbox.upsert_alias("keep@x", "target@x").unwrap();
+
+        let app = build_router(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/admin/maintenance:sweep-legacy-admin-keys")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = body_string(resp).await;
+        assert!(body.contains("\"legacy_alias_strings\":1"), "{body}");
+        assert!(body.contains("\"legacy_domain_strings\":1"), "{body}");
+        assert!(body.contains("\"legacy_index_sets\":3"), "{body}");
+
+        // Legacy keys gone; v2 hash intact.
+        assert!(store.get(b"mailrs:alias:old@x").unwrap().is_none());
+        assert!(store.get(b"mailrs:domain:old.example").unwrap().is_none());
+        assert!(store.smembers(b"mailrs:aliases:index").unwrap().is_empty());
+        assert_eq!(
+            state.mailbox.resolve_alias("keep@x").unwrap().as_deref(),
+            Some("target@x")
+        );
+
+        // Idempotent: second sweep finds nothing.
+        let app2 = build_router(state);
+        let resp2 = app2
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/admin/maintenance:sweep-legacy-admin-keys")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body2 = body_string(resp2).await;
+        assert!(body2.contains("\"legacy_alias_strings\":0"), "{body2}");
+        assert!(body2.contains("\"legacy_index_sets\":0"), "{body2}");
     }
 
     #[tokio::test]
