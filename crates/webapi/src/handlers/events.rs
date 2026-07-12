@@ -1,9 +1,8 @@
 //! `/api/events` — real-time inbox updates via WebSocket.
 //!
-//! Phase 11. Subscribes to the shared network kevy-server pubsub
-//! channel `notify:new-mail` (where monolith mailrs receiver publishes
-//! `SpoolDelivered` / `MailIndexed` envelopes) and forwards each JSON
-//! frame to WS clients over `/api/events`.
+//! v2.3 §P7-C (2026-07-12): forwards events from kevy's change feed
+//! (SET frames under the `mailrs:events:notify:*` prefix) — durable
+//! across webapi restarts, no PUBSUB dependency.
 //!
 //! Auth: uses the session-auth middleware — a valid session cookie
 //! or bearer token is required just like every other authenticated
@@ -11,9 +10,9 @@
 //! stack, so a missing/invalid session gets a 401 before the WS
 //! upgrade completes.
 //!
-//! Fan-out: one kevy subscription per webapi process (cheap; kevy
-//! handles broadcast internally); each WS client gets its own tokio
-//! mpsc to the shared subscriber loop. Clean up on disconnect.
+//! Fan-out: one feed_read loop per kevy shard (see
+//! `spawn_kevy_feed_consumers`); each WS client gets its own tokio
+//! mpsc to the shared broadcast bus. Clean up on disconnect.
 
 use std::sync::Arc;
 
@@ -99,18 +98,11 @@ async fn get_or_init_bus(state: Arc<WebState>) -> EventBus {
     // Best-effort insert — if another task raced ahead, use their bus.
     match state.event_bus.set(tx.clone()) {
         Ok(()) => {
-            // v2.3 §P7-B (2026-07-10): DUAL consumer. The legacy pubsub
-            // subscriber stays live — it still fires today because
-            // producers publish to `notify:new-mail`, and it's the only
-            // path that has been proven in production. In parallel we
-            // stand up the kevy 3.17 change-feed consumer, which reads
-            // the SET frames producers dual-write per §P7-A. Both feed
-            // the same broadcast::channel; frontend RQ layer treats a
-            // duplicate "nudge to refetch" as a no-op, so the temporary
-            // double-fire during migration is safe. §P7-C removes the
-            // legacy publish + this pubsub subscriber together, ~1-2
-            // weeks after this consumer has proven itself.
-            spawn_kevy_subscriber(state.clone(), tx.clone());
+            // v2.3 §P7-C (2026-07-12): legacy pubsub subscriber dropped.
+            // feed_read consumer is now the sole realtime path — durable
+            // across webapi restarts (unlike PUBSUB which discards
+            // messages when no subscriber is attached at publish time).
+            let _ = state;
             spawn_kevy_feed_consumers(tx.clone());
             tx
         }
@@ -208,43 +200,4 @@ fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
             }
         }
     }
-}
-
-fn spawn_kevy_subscriber(state: Arc<WebState>, tx: EventBus) {
-    let Some(kevy_url) = std::env::var("MAILRS_KEVY_URL").ok() else {
-        tracing::warn!("MAILRS_KEVY_URL unset — WS /api/events won't receive live events");
-        return;
-    };
-    // Ignore compiler warning if state unused — the state Arc is here
-    // for symmetry with future filtering hooks (per-user event streams).
-    let _ = state;
-
-    tokio::task::spawn_blocking(move || {
-        loop {
-            let mut sub = match kevy_client::Subscriber::open(&kevy_url, &[b"notify:new-mail"]) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::warn!(error = %e, url = %kevy_url, "kevy subscribe open failed; retry 5s");
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                    continue;
-                }
-            };
-            tracing::info!("WS event bus subscribed to notify:new-mail");
-            loop {
-                match sub.recv_message() {
-                    Ok((_channel, payload)) => {
-                        let msg = String::from_utf8_lossy(&payload).to_string();
-                        // slow subscribers drop; broadcast returns Err
-                        // when nobody's listening — that's fine.
-                        let _ = tx.send(msg);
-                    }
-                    Err(e) => {
-                        tracing::warn!(error = %e, "kevy recv error; reconnecting in 5s");
-                        std::thread::sleep(std::time::Duration::from_secs(5));
-                        break;
-                    }
-                }
-            }
-        }
-    });
 }

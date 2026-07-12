@@ -260,15 +260,13 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
     let Ok(bytes) = serde_json::to_vec(&payload) else {
         return;
     };
-    // v2.3 §P7-A (2026-07-10): dual-write. Legacy pubsub PUBLISH
-    // (below) still fires so the current webapi consumer keeps
-    // working during the migration window; the new SET+EXPIRE write
-    // exposes the same event to kevy's change feed so a future
-    // feed_read consumer (§P7-B) can pick it up with durability
-    // across webapi restarts. `EXPIRE 300` bounds AOF growth — a
-    // hypothetical consumer that's offline > 5 min will miss those
-    // events, which is fine because the frontend refetches full
-    // state on WS reconnect.
+    // v2.3 §P7-C (2026-07-12): legacy pubsub PUBLISH dropped. The
+    // feed_read consumer wired in webapi handles realtime delivery
+    // via kevy's change feed — durable across webapi restarts
+    // (unlike PUBSUB which discards messages when no subscriber is
+    // attached at publish time). SET+EXPIRE 300 keeps the AOF bound
+    // — a consumer offline > 5 min misses those events, which is
+    // fine because the frontend refetches full state on WS reconnect.
     let key = format!(
         "mailrs:events:notify:{}",
         std::time::SystemTime::now()
@@ -280,7 +278,6 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
         p.cmd(&[b"SET", key.as_bytes(), bytes.as_slice()]);
         p.cmd(&[b"EXPIRE", key.as_bytes(), b"300"]);
     });
-    let _ = conn.publish(b"notify:new-mail", &bytes);
 }
 
 /// Adjust the recipient's used-bytes counter in the NETWORK kevy —
