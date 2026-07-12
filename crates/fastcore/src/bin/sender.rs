@@ -123,8 +123,121 @@ fn now_secs() -> i64 {
 async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option<String>> {
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let popped = c.brpop(&[PENDING_KEY], Some(wait))?;
-        Ok(popped.map(|(_key, value)| String::from_utf8_lossy(&value).to_string()))
+        let Some((_key, id_bytes)) = c.brpop(&[PENDING_KEY], Some(wait))? else {
+            return Ok(None);
+        };
+        let id = String::from_utf8_lossy(&id_bytes).to_string();
+        // v2.5.2 §P8-B-B: stamp inflight on the v2 job hash the moment we
+        // claim the id from the legacy pending list. `recover_stale` at
+        // boot uses this timestamp to re-enqueue any id that a crashed
+        // sender BRPOPed but never brought to a terminal state.
+        //
+        // BRPOP is a destructive atomic read so there's no CAS race here —
+        // whoever popped owns the id. `mark_inflight` is a plain HSET.
+        mark_inflight(&mut c, &id)?;
+        Ok(Some(id))
+    })
+    .await
+    .map_err(|e| std::io::Error::other(format!("join: {e}")))?
+}
+
+/// v2.5.2 §P8-B-B: stamp state=inflight + claimed_at + HINCRBY attempts
+/// on the v2 job hash. Called by `pop_next` right after a legacy BRPOP.
+fn mark_inflight(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<()> {
+    let job_k = format!("mailrs:outbound:job:{id}");
+    let now = now_secs_str();
+    let _ = c.pipeline(|p| {
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            b"inflight",
+            b"claimed_at",
+            now.as_bytes(),
+        ]);
+        p.cmd(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"]);
+    });
+    Ok(())
+}
+
+/// v2.5.2 §P8-B-B `recover_stale` (RFC §2.6). Walks every
+/// `mailrs:outbound:job:*` hash, finds ones where `state==inflight` and
+/// `now - claimed_at > STALE_SECS` (default 5 min) — those are ids a
+/// prior sender BRPOPed and marked inflight but crashed before reaching
+/// a terminal state. Re-enqueues each stale id back onto the legacy
+/// pending list (so the next BRPOP picks it up) and resets state=pending
+/// on the job hash. Idempotent + WATCH-guarded — a second sender doing
+/// recover_stale in parallel will lose the CAS and drop through.
+async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
+    spawn_blocking(move || {
+        const STALE_SECS: i64 = 300;
+        const SCAN_BATCH: usize = 200;
+        let mut c = kevy(&cfg.kevy_url)?;
+        let mut cursor = 0u64;
+        let mut recovered = 0usize;
+        loop {
+            let (next, keys) = c.scan(cursor, Some(b"mailrs:outbound:job:*"), Some(SCAN_BATCH))?;
+            for key in keys {
+                let Ok(key_str) = std::str::from_utf8(&key) else {
+                    continue;
+                };
+                let Some(id) = key_str.strip_prefix("mailrs:outbound:job:") else {
+                    continue;
+                };
+                let id_owned = id.to_string();
+                let state = c.hget(&key, b"state")?;
+                let claimed_at_bytes = c.hget(&key, b"claimed_at")?;
+                let (Some(state), Some(claimed_at_bytes)) = (state, claimed_at_bytes) else {
+                    continue;
+                };
+                if state != b"inflight" {
+                    continue;
+                }
+                let Some(claimed_at) = std::str::from_utf8(&claimed_at_bytes)
+                    .ok()
+                    .and_then(|s| s.parse::<i64>().ok())
+                else {
+                    continue;
+                };
+                if now_secs() - claimed_at < STALE_SECS {
+                    continue;
+                }
+                // Optimistic CAS: re-check state + claimed_at, then flip.
+                c.watch(&[&key])?;
+                let state_now = c.hget(&key, b"state")?.unwrap_or_default();
+                let claimed_now = c.hget(&key, b"claimed_at")?.unwrap_or_default();
+                if state_now != b"inflight" || claimed_now != claimed_at_bytes {
+                    c.unwatch()?;
+                    continue;
+                }
+                let now = now_secs_str();
+                let mut tx = c.multi()?;
+                tx.queue(&[
+                    b"HSET",
+                    &key,
+                    b"state",
+                    b"pending",
+                    b"updated_at",
+                    now.as_bytes(),
+                ])?;
+                tx.queue(&[b"HDEL", &key, b"claimed_at"])?;
+                tx.queue(&[b"LPUSH", PENDING_KEY, id_owned.as_bytes()])?;
+                tx.queue(&[
+                    b"LPUSH",
+                    b"mailrs:outbound:pending-idx",
+                    id_owned.as_bytes(),
+                ])?;
+                if tx.exec_watched()?.is_some() {
+                    recovered += 1;
+                    tracing::info!(id = %id_owned, "recover_stale: reset inflight -> pending");
+                }
+            }
+            if next == 0 {
+                break;
+            }
+            cursor = next;
+        }
+        Ok(recovered)
     })
     .await
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
@@ -754,6 +867,16 @@ async fn main() {
         std::process::exit(2);
     }
 
+    // v2.5.2 §P8-B-B boot hook: reset any inflight job hash that a prior
+    // sender crashed on. Best-effort — a network kevy blip here shouldn't
+    // block the boot loop, it just means the recovery happens on the
+    // periodic sweep instead.
+    match recover_stale((*cfg).clone()).await {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(recovered = n, "recover_stale at boot"),
+        Err(e) => tracing::warn!(err = %e, "recover_stale at boot failed"),
+    }
+
     // BRPOP timer bound. Short enough to promote_due at cadence, long
     // enough that idle brpop dominates wall-clock over the wake-up +
     // reissue overhead. 5 s makes a due-sweep miss at most 5 s from
@@ -762,7 +885,17 @@ async fn main() {
     // idle-cadence knob (poll_ms retained only for error backoff).
     let brpop_wait = Duration::from_secs(5);
     let mut consecutive_errors: u32 = 0;
+    let mut last_stale_sweep = now_secs();
     loop {
+        // v2.5.2 §P8-B-B: periodic recover_stale (every 60 s). Cheap
+        // when the queue is small; guards against sender crashes that
+        // happen between boots and leave orphan inflight jobs.
+        if now_secs() - last_stale_sweep >= 60 {
+            if let Err(e) = recover_stale((*cfg).clone()).await {
+                tracing::warn!(err = %e, "periodic recover_stale failed");
+            }
+            last_stale_sweep = now_secs();
+        }
         // promote any scheduled sends whose time has arrived (G13)
         if let Err(e) = promote_due((*cfg).clone()).await {
             tracing::warn!(err = %e, "scheduled due-sweep failed");
