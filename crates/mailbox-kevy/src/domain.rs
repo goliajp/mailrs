@@ -44,20 +44,39 @@ impl KevyMailboxStore {
     }
 
     /// List every domain as `(name, created_at)`, sorted by name.
+    ///
+    /// v2.6.1c §P6-C: switched to `Store::idx_query` on
+    /// `domains_by_created`. The index returns `(key, IndexValue::I64(
+    /// created_at))` directly — no follow-up HGET needed.
     pub fn list_domains(&self) -> io::Result<Vec<(String, i64)>> {
-        let members = self.store().smembers(keys::DOMAIN_INDEX.as_bytes())?;
+        use kevy_embedded::IndexValue;
         let mut out = Vec::new();
-        for m in members {
-            let Ok(name) = String::from_utf8(m) else {
-                continue;
-            };
-            let created_at = self
-                .store()
-                .get(keys::domain(&name).as_bytes())?
-                .and_then(|v| String::from_utf8(v).ok())
-                .and_then(|s| s.parse::<i64>().ok())
-                .unwrap_or(0);
-            out.push((name, created_at));
+        let mut cursor = None;
+        loop {
+            let (rows, next) = self.store().idx_query(
+                keys::IDX_DOMAINS_BY_CREATED,
+                &IndexValue::I64(i64::MIN),
+                &IndexValue::I64(i64::MAX),
+                cursor.as_ref(),
+                10_000,
+            )?;
+            for (key, val) in rows {
+                let Some(name_bytes) = key.strip_prefix(keys::DOMAIN_V2_PREFIX) else {
+                    continue;
+                };
+                let Ok(name) = std::str::from_utf8(name_bytes) else {
+                    continue;
+                };
+                let created_at = match val {
+                    IndexValue::I64(n) => n,
+                    _ => 0,
+                };
+                out.push((name.to_string(), created_at));
+            }
+            match next {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
         }
         out.sort_by(|a, b| a.0.cmp(&b.0));
         Ok(out)

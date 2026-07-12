@@ -94,24 +94,152 @@ impl KevyMailboxStore {
     }
 
     /// Enumerate every alias for admin listing.
+    ///
+    /// v2.6.1c §P6-C: switched to `Store::idx_query` on
+    /// `aliases_by_domain`. Sync in-process so N sequential HGETs
+    /// on embedded are cheap (~sub-µs each); the win is server-side
+    /// domain-sorted order + parity with the network side that
+    /// Phase 10 already cut over.
     pub fn list_aliases(&self) -> io::Result<Vec<(String, String)>> {
-        let members = self.store().smembers(keys::ALIAS_INDEX.as_bytes())?;
-        let mut out = Vec::with_capacity(members.len());
-        for m in members {
-            let Ok(a) = String::from_utf8(m) else {
-                continue;
-            };
-            let key = keys::alias(&a);
-            let Some(raw) = self.store().get(key.as_bytes())? else {
-                continue;
-            };
-            let Ok(target) = String::from_utf8(raw) else {
-                continue;
-            };
-            out.push((a, target));
+        use kevy_embedded::IndexValue;
+        let mut out = Vec::new();
+        let mut cursor = None;
+        loop {
+            let (rows, next) = self.store().idx_query(
+                keys::IDX_ALIASES_BY_DOMAIN,
+                &IndexValue::Str(Vec::new()),
+                &IndexValue::Str(vec![0xff, 0xff]),
+                cursor.as_ref(),
+                10_000,
+            )?;
+            for (key, _domain_val) in rows {
+                let Some(addr_bytes) = key.strip_prefix(keys::ALIAS_V2_PREFIX) else {
+                    continue;
+                };
+                let Ok(addr) = std::str::from_utf8(addr_bytes) else {
+                    continue;
+                };
+                let Some(target_bytes) = self.store().hget(&key, b"target")? else {
+                    continue;
+                };
+                let Ok(target) = String::from_utf8(target_bytes) else {
+                    continue;
+                };
+                out.push((addr.to_string(), target));
+            }
+            match next {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
         }
         Ok(out)
     }
+
+    /// v2.6.1c §P6-C embedded backfill: promote every pre-Phase-9
+    /// alias from the legacy string+set layout into the v2 hash so
+    /// `list_aliases` (now `idx_query`-based) covers rows written
+    /// before dual-write started. Idempotent — skips rows that
+    /// already have a v2 `target`.
+    pub fn backfill_admin_v2(&self) -> io::Result<AdminBackfillStats> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0)
+            .to_string();
+
+        let mut stats = AdminBackfillStats::default();
+
+        // ── aliases ────────────────────────────────────────────
+        let members = self.store().smembers(keys::ALIAS_INDEX.as_bytes())?;
+        for m in members {
+            let Ok(addr) = String::from_utf8(m) else {
+                continue;
+            };
+            let key_v2 = keys::alias_v2(&addr);
+            if self.store().hget(key_v2.as_bytes(), b"target")?.is_some() {
+                continue;
+            }
+            let key = keys::alias(&addr);
+            let Some(target) = self.store().get(key.as_bytes())? else {
+                continue;
+            };
+            let domain = addr.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+            self.store().hset(
+                key_v2.as_bytes(),
+                &[
+                    (b"target".as_slice(), target.as_slice()),
+                    (b"domain".as_slice(), domain.as_bytes()),
+                    (b"created_at".as_slice(), now.as_bytes()),
+                    (b"active".as_slice(), b"1".as_slice()),
+                ],
+            )?;
+            stats.aliases += 1;
+        }
+
+        // ── domains ────────────────────────────────────────────
+        let members = self.store().smembers(keys::DOMAIN_INDEX.as_bytes())?;
+        for m in members {
+            let Ok(name) = String::from_utf8(m) else {
+                continue;
+            };
+            let key_v2 = keys::domain_v2(&name);
+            if self
+                .store()
+                .hget(key_v2.as_bytes(), b"created_at")?
+                .is_some()
+            {
+                continue;
+            }
+            let key = keys::domain(&name);
+            let Some(created_bytes) = self.store().get(key.as_bytes())? else {
+                continue;
+            };
+            self.store().hset(
+                key_v2.as_bytes(),
+                &[(b"created_at".as_slice(), created_bytes.as_slice())],
+            )?;
+            stats.domains += 1;
+        }
+
+        // ── accounts ───────────────────────────────────────────
+        let members = self.store().smembers(keys::ACCOUNT_INDEX.as_bytes())?;
+        for m in members {
+            let Ok(addr) = String::from_utf8(m) else {
+                continue;
+            };
+            let key = keys::account(&addr);
+            if self.store().hget(key.as_bytes(), b"domain")?.is_some() {
+                continue;
+            }
+            let Some(blob_bytes) = self.store().hget(key.as_bytes(), b"blob")? else {
+                continue;
+            };
+            let blob = String::from_utf8_lossy(&blob_bytes);
+            let (active, created_at) = crate::account::derive_account_fields(&blob);
+            let domain = addr.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
+            self.store().hset(
+                key.as_bytes(),
+                &[
+                    (b"domain".as_slice(), domain.as_bytes()),
+                    (b"active".as_slice(), active),
+                    (b"created_at".as_slice(), created_at.as_bytes()),
+                ],
+            )?;
+            stats.accounts += 1;
+        }
+
+        Ok(stats)
+    }
+}
+
+/// v2.6.1c §P6-C backfill counters — reported at fastcore boot for
+/// forensic visibility.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct AdminBackfillStats {
+    pub aliases: usize,
+    pub domains: usize,
+    pub accounts: usize,
 }
 
 /// Bridge the embedded-kevy alias implementation to the shared
