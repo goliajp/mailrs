@@ -13,30 +13,34 @@ use crate::keys;
 impl KevyMailboxStore {
     /// Insert a domain (idempotent). `created_at` is only set on first
     /// write so re-adding keeps the original timestamp.
+    ///
+    /// v2.6.2 §P6 legacy drop: writes only the v2 hash; idempotency
+    /// (first-write-wins on `created_at`) reads the v2 field.
     pub fn upsert_domain(&self, name: &str, created_at: i64) -> io::Result<()> {
-        let key = keys::domain(name);
         let key_v2 = keys::domain_v2(name);
         let created_str = created_at.to_string();
         self.store().atomic(|ctx| {
-            if ctx.get(key.as_bytes())?.is_none() {
-                ctx.set(key.as_bytes(), created_str.as_bytes());
+            if ctx.hget(key_v2.as_bytes(), b"created_at")?.is_none() {
+                ctx.hset(
+                    key_v2.as_bytes(),
+                    &[(b"created_at".as_slice(), created_str.as_bytes())],
+                )?;
             }
-            ctx.sadd(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
-            // v2.6.0 §P6 dual-write: hash + range-indexed created_at.
-            ctx.hset(
-                key_v2.as_bytes(),
-                &[(b"created_at".as_slice(), created_str.as_bytes())],
-            )?;
             Ok(())
         })
     }
 
     /// Remove a domain. Returns whether it existed.
+    ///
+    /// v2.6.2 §P6 legacy drop: DELs both key namespaces so pre-Phase-9
+    /// rows still get cleaned up. `srem` on the legacy set kept so the
+    /// boot backfill doesn't re-promote the deleted name.
     pub fn delete_domain(&self, name: &str) -> io::Result<bool> {
         let key = keys::domain(name);
         let key_v2 = keys::domain_v2(name);
         self.store().atomic(|ctx| {
-            let existed = ctx.get(key.as_bytes())?.is_some();
+            let existed = ctx.hget(key_v2.as_bytes(), b"created_at")?.is_some()
+                || ctx.get(key.as_bytes())?.is_some();
             ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
             ctx.srem(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
             Ok(existed)

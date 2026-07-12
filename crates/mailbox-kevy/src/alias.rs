@@ -35,13 +35,26 @@ impl KevyMailboxStore {
     /// address (`Ok(Some(_))`) or `Ok(None)` when no alias is set.
     /// Cycles are broken by [`MAX_HOPS`]; the last non-loop address is
     /// returned in that case.
+    ///
+    /// v2.6.2 §P6 legacy drop: reads the v2 hash `target` field first,
+    /// falls back to the legacy string only when v2 is absent — that
+    /// covers pre-Phase-9 rows that were removed from the boot backfill
+    /// path (`resolve_alias` runs before backfill on the SMTP hot path
+    /// during ingress).
     pub fn resolve_alias(&self, address: &str) -> io::Result<Option<String>> {
         let mut current = address.to_string();
         let mut hops = 0;
         let mut hit_any = false;
         while hops < MAX_HOPS {
-            let key = keys::alias(&current);
-            let Some(raw) = self.store().get(key.as_bytes())? else {
+            let key_v2 = keys::alias_v2(&current);
+            let raw = match self.store().hget(key_v2.as_bytes(), b"target")? {
+                Some(bytes) => Some(bytes),
+                None => {
+                    let key = keys::alias(&current);
+                    self.store().get(key.as_bytes())?
+                }
+            };
+            let Some(raw) = raw else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
             let Ok(next) = std::str::from_utf8(&raw) else {
@@ -59,16 +72,16 @@ impl KevyMailboxStore {
 
     /// Point `alias` at `target` (both are full email addresses).
     /// Idempotent — a repeat call with the same target is a no-op.
+    ///
+    /// v2.6.2 §P6 legacy drop: writes only the v2 hash. `resolve_alias`
+    /// still reads the legacy string key for pre-Phase-9 rows that
+    /// haven't been touched (backfill promotes them at boot); post-
+    /// Phase-11 aliases exist only on the v2 hash.
     pub fn upsert_alias(&self, alias: &str, target: &str) -> io::Result<()> {
-        let key = keys::alias(alias);
         let key_v2 = keys::alias_v2(alias);
         let domain = alias.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let created_at = now_secs().to_string();
         self.store().atomic(|ctx| {
-            // Legacy string + set (still authoritative for reads).
-            ctx.set(key.as_bytes(), target.as_bytes());
-            ctx.sadd(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
-            // v2.6.0 §P6 dual-write: hash + range-indexed fields.
             ctx.hset(
                 key_v2.as_bytes(),
                 &[
@@ -83,6 +96,11 @@ impl KevyMailboxStore {
     }
 
     /// Drop an alias entry entirely.
+    ///
+    /// v2.6.2 §P6 legacy drop: DELs both the legacy string key and the
+    /// v2 hash so old aliases still get cleaned up. `srem` on the legacy
+    /// set kept because backfill reads it — dropping the srem would
+    /// leave a stale entry the backfill re-promotes on next boot.
     pub fn delete_alias(&self, alias: &str) -> io::Result<()> {
         let key = keys::alias(alias);
         let key_v2 = keys::alias_v2(alias);
@@ -360,6 +378,9 @@ mod tests {
     #[test]
     fn delete_and_list() {
         let s = store();
+        // v2.6.2 §P6: list_aliases walks the aliases_by_domain range
+        // index — declare it before any upsert so the writes populate.
+        s.ensure_admin_indexes();
         s.upsert_alias("c@x", "a@x").unwrap();
         s.upsert_alias("d@x", "a@x").unwrap();
         let mut listed = s.list_aliases().unwrap();
