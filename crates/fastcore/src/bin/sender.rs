@@ -172,15 +172,76 @@ async fn load_envelope(cfg: Cfg, id: String) -> std::io::Result<Option<serde_jso
 }
 
 /// Delete the blob for `id` (successful delivery or terminal failure).
+///
+/// v2.5.1 §P8-B-A dual-write completion (roadmap addendum discovered
+/// via crash-test harness 2026-07-12): sender-side terminal
+/// transitions must mirror on the v2 job hash so Phase 7 read
+/// cutover (which reads state from `mailrs:outbound:job:{id}`) sees
+/// a consistent view. `dual_write_terminal` sets state=delivered,
+/// LPUSHes done-idx, and EXPIREs the job hash to 24 h.
 async fn drop_blob(cfg: Cfg, id: String) -> std::io::Result<()> {
+    let id_c = id.clone();
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let key = format!("mailrs:outbound:{id}");
+        let key = format!("mailrs:outbound:{id_c}");
         c.del(&[key.as_bytes()])?;
+        dual_write_terminal(&mut c, &id_c, b"delivered")?;
         Ok(())
     })
     .await
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
+}
+
+fn now_secs_str() -> String {
+    now_secs().to_string()
+}
+
+/// v2.5.1 §P8-B-A helper: sender-side terminal transition on the v2
+/// job hash. `state` = b"delivered" | b"failed" | b"bounced". Fires
+/// after the legacy key has been mutated so any partial-write crash
+/// leaves the new hash provably behind the old one — Phase 8 legacy
+/// drop won't run until this always fires in lock-step (Phase 7
+/// harness gate).
+fn dual_write_terminal(
+    c: &mut kevy_client::Connection,
+    id: &str,
+    state: &[u8],
+) -> std::io::Result<()> {
+    let job_k = format!("mailrs:outbound:job:{id}");
+    let now = now_secs_str();
+    let _ = c.pipeline(|p| {
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            state,
+            b"updated_at",
+            now.as_bytes(),
+        ]);
+        p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
+        p.cmd(&[b"LPUSH", b"mailrs:outbound:done-idx", id.as_bytes()]);
+        p.cmd(&[b"EXPIRE", job_k.as_bytes(), b"86400"]);
+    });
+    Ok(())
+}
+
+/// v2.5.1 §P8-B-A helper: sender-side retry (state=pending).
+fn dual_write_pending(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<()> {
+    let job_k = format!("mailrs:outbound:job:{id}");
+    let now = now_secs_str();
+    let _ = c.pipeline(|p| {
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            b"pending",
+            b"updated_at",
+            now.as_bytes(),
+        ]);
+        p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
+        p.cmd(&[b"LPUSH", b"mailrs:outbound:pending-idx", id.as_bytes()]);
+    });
+    Ok(())
 }
 
 /// Move the id into `mailrs:outbound:failed` (SET) and drop the blob.
@@ -208,6 +269,9 @@ async fn move_to_failed(
             let blob_key = format!("mailrs:outbound:{id_c}");
             c.del(&[blob_key.as_bytes()])?;
         }
+        // v2.5.1 §P8-B-A dual-write completion: mirror terminal
+        // state=failed on the v2 job hash. Non-retry failure.
+        dual_write_terminal(&mut c, &id_c, b"failed")?;
         Ok(())
     })
     .await
@@ -263,13 +327,19 @@ async fn enqueue_bounce_dsn(
 
 /// Persist updated envelope (new attempts / last_error) and RPUSH back
 /// to the pending tail for a retry.
+///
+/// v2.5.1 §P8-B-A dual-write completion: on retry, the v2 job hash
+/// state resets to pending and the pending-idx list gets a matching
+/// LPUSH so Phase 7 read cutover sees the same retry semantics.
 async fn requeue(cfg: Cfg, id: String, envelope: serde_json::Value) -> std::io::Result<()> {
+    let id_c = id.clone();
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
-        let key = format!("mailrs:outbound:{id}");
+        let key = format!("mailrs:outbound:{id_c}");
         let payload = envelope.to_string();
         c.hset(key.as_bytes(), &[(b"blob" as &[u8], payload.as_bytes())])?;
-        c.rpush(PENDING_KEY, &[id.as_bytes()])?;
+        c.rpush(PENDING_KEY, &[id_c.as_bytes()])?;
+        dual_write_pending(&mut c, &id_c)?;
         Ok(())
     })
     .await
