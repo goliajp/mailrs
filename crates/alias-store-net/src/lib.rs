@@ -7,27 +7,13 @@
 //! so the cost is negligible next to receiver work.
 //!
 //! Keyspace matches the embedded backend byte-for-byte:
-//! - `mailrs:alias:<address>` string, value = target
-//! - `mailrs:aliases:index`  set   of every source
-//!
-//! This intentionally leaves the AOF layout the receiver already reads
-//! untouched — the network kevy container (`mailrs-kevy` / `kevy://…`)
-//! is the source of truth once RFC 20260705 Step 2 lands. Cutover
-//! plan (embed → network) is a one-shot dump/load script, called out
-//! in the RFC.
+//! `mailrs:alias:v2:<address>` hash `{target, domain, created_at,
+//! active}`; range-indexed by `aliases_by_domain` /
+//! `aliases_by_target` for `list()`'s 2-RTT walk.
 
 use std::io;
 
 use mailrs_alias_store::AliasStore;
-
-/// Alias key: `mailrs:alias:<address>`. Kept lock-step with
-/// `mailrs_mailbox_kevy::keys::alias`.
-fn alias_key(address: &str) -> String {
-    format!("mailrs:alias:{address}")
-}
-
-/// Set-of-aliases index: mirrored from `mailrs_mailbox_kevy::keys::ALIAS_INDEX`.
-const ALIAS_INDEX: &[u8] = b"mailrs:aliases:index";
 
 const MAX_HOPS: usize = 4;
 
@@ -82,75 +68,16 @@ impl NetworkKevyAliasStore {
         );
         Ok(())
     }
-
-    /// v2.6.1 §P6 backfill: populate the v2 hash keyspace from the
-    /// legacy string+set layout. Idempotent — entries that already
-    /// have a `target` field are skipped. Callers invoke once at
-    /// startup after `ensure_indexes()`; the pre-Phase-9 alias rows
-    /// get promoted to v2 the moment fastcore boots on this build.
-    ///
-    /// This is the RFC §4.2 backfill run inline instead of as a
-    /// separate script — the dataset is small (dozens of aliases),
-    /// idempotent, and running it on every boot means Phase 11 has a
-    /// hard guarantee that every legacy row exists in v2.
-    pub fn backfill_v2(&self) -> io::Result<usize> {
-        let mut conn = self.connect()?;
-        let members = conn.smembers(ALIAS_INDEX)?;
-        if members.is_empty() {
-            return Ok(0);
-        }
-        let created_at = now_secs().to_string();
-        let mut promoted = 0usize;
-        for m in members {
-            let Ok(source) = String::from_utf8(m) else {
-                continue;
-            };
-            let key_v2 = alias_key_v2(&source);
-            // Skip if the v2 row already has a target field — either
-            // because dual-write already fired or because a prior
-            // backfill promoted this row.
-            if conn.hget(key_v2.as_bytes(), b"target")?.is_some() {
-                continue;
-            }
-            let key = alias_key(&source);
-            let Some(target_bytes) = conn.get(key.as_bytes())? else {
-                continue;
-            };
-            let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
-            let _ = conn.hset(
-                key_v2.as_bytes(),
-                &[
-                    (b"target".as_slice(), target_bytes.as_slice()),
-                    (b"domain".as_slice(), domain.as_bytes()),
-                    (b"created_at".as_slice(), created_at.as_bytes()),
-                    (b"active".as_slice(), b"1".as_slice()),
-                ],
-            );
-            promoted += 1;
-        }
-        Ok(promoted)
-    }
 }
 
 impl AliasStore for NetworkKevyAliasStore {
-    /// v2.6.2 §P6 legacy drop: read v2 hash target first; fall back to
-    /// legacy string for pre-Phase-9 rows (backfill promotes them at
-    /// fastcore boot, but `resolve` may run before backfill during
-    /// SMTP ingress).
     fn resolve(&self, address: &str) -> io::Result<Option<String>> {
         let mut conn = self.connect()?;
         let mut current = address.to_string();
         let mut hit_any = false;
         for _ in 0..MAX_HOPS {
             let key_v2 = alias_key_v2(&current);
-            let raw = match conn.hget(key_v2.as_bytes(), b"target")? {
-                Some(bytes) => Some(bytes),
-                None => {
-                    let key = alias_key(&current);
-                    conn.get(key.as_bytes())?
-                }
-            };
-            let Some(raw) = raw else {
+            let Some(raw) = conn.hget(key_v2.as_bytes(), b"target")? else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
             let Ok(next) = String::from_utf8(raw) else {
@@ -165,7 +92,6 @@ impl AliasStore for NetworkKevyAliasStore {
         Ok(Some(current))
     }
 
-    /// v2.6.2 §P6 legacy drop: writes only the v2 hash.
     fn upsert(&self, source: &str, target: &str) -> io::Result<()> {
         let mut conn = self.connect()?;
         let key_v2 = alias_key_v2(source);
@@ -183,16 +109,10 @@ impl AliasStore for NetworkKevyAliasStore {
         Ok(())
     }
 
-    /// v2.6.2 §P6 legacy drop: DELs both key namespaces so pre-Phase-9
-    /// rows still get cleaned up. `srem` on the legacy set kept so
-    /// `backfill_v2` doesn't re-promote the deleted address on next
-    /// boot.
     fn delete(&self, source: &str) -> io::Result<bool> {
         let mut conn = self.connect()?;
-        let key = alias_key(source);
         let key_v2 = alias_key_v2(source);
-        let removed = conn.del(&[key.as_bytes(), key_v2.as_bytes()])?;
-        conn.srem(ALIAS_INDEX, &[source.as_bytes()])?;
+        let removed = conn.del(&[key_v2.as_bytes()])?;
         Ok(removed > 0)
     }
 

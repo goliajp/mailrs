@@ -1,7 +1,7 @@
-//! Domain rows on kevy — the switchable mail-store's domain list, mirror
-//! of the pg-core `domains` table. Layout:
-//! - `mailrs:domain:<name>` string, value = created_at epoch seconds
-//! - `mailrs:domains:index` set of every domain name
+//! Domain rows on kevy — the switchable mail-store's domain list,
+//! mirror of the pg-core `domains` table. Layout:
+//! `mailrs:domain:v2:<name>` hash `{created_at}`; range-indexed by
+//! `domains_by_created` for `list_domains`.
 //!
 //! Kept minimal (name + created_at) to match `DomainWire`.
 
@@ -31,18 +31,11 @@ impl KevyMailboxStore {
     }
 
     /// Remove a domain. Returns whether it existed.
-    ///
-    /// v2.6.2 §P6 legacy drop: DELs both key namespaces so pre-Phase-9
-    /// rows still get cleaned up. `srem` on the legacy set kept so the
-    /// boot backfill doesn't re-promote the deleted name.
     pub fn delete_domain(&self, name: &str) -> io::Result<bool> {
-        let key = keys::domain(name);
         let key_v2 = keys::domain_v2(name);
         self.store().atomic(|ctx| {
-            let existed = ctx.hget(key_v2.as_bytes(), b"created_at")?.is_some()
-                || ctx.get(key.as_bytes())?.is_some();
-            ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
-            ctx.srem(keys::DOMAIN_INDEX.as_bytes(), &[name.as_bytes()])?;
+            let existed = ctx.hget(key_v2.as_bytes(), b"created_at")?.is_some();
+            ctx.del(&[key_v2.as_bytes()]);
             Ok(existed)
         })
     }

@@ -38,26 +38,13 @@ fn extract_created_at(blob_json: &str) -> i64 {
         .unwrap_or_else(now_secs)
 }
 
-/// v2.6.1c §P6-C backfill helper: crate-visible so `alias.rs` (which
-/// owns the aggregate `backfill_admin_v2` walker) can derive the same
-/// `(active, created_at_string)` pair without duplicating the parse.
-pub(crate) fn derive_account_fields(blob_json: &str) -> (&'static [u8], String) {
-    (
-        extract_active(blob_json),
-        extract_created_at(blob_json).to_string(),
-    )
-}
-
 impl KevyMailboxStore {
     /// UPSERT an account. `blob_json` is the JSON-serialized
-    /// `AccountWithHashWire`. Adds the address to `ACCOUNT_INDEX` so
-    /// admin/list_accounts + pg-dump can walk it.
-    ///
-    /// v2.6.0 §P6 dual-write: additionally stamps `domain`, `active`,
-    /// `created_at` derived from the address / blob so
-    /// `accounts_by_domain` + `accounts_by_active` range indexes stay
-    /// current. Fields are derived and safe to overwrite on every
-    /// upsert (they mirror the row's identity).
+    /// `AccountWithHashWire`. Stamps `domain`, `active`, `created_at`
+    /// derived from the address / blob so `accounts_by_domain` +
+    /// `accounts_by_active` range indexes stay current. Fields are
+    /// derived and safe to overwrite on every upsert (they mirror the
+    /// row's identity).
     pub fn upsert_account(&self, address: &str, blob_json: &str) -> io::Result<()> {
         let key = keys::account(address);
         let domain = address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
@@ -146,19 +133,14 @@ impl KevyMailboxStore {
         }
     }
 
-    /// Remove account + perms blob + drop from the account index. Does
-    /// NOT touch the user's threads / mailboxes / maildir — the caller
-    /// is responsible for that when a hard delete is desired.
-    ///
-    /// v2.6.2 §P6 legacy drop: `srem` on `mailrs:accounts:index` kept so
-    /// the boot backfill doesn't re-promote the deleted address on the
-    /// next boot.
+    /// Remove account + perms blob. Does NOT touch the user's threads /
+    /// mailboxes / maildir — the caller is responsible for that when a
+    /// hard delete is desired.
     pub fn delete_account(&self, address: &str) -> io::Result<()> {
         let acct = keys::account(address);
         let perms = keys::account_permissions(address);
         self.store().atomic(|ctx| {
             ctx.del(&[acct.as_bytes(), perms.as_bytes()]);
-            ctx.srem(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
             Ok(())
         })
     }
