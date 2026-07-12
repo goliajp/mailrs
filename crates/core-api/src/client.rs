@@ -108,6 +108,33 @@ impl Client {
         Self::map_status(resp, context).await
     }
 
+    /// POST with JSON body and no expected response body (server returns
+    /// `204 No Content`). Used for fire-and-forget audit writes and
+    /// similar one-way admin actions.
+    async fn post_authed_no_content<R: serde::Serialize>(
+        &self,
+        path: &str,
+        context: &'static str,
+        body: &R,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .post(self.url(path))
+            .bearer_auth(&self.auth_bearer)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| CoreApiError::Internal(format!("{context} transport: {e}")))?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            Err(CoreApiError::Internal(format!(
+                "{context} bad status: {}",
+                resp.status()
+            )))
+        }
+    }
+
     async fn post_authed_no_body<T: serde::de::DeserializeOwned>(
         &self,
         path: String,
@@ -727,6 +754,30 @@ impl Client {
     pub async fn list_audit_log(&self, limit: u32) -> ApiResult<method::admin::AuditListResponse> {
         let path = format!("/v1/admin/audit-log?limit={limit}");
         self.get_authed(path, "list_audit_log").await
+    }
+
+    /// POST /v1/admin/audit-log — fire-and-forget audit trail write.
+    ///
+    /// v2.7.2 §Phase 12 §12.1: called from admin write handlers'
+    /// success branches. `detail` is free-form text (JSON string OK
+    /// for structured actions). Non-blocking best-effort — a network
+    /// hiccup here must not break the business write, per RFC
+    /// `20260610-audit-log-retrofit.md` failure-mode decision.
+    pub async fn log_audit(
+        &self,
+        actor: &str,
+        action: &str,
+        target: &str,
+        detail: &str,
+    ) -> ApiResult<()> {
+        let req = method::admin::LogAuditRequest {
+            actor: actor.into(),
+            action: action.into(),
+            target: target.into(),
+            detail: detail.into(),
+        };
+        self.post_authed_no_content("/v1/admin/audit-log", "log_audit", &req)
+            .await
     }
 
     /// POST /v1/users/{user}/contacts/{email}/feedback
