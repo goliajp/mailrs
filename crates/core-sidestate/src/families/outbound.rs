@@ -142,28 +142,15 @@ pub async fn enqueue<S: NetKevy>(
     // functionally equivalent — same crash-window as before, one
     // less RTT on the enqueue path.
     let blob = row_blob(&row);
-    let key = format!("mailrs:outbound:{id}");
     let job_k = job_key(id);
     let id_str = id.to_string();
     let now_str = now.to_string();
     let sched_score = req.scheduled_at.map(|t| t.to_string());
+    // v2.5.3 §P8-B-C (Phase 8.2): drop legacy `mailrs:outbound:{id}` +
+    // `mailrs:outbound:pending` + `mailrs:outbound:scheduled` writes.
+    // sender's Phase 8.1 read cutover means those keys are already dead;
+    // enqueue now writes only the v2 job hash + pending-idx (or scheduled-idx).
     let _ = conn.pipeline(|p| {
-        // Legacy: single blob field on the row hash + a per-shape list/zset push.
-        p.cmd(&[b"HSET", key.as_bytes(), b"blob", blob.as_bytes()]);
-        match sched_score.as_deref() {
-            Some(score) => {
-                p.cmd(&[
-                    b"ZADD",
-                    b"mailrs:outbound:scheduled",
-                    score.as_bytes(),
-                    id_str.as_bytes(),
-                ]);
-            }
-            None => {
-                p.cmd(&[b"LPUSH", b"mailrs:outbound:pending", id_str.as_bytes()]);
-            }
-        }
-        // v2.5.1 §P8-B-A dual-write: single-hash job + parallel index push.
         p.cmd(&[
             b"HSET",
             job_k.as_bytes(),
@@ -262,15 +249,18 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
             bounced: 0,
         });
     };
-    // v2.3 §P8-A (2026-07-09): batched read — 5 sequential RTTs
-    // (LLEN×2 + GET×3) → 1 RTT via kevy-client 1.14 pipeline.
-    // Reply positions are indexed against the queued command order.
-    // Any per-reply Error / Nil / shape mismatch falls back to `0`
-    // — the pre-fix version's `.unwrap_or(0)` had the same contract.
+    // v2.5.3 §P8-B-C (Phase 8.2): `pending` from `pending-idx` llen —
+    // may over-count while duplicate LPUSH entries drain (see Phase 8.1
+    // memory), but converges to the true pending count once the sender
+    // dedupes them. `inflight` is deprecated in the v2 layout (sender
+    // no longer LPUSHes the legacy list; a truly precise count would
+    // need a job-hash SCAN which is too expensive for a stats
+    // endpoint) — returned as 0. Terminal counters still read from
+    // the legacy counter keys because the webapi RPC mark_* path
+    // continues to INCR them.
     let replies = conn
         .pipeline(|p| {
-            p.cmd(&[b"LLEN", b"mailrs:outbound:pending"]);
-            p.cmd(&[b"LLEN", b"mailrs:outbound:inflight"]);
+            p.cmd(&[b"LLEN", b"mailrs:outbound:pending-idx"]);
             p.cmd(&[b"GET", b"mailrs:outbound:delivered:count"]);
             p.cmd(&[b"GET", b"mailrs:outbound:failed:count"]);
             p.cmd(&[b"GET", b"mailrs:outbound:bounced:count"]);
@@ -293,10 +283,10 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
     }
     Json(QueueStatsResponse {
         pending: int_at(&replies, 0),
-        inflight: int_at(&replies, 1),
-        delivered: cnt_at(&replies, 2),
-        failed: cnt_at(&replies, 3),
-        bounced: cnt_at(&replies, 4),
+        inflight: 0,
+        delivered: cnt_at(&replies, 1),
+        failed: cnt_at(&replies, 2),
+        bounced: cnt_at(&replies, 3),
     })
 }
 
