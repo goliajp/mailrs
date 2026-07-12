@@ -133,13 +133,24 @@ impl NetworkKevyAliasStore {
 }
 
 impl AliasStore for NetworkKevyAliasStore {
+    /// v2.6.2 §P6 legacy drop: read v2 hash target first; fall back to
+    /// legacy string for pre-Phase-9 rows (backfill promotes them at
+    /// fastcore boot, but `resolve` may run before backfill during
+    /// SMTP ingress).
     fn resolve(&self, address: &str) -> io::Result<Option<String>> {
         let mut conn = self.connect()?;
         let mut current = address.to_string();
         let mut hit_any = false;
         for _ in 0..MAX_HOPS {
-            let key = alias_key(&current);
-            let Some(raw) = conn.get(key.as_bytes())? else {
+            let key_v2 = alias_key_v2(&current);
+            let raw = match conn.hget(key_v2.as_bytes(), b"target")? {
+                Some(bytes) => Some(bytes),
+                None => {
+                    let key = alias_key(&current);
+                    conn.get(key.as_bytes())?
+                }
+            };
+            let Some(raw) = raw else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
             let Ok(next) = String::from_utf8(raw) else {
@@ -154,18 +165,13 @@ impl AliasStore for NetworkKevyAliasStore {
         Ok(Some(current))
     }
 
+    /// v2.6.2 §P6 legacy drop: writes only the v2 hash.
     fn upsert(&self, source: &str, target: &str) -> io::Result<()> {
         let mut conn = self.connect()?;
-        let key = alias_key(source);
-        conn.set(key.as_bytes(), target.as_bytes())?;
-        conn.sadd(ALIAS_INDEX, &[source.as_bytes()])?;
-        // v2.6.0 §P6 dual-write: hash + range-indexed fields on the
-        // parallel `mailrs:alias:v2:*` keyspace. Best-effort; failure
-        // here leaves the legacy layout intact (read paths untouched).
         let key_v2 = alias_key_v2(source);
         let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let created_at = now_secs().to_string();
-        let _ = conn.hset(
+        conn.hset(
             key_v2.as_bytes(),
             &[
                 (b"target".as_slice(), target.as_bytes()),
@@ -173,10 +179,14 @@ impl AliasStore for NetworkKevyAliasStore {
                 (b"created_at".as_slice(), created_at.as_bytes()),
                 (b"active".as_slice(), b"1".as_slice()),
             ],
-        );
+        )?;
         Ok(())
     }
 
+    /// v2.6.2 §P6 legacy drop: DELs both key namespaces so pre-Phase-9
+    /// rows still get cleaned up. `srem` on the legacy set kept so
+    /// `backfill_v2` doesn't re-promote the deleted address on next
+    /// boot.
     fn delete(&self, source: &str) -> io::Result<bool> {
         let mut conn = self.connect()?;
         let key = alias_key(source);

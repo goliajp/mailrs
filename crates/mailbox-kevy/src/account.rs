@@ -73,7 +73,9 @@ impl KevyMailboxStore {
                     (b"created_at".as_slice(), created_at.as_bytes()),
                 ],
             )?;
-            ctx.sadd(keys::ACCOUNT_INDEX.as_bytes(), &[address.as_bytes()])?;
+            // v2.6.2 §P6 legacy drop: `mailrs:accounts:index` no longer
+            // written — `list_account_addresses` walks
+            // `accounts_by_active` idx instead.
             Ok(())
         })
     }
@@ -147,6 +149,10 @@ impl KevyMailboxStore {
     /// Remove account + perms blob + drop from the account index. Does
     /// NOT touch the user's threads / mailboxes / maildir — the caller
     /// is responsible for that when a hard delete is desired.
+    ///
+    /// v2.6.2 §P6 legacy drop: `srem` on `mailrs:accounts:index` kept so
+    /// the boot backfill doesn't re-promote the deleted address on the
+    /// next boot.
     pub fn delete_account(&self, address: &str) -> io::Result<()> {
         let acct = keys::account(address);
         let perms = keys::account_permissions(address);
@@ -182,6 +188,9 @@ mod tests {
     #[test]
     fn list_addresses() {
         let s = KevyMailboxStore::new(store());
+        // v2.6.2 §P6: list_account_addresses walks the accounts_by_active
+        // range index, which must be declared before any upsert.
+        s.ensure_admin_indexes();
         s.upsert_account("a@x", "{}").unwrap();
         s.upsert_account("b@x", "{}").unwrap();
         let mut addrs = s.list_account_addresses().unwrap();
