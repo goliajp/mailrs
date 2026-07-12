@@ -38,6 +38,16 @@ fn extract_created_at(blob_json: &str) -> i64 {
         .unwrap_or_else(now_secs)
 }
 
+/// v2.6.1c §P6-C backfill helper: crate-visible so `alias.rs` (which
+/// owns the aggregate `backfill_admin_v2` walker) can derive the same
+/// `(active, created_at_string)` pair without duplicating the parse.
+pub(crate) fn derive_account_fields(blob_json: &str) -> (&'static [u8], String) {
+    (
+        extract_active(blob_json),
+        extract_created_at(blob_json).to_string(),
+    )
+}
+
 impl KevyMailboxStore {
     /// UPSERT an account. `blob_json` is the JSON-serialized
     /// `AccountWithHashWire`. Adds the address to `ACCOUNT_INDEX` so
@@ -82,15 +92,37 @@ impl KevyMailboxStore {
     }
 
     /// List every registered account address.
+    ///
+    /// v2.6.1c §P6-C: switched to `Store::idx_query` on
+    /// `accounts_by_active`. Range covers all values so the result
+    /// set matches the pre-cutover admin-list contract.
     pub fn list_account_addresses(&self) -> io::Result<Vec<String>> {
-        let members = self.store().smembers(keys::ACCOUNT_INDEX.as_bytes())?;
-        members
-            .into_iter()
-            .map(|m| {
-                String::from_utf8(m)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("addr: {e}")))
-            })
-            .collect()
+        use kevy_embedded::IndexValue;
+        let mut out = Vec::new();
+        let mut cursor = None;
+        loop {
+            let (rows, next) = self.store().idx_query(
+                keys::IDX_ACCOUNTS_BY_ACTIVE,
+                &IndexValue::Str(Vec::new()),
+                &IndexValue::Str(vec![0xff, 0xff]),
+                cursor.as_ref(),
+                10_000,
+            )?;
+            for (key, _) in rows {
+                let Some(addr_bytes) = key.strip_prefix(keys::ACCOUNT_PREFIX) else {
+                    continue;
+                };
+                let Ok(addr) = std::str::from_utf8(addr_bytes) else {
+                    continue;
+                };
+                out.push(addr.to_string());
+            }
+            match next {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+        Ok(out)
     }
 
     /// Upsert the effective_permissions JSON blob for `address`.
