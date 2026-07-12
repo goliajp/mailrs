@@ -93,7 +93,14 @@ pub struct KevyMailboxStore {
 
 impl KevyMailboxStore {
     pub fn new(store: Arc<Store>) -> Self {
-        Self { store }
+        let s = Self { store };
+        // v2.6.0 §P6: register the admin-CRUD range indexes idempotently
+        // on construction. Callers no longer need to invoke
+        // `ensure_admin_indexes()` explicitly. Duplicate declarations
+        // (subsequent boots) are swallowed by `idx_create`'s own
+        // idempotency contract.
+        s.ensure_admin_indexes();
+        s
     }
 
     /// Access to the inner kevy store — handed to MULTI/EXEC blocks in
