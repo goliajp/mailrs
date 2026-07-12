@@ -169,25 +169,8 @@ pub async fn run() {
         .with_feed(16 * 1024 * 1024);
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
     let mailbox = KevyMailboxStore::new(store);
-    // v2.6.0 §P6 dual-write (roadmap Phase 9): register the admin-CRUD
-    // range indexes idempotently.
+    // v2.6.0 §P6: register the admin-CRUD range indexes idempotently.
     mailbox.ensure_admin_indexes();
-    // v2.6.1c §P6-C (roadmap Phase 10c): promote pre-Phase-9 rows into
-    // the v2 hash so `list_aliases` / `list_domains` /
-    // `list_account_addresses` (now `idx_query`-based) see the full
-    // dataset. Idempotent.
-    match mailbox.backfill_admin_v2() {
-        Ok(stats) if stats.aliases + stats.domains + stats.accounts > 0 => {
-            tracing::info!(
-                aliases = stats.aliases,
-                domains = stats.domains,
-                accounts = stats.accounts,
-                "mailbox-kevy admin backfill promoted pre-Phase-9 rows"
-            );
-        }
-        Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "mailbox-kevy admin backfill failed at boot"),
-    }
 
     // Alias-store backend selector — RFC 20260705 Step 2.
     // Default (`embed` / unset): historical fastcore-owned alias table
@@ -211,19 +194,6 @@ pub async fn run() {
             // ensure call.
             if let Err(e) = store.ensure_indexes() {
                 tracing::warn!(error = %e, "alias-store network idx_create failed at boot");
-            }
-            // v2.6.1 §P6 backfill: promote pre-Phase-9 rows from the
-            // legacy string+set layout into the v2 hash so the read
-            // cutover (which now hits `aliases_by_domain`) covers the
-            // full dataset. Idempotent — subsequent boots skip rows
-            // that already have the v2 hash populated.
-            match store.backfill_v2() {
-                Ok(0) => {}
-                Ok(n) => tracing::info!(
-                    promoted = n,
-                    "alias-store backfill promoted pre-Phase-9 rows"
-                ),
-                Err(e) => tracing::warn!(error = %e, "alias-store backfill failed at boot"),
             }
             Arc::new(store)
         }

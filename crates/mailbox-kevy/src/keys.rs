@@ -100,24 +100,11 @@ pub fn user_next_uid(user: &str) -> String {
     format!("mailrs:user:{user}:next_uid")
 }
 
-/// Alias key: `mailrs:alias:<address>` — string, value is the resolved
-/// target address. `contact@golia.jp -> lihao@golia.jp` lives here.
-/// Reads follow one hop; cycles are broken by a depth cap in the caller.
-pub fn alias(address: &str) -> String {
-    format!("mailrs:alias:{address}")
-}
-
-/// Set-of-aliases index: `mailrs:aliases:index` — SADD every alias key
-/// on write so admin tooling can list them without SCAN.
-pub const ALIAS_INDEX: &str = "mailrs:aliases:index";
-
-/// Per-domain row: `mailrs:domain:<name>` string, value = created_at epoch.
-pub fn domain(name: &str) -> String {
-    format!("mailrs:domain:{name}")
-}
-
-/// Set-of-domains index: `mailrs:domains:index` — SADD every domain name.
-pub const DOMAIN_INDEX: &str = "mailrs:domains:index";
+// v2.6.2 §P6 legacy drop: the legacy `mailrs:alias:<addr>` /
+// `mailrs:domain:<name>` string keys and their companion
+// `mailrs:{aliases,domains}:index` sets are gone. The v2 hash
+// keyspace + range indexes below are canonical. See RFC
+// 20260709-v2.3-p6-admin-crud-idx-query.md for the migration path.
 
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the
@@ -195,14 +182,12 @@ pub const OUTBOUND_INFLIGHT: &str = "mailrs:outbound:inflight";
 pub const OUTBOUND_SUPPRESSION: &str = "mailrs:outbound:suppression";
 
 /// Account hash — one per user address. Fields mirror
-/// AccountWithHashWire so the same payload round-trips through pg-dump.
+/// `AccountWithHashWire` (blob) + the range-indexed
+/// `{domain, active, created_at}` triple. Enumerated via
+/// `accounts_by_active` (see below) — no separate set index.
 pub fn account(address: &str) -> String {
     format!("mailrs:account:{address}")
 }
-
-/// Global account address index — set of all account addresses. Used
-/// for admin/list_accounts and pg-dump reverse walks.
-pub const ACCOUNT_INDEX: &str = "mailrs:accounts:index";
 
 /// Effective permissions blob for a user — cached so login doesn't
 /// need to re-compute the graph on every request.

@@ -1,8 +1,8 @@
-//! Alias resolution — one-level hash lookup in the embedded kevy.
+//! Alias resolution — v2 hash-field lookup in the embedded kevy.
 //!
-//! Layout:
-//! - `mailrs:alias:<address>` string, value = target address
-//! - `mailrs:aliases:index`  set  of every alias key we've written
+//! Layout: `mailrs:alias:v2:<address>` hash `{target, domain,
+//! created_at, active}`; range-indexed by `aliases_by_domain` /
+//! `aliases_by_target`.
 //!
 //! Follows a chain up to 4 hops so `a → b → c → d` works while cycles
 //! (`a → b → a`) still terminate. Read-only in the hot path — callers
@@ -35,26 +35,13 @@ impl KevyMailboxStore {
     /// address (`Ok(Some(_))`) or `Ok(None)` when no alias is set.
     /// Cycles are broken by [`MAX_HOPS`]; the last non-loop address is
     /// returned in that case.
-    ///
-    /// v2.6.2 §P6 legacy drop: reads the v2 hash `target` field first,
-    /// falls back to the legacy string only when v2 is absent — that
-    /// covers pre-Phase-9 rows that were removed from the boot backfill
-    /// path (`resolve_alias` runs before backfill on the SMTP hot path
-    /// during ingress).
     pub fn resolve_alias(&self, address: &str) -> io::Result<Option<String>> {
         let mut current = address.to_string();
         let mut hops = 0;
         let mut hit_any = false;
         while hops < MAX_HOPS {
             let key_v2 = keys::alias_v2(&current);
-            let raw = match self.store().hget(key_v2.as_bytes(), b"target")? {
-                Some(bytes) => Some(bytes),
-                None => {
-                    let key = keys::alias(&current);
-                    self.store().get(key.as_bytes())?
-                }
-            };
-            let Some(raw) = raw else {
+            let Some(raw) = self.store().hget(key_v2.as_bytes(), b"target")? else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
             let Ok(next) = std::str::from_utf8(&raw) else {
@@ -72,11 +59,6 @@ impl KevyMailboxStore {
 
     /// Point `alias` at `target` (both are full email addresses).
     /// Idempotent — a repeat call with the same target is a no-op.
-    ///
-    /// v2.6.2 §P6 legacy drop: writes only the v2 hash. `resolve_alias`
-    /// still reads the legacy string key for pre-Phase-9 rows that
-    /// haven't been touched (backfill promotes them at boot); post-
-    /// Phase-11 aliases exist only on the v2 hash.
     pub fn upsert_alias(&self, alias: &str, target: &str) -> io::Result<()> {
         let key_v2 = keys::alias_v2(alias);
         let domain = alias.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
@@ -96,17 +78,10 @@ impl KevyMailboxStore {
     }
 
     /// Drop an alias entry entirely.
-    ///
-    /// v2.6.2 §P6 legacy drop: DELs both the legacy string key and the
-    /// v2 hash so old aliases still get cleaned up. `srem` on the legacy
-    /// set kept because backfill reads it — dropping the srem would
-    /// leave a stale entry the backfill re-promotes on next boot.
     pub fn delete_alias(&self, alias: &str) -> io::Result<()> {
-        let key = keys::alias(alias);
         let key_v2 = keys::alias_v2(alias);
         self.store().atomic(|ctx| {
-            ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
-            ctx.srem(keys::ALIAS_INDEX.as_bytes(), &[alias.as_bytes()])?;
+            ctx.del(&[key_v2.as_bytes()]);
             Ok(())
         })
     }
@@ -152,112 +127,6 @@ impl KevyMailboxStore {
         }
         Ok(out)
     }
-
-    /// v2.6.1c §P6-C embedded backfill: promote every pre-Phase-9
-    /// alias from the legacy string+set layout into the v2 hash so
-    /// `list_aliases` (now `idx_query`-based) covers rows written
-    /// before dual-write started. Idempotent — skips rows that
-    /// already have a v2 `target`.
-    pub fn backfill_admin_v2(&self) -> io::Result<AdminBackfillStats> {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0)
-            .to_string();
-
-        let mut stats = AdminBackfillStats::default();
-
-        // ── aliases ────────────────────────────────────────────
-        let members = self.store().smembers(keys::ALIAS_INDEX.as_bytes())?;
-        for m in members {
-            let Ok(addr) = String::from_utf8(m) else {
-                continue;
-            };
-            let key_v2 = keys::alias_v2(&addr);
-            if self.store().hget(key_v2.as_bytes(), b"target")?.is_some() {
-                continue;
-            }
-            let key = keys::alias(&addr);
-            let Some(target) = self.store().get(key.as_bytes())? else {
-                continue;
-            };
-            let domain = addr.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
-            self.store().hset(
-                key_v2.as_bytes(),
-                &[
-                    (b"target".as_slice(), target.as_slice()),
-                    (b"domain".as_slice(), domain.as_bytes()),
-                    (b"created_at".as_slice(), now.as_bytes()),
-                    (b"active".as_slice(), b"1".as_slice()),
-                ],
-            )?;
-            stats.aliases += 1;
-        }
-
-        // ── domains ────────────────────────────────────────────
-        let members = self.store().smembers(keys::DOMAIN_INDEX.as_bytes())?;
-        for m in members {
-            let Ok(name) = String::from_utf8(m) else {
-                continue;
-            };
-            let key_v2 = keys::domain_v2(&name);
-            if self
-                .store()
-                .hget(key_v2.as_bytes(), b"created_at")?
-                .is_some()
-            {
-                continue;
-            }
-            let key = keys::domain(&name);
-            let Some(created_bytes) = self.store().get(key.as_bytes())? else {
-                continue;
-            };
-            self.store().hset(
-                key_v2.as_bytes(),
-                &[(b"created_at".as_slice(), created_bytes.as_slice())],
-            )?;
-            stats.domains += 1;
-        }
-
-        // ── accounts ───────────────────────────────────────────
-        let members = self.store().smembers(keys::ACCOUNT_INDEX.as_bytes())?;
-        for m in members {
-            let Ok(addr) = String::from_utf8(m) else {
-                continue;
-            };
-            let key = keys::account(&addr);
-            if self.store().hget(key.as_bytes(), b"domain")?.is_some() {
-                continue;
-            }
-            let Some(blob_bytes) = self.store().hget(key.as_bytes(), b"blob")? else {
-                continue;
-            };
-            let blob = String::from_utf8_lossy(&blob_bytes);
-            let (active, created_at) = crate::account::derive_account_fields(&blob);
-            let domain = addr.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
-            self.store().hset(
-                key.as_bytes(),
-                &[
-                    (b"domain".as_slice(), domain.as_bytes()),
-                    (b"active".as_slice(), active),
-                    (b"created_at".as_slice(), created_at.as_bytes()),
-                ],
-            )?;
-            stats.accounts += 1;
-        }
-
-        Ok(stats)
-    }
-}
-
-/// v2.6.1c §P6-C backfill counters — reported at fastcore boot for
-/// forensic visibility.
-#[derive(Default, Debug, Clone, Copy)]
-pub struct AdminBackfillStats {
-    pub aliases: usize,
-    pub domains: usize,
-    pub accounts: usize,
 }
 
 /// Bridge the embedded-kevy alias implementation to the shared
@@ -274,11 +143,9 @@ impl AliasStore for KevyMailboxStore {
     }
 
     fn delete(&self, source: &str) -> io::Result<bool> {
-        let key = keys::alias(source);
         let key_v2 = keys::alias_v2(source);
         self.store().atomic(|ctx| {
-            let removed = ctx.del(&[key.as_bytes(), key_v2.as_bytes()]);
-            ctx.srem(keys::ALIAS_INDEX.as_bytes(), &[source.as_bytes()])?;
+            let removed = ctx.del(&[key_v2.as_bytes()]);
             Ok(removed > 0)
         })
     }
