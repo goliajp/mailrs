@@ -93,19 +93,24 @@ else
 fi
 
 # -------- invariant 2: no double process --------
-# Approximation: done-idx should have at most terminal-many entries.
-# Real dedup requires SORT + UNIQ which kevy-cli can't compose easily;
-# the approximation catches the gross double-process failure mode
-# (done-idx > delivered+failed+bounced means at least one id landed
-# in done-idx twice).
+# The legacy `{delivered,failed,bounced}:count` keys are only INCRed
+# by the webapi/RPC mark_* path — sender-direct terminal transitions
+# (max_attempts, permanent failure) never touch them. So `terminal`
+# above under-counts sender-side terminations. Use LRANGE on done-idx
+# + shell-side uniq -c to detect ids that appear twice, which IS the
+# gross double-process failure mode we care about.
 echo
 echo "==> invariant_2 (no_double_process)"
-echo "  done_idx=$done_idx  terminal_count=$terminal"
-if [ "$done_idx" -gt "$terminal" ]; then
-    echo "  FAIL: done-idx has more entries than terminal transitions"
+DUP_COUNT=$(kv LRANGE mailrs:outbound:done-idx 0 -1 \
+    | sed -n 's/^[0-9]\+) "\(.*\)"$/\1/p' \
+    | sort | uniq -d | wc -l | tr -d ' ')
+DUP_COUNT=${DUP_COUNT:-0}
+echo "  done_idx_ids_appearing_twice=$DUP_COUNT"
+if [ "$DUP_COUNT" -gt 0 ]; then
+    echo "  FAIL: at least one id landed in done-idx more than once"
     STATUS=1
 else
-    echo "  PASS: done-idx <= terminal (no gross double-process)"
+    echo "  PASS: every done-idx entry is unique"
 fi
 
 # -------- invariant 3: dual-write parity --------
