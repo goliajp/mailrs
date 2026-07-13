@@ -2428,24 +2428,21 @@ async fn bayes_bootstrap_route(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let mut total_spam = 0u64;
-    let mut total_ham = 0u64;
-    let mut already = false;
-    for user in &users {
-        match crate::bayes_train::bootstrap(&state, user) {
-            Some((s, h)) => {
-                total_spam += s;
-                total_ham += h;
-            }
-            None => already = true,
-        }
-    }
-    if already && total_spam == 0 && total_ham == 0 {
+    // Single corpus-empty guard for the whole run — a per-account guard
+    // (v2.8.0) let the first trained account lock out every later one.
+    if crate::bayes_train::corpus_populated(&state) {
         return (
             axum::http::StatusCode::CONFLICT,
             Json(serde_json::json!({ "error": "corpus already populated" })),
         )
             .into_response();
+    }
+    let mut total_spam = 0u64;
+    let mut total_ham = 0u64;
+    for user in &users {
+        let (s, h) = crate::bayes_train::bootstrap(&state, user);
+        total_spam += s;
+        total_ham += h;
     }
     Json(serde_json::json!({
         "spam_trained": total_spam,
