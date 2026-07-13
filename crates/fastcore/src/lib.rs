@@ -1332,6 +1332,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:sweep-legacy-admin-keys",
                 post(sweep_legacy_admin_keys_route),
             )
+            // Ops endpoint — migrate monolith-era spam/scam-category
+            // threads into the Junk folder (idempotent).
+            .route(
+                "/v1/admin/maintenance:move-spam-to-junk",
+                post(move_spam_to_junk_route),
+            )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
                 msg::PATH_GET_MESSAGE_BY_UID_USER,
@@ -1644,12 +1650,16 @@ async fn get_categories(
     // Expanded set — covers monolith's known category vocabulary.
     // Any per-category zset that ZCARD > 0 is returned. UI tabs only
     // render the categories that exist so overshooting is safe.
+    //
+    // `spam` / `scam` deliberately absent (user directive 2026-07-13
+    // "我希望只有 junk"): those threads live in the Junk FOLDER — the
+    // sidebar's Junk entry is their one and only surface. Exposing
+    // them as Inbox category tabs double-listed junk mail inside the
+    // Inbox view.
     let candidates = [
         "inbox",
         "personal",
         "bulk",
-        "spam",
-        "scam",
         "promotions",
         "updates",
         "forums",
@@ -2385,6 +2395,65 @@ async fn reset_sync_cursors_route(
         }
     }
     Json(serde_json::json!({ "cleared": cleared })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:move-spam-to-junk` — one-shot migration
+/// of every thread whose category is `spam` / `scam` into the Junk
+/// folder zset (user report 2026-07-13: "junk 是空的，而且还是有
+/// spam" — 1219 spam + 73 scam threads from the monolith-era AI
+/// categorizer were sitting in the Inbox folder because the Phase 4.3
+/// backfill binary never ran on prod, see
+/// `feedback-junk-backfill-oom-finding`).
+///
+/// Walks each account's `by_category:{spam,scam}` zsets and calls
+/// `set_junk(user, thread, true)` — the same atomic move the
+/// mark-junk UI action uses (junk zset add + inbox zset remove +
+/// category stamp). Idempotent: already-moved threads just refresh.
+async fn move_spam_to_junk_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut moved = 0u64;
+    let mut missing = 0u64;
+    for user in &users {
+        for cat in ["spam", "scam"] {
+            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
+            let n = store.zcard(key.as_bytes()).unwrap_or(0);
+            if n == 0 {
+                continue;
+            }
+            let entries = match store.zrevrange(key.as_bytes(), 0, (n as i64) - 1) {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, cat, "zrevrange failed; skipping");
+                    continue;
+                }
+            };
+            for (tid_bytes, _score) in entries {
+                let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                    continue;
+                };
+                match state.mailbox.set_junk(user, tid, true) {
+                    Ok(true) => moved += 1,
+                    // Thread row gone (category zset entry is stale) —
+                    // count separately so the response shows drift.
+                    Ok(false) => missing += 1,
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %tid, "set_junk failed");
+                    }
+                }
+            }
+        }
+    }
+    tracing::info!(moved, missing, "spam/scam → junk migration complete");
+    Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
 }
 
 /// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot
