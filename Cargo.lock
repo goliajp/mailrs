@@ -3017,6 +3017,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f6575a9a4575e42d772d6934674d5b77c810a86288489a2bdfa2b6ebb185084"
 
 [[package]]
+name = "mailrs-bayes"
+version = "0.1.0"
+
+[[package]]
 name = "mailrs-clamav"
 version = "1.0.0"
 dependencies = [
@@ -3228,6 +3232,7 @@ dependencies = [
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-alias-store",
  "mailrs-alias-store-net",
+ "mailrs-bayes",
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
