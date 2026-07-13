@@ -33,6 +33,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 # backend-generic surface (GreylistDb over a GreylistBackend trait, the
 # DMARC verifier), so it stays free of spg / kevy-embedded.
 mailrs-inbound = { path = "../inbound", version = "1" }
+mailrs-bayes = { path = "../bayes" }
 mailrs-rfc5322 = "1"
 mailrs-shield = { path = "../shield", version = "3" }
 mailrs-dmarc = { path = "../dmarc", version = "2" }

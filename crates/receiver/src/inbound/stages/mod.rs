@@ -9,6 +9,7 @@
 //! at server startup and reused across all inbound SMTP transactions.
 
 pub mod ai_scoring;
+pub mod bayes;
 pub mod clamav;
 pub mod content_scan;
 pub mod greylist;
@@ -17,6 +18,7 @@ pub mod ptr;
 pub mod quota;
 
 pub use ai_scoring::AiScoringStage;
+pub use bayes::BayesStage;
 pub use clamav::ClamavStage;
 pub use content_scan::ContentScanStage;
 pub use greylist::GreylistStage;

@@ -152,8 +152,9 @@ pub async fn run() {
         },
         greylist_lists,
         greylist_local,
-        Some(kevy_client.clone()),
-        Some(kevy_client.clone()),
+        Some(kevy_client.clone()), // greylist_contacts
+        Some(kevy_client.clone()), // quota_client
+        Some(kevy_client.clone()), // bayes_client — v2.8.1
         resolver.clone(),
         mail_auth_resolvers,
         // Record per-message DMARC results into the shared network

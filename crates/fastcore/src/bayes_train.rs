@@ -24,6 +24,15 @@ const K_HAM: &[u8] = b"bayes:tokens:ham";
 const K_META: &[u8] = b"bayes:meta";
 const TRAINED_TTL_SECS: i64 = 90 * 24 * 3600;
 
+// v2.8.1 spam-corpus reservoir: permanent per-thread membership sets,
+// keyed by training direction. Unlike the Junk *folder* zset (which the
+// 30-day junk_ttl sweep expunges), these are never TTL'd — they are the
+// durable roster of the training corpus, so a future full retrain (after
+// a tokenizer change) or a cold-start rebuild always has the source
+// thread list. `user` is folded in so a per-user retrain is possible.
+const K_CORPUS_SPAM: &[u8] = b"bayes:corpus:spam";
+const K_CORPUS_HAM: &[u8] = b"bayes:corpus:ham";
+
 /// Train the classifier on one thread. `is_spam=true` learns it as
 /// spam, `false` as ham. Idempotent + reversible: if the thread was
 /// previously trained the other way, that direction is unlearned first
@@ -72,11 +81,20 @@ pub fn train_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str, is_
         let prev_spam = prev == "spam";
         adjust_tokens(&mut conn, &token_list, prev_spam, -1);
         adjust_meta(&mut conn, prev_spam, -1);
+        // Move the thread out of the old reservoir set.
+        let old_set = if prev_spam {
+            K_CORPUS_SPAM
+        } else {
+            K_CORPUS_HAM
+        };
+        let _ = conn.srem(old_set, &[thread_id.as_bytes()]);
     }
 
     // Learn the new direction.
     adjust_tokens(&mut conn, &token_list, is_spam, 1);
     adjust_meta(&mut conn, is_spam, 1);
+    let new_set = if is_spam { K_CORPUS_SPAM } else { K_CORPUS_HAM };
+    let _ = conn.sadd(new_set, &[thread_id.as_bytes()]);
     set_trained_marker(&mut conn, thread_id, now_dir);
 
     tracing::info!(
@@ -88,45 +106,56 @@ pub fn train_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str, is_
     );
 }
 
-/// One-shot corpus seed from the existing folders (RFC §5). Spam =
-/// every thread in the Junk folder; ham = an equal number of the most
-/// recent Inbox threads (newsletter category excluded — legitimate
-/// bulk would skew the ham profile). Refuses (returns None) if the
-/// corpus is already non-empty, so a second call can't double-count.
+/// True if the corpus already holds any trained messages. The caller
+/// (route handler) checks this ONCE before looping over accounts — a
+/// per-account guard would let the first account's training lock out
+/// every later account (v2.8.0 bug).
+pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
+    let Some(mut conn) = state.net_conn() else {
+        return false;
+    };
+    let Ok(replies) = conn.pipeline(|p| {
+        p.cmd(&[b"HGET", K_META, b"spam_msgs"]);
+        p.cmd(&[b"HGET", K_META, b"ham_msgs"]);
+    }) else {
+        return false;
+    };
+    replies.iter().any(|r| {
+        matches!(r, kevy_client::Reply::Bulk(b)
+            if std::str::from_utf8(b).ok().and_then(|s| s.parse::<i64>().ok()).unwrap_or(0) > 0)
+    })
+}
+
+/// One-shot corpus seed from existing classified threads (RFC §5,
+/// revised v2.8.1). Spam source = the `by_category:{spam,scam}` zsets
+/// (the monolith-era AI verdicts — these survive the junk_ttl sweep
+/// that empties the Junk *folder* zset, so ~1300 historic spam threads
+/// are still reachable here even after the folder view was cleared).
+/// Ham = an equal count of the most-recent Inbox threads.
 ///
-/// Returns `Some((spam_trained, ham_trained))` on success.
-pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> Option<(u64, u64)> {
-    // Guard: corpus must be empty.
-    {
-        let mut conn = state.net_conn()?;
-        let meta = conn.pipeline(|p| {
-            p.cmd(&[b"HGET", K_META, b"spam_msgs"]);
-            p.cmd(&[b"HGET", K_META, b"ham_msgs"]);
-        });
-        if let Ok(replies) = meta {
-            let any_nonzero = replies.iter().any(|r| {
-                matches!(r, kevy_client::Reply::Bulk(b)
-                    if std::str::from_utf8(b).ok().and_then(|s| s.parse::<i64>().ok()).unwrap_or(0) > 0)
-            });
-            if any_nonzero {
-                return None;
-            }
-        }
-    }
-
+/// No per-account guard — the caller gates on [`corpus_populated`]
+/// once. Returns `(spam_trained, ham_trained)`.
+pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
     let store = state.mailbox.store_ref();
-    let junk_key = mailrs_mailbox_kevy::keys::user_threads_junk(user);
+
+    // Spam roster: union of the spam + scam category zsets.
+    let mut spam_ids: Vec<String> = Vec::new();
+    for cat in ["spam", "scam"] {
+        let key = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
+        spam_ids.extend(
+            store
+                .zrevrange(key.as_bytes(), 0, -1)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|(m, _)| String::from_utf8(m).ok()),
+        );
+    }
+    spam_ids.sort();
+    spam_ids.dedup();
+
+    // Ham sample: same count, most-recent inbox threads.
+    let want_ham = spam_ids.len() as i64;
     let inbox_key = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
-
-    let junk_ids: Vec<String> = store
-        .zrevrange(junk_key.as_bytes(), 0, -1)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|(m, _)| String::from_utf8(m).ok())
-        .collect();
-
-    // Ham sample: same count as spam, most-recent inbox threads.
-    let want_ham = junk_ids.len() as i64;
     let ham_ids: Vec<String> = if want_ham > 0 {
         store
             .zrevrange(inbox_key.as_bytes(), 0, want_ham - 1)
@@ -139,7 +168,7 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> Option<(u64, u64)> {
     };
 
     let mut spam_trained = 0u64;
-    for tid in &junk_ids {
+    for tid in &spam_ids {
         train_thread(state, user, tid, true);
         spam_trained += 1;
     }
@@ -149,7 +178,7 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> Option<(u64, u64)> {
         ham_trained += 1;
     }
     tracing::info!(%user, spam_trained, ham_trained, "bayes bootstrap complete");
-    Some((spam_trained, ham_trained))
+    (spam_trained, ham_trained)
 }
 
 /// HINCRBY every token in the given corpus hash by `delta` (+1 learn,
