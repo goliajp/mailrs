@@ -1,0 +1,17 @@
+[package]
+name = "mailrs-bayes"
+version = "0.1.0"
+edition = "2024"
+description = "Naive-Bayes spam classifier core (Graham-Robinson with Fisher combining). Pure functions — tokenize RFC 5322 bytes into feature tokens, classify against caller-supplied token counts. No I/O, no async; storage is injected by the caller."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+keywords = ["spam", "bayes", "classifier", "email", "antispam"]
+categories = ["email", "algorithms"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]

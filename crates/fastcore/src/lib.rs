@@ -18,6 +18,7 @@
 #![allow(missing_docs)]
 
 mod acme_task;
+mod bayes_train;
 pub mod bounce;
 mod imap;
 mod junk_ttl;
@@ -1338,6 +1339,13 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:move-spam-to-junk",
                 post(move_spam_to_junk_route),
             )
+            // Ops endpoint — seed the Bayesian corpus from existing
+            // junk (spam) + inbox (ham) folders. One-shot; refuses if
+            // the corpus is already non-empty.
+            .route(
+                "/v1/admin/maintenance:bayes-bootstrap",
+                post(bayes_bootstrap_route),
+            )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
                 msg::PATH_GET_MESSAGE_BY_UID_USER,
@@ -1967,12 +1975,16 @@ async fn mark_junk(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_junk(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_junk(&user, &thread_id, true)
+        .unwrap_or(false);
+    // v2.8.0: feed the Bayesian corpus off the user's explicit junk
+    // verdict (RFC 20260713). Best-effort; never blocks the move.
+    if ok {
+        crate::bayes_train::train_thread(&state, &user, &thread_id, true);
+    }
+    action_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as not junk. The
@@ -1983,12 +1995,16 @@ async fn mark_not_junk(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_junk(&user, &thread_id, false)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_junk(&user, &thread_id, false)
+        .unwrap_or(false);
+    // v2.8.0: learn this thread as ham. train_thread unlearns any prior
+    // spam training on the same thread first (mis-file correction).
+    if ok {
+        crate::bayes_train::train_thread(&state, &user, &thread_id, false);
+    }
+    action_result(ok)
 }
 
 async fn unarchive_thread(
@@ -2395,6 +2411,47 @@ async fn reset_sync_cursors_route(
         }
     }
     Json(serde_json::json!({ "cleared": cleared })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:bayes-bootstrap` — one-shot seed of the
+/// Bayesian spam corpus from the existing Junk (spam) + Inbox (ham)
+/// folders (RFC 20260713 §5). Refuses with 409 if the corpus is
+/// already populated (a repeat run would double-count). Single-user:
+/// the sweep runs for every account.
+async fn bayes_bootstrap_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut total_spam = 0u64;
+    let mut total_ham = 0u64;
+    let mut already = false;
+    for user in &users {
+        match crate::bayes_train::bootstrap(&state, user) {
+            Some((s, h)) => {
+                total_spam += s;
+                total_ham += h;
+            }
+            None => already = true,
+        }
+    }
+    if already && total_spam == 0 && total_ham == 0 {
+        return (
+            axum::http::StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "corpus already populated" })),
+        )
+            .into_response();
+    }
+    Json(serde_json::json!({
+        "spam_trained": total_spam,
+        "ham_trained": total_ham,
+    }))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:move-spam-to-junk` — one-shot migration
