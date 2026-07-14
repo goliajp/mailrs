@@ -116,8 +116,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # amd64 builds on the self-hosted lx64 runner (Linux/X64,
+          # dedicated, docker native at /usr/bin/docker — no PATH
+          # gymnastics unlike the macOS mini). Consistent with the
+          # arm64→mini move; both arches now build on dedicated
+          # zero-queue runners independent of GitHub-hosted pool
+          # availability. Fallback: revert to `ubuntu-latest` if lx64
+          # goes offline.
           - platform: linux/amd64
-            runner: ubuntu-latest
+            runner: [self-hosted, Linux, X64, lx64]
             arch: amd64
           # arm64 builds on the self-hosted Mac mini (mini-goliajp,
           # macOS/ARM64) instead of GitHub-hosted `ubuntu-24.04-arm`.
