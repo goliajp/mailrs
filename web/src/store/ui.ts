@@ -29,11 +29,13 @@ export const sortOrderAtom = atom<SortOrder>('newest')
 export const batchModeAtom = atom(false)
 export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 
-// mailbox folder filter (null = INBOX default)
-// Junk is the physical Junk mailbox (set by sieve rule or "mark spam" action),
-// distinct from the AI-derived "Spam" category filter (categoryFilter='spam').
-export type MailFolder = 'Drafts' | 'Junk' | 'Sent' | 'Trash' | null
-export const folderAtom = atom<MailFolder>(null)
+// mailbox folder filter.
+// v2.8.2: default flipped from null (mixed by_activity axis — showed
+// Junk + Sent threads inside "All") to 'Inbox' (dedicated inbox zset —
+// excludes Junk/Sent; starred/archived stay orthogonal flags on top).
+// Junk is the physical Junk mailbox (set by classifier or "mark junk").
+export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'Sent' | 'Trash' | null
+export const folderAtom = atom<MailFolder>('Inbox')
 
 // archived view toggle
 export const showArchivedAtom = atom(false)

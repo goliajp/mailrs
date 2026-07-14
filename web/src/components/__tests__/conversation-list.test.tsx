@@ -234,14 +234,17 @@ describe('FilterBar — sort', () => {
   })
 })
 
-describe('FilterBar — archived toggle', () => {
+describe('FilterBar — archived tab', () => {
   let store: ReturnType<typeof createStore>
 
   beforeEach(() => {
     store = makeStore()
   })
 
-  it('shows Active/Archived in filter dropdown', () => {
+  // v2.8.2 — Archived moved from the advanced-filter panel toggle to
+  // a first-class view tab; "All" became "Inbox" (user directive
+  // 2026-07-14).
+  it('shows Inbox and Archived as view tabs', () => {
     flatStub.conversations = [makeConversation()]
 
     render(
@@ -250,12 +253,11 @@ describe('FilterBar — archived toggle', () => {
       </Wrapper>
     )
 
-    openFilterPanel()
-    expect(screen.getByText('Active')).toBeDefined()
+    expect(screen.getByText('Inbox')).toBeDefined()
     expect(screen.getByText('Archived')).toBeDefined()
   })
 
-  it('shows archived conversations when Archived clicked', () => {
+  it('shows archived conversations when Archived tab clicked', () => {
     flatStub.conversations = [
       makeConversation({
         archived: false,
@@ -277,7 +279,6 @@ describe('FilterBar — archived toggle', () => {
 
     expect(screen.queryByText('Archived Item')).toBeNull()
 
-    openFilterPanel()
     fireEvent.click(screen.getByText('Archived'))
     expect(screen.getByText('Archived Item')).toBeDefined()
   })

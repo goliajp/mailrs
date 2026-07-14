@@ -1346,6 +1346,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:bayes-bootstrap",
                 post(bayes_bootstrap_route),
             )
+            // Ops endpoint — file every existing thread into the
+            // v2.4.0 Inbox/Junk folder zsets (v2.8.2, idempotent).
+            .route(
+                "/v1/admin/maintenance:backfill-inbox-index",
+                post(backfill_inbox_index_route),
+            )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
                 msg::PATH_GET_MESSAGE_BY_UID_USER,
@@ -2508,6 +2514,87 @@ async fn move_spam_to_junk_route(
     }
     tracing::info!(moved, missing, "spam/scam → junk migration complete");
     Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot
+/// promotion of every existing thread into the v2.4.0 folder zsets
+/// (v2.8.2). Until this release `record_message_arrival` (the main
+/// ingest path) never wrote `user_threads_inbox`, so the Inbox axis
+/// only held threads that happened to pass through `upsert_thread` /
+/// `set_junk` — the UI had to keep its default view on the mixed
+/// by_activity zset. Walks each account's by_activity zset and files
+/// every live row: spam/scam → Junk, ≥ 1 received message → Inbox,
+/// sent-only → neither (Sent axis already covers it). Idempotent:
+/// zadd overwrites the score in place.
+async fn backfill_inbox_index_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut inbox_added = 0u64;
+    let mut junk_added = 0u64;
+    let mut sent_only = 0u64;
+    let mut stale = 0u64;
+    for user in &users {
+        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let inbox = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
+        let junk = mailrs_mailbox_kevy::keys::user_threads_junk(user);
+        let entries = match store.zrevrange(activity.as_bytes(), 0, -1) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(err = %e, %user, "zrevrange by_activity failed; skipping");
+                continue;
+            }
+        };
+        for (tid_bytes, _score) in entries {
+            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            let row = match state.mailbox.get_thread(tid) {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    stale += 1;
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, %tid, "get_thread failed");
+                    continue;
+                }
+            };
+            let is_junk = row.category.eq_ignore_ascii_case("spam")
+                || row.category.eq_ignore_ascii_case("scam");
+            let score = row.latest_date as f64;
+            if is_junk {
+                let _ = store.zadd(junk.as_bytes(), &[(score, tid.as_bytes())]);
+                junk_added += 1;
+            } else if row.count > row.sent_count {
+                let _ = store.zadd(inbox.as_bytes(), &[(score, tid.as_bytes())]);
+                inbox_added += 1;
+            } else {
+                sent_only += 1;
+            }
+        }
+    }
+    tracing::info!(
+        inbox_added,
+        junk_added,
+        sent_only,
+        stale,
+        "inbox-index backfill complete"
+    );
+    Json(serde_json::json!({
+        "inbox_added": inbox_added,
+        "junk_added": junk_added,
+        "sent_only_skipped": sent_only,
+        "stale_entries": stale,
+    }))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot

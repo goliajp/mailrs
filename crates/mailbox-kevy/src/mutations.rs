@@ -253,6 +253,12 @@ impl KevyMailboxStore {
                 keys::user_threads_has_unread(user),
                 keys::user_threads_has_action(user),
                 keys::user_threads_starred(user),
+                // v2.8.2 — the Phase 2 folder zsets were missing from
+                // this cleanup list, leaving orphan members behind on
+                // every delete (invisible rows, inflated zcard totals).
+                keys::user_threads_inbox(user),
+                keys::user_threads_junk(user),
+                keys::user_threads_sent(user),
             ];
             for idx in &indexes {
                 ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
@@ -342,6 +348,10 @@ mod tests {
             assert_eq!(s.store().zcard(idx.as_bytes()).unwrap(), 1, "idx {idx}");
         }
 
+        // v2.8.2: arrival also filed the row into the Inbox folder zset.
+        let inbox = keys::user_threads_inbox(u);
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
+
         assert!(s.delete_thread(u, "t1").unwrap());
         assert!(s.get_thread("t1").unwrap().is_none());
         for idx in [
@@ -351,6 +361,10 @@ mod tests {
             keys::user_threads_archived(u),
             keys::user_threads_has_unread(u),
             keys::user_threads_has_action(u),
+            // v2.8.2 — delete must also clear the folder zsets.
+            keys::user_threads_inbox(u),
+            keys::user_threads_junk(u),
+            keys::user_threads_sent(u),
         ] {
             assert_eq!(s.store().zcard(idx.as_bytes()).unwrap(), 0, "idx {idx}");
         }
