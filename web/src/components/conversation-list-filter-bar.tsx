@@ -23,10 +23,17 @@ import {
 // only Junk removes user confusion about which one to click. The
 // internal `activeCategory === 'spam'` is still honored by the
 // backend for legacy links / stored filters.
+// v2.8.2 — "All" (mixed by_activity axis that leaked Junk + Sent
+// threads into the default view) becomes "Inbox" (dedicated inbox
+// folder axis: no Junk, no sent-only threads, starred included).
+// "Archived" is promoted from the advanced-filter panel toggle to a
+// first-class tab; delete inside it is the permanent delete it always
+// was on the backend.
 const VIEW_TABS: { label: string; value: string }[] = [
-  { label: 'All', value: 'all' },
+  { label: 'Inbox', value: 'inbox' },
   { label: 'Unread', value: 'unread' },
   { label: 'Starred', value: 'starred' },
+  { label: 'Archived', value: 'archived' },
   { label: 'Sent', value: 'sent' },
   { label: 'Junk', value: 'junk' },
 ]
@@ -72,20 +79,28 @@ export const FilterBar = memo(function FilterBar() {
         ? 'sent'
         : folder === 'Junk'
           ? 'junk'
-          : quickFilter !== 'all'
-            ? quickFilter
-            : 'all'
+          : showArchived
+            ? 'archived'
+            : quickFilter !== 'all'
+              ? quickFilter
+              : 'inbox'
 
   const handleTab = (tab: string) => {
     if (tab === activeTab) return
     setActiveCategory(null)
-    setFolder(null)
+    // v2.8.2: Inbox is the base axis — Unread / Starred / Archived
+    // stack on top of it (backend ZINTERSTOREs the inbox zset with
+    // the matching flag index), so none of them leak Junk / Sent.
+    setFolder('Inbox')
     setQuickFilter('all')
     setSection(null)
+    setShowArchived(false)
     if (tab === 'sent') {
       setFolder('Sent')
     } else if (tab === 'junk') {
       setFolder('Junk')
+    } else if (tab === 'archived') {
+      setShowArchived(true)
     } else if (tab === 'unread') {
       setQuickFilter('unread')
     } else if (tab === 'starred') {
@@ -95,7 +110,6 @@ export const FilterBar = memo(function FilterBar() {
 
   const hasAdvancedFilters =
     sortOrder !== 'newest' ||
-    showArchived ||
     (activeCategory !== null && activeCategory !== 'spam' && activeCategory !== 'scam') ||
     selectedDomains.length > 0 ||
     section === 'important' ||
@@ -164,28 +178,6 @@ export const FilterBar = memo(function FilterBar() {
                     {s === 'unread' ? 'Unread first' : s}
                   </button>
                 ))}
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <label className="text-fg-muted mb-1 block font-medium">View</label>
-              <div className="flex gap-1">
-                <button
-                  className={`rounded-md px-2 py-0.5 transition-colors ${
-                    !showArchived ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                  }`}
-                  onClick={() => setShowArchived(false)}
-                >
-                  Active
-                </button>
-                <button
-                  className={`rounded-md px-2 py-0.5 transition-colors ${
-                    showArchived ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                  }`}
-                  onClick={() => setShowArchived(true)}
-                >
-                  Archived
-                </button>
               </div>
             </div>
 

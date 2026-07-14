@@ -72,6 +72,7 @@ export function Chat() {
       if (urlView) setMobileView(urlView)
       if (
         urlFolder === 'Drafts' ||
+        urlFolder === 'Inbox' ||
         urlFolder === 'Sent' ||
         urlFolder === 'Trash' ||
         urlFolder === 'Junk'

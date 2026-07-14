@@ -221,15 +221,20 @@ impl KevyMailboxStore {
             } else {
                 ctx.zrem(sent.as_bytes(), &[member])?;
             }
-            // v2.4.0 Phase 2 (RFC-A) — Junk/Inbox membership. Exactly
+            // v2.4.0 Phase 2 (RFC-A) — Junk/Inbox membership. At most
             // one of them holds a thread at any time; the other holds
             // a ZREM so a category flip (e.g. user "marks as junk"
             // later via Phase 3 right-click) migrates cleanly.
+            // v2.8.2: a sent-only thread (no received message yet —
+            // count == sent_count) belongs to the Sent axis alone; it
+            // must not surface in the Inbox view.
             if is_junk {
                 ctx.zadd(junk.as_bytes(), &[(score, member)])?;
                 ctx.zrem(inbox.as_bytes(), &[member])?;
-            } else {
+            } else if row.count > row.sent_count {
                 ctx.zadd(inbox.as_bytes(), &[(score, member)])?;
+                ctx.zrem(junk.as_bytes(), &[member])?;
+            } else {
                 ctx.zrem(junk.as_bytes(), &[member])?;
             }
             Ok(())

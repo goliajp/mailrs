@@ -45,6 +45,15 @@ impl KevyMailboxStore {
         let activity = keys::user_threads_by_activity(m.user);
         let cat = keys::user_threads_by_category(m.user, m.category);
         let has_unread = keys::user_threads_has_unread(m.user);
+        // v2.8.2 — folder membership on the ARRIVAL path. Prior to this
+        // only `upsert_thread` / `set_junk` maintained the inbox/junk
+        // zsets, so every thread ingested via this (the main) path was
+        // missing from the Inbox folder axis and the UI had to fall
+        // back to the mixed by_activity zset.
+        let inbox = keys::user_threads_inbox(m.user);
+        let junk = keys::user_threads_junk(m.user);
+        let is_junk =
+            m.category.eq_ignore_ascii_case("spam") || m.category.eq_ignore_ascii_case("scam");
 
         // Pre-build owned byte buffers — &str → Vec<u8> once, then
         // hand &[u8] refs into the atomic block.
@@ -67,7 +76,7 @@ impl KevyMailboxStore {
             ctx.hset(thread_key.as_bytes(), pairs)?;
 
             // Atomic counters.
-            ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
+            let total = ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
             let new_unread = if m.unread {
                 ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?
             } else {
@@ -78,6 +87,10 @@ impl KevyMailboxStore {
                     .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
                     .unwrap_or(0i64)
             };
+            let sent = ctx
+                .hget(thread_key.as_bytes(), b"sent_count")?
+                .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
+                .unwrap_or(0i64);
 
             // Activity bump (always — every message advances the row).
             ctx.zadd(activity.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
@@ -91,6 +104,18 @@ impl KevyMailboxStore {
             // the toggle has to flip the other way.
             if new_unread > 0 {
                 ctx.zadd(has_unread.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+            }
+
+            // Folder membership (v2.8.2). Same rules as upsert_thread:
+            // spam/scam → Junk; anything else with ≥ 1 received message
+            // → Inbox. A sent-only thread (total == sent) lives in the
+            // Sent axis alone — it must not surface in the Inbox view.
+            if is_junk {
+                ctx.zadd(junk.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+                ctx.zrem(inbox.as_bytes(), &[&tid_b])?;
+            } else if total > sent {
+                ctx.zadd(inbox.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+                ctx.zrem(junk.as_bytes(), &[&tid_b])?;
             }
             Ok(())
         })
@@ -179,6 +204,52 @@ mod tests {
         // Without any unread, has_unread index stays empty.
         let unread = keys::user_threads_has_unread("u@x.com");
         assert_eq!(s.store().zcard(unread.as_bytes()).unwrap(), 0);
+    }
+
+    #[test]
+    fn inbound_arrival_joins_inbox_folder() {
+        let s = store();
+        s.record_message_arrival(&arr("t1", "u@x.com", "Hi", 100, true))
+            .unwrap();
+        let inbox = keys::user_threads_inbox("u@x.com");
+        let junk = keys::user_threads_junk("u@x.com");
+        assert_eq!(
+            s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
+            Some(100.0)
+        );
+        assert_eq!(s.store().zcard(junk.as_bytes()).unwrap(), 0);
+    }
+
+    #[test]
+    fn spam_arrival_joins_junk_not_inbox() {
+        let s = store();
+        let mut a = arr("t1", "u@x.com", "V1AGRA", 100, true);
+        a.category = "spam";
+        s.record_message_arrival(&a).unwrap();
+        let inbox = keys::user_threads_inbox("u@x.com");
+        let junk = keys::user_threads_junk("u@x.com");
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
+        assert_eq!(
+            s.store().zscore(junk.as_bytes(), b"t1").unwrap(),
+            Some(100.0)
+        );
+    }
+
+    #[test]
+    fn sent_only_thread_stays_out_of_inbox() {
+        let s = store();
+        // Outbound-only write: count == sent_count → Sent axis only.
+        s.record_message_arrival(&arr("t1", "u@x.com", "Outgoing", 100, false))
+            .unwrap();
+        let inbox = keys::user_threads_inbox("u@x.com");
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
+        // A reply arriving later promotes the thread into Inbox.
+        s.record_message_arrival(&arr("t1", "u@x.com", "Re: Outgoing", 200, true))
+            .unwrap();
+        assert_eq!(
+            s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
+            Some(200.0)
+        );
     }
 
     #[test]
