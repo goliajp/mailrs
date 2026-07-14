@@ -20,6 +20,18 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS rust-builder
 ARG VERSION=0.0.0
 
+# Cap parallel cargo jobs to bound peak build memory. The release
+# profile uses fat LTO, whose link phase is memory-hungry; with the
+# default job count = nproc, a many-core builder (self-hosted mini
+# 14c / lx64 16c) fans out 14-16 concurrent LTO codegen jobs and the
+# peak RSS blows past the mini's 16 GB OrbStack VM (buildkit transport
+# drops) or gets rustc OOM-killed. GitHub-hosted runners have ~4 cores
+# so they never hit this. 8 decouples memory from core count and still
+# uses half of lx64's cores. Override at build time with
+# --build-arg CARGO_BUILD_JOBS=N if a builder has more/less headroom.
+ARG CARGO_BUILD_JOBS=8
+ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}
+
 # Cook external deps — buildx GHA cache makes this layer skip entirely
 # on subsequent builds where Cargo.toml/Cargo.lock are unchanged.
 COPY --from=planner /build/recipe.json recipe.json
