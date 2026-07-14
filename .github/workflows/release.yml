@@ -119,8 +119,17 @@ jobs:
           - platform: linux/amd64
             runner: ubuntu-latest
             arch: amd64
+          # arm64 builds on the self-hosted Mac mini (mini-goliajp,
+          # macOS/ARM64) instead of GitHub-hosted `ubuntu-24.04-arm`.
+          # The hosted arm64 pool queues badly (v2.8.1 waited ~1.5h,
+          # aging the staging soak verdict past the gate's 3600s limit
+          # → TIMEOUT). The dedicated mini has zero queue. It builds
+          # linux/arm64 natively via Docker Desktop's arm64 Linux VM
+          # (no QEMU). Requires Docker running on the mini.
+          # Fallback: revert this line to `ubuntu-24.04-arm` if the
+          # mini is offline.
           - platform: linux/arm64
-            runner: ubuntu-24.04-arm
+            runner: [self-hosted, macOS, ARM64, mini]
             arch: arm64
     outputs:
       version: ${{ steps.ver.outputs.version }}
