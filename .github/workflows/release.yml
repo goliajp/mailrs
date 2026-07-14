@@ -140,6 +140,16 @@ jobs:
         id: ver
         run: _v="${GITHUB_REF_NAME#split-}"; echo "version=${_v#v}" >> "$GITHUB_OUTPUT"
 
+      # The self-hosted mini (arm64 leg) runs OrbStack, whose `docker`
+      # CLI lives at /usr/local/bin/docker. The runner service's PATH
+      # doesn't include /usr/local/bin, so docker/login-action can't
+      # find `docker`. Prepend it here (GITHUB_PATH applies to later
+      # steps). No-op on the hosted amd64 runner where docker is
+      # already on PATH.
+      - name: ensure docker on PATH (self-hosted mini)
+        if: matrix.arch == 'arm64'
+        run: echo "/usr/local/bin" >> "$GITHUB_PATH"
+
       - name: set up docker buildx
         uses: docker/setup-buildx-action@v3
 
