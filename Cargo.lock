@@ -3249,6 +3249,7 @@ dependencies = [
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-triage",
  "password-hash",
  "rand_core 0.6.4",
  "reqwest 0.13.4",
@@ -3746,6 +3747,7 @@ dependencies = [
  "mailrs-attachment-extract 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-auth-guard",
  "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-bayes",
  "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-core",
@@ -3787,6 +3789,7 @@ dependencies = [
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-triage",
  "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "memchr",
  "metrics",
@@ -4000,6 +4003,15 @@ dependencies = [
  "flate2",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mailrs-triage"
+version = "0.1.0"
+dependencies = [
+ "kevy-client",
+ "mailrs-bayes",
+ "tracing",
 ]
 
 [[package]]
