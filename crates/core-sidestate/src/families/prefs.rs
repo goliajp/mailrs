@@ -92,8 +92,13 @@ pub async fn save_draft<S: NetKevy>(
     Json(req): Json<SaveDraftRequest>,
 ) -> Result<Json<SaveDraftResponse>, StatusCode> {
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let id = next_id(&mut conn, &format!("drafts:{user}:counter"))
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    // upsert: reuse a client-supplied id (in-place update) or allocate a
+    // fresh one — so autosave updates one draft instead of spawning many.
+    let id = match req.id {
+        Some(existing) => existing,
+        None => next_id(&mut conn, &format!("drafts:{user}:counter"))
+            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?,
+    };
     let now = now_secs();
     let draft = DraftWire {
         id,

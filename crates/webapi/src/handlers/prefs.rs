@@ -90,7 +90,12 @@ pub async fn save_draft(
     let key = format!("drafts:{user}");
     let ckey = format!("drafts:{user}:counter");
     let ckey_c = ckey.clone();
-    let id = with_kevy(move |c| next_id(c, &ckey_c))?;
+    // upsert: a client-supplied id reuses the same hash field (in-place
+    // update); otherwise allocate a fresh id. hset overwrites either way.
+    let id = match req.id {
+        Some(existing) => existing,
+        None => with_kevy(move |c| next_id(c, &ckey_c))?,
+    };
     let draft = mailrs_core_api::method::admin::DraftWire {
         id,
         to: req.to,
