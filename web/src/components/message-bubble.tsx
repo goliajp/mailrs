@@ -218,7 +218,7 @@ function PlainPre({ body, isOwn }: { body: string; isOwn: boolean }) {
         isOwn ? 'text-white' : 'text-fg'
       }`}
     >
-      {linkifyNodes([body], `underline hover:no-underline ${isOwn ? 'text-white' : 'text-accent'}`)}
+      {linkifyNodes([body], `no-underline hover:underline ${isOwn ? 'text-white' : 'text-accent'}`)}
     </pre>
   )
 }

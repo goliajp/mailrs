@@ -715,7 +715,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                           myEmail,
                           auth?.display_name
                         ),
-                        'text-accent underline hover:no-underline'
+                        'text-accent no-underline hover:underline'
                       )}
                     </div>
                   </div>
