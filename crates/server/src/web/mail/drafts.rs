@@ -11,6 +11,11 @@ use super::{ApiResult, AuthUser, WebState};
 
 #[derive(Deserialize)]
 pub(crate) struct SaveDraftRequest {
+    /// When present, upsert that draft in place (keeps its id) instead of
+    /// inserting a new row — so a compose session's periodic autosave
+    /// updates one draft rather than spawning a new one each tick.
+    #[serde(default)]
+    pub id: Option<i64>,
     #[serde(default)]
     pub to: String,
     #[serde(default)]
@@ -25,17 +30,20 @@ pub(crate) struct SaveDraftRequest {
     pub reply_to_thread_id: Option<String>,
 }
 
+// wire shape matches fastcore's `DraftWire` (to/cc/bcc + epoch-second
+// timestamps) so the frontend `draftSchema` parses identically on both
+// lanes — core-mode parity.
 #[derive(Serialize)]
 pub(crate) struct DraftInfo {
     pub id: i64,
-    pub to_addresses: String,
-    pub cc_addresses: String,
-    pub bcc_addresses: String,
+    pub to: String,
+    pub cc: String,
+    pub bcc: String,
     pub subject: String,
     pub body: String,
     pub reply_to_thread_id: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Serialize)]
@@ -74,20 +82,49 @@ pub(crate) async fn save_draft(
         });
     };
 
-    let result = sqlx::query_scalar::<_, i64>(
-        "INSERT INTO drafts (user_address, to_addresses, cc_addresses, bcc_addresses, subject, body, reply_to_thread_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) \
-         RETURNING id",
-    )
-    .bind(&user)
-    .bind(&req.to)
-    .bind(&req.cc)
-    .bind(&req.bcc)
-    .bind(&req.subject)
-    .bind(&req.body)
-    .bind(&req.reply_to_thread_id)
-    .fetch_one(pool)
-    .await;
+    // upsert: an id updates that row in place (scoped to the user); a
+    // missing/unknown id inserts a fresh row. an id that no longer exists
+    // (draft deleted meanwhile) falls through to an insert so autosave
+    // keeps working.
+    let mut updated_id: Option<i64> = None;
+    if let Some(id) = req.id {
+        updated_id = sqlx::query_scalar::<_, i64>(
+            "UPDATE drafts SET to_addresses = $3, cc_addresses = $4, bcc_addresses = $5, \
+             subject = $6, body = $7, reply_to_thread_id = $8, updated_at = now() \
+             WHERE id = $1 AND user_address = $2 RETURNING id",
+        )
+        .bind(id)
+        .bind(&user)
+        .bind(&req.to)
+        .bind(&req.cc)
+        .bind(&req.bcc)
+        .bind(&req.subject)
+        .bind(&req.body)
+        .bind(&req.reply_to_thread_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None);
+    }
+
+    let result = match updated_id {
+        Some(id) => Ok(id),
+        None => {
+            sqlx::query_scalar::<_, i64>(
+                "INSERT INTO drafts (user_address, to_addresses, cc_addresses, bcc_addresses, subject, body, reply_to_thread_id) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) \
+                 RETURNING id",
+            )
+            .bind(&user)
+            .bind(&req.to)
+            .bind(&req.cc)
+            .bind(&req.bcc)
+            .bind(&req.subject)
+            .bind(&req.body)
+            .bind(&req.reply_to_thread_id)
+            .fetch_one(pool)
+            .await
+        }
+    };
 
     match result {
         Ok(id) => Json(SaveDraftResult {
@@ -139,14 +176,14 @@ pub(crate) async fn list_drafts(
             )| {
                 DraftInfo {
                     id,
-                    to_addresses,
-                    cc_addresses,
-                    bcc_addresses,
+                    to: to_addresses,
+                    cc: cc_addresses,
+                    bcc: bcc_addresses,
                     subject,
                     body,
                     reply_to_thread_id,
-                    created_at: created_at.to_rfc3339(),
-                    updated_at: updated_at.to_rfc3339(),
+                    created_at: created_at.timestamp(),
+                    updated_at: updated_at.timestamp(),
                 }
             },
         )
