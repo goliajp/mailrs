@@ -87,6 +87,11 @@ impl PgMailboxStore {
         // as a bound param.
         let mut folder_binds_name = false;
         let mut bucket_having: Option<String> = None;
+        // Inbound triage buckets (Inbox/N/P/NP) exclude Sent-only threads
+        // just like the "All" view — a thread the user only ever sent
+        // belongs to the Sent axis alone, never to Inbox. Mirrors the
+        // fastcore `count > sent_count` guard.
+        let mut inbound_bucket = false;
         match folder {
             Some(f) if f.eq_ignore_ascii_case("sent") => {
                 conditions.push(format!("mb.name = ${param_idx}"));
@@ -94,6 +99,7 @@ impl PgMailboxStore {
                 folder_binds_name = true;
             }
             Some(f) if f.eq_ignore_ascii_case("inbox") => {
+                inbound_bucket = true;
                 // Inbox = not a triage bucket AND not in the Junk
                 // mailbox (ingest routes spam to the Junk mailbox before
                 // the async classifier stamps category — cover both).
@@ -103,12 +109,15 @@ impl PgMailboxStore {
                 ));
             }
             Some(f) if f.eq_ignore_ascii_case("notifications") => {
+                inbound_bucket = true;
                 bucket_having = Some(format!("{thread_cat} = 'notification'"));
             }
             Some(f) if f.eq_ignore_ascii_case("promotions") => {
+                inbound_bucket = true;
                 bucket_having = Some(format!("{thread_cat} = 'promotion'"));
             }
             Some(f) if f.eq_ignore_ascii_case("np") => {
+                inbound_bucket = true;
                 bucket_having = Some(format!("{thread_cat} IN ('notification','promotion')"));
             }
             Some(f) if f.eq_ignore_ascii_case("junk") => {
@@ -160,7 +169,7 @@ impl PgMailboxStore {
         // default reading list, while still letting threads with both
         // inbound and outbound messages appear in BOTH All AND Sent —
         // exactly what the user expects of a conversation grouping.
-        if folder.is_none() {
+        if folder.is_none() || inbound_bucket {
             having_parts.push("BOOL_OR(mb.name != 'Sent') = true".to_string());
         }
         // v2.9 triage — the bucket folder filter (references the
