@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { contactsKeys } from '@/lib/query-keys'
-import { adminListGet } from '@/wire/endpoints/admin'
+import { fetchContactSuggestions } from '@/wire/endpoints/contacts'
 
 export function ContactAutocomplete({
   autoFocus = false,
@@ -32,9 +32,7 @@ export function ContactAutocomplete({
     staleTime: 30 * 1000,
     queryFn: async () => {
       try {
-        return await adminListGet<string>(
-          `/contacts?q=${encodeURIComponent(debouncedQuery)}&limit=5`
-        )
+        return await fetchContactSuggestions(debouncedQuery, 5)
       } catch {
         return []
       }
