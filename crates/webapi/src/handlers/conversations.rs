@@ -662,6 +662,51 @@ pub async fn mark_not_junk(
         .map_err(map_err)
 }
 
+/// POST /api/conversations/{thread_id}/mark-notification
+/// v2.9 triage — move thread into the Notifications bucket + train.
+pub async fn mark_notification(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .mark_notification(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/mark-promotion
+/// v2.9 triage — move thread into the Promotions bucket + train.
+pub async fn mark_promotion(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .mark_promotion(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/move-to-inbox
+/// v2.9 triage — move thread back into the Inbox bucket + train.
+pub async fn move_to_inbox(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .move_to_inbox(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
 /// POST /api/conversations/{thread_id}/unread
 pub async fn mark_thread_unread(
     State(state): State<Arc<WebState>>,

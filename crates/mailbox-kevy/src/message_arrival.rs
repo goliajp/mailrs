@@ -46,14 +46,19 @@ impl KevyMailboxStore {
         let cat = keys::user_threads_by_category(m.user, m.category);
         let has_unread = keys::user_threads_has_unread(m.user);
         // v2.8.2 — folder membership on the ARRIVAL path. Prior to this
-        // only `upsert_thread` / `set_junk` maintained the inbox/junk
-        // zsets, so every thread ingested via this (the main) path was
-        // missing from the Inbox folder axis and the UI had to fall
-        // back to the mixed by_activity zset.
-        let inbox = keys::user_threads_inbox(m.user);
-        let junk = keys::user_threads_junk(m.user);
-        let is_junk =
-            m.category.eq_ignore_ascii_case("spam") || m.category.eq_ignore_ascii_case("scam");
+        // only `upsert_thread` / `set_junk` maintained the folder zsets,
+        // so every thread ingested via this (the main) path was missing
+        // from the folder axis and the UI had to fall back to the mixed
+        // by_activity zset.
+        // v2.9 — the bucket axis is 4-way {inbox, notifications,
+        // promotions, junk}, derived purely from `category` via
+        // `bucket_of`. Exactly one holds a received thread.
+        let bucket = keys::bucket_of(m.category);
+        let bucket_zset = bucket.zset(m.user);
+        let other_buckets: Vec<String> = keys::Bucket::all_zsets(m.user)
+            .into_iter()
+            .filter(|k| *k != bucket_zset)
+            .collect();
 
         // Pre-build owned byte buffers — &str → Vec<u8> once, then
         // hand &[u8] refs into the atomic block.
@@ -106,16 +111,18 @@ impl KevyMailboxStore {
                 ctx.zadd(has_unread.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
             }
 
-            // Folder membership (v2.8.2). Same rules as upsert_thread:
-            // spam/scam → Junk; anything else with ≥ 1 received message
-            // → Inbox. A sent-only thread (total == sent) lives in the
-            // Sent axis alone — it must not surface in the Inbox view.
-            if is_junk {
-                ctx.zadd(junk.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
-                ctx.zrem(inbox.as_bytes(), &[&tid_b])?;
-            } else if total > sent {
-                ctx.zadd(inbox.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
-                ctx.zrem(junk.as_bytes(), &[&tid_b])?;
+            // Folder/bucket membership (v2.9). The thread joins exactly
+            // one of {inbox, notifications, promotions, junk} per
+            // `bucket_of(category)`, and is removed from the other three.
+            // A sent-only thread (total == sent, i.e. no received
+            // message) lives in the Sent axis alone — it must not
+            // surface in any inbound bucket; junk is the exception (a
+            // spam-classified thread belongs in Junk regardless).
+            if bucket == keys::Bucket::Junk || total > sent {
+                ctx.zadd(bucket_zset.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+                for other in &other_buckets {
+                    ctx.zrem(other.as_bytes(), &[&tid_b])?;
+                }
             }
             Ok(())
         })
@@ -233,6 +240,59 @@ mod tests {
             s.store().zscore(junk.as_bytes(), b"t1").unwrap(),
             Some(100.0)
         );
+    }
+
+    #[test]
+    fn notification_and_promotion_arrivals_join_their_buckets() {
+        let s = store();
+        let u = "u@x.com";
+        let mut n = arr("tn", u, "GitHub notice", 100, true);
+        n.category = "notification";
+        s.record_message_arrival(&n).unwrap();
+        let mut p = arr("tp", u, "50% off", 200, true);
+        p.category = "promotion";
+        s.record_message_arrival(&p).unwrap();
+
+        let inbox = keys::user_threads_inbox(u);
+        let notif = keys::user_threads_notifications(u);
+        let promo = keys::user_threads_promotions(u);
+        // Each lands only in its own bucket, never Inbox.
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
+        assert_eq!(
+            s.store().zscore(notif.as_bytes(), b"tn").unwrap(),
+            Some(100.0)
+        );
+        assert_eq!(
+            s.store().zscore(promo.as_bytes(), b"tp").unwrap(),
+            Some(200.0)
+        );
+        assert_eq!(s.store().zcard(notif.as_bytes()).unwrap(), 1);
+        assert_eq!(s.store().zcard(promo.as_bytes()).unwrap(), 1);
+    }
+
+    #[test]
+    fn np_folder_lists_union_of_notifications_and_promotions() {
+        let s = store();
+        let u = "u@x.com";
+        let mut n = arr("tn", u, "notice", 100, true);
+        n.category = "notification";
+        s.record_message_arrival(&n).unwrap();
+        let mut p = arr("tp", u, "promo", 200, true);
+        p.category = "promotion";
+        s.record_message_arrival(&p).unwrap();
+        // A plain inbox thread must NOT appear in the np view.
+        s.record_message_arrival(&arr("ti", u, "hi", 150, true))
+            .unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("np"),
+            ..Default::default()
+        };
+        let (rows, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 2);
+        // newest-first: promo (200) then notice (100).
+        assert_eq!(rows[0].thread_id, "tp");
+        assert_eq!(rows[1].thread_id, "tn");
     }
 
     #[test]

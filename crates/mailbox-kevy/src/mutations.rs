@@ -74,10 +74,40 @@ impl KevyMailboxStore {
     /// path), and the entry gets cleaned up on the next
     /// `upsert_thread`.
     pub fn set_junk(&self, user: &str, thread_id: &str, is_junk: bool) -> io::Result<bool> {
+        // Thin back-compat wrapper over set_bucket (v2.9): mark-junk
+        // stays a two-value flip between Junk and Inbox.
+        self.set_bucket(
+            user,
+            thread_id,
+            if is_junk {
+                keys::Bucket::Junk
+            } else {
+                keys::Bucket::Inbox
+            },
+        )
+    }
+
+    /// Force `thread_id` into a triage bucket ∈ {inbox, notifications,
+    /// promotions, junk} — stamps the thread's `category` field to the
+    /// bucket's canonical category and moves it between the four folder
+    /// zsets (zadd target, zrem the other three) in one atomic closure.
+    ///
+    /// Returns true if the row existed. The `by_category:*` zsets are
+    /// NOT rebuilt here (same rationale as the old set_junk) — cleaned
+    /// on the next `upsert_thread`.
+    pub fn set_bucket(
+        &self,
+        user: &str,
+        thread_id: &str,
+        bucket: keys::Bucket,
+    ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let inbox = keys::user_threads_inbox(user);
-        let junk = keys::user_threads_junk(user);
-        let new_category: &[u8] = if is_junk { b"spam" } else { b"inbox" };
+        let target = bucket.zset(user);
+        let others: Vec<String> = keys::Bucket::all_zsets(user)
+            .into_iter()
+            .filter(|k| *k != target)
+            .collect();
+        let new_category = bucket.category().as_bytes();
         self.store().atomic(|ctx| {
             if !ctx.hexists(thread_key.as_bytes(), b"count")? {
                 return Ok(false);
@@ -94,12 +124,9 @@ impl KevyMailboxStore {
                         .and_then(|s| s.parse::<i64>().ok())
                 })
                 .unwrap_or(0);
-            if is_junk {
-                ctx.zadd(junk.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-                ctx.zrem(inbox.as_bytes(), &[thread_id.as_bytes()])?;
-            } else {
-                ctx.zadd(inbox.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-                ctx.zrem(junk.as_bytes(), &[thread_id.as_bytes()])?;
+            ctx.zadd(target.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+            for other in &others {
+                ctx.zrem(other.as_bytes(), &[thread_id.as_bytes()])?;
             }
             Ok(true)
         })
@@ -256,7 +283,10 @@ impl KevyMailboxStore {
                 // v2.8.2 — the Phase 2 folder zsets were missing from
                 // this cleanup list, leaving orphan members behind on
                 // every delete (invisible rows, inflated zcard totals).
+                // v2.9 — the notifications/promotions buckets join them.
                 keys::user_threads_inbox(user),
+                keys::user_threads_notifications(user),
+                keys::user_threads_promotions(user),
                 keys::user_threads_junk(user),
                 keys::user_threads_sent(user),
             ];
@@ -367,6 +397,43 @@ mod tests {
             keys::user_threads_sent(u),
         ] {
             assert_eq!(s.store().zcard(idx.as_bytes()).unwrap(), 0, "idx {idx}");
+        }
+    }
+
+    #[test]
+    fn set_bucket_migrates_between_all_four_buckets() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u)).unwrap(); // inbound → Inbox
+        let inbox = keys::user_threads_inbox(u);
+        let notif = keys::user_threads_notifications(u);
+        let promo = keys::user_threads_promotions(u);
+        let junk = keys::user_threads_junk(u);
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
+
+        // Inbox → Promotions: only Promotions holds it now.
+        assert!(s.set_bucket(u, "t1", keys::Bucket::Promotions).unwrap());
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
+        assert_eq!(s.store().zcard(promo.as_bytes()).unwrap(), 1);
+        assert_eq!(s.get_thread("t1").unwrap().unwrap().category, "promotion");
+
+        // Promotions → Notifications.
+        assert!(s.set_bucket(u, "t1", keys::Bucket::Notifications).unwrap());
+        assert_eq!(s.store().zcard(promo.as_bytes()).unwrap(), 0);
+        assert_eq!(s.store().zcard(notif.as_bytes()).unwrap(), 1);
+
+        // Notifications → Junk (via the set_junk back-compat wrapper).
+        assert!(s.set_junk(u, "t1", true).unwrap());
+        assert_eq!(s.store().zcard(notif.as_bytes()).unwrap(), 0);
+        assert_eq!(s.store().zcard(junk.as_bytes()).unwrap(), 1);
+
+        // Junk → Inbox (move-to-inbox path).
+        assert!(s.set_bucket(u, "t1", keys::Bucket::Inbox).unwrap());
+        assert_eq!(s.store().zcard(junk.as_bytes()).unwrap(), 0);
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
+        // Exactly one bucket ever holds it.
+        for z in [&notif, &promo, &junk] {
+            assert_eq!(s.store().zcard(z.as_bytes()).unwrap(), 0);
         }
     }
 

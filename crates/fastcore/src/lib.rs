@@ -1286,6 +1286,9 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(th::PATH_UNARCHIVE, post(unarchive_thread))
             .route(th::PATH_MARK_JUNK, post(mark_junk))
             .route(th::PATH_MARK_NOT_JUNK, post(mark_not_junk))
+            .route(th::PATH_MARK_NOTIFICATION, post(mark_notification))
+            .route(th::PATH_MARK_PROMOTION, post(mark_promotion))
+            .route(th::PATH_MOVE_TO_INBOX, post(move_to_inbox))
             .route(th::PATH_DELETE_THREAD, delete(delete_thread))
             .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
             .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
@@ -2009,6 +2012,62 @@ async fn mark_not_junk(
     // spam training on the same thread first (mis-file correction).
     if ok {
         crate::bayes_train::train_thread(&state, &user, &thread_id, false);
+    }
+    action_result(ok)
+}
+
+/// v2.9 triage — move a thread into the Notifications bucket and train
+/// the triage classifier on this correction.
+async fn mark_notification(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    let ok = state
+        .mailbox
+        .set_bucket(
+            &user,
+            &thread_id,
+            mailrs_mailbox_kevy::keys::Bucket::Notifications,
+        )
+        .unwrap_or(false);
+    if ok {
+        crate::bayes_train::train_triage(&state, &user, &thread_id, "notification");
+    }
+    action_result(ok)
+}
+
+/// v2.9 triage — move a thread into the Promotions bucket and train
+/// the triage classifier on this correction.
+async fn mark_promotion(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    let ok = state
+        .mailbox
+        .set_bucket(
+            &user,
+            &thread_id,
+            mailrs_mailbox_kevy::keys::Bucket::Promotions,
+        )
+        .unwrap_or(false);
+    if ok {
+        crate::bayes_train::train_triage(&state, &user, &thread_id, "promotion");
+    }
+    action_result(ok)
+}
+
+/// v2.9 triage — move a thread back into the Inbox bucket and train the
+/// triage classifier on this correction.
+async fn move_to_inbox(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    let ok = state
+        .mailbox
+        .set_bucket(&user, &thread_id, mailrs_mailbox_kevy::keys::Bucket::Inbox)
+        .unwrap_or(false);
+    if ok {
+        crate::bayes_train::train_triage(&state, &user, &thread_id, "inbox");
     }
     action_result(ok)
 }

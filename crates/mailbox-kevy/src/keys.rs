@@ -79,6 +79,88 @@ pub fn user_threads_inbox(user: &str) -> String {
     format!("mailrs:user:{user}:threads:inbox")
 }
 
+/// Per-user Notifications-folder subset (v2.9 triage). Automated /
+/// transactional mail (`category == "notification"`). Top-level
+/// bucket, mutually exclusive with inbox/promotions/junk. Score =
+/// latest_date.
+pub fn user_threads_notifications(user: &str) -> String {
+    format!("mailrs:user:{user}:threads:notifications")
+}
+
+/// Per-user Promotions-folder subset (v2.9 triage). Marketing / bulk
+/// commercial mail (`category == "promotion"`). Top-level bucket,
+/// mutually exclusive with inbox/notifications/junk. Score =
+/// latest_date.
+pub fn user_threads_promotions(user: &str) -> String {
+    format!("mailrs:user:{user}:threads:promotions")
+}
+
+/// The triage bucket a thread belongs to. Exactly one of these holds a
+/// non-sent-only thread at any time (Sent is an orthogonal axis; the
+/// archived/starred/pinned flags are orthogonal too). The bucket is a
+/// pure function of the thread's `category` field — see [`bucket_of`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bucket {
+    Inbox,
+    Notifications,
+    Promotions,
+    Junk,
+}
+
+impl Bucket {
+    /// The folder zset key for this bucket.
+    pub fn zset(self, user: &str) -> String {
+        match self {
+            Bucket::Inbox => user_threads_inbox(user),
+            Bucket::Notifications => user_threads_notifications(user),
+            Bucket::Promotions => user_threads_promotions(user),
+            Bucket::Junk => user_threads_junk(user),
+        }
+    }
+
+    /// The canonical `category` field value for this bucket, used when a
+    /// mutation forces a bucket (`set_bucket`).
+    pub fn category(self) -> &'static str {
+        match self {
+            Bucket::Inbox => "inbox",
+            Bucket::Notifications => "notification",
+            Bucket::Promotions => "promotion",
+            Bucket::Junk => "spam",
+        }
+    }
+
+    /// All four bucket zset keys — used to zrem a thread from the three
+    /// it's leaving when moving into one, and by `delete_thread` cleanup.
+    pub fn all_zsets(user: &str) -> [String; 4] {
+        [
+            user_threads_inbox(user),
+            user_threads_notifications(user),
+            user_threads_promotions(user),
+            user_threads_junk(user),
+        ]
+    }
+}
+
+/// Map a thread's `category` string to its triage bucket. This is the
+/// single source of truth for the bucket axis — every arrival/upsert
+/// path derives folder membership through here so the "exactly one of
+/// {inbox, notifications, promotions, junk}" invariant stays consistent.
+pub fn bucket_of(category: &str) -> Bucket {
+    if category.eq_ignore_ascii_case("spam") || category.eq_ignore_ascii_case("scam") {
+        Bucket::Junk
+    } else if category.eq_ignore_ascii_case("notification")
+        || category.eq_ignore_ascii_case("notifications")
+    {
+        Bucket::Notifications
+    } else if category.eq_ignore_ascii_case("promotion")
+        || category.eq_ignore_ascii_case("promotions")
+    {
+        Bucket::Promotions
+    } else {
+        Bucket::Inbox
+    }
+}
+
 /// Per-user uid → message_id index — hash where field=uid, value=message_id.
 /// Populated by the deliver path + `mailrs-fastcore-backfill-uid-index`.
 pub fn user_msg_by_uid(user: &str) -> String {
