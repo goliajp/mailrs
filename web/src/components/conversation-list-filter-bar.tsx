@@ -124,12 +124,12 @@ export const FilterBar = memo(function FilterBar() {
     section === 'other'
 
   return (
-    <div className="border-border flex items-center gap-1 border-b px-3 py-1.5">
-      <div className="scrollbar-hide flex snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth md:overflow-x-visible">
+    <div className="border-border flex items-start gap-1 border-b px-3 py-1.5">
+      <div className="flex flex-1 flex-wrap items-center gap-1">
         {VIEW_TABS.map((t) => {
           const isActive = activeTab === t.value
           const base =
-            'snap-start shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
+            'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
           const color =
             t.value === 'junk'
               ? 'bg-danger/10 text-danger'
@@ -139,9 +139,7 @@ export const FilterBar = memo(function FilterBar() {
                   ? 'bg-success/10 text-success'
                   : t.value === 'unread'
                     ? 'bg-accent/10 text-accent'
-                    : t.value === 'np'
-                      ? 'bg-accent/10 text-accent'
-                      : 'bg-border text-fg-secondary'
+                    : 'bg-border text-fg-secondary'
           const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
           return (
             <button
