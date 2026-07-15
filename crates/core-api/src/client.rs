@@ -424,6 +424,39 @@ impl Client {
             .await
     }
 
+    /// POST /v1/users/{user}/threads/{thread_id}/mark-notification
+    /// v2.9 triage.
+    pub async fn mark_notification(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "mark-notification", "mark_notification")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/mark-promotion
+    /// v2.9 triage.
+    pub async fn mark_promotion(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "mark-promotion", "mark_promotion")
+            .await
+    }
+
+    /// POST /v1/users/{user}/threads/{thread_id}/move-to-inbox
+    /// v2.9 triage.
+    pub async fn move_to_inbox(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        self.thread_action(user, thread_id, "move-to-inbox", "move_to_inbox")
+            .await
+    }
+
     /// PUT /v1/users/{user}/threads/{thread_id}/snooze
     pub async fn snooze_thread(
         &self,

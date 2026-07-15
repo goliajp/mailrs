@@ -48,6 +48,22 @@ pub const PATH_MARK_JUNK: &str = "/v1/users/{user}/threads/{thread_id}/mark-junk
 /// threshold when authed.
 pub const PATH_MARK_NOT_JUNK: &str = "/v1/users/{user}/threads/{thread_id}/mark-not-junk";
 
+/// v2.9 triage — move a thread into the Notifications bucket
+/// (`set_bucket(Notifications)`, stamp `category = "notification"`),
+/// and train the triage classifier on this correction.
+pub const PATH_MARK_NOTIFICATION: &str = "/v1/users/{user}/threads/{thread_id}/mark-notification";
+
+/// v2.9 triage — move a thread into the Promotions bucket
+/// (`set_bucket(Promotions)`, stamp `category = "promotion"`), and
+/// train the triage classifier on this correction.
+pub const PATH_MARK_PROMOTION: &str = "/v1/users/{user}/threads/{thread_id}/mark-promotion";
+
+/// v2.9 triage — move a thread into the Inbox bucket
+/// (`set_bucket(Inbox)`, stamp `category = "inbox"`), and train the
+/// triage classifier on this correction. Also clears junk if the
+/// thread was previously in Junk.
+pub const PATH_MOVE_TO_INBOX: &str = "/v1/users/{user}/threads/{thread_id}/move-to-inbox";
+
 /// `POST /v1/users/{user}/threads/{thread_id}/messages` — deliver a
 /// synthesized message (sent copy, saved draft, imported item) into the
 /// user's kevy view. Fires the same `record_message_arrival` +

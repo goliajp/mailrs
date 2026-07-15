@@ -72,6 +72,19 @@ impl<'a> ListThreadsFilter<'a> {
                 // them into `user_threads_junk`.
                 return vec![keys::user_threads_junk(user)];
             }
+            if f.eq_ignore_ascii_case("notifications") {
+                // v2.9 triage — Notifications bucket, pure axis switch.
+                return vec![keys::user_threads_notifications(user)];
+            }
+            if f.eq_ignore_ascii_case("promotions") {
+                // v2.9 triage — Promotions bucket, pure axis switch.
+                return vec![keys::user_threads_promotions(user)];
+            }
+            // "np" (the merged N & P view) is the UNION of the two
+            // bucket zsets — handled specially in
+            // `list_threads_by_activity` via ZUNIONSTORE, not here (this
+            // function's multi-key return is ZINTERSTORE'd). See
+            // `np_union_keys`.
             if f.eq_ignore_ascii_case("inbox") {
                 // Inbox axis + additional predicates below stack via
                 // ZINTERSTORE — same shape as any other multi-index
@@ -130,6 +143,19 @@ impl<'a> ListThreadsFilter<'a> {
         // use predicate_index_keys() + ZINTERSTORE.
         self.predicate_index_keys(user).remove(0)
     }
+
+    /// The merged "N & P" view — `Some([notifications, promotions])`
+    /// when `folder == "np"`, else `None`. These are ZUNIONSTORE'd (a
+    /// union, not the intersection `predicate_index_keys` produces).
+    fn np_union_keys(&self, user: &str) -> Option<Vec<String>> {
+        match self.folder {
+            Some(f) if f.eq_ignore_ascii_case("np") => Some(vec![
+                keys::user_threads_notifications(user),
+                keys::user_threads_promotions(user),
+            ]),
+            _ => None,
+        }
+    }
 }
 
 impl KevyMailboxStore {
@@ -154,15 +180,21 @@ impl KevyMailboxStore {
         // the highest-priority single index and let the UI show
         // over-count badges. The temp key is TTL-tagged so an orphan
         // (e.g. panic mid-request) auto-cleans.
-        let index_keys = filter.predicate_index_keys(user);
-        let owned_temp: Option<String> = if index_keys.len() > 1 {
+        // v2.9 — the merged "N & P" view is a ZUNIONSTORE of the two
+        // bucket zsets into a per-request temp key (mirrors the
+        // ZINTERSTORE temp-key pattern below; TTL-tagged so an orphan
+        // auto-cleans). Handled before the intersection path because a
+        // union has different algebra.
+        let index_keys: Vec<String>;
+        let owned_temp: Option<String>;
+        if let Some(union_keys) = filter.np_union_keys(user) {
             let ts_nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
-            let temp = format!("mailrs:tmp:zinter:{user}:{ts_nanos}");
-            let refs: Vec<&[u8]> = index_keys.iter().map(|k| k.as_bytes()).collect();
-            self.store().zinterstore(
+            let temp = format!("mailrs:tmp:zunion:{user}:{ts_nanos}");
+            let refs: Vec<&[u8]> = union_keys.iter().map(|k| k.as_bytes()).collect();
+            self.store().zunionstore(
                 temp.as_bytes(),
                 &refs,
                 None,
@@ -170,10 +202,30 @@ impl KevyMailboxStore {
             )?;
             self.store()
                 .expire(temp.as_bytes(), std::time::Duration::from_secs(60))?;
-            Some(temp)
+            index_keys = vec![temp.clone()];
+            owned_temp = Some(temp);
         } else {
-            None
-        };
+            index_keys = filter.predicate_index_keys(user);
+            owned_temp = if index_keys.len() > 1 {
+                let ts_nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                let temp = format!("mailrs:tmp:zinter:{user}:{ts_nanos}");
+                let refs: Vec<&[u8]> = index_keys.iter().map(|k| k.as_bytes()).collect();
+                self.store().zinterstore(
+                    temp.as_bytes(),
+                    &refs,
+                    None,
+                    kevy_embedded::ZAggregate::Max,
+                )?;
+                self.store()
+                    .expire(temp.as_bytes(), std::time::Duration::from_secs(60))?;
+                Some(temp)
+            } else {
+                None
+            };
+        }
         let key: &str = owned_temp
             .as_deref()
             .unwrap_or_else(|| index_keys[0].as_str());

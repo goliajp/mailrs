@@ -106,6 +106,16 @@ pub fn train_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str, is_
     );
 }
 
+/// v2.9 triage — train the multi-class triage classifier on a thread
+/// the user (or the backfill) assigned to `class` ∈ {inbox,
+/// notification, promotion}. Phase 1 stub: no-op. Phase 2 fills this in
+/// (per-class corpus in `bayes:triage:*`, reversible like
+/// [`train_thread`]).
+pub fn train_triage(_state: &Arc<FastcoreState>, _user: &str, _thread_id: &str, _class: &str) {
+    // Phase 2: tokenize the thread, HINCRBY the per-class triage
+    // corpus, record a reversible direction marker.
+}
+
 /// True if the corpus already holds any trained messages. The caller
 /// (route handler) checks this ONCE before looping over accounts — a
 /// per-account guard would let the first account's training lock out

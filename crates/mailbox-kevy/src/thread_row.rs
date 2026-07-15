@@ -163,18 +163,18 @@ impl KevyMailboxStore {
         let has_action = keys::user_threads_has_action(user);
         let starred = keys::user_threads_starred(user);
         let sent = keys::user_threads_sent(user);
-        // v2.4.0 Phase 2 (RFC-A) — top-level folder zsets. A thread lives
-        // in Junk iff category ∈ {"spam", "scam"} (the two intelligence
-        // classifier labels that map to "junk mail" for user-facing
-        // display); otherwise it lives in Inbox. Sent remains an
-        // orthogonal axis via `is_sender` below (a thread can be both
-        // Inbox AND Sent — showing up in the user's Sent view whenever
-        // they replied at least once). Phase 3 adds per-user
-        // blacklist / whitelist sources for `is_junk`.
-        let junk = keys::user_threads_junk(user);
-        let inbox = keys::user_threads_inbox(user);
-        let is_junk =
-            row.category.eq_ignore_ascii_case("spam") || row.category.eq_ignore_ascii_case("scam");
+        // v2.4.0 Phase 2 / v2.9 triage — top-level bucket zsets. A thread
+        // lives in exactly ONE of {inbox, notifications, promotions,
+        // junk}, derived purely from `category` via `bucket_of`. Sent
+        // remains an orthogonal axis via `is_sender` below (a thread can
+        // be both a bucket AND Sent — showing up in the user's Sent view
+        // whenever they replied at least once).
+        let bucket = keys::bucket_of(&row.category);
+        let bucket_zset = bucket.zset(user);
+        let other_buckets: Vec<String> = keys::Bucket::all_zsets(user)
+            .into_iter()
+            .filter(|k| *k != bucket_zset)
+            .collect();
         let is_sender = senders_csv_contains_user(&row.senders_csv, user);
         let score = row.latest_date as f64;
         let member: &[u8] = row.thread_id.as_bytes();
@@ -221,21 +221,23 @@ impl KevyMailboxStore {
             } else {
                 ctx.zrem(sent.as_bytes(), &[member])?;
             }
-            // v2.4.0 Phase 2 (RFC-A) — Junk/Inbox membership. At most
-            // one of them holds a thread at any time; the other holds
-            // a ZREM so a category flip (e.g. user "marks as junk"
-            // later via Phase 3 right-click) migrates cleanly.
-            // v2.8.2: a sent-only thread (no received message yet —
-            // count == sent_count) belongs to the Sent axis alone; it
-            // must not surface in the Inbox view.
-            if is_junk {
-                ctx.zadd(junk.as_bytes(), &[(score, member)])?;
-                ctx.zrem(inbox.as_bytes(), &[member])?;
-            } else if row.count > row.sent_count {
-                ctx.zadd(inbox.as_bytes(), &[(score, member)])?;
-                ctx.zrem(junk.as_bytes(), &[member])?;
+            // v2.9 triage — bucket membership. The thread joins exactly
+            // one of {inbox, notifications, promotions, junk} per
+            // `bucket_of(category)` and is removed from the other three,
+            // so a category flip (e.g. "mark as promotion") migrates
+            // cleanly. A sent-only thread (count == sent_count, no
+            // received message) belongs to the Sent axis alone and must
+            // not surface in any inbound bucket; Junk is the exception.
+            if bucket == keys::Bucket::Junk || row.count > row.sent_count {
+                ctx.zadd(bucket_zset.as_bytes(), &[(score, member)])?;
+                for other in &other_buckets {
+                    ctx.zrem(other.as_bytes(), &[member])?;
+                }
             } else {
-                ctx.zrem(junk.as_bytes(), &[member])?;
+                // Sent-only: not in any inbound bucket.
+                for z in keys::Bucket::all_zsets(user) {
+                    ctx.zrem(z.as_bytes(), &[member])?;
+                }
             }
             Ok(())
         })
