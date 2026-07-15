@@ -19,6 +19,13 @@ RUN cargo chef prepare --recipe-path recipe.json
 # release; the real version lives only in the tag and the built artifact.
 FROM chef AS rust-builder
 ARG VERSION=0.0.0
+# CACHE_BUST (= the git ref/tag) is echoed into the version-sed layer
+# below so buildx's GHA cache can NEVER reuse a stale Rust-builder
+# layer across versions. Without it, buildx keyed the sed RUN on the
+# literal command (`sed …$VERSION…`), not the substituted value, so a
+# split-v0.0.5 test build's layer was served to the v2.9.0 build and
+# shipped a 0.0.5 binary as 2.9.0 (2026-07-15 incident).
+ARG CACHE_BUST=none
 
 # Cap parallel cargo jobs to bound peak build memory. The release
 # profile uses fat LTO, whose link phase is memory-hungry; with the
@@ -48,7 +55,8 @@ COPY crates/ crates/
 # Patch the workspace root version BEFORE cargo build so the resolver
 # picks it up. Only the workspace.package.version line; member crates
 # inherit via `version.workspace = true`.
-RUN sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+RUN echo "cache-bust=$CACHE_BUST version=$VERSION" \
+    && sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \

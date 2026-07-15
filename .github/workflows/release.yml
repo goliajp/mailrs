@@ -177,14 +177,22 @@ jobs:
           # Inject the git tag's version into Cargo.toml + package.json
           # at build time. Repo files stay at 0.0.0 — no bump commit, no
           # bump.sh, no developer ceremony beyond `git tag v<x.y.z>`.
+          # CACHE_BUST=ref_name busts the layer cache on the exact
+          # version so a stale Rust-builder layer can never be reused
+          # across versions (a split-v0.0.5 test build once poisoned the
+          # prod cache scope and shipped its image as v2.9.0 —
+          # 2026-07-15 incident).
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
+            CACHE_BUST=${{ github.ref_name }}
           # Push without a tag — output is the image digest. The
           # `manifest` job below collects per-arch digests and stamps
           # the semver tags on the combined manifest.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+          # Separate cache scope for split-v* TEST tags so they never
+          # share (and never poison) the prod v* cache scope.
+          cache-from: type=gha,scope=${{ matrix.arch }}${{ startsWith(github.ref_name, 'split-') && '-test' || '' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}${{ startsWith(github.ref_name, 'split-') && '-test' || '' }}
 
       - name: export digest
         run: |
