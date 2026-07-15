@@ -38,6 +38,7 @@ members = [
     "crates/clamav",
     "crates/backoff",
     "crates/bayes",
+    "crates/triage",
     "crates/mailrs-syscall",
     "crates/mailrs-mmalloc",
     "crates/tls-reload",

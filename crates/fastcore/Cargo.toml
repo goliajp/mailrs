@@ -50,6 +50,7 @@ mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-core = { path = "../core" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 mailrs-bayes = { path = "../bayes" }
+mailrs-triage = { path = "../triage" }
 mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
 mailrs-smtp-client = { path = "../smtp-client" }
