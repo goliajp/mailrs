@@ -27,6 +27,7 @@ import { AttachmentPreview } from '@/components/attachment-preview'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { Copyable } from '@/components/copy-button'
 import { InviteCard } from '@/components/invite-card'
+import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
 import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -708,10 +709,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {!selectedMsg.html_body && (
                   <div className="px-4 py-3 select-text">
                     <div className="text-fg text-mid font-sans leading-relaxed break-words whitespace-pre-wrap">
-                      {highlightMentions(
-                        selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
-                        myEmail,
-                        auth?.display_name
+                      {linkifyNodes(
+                        highlightMentions(
+                          selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
+                          myEmail,
+                          auth?.display_name
+                        ),
+                        'text-accent underline hover:no-underline'
                       )}
                     </div>
                   </div>
