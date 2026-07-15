@@ -43,6 +43,10 @@ export type ConversationFilter = {
   readonly domains?: readonly string[]
   readonly folder?: Folder
   readonly limit?: number
+  // Full-text search term. When set, the list read switches to the
+  // /conversations/search endpoint — so it MUST participate in the
+  // query key or a search silently reuses the non-search list cache.
+  readonly query?: string
   readonly starred?: boolean
   readonly unread?: boolean
 }
@@ -147,6 +151,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly domains: readonly string[]
   readonly folder: Folder | null
   readonly limit: number
+  readonly query: null | string
   readonly starred: boolean | null
   readonly unread: boolean | null
 } {
@@ -158,6 +163,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
     domains,
     folder: f?.folder ?? null,
     limit: f?.limit ?? 50,
+    query: f?.query ?? null,
     starred: f?.starred ?? null,
     unread: f?.unread ?? null,
   }
