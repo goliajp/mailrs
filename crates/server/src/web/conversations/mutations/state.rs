@@ -210,11 +210,17 @@ async fn set_bucket_action(
         });
     };
     let result = mb_store.set_thread_bucket(user, thread_id, category).await;
-    if result.is_ok()
-        && let Some(ref kevy) = state.kevy_embed
-    {
-        conversation_cache::bust_thread(kevy, user, thread_id);
-        conversation_cache::bust_user(kevy, user);
+    if result.is_ok() {
+        if let Some(ref kevy) = state.kevy_embed {
+            conversation_cache::bust_thread(kevy, user, thread_id);
+            conversation_cache::bust_user(kevy, user);
+        }
+        // v2.9 triage — teach the SHARED classifier corpus from this
+        // correction (core-mode parity with fastcore's train_triage).
+        // Only the triage classes train; junk uses a separate corpus.
+        if mailrs_triage::is_class(category) {
+            train_triage_from_maildir(state, mb_store, user, thread_id, category).await;
+        }
     }
     match result {
         Ok(_) => Json(ApiResult {
@@ -226,6 +232,57 @@ async fn set_bucket_action(
             message: Some(e.to_string()),
         }),
     }
+}
+
+/// Read the thread's raw maildir messages, tokenize their union, and
+/// train the shared `mailrs-triage` corpus (network kevy) on `class`.
+/// Best-effort — no maildir file / no MAILRS_KEVY_URL / kevy hiccup all
+/// silently skip. Mirrors fastcore's train_triage (maildir source +
+/// shared corpus) so both lanes teach the same classifier.
+async fn train_triage_from_maildir(
+    state: &Arc<WebState>,
+    mb_store: &mailrs_mailbox::PgMailboxStore,
+    user: &str,
+    thread_id: &str,
+    class: &str,
+) {
+    let Ok(Some(url)) = std::env::var("MAILRS_KEVY_URL").map(|s| (!s.is_empty()).then_some(s))
+    else {
+        return;
+    };
+    let Ok(ids) = mb_store.get_thread_maildir_ids(user, thread_id).await else {
+        return;
+    };
+    if ids.is_empty() {
+        return;
+    }
+    let Some((local, domain)) = user.split_once('@') else {
+        return;
+    };
+    let base = format!("{}/{}/{}", state.maildir_root, domain, local);
+    let id_set: std::collections::HashSet<&str> = ids.iter().map(String::as_str).collect();
+    let mut tokens: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let md = mailrs_maildir::Maildir::open(&base);
+    for entry in md
+        .scan_cur()
+        .unwrap_or_default()
+        .into_iter()
+        .chain(md.scan_new().unwrap_or_default())
+    {
+        if id_set.contains(entry.id.to_string().as_str())
+            && let Ok(raw) = std::fs::read(&entry.path)
+        {
+            tokens.extend(mailrs_bayes::tokenize(&raw));
+        }
+    }
+    if tokens.is_empty() {
+        return;
+    }
+    let Ok(mut conn) = kevy_client::Connection::open(&url) else {
+        return;
+    };
+    let toks: Vec<String> = tokens.into_iter().collect();
+    mailrs_triage::train(&mut conn, &toks, class, thread_id);
 }
 
 pub(crate) async fn mark_junk(
