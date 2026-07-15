@@ -224,7 +224,7 @@ fn is_automated_sender(value: &str) -> bool {
     // Local part = the token right before the '@' (strip display name).
     let head = &value[..at];
     let local = head
-        .rsplit(|c: char| c == '<' || c == ' ' || c == '"')
+        .rsplit(['<', ' ', '"'])
         .next()
         .unwrap_or(head)
         .to_lowercase();
