@@ -8,6 +8,7 @@ import {
   folderAtom,
   type ImportanceSection,
   importanceSectionAtom,
+  type MailFolder,
   quickFilterAtom,
   selectedDomainsAtom,
   showArchivedAtom,
@@ -15,39 +16,74 @@ import {
   sortOrderAtom,
 } from '@/store/ui'
 
-// v2.4.2 Phase 4.3 — the pre-Phase-2 "Spam" tab (which set
-// `activeCategory='spam'` and filtered on the by_category:spam zset)
-// is superseded by the Junk folder tab. Both showed AI-classified
-// junk mail; Junk is the top-level folder, Spam was a subfilter on
-// Inbox that shared the same threads post-Phase-2 anyway. Keeping
-// only Junk removes user confusion about which one to click. The
-// internal `activeCategory === 'spam'` is still honored by the
-// backend for legacy links / stored filters.
-// v2.8.2 — "All" (mixed by_activity axis that leaked Junk + Sent
-// threads into the default view) becomes "Inbox" (dedicated inbox
-// folder axis: no Junk, no sent-only threads, starred included).
-// "Archived" is promoted from the advanced-filter panel toggle to a
-// first-class tab; delete inside it is the permanent delete it always
-// was on the backend.
-// v2.9 triage — "N & P" is the merged Notifications & Promotions view
-// (union of the two buckets; each row's category badge distinguishes
-// N from P). Inbox no longer shows N/P mail.
-const VIEW_TABS: { label: string; value: string }[] = [
-  { label: 'Inbox', value: 'inbox' },
-  { label: 'N & P', value: 'np' },
-  { label: 'Unread', value: 'unread' },
-  { label: 'Starred', value: 'starred' },
-  { label: 'Archived', value: 'archived' },
-  { label: 'Sent', value: 'sent' },
-  { label: 'Junk', value: 'junk' },
+// v2.4.2 Phase 4.3 — the pre-Phase-2 "Spam" tab is superseded by the
+// Junk folder tab. The internal `activeCategory === 'spam'` is still
+// honored by the backend for legacy links / stored filters.
+// v2.8.2 — "All" becomes "Inbox" (dedicated inbox folder axis: no Junk,
+// no sent-only threads). "Archived" is a first-class tab.
+// v2.9 triage — "N & P" is the merged Notifications & Promotions view.
+// 2026-07-16 — two fixed rows (user layout); selection is shown by a
+// deeper/solid background (no per-tab colors, no ring) — a uniform
+// segmented-control look.
+const TAB_ROWS: { label: string; value: string }[][] = [
+  [
+    { label: 'Inbox', value: 'inbox' },
+    { label: 'N & P', value: 'np' },
+    { label: 'Unread', value: 'unread' },
+    { label: 'Junk', value: 'junk' },
+  ],
+  [
+    { label: 'Sent', value: 'sent' },
+    { label: 'Draft', value: 'draft' },
+    { label: 'Archived', value: 'archived' },
+  ],
 ]
 
-// memo'd because FilterBar takes no props — every parent re-render
-// (search box keystroke, selection change, batch-mode toggle) would
-// otherwise re-create its 7 tabs + filter-panel JSX even though the
-// atom-backed state is identical. With memo, props-equal short-circuit
-// makes the function a no-op unless one of its atoms moves; useAtom
-// then re-renders only when that specific atom's value changes.
+function panelChipClass(isActive: boolean, extra: string): string {
+  const base = `rounded-md px-2 py-0.5 transition-colors ${extra}`
+  if (isActive) return `${base} bg-fg text-bg`
+  return `${base} text-fg-secondary hover:bg-bg-secondary`
+}
+
+// which tab is highlighted, derived from the several independent atoms
+// that together describe the current view. explicit if-returns — no
+// nested ternaries.
+function resolveActiveTab(state: {
+  activeCategory: null | string
+  folder: MailFolder
+  quickFilter: string
+  showArchived: boolean
+}): string {
+  if (state.activeCategory === 'spam' || state.activeCategory === 'scam') return 'junk'
+  if (state.folder === 'Sent') return 'sent'
+  if (state.folder === 'Drafts') return 'draft'
+  if (state.folder === 'Junk') return 'junk'
+  if (state.folder === 'NP') return 'np'
+  if (state.showArchived) return 'archived'
+  if (state.quickFilter !== 'all') return state.quickFilter
+  return 'inbox'
+}
+
+function sectionLabel(s: ImportanceSection): string {
+  if (s === null) return 'All'
+  if (s === 'important') return 'Important'
+  return 'Other'
+}
+
+function sortLabel(s: SortOrder): string {
+  if (s === 'unread') return 'Unread first'
+  return s
+}
+
+function tabButtonClass(isActive: boolean): string {
+  const base = 'shrink-0 cursor-pointer rounded-md px-3 py-1 text-xs transition-colors'
+  if (isActive) return `${base} bg-border-strong text-fg font-semibold`
+  return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
+}
+
+// memo'd because FilterBar takes no props — every parent re-render would
+// otherwise re-create the tabs + filter-panel JSX even though the
+// atom-backed state is identical.
 export const FilterBar = memo(function FilterBar() {
   const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
   const [folder, setFolder] = useAtom(folderAtom)
@@ -73,46 +109,38 @@ export const FilterBar = memo(function FilterBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [filtersOpen])
 
-  const activeTab =
-    // v2.4.2 Phase 4.3: legacy spam / scam category filters land on
-    // the Junk tab so the UI collapses to a single spam-adjacent
-    // control.
-    activeCategory === 'spam' || activeCategory === 'scam'
-      ? 'junk'
-      : folder === 'Sent'
-        ? 'sent'
-        : folder === 'Junk'
-          ? 'junk'
-          : folder === 'NP'
-            ? 'np'
-            : showArchived
-              ? 'archived'
-              : quickFilter !== 'all'
-                ? quickFilter
-                : 'inbox'
+  const activeTab = resolveActiveTab({ activeCategory, folder, quickFilter, showArchived })
 
   const handleTab = (tab: string) => {
     if (tab === activeTab) return
+    // reset to the Inbox base axis, then apply the tab-specific view.
     setActiveCategory(null)
-    // v2.8.2: Inbox is the base axis — Unread / Starred / Archived
-    // stack on top of it (backend ZINTERSTOREs the inbox zset with
-    // the matching flag index), so none of them leak Junk / Sent.
     setFolder('Inbox')
     setQuickFilter('all')
     setSection(null)
     setShowArchived(false)
-    if (tab === 'sent') {
-      setFolder('Sent')
-    } else if (tab === 'junk') {
-      setFolder('Junk')
-    } else if (tab === 'np') {
-      setFolder('NP')
-    } else if (tab === 'archived') {
-      setShowArchived(true)
-    } else if (tab === 'unread') {
-      setQuickFilter('unread')
-    } else if (tab === 'starred') {
-      setQuickFilter('starred')
+    switch (tab) {
+      case 'archived':
+        setShowArchived(true)
+        break
+      case 'draft':
+        setFolder('Drafts')
+        break
+      case 'junk':
+        setFolder('Junk')
+        break
+      case 'np':
+        setFolder('NP')
+        break
+      case 'sent':
+        setFolder('Sent')
+        break
+      case 'unread':
+        setQuickFilter('unread')
+        break
+      default:
+        // 'inbox' — base state already applied above
+        break
     }
   }
 
@@ -123,44 +151,32 @@ export const FilterBar = memo(function FilterBar() {
     section === 'important' ||
     section === 'other'
 
+  let filterBtnClass = 'text-fg-muted hover:bg-bg-secondary'
+  if (filtersOpen || hasAdvancedFilters) filterBtnClass = 'text-accent'
+
   return (
     <div className="border-border flex items-start gap-1 border-b px-3 py-1.5">
-      <div className="flex flex-1 flex-wrap items-center gap-1">
-        {VIEW_TABS.map((t) => {
-          const isActive = activeTab === t.value
-          const base =
-            'shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer'
-          const color =
-            t.value === 'junk'
-              ? 'bg-danger/10 text-danger'
-              : t.value === 'starred'
-                ? 'bg-warning/10 text-warning'
-                : t.value === 'sent'
-                  ? 'bg-success/10 text-success'
-                  : t.value === 'unread'
-                    ? 'bg-accent/10 text-accent'
-                    : 'bg-border text-fg-secondary'
-          const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
-          return (
-            <button
-              className={`${base} ${color} ${ring}`}
-              key={t.value}
-              onClick={() => handleTab(t.value)}
-            >
-              {t.label}
-            </button>
-          )
-        })}
+      <div className="flex flex-1 flex-col gap-1">
+        {TAB_ROWS.map((row, ri) => (
+          // index key OK: static two-row layout, never reordered
+          <div className="flex flex-wrap items-center gap-1" key={ri}>
+            {row.map((t) => (
+              <button
+                className={tabButtonClass(activeTab === t.value)}
+                key={t.value}
+                onClick={() => handleTab(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        ))}
       </div>
 
-      <div className="relative ml-auto" ref={panelRef}>
+      <div className="relative" ref={panelRef}>
         <button
           aria-label="Toggle filters"
-          className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
-            filtersOpen || hasAdvancedFilters
-              ? 'text-accent'
-              : 'text-fg-muted hover:bg-bg-secondary'
-          }`}
+          className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${filterBtnClass}`}
           onClick={() => setFiltersOpen((prev) => !prev)}
           title="Filters"
         >
@@ -177,13 +193,11 @@ export const FilterBar = memo(function FilterBar() {
               <div className="flex gap-1">
                 {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
                   <button
-                    className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
-                      sortOrder === s ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                    }`}
+                    className={panelChipClass(sortOrder === s, 'capitalize')}
                     key={s}
                     onClick={() => setSortOrder(s)}
                   >
-                    {s === 'unread' ? 'Unread first' : s}
+                    {sortLabel(s)}
                   </button>
                 ))}
               </div>
@@ -194,13 +208,14 @@ export const FilterBar = memo(function FilterBar() {
               <div className="flex flex-wrap gap-1">
                 {([null, 'important', 'other'] as ImportanceSection[]).map((s) => (
                   <button
-                    className={`rounded-md px-2 py-0.5 transition-colors ${
-                      section === s ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-secondary'
-                    }`}
+                    className={panelChipClass(section === s, '')}
                     key={s ?? 'all'}
-                    onClick={() => setSection(section === s ? null : s)}
+                    onClick={() => {
+                      if (section === s) setSection(null)
+                      else setSection(s)
+                    }}
                   >
-                    {s === null ? 'All' : s === 'important' ? 'Important' : 'Other'}
+                    {sectionLabel(s)}
                   </button>
                 ))}
               </div>
@@ -211,26 +226,19 @@ export const FilterBar = memo(function FilterBar() {
                 <label className="text-fg-muted mb-1 block font-medium">Category</label>
                 <div className="flex flex-wrap gap-1">
                   <button
-                    className={`rounded-md px-2 py-0.5 transition-colors ${
-                      activeCategory === null
-                        ? 'bg-fg text-bg'
-                        : 'text-fg-secondary hover:bg-bg-secondary'
-                    }`}
+                    className={panelChipClass(activeCategory === null, '')}
                     onClick={() => setActiveCategory(null)}
                   >
                     All
                   </button>
                   {categories.map((cat) => (
                     <button
-                      className={`rounded-md px-2 py-0.5 capitalize transition-colors ${
-                        activeCategory === cat.category
-                          ? 'bg-fg text-bg'
-                          : 'text-fg-secondary hover:bg-bg-secondary'
-                      }`}
+                      className={panelChipClass(activeCategory === cat.category, 'capitalize')}
                       key={cat.category}
-                      onClick={() =>
-                        setActiveCategory(activeCategory === cat.category ? null : cat.category)
-                      }
+                      onClick={() => {
+                        if (activeCategory === cat.category) setActiveCategory(null)
+                        else setActiveCategory(cat.category)
+                      }}
                     >
                       {cat.category}
                     </button>
