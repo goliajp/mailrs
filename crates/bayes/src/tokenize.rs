@@ -34,6 +34,32 @@ pub fn tokenize(raw: &[u8]) -> Vec<String> {
                 if let Some(dom) = sender_domain(&value) {
                     out.insert(format!("from:{dom}"));
                 }
+                // v2.9 triage — automated-sender signal (noreply@ /
+                // bounce@ / notification@ / mailer-daemon@ local-parts).
+                // A strong Notifications discriminator.
+                if is_automated_sender(&value) {
+                    out.insert("from:automated".to_string());
+                }
+            }
+            // v2.9 triage header signals — crisp Notifications /
+            // Promotions discriminators the body-token stats miss.
+            "list-unsubscribe" => {
+                out.insert("hdr:list-unsub".to_string());
+            }
+            "list-id" => {
+                out.insert("hdr:list-id".to_string());
+            }
+            "precedence" => {
+                let v = value.trim().to_lowercase();
+                if !v.is_empty() {
+                    out.insert(format!("hdr:precedence:{v}"));
+                }
+            }
+            "auto-submitted" => {
+                // Any value other than "no" marks automated mail.
+                if !value.trim().eq_ignore_ascii_case("no") {
+                    out.insert("hdr:auto-submitted".to_string());
+                }
             }
             "content-type" => {
                 let lc = value.to_lowercase();
@@ -186,6 +212,34 @@ fn sender_domain(value: &str) -> Option<String> {
     if dom.contains('.') { Some(dom) } else { None }
 }
 
+/// True if the From address' local-part looks like an automated /
+/// transactional sender (noreply / no-reply / bounce / notification /
+/// mailer-daemon / donotreply). A strong Notifications signal, mirroring
+/// `mailrs_clean::sender::is_automated_sender`.
+fn is_automated_sender(value: &str) -> bool {
+    let at = match value.rfind('@') {
+        Some(i) => i,
+        None => return false,
+    };
+    // Local part = the token right before the '@' (strip display name).
+    let head = &value[..at];
+    let local = head
+        .rsplit(|c: char| c == '<' || c == ' ' || c == '"')
+        .next()
+        .unwrap_or(head)
+        .to_lowercase();
+    const PATTERNS: [&str; 7] = [
+        "noreply",
+        "no-reply",
+        "donotreply",
+        "do-not-reply",
+        "bounce",
+        "notification",
+        "mailer-daemon",
+    ];
+    PATTERNS.iter().any(|p| local.contains(p))
+}
+
 fn extract_charset(content_type_lc: &str) -> Option<String> {
     let i = content_type_lc.find("charset")?;
     let rest = &content_type_lc[i + "charset".len()..];
@@ -284,5 +338,33 @@ mod tests {
         );
         let toks = tokenize(big.as_bytes());
         assert!(toks.len() <= MAX_TOKENS);
+    }
+
+    #[test]
+    fn emits_triage_header_signal_tokens() {
+        let raw = b"From: GitHub <noreply@github.com>\r\n\
+                    List-Unsubscribe: <https://x/u>\r\n\
+                    List-Id: repo.github.com\r\n\
+                    Precedence: bulk\r\n\
+                    Auto-Submitted: auto-generated\r\n\
+                    Subject: notice\r\n\r\nbody";
+        let toks = tokenize(raw);
+        for t in [
+            "from:automated",
+            "hdr:list-unsub",
+            "hdr:list-id",
+            "hdr:precedence:bulk",
+            "hdr:auto-submitted",
+        ] {
+            assert!(toks.contains(&t.to_string()), "missing token {t}");
+        }
+    }
+
+    #[test]
+    fn auto_submitted_no_is_not_a_signal() {
+        let raw = b"From: a@b.com\r\nAuto-Submitted: no\r\nSubject: hi\r\n\r\nx";
+        let toks = tokenize(raw);
+        assert!(!toks.contains(&"hdr:auto-submitted".to_string()));
+        assert!(!toks.contains(&"from:automated".to_string()));
     }
 }
