@@ -104,6 +104,8 @@ spg-sqlx = { workspace = true, optional = true }
 spg-embedded = { workspace = true, optional = true }
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
+mailrs-bayes = { path = "../bayes" }
+mailrs-triage = { path = "../triage" }
 ipnet = { workspace = true }
 hickory-resolver = "0.26"
 tracing = "0.1"
