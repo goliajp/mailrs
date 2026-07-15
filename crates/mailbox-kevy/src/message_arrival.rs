@@ -123,6 +123,15 @@ impl KevyMailboxStore {
                 for other in &other_buckets {
                     ctx.zrem(other.as_bytes(), &[&tid_b])?;
                 }
+            } else {
+                // Sent-only (total == sent, non-junk): the thread belongs
+                // to the Sent axis alone. Self-heal any stale inbound-
+                // bucket membership left by an earlier upsert (e.g. a
+                // pg-dump import whose sent_count aggregate was 0 before
+                // fastcore recomputed it). Mirrors `upsert_thread`.
+                for z in keys::Bucket::all_zsets(m.user) {
+                    ctx.zrem(z.as_bytes(), &[&tid_b])?;
+                }
             }
             Ok(())
         })
@@ -310,6 +319,21 @@ mod tests {
             s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
             Some(200.0)
         );
+    }
+
+    #[test]
+    fn sent_only_arrival_self_heals_stale_inbox_membership() {
+        let s = store();
+        let u = "u@x.com";
+        // Simulate stale pg-dump state: a sent-only thread wrongly parked
+        // in the inbox zset (sent_count was 0 at import time).
+        let inbox = keys::user_threads_inbox(u);
+        s.store().zadd(inbox.as_bytes(), &[(100.0, b"t1")]).unwrap();
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
+        // A sent-only arrival (count == sent_count) must scrub it out.
+        s.record_message_arrival(&arr("t1", u, "Outgoing", 100, false))
+            .unwrap();
+        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
     }
 
     #[test]

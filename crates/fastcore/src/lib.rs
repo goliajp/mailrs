@@ -2677,6 +2677,14 @@ async fn backfill_inbox_index_route(
                 let _ = store.zadd(inbox.as_bytes(), &[(score, tid.as_bytes())]);
                 inbox_added += 1;
             } else {
+                // Sent-only: belongs to the Sent axis alone. Remove any
+                // stale inbound-bucket membership (a pg-dump import whose
+                // sent_count was 0 at upsert time, later recomputed to
+                // equal count, left the thread stuck in Inbox). This makes
+                // the backfill a self-correcting sweep, not add-only.
+                for z in mailrs_mailbox_kevy::keys::Bucket::all_zsets(user) {
+                    let _ = store.zrem(z.as_bytes(), &[tid.as_bytes()]);
+                }
                 sent_only += 1;
             }
         }
