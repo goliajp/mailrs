@@ -106,14 +106,165 @@ pub fn train_thread(state: &Arc<FastcoreState>, user: &str, thread_id: &str, is_
     );
 }
 
+// v2.9 triage — multi-class corpus keys. Parallel to the junk binary
+// corpus above but with N named classes.
+//   bayes:triage:tokens:<class>   hash  field=token value=message-count
+//   bayes:triage:meta             hash  {<class>_msgs}
+//   bayes:triage:trained:<tid>    string  <class>  (TTL 90d)
+const TRIAGE_CLASSES: [&str; 3] = ["inbox", "notification", "promotion"];
+const K_TRIAGE_META: &[u8] = b"bayes:triage:meta";
+// One-vs-rest winning probability required before a triage verdict is
+// applied — below this the caller defaults to Inbox.
+const TRIAGE_MIN_CONFIDENCE: f64 = 0.75;
+
+fn triage_tokens_key(class: &str) -> String {
+    format!("bayes:triage:tokens:{class}")
+}
+
 /// v2.9 triage — train the multi-class triage classifier on a thread
 /// the user (or the backfill) assigned to `class` ∈ {inbox,
-/// notification, promotion}. Phase 1 stub: no-op. Phase 2 fills this in
-/// (per-class corpus in `bayes:triage:*`, reversible like
-/// [`train_thread`]).
-pub fn train_triage(_state: &Arc<FastcoreState>, _user: &str, _thread_id: &str, _class: &str) {
-    // Phase 2: tokenize the thread, HINCRBY the per-class triage
-    // corpus, record a reversible direction marker.
+/// notification, promotion}. Reversible like [`train_thread`]: a
+/// re-file unlearns the prior class before learning the new one.
+/// Best-effort; never blocks the user-facing action.
+pub fn train_triage(state: &Arc<FastcoreState>, user: &str, thread_id: &str, class: &str) {
+    if !TRIAGE_CLASSES.contains(&class) {
+        return;
+    }
+    let raws = fetch_thread_raw(state, user, thread_id);
+    if raws.is_empty() {
+        return;
+    }
+    let mut tokens: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for raw in &raws {
+        tokens.extend(mailrs_bayes::tokenize(raw));
+    }
+    if tokens.is_empty() {
+        return;
+    }
+    let Some(mut conn) = state.net_conn() else {
+        return;
+    };
+    let marker = format!("bayes:triage:trained:{thread_id}");
+    let prior = conn
+        .get(marker.as_bytes())
+        .ok()
+        .flatten()
+        .and_then(|v| String::from_utf8(v).ok());
+    if prior.as_deref() == Some(class) {
+        let _ = conn.set(marker.as_bytes(), class.as_bytes());
+        let _ = conn.expire(
+            marker.as_bytes(),
+            std::time::Duration::from_secs(TRAINED_TTL_SECS as u64),
+        );
+        return;
+    }
+    let token_list: Vec<&str> = tokens.iter().map(String::as_str).collect();
+    if let Some(prev) = prior.as_deref() {
+        adjust_triage(&mut conn, prev, &token_list, -1);
+    }
+    adjust_triage(&mut conn, class, &token_list, 1);
+    let _ = conn.set(marker.as_bytes(), class.as_bytes());
+    let _ = conn.expire(
+        marker.as_bytes(),
+        std::time::Duration::from_secs(TRAINED_TTL_SECS as u64),
+    );
+    tracing::info!(%user, %thread_id, %class, tokens = token_list.len(), "bayes: trained triage");
+}
+
+/// HINCRBY the per-class triage token hash + the class message counter.
+fn adjust_triage(conn: &mut kevy_client::Connection, class: &str, tokens: &[&str], delta: i64) {
+    let tkey = triage_tokens_key(class);
+    let field = format!("{class}_msgs");
+    let delta_s = delta.to_string();
+    let _ = conn.pipeline(|p| {
+        for t in tokens {
+            p.cmd(&[
+                b"HINCRBY",
+                tkey.as_bytes(),
+                t.as_bytes(),
+                delta_s.as_bytes(),
+            ]);
+        }
+        p.cmd(&[
+            b"HINCRBY",
+            K_TRIAGE_META,
+            field.as_bytes(),
+            delta_s.as_bytes(),
+        ]);
+    });
+}
+
+/// v2.9 triage — classify a raw message into a triage bucket category
+/// ("inbox" | "notification" | "promotion") using the multi-class
+/// corpus. Returns `None` on cold-start / low confidence — the caller
+/// then defaults to "inbox". Reads the corpus from network kevy.
+pub fn classify_triage(state: &Arc<FastcoreState>, raw: &[u8]) -> Option<&'static str> {
+    let tokens = mailrs_bayes::tokenize(raw);
+    if tokens.is_empty() {
+        return None;
+    }
+    let mut conn = state.net_conn()?;
+
+    // Per-class message totals → MultiCorpus.
+    let corpus = mailrs_bayes::MultiCorpus {
+        classes: TRIAGE_CLASSES
+            .iter()
+            .map(|c| {
+                let field = format!("{c}_msgs");
+                let n = conn
+                    .hget(K_TRIAGE_META, field.as_bytes())
+                    .ok()
+                    .flatten()
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0)
+                    .max(0) as u32;
+                ((*c).to_string(), n)
+            })
+            .collect(),
+    };
+
+    // Per-token per-class counts: for each token, HGET all class hashes
+    // in one pipeline.
+    let tkeys: Vec<String> = TRIAGE_CLASSES
+        .iter()
+        .map(|c| triage_tokens_key(c))
+        .collect();
+    let mut counts: std::collections::HashMap<String, Vec<u32>> =
+        std::collections::HashMap::with_capacity(tokens.len());
+    let replies = conn
+        .pipeline(|p| {
+            for t in &tokens {
+                for tk in &tkeys {
+                    p.cmd(&[b"HGET", tk.as_bytes(), t.as_bytes()]);
+                }
+            }
+        })
+        .ok()?;
+    let n_classes = TRIAGE_CLASSES.len();
+    for (ti, tok) in tokens.iter().enumerate() {
+        let mut per_class = vec![0u32; n_classes];
+        for (ci, slot) in per_class.iter_mut().enumerate() {
+            if let Some(kevy_client::Reply::Bulk(b)) = replies.get(ti * n_classes + ci) {
+                *slot = std::str::from_utf8(b)
+                    .ok()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0)
+                    .max(0) as u32;
+            }
+        }
+        if per_class.iter().any(|v| *v > 0) {
+            counts.insert(tok.clone(), per_class);
+        }
+    }
+
+    let idx = mailrs_bayes::classify_multiclass(
+        &tokens,
+        &corpus,
+        |t| counts.get(t).cloned(),
+        TRIAGE_MIN_CONFIDENCE,
+    )?;
+    TRIAGE_CLASSES.get(idx).copied()
 }
 
 /// True if the corpus already holds any trained messages. The caller
@@ -189,6 +340,72 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
     }
     tracing::info!(%user, spam_trained, ham_trained, "bayes bootstrap complete");
     (spam_trained, ham_trained)
+}
+
+/// Header-heuristic seed label for a raw message — the one-time
+/// bootstrap classifier that gives the learning corpus a starting
+/// point (there is no historic N/P label data). Reuses the bayes
+/// tokenizer's header-signal tokens:
+///   - automated sender / Auto-Submitted → notification (transactional)
+///   - List-Unsubscribe / List-Id (and not automated) → promotion
+///   - else → inbox
+///
+/// Deliberately simple; the Bayes classifier refines it from the
+/// user's mark-as corrections thereafter.
+fn heuristic_triage_label(raw: &[u8]) -> &'static str {
+    let toks = mailrs_bayes::tokenize(raw);
+    let has = |t: &str| toks.iter().any(|x| x == t);
+    if has("from:automated") || has("hdr:auto-submitted") {
+        "notification"
+    } else if has("hdr:list-unsub") || has("hdr:list-id") {
+        "promotion"
+    } else {
+        "inbox"
+    }
+}
+
+/// v2.9 triage — one-shot backfill/seed. Walks the account's Inbox
+/// threads, header-heuristic-labels each into inbox/notification/
+/// promotion, re-files N/P out of Inbox (`set_bucket`), and trains the
+/// multi-class corpus on every thread (all three classes, so
+/// one-vs-rest has data for each). Returns `(inbox, notification,
+/// promotion)` counts. Idempotent: `train_triage` is reversible and
+/// `set_bucket` is a move.
+pub fn backfill_triage(state: &Arc<FastcoreState>, user: &str) -> (u64, u64, u64) {
+    use mailrs_mailbox_kevy::keys::Bucket;
+    let store = state.mailbox.store_ref();
+    let inbox_key = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
+    let tids: Vec<String> = store
+        .zrevrange(inbox_key.as_bytes(), 0, -1)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(m, _)| String::from_utf8(m).ok())
+        .collect();
+
+    let (mut n_inbox, mut n_notif, mut n_promo) = (0u64, 0u64, 0u64);
+    for tid in &tids {
+        let raws = fetch_thread_raw(state, user, tid);
+        if raws.is_empty() {
+            continue;
+        }
+        let label = heuristic_triage_label(&raws[0]);
+        match label {
+            "notification" => {
+                let _ = state.mailbox.set_bucket(user, tid, Bucket::Notifications);
+                n_notif += 1;
+            }
+            "promotion" => {
+                let _ = state.mailbox.set_bucket(user, tid, Bucket::Promotions);
+                n_promo += 1;
+            }
+            _ => {
+                n_inbox += 1;
+            }
+        }
+        train_triage(state, user, tid, label);
+    }
+    tracing::info!(%user, n_inbox, n_notif, n_promo, "triage backfill complete");
+    (n_inbox, n_notif, n_promo)
 }
 
 /// HINCRBY every token in the given corpus hash by `delta` (+1 learn,

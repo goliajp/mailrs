@@ -1196,10 +1196,14 @@ pub(crate) fn ingest_delivered_file(
     // to the Junk folder on the read side. Any sieve fileinto target
     // that maps to "Junk" is treated the same. Everything else
     // (INBOX / custom sieve folders) keeps category="inbox".
+    // v2.9 triage — non-junk mail is further sorted into
+    // inbox/notification/promotion by the multi-class Bayes classifier
+    // (`bucket_of` then routes it to the matching folder zset).
+    // Cold-start / low-confidence → "inbox".
     let category = if target_folder.eq_ignore_ascii_case("junk") {
         "spam"
     } else {
-        "inbox"
+        crate::bayes_train::classify_triage(state, body).unwrap_or("inbox")
     };
     let arrival = mailrs_mailbox_kevy::MessageArrival {
         thread_id: &root,
@@ -1348,6 +1352,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/maintenance:bayes-bootstrap",
                 post(bayes_bootstrap_route),
+            )
+            // Ops endpoint — seed the v2.9 multi-class triage corpus +
+            // re-sort existing Inbox mail into N/P (idempotent).
+            .route(
+                "/v1/admin/maintenance:backfill-triage",
+                post(backfill_triage_route),
             )
             // Ops endpoint — file every existing thread into the
             // v2.4.0 Inbox/Junk folder zsets (v2.8.2, idempotent).
@@ -2512,6 +2522,37 @@ async fn bayes_bootstrap_route(
     Json(serde_json::json!({
         "spam_trained": total_spam,
         "ham_trained": total_ham,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-triage` — one-shot seed of the
+/// v2.9 multi-class triage corpus + retroactive re-sort of existing
+/// Inbox mail into Notifications / Promotions. Header-heuristic labels
+/// each Inbox thread, re-files N/P out of Inbox, and trains all three
+/// classes (so one-vs-rest has data for each). Idempotent. Runs for
+/// every account.
+async fn backfill_triage_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let (mut inbox, mut notif, mut promo) = (0u64, 0u64, 0u64);
+    for user in &users {
+        let (i, n, p) = crate::bayes_train::backfill_triage(&state, user);
+        inbox += i;
+        notif += n;
+        promo += p;
+    }
+    Json(serde_json::json!({
+        "inbox": inbox,
+        "notification": notif,
+        "promotion": promo,
     }))
     .into_response()
 }
