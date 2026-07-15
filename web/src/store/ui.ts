@@ -34,7 +34,10 @@ export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 // Junk + Sent threads inside "All") to 'Inbox' (dedicated inbox zset —
 // excludes Junk/Sent; starred/archived stay orthogonal flags on top).
 // Junk is the physical Junk mailbox (set by classifier or "mark junk").
-export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'Sent' | 'Trash' | null
+// v2.9 triage — 'NP' is the merged Notifications & Promotions view
+// (backend reads the union of the notifications + promotions folder
+// zsets). Notifications and Promotions are distinct buckets underneath.
+export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'NP' | 'Sent' | 'Trash' | null
 export const folderAtom = atom<MailFolder>('Inbox')
 
 // archived view toggle

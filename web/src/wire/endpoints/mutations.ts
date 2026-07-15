@@ -68,6 +68,18 @@ export const wireMarkJunk = (threadId: string): Promise<void> =>
 export const wireMarkNotJunk = (threadId: string): Promise<void> =>
   postEmpty(`/conversations/${encodeURIComponent(threadId)}/mark-not-junk`)
 
+// v2.9 triage — move a thread between the Inbox / Notifications /
+// Promotions buckets. Each move also trains the multi-class classifier
+// on the correction (backend side). 204/empty responses.
+export const wireMarkNotification = (threadId: string): Promise<void> =>
+  postEmpty(`/conversations/${encodeURIComponent(threadId)}/mark-notification`)
+
+export const wireMarkPromotion = (threadId: string): Promise<void> =>
+  postEmpty(`/conversations/${encodeURIComponent(threadId)}/mark-promotion`)
+
+export const wireMoveToInbox = (threadId: string): Promise<void> =>
+  postEmpty(`/conversations/${encodeURIComponent(threadId)}/move-to-inbox`)
+
 export function wireBatchMutation(
   action: string,
   threadIds: string[]

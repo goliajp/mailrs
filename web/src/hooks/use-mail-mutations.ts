@@ -16,9 +16,12 @@ import {
   wireBatchMutation,
   wireDeleteThread,
   wireMarkJunk,
+  wireMarkNotification,
   wireMarkNotJunk,
+  wireMarkPromotion,
   wireMarkThreadRead,
   wireMarkThreadUnread,
+  wireMoveToInbox,
   wirePinThread,
   wireStarThread,
   wireUnarchiveThread,
@@ -158,6 +161,28 @@ export function useMarkNotJunkMutation() {
     onSettled: () => invalidateMail(),
   })
 }
+
+// v2.9 triage — the three bucket-move mutations share the same
+// optimistic-drop shape as junk: the moved thread vanishes from the
+// current view and repopulates the target view on the next refetch.
+function useBucketMoveMutation(mutationFn: (threadId: string) => Promise<void>) {
+  return useMutation<unknown, Error, { threadId: string }, Context>({
+    mutationFn: ({ threadId }) => mutationFn(threadId),
+    onError: (_e, _vars, ctx) => {
+      if (ctx) rollbackConversations(ctx.snapshots)
+    },
+    onMutate: async ({ threadId }) => {
+      await cancelConversationFetches()
+      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      return { snapshots }
+    },
+    onSettled: () => invalidateMail(),
+  })
+}
+
+export const useMarkNotificationMutation = () => useBucketMoveMutation(wireMarkNotification)
+export const useMarkPromotionMutation = () => useBucketMoveMutation(wireMarkPromotion)
+export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbox)
 
 export function useMarkReadMutation() {
   return useMutation<unknown, Error, { domains?: string[]; threadId: string }, Context>({
