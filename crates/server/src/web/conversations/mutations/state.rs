@@ -184,6 +184,104 @@ pub(crate) async fn archive_thread(
     }
 }
 
+/// v2.9 triage — shared body for the five bucket-move actions. Stamps
+/// the thread's `email_analysis.category` (the monolith derives the
+/// triage bucket from category — see `list_conversations` folder
+/// filter), so this is the spg-lane analog of fastcore's `set_bucket`.
+/// Kept behaviorally identical across lanes per the core-mode parity
+/// rule.
+async fn set_bucket_action(
+    state: &Arc<WebState>,
+    user: &str,
+    thread_id: &str,
+    category: &str,
+    ok_msg: &str,
+) -> Json<ApiResult> {
+    if thread_id.len() > crate::web::MAX_PATH_LEN {
+        return Json(ApiResult {
+            success: false,
+            message: Some("thread id too long".into()),
+        });
+    }
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(ApiResult {
+            success: false,
+            message: Some("mailbox not configured".into()),
+        });
+    };
+    let result = mb_store.set_thread_bucket(user, thread_id, category).await;
+    if result.is_ok()
+        && let Some(ref kevy) = state.kevy_embed
+    {
+        conversation_cache::bust_thread(kevy, user, thread_id);
+        conversation_cache::bust_user(kevy, user);
+    }
+    match result {
+        Ok(_) => Json(ApiResult {
+            success: true,
+            message: Some(ok_msg.to_string()),
+        }),
+        Err(e) => Json(ApiResult {
+            success: false,
+            message: Some(e.to_string()),
+        }),
+    }
+}
+
+pub(crate) async fn mark_junk(
+    Path(thread_id): Path<String>,
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    set_bucket_action(&state, &user, &thread_id, "spam", "moved to Junk").await
+}
+
+pub(crate) async fn mark_not_junk(
+    Path(thread_id): Path<String>,
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    set_bucket_action(&state, &user, &thread_id, "inbox", "marked as not junk").await
+}
+
+pub(crate) async fn mark_notification(
+    Path(thread_id): Path<String>,
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    set_bucket_action(
+        &state,
+        &user,
+        &thread_id,
+        "notification",
+        "moved to Notifications",
+    )
+    .await
+}
+
+pub(crate) async fn mark_promotion(
+    Path(thread_id): Path<String>,
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    set_bucket_action(
+        &state,
+        &user,
+        &thread_id,
+        "promotion",
+        "moved to Promotions",
+    )
+    .await
+}
+
+pub(crate) async fn move_to_inbox(
+    Path(thread_id): Path<String>,
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    set_bucket_action(&state, &user, &thread_id, "inbox", "moved to Inbox").await
+}
+
 pub(crate) async fn unarchive_thread(
     Path(thread_id): Path<String>,
     AuthUser { address: user, .. }: AuthUser,
