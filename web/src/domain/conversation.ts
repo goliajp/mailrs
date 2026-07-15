@@ -26,6 +26,7 @@ export type Category =
   | 'newsletter'
   | 'notification'
   | 'personal'
+  | 'promotion'
   | 'scam'
   | 'spam'
   | 'update'
@@ -55,7 +56,7 @@ export type ConversationFilter = {
  * Folder is a small closed union. Screens branch on it — an `enum` or
  * a bare `string` would let any typo through the type checker.
  */
-export type Folder = 'ARCHIVE' | 'DRAFTS' | 'INBOX' | 'SENT' | 'SPAM' | 'STARRED' | 'TRASH'
+export type Folder = 'ARCHIVE' | 'DRAFTS' | 'INBOX' | 'NP' | 'SENT' | 'SPAM' | 'STARRED' | 'TRASH'
 
 /**
  * The importance score attached by fastcore's classifier. Kept as a

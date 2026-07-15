@@ -19,9 +19,12 @@ import {
   useArchiveMutation,
   useDeleteMutation,
   useMarkJunkMutation,
+  useMarkNotificationMutation,
   useMarkNotJunkMutation,
+  useMarkPromotionMutation,
   useMarkReadMutation,
   useMarkUnreadMutation,
+  useMoveToInboxMutation,
   usePinMutation,
   useSnoozeMutation,
   useStarMutation,
@@ -56,7 +59,14 @@ type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unrea
 // out of BatchAction because the batch mutation endpoint doesn't
 // support them yet; adding them there would need a matching backend
 // batch handler.
-type JunkAction = 'mark-junk' | 'mark-not-junk'
+// v2.9 triage — bucket moves between Inbox / Notifications / Promotions
+// / Junk. Kept out of BatchAction (no matching backend batch handler).
+type JunkAction =
+  | 'mark-junk'
+  | 'mark-not-junk'
+  | 'mark-notification'
+  | 'mark-promotion'
+  | 'move-to-inbox'
 
 type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction | JunkAction
 
@@ -65,6 +75,7 @@ const ConversationItem = memo(function ConversationItem({
   checked,
   convo,
   isJunkView,
+  isNpView,
   myEmail,
   onContextAction,
   onSelect,
@@ -80,6 +91,11 @@ const ConversationItem = memo(function ConversationItem({
    * `Mark as not junk` appears in the context menu.
    */
   isJunkView: boolean
+  /**
+   * v2.9 triage — whether this row renders inside the merged N & P
+   * view. Drives the "Move to Inbox" context item.
+   */
+  isNpView: boolean
   myEmail: string
   onContextAction: (threadId: string, action: SingleAction) => void
   onSelect: (threadId: string) => void
@@ -123,25 +139,59 @@ const ConversationItem = memo(function ConversationItem({
         label: 'Snooze until tomorrow',
         onClick: () => onContextAction(convo.thread_id, 'snooze'),
       },
-      // v2.4.1 Phase 3 (RFC-B §3.8) — Junk moves. Label + action are
-      // mirrored across Inbox / Junk views: same slot in the menu,
-      // opposite direction based on the current folder.
-      isJunkView
-        ? {
-            label: 'Mark as not junk',
-            onClick: () => onContextAction(convo.thread_id, 'mark-not-junk'),
-          }
-        : {
-            label: 'Mark as junk',
-            onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
-          },
+      // v2.9 triage — bucket moves, contextual to the current view:
+      //   Junk view  → "Mark as not junk" (back to Inbox)
+      //   N & P view → "Move to Inbox" + "Mark as junk"
+      //   Inbox/else → "Mark as Notification" / "Mark as Promotion" /
+      //                "Mark as junk"
+      ...(isJunkView
+        ? [
+            {
+              label: 'Mark as not junk',
+              onClick: () => onContextAction(convo.thread_id, 'mark-not-junk'),
+            },
+          ]
+        : isNpView
+          ? [
+              {
+                label: 'Move to Inbox',
+                onClick: () => onContextAction(convo.thread_id, 'move-to-inbox'),
+              },
+              {
+                label: 'Mark as junk',
+                onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
+              },
+            ]
+          : [
+              {
+                label: 'Mark as Notification',
+                onClick: () => onContextAction(convo.thread_id, 'mark-notification'),
+              },
+              {
+                label: 'Mark as Promotion',
+                onClick: () => onContextAction(convo.thread_id, 'mark-promotion'),
+              },
+              {
+                label: 'Mark as junk',
+                onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
+              },
+            ]),
       {
         danger: true,
         label: 'Delete',
         onClick: () => onContextAction(convo.thread_id, 'delete'),
       },
     ],
-    [convo.thread_id, hasUnread, isFlagged, isPinned, isArchived, isJunkView, onContextAction]
+    [
+      convo.thread_id,
+      hasUnread,
+      isFlagged,
+      isPinned,
+      isArchived,
+      isJunkView,
+      isNpView,
+      onContextAction,
+    ]
   )
 
   const handleClick = () => {
@@ -513,6 +563,9 @@ export function ConversationList({
   const deleteMutation = useDeleteMutation()
   const markJunkMutation = useMarkJunkMutation()
   const markNotJunkMutation = useMarkNotJunkMutation()
+  const markNotificationMutation = useMarkNotificationMutation()
+  const markPromotionMutation = useMarkPromotionMutation()
+  const moveToInboxMutation = useMoveToInboxMutation()
   const handleContextAction = useCallback(
     async (threadId: string, action: SingleAction) => {
       const onError = (err: unknown) => {
@@ -541,6 +594,24 @@ export function ConversationList({
           markNotJunkMutation.mutate(
             { threadId },
             { onError, onSuccess: () => toast.success('Marked as not junk') }
+          )
+          break
+        case 'mark-notification':
+          markNotificationMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Notifications') }
+          )
+          break
+        case 'mark-promotion':
+          markPromotionMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Promotions') }
+          )
+          break
+        case 'move-to-inbox':
+          moveToInboxMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Inbox') }
           )
           break
         case 'pin':
@@ -587,8 +658,11 @@ export function ConversationList({
       deleteMutation,
       markJunkMutation,
       markNotJunkMutation,
+      markNotificationMutation,
+      markPromotionMutation,
       markReadMutation,
       markUnreadMutation,
+      moveToInboxMutation,
       pinMutation,
       snoozeMutation,
       starMutation,
@@ -1090,6 +1164,7 @@ function VirtualConversationList({
                     checked={selectedThreadIds.has(item.convo.thread_id)}
                     convo={item.convo}
                     isJunkView={folder === 'Junk'}
+                    isNpView={folder === 'NP'}
                     myEmail={myEmail}
                     onContextAction={onContextAction}
                     onSelect={onSelect}

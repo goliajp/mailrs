@@ -29,8 +29,12 @@ import {
 // "Archived" is promoted from the advanced-filter panel toggle to a
 // first-class tab; delete inside it is the permanent delete it always
 // was on the backend.
+// v2.9 triage — "N & P" is the merged Notifications & Promotions view
+// (union of the two buckets; each row's category badge distinguishes
+// N from P). Inbox no longer shows N/P mail.
 const VIEW_TABS: { label: string; value: string }[] = [
   { label: 'Inbox', value: 'inbox' },
+  { label: 'N & P', value: 'np' },
   { label: 'Unread', value: 'unread' },
   { label: 'Starred', value: 'starred' },
   { label: 'Archived', value: 'archived' },
@@ -79,11 +83,13 @@ export const FilterBar = memo(function FilterBar() {
         ? 'sent'
         : folder === 'Junk'
           ? 'junk'
-          : showArchived
-            ? 'archived'
-            : quickFilter !== 'all'
-              ? quickFilter
-              : 'inbox'
+          : folder === 'NP'
+            ? 'np'
+            : showArchived
+              ? 'archived'
+              : quickFilter !== 'all'
+                ? quickFilter
+                : 'inbox'
 
   const handleTab = (tab: string) => {
     if (tab === activeTab) return
@@ -99,6 +105,8 @@ export const FilterBar = memo(function FilterBar() {
       setFolder('Sent')
     } else if (tab === 'junk') {
       setFolder('Junk')
+    } else if (tab === 'np') {
+      setFolder('NP')
     } else if (tab === 'archived') {
       setShowArchived(true)
     } else if (tab === 'unread') {
@@ -131,7 +139,9 @@ export const FilterBar = memo(function FilterBar() {
                   ? 'bg-success/10 text-success'
                   : t.value === 'unread'
                     ? 'bg-accent/10 text-accent'
-                    : 'bg-border text-fg-secondary'
+                    : t.value === 'np'
+                      ? 'bg-accent/10 text-accent'
+                      : 'bg-border text-fg-secondary'
           const ring = isActive ? 'ring-2 ring-offset-1 ring-border ring-offset-bg' : ''
           return (
             <button

@@ -73,6 +73,7 @@ export function Chat() {
       if (
         urlFolder === 'Drafts' ||
         urlFolder === 'Inbox' ||
+        urlFolder === 'NP' ||
         urlFolder === 'Sent' ||
         urlFolder === 'Trash' ||
         urlFolder === 'Junk'
