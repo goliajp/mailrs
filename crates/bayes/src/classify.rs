@@ -85,6 +85,82 @@ where
     Some((1.0 + h - s) / 2.0)
 }
 
+/// A multi-class corpus: N named classes, each with a trained-message
+/// total. Used by [`classify_multiclass`] for the v2.9 triage buckets
+/// (e.g. classes `["inbox", "notification", "promotion"]`).
+#[derive(Debug, Clone, Default)]
+pub struct MultiCorpus {
+    /// `(class_name, trained_message_count)` for every class, in a
+    /// stable order that the per-token `lookup` counts align with.
+    pub classes: Vec<(String, u32)>,
+}
+
+/// Multi-class classification via **one-vs-rest**: for each class `C`,
+/// run the binary [`classify`] treating class `C` as "spam" and the
+/// union of all other classes as "ham", then pick the class with the
+/// highest resulting probability — provided it clears `min_confidence`.
+///
+/// `lookup(token)` returns per-class message-counts for that token,
+/// aligned with `corpus.classes` (`counts[i]` = # of class-`i` messages
+/// containing the token). Returns the winning class index, or `None`
+/// when no class clears the cold-start gate (each class still needs
+/// `MIN_SPAM` trained messages) or the best confidence is below
+/// `min_confidence` — in which case the caller defaults to Inbox. Pure
+/// math, reuses all of `classify`'s Robinson/Fisher machinery.
+pub fn classify_multiclass<F>(
+    tokens: &[String],
+    corpus: &MultiCorpus,
+    lookup: F,
+    min_confidence: f64,
+) -> Option<usize>
+where
+    F: Fn(&str) -> Option<Vec<u32>>,
+{
+    let n_classes = corpus.classes.len();
+    if n_classes < 2 {
+        return None;
+    }
+    let total_msgs: u32 = corpus.classes.iter().map(|(_, c)| *c).sum();
+
+    let mut best: Option<(usize, f64)> = None;
+    for i in 0..n_classes {
+        let in_class = corpus.classes[i].1;
+        let rest = total_msgs.saturating_sub(in_class);
+        let ovr_corpus = Corpus {
+            spam_msgs: in_class,
+            ham_msgs: rest,
+        };
+        let p = classify(
+            tokens,
+            |tok| {
+                lookup(tok).map(|per_class| {
+                    let mine = per_class.get(i).copied().unwrap_or(0);
+                    let others: u32 = per_class
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, v)| *v)
+                        .sum();
+                    TokenCounts {
+                        spam: mine,
+                        ham: others,
+                    }
+                })
+            },
+            &ovr_corpus,
+        );
+        if let Some(p) = p
+            && best.map(|(_, bp)| p > bp).unwrap_or(true)
+        {
+            best = Some((i, p));
+        }
+    }
+    match best {
+        Some((i, p)) if p >= min_confidence => Some(i),
+        _ => None,
+    }
+}
+
 /// Chi-square CDF for even degrees of freedom `df` (df = 2n here).
 /// Closed form via the regularized lower incomplete gamma for integer
 /// shape — avoids a special-function dependency.
@@ -168,5 +244,59 @@ mod tests {
         assert!(b > a);
         assert!((0.0..=1.0).contains(&a));
         assert!((0.0..=1.0).contains(&b));
+    }
+
+    // ── multi-class (triage) ─────────────────────────────────────────
+
+    fn mc() -> MultiCorpus {
+        // classes: 0=inbox, 1=notification, 2=promotion, 100 msgs each.
+        MultiCorpus {
+            classes: vec![
+                ("inbox".into(), 100),
+                ("notification".into(), 100),
+                ("promotion".into(), 100),
+            ],
+        }
+    }
+
+    #[test]
+    fn multiclass_cold_start_returns_none() {
+        // A class under MIN_SPAM (50) can't be predicted.
+        let small = MultiCorpus {
+            classes: vec![("inbox".into(), 10), ("notification".into(), 10)],
+        };
+        let toks = vec!["hi".to_string()];
+        assert_eq!(classify_multiclass(&toks, &small, |_| None, 0.5), None);
+    }
+
+    #[test]
+    fn multiclass_picks_the_discriminating_class() {
+        // "hdr:list-unsub" is overwhelmingly a promotion token; the
+        // one-vs-rest classifier should pick class index 2 (promotion).
+        let mut counts: HashMap<&str, Vec<u32>> = HashMap::new();
+        //                             inbox notif promo
+        counts.insert("hdr:list-unsub", vec![1, 5, 90]);
+        counts.insert("from:automated", vec![2, 88, 6]);
+        let corpus = mc();
+
+        let promo = vec!["hdr:list-unsub".to_string()];
+        assert_eq!(
+            classify_multiclass(&promo, &corpus, |t| counts.get(t).cloned(), 0.6),
+            Some(2)
+        );
+
+        let notif = vec!["from:automated".to_string()];
+        assert_eq!(
+            classify_multiclass(&notif, &corpus, |t| counts.get(t).cloned(), 0.6),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn multiclass_low_confidence_returns_none() {
+        // An unseen token → no class clears the confidence gate.
+        let corpus = mc();
+        let toks = vec!["neverseen".to_string()];
+        assert_eq!(classify_multiclass(&toks, &corpus, |_| None, 0.6), None);
     }
 }
