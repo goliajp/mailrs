@@ -98,3 +98,17 @@ export type ComposeReplySource = {
   uid: number
 }
 export const composeReplySourceAtom = atom<ComposeReplySource | null>(null)
+
+// when non-null, the composer opens pre-filled from this saved draft
+// (set by the Draft tab, alongside composingNewAtom=true). the composer
+// tracks its id so autosave upserts the same draft and send/discard
+// deletes it. cleared when the composer closes.
+export type ComposeDraftSource = {
+  bcc: string
+  body: string
+  cc: string
+  id: number
+  subject: string
+  to: string
+}
+export const composeDraftSourceAtom = atom<ComposeDraftSource | null>(null)

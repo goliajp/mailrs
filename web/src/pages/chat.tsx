@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { ConversationList } from '@/components/conversation-list'
+import { DraftsList } from '@/components/drafts-list'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
@@ -220,40 +221,44 @@ export function Chat() {
     }
   }, [firstThreadId, selectedThreadId, composingNew, setSelectedThreadId])
 
+  // the list pane shows drafts on the Draft tab, otherwise the thread list.
+  const renderList = () => {
+    if (folder === 'Drafts') return <DraftsList />
+    return (
+      <ConversationList
+        onLoadMore={loadMore}
+        onRefresh={refreshConversations}
+        onSelectConversation={() => setMobileView('thread')}
+      />
+    )
+  }
+
+  const renderMobileBody = () => {
+    if (mobileView === 'list') return renderList()
+    return <MobileMail />
+  }
+
+  const renderDesktopMain = () => {
+    if (composingNew) {
+      return (
+        <MPane>
+          <NewConversation />
+        </MPane>
+      )
+    }
+    return <ThreadView onBack={() => setMobileView('list')} />
+  }
+
   return (
     <>
       {/* ─── MOBILE: full-screen view switching ─── */}
-      <div className="h-full md:hidden">
-        {mobileView === 'list' ? (
-          <ConversationList
-            onLoadMore={loadMore}
-            onRefresh={refreshConversations}
-            onSelectConversation={() => setMobileView('thread')}
-          />
-        ) : (
-          <MobileMail />
-        )}
-      </div>
+      <div className="h-full md:hidden">{renderMobileBody()}</div>
 
-      {/* ─── DESKTOP: side-by-side pane layout (unchanged) ─── */}
+      {/* ─── DESKTOP: side-by-side pane layout ─── */}
       <MPaneGroup className="hidden md:flex">
-        <MPane width={480}>
-          <ConversationList
-            onLoadMore={loadMore}
-            onRefresh={refreshConversations}
-            onSelectConversation={() => setMobileView('thread')}
-          />
-        </MPane>
+        <MPane width={480}>{renderList()}</MPane>
 
-        <MPaneGroup>
-          {composingNew ? (
-            <MPane>
-              <NewConversation />
-            </MPane>
-          ) : (
-            <ThreadView onBack={() => setMobileView('list')} />
-          )}
-        </MPaneGroup>
+        <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
 
         <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
       </MPaneGroup>
