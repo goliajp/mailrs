@@ -68,10 +68,64 @@ impl PgMailboxStore {
             "NOT EXISTS (SELECT 1 FROM snoozed_conversations sc WHERE sc.thread_id = m.thread_id AND sc.account_address = mb.user_address AND sc.snoozed_until > NOW())".to_string()
         );
 
-        // folder filter (e.g. "Sent", "Drafts")
-        if folder.is_some() {
-            conditions.push(format!("mb.name = ${param_idx}"));
-            param_idx += 1;
+        // The thread's effective category = the latest message's
+        // `email_analysis.category` (defaulting 'general' when the
+        // newest message has no analysis row). Reused by the projection
+        // AND the v2.9 triage-bucket folder filter below so the two
+        // never disagree.
+        let thread_cat = "COALESCE((SELECT ea_cat.category FROM email_analysis ea_cat \
+             JOIN messages m_cat ON ea_cat.message_id = m_cat.id \
+             WHERE m_cat.thread_id = m.thread_id \
+             ORDER BY m_cat.internal_date DESC LIMIT 1), 'general')";
+
+        // folder axis (v2.9 triage). `Sent` stays an IMAP mailbox-name
+        // match (orthogonal axis). The triage buckets
+        // (Inbox/Notifications/Promotions/NP/Junk) are a pure function
+        // of the thread's category — mirroring the fastcore/kevy
+        // `bucket_of` so both lanes behave identically. Bucket filters
+        // go in HAVING (they reference the per-thread category), never
+        // as a bound param.
+        let mut folder_binds_name = false;
+        let mut bucket_having: Option<String> = None;
+        match folder {
+            Some(f) if f.eq_ignore_ascii_case("sent") => {
+                conditions.push(format!("mb.name = ${param_idx}"));
+                param_idx += 1;
+                folder_binds_name = true;
+            }
+            Some(f) if f.eq_ignore_ascii_case("inbox") => {
+                // Inbox = not a triage bucket AND not in the Junk
+                // mailbox (ingest routes spam to the Junk mailbox before
+                // the async classifier stamps category — cover both).
+                bucket_having = Some(format!(
+                    "{thread_cat} NOT IN ('spam','scam','notification','promotion') \
+                     AND BOOL_OR(mb.name = 'Junk') = false"
+                ));
+            }
+            Some(f) if f.eq_ignore_ascii_case("notifications") => {
+                bucket_having = Some(format!("{thread_cat} = 'notification'"));
+            }
+            Some(f) if f.eq_ignore_ascii_case("promotions") => {
+                bucket_having = Some(format!("{thread_cat} = 'promotion'"));
+            }
+            Some(f) if f.eq_ignore_ascii_case("np") => {
+                bucket_having = Some(format!("{thread_cat} IN ('notification','promotion')"));
+            }
+            Some(f) if f.eq_ignore_ascii_case("junk") => {
+                // Junk = category-classified spam/scam OR delivered into
+                // the Junk mailbox by the SMTP-time antispam gate.
+                bucket_having = Some(format!(
+                    "({thread_cat} IN ('spam','scam') OR BOOL_OR(mb.name = 'Junk') = true)"
+                ));
+            }
+            // Legacy mailbox names (Drafts/Trash/…) keep the old
+            // mailbox-name match; unknown folder falls through here too.
+            Some(_) => {
+                conditions.push(format!("mb.name = ${param_idx}"));
+                param_idx += 1;
+                folder_binds_name = true;
+            }
+            None => {}
         }
 
         let limit_idx = param_idx;
@@ -108,6 +162,11 @@ impl PgMailboxStore {
         // exactly what the user expects of a conversation grouping.
         if folder.is_none() {
             having_parts.push("BOOL_OR(mb.name != 'Sent') = true".to_string());
+        }
+        // v2.9 triage — the bucket folder filter (references the
+        // per-thread category, so it must be HAVING not WHERE).
+        if let Some(bh) = &bucket_having {
+            having_parts.push(bh.clone());
         }
         if unread == Some(true) {
             having_parts.push(format!("{unread_expr} > 0"));
@@ -199,7 +258,11 @@ impl PgMailboxStore {
             query = query.bind(user);
         }
 
-        if let Some(f) = folder {
+        // Only Sent / legacy mailbox-name folders bind $folder; the
+        // triage buckets filter via HAVING literals (no bound param).
+        if let Some(f) = folder
+            && folder_binds_name
+        {
             query = query.bind(f);
         }
 

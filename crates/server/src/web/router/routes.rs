@@ -188,6 +188,28 @@ pub(super) fn conversations_routes() -> axum::Router<Arc<WebState>> {
             "/api/conversations/{thread_id}/unarchive",
             post(conversations::unarchive_thread),
         )
+        // v2.9 triage — bucket moves (core-mode parity with fastcore's
+        // webapi routes of the same paths).
+        .route(
+            "/api/conversations/{thread_id}/mark-junk",
+            post(conversations::mark_junk),
+        )
+        .route(
+            "/api/conversations/{thread_id}/mark-not-junk",
+            post(conversations::mark_not_junk),
+        )
+        .route(
+            "/api/conversations/{thread_id}/mark-notification",
+            post(conversations::mark_notification),
+        )
+        .route(
+            "/api/conversations/{thread_id}/mark-promotion",
+            post(conversations::mark_promotion),
+        )
+        .route(
+            "/api/conversations/{thread_id}/move-to-inbox",
+            post(conversations::move_to_inbox),
+        )
         .route(
             "/api/conversations/{thread_id}/snooze",
             put(conversations::snooze_thread).delete(conversations::unsnooze_thread),

@@ -224,6 +224,37 @@ impl PgMailboxStore {
         Ok(result.rows_affected() as u32)
     }
 
+    /// v2.9 triage — force a thread into a bucket by stamping the
+    /// `email_analysis.category` of every message in the thread to
+    /// `category` ∈ {"inbox","notification","promotion","spam"}. This is
+    /// the monolith/spg analog of fastcore's `set_bucket` (which mutates
+    /// the kevy folder zsets); here the bucket is derived from the
+    /// category (see `list_conversations` folder filter), so stamping
+    /// category IS the move. Ingest does not create `email_analysis`
+    /// rows, so this UPSERTs. Returns the number of messages affected.
+    pub async fn set_thread_bucket(
+        &self,
+        user: &str,
+        thread_id: &str,
+        category: &str,
+    ) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "INSERT INTO email_analysis (message_id, category)
+             SELECT m.id, $3
+             FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE m.thread_id = $1 AND mb.user_address = $2
+             ON CONFLICT (message_id) DO UPDATE SET category = EXCLUDED.category",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .bind(category)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
     /// snooze a conversation until a given time
     pub async fn snooze_thread(
         &self,
