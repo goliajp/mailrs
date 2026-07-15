@@ -43,6 +43,7 @@ export const mailKeys = {
     [...mailKeys.all(), 'categories', [...domains].sort().join(',')] as const,
   conversations: (filters?: MailListFilters) =>
     [...mailKeys.all(), 'conversations', filters ? normalizeFilters(filters) : {}] as const,
+  drafts: () => [...mailKeys.all(), 'drafts'] as const,
   search: (q: string, filters?: MailListFilters) =>
     [...mailKeys.all(), 'search', q, filters ? normalizeFilters(filters) : {}] as const,
   templates: () => [...mailKeys.all(), 'templates'] as const,

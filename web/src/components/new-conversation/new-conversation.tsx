@@ -1,12 +1,14 @@
 import type { TemplateInfo } from './types'
 import type { StructuredComposeHandle } from '@/components/structured-compose'
+import type { ComposeDraftSource, ComposeReplySource } from '@/store/ui'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
+import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -14,7 +16,7 @@ import { mailKeys } from '@/lib/query-keys'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
-import { composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
 import { adminListGet } from '@/wire/endpoints/admin'
 import { wireGenerateSubject, wirePolishText } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
@@ -33,15 +35,24 @@ export function NewConversation() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const replySource = useAtomValue(composeReplySourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
+  const draftSource = useAtomValue(composeDraftSourceAtom)
+  const setDraftSource = useSetAtom(composeDraftSourceAtom)
   const isReply = replySource !== null
 
-  const [to, setTo] = useState(() => (replySource ? extractReplyAddress(replySource.sender) : ''))
-  const [cc, setCc] = useState('')
-  const [bcc, setBcc] = useState('')
-  const [showCcBcc, setShowCcBcc] = useState(false)
-  const [subject, setSubject] = useState(() =>
-    replySource ? withReplyPrefix(replySource.subject) : ''
-  )
+  // the server draft id for this compose session. starts from a reopened
+  // draft, otherwise null until the first autosave allocates one.
+  const draftIdRef = useRef<null | number>(draftSource?.id ?? null)
+  // set once the message is sent so a trailing autosave / close can't
+  // resurrect the just-deleted draft.
+  const sentRef = useRef(false)
+  const saveDraftMut = useSaveDraftMutation()
+  const deleteDraftMut = useDeleteDraftMutation()
+
+  const [to, setTo] = useState(() => initialTo(draftSource, replySource))
+  const [cc, setCc] = useState(() => draftSource?.cc ?? '')
+  const [bcc, setBcc] = useState(() => draftSource?.bcc ?? '')
+  const [showCcBcc, setShowCcBcc] = useState(() => Boolean(draftSource?.cc || draftSource?.bcc))
+  const [subject, setSubject] = useState(() => initialSubject(draftSource, replySource))
   const [sending, setSending] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [generatingSubject, setGeneratingSubject] = useState(false)
@@ -54,6 +65,60 @@ export function NewConversation() {
     staleTime: 5 * 60 * 1000,
     queryFn: () => adminListGet<TemplateInfo>('/mail/templates'),
   })
+
+  // latest field values, read by the bind-once autosave interval below.
+  const latest = useRef({ bcc, cc, subject, to })
+  latest.current = { bcc, cc, subject, to }
+
+  // upsert the current compose state as a server draft, deduped so an
+  // unchanged tick is a no-op. the first save allocates an id; later
+  // saves reuse it via draftIdRef.
+  const lastSavedRef = useRef('')
+  const saveNow = useCallback(async () => {
+    if (sentRef.current) return
+    const body = composeRef.current?.getMarkdown() ?? ''
+    const { bcc, cc, subject, to } = latest.current
+    if (!to.trim() && !subject.trim() && !body.trim()) return
+    const snapshot = JSON.stringify({ bcc, body, cc, subject, to })
+    if (snapshot === lastSavedRef.current) return
+    try {
+      const res = await saveDraftMut.mutateAsync({
+        bcc,
+        body,
+        cc,
+        id: draftIdRef.current ?? undefined,
+        reply_to_thread_id: replySource?.threadId,
+        subject,
+        to,
+      })
+      if (res.id !== undefined) draftIdRef.current = Number(res.id)
+      lastSavedRef.current = snapshot
+    } catch {
+      // transient — the next interval tick retries
+    }
+  }, [replySource, saveDraftMut])
+
+  // bind the interval once; read the latest saveNow through a ref.
+  const saveNowRef = useRef(saveNow)
+  saveNowRef.current = saveNow
+  useEffect(() => {
+    const timer = setInterval(() => void saveNowRef.current(), 3000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // prefill the editor body when reopening a saved draft (the editor is
+  // lazy — wait a tick for it to mount, like the reply-box restore).
+  useEffect(() => {
+    if (!draftSource?.body) return
+    const t = setTimeout(() => composeRef.current?.setMarkdown(draftSource.body), 250)
+    return () => clearTimeout(t)
+  }, [draftSource])
+
+  // this compose session's draft source is consumed on mount; clear it so
+  // the next fresh compose doesn't reopen it.
+  useEffect(() => {
+    return () => setDraftSource(null)
+  }, [setDraftSource])
 
   // composer opens by flipping an atom, which doesn't push a history entry.
   // without this, browser Back leaves /mail entirely. push a sentinel on
@@ -125,6 +190,9 @@ export function NewConversation() {
   }
 
   const closeComposer = () => {
+    // persist whatever's typed as a draft before leaving (no-op if empty
+    // or already sent). the request outlives this component's unmount.
+    void saveNow()
     // when our sentinel is still on top, pop it so Back afterwards lands on
     // the thread underneath. popstate will re-run the close handlers, which
     // is idempotent.
@@ -187,6 +255,13 @@ export function NewConversation() {
               }
             : {}),
         })
+        // the message is out — drop the autosaved draft (best effort) and
+        // block any trailing autosave from recreating it.
+        sentRef.current = true
+        if (draftIdRef.current !== null) {
+          await deleteDraftMut.mutateAsync(draftIdRef.current).catch(() => undefined)
+          draftIdRef.current = null
+        }
         await queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
         closeComposer()
       } else {
@@ -302,10 +377,27 @@ function ComposerSkeleton() {
 
 function extractReplyAddress(sender: string): string {
   const match = sender.match(/<([^>]+)>/)
-  return match ? match[1].trim() : sender.trim()
+  if (match) return match[1].trim()
+  return sender.trim()
+}
+
+function initialSubject(
+  draft: ComposeDraftSource | null,
+  reply: ComposeReplySource | null
+): string {
+  if (draft) return draft.subject
+  if (reply) return withReplyPrefix(reply.subject)
+  return ''
+}
+
+function initialTo(draft: ComposeDraftSource | null, reply: ComposeReplySource | null): string {
+  if (draft) return draft.to
+  if (reply) return extractReplyAddress(reply.sender)
+  return ''
 }
 
 function withReplyPrefix(subject: string): string {
   const trimmed = subject.trim()
-  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`
+  if (/^re:/i.test(trimmed)) return trimmed
+  return `Re: ${trimmed}`
 }
