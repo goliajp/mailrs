@@ -3,8 +3,10 @@ import type { Draft } from '@/lib/api'
 import { toast } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 import { FilterBar } from '@/components/conversation-list-filter-bar'
+import { ListSearchInput } from '@/components/list-search-input'
 import { useDeleteDraftMutation, useDraftsQuery } from '@/hooks/use-drafts'
 import { formatFullDate } from '@/lib/format'
 import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
@@ -18,6 +20,13 @@ export function DraftsList() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
+  const [query, setQuery] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return drafts
+    return drafts.filter((d) => matchesDraft(d, q))
+  }, [drafts, query])
 
   const openDraft = (d: Draft) => {
     setReplySource(null)
@@ -48,9 +57,12 @@ export function DraftsList() {
     if (drafts.length === 0) {
       return <div className="text-fg-muted p-8 text-center text-sm">No drafts</div>
     }
+    if (filtered.length === 0) {
+      return <div className="text-fg-muted p-8 text-center text-sm">No matching drafts</div>
+    }
     return (
       <div className="flex flex-col">
-        {drafts.map((d) => (
+        {filtered.map((d) => (
           <div className="border-border hover:bg-bg-secondary group relative border-b" key={d.id}>
             <button
               className="flex w-full flex-col gap-1 px-4 py-3 pr-10 text-left"
@@ -80,6 +92,12 @@ export function DraftsList() {
 
   return (
     <div className="flex h-full flex-col">
+      <ListSearchInput
+        label="Search drafts"
+        onChange={setQuery}
+        placeholder="Search drafts…"
+        value={query}
+      />
       <FilterBar />
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>
@@ -95,4 +113,12 @@ function draftPreview(body: string): string {
 function draftTitle(subject: string): string {
   if (subject.trim()) return subject
   return '(no subject)'
+}
+
+function matchesDraft(d: Draft, q: string): boolean {
+  return (
+    d.subject.toLowerCase().includes(q) ||
+    d.to.toLowerCase().includes(q) ||
+    d.body.toLowerCase().includes(q)
+  )
 }
