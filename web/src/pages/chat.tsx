@@ -10,6 +10,7 @@ import { DraftsList } from '@/components/drafts-list'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
+import { SentList } from '@/components/sent-list'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMailEvents } from '@/hooks/use-mail-events'
@@ -19,6 +20,7 @@ import { authAtom } from '@/store/auth'
 import {
   categoryFilterAtom,
   composingNewAtom,
+  focusedMessageUidAtom,
   folderAtom,
   importanceSectionAtom,
   mobileViewAtom,
@@ -43,6 +45,7 @@ export function Chat() {
   const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
   const [importanceSection, setImportanceSection] = useAtom(importanceSectionAtom)
   const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
+  const [focusedMsgUid, setFocusedMsgUid] = useAtom(focusedMessageUidAtom)
   const setFolder = useSetAtom(folderAtom)
   const setCategoryFilter = useSetAtom(categoryFilterAtom)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -60,6 +63,7 @@ export function Chat() {
     if (!initializedRef.current) {
       initializedRef.current = true
       const urlThread = searchParams.get('thread')
+      const urlMsg = searchParams.get('msg')
       const urlView = searchParams.get('view') as
         | 'conversation'
         | 'list'
@@ -70,6 +74,7 @@ export function Chat() {
       const urlTab = searchParams.get('tab')
       const urlCat = searchParams.get('cat')
       if (urlThread) setSelectedThreadId(urlThread)
+      if (urlMsg) setFocusedMsgUid(Number(urlMsg))
       if (urlView) setMobileView(urlView)
       if (
         urlFolder === 'Drafts' ||
@@ -91,6 +96,7 @@ export function Chat() {
     }
     const params = new URLSearchParams()
     if (selectedThreadId) params.set('thread', selectedThreadId)
+    if (focusedMsgUid !== null) params.set('msg', String(focusedMsgUid))
     if (mobileView !== 'list') params.set('view', mobileView)
     if (folder) params.set('folder', folder)
     if (quickFilter !== 'all') params.set('tab', quickFilter)
@@ -103,6 +109,7 @@ export function Chat() {
     }
   }, [
     selectedThreadId,
+    focusedMsgUid,
     mobileView,
     folder,
     quickFilter,
@@ -111,6 +118,7 @@ export function Chat() {
     searchParams,
     setSearchParams,
     setSelectedThreadId,
+    setFocusedMsgUid,
     setMobileView,
     setFolder,
     setQuickFilter,
@@ -221,9 +229,11 @@ export function Chat() {
     }
   }, [firstThreadId, selectedThreadId, composingNew, setSelectedThreadId])
 
-  // the list pane shows drafts on the Draft tab, otherwise the thread list.
+  // the list pane shows drafts / sent-messages on their tabs, otherwise
+  // the thread list.
   const renderList = () => {
     if (folder === 'Drafts') return <DraftsList />
+    if (folder === 'Sent') return <SentList />
     return (
       <ConversationList
         onLoadMore={loadMore}

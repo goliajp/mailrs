@@ -46,6 +46,7 @@ export const mailKeys = {
   drafts: () => [...mailKeys.all(), 'drafts'] as const,
   search: (q: string, filters?: MailListFilters) =>
     [...mailKeys.all(), 'search', q, filters ? normalizeFilters(filters) : {}] as const,
+  sent: () => [...mailKeys.all(), 'sent'] as const,
   templates: () => [...mailKeys.all(), 'templates'] as const,
   thread: (threadId: null | string) => [...mailKeys.all(), 'thread', threadId ?? ''] as const,
 }

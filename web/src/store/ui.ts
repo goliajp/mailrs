@@ -112,3 +112,8 @@ export type ComposeDraftSource = {
   to: string
 }
 export const composeDraftSourceAtom = atom<ComposeDraftSource | null>(null)
+
+// when set, the open thread should scroll to + highlight the message with
+// this uid (set by clicking a Sent-view row so its exact outbound message
+// is focused). synced to the `?msg=` URL param. cleared once consumed.
+export const focusedMessageUidAtom = atom<null | number>(null)

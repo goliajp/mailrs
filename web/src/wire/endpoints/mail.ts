@@ -18,6 +18,7 @@ import {
   reactionsListSchema,
   saveDraftResultSchema,
   sendResultSchema,
+  sentMessagesSchema,
   snoozeResultSchema,
   threadReactionsSchema,
   type WireDeleteDraftResult,
@@ -27,6 +28,7 @@ import {
   type WireReactionSummary,
   type WireSaveDraftResult,
   type WireSendResult,
+  type WireSentMessage,
   type WireSnoozeResult,
 } from '../schemas/mail'
 import { emptyResponseSchema } from '../schemas/mutations'
@@ -97,6 +99,10 @@ export async function wireDeletePendingSend(messageId: string): Promise<void> {
 export async function wireListDrafts(): Promise<readonly WireDraft[]> {
   const raw = await wireFetch(draftListSchema, { path: '/mail/drafts' })
   return raw.items
+}
+
+export function wireListSentMessages(): Promise<readonly WireSentMessage[]> {
+  return wireFetch(sentMessagesSchema, { path: '/mail/sent' })
 }
 
 export const wireSaveDraft = (payload: Record<string, unknown>): Promise<WireSaveDraftResult> =>
