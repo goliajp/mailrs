@@ -459,6 +459,17 @@ async fn enrich_with_body(
     r
 }
 
+/// GET /api/mail/sent — one row per outbound message (not per thread),
+/// newest first, each carrying the recipient (To) + thread_id + uid so
+/// the Sent view lists every sent message and a click focuses it.
+pub async fn list_sent_messages(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<Vec<mailrs_core_api::method::thread::SentMessageSummary>>, StatusCode> {
+    let resp = state.core.list_sent_messages(&user).await.map_err(map_err)?;
+    Ok(Json(resp.items))
+}
+
 /// GET /api/conversations/{thread_id} — return Vec<ThreadMessageResponse>
 /// with monolith's exact wire shape (attachments, text_body, ...) so the
 /// React UI can safely reach into arrays without null-guards.

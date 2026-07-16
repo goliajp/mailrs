@@ -19,6 +19,12 @@ pub const PATH_FIND_THREAD_BY_MESSAGE_ID: &str =
 pub const PATH_THREAD_MESSAGE_IDS: &str = "/v1/users/{user}/threads/{thread_id}/message-ids";
 pub const PATH_BACKFILL_THREADING: &str = "/v1/admin/backfill-threading";
 
+/// `GET /v1/users/{user}/sent-messages` — one row per message the user
+/// actually sent (not per thread), newest first, so the Sent view can
+/// show the recipient and every outbound message in a multi-reply thread
+/// separately.
+pub const PATH_LIST_SENT_MESSAGES: &str = "/v1/users/{user}/sent-messages";
+
 // ── mutate paths (every action becomes its own POST) ───────────────
 
 pub const PATH_MARK_READ: &str = "/v1/users/{user}/threads/{thread_id}/read";
@@ -82,6 +88,28 @@ pub const PATH_DELIVER_MESSAGE: &str = "/v1/users/{user}/threads/{thread_id}/mes
 pub struct ListThreadMessagesResponse {
     /// Message rows in this thread, ordered by `internal_date` ASC.
     pub items: Vec<crate::method::message::MessageWire>,
+}
+
+/// One outbound message in the Sent view — message granularity, not
+/// thread. Carries the recipient (To) so the list shows who it went to,
+/// and `thread_id` + `uid` so a click opens the thread and focuses this
+/// exact message.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SentMessageSummary {
+    pub uid: u32,
+    pub message_id: String,
+    pub thread_id: String,
+    /// Raw `To:` header — who this message was sent to.
+    pub to: String,
+    pub subject: String,
+    /// Epoch seconds.
+    pub internal_date: i64,
+}
+
+/// Response body for `GET /v1/users/{user}/sent-messages`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SentMessagesResponse {
+    pub items: Vec<SentMessageSummary>,
 }
 
 /// Request body for `PUT /v1/users/{user}/threads/{thread_id}/snooze`.

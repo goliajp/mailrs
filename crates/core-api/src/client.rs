@@ -292,6 +292,15 @@ impl Client {
         self.get_authed(path, "list_thread_messages").await
     }
 
+    /// GET /v1/users/{user}/sent-messages
+    pub async fn list_sent_messages(
+        &self,
+        user: &str,
+    ) -> ApiResult<method::thread::SentMessagesResponse> {
+        let path = format!("/v1/users/{}/sent-messages", Self::enc(user));
+        self.get_authed(path, "list_sent_messages").await
+    }
+
     // ── thread mutate ───────────────────────────────────────────────
 
     /// POST /v1/users/{user}/threads/{thread_id}/{action}
