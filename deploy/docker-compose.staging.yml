@@ -97,7 +97,9 @@ services:
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:-latest}
     entrypoint: ["mailrs-fastcore"]
     pull_policy: missing
-    mem_limit: 2g
+    # 3g to match prod: AOF-replay peak on boot exceeds a tighter limit
+    # and restart-loops (2026-07-16 prod outage). See prod compose note.
+    mem_limit: 3g
     healthcheck:
       disable: true
     ports:
