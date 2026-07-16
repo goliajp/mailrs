@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
+import { SenderAvatar } from '@/components/sender-avatar'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -49,20 +50,23 @@ export function SentList() {
       <div className="flex flex-col">
         {filtered.map((m) => (
           <button
-            className="border-border hover:bg-bg-secondary flex flex-col gap-1 border-b px-4 py-3 text-left transition-colors"
+            className="border-border hover:bg-bg-secondary flex items-start gap-3 border-b px-4 py-3 text-left transition-colors"
             key={m.uid}
             onClick={() => openMessage(m)}
             type="button"
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-accent truncate text-sm font-semibold">
-                To: {recipientLabel(m.to)}
-              </span>
-              <span className="text-fg-muted text-tiny shrink-0">
-                {formatFullDate(m.internal_date)}
-              </span>
+            <SenderAvatar className="mt-0.5 shrink-0" sender={firstRecipient(m.to)} size={36} />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-accent truncate text-sm font-semibold">
+                  {recipientLabel(m.to)}
+                </span>
+                <span className="text-fg-muted text-tiny shrink-0">
+                  {formatFullDate(m.internal_date)}
+                </span>
+              </div>
+              <span className="text-fg truncate text-sm">{subjectLabel(m.subject)}</span>
             </div>
-            <span className="text-fg truncate text-sm">{subjectLabel(m.subject)}</span>
           </button>
         ))}
       </div>
@@ -81,6 +85,12 @@ export function SentList() {
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>
   )
+}
+
+// first recipient of a possibly-multi To header — the avatar keys off it.
+function firstRecipient(to: string): string {
+  const first = to.split(',')[0]?.trim() ?? ''
+  return first || to
 }
 
 // the raw To header can be "Name <a@x>, b@y, …" — show the first
