@@ -79,12 +79,55 @@ impl KevyMailboxStore {
         };
 
         // 3. drop `from` from every per-user index + its hash, then
-        //    rebuild `into`'s memberships from the merged aggregate.
+        //    rebuild `into`'s memberships from the merged aggregate —
+        //    with the counters recounted from the actual message flags.
+        //    Naively summing the two hashes' unread_count resurrected
+        //    stale pre-migration values that were never in the unread
+        //    index (2026-07-17: years-old mail flooded the Unread tab
+        //    after the first prod rethread).
         self.delete_thread(user, from)?;
-        if let Some(row) = merged {
+        if let Some(mut row) = merged {
+            if let Some((count, unread, sent)) = self.recount_from_messages(user, into)? {
+                row.count = count;
+                row.unread_count = unread;
+                row.sent_count = sent;
+            }
             self.upsert_thread(user, &row)?;
         }
         Ok(moved)
+    }
+
+    /// Recompute (count, unread_count, sent_count) for a thread from its
+    /// per-message wires: unread = messages without the \Seen flag that
+    /// the user didn't send; sent = messages the user sent. `None` when
+    /// the thread has no messages to count (keep the hash values).
+    fn recount_from_messages(
+        &self,
+        user: &str,
+        tid: &str,
+    ) -> io::Result<Option<(i64, i64, i64)>> {
+        let blobs = self.list_thread_messages(tid)?;
+        if blobs.is_empty() {
+            return Ok(None);
+        }
+        let mut count = 0i64;
+        let mut unread = 0i64;
+        let mut sent = 0i64;
+        for b in &blobs {
+            let Ok(w) = serde_json::from_slice::<serde_json::Value>(b) else {
+                continue;
+            };
+            count += 1;
+            let seen = w["flags"].as_u64().unwrap_or(0) & 1 != 0;
+            let sender = w["sender"].as_str().unwrap_or("");
+            let is_own = crate::thread_row::senders_csv_contains_user(sender, user);
+            if is_own {
+                sent += 1;
+            } else if !seen {
+                unread += 1;
+            }
+        }
+        Ok(Some((count, unread, sent)))
     }
 }
 
@@ -203,12 +246,36 @@ mod tests {
     }
 
     #[test]
+    fn merge_recounts_unread_from_flags_not_stale_hash() {
+        let s = store();
+        let u = "u@x.com";
+        // both fragments carry stale unread_count=1 in the hash, but the
+        // actual messages are all \Seen — the merged thread must NOT
+        // resurrect the stale unread.
+        arrive(&s, "t-old", u, "a", 100);
+        arrive(&s, "t-new", u, "a", 200);
+        let seen1 = serde_json::json!({"message_id":"m1","thread_id":"t-old","internal_date":100,"flags":1,"sender":"other@x.com"});
+        let seen2 = serde_json::json!({"message_id":"m2","thread_id":"t-new","internal_date":200,"flags":1,"sender":"other@x.com"});
+        s.upsert_message("t-old", "m1", 100, &serde_json::to_vec(&seen1).unwrap())
+            .unwrap();
+        s.upsert_message("t-new", "m2", 200, &serde_json::to_vec(&seen2).unwrap())
+            .unwrap();
+
+        s.merge_thread_into(u, "t-old", "t-new").unwrap();
+
+        let row = s.get_thread("t-new").unwrap().unwrap();
+        assert_eq!(row.count, 2);
+        assert_eq!(row.unread_count, 0);
+    }
+
+    #[test]
     fn merge_is_idempotent() {
         let s = store();
         let u = "u@x.com";
         arrive(&s, "t-old", u, "a", 100);
         arrive(&s, "t-new", u, "a", 200);
         put_msg(&s, "t-old", "m1", 100);
+        put_msg(&s, "t-new", "m2", 200);
         s.merge_thread_into(u, "t-old", "t-new").unwrap();
         let again = s.merge_thread_into(u, "t-old", "t-new").unwrap();
         assert_eq!(again, 0);
