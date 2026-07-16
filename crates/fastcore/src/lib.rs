@@ -1276,6 +1276,7 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
             .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
             .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
+            .route(th::PATH_LIST_SENT_MESSAGES, get(list_sent_messages))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
@@ -1742,6 +1743,51 @@ async fn thread_messages(
         .filter_map(|b| serde_json::from_slice::<MessageWire>(&b).ok())
         .collect();
     Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items })
+}
+
+/// `GET /v1/users/{user}/sent-messages` — one row per outbound message
+/// (not per thread). Walks the user's sent-thread index, reads each
+/// thread's messages, keeps only the ones this user actually sent, and
+/// returns them newest-first with the recipient (To). Reuses the existing
+/// per-thread message store — no dedicated sent-message index.
+async fn list_sent_messages(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+) -> Json<mailrs_core_api::method::thread::SentMessagesResponse> {
+    use mailrs_core_api::method::message::MessageWire;
+    use mailrs_core_api::method::thread::{SentMessageSummary, SentMessagesResponse};
+
+    let store = state.mailbox.store_ref();
+    let sent_zset = mailrs_mailbox_kevy::keys::user_threads_sent(&user);
+    let tids = store
+        .zrevrange(sent_zset.as_bytes(), 0, -1)
+        .unwrap_or_default();
+
+    let mut items: Vec<SentMessageSummary> = Vec::new();
+    for (tid_b, _score) in &tids {
+        let Ok(tid) = std::str::from_utf8(tid_b) else {
+            continue;
+        };
+        let blobs = state.mailbox.list_thread_messages(tid).unwrap_or_default();
+        for b in blobs {
+            let Ok(w) = serde_json::from_slice::<MessageWire>(&b) else {
+                continue;
+            };
+            if !mailrs_mailbox_kevy::senders_csv_contains_user(&w.sender, &user) {
+                continue;
+            }
+            items.push(SentMessageSummary {
+                uid: w.uid,
+                message_id: w.message_id,
+                thread_id: w.thread_id,
+                to: w.recipients,
+                subject: w.subject,
+                internal_date: w.internal_date,
+            });
+        }
+    }
+    items.sort_by_key(|s| std::cmp::Reverse(s.internal_date));
+    Json(SentMessagesResponse { items })
 }
 
 // ── Account (auth) — Phase 8 ────────────────────────────────────────

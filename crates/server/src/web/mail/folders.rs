@@ -108,6 +108,60 @@ pub(crate) async fn get_folder_messages(
     Json(summaries)
 }
 
+// wire shape mirrors fastcore's `SentMessageSummary` (uid/message_id/
+// thread_id/to/subject/internal_date) so the frontend parses both lanes
+// identically — core-mode parity.
+#[derive(Serialize)]
+pub(crate) struct SentMessageSummary {
+    pub uid: u32,
+    pub message_id: String,
+    pub thread_id: String,
+    pub to: String,
+    pub subject: String,
+    pub internal_date: i64,
+}
+
+/// GET /api/mail/sent — one row per outbound message (not per thread),
+/// newest first, each carrying the recipient (To) + thread_id + uid.
+pub(crate) async fn list_sent_messages(
+    AuthUser { address: user, .. }: AuthUser,
+    State(state): State<Arc<WebState>>,
+) -> impl IntoResponse {
+    let Some(ref pool) = state.pg_pool else {
+        return Json(Vec::<SentMessageSummary>::new());
+    };
+    let Some(ref mb_store) = state.mailbox_store else {
+        return Json(Vec::<SentMessageSummary>::new());
+    };
+    let mb = match mb_store.get_mailbox(&user, "Sent").await {
+        Ok(Some(mb)) => mb,
+        _ => return Json(Vec::<SentMessageSummary>::new()),
+    };
+    let rows = sqlx::query_as::<_, (i32, String, String, String, String, i64)>(
+        "SELECT uid, message_id, thread_id, recipients, subject, internal_date \
+         FROM messages WHERE mailbox_id = $1 ORDER BY internal_date DESC LIMIT 500",
+    )
+    .bind(mb.id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let out: Vec<SentMessageSummary> = rows
+        .into_iter()
+        .map(
+            |(uid, message_id, thread_id, recipients, subject, internal_date)| SentMessageSummary {
+                uid: uid as u32,
+                message_id,
+                thread_id,
+                to: recipients,
+                subject: message_util::decode_header(&subject),
+                internal_date,
+            },
+        )
+        .collect();
+    Json(out)
+}
+
 pub(crate) async fn export_mbox(
     AuthUser { address: user, .. }: AuthUser,
     State(state): State<Arc<WebState>>,

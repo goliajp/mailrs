@@ -57,6 +57,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             post(mail::update_message_flags),
         )
         .route("/api/mail/messages/{uid}", delete(mail::delete_message))
+        .route("/api/mail/sent", get(mail::list_sent_messages))
         .route("/api/mail/export", get(mail::export_mbox))
         .route("/api/mail/send", post(mail::send_message))
         .route(
