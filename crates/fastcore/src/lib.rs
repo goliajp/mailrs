@@ -1896,17 +1896,23 @@ async fn backfill_threading_route(
     let mut moved_messages = 0u64;
     let mut indexed = 0u64;
     for user in &users {
-        // collect every (message_id, in_reply_to, internal_date, tid)
+        // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
         let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
         let tids = store.zrevrange(activity.as_bytes(), 0, -1).unwrap_or_default();
-        let mut msgs: Vec<(String, String, i64, String)> = Vec::new();
+        let mut msgs: Vec<(String, String, i64, String, String)> = Vec::new();
         for (tid_b, _) in &tids {
             let Ok(tid) = std::str::from_utf8(tid_b) else {
                 continue;
             };
             for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
                 if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) {
-                    msgs.push((w.message_id, w.in_reply_to, w.internal_date, tid.to_string()));
+                    msgs.push((
+                        w.message_id,
+                        w.in_reply_to,
+                        w.internal_date,
+                        tid.to_string(),
+                        w.blob_ref,
+                    ));
                 }
             }
         }
@@ -1914,14 +1920,19 @@ async fn backfill_threading_route(
             continue;
         }
         // union-find over string nodes: `m:<mid>` and `t:<tid>` — a
-        // message unions with its current thread AND its In-Reply-To
-        // parent, so reply chains stitch fragments together while
+        // message unions with its current thread, its In-Reply-To
+        // parent, AND every Message-ID in its raw References chain
+        // (read from the maildir file — the kevy wire doesn't store the
+        // chain). Reply chains stitch fragments together while
         // already-grouped threads never split.
         let mut uf = UnionFind::default();
-        for (mid, irt, _, tid) in &msgs {
+        for (mid, irt, _, tid, blob_ref) in &msgs {
             uf.union(&format!("m:{mid}"), &format!("t:{tid}"));
             if !irt.is_empty() {
                 uf.union(&format!("m:{mid}"), &format!("m:{irt}"));
+            }
+            for r in maildir_references(user, blob_ref) {
+                uf.union(&format!("m:{mid}"), &format!("m:{r}"));
             }
         }
         // component → member tids + its oldest message's tid (canonical)
@@ -1929,7 +1940,7 @@ async fn backfill_threading_route(
             std::collections::HashMap::new();
         let mut comp_oldest: std::collections::HashMap<String, (i64, String)> =
             std::collections::HashMap::new();
-        for (mid, _, date, tid) in &msgs {
+        for (mid, _, date, tid, _) in &msgs {
             let root = uf.find(&format!("m:{mid}"));
             let entry = comp_tids.entry(root.clone()).or_default();
             if !entry.contains(tid) {
@@ -1960,7 +1971,7 @@ async fn backfill_threading_route(
         }
         // seed the msgid index for every message (merge already
         // re-pointed the moved ones; this covers the untouched rest).
-        for (mid, _, _, tid) in &msgs {
+        for (mid, _, _, tid, _) in &msgs {
             let root = uf.find(&format!("m:{mid}"));
             let Some((_, canonical)) = comp_oldest.get(&root) else {
                 continue;
@@ -1986,6 +1997,36 @@ async fn backfill_threading_route(
         "msgids_indexed": indexed,
     }))
     .into_response()
+}
+
+/// Read the full References chain of a message from its maildir file
+/// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
+/// is empty or the file is gone — the caller just gets fewer edges.
+fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
+    if blob_ref.is_empty() {
+        return Vec::new();
+    }
+    let Some((local, domain)) = user.split_once('@') else {
+        return Vec::new();
+    };
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let base = std::path::PathBuf::from(root).join(domain).join(local);
+    let (sub, name) = match blob_ref.split_once('/') {
+        Some((s, n)) => (Some(s), n),
+        None => (None, blob_ref),
+    };
+    for leaf in ["cur", "new"] {
+        let path = match sub {
+            Some(s) => base.join(s).join(leaf).join(name),
+            None => base.join(leaf).join(name),
+        };
+        if let Ok(bytes) = std::fs::read(&path) {
+            let head = &bytes[..bytes.len().min(16 * 1024)];
+            let (_, _, references, ..) = extract_headers(head);
+            return references;
+        }
+    }
+    Vec::new()
 }
 
 /// Minimal string-keyed union-find for the rethread backfill.
