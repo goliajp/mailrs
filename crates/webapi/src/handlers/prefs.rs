@@ -812,10 +812,24 @@ async fn mirror_send_to_sender_view(
     use mailrs_message_store::{MaildirStore, MessageStore};
 
     let now = now_secs();
-    let thread_id = parts
-        .in_reply_to
-        .clone()
-        .unwrap_or_else(|| message_id.to_string());
+    // v2.9.5 threading fix — a reply must join the thread its parent
+    // actually lives in (msgid → thread index via core-api), NOT be
+    // keyed on the parent's raw Message-ID: for any thread deeper than
+    // two messages that id differs from the inbound-path root, so the
+    // sent copy fragmented into its own 1-message conversation.
+    let mut thread_id: Option<String> = None;
+    if let Some(irt) = &parts.in_reply_to
+        && let Ok(resp) = state.core.find_thread_by_message_id(user, irt).await
+    {
+        thread_id = resp.thread_id;
+    }
+    let thread_id = match thread_id {
+        Some(tid) => tid,
+        None => parts
+            .in_reply_to
+            .clone()
+            .unwrap_or_else(|| message_id.to_string()),
+    };
 
     let (local, domain) = match user.split_once('@') {
         Some(v) => v,

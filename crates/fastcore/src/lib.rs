@@ -489,15 +489,19 @@ async fn run_ingest_once(
 }
 
 /// Extract common headers from an RFC 5322 message. Returns
-/// `(message_id, in_reply_to, references_first, subject, date_epoch, from, to)`.
+/// `(message_id, in_reply_to, references, subject, date_epoch, from, to)`.
 ///
-/// `references_first` is the FIRST Message-ID in the References
-/// header — by RFC 5322 §3.6.4 that identifies the conversation root
-/// (which is what monolith uses as the fastcore thread_id).
-pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i64, String, String) {
+/// `references` is every Message-ID token of the References header,
+/// oldest (root) first. Threading resolves against the msgid→thread
+/// index via `resolve_thread_by_ancestry`; `references[0]` is only the
+/// last-resort root guess (it is NOT stable across hops — remote MUAs
+/// rewrite it, which fragmented conversations before v2.9.5).
+pub(crate) fn extract_headers(
+    raw: &[u8],
+) -> (String, String, Vec<String>, String, i64, String, String) {
     let mut message_id = String::new();
     let mut in_reply_to = String::new();
-    let mut references_first = String::new();
+    let mut references: Vec<String> = Vec::new();
     let mut subject = String::new();
     let mut date_epoch: i64 = 0;
     let mut from = String::new();
@@ -539,14 +543,15 @@ pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i6
             "message-id" => message_id = strip_angle(val),
             "in-reply-to" => in_reply_to = strip_angle(val),
             "references" => {
-                // First token that looks like <...>
-                references_first = val
+                // Every <...> token, oldest (root) first — the full chain
+                // feeds the msgid→thread resolver, not just token 0.
+                references = val
                     .split_whitespace()
-                    .find_map(|tok| {
+                    .filter_map(|tok| {
                         let t = tok.trim_matches(|c: char| c == '<' || c == '>' || c == ',');
                         (!t.is_empty()).then(|| t.to_string())
                     })
-                    .unwrap_or_default();
+                    .collect();
             }
             "subject" => subject = mailrs_rfc2047::decode(val.as_bytes()).into_owned(),
             "from" => from = val.to_string(),
@@ -558,12 +563,36 @@ pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i6
     (
         message_id,
         in_reply_to,
-        references_first,
+        references,
         subject,
         date_epoch,
         from,
         to,
     )
+}
+
+/// Resolve which existing thread a message belongs to by looking its
+/// `In-Reply-To` + full `References` chain up in the per-user
+/// `Message-ID → thread_id` index. `None` = nothing known, caller falls
+/// back to the legacy root rule. Nearest ancestor wins: In-Reply-To
+/// first, then References newest → oldest.
+pub(crate) fn resolve_thread_by_ancestry(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    in_reply_to: &str,
+    references: &[String],
+) -> Option<String> {
+    if !in_reply_to.is_empty()
+        && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, in_reply_to)
+    {
+        return Some(tid);
+    }
+    for mid in references.iter().rev() {
+        if let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, mid) {
+            return Some(tid);
+        }
+    }
+    None
 }
 
 fn strip_angle(v: &str) -> String {
@@ -652,7 +681,7 @@ struct MailFile {
     size: u32,
     message_id: String,
     in_reply_to: String,
-    references_first: String,
+    references: Vec<String>,
     subject: String,
     date: i64,
     from: String,
@@ -743,7 +772,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         };
         let size = bytes.len() as u32;
         let head = &bytes[..bytes.len().min(16 * 1024)];
-        let (message_id, in_reply_to, references_first, subject, date, from, to) =
+        let (message_id, in_reply_to, references, subject, date, from, to) =
             extract_headers(head);
         if message_id.is_empty() {
             continue;
@@ -767,7 +796,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             size,
             message_id,
             in_reply_to,
-            references_first,
+            references,
             subject,
             date,
             from,
@@ -775,16 +804,24 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         });
     }
 
-    // Bucket by resolved conversation root.
+    // Bucket by resolved conversation root. v2.9.5: consult the
+    // msgid→thread index first (same rule as live ingest) so self-heal
+    // groups a reply into the thread its ancestors actually live in;
+    // the raw-header guess is only the fallback for unknown chains.
     let mut by_root: std::collections::HashMap<String, Vec<&MailFile>> =
         std::collections::HashMap::new();
     for m in &parsed {
-        let root = if !m.references_first.is_empty() {
-            m.references_first.clone()
-        } else if !m.in_reply_to.is_empty() {
-            m.in_reply_to.clone()
-        } else {
-            m.message_id.clone()
+        let root = match resolve_thread_by_ancestry(state, user, &m.in_reply_to, &m.references) {
+            Some(tid) => tid,
+            None => {
+                if let Some(first) = m.references.first() {
+                    first.clone()
+                } else if !m.in_reply_to.is_empty() {
+                    m.in_reply_to.clone()
+                } else {
+                    m.message_id.clone()
+                }
+            }
         };
         by_root.entry(root).or_default().push(m);
     }
@@ -963,6 +1000,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             let _ = state
                 .mailbox
                 .upsert_message(tid, &wire.message_id, m.date, &payload);
+            let _ = state
+                .mailbox
+                .set_thread_for_message_id(user, &wire.message_id, tid);
             if existing_count == 0 {
                 healed_msgs += 1;
             } else {
@@ -1071,6 +1111,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                         .mailbox
                         .upsert_message(root, &m.message_id, m.date, &payload);
                 }
+                let _ = state
+                    .mailbox
+                    .set_thread_for_message_id(user, &m.message_id, root);
             }
             created += 1;
         }
@@ -1166,8 +1209,7 @@ pub(crate) fn ingest_delivered_file(
     target_folder: &str,
 ) {
     let head = &body[..body.len().min(16 * 1024)];
-    let (message_id, in_reply_to, references_first, subject, date, from, to) =
-        extract_headers(head);
+    let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
     if message_id.is_empty() {
         // no Message-ID header — leave it to self-heal's filename-based
         // fallbacks rather than fabricating an id here
@@ -1179,12 +1221,21 @@ pub(crate) fn ingest_delivered_file(
     } else {
         maildir_filename_epoch(bare).unwrap_or(0)
     };
-    let root = if !references_first.is_empty() {
-        references_first
-    } else if !in_reply_to.is_empty() {
-        in_reply_to.clone()
-    } else {
-        message_id.clone()
+    // v2.9.5 threading fix — prefer the thread an ancestor actually
+    // landed in (msgid index) over deriving one from raw headers.
+    // References[0] is NOT a stable conversation root (each hop can
+    // rewrite it), which is how conversations fragmented.
+    let root = match resolve_thread_by_ancestry(state, addr, &in_reply_to, &references) {
+        Some(tid) => tid,
+        None => {
+            if let Some(first) = references.first() {
+                first.clone()
+            } else if !in_reply_to.is_empty() {
+                in_reply_to.clone()
+            } else {
+                message_id.clone()
+            }
+        }
     };
     let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
     // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
@@ -1255,6 +1306,11 @@ pub(crate) fn ingest_delivered_file(
         }
         Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),
     }
+    // register this message's id → thread so future replies that cite it
+    // (In-Reply-To / References) resolve into the same conversation.
+    let _ = state
+        .mailbox
+        .set_thread_for_message_id(addr, &message_id, &root);
 }
 
 pub fn build_router(state: Arc<FastcoreState>) -> Router {
@@ -1277,6 +1333,11 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
             .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
             .route(th::PATH_LIST_SENT_MESSAGES, get(list_sent_messages))
+            .route(
+                th::PATH_FIND_THREAD_BY_MESSAGE_ID,
+                get(find_thread_by_message_id),
+            )
+            .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
@@ -1795,6 +1856,170 @@ async fn list_sent_messages(
     Json(SentMessagesResponse { items })
 }
 
+/// `GET /v1/users/{user}/threads/by-message-id/{message_id}` — resolve a
+/// RFC 5322 Message-ID to the thread it was indexed under (the msgid →
+/// thread reconciliation index). Callers: webapi mirror_send, so a sent
+/// reply joins the conversation its parent lives in.
+async fn find_thread_by_message_id(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, message_id)): Path<(String, String)>,
+) -> Json<mailrs_core_api::method::thread::FindThreadByMessageIdResponse> {
+    let thread_id = state
+        .mailbox
+        .thread_for_message_id(&user, &message_id)
+        .unwrap_or(None);
+    Json(mailrs_core_api::method::thread::FindThreadByMessageIdResponse { thread_id })
+}
+
+/// `POST /v1/admin/backfill-threading` — one-shot rethread of existing
+/// data (v2.9.5). Conversations fragmented across multiple thread_ids
+/// because three write paths derived roots inconsistently and no msgid
+/// index existed. Union-find over (message ↔ its In-Reply-To parent) +
+/// (message ↔ its current thread) yields the true conversations; each
+/// component's fragments merge into a canonical thread (the one holding
+/// the component's oldest message — deterministic, so reruns are
+/// idempotent no-ops). Also seeds the msgid→thread index for every
+/// message. In-process per `feedback-junk-backfill-oom-finding`.
+async fn backfill_threading_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    use mailrs_core_api::method::message::MessageWire;
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut merged_threads = 0u64;
+    let mut moved_messages = 0u64;
+    let mut indexed = 0u64;
+    for user in &users {
+        // collect every (message_id, in_reply_to, internal_date, tid)
+        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let tids = store.zrevrange(activity.as_bytes(), 0, -1).unwrap_or_default();
+        let mut msgs: Vec<(String, String, i64, String)> = Vec::new();
+        for (tid_b, _) in &tids {
+            let Ok(tid) = std::str::from_utf8(tid_b) else {
+                continue;
+            };
+            for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
+                if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) {
+                    msgs.push((w.message_id, w.in_reply_to, w.internal_date, tid.to_string()));
+                }
+            }
+        }
+        if msgs.is_empty() {
+            continue;
+        }
+        // union-find over string nodes: `m:<mid>` and `t:<tid>` — a
+        // message unions with its current thread AND its In-Reply-To
+        // parent, so reply chains stitch fragments together while
+        // already-grouped threads never split.
+        let mut uf = UnionFind::default();
+        for (mid, irt, _, tid) in &msgs {
+            uf.union(&format!("m:{mid}"), &format!("t:{tid}"));
+            if !irt.is_empty() {
+                uf.union(&format!("m:{mid}"), &format!("m:{irt}"));
+            }
+        }
+        // component → member tids + its oldest message's tid (canonical)
+        let mut comp_tids: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        let mut comp_oldest: std::collections::HashMap<String, (i64, String)> =
+            std::collections::HashMap::new();
+        for (mid, _, date, tid) in &msgs {
+            let root = uf.find(&format!("m:{mid}"));
+            let entry = comp_tids.entry(root.clone()).or_default();
+            if !entry.contains(tid) {
+                entry.push(tid.clone());
+            }
+            let best = comp_oldest.entry(root).or_insert((*date, tid.clone()));
+            if *date < best.0 {
+                *best = (*date, tid.clone());
+            }
+        }
+        for (root, tids) in &comp_tids {
+            let Some((_, canonical)) = comp_oldest.get(root) else {
+                continue;
+            };
+            for tid in tids {
+                if tid != canonical {
+                    match state.mailbox.merge_thread_into(user, tid, canonical) {
+                        Ok(n) => {
+                            merged_threads += 1;
+                            moved_messages += n as u64;
+                        }
+                        Err(e) => {
+                            tracing::warn!(err = %e, %user, %tid, %canonical, "merge_thread_into failed");
+                        }
+                    }
+                }
+            }
+        }
+        // seed the msgid index for every message (merge already
+        // re-pointed the moved ones; this covers the untouched rest).
+        for (mid, _, _, tid) in &msgs {
+            let root = uf.find(&format!("m:{mid}"));
+            let Some((_, canonical)) = comp_oldest.get(&root) else {
+                continue;
+            };
+            let target = if comp_tids.get(&root).map(|v| v.len() > 1).unwrap_or(false) {
+                canonical
+            } else {
+                tid
+            };
+            if state
+                .mailbox
+                .set_thread_for_message_id(user, mid, target)
+                .is_ok()
+            {
+                indexed += 1;
+            }
+        }
+    }
+    tracing::info!(merged_threads, moved_messages, indexed, "backfill-threading complete");
+    Json(serde_json::json!({
+        "merged_threads": merged_threads,
+        "moved_messages": moved_messages,
+        "msgids_indexed": indexed,
+    }))
+    .into_response()
+}
+
+/// Minimal string-keyed union-find for the rethread backfill.
+#[derive(Default)]
+struct UnionFind {
+    parent: std::collections::HashMap<String, String>,
+}
+
+impl UnionFind {
+    fn find(&mut self, x: &str) -> String {
+        let p = match self.parent.get(x) {
+            Some(p) => p.clone(),
+            None => {
+                self.parent.insert(x.to_string(), x.to_string());
+                return x.to_string();
+            }
+        };
+        if p == x {
+            return p;
+        }
+        let root = self.find(&p);
+        self.parent.insert(x.to_string(), root.clone());
+        root
+    }
+
+    fn union(&mut self, a: &str, b: &str) {
+        let ra = self.find(a);
+        let rb = self.find(b);
+        if ra != rb {
+            self.parent.insert(ra, rb);
+        }
+    }
+}
+
 // ── Account (auth) — Phase 8 ────────────────────────────────────────
 
 /// `GET /v1/admin/accounts/{address}/credentials` — used by webapi's
@@ -2303,6 +2528,12 @@ async fn deliver_message(
         tracing::error!(err = %e, %user, %thread_id, "upsert_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    // register the (sent-copy) message id → thread so a remote reply
+    // citing it via In-Reply-To resolves into this conversation instead
+    // of opening a fragment (the v2.9.5 threading fix's key edge).
+    let _ = state
+        .mailbox
+        .set_thread_for_message_id(&user, &req.message_id, &thread_id);
 
     // Re-emit thread row so index zsets (sent, has_unread, etc.) reflect
     // the new senders_csv / unread_count state. We read the row we just
