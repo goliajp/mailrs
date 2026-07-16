@@ -571,17 +571,25 @@ pub(crate) fn extract_headers(
     )
 }
 
-/// Resolve which existing thread a message belongs to by looking its
-/// `In-Reply-To` + full `References` chain up in the per-user
+/// Resolve which existing thread a message belongs to via the per-user
 /// `Message-ID → thread_id` index. `None` = nothing known, caller falls
-/// back to the legacy root rule. Nearest ancestor wins: In-Reply-To
-/// first, then References newest → oldest.
+/// back to the legacy root rule. The message's OWN id is consulted
+/// first — a message that was already ingested (and possibly moved by a
+/// rethread merge) must land back in its current thread, or self-heal
+/// re-creates the pre-merge fragment on every boot. Then nearest
+/// ancestor wins: In-Reply-To, then References newest → oldest.
 pub(crate) fn resolve_thread_by_ancestry(
     state: &Arc<FastcoreState>,
     user: &str,
+    own_mid: &str,
     in_reply_to: &str,
     references: &[String],
 ) -> Option<String> {
+    if !own_mid.is_empty()
+        && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, own_mid)
+    {
+        return Some(tid);
+    }
     if !in_reply_to.is_empty()
         && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, in_reply_to)
     {
@@ -659,6 +667,15 @@ fn maildir_filename_epoch(name: &str) -> Option<i64> {
     if n > 946_684_800 { Some(n) } else { None }
 }
 
+/// Whether a maildir filename carries the \Seen flag — the `:2,` info
+/// section lists flags alphabetically (`...:2,RS` etc.).
+fn maildir_seen_flag(name: &str) -> bool {
+    match name.rsplit_once(":2,") {
+        Some((_, info)) => info.contains('S'),
+        None => false,
+    }
+}
+
 /// Fall back to the file's mtime as the delivery epoch when both the
 /// `Date:` header and the maildir filename yield nothing usable.
 fn file_mtime_epoch(path: &std::path::Path) -> Option<i64> {
@@ -686,6 +703,10 @@ struct MailFile {
     date: i64,
     from: String,
     to: String,
+    /// maildir info-section \Seen flag (`...:2,...S...`) — the on-disk
+    /// read/unread fact. Self-heal must respect it or every boot
+    /// resurrects already-read mail as unread.
+    seen: bool,
 }
 
 /// Walk the user's maildir(s) and populate any thread whose messages
@@ -801,6 +822,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             date,
             from,
             to,
+            seen: maildir_seen_flag(&bare),
         });
     }
 
@@ -811,7 +833,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
     let mut by_root: std::collections::HashMap<String, Vec<&MailFile>> =
         std::collections::HashMap::new();
     for m in &parsed {
-        let root = match resolve_thread_by_ancestry(state, user, &m.in_reply_to, &m.references) {
+        let root = match resolve_thread_by_ancestry(state, user, &m.message_id, &m.in_reply_to, &m.references) {
             Some(tid) => tid,
             None => {
                 if let Some(first) = m.references.first() {
@@ -1071,7 +1093,8 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             ordered.sort_by_key(|m| m.date);
             for m in &ordered {
                 let category = "inbox";
-                let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
+                let unread = !m.seen
+                    && !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
                 let arrival = mailrs_mailbox_kevy::MessageArrival {
                     thread_id: root,
                     user,
@@ -1225,7 +1248,7 @@ pub(crate) fn ingest_delivered_file(
     // landed in (msgid index) over deriving one from raw headers.
     // References[0] is NOT a stable conversation root (each hop can
     // rewrite it), which is how conversations fragmented.
-    let root = match resolve_thread_by_ancestry(state, addr, &in_reply_to, &references) {
+    let root = match resolve_thread_by_ancestry(state, addr, &message_id, &in_reply_to, &references) {
         Some(tid) => tid,
         None => {
             if let Some(first) = references.first() {
