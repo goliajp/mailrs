@@ -33,7 +33,7 @@ import {
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
 import { extractEmail, extractName } from '@/lib/avatar'
-import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
+import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import { authAtom } from '@/store/auth'
@@ -290,7 +290,7 @@ const ConversationItem = memo(function ConversationItem({
                 </span>
               )}
               {/* desktop: hover actions via group-hover */}
-              {!batchMode ? (
+              {!batchMode && (
                 <span className="hidden items-center gap-0.5 md:group-hover:flex">
                   <button
                     className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
@@ -313,20 +313,11 @@ const ConversationItem = memo(function ConversationItem({
                     <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
                   </button>
                 </span>
-              ) : (
-                <span
-                  className="text-fg-muted hidden text-xs md:inline"
-                  title={formatFullDate(convo.last_date)}
-                >
-                  {formatDate(convo.last_date)}
-                </span>
               )}
-              {/* mobile: always show timestamp */}
-              <span
-                className="text-fg-muted text-xs md:hidden"
-                title={formatFullDate(convo.last_date)}
-              >
-                {formatDate(convo.last_date)}
+              {/* full date, always visible (compact rows, 2026-07-17) —
+                  matches the Sent view */}
+              <span className="text-fg-muted text-tiny shrink-0">
+                {formatFullDate(convo.last_date)}
               </span>
             </div>
           </div>
@@ -353,7 +344,7 @@ const ConversationItem = memo(function ConversationItem({
               </span>
             )}
           </div>
-          {convo.snippet && <p className="text-fg-muted truncate text-xs">{convo.snippet}</p>}
+          {/* compact rows: no snippet/preview line (2026-07-17, user) */}
         </div>
       </button>
       <ContextMenu items={contextItems} onClose={ctx.close} position={ctx.position} />
@@ -989,7 +980,7 @@ function VirtualConversationList({
       const item = items[index]
       if (item.type === 'divider') return 32
       if (item.type === 'sentinel' || item.type === 'end') return 48
-      return 96 // matches `h-24` on the row button
+      return 64 // matches `h-16` on the row button (compact two-line rows)
     },
     getScrollElement: () => parentRef.current,
     // Stable per-logical-item key so the virtualizer's internal cache
@@ -1194,8 +1185,11 @@ function VirtualConversationList({
 // row outer class — pulled out so the JSX above stops being a 9-line
 // ternary salad; the four input bools map to the same 5-token output every
 // render, so a pure function is the clean place for it.
+// compact two-line rows (2026-07-17): h-16, no snippet line, matching
+// the Sent view's density. Height MUST stay in sync with the
+// virtualizer's estimateSize (fixed-size mode — see the note there).
 const ROW_BASE =
-  'focus-visible:ring-accent/50 relative flex h-24 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none'
+  'focus-visible:ring-accent/50 relative flex h-16 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none'
 
 function getRowClass({
   batchMode,

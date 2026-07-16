@@ -59,16 +59,18 @@ export function SentList() {
             type="button"
           >
             <SenderAvatar className="mt-0.5 shrink-0" sender={firstRecipient(m.to)} size={36} />
+            {/* sent mail is read by definition — use the muted read-row
+                palette, not the bright unread/accent tones */}
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-accent truncate text-sm font-semibold">
+                <span className="text-fg-secondary truncate text-sm font-medium">
                   {recipientLabel(m.to)}
                 </span>
                 <span className="text-fg-muted text-tiny shrink-0">
                   {formatFullDate(m.internal_date)}
                 </span>
               </div>
-              <span className="text-fg truncate text-sm">{subjectLabel(m.subject)}</span>
+              <span className="text-fg-muted truncate text-sm">{subjectLabel(m.subject)}</span>
             </div>
           </button>
         ))}

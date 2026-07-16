@@ -486,7 +486,7 @@ describe('ConversationItem rendering', () => {
     expect(screen.getByText('+2')).toBeDefined()
   })
 
-  it('shows snippet when available', () => {
+  it('does not render the snippet line (compact rows, 2026-07-17)', () => {
     flatStub.conversations = [makeConversation({ snippet: 'This is a preview...' })]
 
     render(
@@ -495,7 +495,7 @@ describe('ConversationItem rendering', () => {
       </Wrapper>
     )
 
-    expect(screen.getByText('This is a preview...')).toBeDefined()
+    expect(screen.queryByText('This is a preview...')).toBeNull()
   })
 
   it('shows category badge for non-general categories', () => {
