@@ -879,7 +879,9 @@ export function ConversationList({
   )
 }
 
-function DateDivider({ label }: { label: string }) {
+// shared with the Sent / Drafts list views so every list groups rows
+// under the same Today / Yesterday / weekday pills.
+export function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
       <span className="bg-bg-secondary text-fg-muted md:text-tiny rounded-full px-2.5 py-0.5 text-xs font-medium">
