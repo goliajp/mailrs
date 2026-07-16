@@ -30,6 +30,7 @@ const TAB_ROWS: { label: string; value: string }[][] = [
     { label: 'Inbox', value: 'inbox' },
     { label: 'N & P', value: 'np' },
     { label: 'Unread', value: 'unread' },
+    { label: 'Starred', value: 'starred' },
     { label: 'Junk', value: 'junk' },
   ],
   [
@@ -134,6 +135,9 @@ export const FilterBar = memo(function FilterBar() {
         break
       case 'sent':
         setFolder('Sent')
+        break
+      case 'starred':
+        setQuickFilter('starred')
         break
       case 'unread':
         setQuickFilter('unread')
