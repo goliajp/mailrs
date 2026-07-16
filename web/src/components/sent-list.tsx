@@ -1,8 +1,10 @@
 import type { WireSentMessage } from '@/wire/schemas/mail'
 
 import { useSetAtom } from 'jotai'
+import { useMemo, useState } from 'react'
 
 import { FilterBar } from '@/components/conversation-list-filter-bar'
+import { ListSearchInput } from '@/components/list-search-input'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -17,6 +19,15 @@ export function SentList() {
   const setSelectedThreadId = useSetAtom(selectedThreadIdAtom)
   const setFocusedMsgUid = useSetAtom(focusedMessageUidAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
+  const [query, setQuery] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return messages
+    return messages.filter(
+      (m) => m.to.toLowerCase().includes(q) || m.subject.toLowerCase().includes(q)
+    )
+  }, [messages, query])
 
   const openMessage = (m: WireSentMessage) => {
     setSelectedThreadId(m.thread_id)
@@ -31,9 +42,12 @@ export function SentList() {
     if (messages.length === 0) {
       return <div className="text-fg-muted p-8 text-center text-sm">No sent messages</div>
     }
+    if (filtered.length === 0) {
+      return <div className="text-fg-muted p-8 text-center text-sm">No matching messages</div>
+    }
     return (
       <div className="flex flex-col">
-        {messages.map((m) => (
+        {filtered.map((m) => (
           <button
             className="border-border hover:bg-bg-secondary flex flex-col gap-1 border-b px-4 py-3 text-left transition-colors"
             key={m.uid}
@@ -57,6 +71,12 @@ export function SentList() {
 
   return (
     <div className="flex h-full flex-col">
+      <ListSearchInput
+        label="Search sent"
+        onChange={setQuery}
+        placeholder="Search sent…"
+        value={query}
+      />
       <FilterBar />
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>
