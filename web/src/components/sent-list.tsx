@@ -3,13 +3,18 @@ import type { WireSentMessage } from '@/wire/schemas/mail'
 import { useSetAtom } from 'jotai'
 import { useMemo, useState } from 'react'
 
+import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
 import { extractEmail, extractName } from '@/lib/avatar'
-import { formatFullDate } from '@/lib/format'
+import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { focusedMessageUidAtom, mobileViewAtom, selectedThreadIdAtom } from '@/store/ui'
+
+// rows interleaved with Today / Yesterday / weekday group pills, same
+// grouping the inbox list uses.
+type SentListItem = { label: string; type: 'divider' } | { msg: WireSentMessage; type: 'row' }
 
 // per-message Sent view: one row per outbound message (not per thread),
 // showing the recipient. clicking opens the thread and focuses this exact
@@ -48,32 +53,36 @@ export function SentList() {
     }
     return (
       <div className="flex flex-col">
-        {/* border-l-[3px] matches ROW_BASE in conversation-list so the
-            avatar column aligns with inbox rows instead of sitting 3px
-            closer to the pane edge (read as a shaved logo) */}
-        {filtered.map((m) => (
-          <button
-            className="border-border hover:bg-bg-secondary flex items-start gap-3 border-b border-l-[3px] border-l-transparent px-4 py-3 text-left transition-colors"
-            key={m.uid}
-            onClick={() => openMessage(m)}
-            type="button"
-          >
-            <SenderAvatar className="mt-0.5 shrink-0" sender={firstRecipient(m.to)} size={36} />
-            {/* sent mail is read by definition — use the muted read-row
-                palette, not the bright unread/accent tones */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-fg-secondary truncate text-sm font-medium">
-                  {recipientLabel(m.to)}
-                </span>
-                <span className="text-fg-muted text-tiny shrink-0">
-                  {formatFullDate(m.internal_date)}
-                </span>
+        {/* h-16 + border-l-[3px] matches ROW_BASE in conversation-list so
+            every list's rows share one height and avatar column. sent mail
+            is read by definition — muted read-row palette. */}
+        {groupByDate(filtered).map((item) => {
+          if (item.type === 'divider') {
+            return <DateDivider key={`d:${item.label}`} label={item.label} />
+          }
+          const m = item.msg
+          return (
+            <button
+              className="hover:bg-bg-secondary flex h-16 items-start gap-3 border-l-[3px] border-l-transparent px-4 py-2 text-left transition-colors"
+              key={m.uid}
+              onClick={() => openMessage(m)}
+              type="button"
+            >
+              <SenderAvatar className="shrink-0" sender={firstRecipient(m.to)} size={36} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-fg-secondary truncate text-sm font-medium">
+                    {recipientLabel(m.to)}
+                  </span>
+                  <span className="text-fg-muted text-tiny shrink-0">
+                    {formatFullDate(m.internal_date)}
+                  </span>
+                </div>
+                <span className="text-fg-muted truncate text-sm">{subjectLabel(m.subject)}</span>
               </div>
-              <span className="text-fg-muted truncate text-sm">{subjectLabel(m.subject)}</span>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -96,6 +105,20 @@ export function SentList() {
 function firstRecipient(to: string): string {
   const first = to.split(',')[0]?.trim() ?? ''
   return first || to
+}
+
+function groupByDate(messages: readonly WireSentMessage[]): SentListItem[] {
+  const out: SentListItem[] = []
+  let prev = ''
+  for (const m of messages) {
+    const label = dateGroupLabel(m.internal_date)
+    if (label !== prev) {
+      out.push({ label, type: 'divider' })
+      prev = label
+    }
+    out.push({ msg: m, type: 'row' })
+  }
+  return out
 }
 
 // the raw To header can be "Name <a@x>, b@y, …" — show the first
