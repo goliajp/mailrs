@@ -63,7 +63,10 @@ export function DraftsList() {
     return (
       <div className="flex flex-col">
         {filtered.map((d) => (
-          <div className="border-border hover:bg-bg-secondary group relative border-b" key={d.id}>
+          <div
+            className="border-border hover:bg-bg-secondary group relative border-b border-l-[3px] border-l-transparent"
+            key={d.id}
+          >
             <button
               className="flex w-full flex-col gap-1 px-4 py-3 pr-10 text-left"
               onClick={() => openDraft(d)}

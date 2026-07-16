@@ -48,9 +48,12 @@ export function SentList() {
     }
     return (
       <div className="flex flex-col">
+        {/* border-l-[3px] matches ROW_BASE in conversation-list so the
+            avatar column aligns with inbox rows instead of sitting 3px
+            closer to the pane edge (read as a shaved logo) */}
         {filtered.map((m) => (
           <button
-            className="border-border hover:bg-bg-secondary flex items-start gap-3 border-b px-4 py-3 text-left transition-colors"
+            className="border-border hover:bg-bg-secondary flex items-start gap-3 border-b border-l-[3px] border-l-transparent px-4 py-3 text-left transition-colors"
             key={m.uid}
             onClick={() => openMessage(m)}
             type="button"
