@@ -1779,7 +1779,12 @@ async fn list_sent_messages(
             items.push(SentMessageSummary {
                 uid: w.uid,
                 message_id: w.message_id,
-                thread_id: w.thread_id,
+                // the thread this message is actually indexed under (the
+                // merged conversation), NOT w.thread_id — a reply's stored
+                // thread_id can be its own message-id-based self-thread,
+                // which opens an isolated 1-message view. `tid` is what the
+                // frontend resolves via get_thread_messages.
+                thread_id: tid.to_string(),
                 to: w.recipients,
                 subject: w.subject,
                 internal_date: w.internal_date,
