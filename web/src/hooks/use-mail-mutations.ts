@@ -71,7 +71,7 @@ export function useArchiveMutation() {
       )
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
 
@@ -139,7 +139,7 @@ export function useMarkJunkMutation() {
       const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
 
@@ -158,7 +158,7 @@ export function useMarkNotJunkMutation() {
       const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
 
@@ -176,7 +176,7 @@ function useBucketMoveMutation(mutationFn: (threadId: string) => Promise<void>) 
       const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
 
@@ -383,6 +383,22 @@ async function cancelConversationFetches() {
 }
 
 // ---- delete (single + batch share the same backend) ----
+
+// A bucket move (junk / not-junk / notification / promotion / inbox)
+// changes WHICH list a thread belongs to, so the destination list — a
+// different folder than the one on screen, therefore an INACTIVE query —
+// must refetch too. The default `refetchType: 'active'` only refetches
+// the mounted list, which is why the moved thread showed up in the
+// target folder only after a hard refresh (2026-07-16). `'all'` refetches
+// active + inactive conversation lists so switching to the target folder
+// shows the thread immediately. Safe here: the backend has already moved
+// the thread, so refetching the source list returns it correctly absent.
+function invalidateBucketMove() {
+  queryClient
+    .invalidateQueries({ queryKey: conversationKeys.all(), refetchType: 'all' })
+    .catch(() => {})
+  queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
+}
 
 // Invalidates ONLY list-shape queries — never the thread query.
 //
