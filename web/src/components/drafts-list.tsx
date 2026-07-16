@@ -4,6 +4,7 @@ import { toast } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
 
+import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { useDeleteDraftMutation, useDraftsQuery } from '@/hooks/use-drafts'
 import { formatFullDate } from '@/lib/format'
 import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
@@ -37,38 +38,50 @@ export function DraftsList() {
     })
   }
 
-  if (isLoading) {
-    return <div className="text-fg-muted p-4 text-xs">Loading drafts…</div>
-  }
-
-  if (drafts.length === 0) {
-    return <div className="text-fg-muted p-8 text-center text-sm">No drafts</div>
+  // the list body varies by load/empty/populated; the FilterBar (tab
+  // navigation) must stay mounted above it in every state so switching
+  // away from the Draft tab is always possible.
+  const renderBody = () => {
+    if (isLoading) {
+      return <div className="text-fg-muted p-4 text-xs">Loading drafts…</div>
+    }
+    if (drafts.length === 0) {
+      return <div className="text-fg-muted p-8 text-center text-sm">No drafts</div>
+    }
+    return (
+      <div className="flex flex-col">
+        {drafts.map((d) => (
+          <div className="border-border hover:bg-bg-secondary group relative border-b" key={d.id}>
+            <button
+              className="flex w-full flex-col gap-1 px-4 py-3 pr-10 text-left"
+              onClick={() => openDraft(d)}
+              type="button"
+            >
+              <span className="text-fg truncate text-sm font-medium">{draftTitle(d.subject)}</span>
+              <span className="text-fg-secondary truncate text-xs">To: {d.to || '—'}</span>
+              <span className="text-fg-muted truncate text-xs">{draftPreview(d.body)}</span>
+              <span className="text-fg-muted text-tiny">
+                {formatFullDate(Number(d.updated_at))}
+              </span>
+            </button>
+            <button
+              aria-label="Delete draft"
+              className="text-fg-muted hover:text-danger absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={() => removeDraft(Number(d.id))}
+              type="button"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col">
-      {drafts.map((d) => (
-        <div className="border-border hover:bg-bg-secondary group relative border-b" key={d.id}>
-          <button
-            className="flex w-full flex-col gap-1 px-4 py-3 pr-10 text-left"
-            onClick={() => openDraft(d)}
-            type="button"
-          >
-            <span className="text-fg truncate text-sm font-medium">{draftTitle(d.subject)}</span>
-            <span className="text-fg-secondary truncate text-xs">To: {d.to || '—'}</span>
-            <span className="text-fg-muted truncate text-xs">{draftPreview(d.body)}</span>
-            <span className="text-fg-muted text-tiny">{formatFullDate(Number(d.updated_at))}</span>
-          </button>
-          <button
-            aria-label="Delete draft"
-            className="text-fg-muted hover:text-danger absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100"
-            onClick={() => removeDraft(Number(d.id))}
-            type="button"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
+    <div className="flex h-full flex-col">
+      <FilterBar />
+      <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>
   )
 }
