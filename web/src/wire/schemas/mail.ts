@@ -17,6 +17,27 @@ const wireIdSchema = z.union([z.string(), z.number()]).transform((v) => String(v
 
 const wireTimestampSchema = z.union([z.string(), z.number()]).nullish()
 
+// ── /mail/sent ────────────────────────────────────────────────────
+//
+// Backend: GET /api/mail/sent
+//   fastcore  crates/webapi/src/handlers/conversations.rs — list_sent_messages
+//             → core-api SentMessageSummary (crates/core-api/src/method/thread.rs)
+//   monolith  crates/server/src/web/mail/folders.rs — list_sent_messages
+// One row per outbound message: { uid, message_id, thread_id, to,
+// subject, internal_date }. Verified against both handlers 2026-07-16.
+export const sentMessageSchema = z.object({
+  internal_date: z.number().default(0),
+  message_id: z.string().default(''),
+  subject: z.string().default(''),
+  thread_id: z.string(),
+  to: z.string().default(''),
+  uid: z.number(),
+})
+
+export type WireSentMessage = z.infer<typeof sentMessageSchema>
+
+export const sentMessagesSchema = z.array(sentMessageSchema)
+
 // ── /mail/send ────────────────────────────────────────────────────
 
 export const sendResultSchema = z
