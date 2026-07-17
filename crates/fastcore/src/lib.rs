@@ -18,6 +18,7 @@
 #![allow(missing_docs)]
 
 mod acme_task;
+mod aof_compact;
 mod bayes_train;
 pub mod bounce;
 mod imap;
@@ -234,6 +235,7 @@ pub async fn run() {
     // Runs every 24h; expunges Junk-zset entries whose latest_date
     // is older than the per-user TTL (default 30 days).
     junk_ttl::spawn(state.clone());
+    aof_compact::spawn(state.clone(), kevy_dir.clone());
 
     // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
     // either is unset. Binds port 80 for the HTTP-01 challenge server
