@@ -63,17 +63,33 @@ impl KevyMailboxStore {
         // Pre-build owned byte buffers — &str → Vec<u8> once, then
         // hand &[u8] refs into the atomic block.
         let subj = m.subject.as_bytes().to_vec();
-        let senders = m.senders_csv.as_bytes().to_vec();
         let date_s = m.latest_date.to_string().into_bytes();
         let preview = m.latest_preview.as_bytes().to_vec();
         let category = m.category.as_bytes().to_vec();
         let tid_b = m.thread_id.as_bytes().to_vec();
 
         self.store().atomic(|ctx| {
-            // Overwrite mutable fields with the new message's values.
+            // senders_csv is the participant UNION, not "latest sender" —
+            // blindly overwriting meant a user's own reply erased every
+            // other participant and the Inbox row flipped to "Me"
+            // (2026-07-18). Merge case-insensitively, newest appended.
+            let merged_senders: Vec<u8> = {
+                let existing = ctx
+                    .hget(thread_key.as_bytes(), b"senders_csv")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
+                let mut out: Vec<String> = Vec::new();
+                for part in existing.split(',').chain(m.senders_csv.split(',')) {
+                    let p = part.trim();
+                    if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
+                        out.push(p.to_string());
+                    }
+                }
+                out.join(",").into_bytes()
+            };
             let pairs: &[(&[u8], &[u8])] = &[
                 (b"subject", &subj),
-                (b"senders_csv", &senders),
+                (b"senders_csv", &merged_senders),
                 (b"latest_date", &date_s),
                 (b"latest_preview", &preview),
                 (b"category", &category),
