@@ -466,7 +466,11 @@ pub async fn list_sent_messages(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::thread::SentMessageSummary>>, StatusCode> {
-    let resp = state.core.list_sent_messages(&user).await.map_err(map_err)?;
+    let resp = state
+        .core
+        .list_sent_messages(&user)
+        .await
+        .map_err(map_err)?;
     Ok(Json(resp.items))
 }
 
