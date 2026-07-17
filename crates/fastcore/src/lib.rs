@@ -284,7 +284,27 @@ pub async fn run() {
         kevy_dir = %kevy_dir,
         "mailrs-fastcore listening (kevy backend)"
     );
-    axum::serve(listener, app).await.unwrap();
+    // Exit gracefully on SIGTERM/SIGINT instead of letting the default
+    // handler kill the process mid-write. Returning from run() drops the
+    // runtime → every task's Arc<Store> releases → kevy's DropGuard
+    // flushes each shard's AOF. Without this, `docker stop` (every
+    // deploy) tore a half-written frame into the AOF tail and the next
+    // boot's replay DROPPED everything after it — 181 MB / several days
+    // of writes on 2026-07-17 (vanished mail, resurrected threading
+    // fragments).
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("install SIGTERM handler");
+    tokio::select! {
+        r = axum::serve(listener, app) => {
+            r.unwrap();
+        }
+        _ = sigterm.recv() => {
+            tracing::info!("SIGTERM — shutting down cleanly so the kevy AOF flushes");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("SIGINT — shutting down cleanly so the kevy AOF flushes");
+        }
+    }
 }
 
 /// Periodic sync loop. Two jobs on the same tick:
@@ -584,23 +604,51 @@ pub(crate) fn resolve_thread_by_ancestry(
     own_mid: &str,
     in_reply_to: &str,
     references: &[String],
+    subject: &str,
 ) -> Option<String> {
     if !own_mid.is_empty()
         && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, own_mid)
     {
+        // own-id hits skip the subject gate: the message is already IN
+        // that thread (re-ingest / self-heal), splitting it here would
+        // fight the recorded state.
         return Some(tid);
     }
+    let mut candidate: Option<String> = None;
     if !in_reply_to.is_empty()
         && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, in_reply_to)
     {
-        return Some(tid);
+        candidate = Some(tid);
     }
-    for mid in references.iter().rev() {
-        if let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, mid) {
-            return Some(tid);
+    if candidate.is_none() {
+        for mid in references.iter().rev() {
+            if let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, mid) {
+                candidate = Some(tid);
+                break;
+            }
         }
     }
-    None
+    // Gmail's subject rule: an ancestry match only joins the ancestor's
+    // conversation when the normalized subjects agree. A reply that
+    // changes topic ("annual closing" sent as a reply to the "withholding
+    // tax" thread) is a NEW conversation — otherwise the old thread's
+    // display flips to the user's own outbound subject and reads like a
+    // sent mail sitting in the Inbox (2026-07-17 report).
+    let tid = candidate?;
+    let subj_norm = mailrs_mailbox_kevy::normalize_subject(subject);
+    if subj_norm.is_empty() {
+        return Some(tid);
+    }
+    match state.mailbox.get_thread(&tid) {
+        Ok(Some(row)) => {
+            if mailrs_mailbox_kevy::normalize_subject(&row.subject) == subj_norm {
+                Some(tid)
+            } else {
+                None
+            }
+        }
+        _ => Some(tid),
+    }
 }
 
 fn strip_angle(v: &str) -> String {
@@ -793,8 +841,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         };
         let size = bytes.len() as u32;
         let head = &bytes[..bytes.len().min(16 * 1024)];
-        let (message_id, in_reply_to, references, subject, date, from, to) =
-            extract_headers(head);
+        let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
         if message_id.is_empty() {
             continue;
         }
@@ -833,7 +880,14 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
     let mut by_root: std::collections::HashMap<String, Vec<&MailFile>> =
         std::collections::HashMap::new();
     for m in &parsed {
-        let root = match resolve_thread_by_ancestry(state, user, &m.message_id, &m.in_reply_to, &m.references) {
+        let root = match resolve_thread_by_ancestry(
+            state,
+            user,
+            &m.message_id,
+            &m.in_reply_to,
+            &m.references,
+            &m.subject,
+        ) {
             Some(tid) => tid,
             None => {
                 if let Some(first) = m.references.first() {
@@ -1093,8 +1147,8 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             ordered.sort_by_key(|m| m.date);
             for m in &ordered {
                 let category = "inbox";
-                let unread = !m.seen
-                    && !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
+                let unread =
+                    !m.seen && !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
                 let arrival = mailrs_mailbox_kevy::MessageArrival {
                     thread_id: root,
                     user,
@@ -1248,7 +1302,14 @@ pub(crate) fn ingest_delivered_file(
     // landed in (msgid index) over deriving one from raw headers.
     // References[0] is NOT a stable conversation root (each hop can
     // rewrite it), which is how conversations fragmented.
-    let root = match resolve_thread_by_ancestry(state, addr, &message_id, &in_reply_to, &references) {
+    let root = match resolve_thread_by_ancestry(
+        state,
+        addr,
+        &message_id,
+        &in_reply_to,
+        &references,
+        &subject,
+    ) {
         Some(tid) => tid,
         None => {
             if let Some(first) = references.first() {
@@ -1361,6 +1422,7 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 get(find_thread_by_message_id),
             )
             .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
+            .route("/v1/admin/threads:split-message", post(split_message_route))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
@@ -1921,8 +1983,10 @@ async fn backfill_threading_route(
     for user in &users {
         // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
         let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let tids = store.zrevrange(activity.as_bytes(), 0, -1).unwrap_or_default();
-        let mut msgs: Vec<(String, String, i64, String, String)> = Vec::new();
+        let tids = store
+            .zrevrange(activity.as_bytes(), 0, -1)
+            .unwrap_or_default();
+        let mut msgs: Vec<(String, String, i64, String, String, String)> = Vec::new();
         for (tid_b, _) in &tids {
             let Ok(tid) = std::str::from_utf8(tid_b) else {
                 continue;
@@ -1935,6 +1999,7 @@ async fn backfill_threading_route(
                         w.internal_date,
                         tid.to_string(),
                         w.blob_ref,
+                        w.subject,
                     ));
                 }
             }
@@ -1949,13 +2014,34 @@ async fn backfill_threading_route(
         // chain). Reply chains stitch fragments together while
         // already-grouped threads never split.
         let mut uf = UnionFind::default();
-        for (mid, irt, _, tid, blob_ref) in &msgs {
+        // subject lookup so ancestry edges respect the Gmail rule: a
+        // reply that changed topic must NOT glue two conversations.
+        let subj_by_mid: std::collections::HashMap<&str, String> = msgs
+            .iter()
+            .map(|(mid, _, _, _, _, subject)| {
+                (
+                    mid.as_str(),
+                    mailrs_mailbox_kevy::normalize_subject(subject),
+                )
+            })
+            .collect();
+        let subjects_agree =
+            |a: &str, b: &str, subj_by_mid: &std::collections::HashMap<&str, String>| {
+                match (subj_by_mid.get(a), subj_by_mid.get(b)) {
+                    // unknown side (ancestor never ingested) → trust the edge
+                    (Some(x), Some(y)) => x == y || x.is_empty() || y.is_empty(),
+                    _ => true,
+                }
+            };
+        for (mid, irt, _, tid, blob_ref, _) in &msgs {
             uf.union(&format!("m:{mid}"), &format!("t:{tid}"));
-            if !irt.is_empty() {
+            if !irt.is_empty() && subjects_agree(mid, irt, &subj_by_mid) {
                 uf.union(&format!("m:{mid}"), &format!("m:{irt}"));
             }
             for r in maildir_references(user, blob_ref) {
-                uf.union(&format!("m:{mid}"), &format!("m:{r}"));
+                if subjects_agree(mid, &r, &subj_by_mid) {
+                    uf.union(&format!("m:{mid}"), &format!("m:{r}"));
+                }
             }
         }
         // component → member tids + its oldest message's tid (canonical)
@@ -1963,7 +2049,7 @@ async fn backfill_threading_route(
             std::collections::HashMap::new();
         let mut comp_oldest: std::collections::HashMap<String, (i64, String)> =
             std::collections::HashMap::new();
-        for (mid, _, date, tid, _) in &msgs {
+        for (mid, _, date, tid, _, _) in &msgs {
             let root = uf.find(&format!("m:{mid}"));
             let entry = comp_tids.entry(root.clone()).or_default();
             if !entry.contains(tid) {
@@ -1994,7 +2080,7 @@ async fn backfill_threading_route(
         }
         // seed the msgid index for every message (merge already
         // re-pointed the moved ones; this covers the untouched rest).
-        for (mid, _, _, tid, _) in &msgs {
+        for (mid, _, _, tid, _, _) in &msgs {
             let root = uf.find(&format!("m:{mid}"));
             let Some((_, canonical)) = comp_oldest.get(&root) else {
                 continue;
@@ -2013,7 +2099,12 @@ async fn backfill_threading_route(
             }
         }
     }
-    tracing::info!(merged_threads, moved_messages, indexed, "backfill-threading complete");
+    tracing::info!(
+        merged_threads,
+        moved_messages,
+        indexed,
+        "backfill-threading complete"
+    );
     Json(serde_json::json!({
         "merged_threads": merged_threads,
         "moved_messages": moved_messages,
@@ -2050,6 +2141,28 @@ fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
         }
     }
     Vec::new()
+}
+
+/// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a
+/// message out of its thread into its own conversation (manual fix for
+/// topic-change replies that were glued before the subject gate landed).
+async fn split_message_route(
+    State(state): State<Arc<FastcoreState>>,
+    Json(req): Json<serde_json::Value>,
+) -> axum::response::Response {
+    let user = req["user"].as_str().unwrap_or("");
+    let mid = req["message_id"].as_str().unwrap_or("");
+    if user.is_empty() || mid.is_empty() {
+        return axum::http::StatusCode::BAD_REQUEST.into_response();
+    }
+    match state.mailbox.split_message_to_new_thread(user, mid) {
+        Ok(Some(tid)) => Json(serde_json::json!({"thread_id": tid})).into_response(),
+        Ok(None) => axum::http::StatusCode::NOT_FOUND.into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, %user, %mid, "split_message failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 /// Minimal string-keyed union-find for the rethread backfill.

@@ -97,15 +97,89 @@ impl KevyMailboxStore {
         Ok(moved)
     }
 
+    /// Move a single message out of its current thread into a fresh
+    /// thread keyed by its own Message-ID (Gmail's subject-change rule:
+    /// a reply that changes topic is a new conversation). Both threads'
+    /// aggregates are recounted. Returns the new thread_id, or None when
+    /// the message isn't found.
+    pub fn split_message_to_new_thread(&self, user: &str, mid: &str) -> io::Result<Option<String>> {
+        let store = self.store();
+        let blob_key = keys::message_blob(mid);
+        let Some(bytes) = store.get(blob_key.as_bytes())? else {
+            return Ok(None);
+        };
+        let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return Ok(None);
+        };
+        let old_tid = wire["thread_id"].as_str().unwrap_or("").to_string();
+        let new_tid = mid.to_string();
+        if old_tid == new_tid {
+            return Ok(Some(new_tid));
+        }
+        let date = wire["internal_date"].as_i64().unwrap_or(0);
+        let subject = wire["subject"].as_str().unwrap_or("").to_string();
+        let sender = wire["sender"].as_str().unwrap_or("").to_string();
+        let seen = wire["flags"].as_u64().unwrap_or(0) & 1 != 0;
+        wire["thread_id"] = serde_json::Value::String(new_tid.clone());
+        if let Ok(payload) = serde_json::to_vec(&wire) {
+            store.set(blob_key.as_bytes(), &payload)?;
+        }
+        // move the zset membership
+        let old_msgs = keys::thread_messages(&old_tid);
+        let new_msgs = keys::thread_messages(&new_tid);
+        store.zrem(old_msgs.as_bytes(), &[mid.as_bytes()])?;
+        store.zadd(new_msgs.as_bytes(), &[(date as f64, mid.as_bytes())])?;
+        self.set_thread_for_message_id(user, mid, &new_tid)?;
+        // rebuild the old thread's aggregate (may now be smaller)
+        if !old_tid.is_empty()
+            && let Some(mut row) = self.get_thread(&old_tid)?
+        {
+            if let Some((count, unread, sent)) = self.recount_from_messages(user, &old_tid)? {
+                row.count = count;
+                row.unread_count = unread;
+                row.sent_count = sent;
+                // display fields follow the (new) latest message
+                if let Some(last) = self.list_thread_messages(&old_tid)?.last()
+                    && let Ok(w) = serde_json::from_slice::<serde_json::Value>(last)
+                {
+                    row.latest_date = w["internal_date"].as_i64().unwrap_or(row.latest_date);
+                    row.subject = w["subject"].as_str().unwrap_or(&row.subject).to_string();
+                }
+                self.upsert_thread(user, &row)?;
+            } else {
+                // no messages left — drop the empty thread entirely
+                self.delete_thread(user, &old_tid)?;
+            }
+        }
+        // create the new thread's aggregate
+        let is_own = crate::thread_row::senders_csv_contains_user(&sender, user);
+        let row = crate::thread_row::ThreadRow {
+            thread_id: new_tid.clone(),
+            subject,
+            senders_csv: sender,
+            count: 1,
+            unread_count: if !is_own && !seen { 1 } else { 0 },
+            latest_date: date,
+            latest_preview: String::new(),
+            category: "inbox".to_string(),
+            importance_level: String::new(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: if is_own { 1 } else { 0 },
+            starred: false,
+        };
+        self.upsert_thread(user, &row)?;
+        Ok(Some(new_tid))
+    }
+
     /// Recompute (count, unread_count, sent_count) for a thread from its
     /// per-message wires: unread = messages without the \Seen flag that
     /// the user didn't send; sent = messages the user sent. `None` when
     /// the thread has no messages to count (keep the hash values).
-    fn recount_from_messages(
-        &self,
-        user: &str,
-        tid: &str,
-    ) -> io::Result<Option<(i64, i64, i64)>> {
+    fn recount_from_messages(&self, user: &str, tid: &str) -> io::Result<Option<(i64, i64, i64)>> {
         let blobs = self.list_thread_messages(tid)?;
         if blobs.is_empty() {
             return Ok(None);
@@ -171,6 +245,33 @@ fn combine_rows(
         sent_count: a.sent_count + b.sent_count,
         starred: a.starred || b.starred,
     }
+}
+
+/// Strip reply/forward prefixes so "Re: RE: Fwd: X" compares equal to
+/// "X". Threading joins a reply into its ancestor's conversation ONLY
+/// when the normalized subjects match — a subject change on a reply is
+/// a new topic and gets its own thread (Gmail's rule).
+pub fn normalize_subject(s: &str) -> String {
+    let mut t = s.trim();
+    loop {
+        let lower = t.to_lowercase();
+        let stripped = [
+            "re:",
+            "fwd:",
+            "fw:",
+            "回复:",
+            "回复\u{ff1a}",
+            "转发:",
+            "转发\u{ff1a}",
+        ]
+        .iter()
+        .find_map(|p| lower.starts_with(p).then(|| t[p.len()..].trim_start()));
+        match stripped {
+            Some(rest) => t = rest,
+            None => break,
+        }
+    }
+    t.to_lowercase()
 }
 
 #[cfg(test)]
