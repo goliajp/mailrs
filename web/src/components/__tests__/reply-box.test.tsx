@@ -10,9 +10,11 @@ import { authAtom } from '@/store/auth'
 
 // mock api module to prevent real network calls
 vi.mock('@/lib/api', () => ({
+  deleteDraft: vi.fn(() => Promise.resolve({ success: true })),
   fetchJson: vi.fn(() => Promise.resolve([])),
+  listDrafts: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
-  saveDraft: vi.fn(() => Promise.resolve({ success: true })),
+  saveDraft: vi.fn(() => Promise.resolve({ id: 1, success: true })),
 }))
 
 // mock sonner toast

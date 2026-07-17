@@ -7,6 +7,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
+import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
@@ -53,6 +54,7 @@ export function ReplyBox({
   replyAllRecipients,
   replyRecipients,
   subject,
+  threadId,
 }: ReplyBoxProps) {
   const auth = useAtomValue(authAtom)
   const signature = useAtomValue(signatureAtom)
@@ -86,40 +88,79 @@ export function ReplyBox({
   const composeRef = useRef<StructuredComposeHandle>(null)
   const prePolishRef = useRef<null | string>(null)
 
-  // auto-save draft to localStorage every 3s
-  const draftKey = `mailrs_draft_${lastMessageId || 'new'}`
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  // server-backed autosave (2026-07-17): the inline reply used to keep
+  // its draft in localStorage only, so it never appeared in the Draft
+  // tab and didn't survive across browsers. Same upsert dance as the
+  // full-screen composer: first save allocates an id, later saves reuse
+  // it, send deletes it.
+  const draftIdRef = useRef<null | number>(null)
+  const sentRef = useRef(false)
+  const restoredRef = useRef(false)
+  const lastSavedRef = useRef('')
+  const saveDraftMut = useSaveDraftMutation()
+  const deleteDraftMut = useDeleteDraftMutation()
+  const { data: serverDrafts = [] } = useDraftsQuery()
 
-  const saveDraftLocal = useCallback(() => {
-    const md = composeRef.current?.getMarkdown() ?? ''
-    if (md.trim()) {
-      localStorage.setItem(draftKey, md)
+  const recipientsRef = useRef({ forwardTo, mode, replyAllRecipients, replyRecipients })
+  recipientsRef.current = { forwardTo, mode, replyAllRecipients, replyRecipients }
+
+  const currentTo = useCallback(() => {
+    const r = recipientsRef.current
+    switch (r.mode) {
+      case 'forward':
+        return r.forwardTo
+      case 'reply-all':
+        return r.replyAllRecipients
+      default:
+        return r.replyRecipients
     }
-  }, [draftKey])
+  }, [])
 
-  // restore draft on mount
+  const saveDraftServer = useCallback(async () => {
+    if (sentRef.current) return
+    const body = composeRef.current?.getMarkdown() ?? ''
+    if (!body.trim()) return
+    const snapshot = body
+    if (snapshot === lastSavedRef.current) return
+    try {
+      const res = await saveDraftMut.mutateAsync({
+        body,
+        id: draftIdRef.current ?? undefined,
+        reply_to_thread_id: threadId,
+        subject,
+        to: currentTo(),
+      })
+      if (res.id !== undefined) draftIdRef.current = Number(res.id)
+      lastSavedRef.current = snapshot
+    } catch {
+      // transient — next tick retries
+    }
+  }, [saveDraftMut, threadId, subject, currentTo])
+
+  // restore this thread's reply draft once the server list arrives
   useEffect(() => {
-    const saved = localStorage.getItem(draftKey)
-    if (saved) {
-      setTimeout(() => {
-        composeRef.current?.setMarkdown(saved)
+    if (restoredRef.current || serverDrafts.length === 0) return
+    const mine = serverDrafts.find((d) => d.reply_to_thread_id === threadId)
+    if (!mine || !mine.body.trim()) return
+    restoredRef.current = true
+    draftIdRef.current = Number(mine.id)
+    lastSavedRef.current = mine.body
+    setTimeout(() => {
+      const handle = composeRef.current
+      if (handle && !handle.getMarkdown().trim()) {
+        handle.setMarkdown(mine.body)
         toast.info('Draft restored', { duration: 2000 })
-      }, 200)
-    }
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-    }
-  }, [draftKey])
+      }
+    }, 200)
+  }, [serverDrafts, threadId])
 
   // periodic save while typing — bind the interval ONCE; the latest
-  // saveDraftLocal closure is read through a ref.
-  const saveDraftLocalRef = useRef(saveDraftLocal)
-  saveDraftLocalRef.current = saveDraftLocal
+  // closure is read through a ref.
+  const saveDraftServerRef = useRef(saveDraftServer)
+  saveDraftServerRef.current = saveDraftServer
   useEffect(() => {
-    saveTimer.current = setInterval(() => saveDraftLocalRef.current(), 3000)
-    return () => {
-      if (saveTimer.current) clearInterval(saveTimer.current)
-    }
+    const timer = setInterval(() => void saveDraftServerRef.current(), 3000)
+    return () => clearInterval(timer)
   }, [])
 
   const handleModeChange = (newMode: ReplyMode) => {
@@ -213,10 +254,14 @@ export function ReplyBox({
             }
           : {}),
       })
-      localStorage.removeItem(draftKey)
+      sentRef.current = true
+      if (draftIdRef.current !== null) {
+        deleteDraftMut.mutate(draftIdRef.current)
+        draftIdRef.current = null
+      }
       onSent()
     } catch (err) {
-      saveDraftLocal()
+      void saveDraftServer()
       toast.error(err instanceof Error ? err.message : 'Network error — draft saved', {
         action: { label: 'Retry', onClick: () => send() },
         duration: 10000,
