@@ -269,6 +269,7 @@ mod tests {
             latest_preview: "",
             category: "inbox",
             unread: true,
+            is_own: false,
         })
         .unwrap();
     }

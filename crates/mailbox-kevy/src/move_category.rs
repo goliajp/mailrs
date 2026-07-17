@@ -74,6 +74,7 @@ mod tests {
             latest_preview: "preview",
             category,
             unread: true,
+            is_own: false,
         }
     }
 

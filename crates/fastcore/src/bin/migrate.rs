@@ -168,6 +168,7 @@ fn main() {
                     latest_preview: "",
                     category: &cat,
                     unread: unread.unwrap_or(false),
+                    is_own: mailrs_mailbox_kevy::senders_csv_contains_user(&wire.sender, &user),
                 };
                 if let Err(e) = mailbox.deliver_message(&arrival, &message_id, &payload) {
                     eprintln!("line {idx}: deliver_message({message_id}): {e}");
