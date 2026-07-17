@@ -1,10 +1,13 @@
 import type { ConversationSummary } from '@/lib/types'
 
+import { useAtomValue } from 'jotai'
 import { Pin, Star } from 'lucide-react'
 
 import { CategoryBadge } from '@/components/category-badge'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { extractEmail } from '@/lib/avatar'
 import { cn } from '@/lib/cn'
+import { authAtom } from '@/store/auth'
 
 import { extractName, formatRelative } from './_shared'
 
@@ -15,7 +18,11 @@ export function ConversationRow({
   conversation: ConversationSummary
   onClick: () => void
 }) {
-  const sender = c.participants[0] ?? ''
+  const auth = useAtomValue(authAtom)
+  const myEmail = auth?.address ?? ''
+  // show the OTHER side of the conversation, never bare "Me" (same
+  // Gmail rule as the main list rows)
+  const sender = c.participants.find((p) => extractEmail(p) !== myEmail) ?? c.participants[0] ?? ''
   const isUnread = c.unread_count > 0
   return (
     <button
