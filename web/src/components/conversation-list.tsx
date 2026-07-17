@@ -102,10 +102,16 @@ const ConversationItem = memo(function ConversationItem({
   onToggleCheck: (threadId: string) => void
   selected: boolean
 }) {
-  const firstParticipant = convo.participants[0] ?? ''
-  const firstEmail = extractEmail(firstParticipant)
-  const isOwn = firstEmail === myEmail
-  const name = isOwn ? 'Me' : extractName(firstParticipant)
+  // the row's face is the OTHER side of the conversation (Gmail rule:
+  // "Thripura, me (7)" — never bare "Me"). After the user replies their
+  // own address can bubble to participants[0], which used to flip the
+  // row to "Me" and read like a sent mail sitting in the Inbox
+  // (2026-07-17). Only a self-only thread falls back to Me.
+  const others = convo.participants.filter((p) => extractEmail(p) !== myEmail)
+  const displayParticipant = others[0] ?? convo.participants[0] ?? ''
+  const isOwn = others.length === 0
+  const name = isOwn ? 'Me' : extractName(displayParticipant)
+  const extraParticipants = Math.max(0, others.length - 1)
   const hasUnread = convo.unread_count > 0
   const isFlagged = convo.flagged
   const isPinned = convo.pinned
@@ -237,13 +243,13 @@ const ConversationItem = memo(function ConversationItem({
             </div>
           </div>
         )}
-        <SenderAvatar sender={firstParticipant} size={36} />
+        <SenderAvatar sender={displayParticipant} size={36} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className={getSenderClass({ hasUnread, isOwn })}>
               {name}
-              {convo.participants.length > 1 && (
-                <span className="text-fg-muted"> +{convo.participants.length - 1}</span>
+              {extraParticipants > 0 && (
+                <span className="text-fg-muted"> +{extraParticipants}</span>
               )}
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
