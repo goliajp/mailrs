@@ -1221,7 +1221,17 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         // AtomicCtx closure. Two concurrent self-heal or ingest calls
         // on the same thread now serialize on the shard write lock —
         // no interleaving read-then-stale-write against the aggregate.
-        let bucket_max = bucket.iter().map(|m| m.date).max().unwrap_or(0);
+        // Display-date semantics (2026-07-18): the row follows the last
+        // INBOUND message, so the "stale hash" heal must not treat the
+        // user's own sent copy as newer truth — that exact write undid
+        // the backfill repair every 30 s. Sent-only threads keep the
+        // plain max.
+        let bucket_max = bucket
+            .iter()
+            .filter(|m| !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user))
+            .map(|m| m.date)
+            .max()
+            .unwrap_or_else(|| bucket.iter().map(|m| m.date).max().unwrap_or(0));
         let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
         let _ = state.mailbox.store_ref().atomic(|ctx| {
             let stored_latest = ctx
