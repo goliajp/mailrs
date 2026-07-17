@@ -1990,12 +1990,19 @@ async fn backfill_threading_route(
             .zrevrange(activity.as_bytes(), 0, -1)
             .unwrap_or_default();
         let mut msgs: Vec<(String, String, i64, String, String, String)> = Vec::new();
+        let mut senders_by_tid: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         for (tid_b, _) in &tids {
             let Ok(tid) = std::str::from_utf8(tid_b) else {
                 continue;
             };
             for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
                 if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) {
+                    let list = senders_by_tid.entry(tid.to_string()).or_default();
+                    let sender = w.sender.trim().to_string();
+                    if !sender.is_empty() && !list.iter().any(|s| s.eq_ignore_ascii_case(&sender)) {
+                        list.push(sender);
+                    }
                     msgs.push((
                         w.message_id,
                         w.in_reply_to,
@@ -2006,6 +2013,24 @@ async fn backfill_threading_route(
                     ));
                 }
             }
+        }
+        // Repair participant unions clobbered by the pre-fix overwrite
+        // (a user's own reply used to erase every other participant).
+        let mut senders_repaired = 0u64;
+        for (tid, list) in &senders_by_tid {
+            let union = list.join(",");
+            if let Ok(Some(mut row)) = state.mailbox.get_thread(tid)
+                && row.senders_csv != union
+                && !union.is_empty()
+            {
+                row.senders_csv = union;
+                if state.mailbox.upsert_thread(user, &row).is_ok() {
+                    senders_repaired += 1;
+                }
+            }
+        }
+        if senders_repaired > 0 {
+            tracing::info!(%user, senders_repaired, "backfill: senders_csv unions repaired");
         }
         if msgs.is_empty() {
             continue;
