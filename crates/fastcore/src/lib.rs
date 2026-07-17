@@ -1423,6 +1423,7 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
             .route("/v1/admin/threads:split-message", post(split_message_route))
+            .route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
@@ -2160,6 +2161,27 @@ async fn split_message_route(
         Ok(None) => axum::http::StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
             tracing::error!(err = %e, %user, %mid, "split_message failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// `POST /v1/admin/maintenance:rewrite-aof` — compact the embedded kevy
+/// AOF from the CURRENT in-memory state. Recovery valve for the
+/// 2026-07-17 corrupt-frame black hole: a torn frame (non-graceful
+/// deploy kill) stuck mid-file meant every boot replayed only up to it
+/// and appended past it — all later writes silently vanished on the
+/// next restart. Rewriting emits a clean log so replay covers
+/// everything again.
+async fn rewrite_aof_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
+    match state.mailbox.store_ref().rewrite_aof() {
+        Ok(stats) => Json(serde_json::json!({
+            "ok": true,
+            "stats": format!("{stats:?}"),
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, "rewrite_aof failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
