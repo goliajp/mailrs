@@ -360,8 +360,12 @@ const ConversationItem = memo(function ConversationItem({
 const dateLabel = dateGroupLabel
 
 type VirtualListItem =
+  | { anchor: string; label: string; type: 'divider' }
+  // `anchor` = thread_id of the row right below the divider. Labels
+  // repeat whenever the list isn't date-monotonic (pinned rows on top,
+  // relevance-ordered search), and react-virtual keys MUST be unique —
+  // duplicate `d:<label>` keys produced ghost dividers + blank gaps.
   | { convo: ConversationSummary; type: 'conversation' }
-  | { label: string; type: 'divider' }
   | { type: 'end' }
   | { type: 'sentinel' }
 
@@ -942,23 +946,27 @@ function VirtualConversationList({
   selectedThreadIds: Set<string>
   showArchived: boolean
 }) {
-  // build flat list of items
+  // build flat list of items. Search results are relevance-ordered, not
+  // date-monotonic — date group pills would repeat and read as noise, so
+  // skip them entirely while searching.
   const items = useMemo<VirtualListItem[]>(() => {
     if (conversations.length === 0) return []
     const result: VirtualListItem[] = []
     let prevGroup = ''
     for (const c of conversations) {
-      const group = dateLabel(c.last_date)
-      if (group !== prevGroup) {
-        result.push({ label: group, type: 'divider' })
-        prevGroup = group
+      if (!isSearching) {
+        const group = dateLabel(c.last_date)
+        if (group !== prevGroup) {
+          result.push({ anchor: c.thread_id, label: group, type: 'divider' })
+          prevGroup = group
+        }
       }
       result.push({ convo: c, type: 'conversation' })
     }
     if (hasMore) result.push({ type: 'sentinel' })
     else result.push({ type: 'end' })
     return result
-  }, [conversations, dateLabel, hasMore])
+  }, [conversations, dateLabel, hasMore, isSearching])
 
   const parentRef = useRef<HTMLDivElement>(null)
 
@@ -993,7 +1001,7 @@ function VirtualConversationList({
     getItemKey: (index) => {
       const item = items[index]
       if (item.type === 'conversation') return `c:${item.convo.thread_id}`
-      if (item.type === 'divider') return `d:${item.label}`
+      if (item.type === 'divider') return `d:${item.anchor}`
       return item.type
     },
   })
@@ -1128,7 +1136,7 @@ function VirtualConversationList({
             item.type === 'conversation'
               ? `c:${item.convo.thread_id}`
               : item.type === 'divider'
-                ? `d:${item.label}`
+                ? `d:${item.anchor}`
                 : item.type
           return (
             <div
