@@ -25,9 +25,14 @@ pub struct MessageArrival<'a> {
     pub latest_preview: &'a str,
     pub category: &'a str,
     /// `true` for an inbound message the recipient hasn't read yet.
-    /// `false` for sent-folder writes — bumps `sent_count` instead of
-    /// `unread_count`.
+    /// Already-read inbound messages (self-heal of a \Seen file) pass
+    /// `false` here with `is_own: false`.
     pub unread: bool,
+    /// `true` when the user sent this message (sent-folder mirror) —
+    /// bumps `sent_count`, and deliberately does NOT advance the
+    /// thread's display fields or its position: replying must not
+    /// re-date the Inbox row to the user's own send time (2026-07-18).
+    pub is_own: bool,
 }
 
 impl KevyMailboxStore {
@@ -87,23 +92,48 @@ impl KevyMailboxStore {
                 }
                 out.join(",").into_bytes()
             };
-            let pairs: &[(&[u8], &[u8])] = &[
-                (b"subject", &subj),
-                (b"senders_csv", &merged_senders),
-                (b"latest_date", &date_s),
-                (b"latest_preview", &preview),
-                (b"category", &category),
-            ];
-            ctx.hset(thread_key.as_bytes(), pairs)?;
+            // The row's display fields + list position follow the last
+            // INBOUND message only. The user's own reply must not
+            // re-date or re-title the Inbox row (2026-07-18) — an own
+            // write only seeds the fields when the thread is brand new
+            // (sent-only thread, nothing to preserve).
+            let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
+            if !m.is_own || !have_display {
+                let pairs: &[(&[u8], &[u8])] = &[
+                    (b"subject", &subj),
+                    (b"senders_csv", &merged_senders),
+                    (b"latest_date", &date_s),
+                    (b"latest_preview", &preview),
+                    (b"category", &category),
+                ];
+                ctx.hset(thread_key.as_bytes(), pairs)?;
+            } else {
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"senders_csv" as &[u8], merged_senders.as_slice())],
+                )?;
+            }
+            // list-position score: the preserved display date for own
+            // writes, the fresh inbound date otherwise.
+            let score: f64 = if m.is_own && have_display {
+                ctx.hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(m.latest_date as f64)
+            } else {
+                m.latest_date as f64
+            };
 
             // Atomic counters.
             let total = ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
-            let new_unread = if m.unread {
+            if m.is_own {
+                ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
+            }
+            let new_unread = if m.unread && !m.is_own {
                 ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?
             } else {
-                ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
                 // peek current unread; if positive the row still belongs
-                // in has_unread regardless of this sent-folder write.
+                // in has_unread regardless of this write.
                 ctx.hget(thread_key.as_bytes(), b"unread_count")?
                     .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
                     .unwrap_or(0i64)
@@ -113,18 +143,17 @@ impl KevyMailboxStore {
                 .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
                 .unwrap_or(0i64);
 
-            // Activity bump (always — every message advances the row).
-            ctx.zadd(activity.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
-            // Category index — same score, replaces any earlier
-            // category index entry for this tid in this category zset.
-            ctx.zadd(cat.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+            // Activity / category index — scored on the display date so
+            // an own reply keeps the row where the last inbound left it.
+            ctx.zadd(activity.as_bytes(), &[(score, &tid_b)])?;
+            ctx.zadd(cat.as_bytes(), &[(score, &tid_b)])?;
 
             // has_unread: zadd if and only if the post-arrival
             // unread_count > 0. The closure can't zrem yet (1.15
             // AtomicCtx lacks it), so a fast-read flag carries when
             // the toggle has to flip the other way.
             if new_unread > 0 {
-                ctx.zadd(has_unread.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+                ctx.zadd(has_unread.as_bytes(), &[(score, &tid_b)])?;
             }
 
             // Folder/bucket membership (v2.9). The thread joins exactly
@@ -135,7 +164,7 @@ impl KevyMailboxStore {
             // surface in any inbound bucket; junk is the exception (a
             // spam-classified thread belongs in Junk regardless).
             if bucket == keys::Bucket::Junk || total > sent {
-                ctx.zadd(bucket_zset.as_bytes(), &[(m.latest_date as f64, &tid_b)])?;
+                ctx.zadd(bucket_zset.as_bytes(), &[(score, &tid_b)])?;
                 for other in &other_buckets {
                     ctx.zrem(other.as_bytes(), &[&tid_b])?;
                 }
@@ -182,6 +211,8 @@ mod tests {
             latest_preview: "preview text",
             category: "inbox",
             unread,
+            // test shorthand: unread=false rows model the user's own sends
+            is_own: !unread,
         }
     }
 
@@ -369,5 +400,78 @@ mod tests {
         assert_eq!(rows[0].thread_id, "t1");
         assert_eq!(rows[0].count, 2);
         assert_eq!(rows[1].thread_id, "t2");
+    }
+
+    #[test]
+    fn own_reply_does_not_redate_or_reposition_the_row() {
+        let s = store();
+        let u = "u@x.com";
+        // inbound from alice at t=100, then the user replies at t=900
+        s.record_message_arrival(&arr("t1", u, "Hello", 100, true))
+            .unwrap();
+        let reply = MessageArrival {
+            thread_id: "t1",
+            user: u,
+            subject: "Re: Hello",
+            senders_csv: u,
+            latest_date: 900,
+            latest_preview: "my reply",
+            category: "inbox",
+            unread: false,
+            is_own: true,
+        };
+        s.record_message_arrival(&reply).unwrap();
+
+        let row = s.get_thread("t1").unwrap().unwrap();
+        // display fields stay at the inbound message
+        assert_eq!(row.latest_date, 100);
+        assert_eq!(row.subject, "Hello");
+        assert_eq!(row.latest_preview, "preview text");
+        assert_eq!(row.count, 2);
+        assert_eq!(row.sent_count, 1);
+        // the reply's sender still joins the participant union
+        assert!(row.senders_csv.contains("alice@x.com"));
+        assert!(row.senders_csv.contains(u));
+        // list position (zset scores) also stays at inbound time
+        let act = keys::user_threads_by_activity(u);
+        let inbox = keys::user_threads_inbox(u);
+        assert_eq!(
+            s.store().zscore(act.as_bytes(), b"t1").unwrap(),
+            Some(100.0)
+        );
+        assert_eq!(
+            s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
+            Some(100.0)
+        );
+    }
+
+    #[test]
+    fn inbound_after_own_reply_advances_the_row() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u, "Hello", 100, true))
+            .unwrap();
+        let reply = MessageArrival {
+            thread_id: "t1",
+            user: u,
+            subject: "Re: Hello",
+            senders_csv: u,
+            latest_date: 900,
+            latest_preview: "my reply",
+            category: "inbox",
+            unread: false,
+            is_own: true,
+        };
+        s.record_message_arrival(&reply).unwrap();
+        // alice answers at t=1000 — NOW the row advances
+        s.record_message_arrival(&arr("t1", u, "Re: Hello", 1000, true))
+            .unwrap();
+        let row = s.get_thread("t1").unwrap().unwrap();
+        assert_eq!(row.latest_date, 1000);
+        let act = keys::user_threads_by_activity(u);
+        assert_eq!(
+            s.store().zscore(act.as_bytes(), b"t1").unwrap(),
+            Some(1000.0)
+        );
     }
 }

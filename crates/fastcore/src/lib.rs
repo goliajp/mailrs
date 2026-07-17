@@ -1149,8 +1149,8 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             ordered.sort_by_key(|m| m.date);
             for m in &ordered {
                 let category = "inbox";
-                let unread =
-                    !m.seen && !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
+                let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
+                let unread = !m.seen && !is_own;
                 let arrival = mailrs_mailbox_kevy::MessageArrival {
                     thread_id: root,
                     user,
@@ -1160,6 +1160,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                     latest_preview: "",
                     category,
                     unread,
+                    is_own,
                 };
                 let _ = state.mailbox.record_message_arrival(&arrival);
                 // Side sinks: contacts autocomplete + Meili index.
@@ -1323,7 +1324,8 @@ pub(crate) fn ingest_delivered_file(
             }
         }
     };
-    let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
+    let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
+    let unread = !is_own;
     // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
     // decision (from `crates/receiver/src/smtp_session/events/data/antispam.rs`
     // where DeliveryDecision::Junk yields target_folder="Junk") into the
@@ -1351,6 +1353,7 @@ pub(crate) fn ingest_delivered_file(
         latest_preview: "",
         category,
         unread,
+        is_own,
     };
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
@@ -1992,6 +1995,10 @@ async fn backfill_threading_route(
         let mut msgs: Vec<(String, String, i64, String, String, String)> = Vec::new();
         let mut senders_by_tid: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
+        // last INBOUND message per thread — display time/subject must
+        // track the other side, not the user's own replies (2026-07-18).
+        let mut last_inbound_by_tid: std::collections::HashMap<String, (i64, String)> =
+            std::collections::HashMap::new();
         for (tid_b, _) in &tids {
             let Ok(tid) = std::str::from_utf8(tid_b) else {
                 continue;
@@ -2002,6 +2009,14 @@ async fn backfill_threading_route(
                     let sender = w.sender.trim().to_string();
                     if !sender.is_empty() && !list.iter().any(|s| s.eq_ignore_ascii_case(&sender)) {
                         list.push(sender);
+                    }
+                    if !mailrs_mailbox_kevy::senders_csv_contains_user(&w.sender, user) {
+                        let entry = last_inbound_by_tid
+                            .entry(tid.to_string())
+                            .or_insert((w.internal_date, w.subject.clone()));
+                        if w.internal_date > entry.0 {
+                            *entry = (w.internal_date, w.subject.clone());
+                        }
                     }
                     msgs.push((
                         w.message_id,
@@ -2017,20 +2032,40 @@ async fn backfill_threading_route(
         // Repair participant unions clobbered by the pre-fix overwrite
         // (a user's own reply used to erase every other participant).
         let mut senders_repaired = 0u64;
+        let mut dates_repaired = 0u64;
         for (tid, list) in &senders_by_tid {
             let union = list.join(",");
-            if let Ok(Some(mut row)) = state.mailbox.get_thread(tid)
-                && row.senders_csv != union
-                && !union.is_empty()
-            {
-                row.senders_csv = union;
-                if state.mailbox.upsert_thread(user, &row).is_ok() {
+            if let Ok(Some(mut row)) = state.mailbox.get_thread(tid) {
+                let mut dirty = false;
+                if row.senders_csv != union && !union.is_empty() {
+                    row.senders_csv = union;
+                    dirty = true;
                     senders_repaired += 1;
+                }
+                // own replies used to advance latest_date past the last
+                // inbound message — pull the row back to inbound time.
+                if let Some((date, subject)) = last_inbound_by_tid.get(tid)
+                    && row.latest_date != *date
+                {
+                    row.latest_date = *date;
+                    if !subject.is_empty() {
+                        row.subject = subject.clone();
+                    }
+                    dirty = true;
+                    dates_repaired += 1;
+                }
+                if dirty && state.mailbox.upsert_thread(user, &row).is_err() {
+                    tracing::warn!(%user, %tid, "backfill: upsert_thread repair failed");
                 }
             }
         }
-        if senders_repaired > 0 {
-            tracing::info!(%user, senders_repaired, "backfill: senders_csv unions repaired");
+        if senders_repaired > 0 || dates_repaired > 0 {
+            tracing::info!(
+                %user,
+                senders_repaired,
+                dates_repaired,
+                "backfill: thread rows repaired"
+            );
         }
         if msgs.is_empty() {
             continue;
@@ -2697,6 +2732,7 @@ async fn deliver_message(
         latest_preview: &req.latest_preview,
         category: &req.category,
         unread: req.unread,
+        is_own: mailrs_mailbox_kevy::senders_csv_contains_user(&req.senders_csv, &user),
     };
 
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
@@ -3400,6 +3436,7 @@ mod tests {
             latest_preview: "preview",
             category: "inbox",
             unread,
+            is_own: !unread,
         }
     }
 
@@ -3574,6 +3611,7 @@ mod tests {
                     latest_preview: "preview",
                     category: "inbox",
                     unread: true,
+                    is_own: false,
                 })
                 .unwrap();
         }

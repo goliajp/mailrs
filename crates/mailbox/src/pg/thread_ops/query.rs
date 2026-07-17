@@ -200,9 +200,15 @@ impl PgMailboxStore {
         }
         let having_clause = having_parts.join(" AND ");
 
+        // Display time + list position follow the last INBOUND message —
+        // the user's own reply (Sent mailbox) must not re-date the row
+        // (2026-07-18; mirrors the fastcore `is_own` arrival rule).
+        // Sent-only threads fall back to the plain max.
+        let display_date_expr = "COALESCE(MAX(CASE WHEN mb.name != 'Sent' THEN m.internal_date END), MAX(m.internal_date))";
+
         let sql = format!(
             "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
-                    {count_expr}, {unread_expr}, MAX(m.internal_date),
+                    {count_expr}, {unread_expr}, {display_date_expr},
                     COALESCE((SELECT ea.category FROM email_analysis ea
                               JOIN messages m2 ON ea.message_id = m2.id
                               WHERE m2.thread_id = m.thread_id
@@ -229,7 +235,7 @@ impl PgMailboxStore {
                   LEFT JOIN email_analysis ea ON ea.message_id = m.id
              WHERE {where_clause}
              GROUP BY m.thread_id HAVING {having_clause}
-             ORDER BY BOOL_OR(m.pinned) DESC, MAX(m.internal_date) DESC LIMIT ${limit_idx}"
+             ORDER BY BOOL_OR(m.pinned) DESC, {display_date_expr} DESC LIMIT ${limit_idx}"
         );
 
         // bind parameters in order

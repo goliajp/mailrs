@@ -169,21 +169,36 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setSelectedMsgIdx(null)
   }, [selectedId])
 
-  // Auto-pick the latest message + scroll to bottom when a thread's
-  // data first resolves for the current selectedId.
+  // Auto-pick the reading target + scroll to bottom when a thread's
+  // data first resolves for the current selectedId. The target is the
+  // LAST RECEIVED message, not simply the last message — after the user
+  // replies, the tail is their own copy, and opening an Inbox thread
+  // onto your own words reads like "a sent mail in the Inbox"
+  // (2026-07-18). Threads with no inbound message (sent-only) fall back
+  // to the tail. A Sent-view click still wins: the focusedMessageUid
+  // effect below runs after and overrides this pick.
   const lastResolvedRef = useRef<null | string>(null)
   useEffect(() => {
     if (!selectedId || !threadQuery.data) return
     if (lastResolvedRef.current === selectedId) return
     lastResolvedRef.current = selectedId
-    setSelectedMsgIdx(threadQuery.data.length > 0 ? threadQuery.data.length - 1 : null)
+    const msgs = threadQuery.data
+    const my = auth?.address ?? ''
+    let pick: null | number = msgs.length > 0 ? msgs.length - 1 : null
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (extractEmail(msgs[i].sender) !== my) {
+        pick = i
+        break
+      }
+    }
+    setSelectedMsgIdx(pick)
     if (typeof contentScrollRef.current?.scrollTo === 'function') {
       contentScrollRef.current.scrollTo(0, 0)
     }
     if (typeof bottomRef.current?.scrollIntoView === 'function') {
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
     }
-  }, [threadQuery.data, selectedId])
+  }, [threadQuery.data, selectedId, auth?.address])
 
   // invalidate the active thread (used after Reply / Forward send so the
   // new outbound message shows up immediately)

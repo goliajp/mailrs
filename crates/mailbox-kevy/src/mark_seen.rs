@@ -108,6 +108,7 @@ mod tests {
             latest_preview: "preview",
             category: "inbox",
             unread,
+            is_own: false,
         }
     }
 
