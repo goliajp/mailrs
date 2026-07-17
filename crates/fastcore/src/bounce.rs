@@ -41,10 +41,10 @@ pub fn suppress_bounce(envelope_sender: &str) -> bool {
 /// out of the original message head for DSN threading.
 fn threading_headers(original: &[u8]) -> (Option<String>, Option<String>) {
     let head = &original[..original.len().min(16 * 1024)];
-    let (mid, in_reply_to, refs_first, ..) = crate::extract_headers(head);
+    let (mid, in_reply_to, references, ..) = crate::extract_headers(head);
     let _ = in_reply_to;
     let mid = (!mid.is_empty()).then_some(mid);
-    let refs = (!refs_first.is_empty()).then_some(refs_first);
+    let refs = references.first().cloned();
     (mid, refs)
 }
 

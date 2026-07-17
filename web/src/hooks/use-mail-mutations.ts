@@ -16,9 +16,12 @@ import {
   wireBatchMutation,
   wireDeleteThread,
   wireMarkJunk,
+  wireMarkNotification,
   wireMarkNotJunk,
+  wireMarkPromotion,
   wireMarkThreadRead,
   wireMarkThreadUnread,
+  wireMoveToInbox,
   wirePinThread,
   wireStarThread,
   wireUnarchiveThread,
@@ -68,7 +71,7 @@ export function useArchiveMutation() {
       )
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
 
@@ -136,7 +139,7 @@ export function useMarkJunkMutation() {
       const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
 
@@ -155,9 +158,31 @@ export function useMarkNotJunkMutation() {
       const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
       return { snapshots }
     },
-    onSettled: () => invalidateMail(),
+    onSettled: () => invalidateBucketMove(),
   })
 }
+
+// v2.9 triage — the three bucket-move mutations share the same
+// optimistic-drop shape as junk: the moved thread vanishes from the
+// current view and repopulates the target view on the next refetch.
+function useBucketMoveMutation(mutationFn: (threadId: string) => Promise<void>) {
+  return useMutation<unknown, Error, { threadId: string }, Context>({
+    mutationFn: ({ threadId }) => mutationFn(threadId),
+    onError: (_e, _vars, ctx) => {
+      if (ctx) rollbackConversations(ctx.snapshots)
+    },
+    onMutate: async ({ threadId }) => {
+      await cancelConversationFetches()
+      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      return { snapshots }
+    },
+    onSettled: () => invalidateBucketMove(),
+  })
+}
+
+export const useMarkNotificationMutation = () => useBucketMoveMutation(wireMarkNotification)
+export const useMarkPromotionMutation = () => useBucketMoveMutation(wireMarkPromotion)
+export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbox)
 
 export function useMarkReadMutation() {
   return useMutation<unknown, Error, { domains?: string[]; threadId: string }, Context>({
@@ -358,6 +383,22 @@ async function cancelConversationFetches() {
 }
 
 // ---- delete (single + batch share the same backend) ----
+
+// A bucket move (junk / not-junk / notification / promotion / inbox)
+// changes WHICH list a thread belongs to, so the destination list — a
+// different folder than the one on screen, therefore an INACTIVE query —
+// must refetch too. The default `refetchType: 'active'` only refetches
+// the mounted list, which is why the moved thread showed up in the
+// target folder only after a hard refresh (2026-07-16). `'all'` refetches
+// active + inactive conversation lists so switching to the target folder
+// shows the thread immediately. Safe here: the backend has already moved
+// the thread, so refetching the source list returns it correctly absent.
+function invalidateBucketMove() {
+  queryClient
+    .invalidateQueries({ queryKey: conversationKeys.all(), refetchType: 'all' })
+    .catch(() => {})
+  queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
+}
 
 // Invalidates ONLY list-shape queries — never the thread query.
 //

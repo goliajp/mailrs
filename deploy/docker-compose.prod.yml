@@ -65,7 +65,12 @@ services:
     image: ghcr.io/goliajp/mailrs:${MAILRS_VERSION:?set MAILRS_VERSION in .env}
     entrypoint: ["mailrs-fastcore"]
     pull_policy: always
-    mem_limit: 1g
+    # 3g, not 1g: booting replays the full kevy AOF (~1.8GB / 12.8M cmds
+    # on prod) whose transient peak exceeds 1g even though steady state is
+    # ~330MB. At 1g the replay hit the cgroup limit and the container
+    # restart-looped, never binding :3301 (2026-07-16 outage). Headroom
+    # also absorbs the slow allocator high-water creep between restarts.
+    mem_limit: 3g
     healthcheck:
       disable: true
     ports:

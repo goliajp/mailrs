@@ -19,9 +19,12 @@ import {
   useArchiveMutation,
   useDeleteMutation,
   useMarkJunkMutation,
+  useMarkNotificationMutation,
   useMarkNotJunkMutation,
+  useMarkPromotionMutation,
   useMarkReadMutation,
   useMarkUnreadMutation,
+  useMoveToInboxMutation,
   usePinMutation,
   useSnoozeMutation,
   useStarMutation,
@@ -30,7 +33,7 @@ import {
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
 import { extractEmail, extractName } from '@/lib/avatar'
-import { dateGroupLabel, formatDate, formatFullDate } from '@/lib/format'
+import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import { authAtom } from '@/store/auth'
@@ -56,7 +59,14 @@ type BatchAction = 'archive' | 'delete' | 'read' | 'star' | 'unarchive' | 'unrea
 // out of BatchAction because the batch mutation endpoint doesn't
 // support them yet; adding them there would need a matching backend
 // batch handler.
-type JunkAction = 'mark-junk' | 'mark-not-junk'
+// v2.9 triage — bucket moves between Inbox / Notifications / Promotions
+// / Junk. Kept out of BatchAction (no matching backend batch handler).
+type JunkAction =
+  | 'mark-junk'
+  | 'mark-not-junk'
+  | 'mark-notification'
+  | 'mark-promotion'
+  | 'move-to-inbox'
 
 type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction | JunkAction
 
@@ -65,6 +75,7 @@ const ConversationItem = memo(function ConversationItem({
   checked,
   convo,
   isJunkView,
+  isNpView,
   myEmail,
   onContextAction,
   onSelect,
@@ -80,16 +91,27 @@ const ConversationItem = memo(function ConversationItem({
    * `Mark as not junk` appears in the context menu.
    */
   isJunkView: boolean
+  /**
+   * v2.9 triage — whether this row renders inside the merged N & P
+   * view. Drives the "Move to Inbox" context item.
+   */
+  isNpView: boolean
   myEmail: string
   onContextAction: (threadId: string, action: SingleAction) => void
   onSelect: (threadId: string) => void
   onToggleCheck: (threadId: string) => void
   selected: boolean
 }) {
-  const firstParticipant = convo.participants[0] ?? ''
-  const firstEmail = extractEmail(firstParticipant)
-  const isOwn = firstEmail === myEmail
-  const name = isOwn ? 'Me' : extractName(firstParticipant)
+  // the row's face is the OTHER side of the conversation (Gmail rule:
+  // "Thripura, me (7)" — never bare "Me"). After the user replies their
+  // own address can bubble to participants[0], which used to flip the
+  // row to "Me" and read like a sent mail sitting in the Inbox
+  // (2026-07-17). Only a self-only thread falls back to Me.
+  const others = convo.participants.filter((p) => extractEmail(p) !== myEmail)
+  const displayParticipant = others[0] ?? convo.participants[0] ?? ''
+  const isOwn = others.length === 0
+  const name = isOwn ? 'Me' : extractName(displayParticipant)
+  const extraParticipants = Math.max(0, others.length - 1)
   const hasUnread = convo.unread_count > 0
   const isFlagged = convo.flagged
   const isPinned = convo.pinned
@@ -123,25 +145,59 @@ const ConversationItem = memo(function ConversationItem({
         label: 'Snooze until tomorrow',
         onClick: () => onContextAction(convo.thread_id, 'snooze'),
       },
-      // v2.4.1 Phase 3 (RFC-B §3.8) — Junk moves. Label + action are
-      // mirrored across Inbox / Junk views: same slot in the menu,
-      // opposite direction based on the current folder.
-      isJunkView
-        ? {
-            label: 'Mark as not junk',
-            onClick: () => onContextAction(convo.thread_id, 'mark-not-junk'),
-          }
-        : {
-            label: 'Mark as junk',
-            onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
-          },
+      // v2.9 triage — bucket moves, contextual to the current view:
+      //   Junk view  → "Mark as not junk" (back to Inbox)
+      //   N & P view → "Move to Inbox" + "Mark as junk"
+      //   Inbox/else → "Mark as Notification" / "Mark as Promotion" /
+      //                "Mark as junk"
+      ...(isJunkView
+        ? [
+            {
+              label: 'Mark as not junk',
+              onClick: () => onContextAction(convo.thread_id, 'mark-not-junk'),
+            },
+          ]
+        : isNpView
+          ? [
+              {
+                label: 'Move to Inbox',
+                onClick: () => onContextAction(convo.thread_id, 'move-to-inbox'),
+              },
+              {
+                label: 'Mark as junk',
+                onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
+              },
+            ]
+          : [
+              {
+                label: 'Mark as Notification',
+                onClick: () => onContextAction(convo.thread_id, 'mark-notification'),
+              },
+              {
+                label: 'Mark as Promotion',
+                onClick: () => onContextAction(convo.thread_id, 'mark-promotion'),
+              },
+              {
+                label: 'Mark as junk',
+                onClick: () => onContextAction(convo.thread_id, 'mark-junk'),
+              },
+            ]),
       {
         danger: true,
         label: 'Delete',
         onClick: () => onContextAction(convo.thread_id, 'delete'),
       },
     ],
-    [convo.thread_id, hasUnread, isFlagged, isPinned, isArchived, isJunkView, onContextAction]
+    [
+      convo.thread_id,
+      hasUnread,
+      isFlagged,
+      isPinned,
+      isArchived,
+      isJunkView,
+      isNpView,
+      onContextAction,
+    ]
   )
 
   const handleClick = () => {
@@ -187,13 +243,13 @@ const ConversationItem = memo(function ConversationItem({
             </div>
           </div>
         )}
-        <SenderAvatar sender={firstParticipant} size={36} />
+        <SenderAvatar sender={displayParticipant} size={36} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className={getSenderClass({ hasUnread, isOwn })}>
               {name}
-              {convo.participants.length > 1 && (
-                <span className="text-fg-muted"> +{convo.participants.length - 1}</span>
+              {extraParticipants > 0 && (
+                <span className="text-fg-muted"> +{extraParticipants}</span>
               )}
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -240,7 +296,7 @@ const ConversationItem = memo(function ConversationItem({
                 </span>
               )}
               {/* desktop: hover actions via group-hover */}
-              {!batchMode ? (
+              {!batchMode && (
                 <span className="hidden items-center gap-0.5 md:group-hover:flex">
                   <button
                     className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
@@ -263,20 +319,11 @@ const ConversationItem = memo(function ConversationItem({
                     <Star className="h-3.5 w-3.5" fill={isFlagged ? 'currentColor' : 'none'} />
                   </button>
                 </span>
-              ) : (
-                <span
-                  className="text-fg-muted hidden text-xs md:inline"
-                  title={formatFullDate(convo.last_date)}
-                >
-                  {formatDate(convo.last_date)}
-                </span>
               )}
-              {/* mobile: always show timestamp */}
-              <span
-                className="text-fg-muted text-xs md:hidden"
-                title={formatFullDate(convo.last_date)}
-              >
-                {formatDate(convo.last_date)}
+              {/* full date, always visible (compact rows, 2026-07-17) —
+                  matches the Sent view */}
+              <span className="text-fg-muted text-tiny shrink-0">
+                {formatFullDate(convo.last_date)}
               </span>
             </div>
           </div>
@@ -303,7 +350,7 @@ const ConversationItem = memo(function ConversationItem({
               </span>
             )}
           </div>
-          {convo.snippet && <p className="text-fg-muted truncate text-xs">{convo.snippet}</p>}
+          {/* compact rows: no snippet/preview line (2026-07-17, user) */}
         </div>
       </button>
       <ContextMenu items={contextItems} onClose={ctx.close} position={ctx.position} />
@@ -319,8 +366,12 @@ const ConversationItem = memo(function ConversationItem({
 const dateLabel = dateGroupLabel
 
 type VirtualListItem =
+  | { anchor: string; label: string; type: 'divider' }
+  // `anchor` = thread_id of the row right below the divider. Labels
+  // repeat whenever the list isn't date-monotonic (pinned rows on top,
+  // relevance-ordered search), and react-virtual keys MUST be unique —
+  // duplicate `d:<label>` keys produced ghost dividers + blank gaps.
   | { convo: ConversationSummary; type: 'conversation' }
-  | { label: string; type: 'divider' }
   | { type: 'end' }
   | { type: 'sentinel' }
 
@@ -513,6 +564,9 @@ export function ConversationList({
   const deleteMutation = useDeleteMutation()
   const markJunkMutation = useMarkJunkMutation()
   const markNotJunkMutation = useMarkNotJunkMutation()
+  const markNotificationMutation = useMarkNotificationMutation()
+  const markPromotionMutation = useMarkPromotionMutation()
+  const moveToInboxMutation = useMoveToInboxMutation()
   const handleContextAction = useCallback(
     async (threadId: string, action: SingleAction) => {
       const onError = (err: unknown) => {
@@ -541,6 +595,24 @@ export function ConversationList({
           markNotJunkMutation.mutate(
             { threadId },
             { onError, onSuccess: () => toast.success('Marked as not junk') }
+          )
+          break
+        case 'mark-notification':
+          markNotificationMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Notifications') }
+          )
+          break
+        case 'mark-promotion':
+          markPromotionMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Promotions') }
+          )
+          break
+        case 'move-to-inbox':
+          moveToInboxMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Moved to Inbox') }
           )
           break
         case 'pin':
@@ -587,8 +659,11 @@ export function ConversationList({
       deleteMutation,
       markJunkMutation,
       markNotJunkMutation,
+      markNotificationMutation,
+      markPromotionMutation,
       markReadMutation,
       markUnreadMutation,
+      moveToInboxMutation,
       pinMutation,
       snoozeMutation,
       starMutation,
@@ -814,7 +889,9 @@ export function ConversationList({
   )
 }
 
-function DateDivider({ label }: { label: string }) {
+// shared with the Sent / Drafts list views so every list groups rows
+// under the same Today / Yesterday / weekday pills.
+export function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
       <span className="bg-bg-secondary text-fg-muted md:text-tiny rounded-full px-2.5 py-0.5 text-xs font-medium">
@@ -875,23 +952,27 @@ function VirtualConversationList({
   selectedThreadIds: Set<string>
   showArchived: boolean
 }) {
-  // build flat list of items
+  // build flat list of items. Search results are relevance-ordered, not
+  // date-monotonic — date group pills would repeat and read as noise, so
+  // skip them entirely while searching.
   const items = useMemo<VirtualListItem[]>(() => {
     if (conversations.length === 0) return []
     const result: VirtualListItem[] = []
     let prevGroup = ''
     for (const c of conversations) {
-      const group = dateLabel(c.last_date)
-      if (group !== prevGroup) {
-        result.push({ label: group, type: 'divider' })
-        prevGroup = group
+      if (!isSearching) {
+        const group = dateLabel(c.last_date)
+        if (group !== prevGroup) {
+          result.push({ anchor: c.thread_id, label: group, type: 'divider' })
+          prevGroup = group
+        }
       }
       result.push({ convo: c, type: 'conversation' })
     }
     if (hasMore) result.push({ type: 'sentinel' })
     else result.push({ type: 'end' })
     return result
-  }, [conversations, dateLabel, hasMore])
+  }, [conversations, dateLabel, hasMore, isSearching])
 
   const parentRef = useRef<HTMLDivElement>(null)
 
@@ -915,7 +996,7 @@ function VirtualConversationList({
       const item = items[index]
       if (item.type === 'divider') return 32
       if (item.type === 'sentinel' || item.type === 'end') return 48
-      return 96 // matches `h-24` on the row button
+      return 64 // matches `h-16` on the row button (compact two-line rows)
     },
     getScrollElement: () => parentRef.current,
     // Stable per-logical-item key so the virtualizer's internal cache
@@ -926,7 +1007,7 @@ function VirtualConversationList({
     getItemKey: (index) => {
       const item = items[index]
       if (item.type === 'conversation') return `c:${item.convo.thread_id}`
-      if (item.type === 'divider') return `d:${item.label}`
+      if (item.type === 'divider') return `d:${item.anchor}`
       return item.type
     },
   })
@@ -1061,7 +1142,7 @@ function VirtualConversationList({
             item.type === 'conversation'
               ? `c:${item.convo.thread_id}`
               : item.type === 'divider'
-                ? `d:${item.label}`
+                ? `d:${item.anchor}`
                 : item.type
           return (
             <div
@@ -1090,6 +1171,7 @@ function VirtualConversationList({
                     checked={selectedThreadIds.has(item.convo.thread_id)}
                     convo={item.convo}
                     isJunkView={folder === 'Junk'}
+                    isNpView={folder === 'NP'}
                     myEmail={myEmail}
                     onContextAction={onContextAction}
                     onSelect={onSelect}
@@ -1119,8 +1201,11 @@ function VirtualConversationList({
 // row outer class — pulled out so the JSX above stops being a 9-line
 // ternary salad; the four input bools map to the same 5-token output every
 // render, so a pure function is the clean place for it.
+// compact two-line rows (2026-07-17): h-16, no snippet line, matching
+// the Sent view's density. Height MUST stay in sync with the
+// virtualizer's estimateSize (fixed-size mode — see the note there).
 const ROW_BASE =
-  'focus-visible:ring-accent/50 relative flex h-24 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2.5 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none'
+  'focus-visible:ring-accent/50 relative flex h-16 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none'
 
 function getRowClass({
   batchMode,

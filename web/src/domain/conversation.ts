@@ -26,6 +26,7 @@ export type Category =
   | 'newsletter'
   | 'notification'
   | 'personal'
+  | 'promotion'
   | 'scam'
   | 'spam'
   | 'update'
@@ -43,6 +44,10 @@ export type ConversationFilter = {
   readonly domains?: readonly string[]
   readonly folder?: Folder
   readonly limit?: number
+  // Full-text search term. When set, the list read switches to the
+  // /conversations/search endpoint — so it MUST participate in the
+  // query key or a search silently reuses the non-search list cache.
+  readonly query?: string
   readonly starred?: boolean
   readonly unread?: boolean
 }
@@ -51,7 +56,7 @@ export type ConversationFilter = {
  * Folder is a small closed union. Screens branch on it — an `enum` or
  * a bare `string` would let any typo through the type checker.
  */
-export type Folder = 'ARCHIVE' | 'DRAFTS' | 'INBOX' | 'SENT' | 'SPAM' | 'STARRED' | 'TRASH'
+export type Folder = 'ARCHIVE' | 'DRAFTS' | 'INBOX' | 'NP' | 'SENT' | 'SPAM' | 'STARRED' | 'TRASH'
 
 /**
  * The importance score attached by fastcore's classifier. Kept as a
@@ -147,6 +152,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly domains: readonly string[]
   readonly folder: Folder | null
   readonly limit: number
+  readonly query: null | string
   readonly starred: boolean | null
   readonly unread: boolean | null
 } {
@@ -158,6 +164,7 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
     domains,
     folder: f?.folder ?? null,
     limit: f?.limit ?? 50,
+    query: f?.query ?? null,
     starred: f?.starred ?? null,
     unread: f?.unread ?? null,
   }

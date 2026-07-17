@@ -29,11 +29,16 @@ export const sortOrderAtom = atom<SortOrder>('newest')
 export const batchModeAtom = atom(false)
 export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 
-// mailbox folder filter (null = INBOX default)
-// Junk is the physical Junk mailbox (set by sieve rule or "mark spam" action),
-// distinct from the AI-derived "Spam" category filter (categoryFilter='spam').
-export type MailFolder = 'Drafts' | 'Junk' | 'Sent' | 'Trash' | null
-export const folderAtom = atom<MailFolder>(null)
+// mailbox folder filter.
+// v2.8.2: default flipped from null (mixed by_activity axis — showed
+// Junk + Sent threads inside "All") to 'Inbox' (dedicated inbox zset —
+// excludes Junk/Sent; starred/archived stay orthogonal flags on top).
+// Junk is the physical Junk mailbox (set by classifier or "mark junk").
+// v2.9 triage — 'NP' is the merged Notifications & Promotions view
+// (backend reads the union of the notifications + promotions folder
+// zsets). Notifications and Promotions are distinct buckets underneath.
+export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'NP' | 'Sent' | 'Trash' | null
+export const folderAtom = atom<MailFolder>('Inbox')
 
 // archived view toggle
 export const showArchivedAtom = atom(false)
@@ -93,3 +98,22 @@ export type ComposeReplySource = {
   uid: number
 }
 export const composeReplySourceAtom = atom<ComposeReplySource | null>(null)
+
+// when non-null, the composer opens pre-filled from this saved draft
+// (set by the Draft tab, alongside composingNewAtom=true). the composer
+// tracks its id so autosave upserts the same draft and send/discard
+// deletes it. cleared when the composer closes.
+export type ComposeDraftSource = {
+  bcc: string
+  body: string
+  cc: string
+  id: number
+  subject: string
+  to: string
+}
+export const composeDraftSourceAtom = atom<ComposeDraftSource | null>(null)
+
+// when set, the open thread should scroll to + highlight the message with
+// this uid (set by clicking a Sent-view row so its exact outbound message
+// is focused). synced to the `?msg=` URL param. cleared once consumed.
+export const focusedMessageUidAtom = atom<null | number>(null)

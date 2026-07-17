@@ -116,11 +116,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # amd64 builds on the self-hosted lx64 runner (Linux/X64,
+          # dedicated, docker native at /usr/bin/docker — no PATH
+          # gymnastics unlike the macOS mini). Consistent with the
+          # arm64→mini move; both arches now build on dedicated
+          # zero-queue runners independent of GitHub-hosted pool
+          # availability. Fallback: revert to `ubuntu-latest` if lx64
+          # goes offline.
           - platform: linux/amd64
-            runner: ubuntu-latest
+            runner: [self-hosted, Linux, X64, lx64]
             arch: amd64
+          # arm64 builds on the self-hosted Mac mini (mini-goliajp,
+          # macOS/ARM64) instead of GitHub-hosted `ubuntu-24.04-arm`.
+          # The hosted arm64 pool queues badly (v2.8.1 waited ~1.5h,
+          # aging the staging soak verdict past the gate's 3600s limit
+          # → TIMEOUT). The dedicated mini has zero queue. It builds
+          # linux/arm64 natively via Docker Desktop's arm64 Linux VM
+          # (no QEMU). Requires Docker running on the mini.
+          # Fallback: revert this line to `ubuntu-24.04-arm` if the
+          # mini is offline.
           - platform: linux/arm64
-            runner: ubuntu-24.04-arm
+            runner: [self-hosted, macOS, ARM64, mini]
             arch: arm64
     outputs:
       version: ${{ steps.ver.outputs.version }}
@@ -129,7 +145,17 @@ jobs:
 
       - name: extract version from tag
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: _v="${GITHUB_REF_NAME#split-}"; echo "version=${_v#v}" >> "$GITHUB_OUTPUT"
+
+      # The self-hosted mini (arm64 leg) runs OrbStack, whose `docker`
+      # CLI lives at /usr/local/bin/docker. The runner service's PATH
+      # doesn't include /usr/local/bin, so docker/login-action can't
+      # find `docker`. Prepend it here (GITHUB_PATH applies to later
+      # steps). No-op on the hosted amd64 runner where docker is
+      # already on PATH.
+      - name: ensure docker on PATH (self-hosted mini)
+        if: matrix.arch == 'arm64'
+        run: echo "/usr/local/bin" >> "$GITHUB_PATH"
 
       - name: set up docker buildx
         uses: docker/setup-buildx-action@v3
@@ -151,14 +177,22 @@ jobs:
           # Inject the git tag's version into Cargo.toml + package.json
           # at build time. Repo files stay at 0.0.0 — no bump commit, no
           # bump.sh, no developer ceremony beyond `git tag v<x.y.z>`.
+          # CACHE_BUST=ref_name busts the layer cache on the exact
+          # version so a stale Rust-builder layer can never be reused
+          # across versions (a split-v0.0.5 test build once poisoned the
+          # prod cache scope and shipped its image as v2.9.0 —
+          # 2026-07-15 incident).
           build-args: |
             VERSION=${{ steps.ver.outputs.version }}
+            CACHE_BUST=${{ github.ref_name }}
           # Push without a tag — output is the image digest. The
           # `manifest` job below collects per-arch digests and stamps
           # the semver tags on the combined manifest.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+          # Separate cache scope for split-v* TEST tags so they never
+          # share (and never poison) the prod v* cache scope.
+          cache-from: type=gha,scope=${{ matrix.arch }}${{ startsWith(github.ref_name, 'split-') && '-test' || '' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}${{ startsWith(github.ref_name, 'split-') && '-test' || '' }}
 
       - name: export digest
         run: |
@@ -245,7 +279,7 @@ jobs:
       - name: extract version from tag
         id: ver
         run: |
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          _v="${GITHUB_REF_NAME#split-}"; echo "version=${_v#v}" >> "$GITHUB_OUTPUT"
           echo "tag_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: bootstrap grace check
@@ -313,7 +347,7 @@ jobs:
 
       - name: extract version from tag
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: _v="${GITHUB_REF_NAME#split-}"; echo "version=${_v#v}" >> "$GITHUB_OUTPUT"
 
       # Sync the compose file to host BEFORE the SSH script runs. If
       # this tag changed compose (e.g. new bind mount, new env, new

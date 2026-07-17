@@ -597,6 +597,9 @@ pub async fn run() {
             outbound_queue: outbound_queue.clone(),
             resolver: resolver.clone(),
             maildir_root: cfg.maildir_root.clone(),
+            kevy_url: std::env::var("MAILRS_KEVY_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
         })
     });
     let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);

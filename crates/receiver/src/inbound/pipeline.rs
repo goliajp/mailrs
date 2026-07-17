@@ -10,7 +10,8 @@ pub use mailrs_inbound::{
 
 use super::stages::mail_auth::{DmarcReportSink, MailAuthResolvers};
 use super::stages::{
-    AiScoringStage, ClamavStage, ContentScanStage, GreylistStage, MailAuthStage, PtrStage,
+    AiScoringStage, BayesStage, ClamavStage, ContentScanStage, GreylistStage, MailAuthStage,
+    PtrStage,
 };
 use mailrs_intelligence::spam::SpamCache;
 use mailrs_shield::greylist::{GreylistConfig, GreylistDb};
@@ -36,6 +37,7 @@ pub fn build_inbound_pipeline(
     greylist_local: GreylistLocalHandle,
     greylist_contacts: Option<Arc<crate::kevy_net::KevyNetClient>>,
     quota_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
+    bayes_client: Option<Arc<crate::kevy_net::KevyNetClient>>,
     resolver: Option<Arc<TokioResolver>>,
     mail_auth_resolvers: Option<MailAuthResolvers>,
     dmarc_sink: Option<Arc<dyn DmarcReportSink>>,
@@ -75,6 +77,11 @@ pub fn build_inbound_pipeline(
             spam_score_threshold,
         ));
     }
+    // v2.8.1: Bayesian scorer. Reuses the ai_score slot (adds to it, so
+    // it composes with the LLM stage if both are enabled). Cold-start
+    // safe — a no-op until the corpus is trained. Runs last so it sees
+    // the fully-parsed message.
+    builder = builder.add(BayesStage::new(bayes_client));
 
     builder.build()
 }

@@ -295,7 +295,14 @@ impl PgMailboxStore {
                 .await
                 .ok()
                 .flatten();
-            threading::resolve_thread_id(&message_id, &in_reply_to, |_| parent_tid.clone())
+            let resolved =
+                threading::resolve_thread_id(&message_id, &in_reply_to, |_| parent_tid.clone());
+            // Gmail subject rule: joining a KNOWN parent thread requires
+            // the normalized subjects to agree — a topic-changing reply
+            // starts its own thread. Orphan replies (parent unknown)
+            // keep the legacy in_reply_to root unchanged.
+            self.apply_subject_gate(user, &message_id, &subject, parent_tid, resolved)
+                .await
         } else {
             String::new()
         };

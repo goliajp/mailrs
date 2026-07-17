@@ -35,6 +35,11 @@ pub(crate) struct ProcessDeps {
     pub outbound_queue: Option<BackendPool>,
     pub resolver: Option<Arc<TokioResolver>>,
     pub maildir_root: String,
+    /// Network kevy URL (`MAILRS_KEVY_URL`) for the shared v2.9 triage
+    /// corpus. When set, non-junk mail is auto-classified into
+    /// inbox/notification/promotion at ingest via `mailrs-triage` — the
+    /// SAME corpus the fastcore lane uses, so both lanes agree.
+    pub kevy_url: Option<String>,
 }
 
 /// Spawn the single post-delivery consumer and return its sender. The DATA
@@ -146,6 +151,26 @@ async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
         duration_us = index_started.elapsed().as_micros() as u64,
         "stage complete"
     );
+
+    // v2.9 triage — auto-classify non-junk mail into inbox / notification
+    // / promotion using the SHARED multi-class corpus (core-mode parity
+    // with fastcore's ingest classify). Stamps email_analysis.category
+    // so the read-axis bucket filter routes the thread. Junk-mailbox mail
+    // is left alone (it's already Junk). Cold-start / low confidence /
+    // no kevy → default inbox (no stamp needed). Best-effort.
+    if rcpt_folder != "Junk"
+        && let Some(url) = &deps.kevy_url
+        && let Ok(mut conn) = kevy_client::Connection::open(url)
+    {
+        let tokens = mailrs_bayes::tokenize(full_message.as_slice());
+        if let Some(category) = mailrs_triage::classify(&mut conn, &tokens)
+            && category != "inbox"
+        {
+            let _ = mb_store
+                .set_thread_bucket(&user, &thread_id, category)
+                .await;
+        }
+    }
 
     // emit NewMessage event
     let snippet = extract_snippet(&full_message);

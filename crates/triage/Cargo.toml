@@ -1,0 +1,20 @@
+[package]
+name = "mailrs-triage"
+version = "0.1.0"
+edition = "2024"
+description = "Multi-class email triage corpus over network kevy — classify a message into inbox/notification/promotion and train the corpus reversibly. Wraps the pure mailrs-bayes math with kevy-backed per-class token storage so both the fastcore and monolith serving lanes share one classifier."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+keywords = ["email", "triage", "bayes", "classifier", "gmail"]
+categories = ["email", "algorithms"]
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-bayes = { path = "../bayes" }
+kevy-client = { workspace = true }
+tracing = "0.1"

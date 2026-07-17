@@ -18,7 +18,8 @@ impl Maildir {
     /// `:2,FLAGS` cur-suffix matching so callers never reconstruct a
     /// filename by hand.
     pub fn fetch(&self, id: &MessageId) -> io::Result<Option<Vec<u8>>> {
-        let new_path = self.root.join("new").join(&id.0);
+        let base = base_id(id);
+        let new_path = self.root.join("new").join(base);
         if new_path.is_file() {
             return Ok(Some(fs::read(&new_path)?));
         }
@@ -33,11 +34,12 @@ impl Maildir {
     /// its suffix is updated to `flags`. Returns `NotFound` if no file for
     /// `id` exists in either directory.
     pub fn mark_processed(&self, id: &MessageId, flags: &[Flag]) -> io::Result<()> {
+        let base = base_id(id);
         let target = self
             .root
             .join("cur")
-            .join(format!("{}{}", id.0, serialize_flags(flags)));
-        let new_path = self.root.join("new").join(&id.0);
+            .join(format!("{}{}", base, serialize_flags(flags)));
+        let new_path = self.root.join("new").join(base);
         let src = if new_path.is_file() {
             new_path
         } else if let Some(cur) = self.find_in_cur(id)? {
@@ -57,7 +59,7 @@ impl Maildir {
     /// Delete a message by `id` from `new/` or `cur/`. Returns `NotFound`
     /// if it isn't present in either.
     pub fn delete(&self, id: &MessageId) -> io::Result<()> {
-        let new_path = self.root.join("new").join(&id.0);
+        let new_path = self.root.join("new").join(base_id(id));
         if new_path.is_file() {
             return fs::remove_file(&new_path);
         }
@@ -85,12 +87,22 @@ impl Maildir {
             }
             let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let base = filename.split(':').next().unwrap_or(filename);
-            if base == id.0 {
+            if base == base_id(id) {
                 return Ok(Some(path));
             }
         }
         Ok(None)
     }
+}
+
+/// The flag-free identity of a message id: everything before the first
+/// `:` (the `:2,FLAGS` info section). Callers sometimes hold ids copied
+/// from real cur/ filenames — e.g. blob_refs recorded by the pg-dump
+/// import carry the `:2,S` suffix verbatim — and the id must keep
+/// matching after flags change (a rename), so every lookup compares on
+/// the base.
+fn base_id(id: &MessageId) -> &str {
+    id.0.split(':').next().unwrap_or(&id.0)
 }
 
 #[cfg(test)]
@@ -101,6 +113,28 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let md = Maildir::create(dir.path().join("mail")).unwrap();
         (dir, md)
+    }
+
+    #[test]
+    fn fetch_matches_id_that_carries_a_flags_suffix() {
+        // blob_refs recorded from real cur/ filenames (pg-dump import)
+        // carry `:2,S` verbatim — fetch/mark/delete must still resolve.
+        let (_d, md) = tmp_maildir();
+        let body = b"From: a@x\r\n\r\nbody\r\n";
+        let id = md.deliver(body).unwrap();
+        md.mark_processed(&id, &[Flag::Seen]).unwrap();
+
+        let suffixed = MessageId(format!("{}:2,S", id.0));
+        assert_eq!(md.fetch(&suffixed).unwrap().as_deref(), Some(&body[..]));
+
+        // re-flagging via the suffixed id must not create a double
+        // `:2,S:2,S` filename
+        md.mark_processed(&suffixed, &[Flag::Seen, Flag::Flagged])
+            .unwrap();
+        assert_eq!(md.fetch(&id).unwrap().as_deref(), Some(&body[..]));
+
+        md.delete(&suffixed).unwrap();
+        assert!(md.fetch(&id).unwrap().is_none());
     }
 
     #[test]

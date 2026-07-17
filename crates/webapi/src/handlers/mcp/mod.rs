@@ -819,6 +819,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let req = mailrs_core_api::method::admin::SaveDraftRequest {
+            id: None,
             to: params.to,
             cc: params.cc,
             bcc: params.bcc,

@@ -211,7 +211,7 @@ export function useKeyboardNav() {
           if (!gPending) break
           e.preventDefault()
           gPending = false
-          setFolder(null)
+          setFolder('Inbox')
           setSection(null)
           setQuickFilter('all')
           setCategory(null)
