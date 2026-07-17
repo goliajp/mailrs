@@ -247,33 +247,6 @@ fn combine_rows(
     }
 }
 
-/// Strip reply/forward prefixes so "Re: RE: Fwd: X" compares equal to
-/// "X". Threading joins a reply into its ancestor's conversation ONLY
-/// when the normalized subjects match — a subject change on a reply is
-/// a new topic and gets its own thread (Gmail's rule).
-pub fn normalize_subject(s: &str) -> String {
-    let mut t = s.trim();
-    loop {
-        let lower = t.to_lowercase();
-        let stripped = [
-            "re:",
-            "fwd:",
-            "fw:",
-            "回复:",
-            "回复\u{ff1a}",
-            "转发:",
-            "转发\u{ff1a}",
-        ]
-        .iter()
-        .find_map(|p| lower.starts_with(p).then(|| t[p.len()..].trim_start()));
-        match stripped {
-            Some(rest) => t = rest,
-            None => break,
-        }
-    }
-    t.to_lowercase()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

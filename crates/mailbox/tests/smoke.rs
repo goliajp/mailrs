@@ -269,7 +269,7 @@ async fn count_unseen_counts_unread_threads() {
     );
 
     // a second unseen message in the SAME thread is still one unread thread
-    let msg2 = b"From: someone@elsewhere.com\r\nTo: alice@example.com\r\nSubject: re: unread\r\nMessage-ID: <u-2@elsewhere.com>\r\nIn-Reply-To: <u-1@elsewhere.com>\r\n\r\nbody2\r\n";
+    let msg2 = b"From: someone@elsewhere.com\r\nTo: alice@example.com\r\nSubject: Re: unread one\r\nMessage-ID: <u-2@elsewhere.com>\r\nIn-Reply-To: <u-1@elsewhere.com>\r\n\r\nbody2\r\n";
     store
         .append_message(USER, "INBOX", root_path, msg2, 0, 1_700_000_100)
         .await
