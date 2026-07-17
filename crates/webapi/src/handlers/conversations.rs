@@ -459,6 +459,21 @@ async fn enrich_with_body(
     r
 }
 
+/// GET /api/mail/sent — one row per outbound message (not per thread),
+/// newest first, each carrying the recipient (To) + thread_id + uid so
+/// the Sent view lists every sent message and a click focuses it.
+pub async fn list_sent_messages(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<Vec<mailrs_core_api::method::thread::SentMessageSummary>>, StatusCode> {
+    let resp = state
+        .core
+        .list_sent_messages(&user)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(resp.items))
+}
+
 /// GET /api/conversations/{thread_id} — return Vec<ThreadMessageResponse>
 /// with monolith's exact wire shape (attachments, text_body, ...) so the
 /// React UI can safely reach into arrays without null-guards.
@@ -657,6 +672,51 @@ pub async fn mark_not_junk(
     state
         .core
         .mark_not_junk(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/mark-notification
+/// v2.9 triage — move thread into the Notifications bucket + train.
+pub async fn mark_notification(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .mark_notification(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/mark-promotion
+/// v2.9 triage — move thread into the Promotions bucket + train.
+pub async fn mark_promotion(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .mark_promotion(&user, &thread_id)
+        .await
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(map_err)
+}
+
+/// POST /api/conversations/{thread_id}/move-to-inbox
+/// v2.9 triage — move thread back into the Inbox bucket + train.
+pub async fn move_to_inbox(
+    State(state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(thread_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .core
+        .move_to_inbox(&user, &thread_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(map_err)

@@ -49,6 +49,7 @@ pub async fn spawn_receiving_server(pool: BackendPool, maildir_root: String) -> 
         outbound_queue: None,
         resolver: None,
         maildir_root: maildir_root.clone(),
+        kevy_url: None,
     }));
     let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);
 
@@ -136,6 +137,7 @@ pub async fn spawn_split_receiving_server(
         outbound_queue: None,
         resolver: None,
         maildir_root: maildir_root.clone(),
+        kevy_url: None,
     }));
     let process_tx = crate::smtp_session::spawn_process_consumer(process_deps);
 

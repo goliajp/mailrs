@@ -43,7 +43,7 @@ impl KevyMailboxStore {
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let idx = keys::user_threads_has_unread(user);
-        self.store().atomic(|ctx| {
+        let found = self.store().atomic(|ctx| {
             let exists = ctx.hexists(thread_key.as_bytes(), b"unread_count")?;
             // Always drop from the has_unread index AND always plant
             // a concrete `unread_count = 0` on the hash. The previous
@@ -56,7 +56,33 @@ impl KevyMailboxStore {
             ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
             ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
             Ok(exists)
-        })
+        });
+        let exists = found?;
+        // Sink the \Seen fact into every per-message wire too. The
+        // thread-hash zero above is a cache; the wires are what
+        // self-heal recounts and what a rethread merge recounts from —
+        // without this, a restart (self-heal) or a merge resurrected
+        // already-read mail as unread (2026-07-17).
+        let msgs_key = keys::thread_messages(thread_id);
+        let members = self.store().zrange(msgs_key.as_bytes(), 0, -1)?;
+        for (mid_bytes, _score) in &members {
+            let Ok(mid) = std::str::from_utf8(mid_bytes) else {
+                continue;
+            };
+            let blob_key = keys::message_blob(mid);
+            if let Some(bytes) = self.store().get(blob_key.as_bytes())?
+                && let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            {
+                let flags = wire["flags"].as_u64().unwrap_or(0);
+                if flags & 1 == 0 {
+                    wire["flags"] = serde_json::Value::from(flags | 1);
+                    if let Ok(payload) = serde_json::to_vec(&wire) {
+                        self.store().set(blob_key.as_bytes(), &payload)?;
+                    }
+                }
+            }
+        }
+        Ok(exists)
     }
 }
 

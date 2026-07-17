@@ -224,6 +224,59 @@ impl PgMailboxStore {
         Ok(result.rows_affected() as u32)
     }
 
+    /// v2.9 triage — the maildir ids of every message in a thread for
+    /// the user. Used to read the raw messages (for classifier
+    /// training) at mark-action time. Newest first.
+    pub async fn get_thread_maildir_ids(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT m.maildir_id
+             FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE m.thread_id = $1 AND mb.user_address = $2 AND m.maildir_id != ''
+             ORDER BY m.internal_date DESC",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// v2.9 triage — force a thread into a bucket by stamping the
+    /// `email_analysis.category` of every message in the thread to
+    /// `category` ∈ {"inbox","notification","promotion","spam"}. This is
+    /// the monolith/spg analog of fastcore's `set_bucket` (which mutates
+    /// the kevy folder zsets); here the bucket is derived from the
+    /// category (see `list_conversations` folder filter), so stamping
+    /// category IS the move. Ingest does not create `email_analysis`
+    /// rows, so this UPSERTs. Returns the number of messages affected.
+    pub async fn set_thread_bucket(
+        &self,
+        user: &str,
+        thread_id: &str,
+        category: &str,
+    ) -> Result<u32, sqlx::Error> {
+        let result = sqlx::query(
+            "INSERT INTO email_analysis (message_id, category)
+             SELECT m.id, $3
+             FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE m.thread_id = $1 AND mb.user_address = $2
+             ON CONFLICT (message_id) DO UPDATE SET category = EXCLUDED.category",
+        )
+        .bind(thread_id)
+        .bind(user)
+        .bind(category)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() as u32)
+    }
+
     /// snooze a conversation until a given time
     pub async fn snooze_thread(
         &self,

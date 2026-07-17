@@ -61,6 +61,10 @@ export default defineConfig({
       reporter: ['text', 'text-summary'],
     },
     environment: 'jsdom',
+    // Playwright perf specs live in tests/ — vitest must not pick
+    // them up (they import @playwright/test which throws under the
+    // vitest runner). Scope vitest to src/ only.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
     setupFiles: ['./src/test-setup.ts'],
   },
   plugins: [react(), tailwindcss()],

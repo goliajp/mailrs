@@ -139,6 +139,11 @@ pub struct DraftWire {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SaveDraftRequest {
+    /// When present, upsert that draft in place (keeps its id) instead of
+    /// allocating a new one — so a compose session's periodic autosave
+    /// updates one draft rather than spawning a new one each tick.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
     #[serde(default)]
     pub to: String,
     #[serde(default)]

@@ -124,9 +124,22 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             post(c::mark_not_junk),
         )
         .route(
+            "/api/conversations/{thread_id}/mark-notification",
+            post(c::mark_notification),
+        )
+        .route(
+            "/api/conversations/{thread_id}/mark-promotion",
+            post(c::mark_promotion),
+        )
+        .route(
+            "/api/conversations/{thread_id}/move-to-inbox",
+            post(c::move_to_inbox),
+        )
+        .route(
             "/api/conversations/{thread_id}/snooze",
             put(c::snooze_thread).delete(c::unsnooze_thread),
         )
+        .route("/api/mail/sent", get(c::list_sent_messages))
         .route(
             "/api/conversations/{thread_id}",
             get(c::get_thread_messages).delete(c::delete_thread),

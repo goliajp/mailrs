@@ -4,6 +4,7 @@ import { File } from 'lucide-react'
 import { lazy, memo, Suspense, useCallback, useDeferredValue, useMemo, useState } from 'react'
 
 import { HtmlFrame } from '@/components/html-frame'
+import { linkifyNodes } from '@/components/linkify-nodes'
 import { MobileModal } from '@/components/mobile-modal'
 import { splitEmail } from '@/lib/email-split'
 import { formatSize } from '@/lib/format'
@@ -208,13 +209,16 @@ function isExtractable(contentType: string): boolean {
 }
 
 function PlainPre({ body, isOwn }: { body: string; isOwn: boolean }) {
+  // linkify bare http(s) URLs — a text/plain body (e.g. a bank/transactional
+  // notice) would otherwise show its links as dead text. HTML bodies keep
+  // their own anchors (HtmlFrame); markdown bodies autolink via remark-gfm.
   return (
     <pre
       className={`font-sans text-sm leading-relaxed break-words whitespace-pre-wrap ${
         isOwn ? 'text-white' : 'text-fg'
       }`}
     >
-      {body}
+      {linkifyNodes([body], `no-underline hover:underline ${isOwn ? 'text-white' : 'text-accent'}`)}
     </pre>
   )
 }

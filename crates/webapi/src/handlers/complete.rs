@@ -94,10 +94,32 @@ pub async fn get_mail_stats(
 
 /// GET /api/auth/oidc/config — OIDC providers list. Empty → login
 /// page hides the "Sign in with X" buttons cleanly.
+///
+/// v2.7.1 §Phase 12 §12.4 (2026-07-13): the pre-fix handler
+/// returned `{enabled: false, providers: []}` unconditionally, so
+/// the frontend login page never showed the OIDC button on prod
+/// even when `MAILRS_OIDC_CLIENT_ID` / `MAILRS_OIDC_CLIENT_SECRET`
+/// / `MAILRS_OIDC_ISSUER` were all set. Now mirrors the monolith
+/// `web/auth/oidc.rs::oidc_client_config` gating: `enabled` is true
+/// iff all three env vars are set, and one provider entry is
+/// emitted with `id`, `name` (from `MAILRS_OIDC_PROVIDER_NAME` or
+/// `"OIDC"`), and `login_url = /api/auth/oidc/login`.
 pub async fn oidc_config() -> Json<serde_json::Value> {
+    let enabled = std::env::var("MAILRS_OIDC_CLIENT_ID").is_ok()
+        && std::env::var("MAILRS_OIDC_CLIENT_SECRET").is_ok()
+        && std::env::var("MAILRS_OIDC_ISSUER").is_ok();
+    let providers = if enabled {
+        vec![serde_json::json!({
+            "id": "primary",
+            "name": std::env::var("MAILRS_OIDC_PROVIDER_NAME").unwrap_or_else(|_| "OIDC".into()),
+            "login_url": "/api/auth/oidc/login",
+        })]
+    } else {
+        Vec::new()
+    };
     Json(serde_json::json!({
-        "enabled": false,
-        "providers": Vec::<serde_json::Value>::new(),
+        "enabled": enabled,
+        "providers": providers,
     }))
 }
 

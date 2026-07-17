@@ -30,6 +30,9 @@ export type SaveDraftRequest = {
   bcc?: string
   body?: string
   cc?: string
+  // when set, the backend upserts that draft in place (keeps its id)
+  // instead of creating a new one — lets autosave update one draft.
+  id?: number
   reply_to_thread_id?: string
   subject?: string
   to?: string

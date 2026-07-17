@@ -26,6 +26,43 @@ where
     }
 }
 
+/// Strip reply/forward prefixes so "Re: RE: Fwd: X" compares equal to
+/// "X". Threading joins a reply into its ancestor's conversation ONLY
+/// when the normalized subjects match — a subject change on a reply is
+/// a new topic and gets its own thread (Gmail's rule). Shared by both
+/// lanes (fastcore resolver + the PG resolve sites) so verdicts agree.
+pub fn normalize_subject(s: &str) -> String {
+    let mut t = s.trim();
+    loop {
+        let lower = t.to_lowercase();
+        let stripped = [
+            "re:",
+            "fwd:",
+            "fw:",
+            "回复:",
+            "回复\u{ff1a}",
+            "转发:",
+            "转发\u{ff1a}",
+        ]
+        .iter()
+        .find_map(|p| lower.starts_with(p).then(|| t[p.len()..].trim_start()));
+        match stripped {
+            Some(rest) => t = rest,
+            None => break,
+        }
+    }
+    t.to_lowercase()
+}
+
+/// Whether two subjects belong to the same conversation topic. Either
+/// side being empty is treated as agreement (missing data must not
+/// split threads).
+pub fn same_topic(a: &str, b: &str) -> bool {
+    let na = normalize_subject(a);
+    let nb = normalize_subject(b);
+    na.is_empty() || nb.is_empty() || na == nb
+}
+
 /// extract Message-ID header value from raw RFC 5322 bytes
 pub fn extract_message_id(data: &[u8]) -> String {
     extract_header_raw(data, "message-id")
@@ -91,6 +128,22 @@ fn extract_header_raw(data: &[u8], name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn subject_normalize_strips_re_chains() {
+        assert_eq!(normalize_subject("Re: RE: Fwd: Hello"), "hello");
+        assert_eq!(
+            normalize_subject("回复: 源泉所得税について"),
+            "源泉所得税について"
+        );
+    }
+
+    #[test]
+    fn same_topic_rules() {
+        assert!(same_topic("Re: X", "X"));
+        assert!(same_topic("", "anything"));
+        assert!(!same_topic("annual closing", "withholding tax"));
+    }
 
     #[test]
     fn normalize_strips_angle_brackets() {

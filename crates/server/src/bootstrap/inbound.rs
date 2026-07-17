@@ -59,9 +59,10 @@ pub(crate) fn build_inbound_pipeline_with_shadows(
         greylist_config.clone(),
         greylist_whitelist.clone(),
         greylist_local.clone(),
-        // known-correspondent bypass + quota stage are receiver-split
-        // only (both need the network kevy client); the monolith keeps
-        // plain list behaviour
+        // known-correspondent bypass + quota stage + bayes scorer are
+        // receiver-split only (all need the network kevy client); the
+        // monolith (spg-dogfood lane) keeps plain list behaviour
+        None,
         None,
         None,
         resolver.clone(),

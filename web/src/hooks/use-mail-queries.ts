@@ -49,6 +49,11 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       category: filters.category as never,
       domains: filters.domains,
       folder: filters.folder as never,
+      // `query` MUST be in the key: listPath() switches to the
+      // /conversations/search endpoint when filters.query is set, but
+      // without query in the key a search reuses the non-search inbox
+      // cache and never refetches — search silently shows the inbox.
+      query: filters.query,
       starred: filters.starred,
       unread: filters.unread,
     }),

@@ -13,7 +13,8 @@
     "check": "bun run gen-types && tsc --noEmit && eslint src/ && prettier --check src/",
     "fix": "eslint --fix src/ && prettier --write src/",
     "preview": "vite preview",
-    "gen-types": "openapi-typescript public/openapi.json -o src/lib/types.openapi.ts"
+    "gen-types": "openapi-typescript public/openapi.json -o src/lib/types.openapi.ts",
+    "test:perf": "vite build && playwright test"
   },
   "dependencies": {
     "@goliapkg/gds": "2.2.0",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@rollup/rollup-darwin-x64": "^4.60.4",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
@@ -79,6 +81,7 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.59.3",
     "vite": "^8.0.13",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "web-vitals": "^5.3.0"
   }
 }

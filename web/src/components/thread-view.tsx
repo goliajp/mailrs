@@ -27,6 +27,7 @@ import { AttachmentPreview } from '@/components/attachment-preview'
 import { BottomSheet } from '@/components/bottom-sheet'
 import { Copyable } from '@/components/copy-button'
 import { InviteCard } from '@/components/invite-card'
+import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
 import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -56,6 +57,7 @@ import {
   composeReplySourceAtom,
   composingNewAtom,
   crossAccountReadAtom,
+  focusedMessageUidAtom,
   mobileReplyOpenAtom,
   mobileThreadTabAtom,
   selectedDomainsAtom,
@@ -133,6 +135,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
+  const focusedMsgUid = useAtomValue(focusedMessageUidAtom)
+  const setFocusedMsgUid = useSetAtom(focusedMessageUidAtom)
   const [isRead, setIsRead] = useState(true)
   const [isFlagged, setIsFlagged] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -439,6 +443,25 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     })
   }, [messages, myEmailForTimeline, hasCollapsedTimeline])
 
+  // focus a specific message when arriving from the Sent view (or a
+  // shared ?msg= URL): expand the timeline if it's collapsed away, mark
+  // it selected, and scroll it into view. consume the atom so it fires
+  // once per navigation.
+  useEffect(() => {
+    if (focusedMsgUid === null || messages.length === 0) return
+    const idx = messages.findIndex((m) => m.uid === focusedMsgUid)
+    if (idx === -1) return
+    if (hasCollapsedTimeline && idx < messages.length - VISIBLE_RECENT) {
+      setShowAllMessages(true)
+    }
+    setSelectedMsgIdx(idx)
+    const el = document.getElementById(`msg-${focusedMsgUid}`)
+    if (el) {
+      window.setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120)
+    }
+    setFocusedMsgUid(null)
+  }, [focusedMsgUid, messages, hasCollapsedTimeline, setFocusedMsgUid])
+
   // empty state
   if (!selectedId) {
     return (
@@ -708,10 +731,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 {!selectedMsg.html_body && (
                   <div className="px-4 py-3 select-text">
                     <div className="text-fg text-mid font-sans leading-relaxed break-words whitespace-pre-wrap">
-                      {highlightMentions(
-                        selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
-                        myEmail,
-                        auth?.display_name
+                      {linkifyNodes(
+                        highlightMentions(
+                          selectedMsg.clean_text || selectedMsg.text_body || '(no text content)',
+                          myEmail,
+                          auth?.display_name
+                        ),
+                        'text-accent no-underline hover:underline'
                       )}
                     </div>
                   </div>
@@ -787,21 +813,22 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                 </button>
               )}
               {timelineItems.map((item) => (
-                <ThreadTimelineItem
-                  dateLabel={item.dateLabel}
-                  displayName={item.displayName}
-                  idx={item.idx}
-                  isOwn={item.isOwn}
-                  isSelected={selectedMsgIdx === item.idx}
-                  key={item.msg.uid}
-                  msg={item.msg}
-                  myEmail={myEmail}
-                  myName={auth?.display_name}
-                  onSelect={handleSelectMsg}
-                  showDivider={item.showDivider}
-                  showSubject={item.showSubject}
-                  subjectText={item.subjectText}
-                />
+                <div id={`msg-${item.msg.uid}`} key={item.msg.uid}>
+                  <ThreadTimelineItem
+                    dateLabel={item.dateLabel}
+                    displayName={item.displayName}
+                    idx={item.idx}
+                    isOwn={item.isOwn}
+                    isSelected={selectedMsgIdx === item.idx}
+                    msg={item.msg}
+                    myEmail={myEmail}
+                    myName={auth?.display_name}
+                    onSelect={handleSelectMsg}
+                    showDivider={item.showDivider}
+                    showSubject={item.showSubject}
+                    subjectText={item.subjectText}
+                  />
+                </div>
               ))}
               <div ref={bottomRef} />
             </div>

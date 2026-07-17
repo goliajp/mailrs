@@ -18,6 +18,8 @@
 #![allow(missing_docs)]
 
 mod acme_task;
+mod aof_compact;
+mod bayes_train;
 pub mod bounce;
 mod imap;
 mod junk_ttl;
@@ -233,6 +235,7 @@ pub async fn run() {
     // Runs every 24h; expunges Junk-zset entries whose latest_date
     // is older than the per-user TTL (default 30 days).
     junk_ttl::spawn(state.clone());
+    aof_compact::spawn(state.clone(), kevy_dir.clone());
 
     // ACME renewal task. Reads MAILRS_ACME_EMAIL/DOMAINS; noop if
     // either is unset. Binds port 80 for the HTTP-01 challenge server
@@ -283,7 +286,27 @@ pub async fn run() {
         kevy_dir = %kevy_dir,
         "mailrs-fastcore listening (kevy backend)"
     );
-    axum::serve(listener, app).await.unwrap();
+    // Exit gracefully on SIGTERM/SIGINT instead of letting the default
+    // handler kill the process mid-write. Returning from run() drops the
+    // runtime → every task's Arc<Store> releases → kevy's DropGuard
+    // flushes each shard's AOF. Without this, `docker stop` (every
+    // deploy) tore a half-written frame into the AOF tail and the next
+    // boot's replay DROPPED everything after it — 181 MB / several days
+    // of writes on 2026-07-17 (vanished mail, resurrected threading
+    // fragments).
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("install SIGTERM handler");
+    tokio::select! {
+        r = axum::serve(listener, app) => {
+            r.unwrap();
+        }
+        _ = sigterm.recv() => {
+            tracing::info!("SIGTERM — shutting down cleanly so the kevy AOF flushes");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("SIGINT — shutting down cleanly so the kevy AOF flushes");
+        }
+    }
 }
 
 /// Periodic sync loop. Two jobs on the same tick:
@@ -488,15 +511,19 @@ async fn run_ingest_once(
 }
 
 /// Extract common headers from an RFC 5322 message. Returns
-/// `(message_id, in_reply_to, references_first, subject, date_epoch, from, to)`.
+/// `(message_id, in_reply_to, references, subject, date_epoch, from, to)`.
 ///
-/// `references_first` is the FIRST Message-ID in the References
-/// header — by RFC 5322 §3.6.4 that identifies the conversation root
-/// (which is what monolith uses as the fastcore thread_id).
-pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i64, String, String) {
+/// `references` is every Message-ID token of the References header,
+/// oldest (root) first. Threading resolves against the msgid→thread
+/// index via `resolve_thread_by_ancestry`; `references[0]` is only the
+/// last-resort root guess (it is NOT stable across hops — remote MUAs
+/// rewrite it, which fragmented conversations before v2.9.5).
+pub(crate) fn extract_headers(
+    raw: &[u8],
+) -> (String, String, Vec<String>, String, i64, String, String) {
     let mut message_id = String::new();
     let mut in_reply_to = String::new();
-    let mut references_first = String::new();
+    let mut references: Vec<String> = Vec::new();
     let mut subject = String::new();
     let mut date_epoch: i64 = 0;
     let mut from = String::new();
@@ -538,14 +565,15 @@ pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i6
             "message-id" => message_id = strip_angle(val),
             "in-reply-to" => in_reply_to = strip_angle(val),
             "references" => {
-                // First token that looks like <...>
-                references_first = val
+                // Every <...> token, oldest (root) first — the full chain
+                // feeds the msgid→thread resolver, not just token 0.
+                references = val
                     .split_whitespace()
-                    .find_map(|tok| {
+                    .filter_map(|tok| {
                         let t = tok.trim_matches(|c: char| c == '<' || c == '>' || c == ',');
                         (!t.is_empty()).then(|| t.to_string())
                     })
-                    .unwrap_or_default();
+                    .collect();
             }
             "subject" => subject = mailrs_rfc2047::decode(val.as_bytes()).into_owned(),
             "from" => from = val.to_string(),
@@ -557,12 +585,72 @@ pub(crate) fn extract_headers(raw: &[u8]) -> (String, String, String, String, i6
     (
         message_id,
         in_reply_to,
-        references_first,
+        references,
         subject,
         date_epoch,
         from,
         to,
     )
+}
+
+/// Resolve which existing thread a message belongs to via the per-user
+/// `Message-ID → thread_id` index. `None` = nothing known, caller falls
+/// back to the legacy root rule. The message's OWN id is consulted
+/// first — a message that was already ingested (and possibly moved by a
+/// rethread merge) must land back in its current thread, or self-heal
+/// re-creates the pre-merge fragment on every boot. Then nearest
+/// ancestor wins: In-Reply-To, then References newest → oldest.
+pub(crate) fn resolve_thread_by_ancestry(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    own_mid: &str,
+    in_reply_to: &str,
+    references: &[String],
+    subject: &str,
+) -> Option<String> {
+    if !own_mid.is_empty()
+        && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, own_mid)
+    {
+        // own-id hits skip the subject gate: the message is already IN
+        // that thread (re-ingest / self-heal), splitting it here would
+        // fight the recorded state.
+        return Some(tid);
+    }
+    let mut candidate: Option<String> = None;
+    if !in_reply_to.is_empty()
+        && let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, in_reply_to)
+    {
+        candidate = Some(tid);
+    }
+    if candidate.is_none() {
+        for mid in references.iter().rev() {
+            if let Ok(Some(tid)) = state.mailbox.thread_for_message_id(user, mid) {
+                candidate = Some(tid);
+                break;
+            }
+        }
+    }
+    // Gmail's subject rule: an ancestry match only joins the ancestor's
+    // conversation when the normalized subjects agree. A reply that
+    // changes topic ("annual closing" sent as a reply to the "withholding
+    // tax" thread) is a NEW conversation — otherwise the old thread's
+    // display flips to the user's own outbound subject and reads like a
+    // sent mail sitting in the Inbox (2026-07-17 report).
+    let tid = candidate?;
+    let subj_norm = mailrs_mailbox_kevy::normalize_subject(subject);
+    if subj_norm.is_empty() {
+        return Some(tid);
+    }
+    match state.mailbox.get_thread(&tid) {
+        Ok(Some(row)) => {
+            if mailrs_mailbox_kevy::normalize_subject(&row.subject) == subj_norm {
+                Some(tid)
+            } else {
+                None
+            }
+        }
+        _ => Some(tid),
+    }
 }
 
 fn strip_angle(v: &str) -> String {
@@ -629,6 +717,15 @@ fn maildir_filename_epoch(name: &str) -> Option<i64> {
     if n > 946_684_800 { Some(n) } else { None }
 }
 
+/// Whether a maildir filename carries the \Seen flag — the `:2,` info
+/// section lists flags alphabetically (`...:2,RS` etc.).
+fn maildir_seen_flag(name: &str) -> bool {
+    match name.rsplit_once(":2,") {
+        Some((_, info)) => info.contains('S'),
+        None => false,
+    }
+}
+
 /// Fall back to the file's mtime as the delivery epoch when both the
 /// `Date:` header and the maildir filename yield nothing usable.
 fn file_mtime_epoch(path: &std::path::Path) -> Option<i64> {
@@ -651,11 +748,15 @@ struct MailFile {
     size: u32,
     message_id: String,
     in_reply_to: String,
-    references_first: String,
+    references: Vec<String>,
     subject: String,
     date: i64,
     from: String,
     to: String,
+    /// maildir info-section \Seen flag (`...:2,...S...`) — the on-disk
+    /// read/unread fact. Self-heal must respect it or every boot
+    /// resurrects already-read mail as unread.
+    seen: bool,
 }
 
 /// Walk the user's maildir(s) and populate any thread whose messages
@@ -742,8 +843,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         };
         let size = bytes.len() as u32;
         let head = &bytes[..bytes.len().min(16 * 1024)];
-        let (message_id, in_reply_to, references_first, subject, date, from, to) =
-            extract_headers(head);
+        let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
         if message_id.is_empty() {
             continue;
         }
@@ -766,24 +866,40 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             size,
             message_id,
             in_reply_to,
-            references_first,
+            references,
             subject,
             date,
             from,
             to,
+            seen: maildir_seen_flag(&bare),
         });
     }
 
-    // Bucket by resolved conversation root.
+    // Bucket by resolved conversation root. v2.9.5: consult the
+    // msgid→thread index first (same rule as live ingest) so self-heal
+    // groups a reply into the thread its ancestors actually live in;
+    // the raw-header guess is only the fallback for unknown chains.
     let mut by_root: std::collections::HashMap<String, Vec<&MailFile>> =
         std::collections::HashMap::new();
     for m in &parsed {
-        let root = if !m.references_first.is_empty() {
-            m.references_first.clone()
-        } else if !m.in_reply_to.is_empty() {
-            m.in_reply_to.clone()
-        } else {
-            m.message_id.clone()
+        let root = match resolve_thread_by_ancestry(
+            state,
+            user,
+            &m.message_id,
+            &m.in_reply_to,
+            &m.references,
+            &m.subject,
+        ) {
+            Some(tid) => tid,
+            None => {
+                if let Some(first) = m.references.first() {
+                    first.clone()
+                } else if !m.in_reply_to.is_empty() {
+                    m.in_reply_to.clone()
+                } else {
+                    m.message_id.clone()
+                }
+            }
         };
         by_root.entry(root).or_default().push(m);
     }
@@ -962,6 +1078,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             let _ = state
                 .mailbox
                 .upsert_message(tid, &wire.message_id, m.date, &payload);
+            let _ = state
+                .mailbox
+                .set_thread_for_message_id(user, &wire.message_id, tid);
             if existing_count == 0 {
                 healed_msgs += 1;
             } else {
@@ -1030,7 +1149,8 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             ordered.sort_by_key(|m| m.date);
             for m in &ordered {
                 let category = "inbox";
-                let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
+                let unread =
+                    !m.seen && !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user);
                 let arrival = mailrs_mailbox_kevy::MessageArrival {
                     thread_id: root,
                     user,
@@ -1070,6 +1190,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
                         .mailbox
                         .upsert_message(root, &m.message_id, m.date, &payload);
                 }
+                let _ = state
+                    .mailbox
+                    .set_thread_for_message_id(user, &m.message_id, root);
             }
             created += 1;
         }
@@ -1165,8 +1288,7 @@ pub(crate) fn ingest_delivered_file(
     target_folder: &str,
 ) {
     let head = &body[..body.len().min(16 * 1024)];
-    let (message_id, in_reply_to, references_first, subject, date, from, to) =
-        extract_headers(head);
+    let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
     if message_id.is_empty() {
         // no Message-ID header — leave it to self-heal's filename-based
         // fallbacks rather than fabricating an id here
@@ -1178,12 +1300,28 @@ pub(crate) fn ingest_delivered_file(
     } else {
         maildir_filename_epoch(bare).unwrap_or(0)
     };
-    let root = if !references_first.is_empty() {
-        references_first
-    } else if !in_reply_to.is_empty() {
-        in_reply_to.clone()
-    } else {
-        message_id.clone()
+    // v2.9.5 threading fix — prefer the thread an ancestor actually
+    // landed in (msgid index) over deriving one from raw headers.
+    // References[0] is NOT a stable conversation root (each hop can
+    // rewrite it), which is how conversations fragmented.
+    let root = match resolve_thread_by_ancestry(
+        state,
+        addr,
+        &message_id,
+        &in_reply_to,
+        &references,
+        &subject,
+    ) {
+        Some(tid) => tid,
+        None => {
+            if let Some(first) = references.first() {
+                first.clone()
+            } else if !in_reply_to.is_empty() {
+                in_reply_to.clone()
+            } else {
+                message_id.clone()
+            }
+        }
     };
     let unread = !mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
     // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
@@ -1195,10 +1333,14 @@ pub(crate) fn ingest_delivered_file(
     // to the Junk folder on the read side. Any sieve fileinto target
     // that maps to "Junk" is treated the same. Everything else
     // (INBOX / custom sieve folders) keeps category="inbox".
+    // v2.9 triage — non-junk mail is further sorted into
+    // inbox/notification/promotion by the multi-class Bayes classifier
+    // (`bucket_of` then routes it to the matching folder zset).
+    // Cold-start / low-confidence → "inbox".
     let category = if target_folder.eq_ignore_ascii_case("junk") {
         "spam"
     } else {
-        "inbox"
+        crate::bayes_train::classify_triage(state, body).unwrap_or("inbox")
     };
     let arrival = mailrs_mailbox_kevy::MessageArrival {
         thread_id: &root,
@@ -1250,6 +1392,11 @@ pub(crate) fn ingest_delivered_file(
         }
         Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),
     }
+    // register this message's id → thread so future replies that cite it
+    // (In-Reply-To / References) resolve into the same conversation.
+    let _ = state
+        .mailbox
+        .set_thread_for_message_id(addr, &message_id, &root);
 }
 
 pub fn build_router(state: Arc<FastcoreState>) -> Router {
@@ -1271,6 +1418,14 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(conv::PATH_CONVERSATION_CATEGORIES, get(get_categories))
             .route(conv::PATH_UNSEEN_COUNT, get(get_unseen_count))
             .route(th::PATH_LIST_THREAD_MESSAGES, get(thread_messages))
+            .route(th::PATH_LIST_SENT_MESSAGES, get(list_sent_messages))
+            .route(
+                th::PATH_FIND_THREAD_BY_MESSAGE_ID,
+                get(find_thread_by_message_id),
+            )
+            .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
+            .route("/v1/admin/threads:split-message", post(split_message_route))
+            .route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
@@ -1285,6 +1440,9 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(th::PATH_UNARCHIVE, post(unarchive_thread))
             .route(th::PATH_MARK_JUNK, post(mark_junk))
             .route(th::PATH_MARK_NOT_JUNK, post(mark_not_junk))
+            .route(th::PATH_MARK_NOTIFICATION, post(mark_notification))
+            .route(th::PATH_MARK_PROMOTION, post(mark_promotion))
+            .route(th::PATH_MOVE_TO_INBOX, post(move_to_inbox))
             .route(th::PATH_DELETE_THREAD, delete(delete_thread))
             .route(adm::PATH_GET_ACCOUNT_HASH, get(get_account_with_hash))
             .route(adm::PATH_EFFECTIVE_PERMISSIONS, get(effective_permissions))
@@ -1324,6 +1482,38 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/sync/reset-cursors",
                 post(reset_sync_cursors_route),
+            )
+            // Ops endpoint — one-shot pre-P6 legacy keyspace sweep
+            // (Phase 11.2 embedded half). In-process so no AOF
+            // double-open OOM; idempotent.
+            .route(
+                "/v1/admin/maintenance:sweep-legacy-admin-keys",
+                post(sweep_legacy_admin_keys_route),
+            )
+            // Ops endpoint — migrate monolith-era spam/scam-category
+            // threads into the Junk folder (idempotent).
+            .route(
+                "/v1/admin/maintenance:move-spam-to-junk",
+                post(move_spam_to_junk_route),
+            )
+            // Ops endpoint — seed the Bayesian corpus from existing
+            // junk (spam) + inbox (ham) folders. One-shot; refuses if
+            // the corpus is already non-empty.
+            .route(
+                "/v1/admin/maintenance:bayes-bootstrap",
+                post(bayes_bootstrap_route),
+            )
+            // Ops endpoint — seed the v2.9 multi-class triage corpus +
+            // re-sort existing Inbox mail into N/P (idempotent).
+            .route(
+                "/v1/admin/maintenance:backfill-triage",
+                post(backfill_triage_route),
+            )
+            // Ops endpoint — file every existing thread into the
+            // v2.4.0 Inbox/Junk folder zsets (v2.8.2, idempotent).
+            .route(
+                "/v1/admin/maintenance:backfill-inbox-index",
+                post(backfill_inbox_index_route),
             )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
@@ -1388,7 +1578,8 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route(
                 adm::PATH_LIST_AUDIT_LOG,
-                get(mailrs_core_sidestate::families::admin_state::list_audit_log::<FastcoreState>),
+                get(mailrs_core_sidestate::families::admin_state::list_audit_log::<FastcoreState>)
+                    .post(mailrs_core_sidestate::families::admin_state::log_audit::<FastcoreState>),
             )
             // account / alias / domain — switchable mail store (embedded kevy)
             .route(adm::PATH_GET_ACCOUNT, get(routes::mail_admin::get_account))
@@ -1636,12 +1827,16 @@ async fn get_categories(
     // Expanded set — covers monolith's known category vocabulary.
     // Any per-category zset that ZCARD > 0 is returned. UI tabs only
     // render the categories that exist so overshooting is safe.
+    //
+    // `spam` / `scam` deliberately absent (user directive 2026-07-13
+    // "我希望只有 junk"): those threads live in the Junk FOLDER — the
+    // sidebar's Junk entry is their one and only surface. Exposing
+    // them as Inbox category tabs double-listed junk mail inside the
+    // Inbox view.
     let candidates = [
         "inbox",
         "personal",
         "bulk",
-        "spam",
-        "scam",
         "promotions",
         "updates",
         "forums",
@@ -1697,6 +1892,333 @@ async fn thread_messages(
         .filter_map(|b| serde_json::from_slice::<MessageWire>(&b).ok())
         .collect();
     Json(mailrs_core_api::method::thread::ListThreadMessagesResponse { items })
+}
+
+/// `GET /v1/users/{user}/sent-messages` — one row per outbound message
+/// (not per thread). Walks the user's sent-thread index, reads each
+/// thread's messages, keeps only the ones this user actually sent, and
+/// returns them newest-first with the recipient (To). Reuses the existing
+/// per-thread message store — no dedicated sent-message index.
+async fn list_sent_messages(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+) -> Json<mailrs_core_api::method::thread::SentMessagesResponse> {
+    use mailrs_core_api::method::message::MessageWire;
+    use mailrs_core_api::method::thread::{SentMessageSummary, SentMessagesResponse};
+
+    let store = state.mailbox.store_ref();
+    let sent_zset = mailrs_mailbox_kevy::keys::user_threads_sent(&user);
+    let tids = store
+        .zrevrange(sent_zset.as_bytes(), 0, -1)
+        .unwrap_or_default();
+
+    let mut items: Vec<SentMessageSummary> = Vec::new();
+    for (tid_b, _score) in &tids {
+        let Ok(tid) = std::str::from_utf8(tid_b) else {
+            continue;
+        };
+        let blobs = state.mailbox.list_thread_messages(tid).unwrap_or_default();
+        for b in blobs {
+            let Ok(w) = serde_json::from_slice::<MessageWire>(&b) else {
+                continue;
+            };
+            if !mailrs_mailbox_kevy::senders_csv_contains_user(&w.sender, &user) {
+                continue;
+            }
+            items.push(SentMessageSummary {
+                uid: w.uid,
+                message_id: w.message_id,
+                // the thread this message is actually indexed under (the
+                // merged conversation), NOT w.thread_id — a reply's stored
+                // thread_id can be its own message-id-based self-thread,
+                // which opens an isolated 1-message view. `tid` is what the
+                // frontend resolves via get_thread_messages.
+                thread_id: tid.to_string(),
+                to: w.recipients,
+                subject: w.subject,
+                internal_date: w.internal_date,
+            });
+        }
+    }
+    items.sort_by_key(|s| std::cmp::Reverse(s.internal_date));
+    Json(SentMessagesResponse { items })
+}
+
+/// `GET /v1/users/{user}/threads/by-message-id/{message_id}` — resolve a
+/// RFC 5322 Message-ID to the thread it was indexed under (the msgid →
+/// thread reconciliation index). Callers: webapi mirror_send, so a sent
+/// reply joins the conversation its parent lives in.
+async fn find_thread_by_message_id(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, message_id)): Path<(String, String)>,
+) -> Json<mailrs_core_api::method::thread::FindThreadByMessageIdResponse> {
+    let thread_id = state
+        .mailbox
+        .thread_for_message_id(&user, &message_id)
+        .unwrap_or(None);
+    Json(mailrs_core_api::method::thread::FindThreadByMessageIdResponse { thread_id })
+}
+
+/// `POST /v1/admin/backfill-threading` — one-shot rethread of existing
+/// data (v2.9.5). Conversations fragmented across multiple thread_ids
+/// because three write paths derived roots inconsistently and no msgid
+/// index existed. Union-find over (message ↔ its In-Reply-To parent) +
+/// (message ↔ its current thread) yields the true conversations; each
+/// component's fragments merge into a canonical thread (the one holding
+/// the component's oldest message — deterministic, so reruns are
+/// idempotent no-ops). Also seeds the msgid→thread index for every
+/// message. In-process per `feedback-junk-backfill-oom-finding`.
+async fn backfill_threading_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    use mailrs_core_api::method::message::MessageWire;
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut merged_threads = 0u64;
+    let mut moved_messages = 0u64;
+    let mut indexed = 0u64;
+    for user in &users {
+        // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
+        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let tids = store
+            .zrevrange(activity.as_bytes(), 0, -1)
+            .unwrap_or_default();
+        let mut msgs: Vec<(String, String, i64, String, String, String)> = Vec::new();
+        for (tid_b, _) in &tids {
+            let Ok(tid) = std::str::from_utf8(tid_b) else {
+                continue;
+            };
+            for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
+                if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) {
+                    msgs.push((
+                        w.message_id,
+                        w.in_reply_to,
+                        w.internal_date,
+                        tid.to_string(),
+                        w.blob_ref,
+                        w.subject,
+                    ));
+                }
+            }
+        }
+        if msgs.is_empty() {
+            continue;
+        }
+        // union-find over string nodes: `m:<mid>` and `t:<tid>` — a
+        // message unions with its current thread, its In-Reply-To
+        // parent, AND every Message-ID in its raw References chain
+        // (read from the maildir file — the kevy wire doesn't store the
+        // chain). Reply chains stitch fragments together while
+        // already-grouped threads never split.
+        let mut uf = UnionFind::default();
+        // subject lookup so ancestry edges respect the Gmail rule: a
+        // reply that changed topic must NOT glue two conversations.
+        let subj_by_mid: std::collections::HashMap<&str, String> = msgs
+            .iter()
+            .map(|(mid, _, _, _, _, subject)| {
+                (
+                    mid.as_str(),
+                    mailrs_mailbox_kevy::normalize_subject(subject),
+                )
+            })
+            .collect();
+        let subjects_agree =
+            |a: &str, b: &str, subj_by_mid: &std::collections::HashMap<&str, String>| {
+                match (subj_by_mid.get(a), subj_by_mid.get(b)) {
+                    // unknown side (ancestor never ingested) → trust the edge
+                    (Some(x), Some(y)) => x == y || x.is_empty() || y.is_empty(),
+                    _ => true,
+                }
+            };
+        for (mid, irt, _, tid, blob_ref, _) in &msgs {
+            uf.union(&format!("m:{mid}"), &format!("t:{tid}"));
+            if !irt.is_empty() && subjects_agree(mid, irt, &subj_by_mid) {
+                uf.union(&format!("m:{mid}"), &format!("m:{irt}"));
+            }
+            for r in maildir_references(user, blob_ref) {
+                if subjects_agree(mid, &r, &subj_by_mid) {
+                    uf.union(&format!("m:{mid}"), &format!("m:{r}"));
+                }
+            }
+        }
+        // component → member tids + its oldest message's tid (canonical)
+        let mut comp_tids: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        let mut comp_oldest: std::collections::HashMap<String, (i64, String)> =
+            std::collections::HashMap::new();
+        for (mid, _, date, tid, _, _) in &msgs {
+            let root = uf.find(&format!("m:{mid}"));
+            let entry = comp_tids.entry(root.clone()).or_default();
+            if !entry.contains(tid) {
+                entry.push(tid.clone());
+            }
+            let best = comp_oldest.entry(root).or_insert((*date, tid.clone()));
+            if *date < best.0 {
+                *best = (*date, tid.clone());
+            }
+        }
+        for (root, tids) in &comp_tids {
+            let Some((_, canonical)) = comp_oldest.get(root) else {
+                continue;
+            };
+            for tid in tids {
+                if tid != canonical {
+                    match state.mailbox.merge_thread_into(user, tid, canonical) {
+                        Ok(n) => {
+                            merged_threads += 1;
+                            moved_messages += n as u64;
+                        }
+                        Err(e) => {
+                            tracing::warn!(err = %e, %user, %tid, %canonical, "merge_thread_into failed");
+                        }
+                    }
+                }
+            }
+        }
+        // seed the msgid index for every message (merge already
+        // re-pointed the moved ones; this covers the untouched rest).
+        for (mid, _, _, tid, _, _) in &msgs {
+            let root = uf.find(&format!("m:{mid}"));
+            let Some((_, canonical)) = comp_oldest.get(&root) else {
+                continue;
+            };
+            let target = if comp_tids.get(&root).map(|v| v.len() > 1).unwrap_or(false) {
+                canonical
+            } else {
+                tid
+            };
+            if state
+                .mailbox
+                .set_thread_for_message_id(user, mid, target)
+                .is_ok()
+            {
+                indexed += 1;
+            }
+        }
+    }
+    tracing::info!(
+        merged_threads,
+        moved_messages,
+        indexed,
+        "backfill-threading complete"
+    );
+    Json(serde_json::json!({
+        "merged_threads": merged_threads,
+        "moved_messages": moved_messages,
+        "msgids_indexed": indexed,
+    }))
+    .into_response()
+}
+
+/// Read the full References chain of a message from its maildir file
+/// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
+/// is empty or the file is gone — the caller just gets fewer edges.
+fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
+    if blob_ref.is_empty() {
+        return Vec::new();
+    }
+    let Some((local, domain)) = user.split_once('@') else {
+        return Vec::new();
+    };
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let base = std::path::PathBuf::from(root).join(domain).join(local);
+    let (sub, name) = match blob_ref.split_once('/') {
+        Some((s, n)) => (Some(s), n),
+        None => (None, blob_ref),
+    };
+    for leaf in ["cur", "new"] {
+        let path = match sub {
+            Some(s) => base.join(s).join(leaf).join(name),
+            None => base.join(leaf).join(name),
+        };
+        if let Ok(bytes) = std::fs::read(&path) {
+            let head = &bytes[..bytes.len().min(16 * 1024)];
+            let (_, _, references, ..) = extract_headers(head);
+            return references;
+        }
+    }
+    Vec::new()
+}
+
+/// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a
+/// message out of its thread into its own conversation (manual fix for
+/// topic-change replies that were glued before the subject gate landed).
+async fn split_message_route(
+    State(state): State<Arc<FastcoreState>>,
+    Json(req): Json<serde_json::Value>,
+) -> axum::response::Response {
+    let user = req["user"].as_str().unwrap_or("");
+    let mid = req["message_id"].as_str().unwrap_or("");
+    if user.is_empty() || mid.is_empty() {
+        return axum::http::StatusCode::BAD_REQUEST.into_response();
+    }
+    match state.mailbox.split_message_to_new_thread(user, mid) {
+        Ok(Some(tid)) => Json(serde_json::json!({"thread_id": tid})).into_response(),
+        Ok(None) => axum::http::StatusCode::NOT_FOUND.into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, %user, %mid, "split_message failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// `POST /v1/admin/maintenance:rewrite-aof` — compact the embedded kevy
+/// AOF from the CURRENT in-memory state. Recovery valve for the
+/// 2026-07-17 corrupt-frame black hole: a torn frame (non-graceful
+/// deploy kill) stuck mid-file meant every boot replayed only up to it
+/// and appended past it — all later writes silently vanished on the
+/// next restart. Rewriting emits a clean log so replay covers
+/// everything again.
+async fn rewrite_aof_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
+    match state.mailbox.store_ref().rewrite_aof() {
+        Ok(stats) => Json(serde_json::json!({
+            "ok": true,
+            "stats": format!("{stats:?}"),
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, "rewrite_aof failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Minimal string-keyed union-find for the rethread backfill.
+#[derive(Default)]
+struct UnionFind {
+    parent: std::collections::HashMap<String, String>,
+}
+
+impl UnionFind {
+    fn find(&mut self, x: &str) -> String {
+        let p = match self.parent.get(x) {
+            Some(p) => p.clone(),
+            None => {
+                self.parent.insert(x.to_string(), x.to_string());
+                return x.to_string();
+            }
+        };
+        if p == x {
+            return p;
+        }
+        let root = self.find(&p);
+        self.parent.insert(x.to_string(), root.clone());
+        root
+    }
+
+    fn union(&mut self, a: &str, b: &str) {
+        let ra = self.find(a);
+        let rb = self.find(b);
+        if ra != rb {
+            self.parent.insert(ra, rb);
+        }
+    }
 }
 
 // ── Account (auth) — Phase 8 ────────────────────────────────────────
@@ -1949,12 +2471,16 @@ async fn mark_junk(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_junk(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_junk(&user, &thread_id, true)
+        .unwrap_or(false);
+    // v2.8.0: feed the Bayesian corpus off the user's explicit junk
+    // verdict (RFC 20260713). Best-effort; never blocks the move.
+    if ok {
+        crate::bayes_train::train_thread(&state, &user, &thread_id, true);
+    }
+    action_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as not junk. The
@@ -1965,12 +2491,72 @@ async fn mark_not_junk(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_junk(&user, &thread_id, false)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_junk(&user, &thread_id, false)
+        .unwrap_or(false);
+    // v2.8.0: learn this thread as ham. train_thread unlearns any prior
+    // spam training on the same thread first (mis-file correction).
+    if ok {
+        crate::bayes_train::train_thread(&state, &user, &thread_id, false);
+    }
+    action_result(ok)
+}
+
+/// v2.9 triage — move a thread into the Notifications bucket and train
+/// the triage classifier on this correction.
+async fn mark_notification(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    let ok = state
+        .mailbox
+        .set_bucket(
+            &user,
+            &thread_id,
+            mailrs_mailbox_kevy::keys::Bucket::Notifications,
+        )
+        .unwrap_or(false);
+    if ok {
+        crate::bayes_train::train_triage(&state, &user, &thread_id, "notification");
+    }
+    action_result(ok)
+}
+
+/// v2.9 triage — move a thread into the Promotions bucket and train
+/// the triage classifier on this correction.
+async fn mark_promotion(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    let ok = state
+        .mailbox
+        .set_bucket(
+            &user,
+            &thread_id,
+            mailrs_mailbox_kevy::keys::Bucket::Promotions,
+        )
+        .unwrap_or(false);
+    if ok {
+        crate::bayes_train::train_triage(&state, &user, &thread_id, "promotion");
+    }
+    action_result(ok)
+}
+
+/// v2.9 triage — move a thread back into the Inbox bucket and train the
+/// triage classifier on this correction.
+async fn move_to_inbox(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, thread_id)): Path<(String, String)>,
+) -> axum::response::Response {
+    let ok = state
+        .mailbox
+        .set_bucket(&user, &thread_id, mailrs_mailbox_kevy::keys::Bucket::Inbox)
+        .unwrap_or(false);
+    if ok {
+        crate::bayes_train::train_triage(&state, &user, &thread_id, "inbox");
+    }
+    action_result(ok)
 }
 
 async fn unarchive_thread(
@@ -2143,6 +2729,12 @@ async fn deliver_message(
         tracing::error!(err = %e, %user, %thread_id, "upsert_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+    // register the (sent-copy) message id → thread so a remote reply
+    // citing it via In-Reply-To resolves into this conversation instead
+    // of opening a fragment (the v2.9.5 threading fix's key edge).
+    let _ = state
+        .mailbox
+        .set_thread_for_message_id(&user, &req.message_id, &thread_id);
 
     // Re-emit thread row so index zsets (sent, has_unread, etc.) reflect
     // the new senders_csv / unread_count state. We read the row we just
@@ -2379,6 +2971,288 @@ async fn reset_sync_cursors_route(
     Json(serde_json::json!({ "cleared": cleared })).into_response()
 }
 
+/// `POST /v1/admin/maintenance:bayes-bootstrap` — one-shot seed of the
+/// Bayesian spam corpus from the existing Junk (spam) + Inbox (ham)
+/// folders (RFC 20260713 §5). Refuses with 409 if the corpus is
+/// already populated (a repeat run would double-count). Single-user:
+/// the sweep runs for every account.
+async fn bayes_bootstrap_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    // Single corpus-empty guard for the whole run — a per-account guard
+    // (v2.8.0) let the first trained account lock out every later one.
+    if crate::bayes_train::corpus_populated(&state) {
+        return (
+            axum::http::StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "corpus already populated" })),
+        )
+            .into_response();
+    }
+    let mut total_spam = 0u64;
+    let mut total_ham = 0u64;
+    for user in &users {
+        let (s, h) = crate::bayes_train::bootstrap(&state, user);
+        total_spam += s;
+        total_ham += h;
+    }
+    Json(serde_json::json!({
+        "spam_trained": total_spam,
+        "ham_trained": total_ham,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-triage` — one-shot seed of the
+/// v2.9 multi-class triage corpus + retroactive re-sort of existing
+/// Inbox mail into Notifications / Promotions. Header-heuristic labels
+/// each Inbox thread, re-files N/P out of Inbox, and trains all three
+/// classes (so one-vs-rest has data for each). Idempotent. Runs for
+/// every account.
+async fn backfill_triage_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let (mut inbox, mut notif, mut promo) = (0u64, 0u64, 0u64);
+    for user in &users {
+        let (i, n, p) = crate::bayes_train::backfill_triage(&state, user);
+        inbox += i;
+        notif += n;
+        promo += p;
+    }
+    Json(serde_json::json!({
+        "inbox": inbox,
+        "notification": notif,
+        "promotion": promo,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:move-spam-to-junk` — one-shot migration
+/// of every thread whose category is `spam` / `scam` into the Junk
+/// folder zset (user report 2026-07-13: "junk 是空的，而且还是有
+/// spam" — 1219 spam + 73 scam threads from the monolith-era AI
+/// categorizer were sitting in the Inbox folder because the Phase 4.3
+/// backfill binary never ran on prod, see
+/// `feedback-junk-backfill-oom-finding`).
+///
+/// Walks each account's `by_category:{spam,scam}` zsets and calls
+/// `set_junk(user, thread, true)` — the same atomic move the
+/// mark-junk UI action uses (junk zset add + inbox zset remove +
+/// category stamp). Idempotent: already-moved threads just refresh.
+async fn move_spam_to_junk_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut moved = 0u64;
+    let mut missing = 0u64;
+    for user in &users {
+        for cat in ["spam", "scam"] {
+            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
+            let n = store.zcard(key.as_bytes()).unwrap_or(0);
+            if n == 0 {
+                continue;
+            }
+            let entries = match store.zrevrange(key.as_bytes(), 0, (n as i64) - 1) {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, cat, "zrevrange failed; skipping");
+                    continue;
+                }
+            };
+            for (tid_bytes, _score) in entries {
+                let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                    continue;
+                };
+                match state.mailbox.set_junk(user, tid, true) {
+                    Ok(true) => moved += 1,
+                    // Thread row gone (category zset entry is stale) —
+                    // count separately so the response shows drift.
+                    Ok(false) => missing += 1,
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %tid, "set_junk failed");
+                    }
+                }
+            }
+        }
+    }
+    tracing::info!(moved, missing, "spam/scam → junk migration complete");
+    Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot
+/// promotion of every existing thread into the v2.4.0 folder zsets
+/// (v2.8.2). Until this release `record_message_arrival` (the main
+/// ingest path) never wrote `user_threads_inbox`, so the Inbox axis
+/// only held threads that happened to pass through `upsert_thread` /
+/// `set_junk` — the UI had to keep its default view on the mixed
+/// by_activity zset. Walks each account's by_activity zset and files
+/// every live row: spam/scam → Junk, ≥ 1 received message → Inbox,
+/// sent-only → neither (Sent axis already covers it). Idempotent:
+/// zadd overwrites the score in place.
+async fn backfill_inbox_index_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut inbox_added = 0u64;
+    let mut junk_added = 0u64;
+    let mut sent_only = 0u64;
+    let mut stale = 0u64;
+    for user in &users {
+        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let inbox = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
+        let junk = mailrs_mailbox_kevy::keys::user_threads_junk(user);
+        let entries = match store.zrevrange(activity.as_bytes(), 0, -1) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(err = %e, %user, "zrevrange by_activity failed; skipping");
+                continue;
+            }
+        };
+        for (tid_bytes, _score) in entries {
+            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            let row = match state.mailbox.get_thread(tid) {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    stale += 1;
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, %tid, "get_thread failed");
+                    continue;
+                }
+            };
+            let is_junk = row.category.eq_ignore_ascii_case("spam")
+                || row.category.eq_ignore_ascii_case("scam");
+            let score = row.latest_date as f64;
+            if is_junk {
+                let _ = store.zadd(junk.as_bytes(), &[(score, tid.as_bytes())]);
+                junk_added += 1;
+            } else if row.count > row.sent_count {
+                let _ = store.zadd(inbox.as_bytes(), &[(score, tid.as_bytes())]);
+                inbox_added += 1;
+            } else {
+                // Sent-only: belongs to the Sent axis alone. Remove any
+                // stale inbound-bucket membership (a pg-dump import whose
+                // sent_count was 0 at upsert time, later recomputed to
+                // equal count, left the thread stuck in Inbox). This makes
+                // the backfill a self-correcting sweep, not add-only.
+                for z in mailrs_mailbox_kevy::keys::Bucket::all_zsets(user) {
+                    let _ = store.zrem(z.as_bytes(), &[tid.as_bytes()]);
+                }
+                sent_only += 1;
+            }
+        }
+    }
+    tracing::info!(
+        inbox_added,
+        junk_added,
+        sent_only,
+        stale,
+        "inbox-index backfill complete"
+    );
+    Json(serde_json::json!({
+        "inbox_added": inbox_added,
+        "junk_added": junk_added,
+        "sent_only_skipped": sent_only,
+        "stale_entries": stale,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot
+/// in-process cleanup of the pre-P6 admin keyspace (roadmap Phase
+/// 11.2's embedded half, executed as an RPC per
+/// `feedback-junk-backfill-oom-finding`: a `docker exec` sweep binary
+/// would double-open the embedded kevy and OOM replaying the AOF;
+/// running inside the live fastcore process costs nothing).
+///
+/// Deletes:
+///   - `mailrs:alias:<addr>` legacy strings (NOT `mailrs:alias:v2:*`)
+///   - `mailrs:domain:<name>` legacy strings (NOT `mailrs:domain:v2:*`)
+///   - `mailrs:aliases:index` / `mailrs:domains:index` /
+///     `mailrs:accounts:index` legacy sets
+///
+/// Idempotent — a second call finds nothing and returns zeros. No
+/// reader has touched these keys since v2.6.2 (Phase 11.3 removed the
+/// last code references); they only weigh down the AOF.
+async fn sweep_legacy_admin_keys_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let store = state.mailbox.store_ref();
+    let mut aliases = 0u32;
+    let mut domains = 0u32;
+
+    let (_, alias_keys) = store.scan(0, Some(b"mailrs:alias:*"), usize::MAX);
+    for key in alias_keys {
+        if key.starts_with(b"mailrs:alias:v2:") {
+            continue;
+        }
+        if store.del(&[key.as_slice()]).unwrap_or(0) > 0 {
+            aliases += 1;
+        }
+    }
+
+    let (_, domain_keys) = store.scan(0, Some(b"mailrs:domain:*"), usize::MAX);
+    for key in domain_keys {
+        if key.starts_with(b"mailrs:domain:v2:") {
+            continue;
+        }
+        if store.del(&[key.as_slice()]).unwrap_or(0) > 0 {
+            domains += 1;
+        }
+    }
+
+    let indexes = store
+        .del(&[
+            b"mailrs:aliases:index".as_slice(),
+            b"mailrs:domains:index".as_slice(),
+            b"mailrs:accounts:index".as_slice(),
+        ])
+        .unwrap_or(0);
+
+    tracing::info!(
+        aliases,
+        domains,
+        indexes,
+        "legacy admin keyspace sweep complete"
+    );
+    Json(serde_json::json!({
+        "legacy_alias_strings": aliases,
+        "legacy_domain_strings": domains,
+        "legacy_index_sets": indexes,
+    }))
+    .into_response()
+}
+
 /// `POST /v1/users/{user}/messages/{uid}/flags` — patch the flags
 /// bitmask on a message blob. Also reconciles the thread's `has_unread`
 /// zset via `mark_seen` / `mark_unread` when `\Seen` toggled.
@@ -2507,6 +3381,69 @@ mod tests {
     async fn body_string(resp: axum::response::Response) -> String {
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn sweep_legacy_admin_keys_clears_legacy_and_keeps_v2() {
+        let state = fresh_state();
+        let store = state.mailbox.store_ref();
+        // Seed the pre-P6 legacy layout + a v2 hash that must survive.
+        store.set(b"mailrs:alias:old@x", b"target@x").unwrap();
+        store
+            .set(b"mailrs:domain:old.example", b"1700000000")
+            .unwrap();
+        store
+            .sadd(b"mailrs:aliases:index", &[b"old@x".as_slice()])
+            .unwrap();
+        store
+            .sadd(b"mailrs:domains:index", &[b"old.example".as_slice()])
+            .unwrap();
+        store
+            .sadd(b"mailrs:accounts:index", &[b"a@x".as_slice()])
+            .unwrap();
+        state.mailbox.upsert_alias("keep@x", "target@x").unwrap();
+
+        let app = build_router(state.clone());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/admin/maintenance:sweep-legacy-admin-keys")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = body_string(resp).await;
+        assert!(body.contains("\"legacy_alias_strings\":1"), "{body}");
+        assert!(body.contains("\"legacy_domain_strings\":1"), "{body}");
+        assert!(body.contains("\"legacy_index_sets\":3"), "{body}");
+
+        // Legacy keys gone; v2 hash intact.
+        assert!(store.get(b"mailrs:alias:old@x").unwrap().is_none());
+        assert!(store.get(b"mailrs:domain:old.example").unwrap().is_none());
+        assert!(store.smembers(b"mailrs:aliases:index").unwrap().is_empty());
+        assert_eq!(
+            state.mailbox.resolve_alias("keep@x").unwrap().as_deref(),
+            Some("target@x")
+        );
+
+        // Idempotent: second sweep finds nothing.
+        let app2 = build_router(state);
+        let resp2 = app2
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/admin/maintenance:sweep-legacy-admin-keys")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body2 = body_string(resp2).await;
+        assert!(body2.contains("\"legacy_alias_strings\":0"), "{body2}");
+        assert!(body2.contains("\"legacy_index_sets\":0"), "{body2}");
     }
 
     #[tokio::test]
