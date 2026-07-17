@@ -38,6 +38,55 @@ impl PgMailboxStore {
         Ok(row.map(|r| r.0))
     }
 
+    /// Subject of a thread's oldest message — the conversation's root
+    /// topic, used by the Gmail subject rule (a reply only joins its
+    /// ancestor's thread when the normalized subjects agree).
+    pub async fn thread_root_subject(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> Result<Option<String>, sqlx::Error> {
+        let row = sqlx::query_as::<_, (String,)>(
+            "SELECT m.subject FROM messages m
+             JOIN mailboxes mb ON m.mailbox_id = mb.id
+             WHERE mb.user_address = $1 AND m.thread_id = $2
+             ORDER BY m.internal_date ASC LIMIT 1",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    /// Apply the Gmail subject rule to a resolved thread id: when the
+    /// resolve actually joined a known parent thread AND that thread's
+    /// root subject disagrees with the message's, fall back to the
+    /// message's own id (new conversation). Orphan/new paths pass
+    /// through untouched.
+    pub async fn apply_subject_gate(
+        &self,
+        user: &str,
+        own_id: &str,
+        subject: &str,
+        parent_tid: Option<String>,
+        resolved: String,
+    ) -> String {
+        let Some(tid) = parent_tid else {
+            return resolved;
+        };
+        if resolved != tid {
+            return resolved;
+        }
+        let root = self.thread_root_subject(user, &tid).await.ok().flatten();
+        match root {
+            Some(root_subject) if !crate::threading::same_topic(subject, &root_subject) => {
+                own_id.to_string()
+            }
+            _ => resolved,
+        }
+    }
+
     /// list all messages in a thread (deduplicated by message_id)
     /// when `domains` is Some, query across all accounts in those domains
     pub async fn list_thread_messages(
@@ -242,8 +291,13 @@ impl PgMailboxStore {
                 None
             };
 
-            let thread_id =
+            let resolved =
                 threading::resolve_thread_id(&msg_id, &in_reply_to, |_| parent_tid.clone());
+            // Gmail subject rule — same gate the live index path applies.
+            let subject = crate::pg::helpers::extract_header_value(&data, "Subject");
+            let thread_id = self
+                .apply_subject_gate(user, &msg_id, &subject, parent_tid.clone(), resolved)
+                .await;
 
             let _ = sqlx::query(
                 "UPDATE messages SET message_id = $1, in_reply_to = $2, thread_id = $3 WHERE id = $4",

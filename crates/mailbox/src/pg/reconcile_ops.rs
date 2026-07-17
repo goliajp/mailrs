@@ -178,8 +178,12 @@ impl PgMailboxStore {
             .await
             .ok()
             .flatten();
-        let thread_id =
+        let resolved =
             threading::resolve_thread_id(&effective_message_id, &in_reply_to, |_| parent.clone());
+        // Gmail subject rule — see apply_subject_gate.
+        let thread_id = self
+            .apply_subject_gate(user, &effective_message_id, &subject, parent, resolved)
+            .await;
 
         // same PG half the live pipeline uses: uid allocation + insert
         self.index_message(
