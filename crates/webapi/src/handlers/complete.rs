@@ -1294,6 +1294,12 @@ pub async fn create_agent_key(
     let hkey = format!("agent:keys:{user}");
     let payload = serde_json::to_vec(&record).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let secret_c = secret.clone();
+    // secret index carries {user, id} so the auth middleware can resolve
+    // the owner from a bearer key alone (session.rs agent-key branch).
+    // delete_agent_key only removes the hash entry; verification re-checks
+    // the hash so a dangling secret index grants nothing.
+    let index_payload = serde_json::to_vec(&serde_json::json!({ "user": &user, "id": id }))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     with_kevy(move |c| {
         c.hset(
             hkey.as_bytes(),
@@ -1301,7 +1307,7 @@ pub async fn create_agent_key(
         )?;
         c.set(
             format!("agent:key:secret:{secret_c}").as_bytes(),
-            id.to_string().as_bytes(),
+            index_payload.as_slice(),
         )?;
         Ok(())
     })?;
