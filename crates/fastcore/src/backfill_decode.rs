@@ -36,7 +36,13 @@ pub(crate) async fn backfill_decode_headers_route(
     let store = state.mailbox.store_ref();
     let mut rows_decoded = 0u64;
     let mut reindexed = 0u64;
+    let mut index_failures = 0u64;
+    // Batch size for the synchronous Meili writes below. 500 docs per
+    // request keeps the body small enough to be well under any proxy
+    // limit while collapsing ~29k requests into ~60.
+    const MEILI_BATCH: usize = 500;
     for user in &users {
+        let mut batch: Vec<serde_json::Value> = Vec::with_capacity(MEILI_BATCH);
         let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
         let tids = store
             .zrevrange(activity.as_bytes(), 0, -1)
@@ -67,36 +73,70 @@ pub(crate) async fn backfill_decode_headers_route(
             }
             // Re-index unconditionally — the Meili document may hold
             // encoded runes even where the row is already clean (older
-            // index generations). index_meili decodes defensively too.
-            crate::live_sync::index_meili(
-                user,
+            // index generations), and prod was missing ~half its docs
+            // outright from years of dropped fire-and-forget writes.
+            batch.push(crate::live_sync::meili_doc(
                 &row.thread_id,
                 &row.subject,
                 &row.senders_csv,
                 &row.latest_preview,
                 row.latest_date,
-            );
-            reindexed += 1;
-            // Meili's task queue chokes on a tight firehose — same
-            // pacing as the old backfill-meili binary.
-            if reindexed.is_multiple_of(500) {
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            ));
+            if batch.len() >= MEILI_BATCH {
+                match flush_meili(user, &batch).await {
+                    Ok(n) => reindexed += n,
+                    Err(n) => index_failures += n,
+                }
+                batch.clear();
             }
+        }
+        match flush_meili(user, &batch).await {
+            Ok(n) => reindexed += n,
+            Err(n) => index_failures += n,
         }
     }
     let contacts_repaired = scrub_contact_hashes(&users);
     tracing::info!(
         rows_decoded,
         reindexed,
+        index_failures,
         contacts_repaired,
         "backfill-decode-headers complete"
     );
     Json(serde_json::json!({
         "rows_decoded": rows_decoded,
         "meili_reindexed": reindexed,
+        "meili_failed": index_failures,
         "contacts_repaired": contacts_repaired,
     }))
     .into_response()
+}
+
+/// POST one batch synchronously off the async runtime. `Ok(n)` = n
+/// documents accepted, `Err(n)` = n documents lost (logged, counted —
+/// never silently dropped, which is how the index rotted in the first
+/// place).
+async fn flush_meili(user: &str, batch: &[serde_json::Value]) -> Result<u64, u64> {
+    if batch.is_empty() {
+        return Ok(0);
+    }
+    let n = batch.len() as u64;
+    let user = user.to_string();
+    let docs = batch.to_vec();
+    let res =
+        tokio::task::spawn_blocking(move || crate::live_sync::index_meili_batch(&user, &docs))
+            .await;
+    match res {
+        Ok(Ok(())) => Ok(n),
+        Ok(Err(e)) => {
+            tracing::warn!(err = %e, docs = n, "decode backfill: meili batch failed");
+            Err(n)
+        }
+        Err(e) => {
+            tracing::warn!(err = %e, docs = n, "decode backfill: meili batch task panicked");
+            Err(n)
+        }
+    }
 }
 
 /// Scrub `=?…?=` runes left in the per-user contact hashes on network
