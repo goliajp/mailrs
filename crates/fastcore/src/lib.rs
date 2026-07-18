@@ -576,8 +576,10 @@ pub(crate) fn extract_headers(
                     .collect();
             }
             "subject" => subject = mailrs_rfc2047::decode(val.as_bytes()).into_owned(),
-            "from" => from = val.to_string(),
-            "to" => to = val.to_string(),
+            // display-name part of address headers is rfc2047-encoded by
+            // many senders — decode here so stores never hold =?..?= runes
+            "from" => from = mailrs_rfc2047::decode(val.as_bytes()).into_owned(),
+            "to" => to = mailrs_rfc2047::decode(val.as_bytes()).into_owned(),
             "date" => date_epoch = parse_rfc5322_date(val).unwrap_or(0),
             _ => {}
         }

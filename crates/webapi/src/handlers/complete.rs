@@ -469,7 +469,7 @@ pub async fn get_message_single(
     // matching rationale.
     Ok(Json(serde_json::json!({
         "uid": w.uid,
-        "sender": w.sender,
+        "sender": mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
         "recipients": w.recipients,
         "subject": w.subject,
         "internal_date": w.internal_date,

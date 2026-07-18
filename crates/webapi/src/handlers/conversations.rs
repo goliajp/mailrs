@@ -100,7 +100,9 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             importance_level: w.importance_level,
             importance_score: w.importance_score,
             requires_action: w.requires_action,
-            last_sender: w.last_sender,
+            // idempotent rfc2047 pass: rows ingested before the from/to
+            // decode fix (fastcore lib.rs) still hold =?..?= runes
+            last_sender: mailrs_rfc2047::decode(w.last_sender.as_bytes()).into_owned(),
             received_count,
             sent_count: w.sent_count,
         }
@@ -195,7 +197,8 @@ impl ThreadMessageResponse {
     fn from_wire_no_body(w: mailrs_core_api::method::message::MessageWire) -> Self {
         Self {
             uid: w.uid,
-            sender: w.sender,
+            // idempotent rfc2047 pass for pre-fix rows (see summary conv)
+            sender: mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
             recipients: w.recipients,
             cc: None,
             subject: w.subject,
