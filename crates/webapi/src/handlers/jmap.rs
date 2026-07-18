@@ -77,7 +77,7 @@ fn bridge_wire_to_jmap(w: mailrs_core_api::method::message::MessageWire) -> Jmap
         mailbox_id: w.mailbox_id,
         uid: w.uid,
         sender: mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
-        recipients: w.recipients,
+        recipients: mailrs_rfc2047::decode(w.recipients.as_bytes()).into_owned(),
         subject: w.subject,
         date: w.date,
         size: w.size,

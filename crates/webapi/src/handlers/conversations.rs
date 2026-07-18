@@ -81,7 +81,7 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
         let participants: Vec<String> = w
             .participants
             .split(',')
-            .map(|s| s.trim().to_string())
+            .map(|s| mailrs_rfc2047::decode(s.trim().as_bytes()).into_owned())
             .filter(|s| !s.is_empty())
             .collect();
         let received_count = w.message_count.saturating_sub(w.sent_count);
@@ -199,7 +199,7 @@ impl ThreadMessageResponse {
             uid: w.uid,
             // idempotent rfc2047 pass for pre-fix rows (see summary conv)
             sender: mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
-            recipients: w.recipients,
+            recipients: mailrs_rfc2047::decode(w.recipients.as_bytes()).into_owned(),
             cc: None,
             subject: w.subject,
             flags: w.flags,
