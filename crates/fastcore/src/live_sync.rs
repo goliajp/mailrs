@@ -76,9 +76,67 @@ pub fn upsert_contacts(user: &str, senders_csv: &str) {
     let _ = conn.hset(key.as_bytes(), &refs);
 }
 
+/// Build the Meili document for one thread aggregate.
+///
+/// Write-side guard (2026-07-18): decode encoded-words so callers
+/// holding pre-decode-era values (old thread rows, backfills) index
+/// searchable text, not `=?UTF-8?B?…?=` runes. Idempotent.
+pub fn meili_doc(
+    thread_id: &str,
+    subject: &str,
+    senders_csv: &str,
+    snippet: &str,
+    latest_date: i64,
+) -> serde_json::Value {
+    // Meili primary keys must match ^[a-zA-Z0-9_-]{1,511}$; real
+    // thread_ids carry @ . = / which Meili rejects — so every document
+    // POSTed with thread_id-as-key was silently 400'd and NOTHING got
+    // indexed. Use a sanitized `id` as the key + keep thread_id for
+    // retrieval. primaryKey=id is set explicitly on the URL.
+    serde_json::json!({
+        "id": meili_doc_id(thread_id),
+        "thread_id": thread_id,
+        "subject": mailrs_rfc2047::decode(subject.as_bytes()).into_owned(),
+        "participants": mailrs_rfc2047::decode(senders_csv.as_bytes()).into_owned(),
+        "snippet": snippet,
+        "last_date": latest_date,
+    })
+}
+
+/// POST a batch of documents to the user's index, synchronously, and
+/// report whether Meili accepted them.
+///
+/// Bulk callers MUST use this rather than looping [`index_meili`]:
+/// that one spawns a detached thread per document, and firing tens of
+/// thousands of them races the connection pool — the 2026-07-18
+/// decode backfill lost ~4% of its writes that way with no error
+/// surfaced anywhere (errors are dropped by design on the live path).
+pub fn index_meili_batch(user: &str, docs: &[serde_json::Value]) -> std::io::Result<()> {
+    if docs.is_empty() {
+        return Ok(());
+    }
+    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
+        return Ok(());
+    };
+    let url = format!(
+        "{base}/indexes/{}/documents?primaryKey=id",
+        meili_index(user)
+    );
+    let body = serde_json::Value::Array(docs.to_vec()).to_string();
+    ureq_client()
+        .post(&url)
+        .set("content-type", "application/json")
+        .set("Authorization", &meili_auth_header())
+        .send_string(&body)
+        .map(|_| ())
+        .map_err(|e| std::io::Error::other(e.to_string()))
+}
+
 /// Push one thread aggregate to Meili as a searchable document.
 /// Skipped when `MAILRS_MEILI_URL` is unset. Best-effort HTTP POST; a
-/// failed request is a debug log.
+/// failed request is dropped silently — this is the live ingest path,
+/// where losing a search-index write must never fail a delivery. For
+/// bulk work use [`index_meili_batch`], which reports failures.
 pub fn index_meili(
     user: &str,
     thread_id: &str,
@@ -90,26 +148,19 @@ pub fn index_meili(
     let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
         return;
     };
-    let index = meili_index(user);
-    // Meili primary keys must match ^[a-zA-Z0-9_-]{1,511}$; real
-    // thread_ids carry @ . = / which Meili rejects — so every document
-    // POSTed with thread_id-as-key was silently 400'd and NOTHING got
-    // indexed. Use a sanitized `id` as the key + keep thread_id for
-    // retrieval. primaryKey=id is set explicitly on the URL.
-    let url = format!("{base}/indexes/{index}/documents?primaryKey=id");
-    // Write-side guard (2026-07-18): decode encoded-words so callers
-    // holding pre-decode-era values (old thread rows, backfills) index
-    // searchable text, not `=?UTF-8?B?…?=` runes. Idempotent.
-    let doc = serde_json::json!([{
-        "id": meili_doc_id(thread_id),
-        "thread_id": thread_id,
-        "subject": mailrs_rfc2047::decode(subject.as_bytes()).into_owned(),
-        "participants": mailrs_rfc2047::decode(senders_csv.as_bytes()).into_owned(),
-        "snippet": snippet,
-        "last_date": latest_date,
-    }]);
-    let body = doc.to_string();
-    // Fire-and-forget on a blocking pool thread to avoid pulling reqwest
+    let url = format!(
+        "{base}/indexes/{}/documents?primaryKey=id",
+        meili_index(user)
+    );
+    let body = serde_json::Value::Array(vec![meili_doc(
+        thread_id,
+        subject,
+        senders_csv,
+        snippet,
+        latest_date,
+    )])
+    .to_string();
+    // Fire-and-forget on a detached thread to avoid pulling reqwest
     // into the caller's Send bounds. Meili indexing is not on the hot
     // read path.
     std::thread::spawn(move || {
