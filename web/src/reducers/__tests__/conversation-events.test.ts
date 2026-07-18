@@ -23,7 +23,6 @@ function makeConvo(id: string, unread: number, lastDate = 100): ConversationSumm
     folder: 'INBOX',
     importance_level: 'low',
     last_date: lastDate,
-    last_sender: '',
     message_count: 1,
     participants: [],
     pinned: false,

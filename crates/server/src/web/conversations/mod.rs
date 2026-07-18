@@ -45,6 +45,10 @@ pub(crate) struct ConversationResponse {
     pub importance_level: String,
     pub importance_score: f32,
     pub requires_action: bool,
+    /// **DEPRECATED (2026-07-18).** No frontend consumer — the UI
+    /// renders `participants`. Removed from the fastcore wire
+    /// (`ConversationSummaryWire`); kept here only to avoid re-indexing
+    /// the PG projection tuple. Do not add new readers.
     pub last_sender: String,
     pub received_count: u32,
     pub sent_count: u32,

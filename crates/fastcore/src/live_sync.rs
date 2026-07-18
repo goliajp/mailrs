@@ -49,7 +49,12 @@ pub fn parse_senders(csv: &str) -> Vec<(String, String)> {
 /// Push each parsed (email, display) into `mailrs:user:<user>:contacts`
 /// in the network kevy. Best-effort; unreachable kevy just skips.
 pub fn upsert_contacts(user: &str, senders_csv: &str) {
-    let parsed = parse_senders(senders_csv);
+    // Write-side guard (2026-07-18): decode RFC 2047 encoded-words here
+    // so a caller feeding a pre-decode-era senders_csv (old thread rows,
+    // backfills) can't poison the contact store with `=?…?=` display
+    // names again. Idempotent on already-decoded input.
+    let decoded = mailrs_rfc2047::decode(senders_csv.as_bytes()).into_owned();
+    let parsed = parse_senders(&decoded);
     if parsed.is_empty() {
         return;
     }
@@ -92,11 +97,14 @@ pub fn index_meili(
     // indexed. Use a sanitized `id` as the key + keep thread_id for
     // retrieval. primaryKey=id is set explicitly on the URL.
     let url = format!("{base}/indexes/{index}/documents?primaryKey=id");
+    // Write-side guard (2026-07-18): decode encoded-words so callers
+    // holding pre-decode-era values (old thread rows, backfills) index
+    // searchable text, not `=?UTF-8?B?…?=` runes. Idempotent.
     let doc = serde_json::json!([{
         "id": meili_doc_id(thread_id),
         "thread_id": thread_id,
-        "subject": subject,
-        "participants": senders_csv,
+        "subject": mailrs_rfc2047::decode(subject.as_bytes()).into_owned(),
+        "participants": mailrs_rfc2047::decode(senders_csv.as_bytes()).into_owned(),
         "snippet": snippet,
         "last_date": latest_date,
     }]);

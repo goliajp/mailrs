@@ -80,7 +80,6 @@ function liftAndPatch(
   const patched: ConversationSummary = {
     ...existing,
     last_date: Math.floor(Date.now() / 1000),
-    last_sender: event.sender,
     message_count: existing.message_count + 1,
     received_count: existing.received_count + 1,
     snippet: event.snippet,

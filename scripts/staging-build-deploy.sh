@@ -69,9 +69,10 @@ docker compose -p mailrs-staging -f docker-compose.staging.yml up -d --remove-or
 echo "==> [4/4] health gate"
 ssh "$HOST" 'for i in $(seq 1 36); do
   ok=1
-  curl -fsS --max-time 5 http://127.0.0.1:3201/v1/healthz | grep -q "\"backend\":\"kevy\"" || ok=0
-  [ "$ok" = 1 ] && curl -fsS --max-time 5 http://127.0.0.1:3103/_health >/dev/null || ok=0
-  if [ "$ok" = 1 ]; then echo "staging healthy"; exit 0; fi
+  curl -fsS --max-time 5 http://127.0.0.1:3201/v1/healthz 2>/dev/null | grep -q "\"backend\":\"kevy\"" || ok=0
+  [ "$ok" = 1 ] && curl -fsS --max-time 5 http://127.0.0.1:3103/_health >/dev/null 2>&1 || ok=0
+  if [ "$ok" = 1 ]; then echo "staging healthy (:3201 + :3103, attempt $i/36)"; exit 0; fi
+  echo "  health attempt $i/36 not ready yet"
   sleep 5
 done
 echo "health check FAILED" >&2

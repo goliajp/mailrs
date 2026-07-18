@@ -77,7 +77,6 @@ function makeConvo(id: string, over: Partial<ConversationSummary> = {}): Convers
     importance_level: 'normal',
     importance_score: 0,
     last_date: 100,
-    last_sender: 'a@x',
     message_count: 1,
     participants: [],
     pinned: false,

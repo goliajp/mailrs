@@ -16,7 +16,6 @@ function makeConvo(id: string, unread = 0, lastDate = 100): ConversationSummary 
     flagged: false,
     folder: 'INBOX',
     last_date: lastDate,
-    last_sender: '',
     message_count: 1,
     participants: [],
     pinned: false,

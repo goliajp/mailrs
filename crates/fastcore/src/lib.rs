@@ -19,6 +19,7 @@
 
 mod acme_task;
 mod aof_compact;
+mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
 mod imap;
@@ -1439,6 +1440,10 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 get(find_thread_by_message_id),
             )
             .route(th::PATH_BACKFILL_THREADING, post(backfill_threading_route))
+            .route(
+                "/v1/admin/backfill-decode-headers",
+                post(backfill_decode::backfill_decode_headers_route),
+            )
             .route("/v1/admin/threads:split-message", post(split_message_route))
             .route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
@@ -1800,7 +1805,6 @@ fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         importance_level: r.importance_level,
         importance_score: r.importance_score as f32,
         requires_action: r.requires_action,
-        last_sender: String::new(), // not yet tracked on the kevy row
         sent_count: r.sent_count.max(0) as u32,
     }
 }

@@ -71,7 +71,6 @@ pub struct ConversationResponse {
     pub importance_level: String,
     pub importance_score: f32,
     pub requires_action: bool,
-    pub last_sender: String,
     pub received_count: u32,
     pub sent_count: u32,
 }
@@ -102,7 +101,6 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             requires_action: w.requires_action,
             // idempotent rfc2047 pass: rows ingested before the from/to
             // decode fix (fastcore lib.rs) still hold =?..?= runes
-            last_sender: mailrs_rfc2047::decode(w.last_sender.as_bytes()).into_owned(),
             received_count,
             sent_count: w.sent_count,
         }

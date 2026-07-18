@@ -1321,9 +1321,100 @@ pub async fn delete_agent_key(
     let key = format!("agent:keys:{user}");
     with_kevy(move |c| {
         c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
+        // Also drop the secret index so revoked keys don't accumulate
+        // forever. The record doesn't store the secret, so scan the
+        // (single-digit-count) index keys for the matching {user,id}.
+        let target = serde_json::json!({ "user": user, "id": id });
+        for idx_key in c.keys(b"agent:key:secret:*")? {
+            let Some(raw) = c.get(&idx_key)? else {
+                continue;
+            };
+            let matches = serde_json::from_slice::<serde_json::Value>(&raw)
+                .map(|v| v == target)
+                .unwrap_or(false);
+            if matches {
+                c.del(&[idx_key.as_slice()])?;
+            }
+        }
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /api/agent/keys:migrate-legacy — one-shot repair for secret
+/// indexes written before v2.9.17 (bare-numeric id, no owner). The
+/// bare id is a per-user counter, so the owner is recovered by
+/// matching the index key's `mk_<8-hex>` prefix against the `prefix`
+/// field stored on each user's key records. Idempotent; indexes whose
+/// prefix matches no record are dropped (their key was revoked).
+pub async fn migrate_legacy_agent_key_indexes(
+    Extension(AuthedUser(_user)): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let (migrated, dropped) = with_kevy(move |c| {
+        // prefix -> (user, id) from every user's key records
+        let mut by_prefix: std::collections::HashMap<String, (String, i64)> =
+            std::collections::HashMap::new();
+        for hkey in c.keys(b"agent:keys:*")? {
+            let Ok(hkey_str) = std::str::from_utf8(&hkey) else {
+                continue;
+            };
+            let Some(owner) = hkey_str.strip_prefix("agent:keys:") else {
+                continue;
+            };
+            // skip the counter keys (agent:keys:counter:<user>)
+            if owner.starts_with("counter:") {
+                continue;
+            }
+            let owner = owner.to_string();
+            for v in hgetall_values(c, hkey_str)? {
+                let Ok(rec) = serde_json::from_slice::<serde_json::Value>(&v) else {
+                    continue;
+                };
+                let (Some(prefix), Some(id)) = (rec["prefix"].as_str(), rec["id"].as_i64()) else {
+                    continue;
+                };
+                by_prefix.insert(prefix.to_string(), (owner.clone(), id));
+            }
+        }
+        let mut migrated = 0u32;
+        let mut dropped = 0u32;
+        for idx_key in c.keys(b"agent:key:secret:*")? {
+            let Some(raw) = c.get(&idx_key)? else {
+                continue;
+            };
+            // already-migrated indexes parse as {user,id} — skip
+            if serde_json::from_slice::<serde_json::Value>(&raw)
+                .map(|v| v.get("user").is_some())
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let Ok(idx_str) = std::str::from_utf8(&idx_key) else {
+                continue;
+            };
+            let Some(secret) = idx_str.strip_prefix("agent:key:secret:") else {
+                continue;
+            };
+            let prefix = &secret[..secret.len().min(8)];
+            match by_prefix.get(prefix) {
+                Some((owner, id)) => {
+                    let val = serde_json::json!({ "user": owner, "id": id });
+                    c.set(&idx_key, val.to_string().as_bytes())?;
+                    migrated += 1;
+                }
+                None => {
+                    // no live record carries this prefix — the key was
+                    // revoked; drop the dangling index
+                    c.del(&[idx_key.as_slice()])?;
+                    dropped += 1;
+                }
+            }
+        }
+        Ok((migrated, dropped))
+    })?;
+    Ok(Json(
+        serde_json::json!({ "migrated": migrated, "dropped": dropped }),
+    ))
 }
 
 pub async fn list_agent_webhooks(

@@ -31,6 +31,20 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
+# Surface the PREVIOUS soak verdict before overwriting it with this
+# deploy's kick. Direct-deploy doesn't gate on soak (user decision
+# 2026-07-18: default is direct), but shipping on top of a failed or
+# never-read verdict should at least be a loud, conscious act.
+PREV_SOAK=$(ssh t01 'cat /var/run/staging-gate.json 2>/dev/null' || true)
+if [ -z "$PREV_SOAK" ]; then
+    echo "!! WARNING: no previous staging soak verdict found — deploying anyway"
+elif ! printf '%s' "$PREV_SOAK" | grep -q '"pass": *true'; then
+    echo "!! WARNING: previous staging soak verdict was NOT pass — deploying anyway:"
+    printf '    %s\n' "$PREV_SOAK"
+else
+    echo "==> previous staging soak: pass=true ($(printf '%s' "$PREV_SOAK" | grep -o '"sha": *"[^"]*"' || true))"
+fi
+
 if [ "${SKIP_BUILD:-0}" != 1 ]; then
     echo "==> [1/5] local arm64 build ($VERSION)"
     docker buildx build \
@@ -61,12 +75,14 @@ SKIP_BUILD=1 ./scripts/staging-build-deploy.sh
 
 echo "==> [5/5] verify prod"
 for i in $(seq 1 90); do
-    if ssh "$PROD" "docker exec mailrs-fastcore curl -sf -m3 http://localhost:3301/v1/admin/maintenance:rewrite-aof -X GET -o /dev/null" 2>/dev/null; then
+    # any 2xx-4xx means the router is up; only connection failures loop
+    CODE=$(ssh "$PROD" "docker exec mailrs-fastcore curl -s -m3 -o /dev/null -w '%{http_code}' http://localhost:3301/healthz" 2>/dev/null || true)
+    if printf '%s' "$CODE" | grep -qE '^[0-9]+$' && [ "$CODE" != "000" ]; then
+        echo "    fastcore :3301 up (healthz=$CODE, attempt $i/90)"
         break
     fi
-    # any 2xx-4xx means the router is up; only connection failures loop
-    if ssh "$PROD" "docker exec mailrs-fastcore curl -s -m3 -o /dev/null -w '%{http_code}' http://localhost:3301/healthz" 2>/dev/null | grep -qE '^[0-9]'; then
-        break
+    if [ "$i" = 90 ]; then
+        echo "!! fastcore :3301 never came up after 90 attempts — investigate"
     fi
     sleep 2
 done
