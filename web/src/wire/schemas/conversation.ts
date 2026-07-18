@@ -27,7 +27,7 @@ export const wireParticipantSchema = z.string()
  *
  * v2.1 Phase A §7 (2026-07-08): expanded to full ConversationSummary
  * coverage. Prior 14-field version dropped archived / importance_score
- * / last_sender / received_count / sent_count — enough downstream
+ * / received_count / sent_count — enough downstream
  * damage to make swapping in `wireFetch` unsafe. Regenerating this
  * from the Rust wire type is a §D task; for now grep
  * `types.ts::ConversationSummary` to sync.
@@ -40,7 +40,6 @@ export const wireThreadSummarySchema = z.object({
   importance_level: z.string().default('normal'),
   importance_score: z.number().default(0),
   last_date: z.number().default(0),
-  last_sender: z.string().default(''),
   message_count: z.number().int().min(0).default(0),
   participants: z.array(wireParticipantSchema).default([]),
   pinned: z.boolean().default(false),

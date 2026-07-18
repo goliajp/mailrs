@@ -59,29 +59,76 @@ struct AgentKeyIndex {
     id: i64,
 }
 
-/// Resolve an `mk_` bearer key to its owning account address, or `None`
-/// if the key is unknown or its record was deleted (revoked).
-async fn resolve_agent_key(kevy_url: String, token: String) -> Option<String> {
-    tokio::task::spawn_blocking(move || -> std::io::Result<Option<String>> {
+/// The scopes stored on the key record. Empty = full owner access
+/// (user decision 2026-07-18: existing keys keep working); a non-empty
+/// list is enforced — see [`agent_scopes_allow`].
+#[derive(Debug, Deserialize)]
+struct AgentKeyRecord {
+    #[serde(default)]
+    scopes: Vec<String>,
+}
+
+/// An authenticated agent key: owner + its (possibly empty) scope set.
+pub struct AgentAuth {
+    pub user: String,
+    pub scopes: Vec<String>,
+}
+
+/// Scope vocabulary: `admin` (everything), `mail:write` (read + write,
+/// no /api/admin), `mail:read` (GET/HEAD only, no /api/admin). An empty
+/// scope list grants full owner access.
+fn agent_scopes_allow(scopes: &[String], method: &axum::http::Method, path: &str) -> bool {
+    if scopes.is_empty() || scopes.iter().any(|s| s == "admin") {
+        return true;
+    }
+    if path.starts_with("/api/admin") {
+        return false;
+    }
+    let read_only = matches!(*method, axum::http::Method::GET | axum::http::Method::HEAD);
+    if scopes.iter().any(|s| s == "mail:write") {
+        return true;
+    }
+    scopes.iter().any(|s| s == "mail:read") && read_only
+}
+
+/// Resolve an `mk_` bearer key to its owning account + scopes, or
+/// `None` if the key is unknown or its record was deleted (revoked).
+/// Emits a debug-level reason on every rejection branch so a 401 in
+/// prod is diagnosable from logs (`agent_key_miss` /
+/// `agent_key_legacy_index` / `agent_key_revoked`).
+async fn resolve_agent_key(kevy_url: String, token: String) -> Option<AgentAuth> {
+    tokio::task::spawn_blocking(move || -> std::io::Result<Option<AgentAuth>> {
         let mut client = kevy_client::Connection::open(&kevy_url)?;
         let index_key = format!("{AGENT_KEY_INDEX_PREFIX}{token}");
         let Some(raw) = client.get(index_key.as_bytes())? else {
+            tracing::debug!(reason = "agent_key_miss", "agent key rejected");
             return Ok(None);
         };
-        let Ok(index) = serde_json::from_slice::<AgentKeyIndex>(&raw) else {
-            // legacy index format (bare id, pre user-mapping) — cannot
-            // resolve an owner, treat as invalid; re-creating the key
-            // migrates it
-            return Ok(None);
+        let index = match serde_json::from_slice::<AgentKeyIndex>(&raw) {
+            Ok(i) => i,
+            Err(_) => {
+                // legacy index format (bare id, pre user-mapping) —
+                // cannot resolve an owner, treat as invalid;
+                // re-creating the key migrates it
+                tracing::debug!(reason = "agent_key_legacy_index", "agent key rejected");
+                return Ok(None);
+            }
         };
         // revocation check: the key is valid only while its record is
         // still present in the owner's hash (delete_agent_key removes it)
         let hash_key = format!("agent:keys:{}", index.user);
-        let record = client.hget(hash_key.as_bytes(), index.id.to_string().as_bytes())?;
-        if record.is_none() {
+        let Some(record) = client.hget(hash_key.as_bytes(), index.id.to_string().as_bytes())?
+        else {
+            tracing::debug!(reason = "agent_key_revoked", user = %index.user, "agent key rejected");
             return Ok(None);
-        }
-        Ok(Some(index.user))
+        };
+        let scopes = serde_json::from_slice::<AgentKeyRecord>(&record)
+            .map(|r| r.scopes)
+            .unwrap_or_default();
+        Ok(Some(AgentAuth {
+            user: index.user,
+            scopes,
+        }))
     })
     .await
     .ok()?
@@ -109,7 +156,7 @@ pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
     let uri = axum::http::Uri::from_static("/mcp");
     let token = extract_token(headers, &uri)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
-        return resolve_agent_key(kevy_url, token).await;
+        return resolve_agent_key(kevy_url, token).await.map(|a| a.user);
     }
     let session = resolve_session(kevy_url, token).await?;
     Some(session.address)
@@ -224,24 +271,41 @@ pub async fn session_auth_middleware(
 
     let token = match extract_token(req.headers(), req.uri()) {
         Some(t) => t,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => {
+            tracing::debug!(reason = "no_token", path = %req.uri().path(), "request rejected");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     };
 
     // agent API key (mk_…) — machine callers with no browser session
     if token.starts_with(AGENT_KEY_PREFIX) {
-        let user = match resolve_agent_key(kevy_url, token).await {
-            Some(u) => u,
+        let auth = match resolve_agent_key(kevy_url, token).await {
+            Some(a) => a,
             None => return Err(StatusCode::UNAUTHORIZED),
         };
+        if !agent_scopes_allow(&auth.scopes, req.method(), req.uri().path()) {
+            tracing::debug!(
+                reason = "agent_key_scope",
+                user = %auth.user,
+                scopes = ?auth.scopes,
+                method = %req.method(),
+                path = %req.uri().path(),
+                "agent key denied by scopes"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
         req.extensions_mut()
             .insert(crate::handlers::conversations::AuthedDisplayName::default());
-        req.extensions_mut().insert(AuthedUser(user));
+        req.extensions_mut().insert(AuthedUser(auth.user));
         return Ok(next.run(req).await);
     }
 
     let session = match resolve_session(kevy_url, token).await {
         Some(s) => s,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => {
+            tracing::debug!(reason = "session_miss", path = %req.uri().path(), "request rejected");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     };
 
     req.extensions_mut()
@@ -312,6 +376,84 @@ mod tests {
         // pre user-mapping index stored the bare id — must fail to parse
         // so the middleware treats the key as invalid instead of panicking
         assert!(serde_json::from_slice::<AgentKeyIndex>(b"7").is_err());
+    }
+
+    #[test]
+    fn empty_scopes_grant_full_access() {
+        let m = axum::http::Method::POST;
+        assert!(agent_scopes_allow(&[], &m, "/api/admin/domains"));
+        assert!(agent_scopes_allow(
+            &[],
+            &axum::http::Method::GET,
+            "/api/conversations"
+        ));
+    }
+
+    #[test]
+    fn admin_scope_grants_everything() {
+        let scopes = vec!["admin".to_string()];
+        assert!(agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::DELETE,
+            "/api/admin/aliases/x"
+        ));
+    }
+
+    #[test]
+    fn mail_read_is_get_only_and_never_admin() {
+        let scopes = vec!["mail:read".to_string()];
+        assert!(agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::GET,
+            "/api/conversations"
+        ));
+        assert!(!agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::POST,
+            "/api/mail/send"
+        ));
+        assert!(!agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::GET,
+            "/api/admin/accounts"
+        ));
+    }
+
+    #[test]
+    fn mail_write_allows_writes_but_not_admin() {
+        let scopes = vec!["mail:write".to_string()];
+        assert!(agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::POST,
+            "/api/mail/send"
+        ));
+        assert!(agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::GET,
+            "/api/conversations"
+        ));
+        assert!(!agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::GET,
+            "/api/admin/accounts"
+        ));
+    }
+
+    #[test]
+    fn unknown_scope_denies_writes() {
+        // a key created with scopes: ["read"] (not in the vocabulary)
+        // must not silently gain write access
+        let scopes = vec!["read".to_string()];
+        assert!(!agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::POST,
+            "/api/mail/send"
+        ));
+        assert!(!agent_scopes_allow(
+            &scopes,
+            &axum::http::Method::GET,
+            "/api/conversations"
+        ));
     }
 
     #[test]

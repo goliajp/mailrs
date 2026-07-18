@@ -6,8 +6,10 @@ a modern conversational email interface.
 
 ## Architecture
 
-mailrs is organized as a Cargo workspace with **44 crates** — 1 server
-binary + **43 reusable library crates** (42 of them published on
+mailrs is organized as a Cargo workspace with **61 crates** — 5 binary
+crates (`mailrs-server`, `mailrs-fastcore`, `mailrs-webapi`,
+`mailrs-receiver`, `mailrs-fastcore-sender`) plus **56 reusable library
+crates** (most published on
 [crates.io](https://crates.io/users/golia-jp)).
 
 These library crates cover the full email-protocol + auth stack and are
@@ -64,8 +66,8 @@ Cross-language harness (with C / Go runners): `bench-harness/`.
 
 ### Quality posture
 
-- **Tests**: ~1500 across the workspace; every published crate ≥ 30 tests/kloc.
-- **Fuzz**: 13 libFuzzer targets across 8 parsers (`smtp-proto`, `imap-proto`, `rfc5322`, `rfc2047`, `mime`, `dkim`, `spf`, `ical`). **~120M iterations run cumulatively, 1 real bug caught + fixed** (`rfc2047::encode` roundtrip on inputs containing `=?`).
+- **Tests**: ~4300 across the workspace; every published crate ≥ 30 tests/kloc.
+- **Fuzz**: 33 libFuzzer targets across 24 crates (parsers, codecs, auth, storage — see each crate's `fuzz/`). **~120M iterations run cumulatively, 1 real bug caught + fixed** (`rfc2047::encode` roundtrip on inputs containing `=?`).
 - **Property tests**: 9 proptest cases on rfc2047, rfc2231, srs encoder/decoder roundtrips.
 - **Cross-competitor benches**: 8 head-to-head benches against `mail-auth` (×2), `mail-parser` (×3), `icalendar`, `governor`, `exponential-backoff`, `smtp-codec`, `imap-codec`.
 - **Build hygiene**: `#[deny(warnings)]` + `#[deny(clippy::all)]` workspace-wide; `#![deny(missing_docs)]` on every published crate.
@@ -100,7 +102,7 @@ React 19 + TypeScript + Vite + Tailwind CSS 4 + Jotai for state management. Real
 - **CalDAV/CardDAV** — Calendar and contact sync for Thunderbird, Apple Calendar/Contacts
 - **ManageSieve** — Remote Sieve script management (RFC 5804)
 - **Web UI** — Conversational email interface with real-time WebSocket updates
-- **MCP** — Model Context Protocol server with 52 tools for AI agent integration
+- **MCP** — Model Context Protocol server with 60+ tools for AI agent integration (61 on the fastcore lane, 62 on the monolith)
 - **Security** — Greylisting, DNSBL, rate limiting, MTA-STS, TOTP 2FA
 - **Delivery** — Outbound queue with retry logic and DSN (bounce) generation
 - **Sieve** — Server-side mail filtering

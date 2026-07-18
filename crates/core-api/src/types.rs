@@ -91,7 +91,6 @@ pub struct ConversationSummaryWire {
     pub importance_level: String,
     pub importance_score: f32,
     pub requires_action: bool,
-    pub last_sender: String,
     pub sent_count: u32,
 }
 
@@ -112,7 +111,6 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             importance_level: s.importance_level.clone(),
             importance_score: s.importance_score,
             requires_action: s.requires_action,
-            last_sender: s.last_sender.clone(),
             sent_count: s.sent_count,
         }
     }
@@ -225,7 +223,6 @@ mod tests {
             importance_level: "important".into(),
             importance_score: 0.8,
             requires_action: true,
-            last_sender: "a@x.com".into(),
             sent_count: 0,
         };
         let s = serde_json::to_string(&w).unwrap();

@@ -531,7 +531,6 @@ describe('useMailEvents', () => {
       importance_level: string
       importance_score: number
       last_date: number
-      last_sender: string
       message_count: number
       participants: string[]
       pinned: boolean
@@ -550,7 +549,6 @@ describe('useMailEvents', () => {
       importance_level: 'normal',
       importance_score: 0,
       last_date: 100,
-      last_sender: 'a@x.com',
       message_count: 2,
       participants: ['a@x.com', 'b@x.com'],
       pinned: false,

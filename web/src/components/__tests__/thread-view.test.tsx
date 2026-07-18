@@ -145,7 +145,6 @@ function makeConversation(overrides: Partial<ConversationSummary> = {}): Convers
     importance_level: 'normal',
     importance_score: 0.3,
     last_date: Math.floor(Date.now() / 1000),
-    last_sender: 'alice@example.com',
     message_count: 1,
     participants: ['alice@example.com'],
     pinned: false,

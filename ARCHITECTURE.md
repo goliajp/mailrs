@@ -1,6 +1,6 @@
 # Architecture
 
-mailrs is a Cargo workspace of **59 crates** — the reusable library crates
+mailrs is a Cargo workspace of **61 crates** — the reusable library crates
 (most of them published on [crates.io](https://crates.io/users/golia-jp))
 plus five binary crates that wire them into a deployable mail server:
 `mailrs-server` (legacy monolith, retained for staging as the spg-dogfood
