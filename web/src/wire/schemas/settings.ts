@@ -17,6 +17,14 @@ const wireIdSchema = z.union([z.string(), z.number()]).transform((v) => String(v
 const wireTimestampSchema = z.union([z.string(), z.number()]).nullish()
 
 // ── agent API keys ──────────────────────────────────────────────
+//
+// Backend: crates/webapi/src/handlers/complete.rs — list_agent_keys /
+// create_agent_key. Row shape (verified against prod network kevy
+// 2026-07-18): {id: i64, name: String, scopes: Vec<String>, created_at:
+// i64, prefix: String}. `scopes` is an ARRAY — declaring it z.string()
+// failed every parse and blanked the list ("No API keys" while the key
+// existed). The transform doesn't surface scopes, so it stays
+// undeclared under .passthrough().
 
 const rawAgentKeySchema = z
   .object({
@@ -24,7 +32,6 @@ const rawAgentKeySchema = z
     id: wireIdSchema,
     name: z.string().default(''),
     prefix: z.string().default(''),
-    scopes: z.string().default(''),
   })
   .passthrough()
 
