@@ -45,6 +45,49 @@ const KEVY_URL_ENV: &str = "MAILRS_KEVY_URL";
 const SESSION_COOKIE: &str = "mailrs_session";
 const SESSION_KEY_PREFIX: &str = "session:";
 
+/// Agent API keys (`mk_…`, created via POST /api/agent/keys) are an
+/// alternative bearer credential for machine callers. The secret index
+/// `agent:key:secret:<key>` stores `{"user":…,"id":…}`; the key is live
+/// only while its record still exists in the `agent:keys:<user>` hash,
+/// so deletion revokes immediately even though the index lingers.
+const AGENT_KEY_PREFIX: &str = "mk_";
+const AGENT_KEY_INDEX_PREFIX: &str = "agent:key:secret:";
+
+#[derive(Debug, Deserialize)]
+struct AgentKeyIndex {
+    user: String,
+    id: i64,
+}
+
+/// Resolve an `mk_` bearer key to its owning account address, or `None`
+/// if the key is unknown or its record was deleted (revoked).
+async fn resolve_agent_key(kevy_url: String, token: String) -> Option<String> {
+    tokio::task::spawn_blocking(move || -> std::io::Result<Option<String>> {
+        let mut client = kevy_client::Connection::open(&kevy_url)?;
+        let index_key = format!("{AGENT_KEY_INDEX_PREFIX}{token}");
+        let Some(raw) = client.get(index_key.as_bytes())? else {
+            return Ok(None);
+        };
+        let Ok(index) = serde_json::from_slice::<AgentKeyIndex>(&raw) else {
+            // legacy index format (bare id, pre user-mapping) — cannot
+            // resolve an owner, treat as invalid; re-creating the key
+            // migrates it
+            return Ok(None);
+        };
+        // revocation check: the key is valid only while its record is
+        // still present in the owner's hash (delete_agent_key removes it)
+        let hash_key = format!("agent:keys:{}", index.user);
+        let record = client.hget(hash_key.as_bytes(), index.id.to_string().as_bytes())?;
+        if record.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(index.user))
+    })
+    .await
+    .ok()?
+    .ok()?
+}
+
 /// Extract session token from any of: `mailrs_session` cookie,
 /// `Authorization: Bearer <token>` header, or `?token=<hex>` query.
 /// The query variant is used by browser <img src> / <a href> which
@@ -65,6 +108,9 @@ pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
     };
     let uri = axum::http::Uri::from_static("/mcp");
     let token = extract_token(headers, &uri)?;
+    if token.starts_with(AGENT_KEY_PREFIX) {
+        return resolve_agent_key(kevy_url, token).await;
+    }
     let session = resolve_session(kevy_url, token).await?;
     Some(session.address)
 }
@@ -181,6 +227,18 @@ pub async fn session_auth_middleware(
         None => return Err(StatusCode::UNAUTHORIZED),
     };
 
+    // agent API key (mk_…) — machine callers with no browser session
+    if token.starts_with(AGENT_KEY_PREFIX) {
+        let user = match resolve_agent_key(kevy_url, token).await {
+            Some(u) => u,
+            None => return Err(StatusCode::UNAUTHORIZED),
+        };
+        req.extensions_mut()
+            .insert(crate::handlers::conversations::AuthedDisplayName::default());
+        req.extensions_mut().insert(AuthedUser(user));
+        return Ok(next.run(req).await);
+    }
+
     let session = match resolve_session(kevy_url, token).await {
         Some(s) => s,
         None => return Err(StatusCode::UNAUTHORIZED),
@@ -239,5 +297,31 @@ mod tests {
             extract_token(&m, &axum::http::Uri::from_static("/")).as_deref(),
             Some("")
         );
+    }
+
+    #[test]
+    fn agent_key_index_parses_user_and_id() {
+        let raw = br#"{"user":"lihao@golia.jp","id":3}"#;
+        let idx: AgentKeyIndex = serde_json::from_slice(raw).unwrap();
+        assert_eq!(idx.user, "lihao@golia.jp");
+        assert_eq!(idx.id, 3);
+    }
+
+    #[test]
+    fn agent_key_index_rejects_legacy_bare_id() {
+        // pre user-mapping index stored the bare id — must fail to parse
+        // so the middleware treats the key as invalid instead of panicking
+        assert!(serde_json::from_slice::<AgentKeyIndex>(b"7").is_err());
+    }
+
+    #[test]
+    fn bearer_agent_key_extracted_and_recognized() {
+        let mut m = HeaderMap::new();
+        m.insert(
+            axum::http::header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer mk_abcdef0123456789"),
+        );
+        let token = extract_token(&m, &axum::http::Uri::from_static("/")).unwrap();
+        assert!(token.starts_with(AGENT_KEY_PREFIX));
     }
 }
