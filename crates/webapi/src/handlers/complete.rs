@@ -470,7 +470,7 @@ pub async fn get_message_single(
     Ok(Json(serde_json::json!({
         "uid": w.uid,
         "sender": mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
-        "recipients": w.recipients,
+        "recipients": mailrs_rfc2047::decode(w.recipients.as_bytes()).into_owned(),
         "subject": w.subject,
         "internal_date": w.internal_date,
         "message_id": w.message_id,
