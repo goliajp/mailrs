@@ -71,7 +71,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore-backfill-contacts \
     && cargo build --release --bin mailrs-fastcore-backfill-uid-index \
     && cargo build --release --bin mailrs-fastcore-backfill-usage \
-    && cargo build --release --bin mailrs-fastcore-backfill-meili \
     && cargo build --release --bin mailrs-fastcore-backfill-junk-index \
     && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
@@ -86,7 +85,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
     && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
     && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
-    && cp /build/target/release/mailrs-fastcore-backfill-meili /usr/local/bin/mailrs-fastcore-backfill-meili \
     && cp /build/target/release/mailrs-fastcore-backfill-junk-index /usr/local/bin/mailrs-fastcore-backfill-junk-index \
     && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
     && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump \
@@ -145,7 +143,6 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-sent /usr/local
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-meili /usr/local/bin/mailrs-fastcore-backfill-meili
 # v2.4.3 Phase 4.3 (RFC-C): one-shot backfill of the Junk zset from
 # pre-cutover by_category:{spam,scam} rows. Idle after the single
 # `docker exec mailrs-fastcore mailrs-fastcore-backfill-junk-index`
