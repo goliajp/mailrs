@@ -1,0 +1,46 @@
+-- migrate-048: index messages.maildir_id on its own.
+--
+-- The reconcile sweep asks, once per maildir file:
+--
+--   SELECT id FROM messages WHERE maildir_id = $1 LIMIT 1
+--
+-- (crates/mailbox/src/pg/reconcile_ops.rs). Nothing indexed that column,
+-- so every call seq-scanned the whole table. Measured on staging
+-- 2026-07-19: 13.9 ms and 5,390 shared buffers per call, 48,608 rows
+-- removed by filter — against a 48k-row table, for a question that should
+-- be a sub-millisecond probe. With ~48.6k maildir files per sweep and an
+-- hourly sweep, that is ~11 minutes of pegged CPU every hour, and
+-- 309 BILLION cumulative rows read on a shared 4-core host.
+--
+-- Why migrate-047's UNIQUE(mailbox_id, maildir_id) does NOT cover this:
+-- it is a composite B-tree with mailbox_id leading. A predicate that
+-- supplies only maildir_id cannot use it. The schema answered
+-- "is this file already indexed IN THIS MAILBOX"; the reconcile path asks
+-- "does this file exist ANYWHERE". Two questions, one index, and the
+-- index answered the wrong one.
+--
+-- Why a plain (non-UNIQUE) index rather than rewriting the query to be
+-- per-mailbox: maildir filenames are globally unique by construction
+-- (timestamp.pid.hostname), so the global lookup is the semantically
+-- correct question — reconcile wants "has this exact file been indexed",
+-- not "has it been indexed into one particular mailbox". Keeping the
+-- query as-is and indexing the column it filters on is the zero-code-change
+-- fix. NOT declared UNIQUE because nothing today guarantees two mailboxes
+-- can never reference the same underlying file, and a failed CREATE would
+-- block the migration for no safety gain.
+--
+-- CONCURRENTLY so this can be applied to a live database without taking a
+-- write lock on messages. Note: CREATE INDEX CONCURRENTLY cannot run
+-- inside a transaction block — apply this file with psql directly, not
+-- wrapped in BEGIN/COMMIT.
+--
+-- Verify after applying (must show an Index Scan, NOT "Rows Removed by
+-- Filter: 48608"):
+--
+--   EXPLAIN (ANALYZE, BUFFERS)
+--   SELECT id FROM messages WHERE maildir_id = 'any-value' LIMIT 1;
+--
+-- Down: DROP INDEX IF EXISTS idx_messages_maildir_id;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_messages_maildir_id
+    ON messages (maildir_id);

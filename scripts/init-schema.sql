@@ -115,6 +115,12 @@ CREATE TRIGGER messages_search_vector_trigger
   FOR EACH ROW
   EXECUTE FUNCTION messages_search_vector_update();
 CREATE INDEX idx_messages_thread ON messages(thread_id);
+-- Reconcile asks "does this maildir file exist anywhere" with only
+-- maildir_id in the predicate; the UNIQUE(mailbox_id, maildir_id) above
+-- is composite with mailbox_id leading and cannot serve it. Without this
+-- single-column index the hourly sweep seq-scans the table once per
+-- maildir file (migrate-048).
+CREATE INDEX idx_messages_maildir_id ON messages(maildir_id);
 CREATE INDEX idx_messages_message_id ON messages(message_id);
 CREATE INDEX idx_messages_modseq ON messages(mailbox_id, modseq);
 CREATE INDEX idx_messages_importance ON messages(mailbox_id, importance_level, internal_date DESC);

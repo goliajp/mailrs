@@ -339,7 +339,17 @@ async fn ingest_sync_loop(state: Arc<FastcoreState>) {
             .and_then(|s| s.parse().ok())
             .unwrap_or(30),
     );
+    // Self-heal backoff. The maildir sweep re-reads every message
+    // header in the mailbox, so running it at the base interval forever
+    // burns CPU proportional to mailbox size for no result once the
+    // store is consistent (staging 2026-07-19: ~48k headers every 31 s,
+    // `created=0` every time). Each idle round doubles the wait up to
+    // MAX_IDLE_INTERVAL; any repair resets it, so a real gap is still
+    // picked up at full speed.
+    const MAX_IDLE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(900);
+    let mut idle_rounds: u32 = 0;
     loop {
+        let mut wait = interval;
         match &client {
             Some(c) => {
                 if let Err(e) = run_ingest_once(&state, c).await {
@@ -348,12 +358,22 @@ async fn ingest_sync_loop(state: Arc<FastcoreState>) {
             }
             None => {
                 let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
+                let mut repaired = false;
                 for user in &addrs {
-                    healed_from_maildir(&state, user).await;
+                    repaired |= healed_from_maildir(&state, user).await;
                 }
+                if repaired {
+                    idle_rounds = 0;
+                } else {
+                    idle_rounds = idle_rounds.saturating_add(1);
+                }
+                let backoff = interval
+                    .saturating_mul(1u32 << idle_rounds.min(6))
+                    .min(MAX_IDLE_INTERVAL);
+                wait = backoff;
             }
         }
-        tokio::time::sleep(interval).await;
+        tokio::time::sleep(wait).await;
     }
 }
 
@@ -773,9 +793,14 @@ struct MailFile {
 /// - Threading: for each file, resolve its "conversation root" via
 ///   References[0] → In-Reply-To → own Message-ID. All files sharing a
 ///   root get upserted into that root's fastcore thread.
-async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
+///
+/// Returns `true` when this sweep actually repaired something. The
+/// caller uses that to back off: a mailbox that is already consistent
+/// must not be re-scanned every 30 s forever (2026-07-19 — this loop
+/// was re-reading all ~48k maildir headers per cycle on staging).
+async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) -> bool {
     let Some((local, domain)) = user.split_once('@') else {
-        return;
+        return false;
     };
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let base = std::path::PathBuf::from(&root).join(domain).join(local);
@@ -823,7 +848,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
         }
     }
     if files.is_empty() {
-        return;
+        return false;
     }
 
     // Parse headers for every file. Only load the first 16 KB.
@@ -1236,45 +1261,64 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             .max()
             .unwrap_or_else(|| bucket.iter().map(|m| m.date).max().unwrap_or(0));
         let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let _ = state.mailbox.store_ref().atomic(|ctx| {
-            let stored_latest = ctx
-                .hget(thread_key.as_bytes(), b"latest_date")?
-                .and_then(|v| String::from_utf8(v).ok())
-                .and_then(|s| s.parse::<i64>().ok())
-                .unwrap_or(0);
-            let agg_latest = std::cmp::max(stored_latest, bucket_max);
-            if agg_latest > stored_latest {
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
-                )?;
-                ctx.zadd(
-                    by_activity.as_bytes(),
-                    &[(agg_latest as f64, root.as_bytes())],
-                )?;
-            }
-            ctx.zadd(sent_key.as_bytes(), &[(agg_latest as f64, root.as_bytes())])?;
-            // Merge user into the thread's senders_csv so future
-            // upsert_thread invocations (mark_read etc.) don't drop
-            // sent-index membership.
-            let cur_csv = ctx
-                .hget(thread_key.as_bytes(), b"senders_csv")?
-                .and_then(|v| String::from_utf8(v).ok())
-                .unwrap_or_default();
-            if !mailrs_mailbox_kevy::senders_csv_contains_user(&cur_csv, user) {
-                let new_csv = if cur_csv.is_empty() {
-                    user.to_string()
-                } else {
-                    format!("{cur_csv}, {user}")
-                };
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[(b"senders_csv" as &[u8], new_csv.as_bytes())],
-                )?;
-            }
-            Ok(())
-        });
-        sent_added += 1;
+        // Every write below is conditional, and the closure reports
+        // whether it actually changed anything. A self-heal that
+        // re-does its work every cycle is a busy-wait, not a heal: this
+        // loop used to zadd the sent zset and bump `sent_added`
+        // unconditionally, so a fully-healed mailbox still logged
+        // `sent_added=255 created=0` every 31 s forever (2026-07-19).
+        let changed = state
+            .mailbox
+            .store_ref()
+            .atomic(|ctx| {
+                let mut changed = false;
+                let stored_latest = ctx
+                    .hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0);
+                let agg_latest = std::cmp::max(stored_latest, bucket_max);
+                if agg_latest > stored_latest {
+                    ctx.hset(
+                        thread_key.as_bytes(),
+                        &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
+                    )?;
+                    ctx.zadd(
+                        by_activity.as_bytes(),
+                        &[(agg_latest as f64, root.as_bytes())],
+                    )?;
+                    changed = true;
+                }
+                let want = agg_latest as f64;
+                if ctx.zscore(sent_key.as_bytes(), root.as_bytes())? != Some(want) {
+                    ctx.zadd(sent_key.as_bytes(), &[(want, root.as_bytes())])?;
+                    changed = true;
+                }
+                // Merge user into the thread's senders_csv so future
+                // upsert_thread invocations (mark_read etc.) don't drop
+                // sent-index membership.
+                let cur_csv = ctx
+                    .hget(thread_key.as_bytes(), b"senders_csv")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
+                if !mailrs_mailbox_kevy::senders_csv_contains_user(&cur_csv, user) {
+                    let new_csv = if cur_csv.is_empty() {
+                        user.to_string()
+                    } else {
+                        format!("{cur_csv}, {user}")
+                    };
+                    ctx.hset(
+                        thread_key.as_bytes(),
+                        &[(b"senders_csv" as &[u8], new_csv.as_bytes())],
+                    )?;
+                    changed = true;
+                }
+                Ok(changed)
+            })
+            .unwrap_or(false);
+        if changed {
+            sent_added += 1;
+        }
     }
     if sent_added > 0 || created > 0 {
         tracing::info!(
@@ -1282,6 +1326,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) {
             "self-heal (maildir): sent-index backfill"
         );
     }
+    healed_threads > 0 || diff_healed_threads > 0 || sent_added > 0 || created > 0
 }
 
 /// Write-through ingest for a file the spool drain just delivered to
