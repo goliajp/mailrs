@@ -47,7 +47,11 @@ type SaveDraftResult = {
 export async function deleteDraft(id: number): Promise<{ message?: string; success: boolean }> {
   // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
   const { wireDeleteDraft } = await import('@/wire/endpoints/mail')
-  return wireDeleteDraft(id)
+  // fastcore answers 204 with no body; the monolith answers with an
+  // ApiResult envelope. Reaching here at all means the request
+  // succeeded — wireFetch throws on every non-2xx.
+  const res = await wireDeleteDraft(id)
+  return res ?? { success: true }
 }
 
 export async function deleteJson<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -193,7 +197,8 @@ export async function snoozeConversation(
 ): Promise<{ message?: string; success: boolean }> {
   // v2.1 §10.6 (2026-07-08): delegated to wire adapter.
   const { wireSnoozeConversation } = await import('@/wire/endpoints/mail')
-  return wireSnoozeConversation(threadId, until)
+  // 204 on success; wireFetch throws on anything else.
+  return (await wireSnoozeConversation(threadId, until)) ?? { success: true }
 }
 
 // --- snooze API ---
@@ -214,7 +219,7 @@ export async function unsnoozeConversation(
 ): Promise<{ message?: string; success: boolean }> {
   // v2.1 §10.6 (2026-07-08): delegated to wire adapter.
   const { wireUnsnoozeConversation } = await import('@/wire/endpoints/mail')
-  return wireUnsnoozeConversation(threadId)
+  return (await wireUnsnoozeConversation(threadId)) ?? { success: true }
 }
 
 // --- sender feedback API ---

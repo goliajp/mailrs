@@ -56,18 +56,27 @@ export const wireSendMailMultipart = (fd: FormData): Promise<WireSendResult> =>
 
 // ── snooze / unsnooze conversation ────────────────────────────────
 
+/**
+ * Backend: fastcore `handlers::conversations::{snooze_thread,
+ * unsnooze_thread}` both answer 204 with no body. Same 204-vs-object
+ * mismatch that broke draft deletion (2026-07-19) — `allowEmpty` is
+ * required, and the schema stays optional so a monolith-style
+ * `{success, message}` envelope still parses.
+ */
 export const wireSnoozeConversation = (
   threadId: string,
   until: string
-): Promise<WireSnoozeResult> =>
-  wireFetch(snoozeResultSchema, {
+): Promise<undefined | WireSnoozeResult> =>
+  wireFetch(snoozeResultSchema.optional(), {
+    allowEmpty: true,
     body: { until },
     method: 'PUT',
     path: `/conversations/${encodeURIComponent(threadId)}/snooze`,
   })
 
-export const wireUnsnoozeConversation = (threadId: string): Promise<WireSnoozeResult> =>
-  wireFetch(snoozeResultSchema, {
+export const wireUnsnoozeConversation = (threadId: string): Promise<undefined | WireSnoozeResult> =>
+  wireFetch(snoozeResultSchema.optional(), {
+    allowEmpty: true,
     method: 'DELETE',
     path: `/conversations/${encodeURIComponent(threadId)}/snooze`,
   })
@@ -112,8 +121,18 @@ export const wireSaveDraft = (payload: Record<string, unknown>): Promise<WireSav
     path: '/mail/drafts',
   })
 
-export const wireDeleteDraft = (id: number): Promise<WireDeleteDraftResult> =>
-  wireFetch(deleteDraftResultSchema, {
+/**
+ * Backend: fastcore `handlers::prefs::delete_draft` answers 204 with no
+ * body; the monolith's `web/mail/drafts.rs::delete_draft` answers 200
+ * with `{success, message}`. Both mean "gone", so accept either —
+ * `allowEmpty` short-circuits the 204 and the union tolerates the JSON.
+ * Without `allowEmpty` the 204 was parsed as `undefined` against an
+ * object schema and surfaced as "Could not delete draft" even though
+ * the draft had in fact been deleted (2026-07-19).
+ */
+export const wireDeleteDraft = (id: number): Promise<undefined | WireDeleteDraftResult> =>
+  wireFetch(deleteDraftResultSchema.optional(), {
+    allowEmpty: true,
     method: 'DELETE',
     path: `/mail/drafts/${id}`,
   })
