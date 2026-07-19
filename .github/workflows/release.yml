@@ -367,7 +367,7 @@ jobs:
           # code and up -d silently reuses the stale YAML).
           # deploy/docker-compose.prod.yml is the canonical fastcore
           # topology: receiver / fastcore / webapi-fc / fastcore-sender
-          # + kevy-server / meilisearch. No monolith, no
+          # + kevy-server. No monolith, no
           # postgres.
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             deploy/docker-compose.prod.yml \
