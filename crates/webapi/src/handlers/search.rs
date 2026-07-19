@@ -1,12 +1,37 @@
-//! `/api/conversations/semantic-search` — meili-backed semantic search.
+//! `/api/conversations/semantic-search` — ranked lookup over the
+//! caller's conversations.
 //!
-//! Falls back to a linear scan of the user's activity zset when meili
-//! is unreachable. Mirrors the monolith's search endpoint shape.
+//! Meili serves it when reachable and the index answers; otherwise a
+//! scan of the caller's conversations does. Both paths match subject,
+//! participants and preview, so the two backends agree on what counts
+//! as a hit even though they disagree on ranking.
+//!
+//! Two independent defects made this endpoint return `[]` for every
+//! query on prod for weeks (reported by goliajp 2026-07-19):
+//!
+//!   1. it queried index `conversations-<user>` while the writer
+//!      populated `mailrs_<user>` — Meili 404'd every request and the
+//!      error was swallowed, so `backend` was permanently
+//!      `linear_fallback`. The name now comes from
+//!      `mailrs_core_api::meili_index_name`, which both sides share.
+//!   2. the fallback read thread rows out of the **network** kevy, but
+//!      conversations live in fastcore's embedded store — the zrange
+//!      returned nothing, the loop body never ran, and the handler
+//!      answered `[]` deterministically. It now goes through the core
+//!      RPC, the same path every other conversation read uses.
+//!
+//! A backend that is down is now a 503 rather than an empty 200: the
+//! reporter could not tell "no matches" from "search is broken", which
+//! is why this went unnoticed.
+
+use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Extension, Query};
+use axum::extract::{Extension, Query, State};
+use axum::http::StatusCode;
 use serde::Deserialize;
 
+use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 
 #[derive(Debug, Deserialize)]
@@ -20,75 +45,99 @@ fn default_limit() -> u32 {
     20
 }
 
-/// GET /api/conversations/semantic-search?q=&limit= — returns an array
-/// of `{ thread_id, subject, score }` sorted by relevance.
+/// Upper bound on conversations pulled for the fallback scan. Matches
+/// the MCP `search_conversations` tool so the two agree on recall.
+const SCAN_CEILING: u32 = 20_000;
+
+/// GET /api/conversations/semantic-search?q=&limit= — returns
+/// `{items: [{thread_id, subject, score}], backend}`.
 pub async fn semantic_search(
+    State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<SearchQuery>,
-) -> Json<serde_json::Value> {
-    let meili_url = std::env::var("MAILRS_MEILI_URL").ok();
-    let query = q.q.clone();
-    let limit = q.limit;
-    if let Some(base) = meili_url {
-        let index = format!("conversations-{}", user.replace(['@', '.'], "_"));
-        let url = format!("{base}/indexes/{index}/search");
-        let key = std::env::var("MAILRS_MEILI_KEY").ok();
-        let client = reqwest::Client::new();
-        let mut req = client.post(&url).json(&serde_json::json!({
-            "q": query,
-            "limit": limit,
-        }));
-        if let Some(k) = key {
-            req = req.bearer_auth(k);
-        }
-        if let Ok(resp) = req.send().await
-            && resp.status().is_success()
-            && let Ok(v) = resp.json::<serde_json::Value>().await
-        {
-            let hits = v.get("hits").cloned().unwrap_or(serde_json::json!([]));
-            return Json(serde_json::json!({ "items": hits, "backend": "meili" }));
-        }
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let limit = q.limit.clamp(1, 200);
+
+    if let Some(hits) = try_meili(&user, &q.q, limit).await {
+        return Ok(Json(
+            serde_json::json!({ "items": hits, "backend": "meili" }),
+        ));
     }
 
-    // Linear fallback: read the user's activity zset directly.
-    //
-    // v2 Stage B.3: entire scan + per-thread hgetall walks the SAME
-    // kevy connection instead of opening one per thread. Prior
-    // implementation opened up to 500 TCP connections per search —
-    // one for the zrange plus one for each candidate hgetall — and
-    // the linear-fallback path was dead-slow for busy users. Now
-    // 1 conn total; server sees O(N) HGETALL commands but no TCP
-    // reconnect churn.
-    let activity_key = format!("mailrs:user:{user}:threads:by_activity");
+    let req = mailrs_core_api::method::conversation::ListConversationsRequest {
+        filter: mailrs_core_api::types::ConversationFilter {
+            limit: SCAN_CEILING,
+            before_ts: None,
+            category: None,
+            domains: None,
+            archived: false,
+            folder: None,
+            unread: None,
+            starred: None,
+            section: None,
+        },
+    };
+    // A core RPC failure means we genuinely cannot answer. Say so
+    // instead of returning an empty list that reads as "no matches".
+    let resp = state
+        .core
+        .list_conversations(&user, &req)
+        .await
+        .map_err(|e| {
+            tracing::warn!(err = %e, %user, "semantic-search: list_conversations failed");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
+
     let needle = q.q.to_lowercase();
-    let limit = q.limit;
-    let out = crate::handlers::kevy_util::with_kevy(move |c| {
-        let ids = c.zrange(activity_key.as_bytes(), 0, 199)?;
-        let mut out = Vec::new();
-        for id_bytes in ids.into_iter().take(500) {
-            let Some(tid) = String::from_utf8(id_bytes).ok() else {
-                continue;
-            };
-            let thread_key = format!("mailrs:thread:{tid}");
-            let flat = c.hgetall(thread_key.as_bytes())?;
-            let mut subject = String::new();
-            let mut i = 0;
-            while i + 1 < flat.len() {
-                if flat[i] == b"subject" {
-                    subject = String::from_utf8_lossy(&flat[i + 1]).to_string();
-                    break;
-                }
-                i += 2;
-            }
-            if subject.to_lowercase().contains(&needle) {
-                out.push(serde_json::json!({ "thread_id": tid, "subject": subject, "score": 1.0 }));
-                if out.len() as u32 >= limit {
-                    break;
-                }
-            }
-        }
-        Ok(out)
-    })
-    .unwrap_or_default();
-    Json(serde_json::json!({ "items": out, "backend": "linear_fallback" }))
+    let items: Vec<serde_json::Value> = resp
+        .items
+        .into_iter()
+        .filter(|c| {
+            // Case-insensitive substring across the same three fields
+            // Meili indexes. Substring matching carries CJK without a
+            // tokenizer, which matters here — most of this mail is
+            // Japanese.
+            c.subject.to_lowercase().contains(&needle)
+                || c.participants.to_lowercase().contains(&needle)
+                || c.snippet.to_lowercase().contains(&needle)
+        })
+        .take(limit as usize)
+        .map(|c| {
+            serde_json::json!({
+                "thread_id": c.thread_id,
+                "subject": c.subject,
+                "participants": c.participants,
+                "score": 1.0,
+            })
+        })
+        .collect();
+
+    Ok(Json(
+        serde_json::json!({ "items": items, "backend": "linear_fallback" }),
+    ))
+}
+
+/// Query Meili. `None` on any failure so the caller falls back — an
+/// unreachable or not-yet-populated index must not fail the request
+/// outright while a working scan exists.
+async fn try_meili(user: &str, query: &str, limit: u32) -> Option<Vec<serde_json::Value>> {
+    let base = std::env::var("MAILRS_MEILI_URL").ok()?;
+    let index = mailrs_core_api::meili_index_name(user);
+    let url = format!("{base}/indexes/{index}/search");
+    let mut req = reqwest::Client::new().post(&url).json(&serde_json::json!({
+        "q": query,
+        "limit": limit,
+        "attributesToRetrieve": ["thread_id", "subject", "participants"],
+    }));
+    if let Ok(k) = std::env::var("MAILRS_MEILI_KEY") {
+        req = req.bearer_auth(k);
+    }
+    let resp = req.send().await.ok()?;
+    if !resp.status().is_success() {
+        tracing::debug!(status = %resp.status(), %index, "meili search rejected");
+        return None;
+    }
+    let v = resp.json::<serde_json::Value>().await.ok()?;
+    let hits = v.get("hits")?.as_array()?.clone();
+    Some(hits)
 }

@@ -201,17 +201,9 @@ pub fn meili_doc_id(thread_id: &str) -> String {
 /// to `mailrs_lihao_at_golia_jp` — the `.` in the domain is illegal
 /// and silently 400'd the whole index otherwise.
 pub fn meili_index(user: &str) -> String {
-    let mut out = String::from("mailrs_");
-    for c in user.chars() {
-        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-            out.push(c);
-        } else if c == '@' {
-            out.push_str("_at_");
-        } else {
-            out.push('_');
-        }
-    }
-    out
+    // Single source of truth — mailrs-webapi's search handler resolves
+    // the same name from core-api, so writer and reader cannot drift.
+    mailrs_core_api::meili_index_name(user)
 }
 
 /// Remove a thread's document from the user's Meili index (delete_thread).
