@@ -848,7 +848,7 @@ fn copy_response(
     };
     let ids = expand_sequence(sequence, messages, by_uid);
     for msg in &ids {
-        if backend::copy_to(msg, &dest).is_err() {
+        if backend::copy_to(state, &user, msg, &dest).is_err() {
             return vec![format_no(tag, "copy failed")];
         }
         if move_op {

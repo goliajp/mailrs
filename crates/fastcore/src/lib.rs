@@ -339,15 +339,25 @@ async fn ingest_sync_loop(state: Arc<FastcoreState>) {
             .and_then(|s| s.parse().ok())
             .unwrap_or(30),
     );
-    // Self-heal backoff. The maildir sweep re-reads every message
-    // header in the mailbox, so running it at the base interval forever
-    // burns CPU proportional to mailbox size for no result once the
-    // store is consistent (staging 2026-07-19: ~48k headers every 31 s,
-    // `created=0` every time). Each idle round doubles the wait up to
-    // MAX_IDLE_INTERVAL; any repair resets it, so a real gap is still
-    // picked up at full speed.
+    // Self-heal pacing. Every writer of a maildir file now indexes it
+    // write-through (spool_drain, bounce, IMAP APPEND/COPY, REST
+    // copy/move), so the only gap left for this sweep is a process that
+    // died between the file landing and the index write. Those files are
+    // necessarily recent, so the routine pass only inspects names newer
+    // than INCREMENTAL_WINDOW and costs a readdir instead of ~48k header
+    // reads (staging 2026-07-19).
+    //
+    // A full pass still runs at boot and once a day, to catch anything a
+    // clock skew or an out-of-band file drop put outside the window.
+    // Backoff on top: each idle round doubles the wait, any repair
+    // resets it to the base interval.
     const MAX_IDLE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(900);
+    const FULL_SWEEP_EVERY: std::time::Duration = std::time::Duration::from_secs(24 * 3600);
+    // Generous relative to the crash window it covers; the cost of a
+    // wider window is only extra header reads on files we then skip.
+    const INCREMENTAL_WINDOW_SECS: i64 = 6 * 3600;
     let mut idle_rounds: u32 = 0;
+    let mut last_full_sweep: Option<std::time::Instant> = None;
     loop {
         let mut wait = interval;
         match &client {
@@ -357,10 +367,18 @@ async fn ingest_sync_loop(state: Arc<FastcoreState>) {
                 }
             }
             None => {
+                let full = last_full_sweep.is_none_or(|t| t.elapsed() >= FULL_SWEEP_EVERY);
+                let since = match full {
+                    true => 0,
+                    false => now_secs().saturating_sub(INCREMENTAL_WINDOW_SECS),
+                };
                 let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
                 let mut repaired = false;
                 for user in &addrs {
-                    repaired |= healed_from_maildir(&state, user).await;
+                    repaired |= healed_from_maildir(&state, user, since).await;
+                }
+                if full {
+                    last_full_sweep = Some(std::time::Instant::now());
                 }
                 if repaired {
                     idle_rounds = 0;
@@ -419,7 +437,8 @@ async fn run_ingest_once(
         let resp = match resp_opt {
             Some(r) => r,
             None => {
-                healed_from_maildir(state, user).await;
+                // core RPC unavailable — full sweep, this path is rare
+                healed_from_maildir(state, user, 0).await;
                 continue;
             }
         };
@@ -526,7 +545,7 @@ async fn run_ingest_once(
         // user's maildir(s), parse each file's headers, and upsert any
         // messages whose thread_id already exists in fastcore but has
         // an empty messages zset.
-        healed_from_maildir(state, user).await;
+        healed_from_maildir(state, user, 0).await;
     }
     Ok(())
 }
@@ -798,12 +817,31 @@ struct MailFile {
 /// caller uses that to back off: a mailbox that is already consistent
 /// must not be re-scanned every 30 s forever (2026-07-19 — this loop
 /// was re-reading all ~48k maildir headers per cycle on staging).
-async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) -> bool {
+async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64) -> bool {
     let Some((local, domain)) = user.split_once('@') else {
         return false;
     };
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let base = std::path::PathBuf::from(&root).join(domain).join(local);
+    // Incremental filter. Every path that writes a maildir file now
+    // indexes it write-through (spool_drain, bounce, IMAP APPEND/COPY,
+    // REST copy/move), so the only gap this sweep still has to close is
+    // a process that died between the file landing and the index write
+    // — which makes the file necessarily recent. `since = 0` means a
+    // full sweep (boot + the daily backstop).
+    //
+    // The cutoff reads the timestamp out of the maildir filename rather
+    // than stat'ing mtime: maildir names are `<epoch>.<unique>.<host>`
+    // by spec and are monotonic per delivery, whereas mtime is rewritten
+    // by anything that rsyncs or touches the store.
+    let recent_enough = |name: &str| -> bool {
+        if since == 0 {
+            return true;
+        }
+        // Unparseable name → always inspect it; being wrong here costs
+        // one header read, being wrong the other way loses a message.
+        maildir_filename_epoch(name).is_none_or(|ts| ts >= since)
+    };
     // Collect (subfolder_prefix, path) pairs. `subfolder_prefix` is
     // empty for INBOX and `.<foldername>` for Maildir++ subfolders.
     // It's later prepended to the blob_ref so `enrich_with_body` can
@@ -815,7 +853,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) -> bool {
         let dir = base.join(sub);
         if let Ok(iter) = std::fs::read_dir(&dir) {
             for entry in iter.flatten() {
-                if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                if entry.file_type().map(|t| t.is_file()).unwrap_or(false)
+                    && recent_enough(&entry.file_name().to_string_lossy())
+                {
                     files.push((String::new(), entry.path()));
                 }
             }
@@ -839,7 +879,9 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str) -> bool {
                 let dir = sub_base.join(sub);
                 if let Ok(iter) = std::fs::read_dir(&dir) {
                     for e in iter.flatten() {
-                        if e.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                        if e.file_type().map(|t| t.is_file()).unwrap_or(false)
+                            && recent_enough(&e.file_name().to_string_lossy())
+                        {
                             files.push((name.clone(), e.path()));
                         }
                     }
