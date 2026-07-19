@@ -32,13 +32,13 @@ Config for Claude Code or any MCP client:
 | Tool | Permission | Description |
 |------|-----------|-------------|
 | send_email | any authenticated | Send email with optional CC, HTML body, and attachments (base64, URL, or file path). Returns message ID |
-| read_email | any authenticated | Read a message by UID. Returns sender, subject, text body, metadata |
-| search_emails | any authenticated | Search by keyword. Returns conversation summaries (thread_id, subject, snippet, participants) |
+| read_thread | any authenticated | Read a message by UID. Returns sender, subject, text body, metadata |
+| search_conversations | any authenticated | Search by keyword. Returns conversation summaries (thread_id, subject, snippet, participants) |
 | reply_email | any authenticated | Reply to a thread by thread_id. Auto-sets In-Reply-To/References headers |
 | list_conversations | any authenticated | List recent conversations with optional category filter. Returns thread summaries |
-| get_folders | any authenticated | List mailbox folders with message counts (total, unseen) |
+| list_mailboxes | any authenticated | List mailbox folders with message counts (total, unseen) |
 | get_categories | any authenticated | Get email category counts (personal, notification, promotion, etc.) |
-| get_contacts | any authenticated | Search contacts from email history. Returns address, display name, counts |
+| search_contacts | any authenticated | Search contacts from email history. Returns address, display name, counts |
 
 ### Thread Management
 
@@ -82,7 +82,7 @@ Config for Claude Code or any MCP client:
 
 | Tool | Permission | Description |
 |------|-----------|-------------|
-| list_aliases | any authenticated | List all email aliases and forwards (source, target, domain, type) |
+| list_aliases_admin | any authenticated | List all email aliases and forwards (source, target, domain, type) |
 | add_alias | admin.aliases | Add alias ("alias" = local delivery) or forward ("forward" = remote relay) |
 | remove_alias | admin.aliases | Remove an email alias by ID |
 
@@ -93,7 +93,7 @@ Config for Claude Code or any MCP client:
 | list_email_groups | any authenticated | List all email groups with members. Returns address, domain, name, member list |
 | create_email_group | admin.accounts | Create email group. All members receive incoming mail and can reply as group address |
 | delete_email_group | admin.accounts | Delete an email group by ID |
-| list_email_group_members | any authenticated | List members of an email group |
+| get_email_group_members | any authenticated | List members of an email group |
 | add_email_group_member | admin.accounts | Add a member to an email group |
 | remove_email_group_member | admin.accounts | Remove a member from an email group |
 
@@ -125,10 +125,10 @@ Config for Claude Code or any MCP client:
 
 | Tool | Permission | Description |
 |------|-----------|-------------|
-| list_encryption_keys | any authenticated | List encryption keys for the current account |
+| list_own_encryption_keys | any authenticated | List encryption keys for the current account |
 | set_encryption_key | any authenticated | Set or update an encryption key (PGP/S/MIME) |
 | delete_encryption_key | any authenticated | Delete an encryption key by ID |
-| get_recipient_key | any authenticated | Get a recipient's public encryption key |
+| get_public_key_of | any authenticated | Get a recipient's public encryption key |
 
 ### Audit
 
@@ -167,7 +167,7 @@ Server-wide local white/black overrides on top of the Phase 1 remote sender-doma
 
 | Tool | Permission | Description |
 |------|-----------|-------------|
-| greylist_local_list | admin.greylist | List local greylist entries; filter by kind (domain/email/cidr) and/or list (white/black) |
+| list_greylist_local | admin.greylist | List local greylist entries; filter by kind (domain/email/cidr) and/or list (white/black) |
 | greylist_local_add | admin.greylist | Add a local greylist entry. White = skip greylist, Black = reject 550 |
 | greylist_local_remove | admin.greylist | Remove a local greylist entry by id |
 
@@ -195,13 +195,13 @@ Attachment `data` accepts: base64 string, URL (http/https), or server file path.
 #### reply_email
 ```json
 {
-  "thread_id": "<thread_id from list_conversations or search_emails>",
+  "thread_id": "<thread_id from list_conversations or search_conversations>",
   "body": "Reply text",
   "from": "optional-sender@golia.jp"
 }
 ```
 
-#### search_emails
+#### search_conversations
 ```json
 {
   "query": "search keyword",
@@ -219,7 +219,7 @@ Attachment `data` accepts: base64 string, URL (http/https), or server file path.
 ```
 Categories: `personal`, `notification`, `promotion`, `general`.
 
-#### read_email
+#### read_thread
 ```json
 {
   "uid": 12345

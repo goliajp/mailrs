@@ -463,6 +463,25 @@ pub async fn retry_message(pool: &BackendPool, id: i64, now: i64) -> Result<bool
     Ok(result.rows_affected() > 0)
 }
 
+/// move a still-pending message's delivery time to `scheduled_at`
+#[cfg(feature = "pg")]
+pub async fn reschedule_pending(
+    pool: &BackendPool,
+    id: i64,
+    scheduled_at: i64,
+    now: i64,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE outbound_queue SET next_retry = $1, updated_at = $2 WHERE id = $3 AND status = 'pending'",
+    )
+    .bind(scheduled_at)
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// list recent queue entries for admin UI
 #[cfg(feature = "pg")]
 pub async fn list_recent(

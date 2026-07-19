@@ -37,16 +37,17 @@ pub(crate) struct SendEmailParams {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct ReadEmailParams {
-    /// message UID from list_conversations or search_emails results
-    pub uid: u32,
+pub(crate) struct ReadThreadParams {
+    /// Thread id from list_conversations / search_conversations.
+    pub thread_id: String,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct SearchEmailsParams {
-    /// search query string
-    pub query: String,
-    /// max results (default 20, max 20)
+pub(crate) struct SearchConversationsParams {
+    /// Free-text query. Case-insensitive; matches subject +
+    /// participants + snippet.
+    pub q: String,
+    /// Max hits (default 20, cap 100).
     #[serde(default)]
     pub limit: Option<u32>,
 }
@@ -150,7 +151,7 @@ pub(crate) struct RemoveDomainParams {
 // --- alias management ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct ListAliasesParams {}
+pub(crate) struct ListAliasesAdminParams {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct AddAliasParams {
@@ -178,7 +179,7 @@ pub(crate) struct RemoveAliasParams {
 // --- greylist local lists (Phase 2) ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct GreylistLocalListParams {
+pub(crate) struct ListGreylistLocalParams {
     /// optional filter: "domain", "email", or "cidr"
     #[serde(default)]
     pub kind: Option<String>,
@@ -262,7 +263,7 @@ pub(crate) struct DeleteWebhookParams {
 // --- mail operations ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct GetFoldersParams {}
+pub(crate) struct ListMailboxesParams {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct MarkThreadReadParams {
@@ -310,12 +311,12 @@ pub(crate) struct DeleteThreadParams {
 pub(crate) struct GetCategoriesParams {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct GetContactsParams {}
+pub(crate) struct SearchContactsParams {}
 
 // --- queue management ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct GetQueueParams {}
+pub(crate) struct ListAdminQueueParams {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct ReconcileMaildirParams {
@@ -356,7 +357,7 @@ pub(crate) struct DeleteEmailGroupParams {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct ListEmailGroupMembersParams {
+pub(crate) struct GetEmailGroupMembersParams {
     /// email group ID
     pub id: i64,
 }
@@ -444,7 +445,7 @@ pub(crate) struct DeleteSignatureParams {
 // --- encryption key management ---
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct ListEncryptionKeysParams {}
+pub(crate) struct ListOwnEncryptionKeysParams {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct SetEncryptionKeyParams {
@@ -464,7 +465,7 @@ pub(crate) struct DeleteEncryptionKeyParams {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-pub(crate) struct GetRecipientKeyParams {
+pub(crate) struct GetPublicKeyOfParams {
     /// email address to look up
     pub address: String,
     /// key type: "pgp" or "smime"
@@ -527,17 +528,17 @@ mod tests {
     }
 
     #[test]
-    fn read_email_params_schema_generation() {
-        let schema = schema_for!(ReadEmailParams);
+    fn read_thread_params_schema_generation() {
+        let schema = schema_for!(ReadThreadParams);
         let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("uid"));
+        assert!(json.contains("thread_id"));
     }
 
     #[test]
-    fn search_emails_params_schema_generation() {
-        let schema = schema_for!(SearchEmailsParams);
+    fn search_conversations_params_schema_generation() {
+        let schema = schema_for!(SearchConversationsParams);
         let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("query"));
+        assert!(json.contains("\"q\""));
         assert!(json.contains("limit"));
     }
 
@@ -654,7 +655,7 @@ mod tests {
     #[test]
     fn list_aliases_params_empty() {
         let json = r#"{}"#;
-        let _params: ListAliasesParams = serde_json::from_str(json).unwrap();
+        let _params: ListAliasesAdminParams = serde_json::from_str(json).unwrap();
     }
 
     #[test]
@@ -684,12 +685,12 @@ mod tests {
 
     #[test]
     fn greylist_local_list_params_empty() {
-        let _p: GreylistLocalListParams = serde_json::from_str("{}").unwrap();
+        let _p: ListGreylistLocalParams = serde_json::from_str("{}").unwrap();
     }
 
     #[test]
     fn greylist_local_list_params_filters() {
-        let p: GreylistLocalListParams =
+        let p: ListGreylistLocalParams =
             serde_json::from_str(r#"{"kind":"domain","list":"white"}"#).unwrap();
         assert_eq!(p.kind.as_deref(), Some("domain"));
         assert_eq!(p.list.as_deref(), Some("white"));
@@ -780,7 +781,7 @@ mod tests {
     #[test]
     fn get_folders_params_empty() {
         let json = r#"{}"#;
-        let _params: GetFoldersParams = serde_json::from_str(json).unwrap();
+        let _params: ListMailboxesParams = serde_json::from_str(json).unwrap();
     }
 
     #[test]
@@ -841,13 +842,13 @@ mod tests {
     #[test]
     fn get_contacts_params_empty() {
         let json = r#"{}"#;
-        let _params: GetContactsParams = serde_json::from_str(json).unwrap();
+        let _params: SearchContactsParams = serde_json::from_str(json).unwrap();
     }
 
     #[test]
-    fn get_queue_params_empty() {
+    fn list_admin_queue_params_empty() {
         let json = r#"{}"#;
-        let _params: GetQueueParams = serde_json::from_str(json).unwrap();
+        let _params: ListAdminQueueParams = serde_json::from_str(json).unwrap();
     }
 
     #[test]
@@ -930,7 +931,7 @@ mod tests {
     #[test]
     fn list_encryption_keys_params_empty() {
         let json = r#"{}"#;
-        let _params: ListEncryptionKeysParams = serde_json::from_str(json).unwrap();
+        let _params: ListOwnEncryptionKeysParams = serde_json::from_str(json).unwrap();
     }
 
     #[test]
@@ -967,7 +968,7 @@ mod tests {
 
     #[test]
     fn get_recipient_key_params_schema() {
-        let schema = schema_for!(GetRecipientKeyParams);
+        let schema = schema_for!(GetPublicKeyOfParams);
         let json = serde_json::to_string_pretty(&schema).unwrap();
         assert!(json.contains("address"));
         assert!(json.contains("key_type"));
@@ -976,7 +977,7 @@ mod tests {
     #[test]
     fn get_recipient_key_params_deserialize() {
         let json = r#"{"address": "alice@example.com", "key_type": "pgp"}"#;
-        let params: GetRecipientKeyParams = serde_json::from_str(json).unwrap();
+        let params: GetPublicKeyOfParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.address, "alice@example.com");
         assert_eq!(params.key_type, "pgp");
     }

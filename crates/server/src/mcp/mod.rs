@@ -1,12 +1,18 @@
 //! CARVE-OUT: this file intentionally exceeds the 500-LOC project
-//! limit. The `#[tool_router]` proc-macro from `rmcp` collects every
-//! `#[tool(...)]` method on `MailrsMcp` into a single dispatch table
-//! at expansion time, so splitting the impl block across modules
-//! would break the router. Keep all MCP tool methods in this file;
-//! per-tool param types live next door in `tools.rs`.
+//! limit — it holds the v1 tool set that predates the named-router
+//! split. New tools go into `tools_parityN.rs` sub-modules, each with
+//! its own `#[tool_router(router = tool_router_parityN)]`; the routers
+//! are summed in [`MailMcpService::tool_router`]. Per-tool param types
+//! for the v1 set live next door in `tools.rs`.
 
 pub(crate) mod auth;
 pub(crate) mod tools;
+mod tools_parity1;
+mod tools_parity2;
+mod tools_parity3;
+mod tools_parity4;
+mod tools_parity5;
+mod tools_parity6;
 
 use std::sync::Arc;
 
@@ -47,7 +53,21 @@ pub(crate) struct MailMcpService {
     tool_router: ToolRouter<Self>,
 }
 
-#[tool_router]
+impl MailMcpService {
+    /// Combined router: v1 (this file) + the parity batches that bring
+    /// the monolith lane level with fastcore.
+    fn tool_router() -> ToolRouter<Self> {
+        Self::tool_router_v1()
+            + Self::tool_router_parity1()
+            + Self::tool_router_parity2()
+            + Self::tool_router_parity3()
+            + Self::tool_router_parity4()
+            + Self::tool_router_parity5()
+            + Self::tool_router_parity6()
+    }
+}
+
+#[tool_router(router = tool_router_v1, vis = "pub(crate)")]
 impl MailMcpService {
     pub(crate) fn new(web_state: Arc<WebState>, auth_user: AuthUser) -> Self {
         Self {
@@ -143,10 +163,12 @@ impl MailMcpService {
         }
     }
 
-    #[tool(description = "Read an email by UID. Returns sender, subject, text body, and metadata.")]
-    async fn read_email(
+    #[tool(
+        description = "Read every message in a thread. Returns sender, recipients, subject, date, and decoded text body per message, oldest first."
+    )]
+    async fn read_thread(
         &self,
-        Parameters(params): Parameters<ReadEmailParams>,
+        Parameters(params): Parameters<ReadThreadParams>,
     ) -> Result<CallToolResult, McpError> {
         let Some(ref mb_store) = self.web_state.mailbox_store else {
             return Err(McpError::internal_error(
@@ -154,52 +176,45 @@ impl MailMcpService {
                 None,
             ));
         };
-
         let user = &self.auth_user.address;
-        let mailboxes = mb_store.list_mailboxes(user).await.map_err(|e| {
-            McpError::internal_error(format!("failed to list mailboxes: {e}"), None)
-        })?;
-
-        for mb in &mailboxes {
-            if let Ok(Some(msg)) = mb_store.get_message(mb.id, params.uid).await {
-                let raw = crate::message_util::read_message_raw(
-                    &self.web_state.maildir_root,
-                    user,
-                    &msg.maildir_id,
-                )
-                .await;
-                let (text_body, _html_body, _attachments) = raw
-                    .as_deref()
-                    .map(crate::message_util::parse_message)
-                    .unwrap_or_default();
-
-                let sender = crate::message_util::decode_header(&msg.sender);
-                let subject = crate::message_util::decode_header(&msg.subject);
-
-                return Ok(CallToolResult::success(vec![Content::text(
-                    serde_json::json!({
-                        "uid": msg.uid,
-                        "sender": sender,
-                        "subject": subject,
-                        "text_body": text_body.unwrap_or_default(),
-                        "internal_date": msg.internal_date,
-                        "message_id": msg.message_id,
-                        "thread_id": msg.thread_id,
-                    })
-                    .to_string(),
-                )]));
-            }
+        let metas = mb_store
+            .list_thread_messages(user, &params.thread_id, None)
+            .await
+            .map_err(|e| McpError::internal_error(format!("list_thread_messages: {e}"), None))?;
+        let mut items = Vec::with_capacity(metas.len());
+        for msg in &metas {
+            let raw = crate::message_util::read_message_raw(
+                &self.web_state.maildir_root,
+                user,
+                &msg.maildir_id,
+            )
+            .await;
+            let (text_body, _html_body, attachments) = raw
+                .as_deref()
+                .map(crate::message_util::parse_message)
+                .unwrap_or_default();
+            items.push(serde_json::json!({
+                "uid": msg.uid,
+                "sender": crate::message_util::decode_header(&msg.sender),
+                "recipients": crate::message_util::decode_header(&msg.recipients),
+                "subject": crate::message_util::decode_header(&msg.subject),
+                "internal_date": msg.internal_date,
+                "text_body": text_body.unwrap_or_default(),
+                "attachments": attachments,
+                "message_id": msg.message_id,
+            }));
         }
-
-        Err(McpError::invalid_params("message not found", None))
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::json!({ "thread_id": params.thread_id, "messages": items }).to_string(),
+        )]))
     }
 
     #[tool(
         description = "Search emails by keyword. Returns conversation summaries (thread_id, subject, snippet, participants)."
     )]
-    async fn search_emails(
+    async fn search_conversations(
         &self,
-        Parameters(params): Parameters<SearchEmailsParams>,
+        Parameters(params): Parameters<SearchConversationsParams>,
     ) -> Result<CallToolResult, McpError> {
         let Some(ref mb_store) = self.web_state.mailbox_store else {
             return Err(McpError::internal_error(
@@ -212,7 +227,7 @@ impl MailMcpService {
         let user = &self.auth_user.address;
 
         let results = mb_store
-            .search_conversations(user, &params.query, limit, None, None)
+            .search_conversations(user, &params.q, limit, None, None)
             .await
             .map_err(|e| McpError::internal_error(format!("search failed: {e}"), None))?;
 
@@ -431,6 +446,20 @@ impl MailMcpService {
             .mailbox_store
             .as_ref()
             .ok_or_else(|| McpError::internal_error("mailbox store not available", None))
+    }
+
+    fn pg_pool(&self) -> Result<&crate::pg::BackendPool, McpError> {
+        self.web_state
+            .pg_pool
+            .as_ref()
+            .ok_or_else(|| McpError::internal_error("database not configured", None))
+    }
+
+    fn outbound_pool(&self) -> Result<&crate::pg::BackendPool, McpError> {
+        self.web_state
+            .outbound_queue
+            .as_ref()
+            .ok_or_else(|| McpError::internal_error("outbound queue not configured", None))
     }
 
     fn json_result(&self, items: &[serde_json::Value]) -> Result<CallToolResult, McpError> {
@@ -869,9 +898,9 @@ impl MailMcpService {
     #[tool(
         description = "List all email aliases and forwards. Returns source, target, domain, type."
     )]
-    async fn list_aliases(
+    async fn list_aliases_admin(
         &self,
-        Parameters(_params): Parameters<ListAliasesParams>,
+        Parameters(_params): Parameters<ListAliasesAdminParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
         let aliases = ds
@@ -955,9 +984,9 @@ impl MailMcpService {
     #[tool(
         description = "List local greylist whitelist/blacklist entries. Filter by kind (domain/email/cidr) or list (white/black). Requires admin.greylist."
     )]
-    async fn greylist_local_list(
+    async fn list_greylist_local(
         &self,
-        Parameters(params): Parameters<GreylistLocalListParams>,
+        Parameters(params): Parameters<ListGreylistLocalParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.greylist")?;
         let pool = self.pool()?;
@@ -1273,9 +1302,9 @@ impl MailMcpService {
     // --- mail operations ---
 
     #[tool(description = "List mailbox folders with message counts (total, unseen).")]
-    async fn get_folders(
+    async fn list_mailboxes(
         &self,
-        Parameters(_params): Parameters<GetFoldersParams>,
+        Parameters(_params): Parameters<ListMailboxesParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
         let _ = mb_store
@@ -1404,9 +1433,9 @@ impl MailMcpService {
     #[tool(
         description = "Search contacts from email history. Returns address, display name, counts."
     )]
-    async fn get_contacts(
+    async fn search_contacts(
         &self,
-        Parameters(_params): Parameters<GetContactsParams>,
+        Parameters(_params): Parameters<SearchContactsParams>,
     ) -> Result<CallToolResult, McpError> {
         let mb_store = self.mb_store()?;
         let contacts = mb_store
@@ -1422,10 +1451,12 @@ impl MailMcpService {
 
     // --- queue management ---
 
-    #[tool(description = "List outbound delivery queue entries. Requires admin.queue permission.")]
-    async fn get_queue(
+    #[tool(
+        description = "List the current outbound queue (last 100 entries) with each envelope's sender / recipient / status. Requires admin.queue permission."
+    )]
+    async fn list_admin_queue(
         &self,
-        Parameters(_params): Parameters<GetQueueParams>,
+        Parameters(_params): Parameters<ListAdminQueueParams>,
     ) -> Result<CallToolResult, McpError> {
         self.require_permission("admin.queue")?;
         let pool = self
@@ -1555,9 +1586,9 @@ impl MailMcpService {
     }
 
     #[tool(description = "List members of an email group.")]
-    async fn list_email_group_members(
+    async fn get_email_group_members(
         &self,
-        Parameters(params): Parameters<ListEmailGroupMembersParams>,
+        Parameters(params): Parameters<GetEmailGroupMembersParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
         let members = ds
@@ -1882,9 +1913,9 @@ impl MailMcpService {
     #[tool(
         description = "List your encryption keys (PGP and S/MIME). Returns key type, fingerprint, and creation time — not the raw key data."
     )]
-    async fn list_encryption_keys(
+    async fn list_own_encryption_keys(
         &self,
-        Parameters(_params): Parameters<ListEncryptionKeysParams>,
+        Parameters(_params): Parameters<ListOwnEncryptionKeysParams>,
     ) -> Result<CallToolResult, McpError> {
         let ds = self.ds()?;
         let rows = ds
@@ -1972,9 +2003,9 @@ impl MailMcpService {
     #[tool(
         description = "Look up a recipient's PGP public key or S/MIME certificate by email address. Use this before encrypting an email to someone."
     )]
-    async fn get_recipient_key(
+    async fn get_public_key_of(
         &self,
-        Parameters(params): Parameters<GetRecipientKeyParams>,
+        Parameters(params): Parameters<GetPublicKeyOfParams>,
     ) -> Result<CallToolResult, McpError> {
         if params.key_type != "pgp" && params.key_type != "smime" {
             return Err(McpError::invalid_params(

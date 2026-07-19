@@ -553,11 +553,11 @@ const MAX_RECIPIENTS: usize = 50;
 /// maximum body size for multipart requests (25 MB)
 const MAX_MULTIPART_BODY: usize = 25 * 1024 * 1024;
 /// maximum length for admin string fields (domain name, address, etc.)
-const MAX_ADMIN_FIELD_LEN: usize = 255;
+pub(crate) const MAX_ADMIN_FIELD_LEN: usize = 255;
 /// maximum length for sieve scripts
 const MAX_SIEVE_SCRIPT_LEN: usize = 64 * 1024;
 /// maximum length for email body text in drafts/send
-const MAX_EMAIL_BODY_LEN: usize = 512 * 1024;
+pub(crate) const MAX_EMAIL_BODY_LEN: usize = 512 * 1024;
 
 /// clamp limit to MAX_LIMIT
 pub(super) fn clamp_limit(limit: u32) -> u32 {
