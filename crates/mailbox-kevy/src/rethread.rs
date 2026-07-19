@@ -358,3 +358,158 @@ mod tests {
         assert_eq!(row.count, 2);
     }
 }
+
+impl KevyMailboxStore {
+    /// Full-text search the caller's threads.
+    ///
+    /// The text index spans every thread key regardless of owner (kevy
+    /// indexes are declared over a key prefix and thread rows carry no
+    /// owner field), so hits are filtered against the caller's activity
+    /// zset afterwards. Over-fetches by `OVERFETCH` to leave room for
+    /// hits belonging to other accounts.
+    pub fn search_threads(
+        &self,
+        user: &str,
+        query: &str,
+        limit: usize,
+    ) -> io::Result<Vec<(String, f64)>> {
+        const OVERFETCH: usize = 8;
+        if query.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let hits = self.store().idx_match(
+            crate::keys::IDX_THREAD_SEARCH,
+            query.as_bytes(),
+            limit.saturating_mul(OVERFETCH),
+        )?;
+        let activity = crate::keys::user_threads_by_activity(user);
+        let mut out = Vec::with_capacity(limit);
+        for (key, score) in hits {
+            let Ok(key) = String::from_utf8(key) else {
+                continue;
+            };
+            let Some(tid) = key.strip_prefix("mailrs:thread:") else {
+                continue;
+            };
+            // ownership check — the index is global, the answer is not
+            if self
+                .store()
+                .zscore(activity.as_bytes(), tid.as_bytes())?
+                .is_none()
+            {
+                continue;
+            }
+            out.push((tid.to_string(), score));
+            if out.len() >= limit {
+                break;
+            }
+        }
+        Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod search_tests {
+    use crate::{KevyMailboxStore, ThreadRow};
+    use kevy_embedded::{Config, Store};
+    use std::sync::Arc;
+
+    fn store() -> KevyMailboxStore {
+        let s = Arc::new(Store::open(Config::default()).expect("in-memory kevy"));
+        let mb = KevyMailboxStore::new(s);
+        mb.ensure_admin_indexes();
+        mb
+    }
+
+    fn row(tid: &str, subject: &str, senders: &str, preview: &str) -> ThreadRow {
+        ThreadRow {
+            thread_id: tid.into(),
+            subject: subject.into(),
+            senders_csv: senders.into(),
+            count: 1,
+            unread_count: 0,
+            latest_date: 100,
+            latest_preview: preview.into(),
+            category: "inbox".into(),
+            importance_level: String::new(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        }
+    }
+
+    #[test]
+    fn finds_by_subject_sender_and_preview() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(
+            u,
+            &row("t1", "Release notes", "bot@github.com", "v9 is out"),
+        )
+        .unwrap();
+        s.upsert_thread(u, &row("t2", "Lunch", "alice@x.com", "see you at noon"))
+            .unwrap();
+
+        // subject
+        assert_eq!(s.search_threads(u, "release", 10).unwrap()[0].0, "t1");
+        // sender — an explicit requirement, users search by who sent it
+        assert_eq!(s.search_threads(u, "github", 10).unwrap()[0].0, "t1");
+        // preview
+        assert_eq!(s.search_threads(u, "noon", 10).unwrap()[0].0, "t2");
+    }
+
+    #[test]
+    fn finds_japanese_without_a_tokenizer() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(
+            u,
+            &row("t1", "小柳ルミ子 誕生日", "アメマガ <sp@ameba.jp>", ""),
+        )
+        .unwrap();
+        // CJK bigrams — the mailbox this was reported against is mostly
+        // Japanese commercial mail
+        assert_eq!(s.search_threads(u, "アメマガ", 10).unwrap().len(), 1);
+        assert_eq!(s.search_threads(u, "誕生日", 10).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn never_returns_another_users_threads() {
+        let s = store();
+        s.upsert_thread("a@x.com", &row("ta", "shared word", "s@x.com", ""))
+            .unwrap();
+        s.upsert_thread("b@x.com", &row("tb", "shared word", "s@x.com", ""))
+            .unwrap();
+
+        let a = s.search_threads("a@x.com", "shared", 10).unwrap();
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].0, "ta");
+    }
+
+    #[test]
+    fn reflects_edits_without_a_reindex_step() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("t1", "before", "s@x.com", ""))
+            .unwrap();
+        assert_eq!(s.search_threads(u, "before", 10).unwrap().len(), 1);
+
+        s.upsert_thread(u, &row("t1", "after", "s@x.com", ""))
+            .unwrap();
+        // the commit hook maintains the index — no pipeline to lag
+        assert!(s.search_threads(u, "before", 10).unwrap().is_empty());
+        assert_eq!(s.search_threads(u, "after", 10).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn empty_query_returns_nothing_rather_than_everything() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("t1", "x", "s@x.com", "")).unwrap();
+        assert!(s.search_threads(u, "   ", 10).unwrap().is_empty());
+    }
+}

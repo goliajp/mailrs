@@ -128,6 +128,20 @@ impl KevyMailboxStore {
     pub fn ensure_admin_indexes(&self) {
         use kevy_embedded::{IndexKind, IndexValType};
         let s = &self.store;
+        // Full-text over the synthesised `search_blob` field. kevy
+        // maintains this from its commit hook, so it cannot drift from
+        // the rows the way an external search service does — which is
+        // exactly how conversation search ended up dead for weeks
+        // (index name mismatch + dropped writes, 2026-07-19).
+        // Dictionary-free CJK bigrams, so Japanese subjects and sender
+        // names are searchable without an analyzer.
+        let _ = s.idx_create(
+            keys::IDX_THREAD_SEARCH,
+            keys::THREAD_PREFIX,
+            keys::THREAD_SEARCH_FIELD,
+            IndexValType::Str,
+            IndexKind::Text,
+        );
         let _ = s.idx_create(
             keys::IDX_ALIASES_BY_DOMAIN,
             keys::ALIAS_V2_PREFIX,

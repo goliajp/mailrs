@@ -35,6 +35,7 @@ pub(crate) async fn backfill_decode_headers_route(
     };
     let store = state.mailbox.store_ref();
     let mut rows_decoded = 0u64;
+    let mut blobs_added = 0u64;
     let mut reindexed = 0u64;
     let mut index_failures = 0u64;
     // Batch size for the synchronous Meili writes below. 500 docs per
@@ -57,7 +58,20 @@ pub(crate) async fn backfill_decode_headers_route(
             let senders = mailrs_rfc2047::decode(row.senders_csv.as_bytes()).into_owned();
             let subject = mailrs_rfc2047::decode(row.subject.as_bytes()).into_owned();
             let preview = mailrs_rfc2047::decode(row.latest_preview.as_bytes()).into_owned();
-            let dirty = senders != row.senders_csv
+            // Rows written before the text index existed carry no
+            // `search_blob`, so they are invisible to search until
+            // something rewrites them. upsert_thread synthesises the
+            // field, so re-writing such a row is all it takes.
+            let needs_blob = !state
+                .mailbox
+                .store_ref()
+                .hexists(
+                    mailrs_mailbox_kevy::keys::thread(tid).as_bytes(),
+                    mailrs_mailbox_kevy::keys::THREAD_SEARCH_FIELD,
+                )
+                .unwrap_or(false);
+            let dirty = needs_blob
+                || senders != row.senders_csv
                 || subject != row.subject
                 || preview != row.latest_preview;
             if dirty {
@@ -67,6 +81,9 @@ pub(crate) async fn backfill_decode_headers_route(
                 if let Err(e) = state.mailbox.upsert_thread(user, &row) {
                     tracing::warn!(err = %e, %user, %tid, "decode backfill: upsert failed");
                     continue;
+                }
+                if needs_blob {
+                    blobs_added += 1;
                 }
                 rows_decoded += 1;
                 crate::live_sync::upsert_contacts(user, &row.senders_csv);
@@ -98,6 +115,7 @@ pub(crate) async fn backfill_decode_headers_route(
     let contacts_repaired = scrub_contact_hashes(&users);
     tracing::info!(
         rows_decoded,
+        blobs_added,
         reindexed,
         index_failures,
         contacts_repaired,
@@ -105,6 +123,7 @@ pub(crate) async fn backfill_decode_headers_route(
     );
     Json(serde_json::json!({
         "rows_decoded": rows_decoded,
+        "search_blobs_added": blobs_added,
         "meili_reindexed": reindexed,
         "meili_failed": index_failures,
         "contacts_repaired": contacts_repaired,

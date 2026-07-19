@@ -247,6 +247,17 @@ impl Client {
         self.post_authed_json(path, req, "list_conversations").await
     }
 
+    /// POST /v1/users/{user}/conversations:search
+    pub async fn search_conversations(
+        &self,
+        user: &str,
+        req: &method::conversation::SearchConversationsRequest,
+    ) -> ApiResult<method::conversation::SearchConversationsResponse> {
+        let path = format!("/v1/users/{}/conversations:search", Self::enc(user));
+        self.post_authed_json(path, req, "search_conversations")
+            .await
+    }
+
     /// POST /v1/users/{user}/conversations:by-thread-ids
     pub async fn conversations_by_thread_ids(
         &self,

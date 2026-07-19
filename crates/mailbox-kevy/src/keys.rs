@@ -11,6 +11,30 @@ pub fn thread(tid: &str) -> String {
     format!("mailrs:thread:{tid}")
 }
 
+/// Key prefix the thread-search text index is declared over.
+pub const THREAD_PREFIX: &[u8] = b"mailrs:thread:";
+
+/// Name of the full-text index over [`THREAD_SEARCH_FIELD`].
+pub const IDX_THREAD_SEARCH: &[u8] = b"mailrs_thread_search";
+
+/// Synthesised hash field the text index reads. kevy indexes exactly
+/// one field per text index, so subject / senders / preview are
+/// concatenated into this one. Written by every path that writes the
+/// row, and the index is maintained by kevy's commit hook — there is no
+/// separate pipeline that can silently fall behind.
+pub const THREAD_SEARCH_FIELD: &[u8] = b"search_blob";
+
+/// Build the value for [`THREAD_SEARCH_FIELD`].
+pub fn search_blob(subject: &str, senders_csv: &str, preview: &str) -> String {
+    let mut out = String::with_capacity(subject.len() + senders_csv.len() + preview.len() + 2);
+    out.push_str(subject);
+    out.push(' ');
+    out.push_str(senders_csv);
+    out.push(' ');
+    out.push_str(preview);
+    out
+}
+
 /// Per-user activity index — zset(tid → max internal_date).
 /// Used for `/v1/users/{u}/conversations:list` ordered by recency.
 pub fn user_threads_by_activity(user: &str) -> String {

@@ -1,10 +1,14 @@
 //! `/api/conversations/semantic-search` — ranked lookup over the
 //! caller's conversations.
 //!
-//! Meili serves it when reachable and the index answers; otherwise a
-//! scan of the caller's conversations does. Both paths match subject,
-//! participants and preview, so the two backends agree on what counts
-//! as a hit even though they disagree on ranking.
+//! Served by the kevy full-text index (`KIND text` over the thread
+//! rows' synthesised `search_blob` field). kevy maintains that index
+//! from its commit hook, so it cannot fall behind the rows — which is
+//! the failure mode that killed the previous design. Ranking is BM25
+//! and CJK works without an analyzer.
+//!
+//! A linear scan of the caller's conversations remains as the fallback
+//! for the window before the index is backfilled.
 //!
 //! Two independent defects made this endpoint return `[]` for every
 //! query on prod for weeks (reported by goliajp 2026-07-19):
@@ -58,10 +62,38 @@ pub async fn semantic_search(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let limit = q.limit.clamp(1, 200);
 
-    if let Some(hits) = try_meili(&user, &q.q, limit).await {
-        return Ok(Json(
-            serde_json::json!({ "items": hits, "backend": "meili" }),
-        ));
+    // Primary: the kevy text index, via the core RPC that owns the
+    // embedded store.
+    let search_req = mailrs_core_api::method::conversation::SearchConversationsRequest {
+        query: q.q.clone(),
+        category: None,
+        limit,
+    };
+    match state.core.search_conversations(&user, &search_req).await {
+        Ok(resp) if !resp.items.is_empty() => {
+            let items: Vec<serde_json::Value> = resp
+                .items
+                .into_iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "thread_id": c.thread_id,
+                        "subject": c.subject,
+                        "participants": c.participants,
+                        "score": 1.0,
+                    })
+                })
+                .collect();
+            return Ok(Json(
+                serde_json::json!({ "items": items, "backend": "kevy_text" }),
+            ));
+        }
+        // An empty result is not proof the index is healthy — until the
+        // backfill has run, an un-indexed mailbox also answers empty.
+        // Fall through to the scan, which is authoritative either way.
+        Ok(_) => {}
+        Err(e) => {
+            tracing::debug!(err = %e, %user, "kevy text search unavailable, scanning");
+        }
     }
 
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
@@ -115,29 +147,4 @@ pub async fn semantic_search(
     Ok(Json(
         serde_json::json!({ "items": items, "backend": "linear_fallback" }),
     ))
-}
-
-/// Query Meili. `None` on any failure so the caller falls back — an
-/// unreachable or not-yet-populated index must not fail the request
-/// outright while a working scan exists.
-async fn try_meili(user: &str, query: &str, limit: u32) -> Option<Vec<serde_json::Value>> {
-    let base = std::env::var("MAILRS_MEILI_URL").ok()?;
-    let index = mailrs_core_api::meili_index_name(user);
-    let url = format!("{base}/indexes/{index}/search");
-    let mut req = reqwest::Client::new().post(&url).json(&serde_json::json!({
-        "q": query,
-        "limit": limit,
-        "attributesToRetrieve": ["thread_id", "subject", "participants"],
-    }));
-    if let Ok(k) = std::env::var("MAILRS_MEILI_KEY") {
-        req = req.bearer_auth(k);
-    }
-    let resp = req.send().await.ok()?;
-    if !resp.status().is_success() {
-        tracing::debug!(status = %resp.status(), %index, "meili search rejected");
-        return None;
-    }
-    let v = resp.json::<serde_json::Value>().await.ok()?;
-    let hits = v.get("hits")?.as_array()?.clone();
-    Some(hits)
 }

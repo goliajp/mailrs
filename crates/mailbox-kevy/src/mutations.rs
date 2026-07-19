@@ -246,23 +246,9 @@ impl KevyMailboxStore {
     pub fn delete_thread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         // No "hclear" in kevy 3.17 either; keep the explicit field list.
-        let fields: &[&[u8]] = &[
-            b"subject",
-            b"senders_csv",
-            b"count",
-            b"unread_count",
-            b"latest_date",
-            b"latest_preview",
-            b"category",
-            b"importance_level",
-            b"importance_score",
-            b"requires_action",
-            b"pinned",
-            b"archived",
-            b"has_action",
-            b"sent_count",
-            b"starred",
-        ];
+        // Single source of truth with the write path — a field written
+        // but not listed here survives the delete and resurrects the row.
+        let fields = crate::thread_row::ThreadRow::field_names();
         self.store().atomic(|ctx| {
             let category = ctx
                 .hget(thread_key.as_bytes(), b"category")?
