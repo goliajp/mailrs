@@ -7,26 +7,31 @@
 //! the failure mode that killed the previous design. Ranking is BM25
 //! and CJK works without an analyzer.
 //!
-//! A linear scan of the caller's conversations remains as the fallback
-//! for the window before the index is backfilled.
+//! A linear scan remains only for the case where the index query
+//! itself fails; an empty index result is returned as-is, because the
+//! index is maintained with the writes and "no hits" is a real answer.
 //!
-//! Two independent defects made this endpoint return `[]` for every
-//! query on prod for weeks (reported by goliajp 2026-07-19):
+//! This endpoint returned `[]` for every query on prod for weeks
+//! (reported by goliajp 2026-07-19) — two independent defects, either
+//! sufficient on its own:
 //!
-//!   1. it queried index `conversations-<user>` while the writer
-//!      populated `mailrs_<user>` — Meili 404'd every request and the
-//!      error was swallowed, so `backend` was permanently
-//!      `linear_fallback`. The name now comes from
-//!      `mailrs_core_api::meili_index_name`, which both sides share.
+//!   1. it queried a Meili index named `conversations-<user>` while the
+//!      writer populated `mailrs_<user>`. Meili 404'd every request and
+//!      the error was swallowed, so the endpoint permanently reported
+//!      the fallback backend. Three separate files each carried their
+//!      own copy of that naming rule, and two disagreed.
 //!   2. the fallback read thread rows out of the **network** kevy, but
 //!      conversations live in fastcore's embedded store — the zrange
-//!      returned nothing, the loop body never ran, and the handler
-//!      answered `[]` deterministically. It now goes through the core
-//!      RPC, the same path every other conversation read uses.
+//!      returned nothing, the loop body never ran, and `[]` was the
+//!      deterministic answer.
 //!
-//! A backend that is down is now a 503 rather than an empty 200: the
+//! Both are structurally gone now: the index lives in the same store as
+//! the rows, and reads go through the core RPC like every other
+//! conversation read.
+//!
+//! A backend that is down answers 503 rather than an empty 200 — the
 //! reporter could not tell "no matches" from "search is broken", which
-//! is why this went unnoticed.
+//! is why this went unnoticed for weeks.
 
 use std::sync::Arc;
 
@@ -70,7 +75,11 @@ pub async fn semantic_search(
         limit,
     };
     match state.core.search_conversations(&user, &search_req).await {
-        Ok(resp) if !resp.items.is_empty() => {
+        // The index is maintained with the writes, so an empty result is
+        // the answer, not a symptom. Returning it directly also avoids
+        // dragging 20k rows through the fallback on every query that
+        // legitimately matches nothing.
+        Ok(resp) => {
             let items: Vec<serde_json::Value> = resp
                 .items
                 .into_iter()
@@ -87,12 +96,11 @@ pub async fn semantic_search(
                 serde_json::json!({ "items": items, "backend": "kevy_text" }),
             ));
         }
-        // An empty result is not proof the index is healthy — until the
-        // backfill has run, an un-indexed mailbox also answers empty.
-        // Fall through to the scan, which is authoritative either way.
-        Ok(_) => {}
+        // Only a genuine failure falls through — and it is logged at
+        // warn, because a silent downgrade is how the previous design
+        // stayed broken for weeks.
         Err(e) => {
-            tracing::debug!(err = %e, %user, "kevy text search unavailable, scanning");
+            tracing::warn!(err = %e, %user, "kevy text search failed, falling back to scan");
         }
     }
 
@@ -125,10 +133,9 @@ pub async fn semantic_search(
         .items
         .into_iter()
         .filter(|c| {
-            // Case-insensitive substring across the same three fields
-            // Meili indexes. Substring matching carries CJK without a
-            // tokenizer, which matters here — most of this mail is
-            // Japanese.
+            // Same three fields the text index covers. Substring
+            // matching carries CJK without a tokenizer, which matters
+            // here — most of this mail is Japanese.
             c.subject.to_lowercase().contains(&needle)
                 || c.participants.to_lowercase().contains(&needle)
                 || c.snippet.to_lowercase().contains(&needle)

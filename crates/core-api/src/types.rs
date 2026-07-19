@@ -21,7 +21,7 @@ pub struct HealthResponse {
     pub version: String,
     /// Which backend is running: `"pg"` (core) or `"kevy"` (fastcore).
     pub backend: BackendKind,
-    /// `true` if all dependencies are reachable (backend + meili if used).
+    /// `true` if all dependencies are reachable.
     pub ready: bool,
 }
 

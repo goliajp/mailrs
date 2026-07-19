@@ -10,7 +10,7 @@
 #                   /data/.spool — never touches kevy-fastcore or spg
 #   fastcore        kevy-backed core: core-api RPC :3301 (host :3201),
 #                   IMAP 143/993, POP3 110/995, spool drain, sieve,
-#                   self-heal, live contacts + meili sync
+#                   self-heal, live contacts sync
 #   webapi-fc       REST + web UI :3100 (host 127.0.0.1:3103, nginx
 #                   terminates TLS). Static UI comes from the host
 #                   bind mount /apps/mailrs/web (owned by the web-v*
@@ -21,7 +21,6 @@
 #                   network kevy, DKIM-signs, MX + STARTTLS delivery
 #   kevy-server     network kevy (sessions, queue, sieve, contacts,
 #                   calendar/DAV, cross-process notify)
-#   meilisearch     search index (fastcore live_sync writes on arrival)
 #
 # Deploy: scp this file to /apps/mailrs/docker-compose.prod.yml, then
 #   cd /apps/mailrs && docker compose -p mailrs -f docker-compose.prod.yml \
@@ -87,8 +86,6 @@ services:
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mailrs}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
-      MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
-      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_ALIAS_STORE_BACKEND: network
       MAILRS_TLS_CERT: /certs/fullchain.pem
@@ -118,8 +115,6 @@ services:
       MAILRS_WEB_BIND: 0.0.0.0:3100
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir
-      MAILRS_MEILI_URL: http://mailrs-meilisearch:7700
-      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
@@ -160,20 +155,7 @@ services:
       - /apps/mailrs/kevy.toml:/etc/kevy/kevy.toml:ro
     restart: unless-stopped
 
-  meilisearch:
-    container_name: mailrs-meilisearch
-    image: getmeili/meilisearch:v1.44
-    ports:
-      - "7700:7700"
-    environment:
-      MEILI_NO_ANALYTICS: "true"
-      MEILI_ENV: production
-      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
-    volumes:
-      - meili-data:/meili_data
-    restart: unless-stopped
 
 volumes:
   mailrs-data:
   kevy-server-data:
-  meili-data:

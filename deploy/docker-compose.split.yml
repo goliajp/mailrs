@@ -32,17 +32,6 @@ services:
       - ./init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     restart: unless-stopped
 
-  meilisearch:
-    container_name: mailrs-meilisearch
-    image: getmeili/meilisearch:v1.44
-    environment:
-      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
-      MEILI_NO_ANALYTICS: "true"
-      MEILI_ENV: production
-    volumes:
-      - meili-data:/meili_data
-    restart: unless-stopped
-
   # shared network kevy: anti state + cross-process SpoolDelivered notify.
   # Not exposed to the host — only the receiver and core reach it over the
   # compose network. Its loss is non-fatal: anti fails open and the core's
@@ -146,8 +135,6 @@ services:
       MAILRS_DKIM_SELECTOR: mail
       MAILRS_DKIM_DOMAIN: ${MAILRS_DKIM_DOMAIN:-golia.jp}
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
-      MAILRS_MEILI_URL: http://meilisearch:7700
-      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY:-mailrs-meili-key}
       MAILRS_ANTISPAM_ENABLED: "${MAILRS_ANTISPAM_ENABLED:-true}"
       MAILRS_AI_ANALYSIS_ENABLED: "${MAILRS_AI_ANALYSIS_ENABLED:-false}"
     volumes:
@@ -156,7 +143,6 @@ services:
       - ./dkim:/dkim:ro
     depends_on:
       - postgres
-      - meilisearch
       - kevy-server
     restart: unless-stopped
 
@@ -208,5 +194,4 @@ services:
 volumes:
   mailrs-data:
   pg-data:
-  meili-data:
   kevy-server-data:

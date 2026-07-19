@@ -285,12 +285,7 @@ impl ServerConfig {
             &mut self.auth_max_lockout_secs,
         );
     }
-
-    /// Meilisearch full-text index.
-    pub(super) fn load_external_services(&mut self) {
-        set_opt_string_nonempty("MAILRS_MEILI_URL", &mut self.meili_url);
-        set_opt_string_nonempty("MAILRS_MEILI_KEY", &mut self.meili_key);
-    }
+    pub(super) fn load_external_services(&mut self) {}
 
     /// LDAP fallback-auth backend.
     pub(super) fn load_ldap(&mut self) {

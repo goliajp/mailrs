@@ -16,7 +16,7 @@
 //! 2. Maintaining **secondary indexes as ZSETs** keyed by activity time,
 //!    archive state, category, etc. List queries become
 //!    `ZREVRANGE + N × HGETALL`, all O(log n).
-//! 3. Falling back to **meili** for semantic_search and FTS (Rocks 3 + 4
+//! 3. Full-text search via the kevy text index (Rocks 3 + 4
 //!    from the feasibility note).
 //!
 //! ## KV layout

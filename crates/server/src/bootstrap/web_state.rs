@@ -10,7 +10,7 @@ use crate::inbound::auth_guard::AuthGuardStore;
 use crate::web::WebState;
 use crate::{
     acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, search_index, smtp_session, system_config, tls, web, webhook,
+    outbound_tls_rpt, rbl_monitor, smtp_session, system_config, tls, web, webhook,
 };
 use mailrs_mailbox::PgMailboxStore;
 
@@ -32,7 +32,6 @@ pub(crate) struct WebStateInputs<'a> {
     pub(crate) llm_provider: &'a Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
     pub(crate) resolver: &'a Option<Arc<hickory_resolver::TokioResolver>>,
     pub(crate) ldap_config: &'a Option<Arc<crate::ldap_auth::LdapConfig>>,
-    pub(crate) meili_client: Option<&'a Arc<search_index::MeiliClient>>,
     pub(crate) system_config_store: Arc<system_config::SystemConfigStore>,
     pub(crate) metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
     pub(crate) greylist_local: crate::greylist_local::GreylistLocalHandle,
@@ -40,7 +39,7 @@ pub(crate) struct WebStateInputs<'a> {
 
 /// Build the `WebState` from optional backends. Optional pieces
 /// (PG, Kevy, mailbox, domain store, LLM, resolver, LDAP,
-/// Meilisearch, Chrome render preview, OIDC client) only attach
+/// Chrome render preview, OIDC client) only attach
 /// when the corresponding backend was successfully initialized.
 pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     let smtp_snapshot = crate::web::SmtpConfigSnapshot {
@@ -117,9 +116,6 @@ pub(crate) fn build_web_state(i: WebStateInputs<'_>) -> WebState {
     }
     if let Some(ldap) = i.ldap_config {
         ws = ws.with_ldap_config(ldap.clone());
-    }
-    if let Some(meili) = i.meili_client {
-        ws = ws.with_meili(meili.clone());
     }
     if let Some(oidc) = oidc_client_from_env(&i.cfg.hostname) {
         tracing::info!("OIDC client configured (issuer={})", oidc.token_url);

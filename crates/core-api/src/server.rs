@@ -31,7 +31,7 @@ pub trait Handler: Send + Sync + 'static {
     /// Reports backend kind + readiness for the /healthz probe.
     fn healthz(&self) -> impl std::future::Future<Output = HealthResponse> + Send;
 
-    /// Deeper readiness probe — verifies backend pool open + meili etc.
+    /// Deeper readiness probe — verifies the backend pool is open.
     fn readyz(&self) -> impl std::future::Future<Output = HealthResponse> + Send;
 }
 

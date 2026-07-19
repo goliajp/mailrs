@@ -10,8 +10,8 @@
 //!
 //! Direction-agnostic: PG→kevy and kevy→PG are the same code path. Run at
 //! switch time with both cores up (source read-only); after it completes,
-//! flip `MAILRS_CORE_RPC_BASE` to the destination and rebuild the meili
-//! index with `mailrs-fastcore-backfill-meili`.
+//! flip `MAILRS_CORE_RPC_BASE` to the destination. The text index is
+//! part of the kevy store, so it moves with the data.
 
 use std::process::ExitCode;
 

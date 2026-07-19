@@ -314,7 +314,7 @@ impl PgMailboxStore {
             .collect())
     }
 
-    /// fetch conversation summaries for specific thread_ids (used by meilisearch integration)
+    /// fetch conversation summaries for specific thread_ids (used to hydrate search hits)
     pub async fn get_conversations_by_thread_ids(
         &self,
         user: &str,
@@ -428,7 +428,7 @@ impl PgMailboxStore {
 
         let rows = query.fetch_all(&self.pool).await?;
 
-        // preserve the order from thread_ids (meilisearch relevance order)
+        // preserve the order from thread_ids (search relevance order)
         let map: std::collections::HashMap<String, ConversationSummary> = rows
             .into_iter()
             .map(|r| {

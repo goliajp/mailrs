@@ -42,7 +42,6 @@ mod quota_store;
 mod rbl_monitor;
 mod reconcile_task;
 mod reputation;
-mod search_index;
 
 mod bootstrap;
 mod greylist_backfill;
@@ -469,11 +468,6 @@ pub async fn run() {
         tracing::info!("LDAP authentication enabled");
     }
 
-    let meili_client = cfg.meili_url.as_ref().map(|url| {
-        let key = cfg.meili_key.clone().unwrap_or_default();
-        Arc::new(search_index::MeiliClient::new(url.clone(), key))
-    });
-
     let system_config_store =
         init_system_config_store(&cfg, &pg_pool, &kevy_embedded_store, shutdown_rx.clone()).await;
 
@@ -524,17 +518,10 @@ pub async fn run() {
         llm_provider: &llm_provider,
         resolver: &resolver,
         ldap_config: &ldap_config,
-        meili_client: meili_client.as_ref(),
         system_config_store: system_config_store.clone(),
         metrics_handle: metrics_handle.clone(),
         greylist_local: greylist_local_handle.clone(),
     }));
-
-    // spawn meilisearch indexer
-    if let (Some(meili), Some(pool)) = (&meili_client, &pg_pool) {
-        search_index::spawn_indexer(meili.clone(), pool.clone(), kevy_embedded_store.clone());
-        tracing::info!(event = "subsystem_started", subsystem = "meili_indexer");
-    }
 
     // MRS-10: spawn external ICS feed worker. Cheap when no feeds exist —
     // the DUE query returns empty and the loop sleeps.

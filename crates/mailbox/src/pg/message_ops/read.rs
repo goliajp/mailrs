@@ -113,7 +113,7 @@ impl PgMailboxStore {
         if let Some(t) = text
             && !t.is_empty()
         {
-            // PG search is the fallback path (main is Meilisearch).
+            // PG full-text search — the only search path.
             // tsvector branch restored in the D-pre revert — the engine
             // covers tsvector since SPG round-10.
             conditions.push(format!(

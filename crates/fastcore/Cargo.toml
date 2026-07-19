@@ -34,10 +34,6 @@ name = "mailrs-fastcore-backfill-usage"
 path = "src/bin/backfill_usage.rs"
 
 [[bin]]
-name = "mailrs-fastcore-backfill-meili"
-path = "src/bin/backfill_meili.rs"
-
-[[bin]]
 name = "mailrs-fastcore-backfill-junk-index"
 path = "src/bin/backfill_junk_index.rs"
 
@@ -77,7 +73,6 @@ mailrs-rfc2047 = "1"
 mailrs-srs = "1"
 mailrs-mta-sts = "1"
 mailrs-tls-rpt = "1"
-ureq = "2"
 mailrs-acme = "1"
 mailrs-tls-reload = "1"
 instant-acme = "0.8"
