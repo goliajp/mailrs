@@ -450,10 +450,20 @@ pub fn set_flags(msg: &ImapMessage, flags: &[Flag]) -> std::io::Result<PathBuf> 
 
 /// Move a message file to `dest_mailbox` (COPY / MOVE targets).
 /// Creates the destination Maildir if it doesn't already exist.
-pub fn copy_to(msg: &ImapMessage, dest: &MailboxInfo) -> std::io::Result<()> {
+///
+/// Indexes the new copy on the way in — same write-through contract as
+/// [`append`]. A COPY that only touched the filesystem left the thread
+/// index blind to the new file.
+pub fn copy_to(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    msg: &ImapMessage,
+    dest: &MailboxInfo,
+) -> std::io::Result<()> {
     let bytes = read_message(msg).ok_or_else(|| std::io::Error::other("source missing"))?;
     let maildir = Maildir::create(&dest.path)?;
-    maildir.deliver(&bytes)?;
+    let id = maildir.deliver(&bytes)?;
+    crate::ingest_delivered_file(state, user, &blob_ref_for(dest, &id.0), &bytes, &dest.name);
     Ok(())
 }
 
@@ -465,6 +475,23 @@ pub fn delete_file(msg: &ImapMessage) -> std::io::Result<()> {
 
 /// Append raw bytes to a mailbox as a new message; allocates and
 /// returns the persistent UID for the delivered file.
+/// Build the `blob_ref` that `ingest_delivered_file` (and later
+/// `enrich_with_body`) expects: a bare filename for INBOX, or
+/// `.Folder/<filename>` for a Maildir++ subfolder. Mirrors the
+/// construction in `healed_from_maildir`.
+///
+/// Keyed off the IMAP mailbox name rather than the directory name:
+/// `list_mailboxes` derives the name by stripping the leading dot
+/// (`.Work.Client` -> `Work.Client`), so re-adding it round-trips
+/// exactly, and the result doesn't depend on what the maildir root
+/// itself happens to be called.
+fn blob_ref_for(mb: &MailboxInfo, filename: &str) -> String {
+    match mb.name.eq_ignore_ascii_case("INBOX") {
+        true => filename.to_string(),
+        false => format!(".{}/{}", mb.name, filename),
+    }
+}
+
 pub fn append(
     state: &Arc<FastcoreState>,
     user: &str,
@@ -477,6 +504,13 @@ pub fn append(
     let maildir = Maildir::create(&mb.path)?;
     let id = maildir.deliver(bytes)?;
     crate::live_sync::adjust_usage_bytes(user, bytes.len() as i64);
+    // Write-through to the thread index, exactly like spool_drain does
+    // for inbound mail. Without this an APPEND (a client filing its own
+    // sent copy into .Sent, say) lands on disk but stays invisible to
+    // the conversation views until the periodic maildir self-heal
+    // notices it — which is precisely why that sweep had to scan every
+    // file in the mailbox on every cycle (2026-07-19).
+    crate::ingest_delivered_file(state, user, &blob_ref_for(mb, &id.0), bytes, &mb.name);
     let empty_cache = std::collections::HashMap::new();
     let empty_seen = std::collections::HashSet::new();
     let path = mb.path.join("new").join(&id.0);
@@ -544,6 +578,44 @@ mod tests {
         let third = list_messages(&st, "u@x.y", &m);
         assert_eq!(third.len(), 3);
         assert!(third[2].uid > second[1].uid);
+    }
+
+    #[test]
+    fn blob_ref_is_bare_for_inbox_and_prefixed_for_subfolders() {
+        let tmp = tempfile::tempdir().unwrap();
+        let inbox = mb(tmp.path());
+        assert_eq!(blob_ref_for(&inbox, "123.M1P1.h"), "123.M1P1.h");
+
+        let sub_path = tmp.path().join(".Sent");
+        for leaf in ["cur", "new", "tmp"] {
+            std::fs::create_dir_all(sub_path.join(leaf)).unwrap();
+        }
+        let sent = MailboxInfo {
+            name: "Sent".into(),
+            path: sub_path,
+        };
+        assert_eq!(blob_ref_for(&sent, "123.M1P1.h"), ".Sent/123.M1P1.h");
+    }
+
+    #[test]
+    fn append_indexes_the_message_write_through() {
+        let tmp = tempfile::tempdir().unwrap();
+        let st = state();
+        let m = mb(tmp.path());
+        let raw = b"Message-ID: <appended@test>\r\nFrom: a@x.y\r\nSubject: hi\r\n\r\nbody";
+
+        append(&st, "u@x.y", &m, raw).unwrap();
+
+        // the thread index must know about it immediately — no waiting
+        // for the periodic maildir self-heal
+        let tid = st
+            .mailbox
+            .thread_for_message_id("u@x.y", "appended@test")
+            .unwrap();
+        assert!(
+            tid.is_some(),
+            "APPEND must write through to the thread index"
+        );
     }
 
     #[test]

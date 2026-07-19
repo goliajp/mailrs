@@ -180,7 +180,7 @@ pub async fn copy_message(
     let dst =
         backend::get_mailbox(&state, &user, &req.dst_mailbox_name).ok_or(StatusCode::NOT_FOUND)?;
     let new_uid = backend::uid_next(&state, &user);
-    backend::copy_to(&msg, &dst).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    backend::copy_to(&state, &user, &msg, &dst).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(CopyMoveResponse { new_uid }))
 }
 
@@ -194,7 +194,7 @@ pub async fn move_message(
     let dst =
         backend::get_mailbox(&state, &user, &req.dst_mailbox_name).ok_or(StatusCode::NOT_FOUND)?;
     let new_uid = backend::uid_next(&state, &user);
-    backend::copy_to(&msg, &dst).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    backend::copy_to(&state, &user, &msg, &dst).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     // move = copy then remove the source maildir file
     let _ = std::fs::remove_file(&msg.path);
     Ok(Json(CopyMoveResponse { new_uid }))
