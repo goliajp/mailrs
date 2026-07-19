@@ -153,3 +153,53 @@ Apply the "is this rewrite-worth-it?" filter to each candidate:
 All ✅ → reimplement it in-house. The original four candidates all
 passed; the next two (`mailrs-arc`, `mailrs-mta-sts`) also pass, and
 both are now shipped.
+
+---
+
+## Addendum 2026-07-19 — the audit had a blind spot: containers
+
+Meilisearch served conversation search until this date. It never
+appeared in this ledger, and it appears zero times in
+`ARCHITECTURE.md`. Not because it was judged and kept — because the
+audit's unit of analysis was the Cargo dependency, and Meili was a
+`docker-compose` service. It was adopted in passing and never asked the
+question every crate here was asked.
+
+What that cost, measured over two days in July 2026:
+
+- **The index name was written down three times** (fastcore's writer,
+  webapi's `semantic-search`, webapi's `search`), and two of the three
+  disagreed. Meili answered 404 to every query, the error was swallowed
+  by an `if let Ok(..) && is_success()` chain, and search returned an
+  empty list for every term — for weeks, with HTTP 200, so nothing
+  looked broken.
+- **Roughly half the writes were lost.** The live path spawned a
+  detached thread per document and discarded errors; prod held 13,599
+  documents for 29,001 threads. Recovery needed a backfill.
+- Neither failure was reachable by any test in this repo. Both were
+  found by a downstream consumer reporting that search was dead.
+
+All three are the same root cause — *a copy of the index living in
+another process, free to drift from the rows it describes*. That is not
+a Meili defect; it is the shape of the dependency.
+
+The replacement is kevy's `KIND text`: the index is declared over the
+thread rows and maintained by the store's commit hook, so it is written
+in the same operation as the row. A test now asserts that editing a row
+changes what search returns with no reindex step in between — a
+property the old design could not express, let alone verify. It also
+removed a container and the `ureq` dependency, and brought
+dictionary-free CJK, which the previous setup needed an analyzer for.
+
+The monolith lane needed nothing new: Postgres already had
+`search_vector` with a GIN index and a maintaining trigger, plus ILIKE
+for CJK. Meili had simply been sitting in front of a working
+implementation.
+
+**Checklist amendment.** The questions above still hold, but the
+trigger for asking them was too narrow. Ask them of anything the
+product depends on at runtime — sidecar containers and managed
+services included. The tell that should have prompted the question
+earlier: *a service holding a derived copy of data we already own, kept
+in sync by our own code, with no mechanism that makes divergence
+visible.*

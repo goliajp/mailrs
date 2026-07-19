@@ -1233,9 +1233,8 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                     is_own,
                 };
                 let _ = state.mailbox.record_message_arrival(&arrival);
-                // Side sinks: contacts autocomplete + Meili index.
+                // Side sink: contacts autocomplete.
                 crate::live_sync::upsert_contacts(user, &m.from);
-                crate::live_sync::index_meili(user, root, &m.subject, &m.from, "", m.date);
                 // Also write the message blob for enrich_with_body.
                 let uid = state.mailbox.allocate_uid(user, &m.message_id).unwrap_or(0);
                 let wire = mailrs_core_api::method::message::MessageWire {
@@ -1459,7 +1458,6 @@ pub(crate) fn ingest_delivered_file(
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
     crate::live_sync::upsert_contacts(addr, &from);
-    crate::live_sync::index_meili(addr, &root, &subject, &from, "", date);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let m = crate::imap::backend::bump_modseq(state, addr);
     crate::imap::backend::set_file_modseq(state, addr, bare, m);
@@ -2771,7 +2769,6 @@ async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    crate::live_sync::delete_meili(&user, &thread_id);
     action_result(
         state
             .mailbox
@@ -2781,7 +2778,7 @@ async fn delete_thread(
 }
 
 /// `POST /v1/users/{user}/conversations:by-thread-ids` — hydrate full
-/// conversation rows for a set of thread_ids (meili search results),
+/// conversation rows for a set of thread_ids (search results),
 /// preserving the requested order (G10).
 async fn conversations_by_thread_ids(
     State(state): State<Arc<FastcoreState>>,
@@ -2876,7 +2873,7 @@ async fn deliver_message(
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    // Side sinks so contacts autocomplete + Meili stay live on webapi-
+    // Side sink so contacts autocomplete stays live on webapi-
     // driven deliveries (mirror-send, forward-into-thread, etc.).
     let _ = state.notify.send(user.clone());
     crate::live_sync::publish_new_mail(
@@ -2887,14 +2884,6 @@ async fn deliver_message(
         &req.latest_preview,
     );
     crate::live_sync::upsert_contacts(&user, &req.senders_csv);
-    crate::live_sync::index_meili(
-        &user,
-        &thread_id,
-        &req.subject,
-        &req.senders_csv,
-        &req.latest_preview,
-        req.latest_date,
-    );
 
     // Allocate the per-user persistent uid HERE, not at the caller —
     // fastcore owns the uid space. mirror_send used to pass wires with

@@ -1,22 +1,17 @@
-//! Live post-arrival sinks — contacts + Meili.
+//! Live post-arrival sink — the contacts autocomplete store.
 //!
-//! Fastcore's self-heal creates threads in its embedded kevy. Two side
-//! channels the web UI depends on need those writes too:
+//! `mailrs:user:<u>:contacts` in the **network** kevy powers
+//! `/api/contacts` autocomplete. It was previously populated only by
+//! the one-shot `mailrs-fastcore-backfill-contacts` binary, so live
+//! arrivals past the backfill were invisible to it.
 //!
-//! - `mailrs:user:<u>:contacts` in the **network** kevy — powers
-//!   `/api/contacts` autocomplete. Was previously populated only by the
-//!   one-shot `mailrs-fastcore-backfill-contacts` binary; live arrivals
-//!   past the backfill were invisible to the autocomplete.
-//! - Meilisearch index `mailrs_<user_at_domain>` — powers
-//!   `/api/conversations/search`. Since fastcore never wrote to Meili,
-//!   the index froze at the last monolith moment. Webapi already fell
-//!   back to a 20 000-row linear scan, but with a live indexing path
-//!   Meili can go back to being the fast source of truth.
+//! Best-effort — an unreachable kevy-server never blocks or crashes the
+//! caller.
 //!
-//! Both connections are best-effort — missing / unreachable Meili or
-//! kevy-server never blocks or crashes the caller.
-
-use std::sync::OnceLock;
+//! Full-text search used to have a sink here too, writing into a
+//! Meilisearch sidecar. That was removed once the thread rows grew a
+//! kevy text index: a second copy of the index in another process could
+//! drift from the rows, and did (2026-07-19).
 
 use kevy_client::Connection;
 
@@ -76,153 +71,6 @@ pub fn upsert_contacts(user: &str, senders_csv: &str) {
     let _ = conn.hset(key.as_bytes(), &refs);
 }
 
-/// Build the Meili document for one thread aggregate.
-///
-/// Write-side guard (2026-07-18): decode encoded-words so callers
-/// holding pre-decode-era values (old thread rows, backfills) index
-/// searchable text, not `=?UTF-8?B?…?=` runes. Idempotent.
-pub fn meili_doc(
-    thread_id: &str,
-    subject: &str,
-    senders_csv: &str,
-    snippet: &str,
-    latest_date: i64,
-) -> serde_json::Value {
-    // Meili primary keys must match ^[a-zA-Z0-9_-]{1,511}$; real
-    // thread_ids carry @ . = / which Meili rejects — so every document
-    // POSTed with thread_id-as-key was silently 400'd and NOTHING got
-    // indexed. Use a sanitized `id` as the key + keep thread_id for
-    // retrieval. primaryKey=id is set explicitly on the URL.
-    serde_json::json!({
-        "id": meili_doc_id(thread_id),
-        "thread_id": thread_id,
-        "subject": mailrs_rfc2047::decode(subject.as_bytes()).into_owned(),
-        "participants": mailrs_rfc2047::decode(senders_csv.as_bytes()).into_owned(),
-        "snippet": snippet,
-        "last_date": latest_date,
-    })
-}
-
-/// POST a batch of documents to the user's index, synchronously, and
-/// report whether Meili accepted them.
-///
-/// Bulk callers MUST use this rather than looping [`index_meili`]:
-/// that one spawns a detached thread per document, and firing tens of
-/// thousands of them races the connection pool — the 2026-07-18
-/// decode backfill lost ~4% of its writes that way with no error
-/// surfaced anywhere (errors are dropped by design on the live path).
-pub fn index_meili_batch(user: &str, docs: &[serde_json::Value]) -> std::io::Result<()> {
-    if docs.is_empty() {
-        return Ok(());
-    }
-    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
-        return Ok(());
-    };
-    let url = format!(
-        "{base}/indexes/{}/documents?primaryKey=id",
-        meili_index(user)
-    );
-    let body = serde_json::Value::Array(docs.to_vec()).to_string();
-    ureq_client()
-        .post(&url)
-        .set("content-type", "application/json")
-        .set("Authorization", &meili_auth_header())
-        .send_string(&body)
-        .map(|_| ())
-        .map_err(|e| std::io::Error::other(e.to_string()))
-}
-
-/// Push one thread aggregate to Meili as a searchable document.
-/// Skipped when `MAILRS_MEILI_URL` is unset. Best-effort HTTP POST; a
-/// failed request is dropped silently — this is the live ingest path,
-/// where losing a search-index write must never fail a delivery. For
-/// bulk work use [`index_meili_batch`], which reports failures.
-pub fn index_meili(
-    user: &str,
-    thread_id: &str,
-    subject: &str,
-    senders_csv: &str,
-    snippet: &str,
-    latest_date: i64,
-) {
-    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
-        return;
-    };
-    let url = format!(
-        "{base}/indexes/{}/documents?primaryKey=id",
-        meili_index(user)
-    );
-    let body = serde_json::Value::Array(vec![meili_doc(
-        thread_id,
-        subject,
-        senders_csv,
-        snippet,
-        latest_date,
-    )])
-    .to_string();
-    // Fire-and-forget on a detached thread to avoid pulling reqwest
-    // into the caller's Send bounds. Meili indexing is not on the hot
-    // read path.
-    std::thread::spawn(move || {
-        let client = ureq_client();
-        let _ = client
-            .post(&url)
-            .set("content-type", "application/json")
-            .set("Authorization", &meili_auth_header())
-            .send_string(&body);
-    });
-}
-
-/// Sanitize a thread_id into a Meili-legal document id: keep
-/// `[a-zA-Z0-9_-]`, map everything else to `_`, cap at 511 chars. The
-/// mapping is deterministic so re-indexing the same thread upserts.
-pub fn meili_doc_id(thread_id: &str) -> String {
-    let mut out: String = thread_id
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    if out.len() > 511 {
-        out.truncate(511);
-    }
-    if out.is_empty() {
-        out.push('_');
-    }
-    out
-}
-
-/// Meili index uid for a user. Index uids share the doc-id charset
-/// constraint (`^[a-zA-Z0-9_-]+$`), so `lihao@golia.jp` must sanitize
-/// to `mailrs_lihao_at_golia_jp` — the `.` in the domain is illegal
-/// and silently 400'd the whole index otherwise.
-pub fn meili_index(user: &str) -> String {
-    // Single source of truth — mailrs-webapi's search handler resolves
-    // the same name from core-api, so writer and reader cannot drift.
-    mailrs_core_api::meili_index_name(user)
-}
-
-/// Remove a thread's document from the user's Meili index (delete_thread).
-pub fn delete_meili(user: &str, thread_id: &str) {
-    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
-        return;
-    };
-    let index = meili_index(user);
-    let doc_id = meili_doc_id(thread_id);
-    let url = format!("{base}/indexes/{index}/documents/{doc_id}");
-    std::thread::spawn(move || {
-        let client = ureq_client();
-        let _ = client
-            .delete(&url)
-            .set("Authorization", &meili_auth_header())
-            .call();
-    });
-}
-
 /// Append a system-event audit fact to the shared `admin:audit_log`
 /// stream (G12.3) — the same list webapi's admin API and audit UI
 /// read. fastcore's system events (bounce delivered, sender permanent
@@ -256,33 +104,6 @@ pub fn audit_system(action: &str, target: &str, detail: &str) {
 
 pub(crate) fn network_kevy_url() -> Option<String> {
     std::env::var("MAILRS_KEVY_URL").ok()
-}
-
-fn meili_auth_header() -> String {
-    // MAILRS_MEILI_KEY is the compose/service convention (webapi reads
-    // the same); MAILRS_MEILI_MASTER_KEY is the fallback the one-shot
-    // backfill bin passes explicitly. Empty = unauthenticated meili.
-    let key = std::env::var("MAILRS_MEILI_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-        .or_else(|| {
-            std::env::var("MAILRS_MEILI_MASTER_KEY")
-                .ok()
-                .filter(|k| !k.is_empty())
-        });
-    match key {
-        Some(k) => format!("Bearer {k}"),
-        None => String::new(),
-    }
-}
-
-fn ureq_client() -> &'static ureq::Agent {
-    static CLIENT: OnceLock<ureq::Agent> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        ureq::AgentBuilder::new()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-    })
 }
 
 /// Publish the frontend-shaped realtime event AFTER the message is
@@ -393,29 +214,6 @@ pub fn quota_exceeded(user: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::meili_doc_id;
-
-    #[test]
-    fn meili_index_sanitizes_domain_dot() {
-        assert_eq!(
-            super::meili_index("lihao@golia.jp"),
-            "mailrs_lihao_at_golia_jp"
-        );
-        assert_eq!(super::meili_index("a-b_c@x.y.z"), "mailrs_a-b_c_at_x_y_z");
-    }
-
-    #[test]
-    fn meili_doc_id_sanitizes_illegal_chars() {
-        assert_eq!(
-            meili_doc_id("926f778fbea65115@golia.jp"),
-            "926f778fbea65115_golia_jp"
-        );
-        assert_eq!(meili_doc_id("a/b=c"), "a_b_c");
-        // already-legal ids pass through
-        assert_eq!(meili_doc_id("plain-id_123"), "plain-id_123");
-        // empty never yields an empty (illegal) key
-        assert_eq!(meili_doc_id(""), "_");
-    }
 
     use super::*;
 

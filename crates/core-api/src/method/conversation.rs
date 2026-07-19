@@ -44,7 +44,7 @@ pub struct ListConversationsResponse {
 /// Request body for `POST /v1/users/{user}/conversations:by-thread-ids`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationsByIdsRequest {
-    /// Thread IDs to hydrate (typically from a meili search result).
+    /// Thread IDs to hydrate (typically from a search result).
     pub thread_ids: Vec<ThreadId>,
     /// Optional folder filter applied during hydration.
     #[serde(skip_serializing_if = "Option::is_none")]

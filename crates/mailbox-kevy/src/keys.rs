@@ -262,8 +262,8 @@ pub fn analysis(message_id: i64) -> String {
 }
 
 /// Embedding bytes for semantic search — referenced by analysis row, but
-/// the actual vector lives in meili arroy (Phase 7.7). Kept as a stable
-/// indirection so meili can be swapped without changing wire layout.
+/// the actual vector lives outside the row. Kept as a stable
+/// indirection so the vector store can change without touching layout.
 pub fn analysis_embedding_ref(message_id: i64) -> String {
     format!("mailrs:analysis:{message_id}:embedding_ref")
 }

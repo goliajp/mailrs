@@ -140,9 +140,6 @@ pub struct ServerConfig {
     /// in-process embedded store — the receiver-split topology. `None`
     /// (the default) keeps every subsystem on the in-process store.
     pub kevy_url: Option<String>,
-    // Meilisearch
-    pub meili_url: Option<String>,
-    pub meili_key: Option<String>,
     // LDAP authentication
     pub ldap_url: Option<String>,
     pub ldap_bind_dn: Option<String>,
@@ -222,8 +219,6 @@ impl Default for ServerConfig {
             spg_force_unlock: false,
             kevy_data_dir: None,
             kevy_url: None,
-            meili_url: None,
-            meili_key: None,
             ldap_url: None,
             ldap_bind_dn: None,
             ldap_bind_password: None,

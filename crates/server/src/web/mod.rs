@@ -300,7 +300,6 @@ pub struct WebState {
     pub web_rate_limiter: Arc<rate_limit::WebRateLimiter>,
     pub ldap_config: Option<Arc<crate::ldap_auth::LdapConfig>>,
     pub oidc_config: Option<OidcConfig>,
-    pub meili: Option<Arc<crate::search_index::MeiliClient>>,
     pub system_config: Option<Arc<crate::system_config::SystemConfigStore>>,
     /// Prometheus exporter handle for `/metrics` rendering. `None`
     /// only in unit tests that don't install the global recorder.
@@ -374,7 +373,6 @@ impl WebState {
             web_rate_limiter: Arc::new(rate_limit::WebRateLimiter::new()),
             ldap_config: None,
             oidc_config: None,
-            meili: None,
             system_config: None,
             metrics_handle: None,
             greylist_local: crate::greylist_local::empty(),
@@ -461,11 +459,6 @@ impl WebState {
 
     pub fn with_oidc(mut self, config: OidcConfig) -> Self {
         self.oidc_config = Some(config);
-        self
-    }
-
-    pub fn with_meili(mut self, client: Arc<crate::search_index::MeiliClient>) -> Self {
-        self.meili = Some(client);
         self
     }
 

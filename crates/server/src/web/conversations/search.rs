@@ -29,33 +29,17 @@ pub(crate) async fn search_conversations(
     let limit = crate::web::clamp_limit(q.limit);
     let domains = validate_domains(q.domains.as_deref(), permissions);
 
-    // try meilisearch first for fast, typo-tolerant search
-    let mut convos = if let Some(ref meili) = state.meili {
-        match meili.search(&q.q, user, limit * 3).await {
-            Ok(thread_ids) if !thread_ids.is_empty() => mb_store
-                .get_conversations_by_thread_ids(user, &thread_ids, domains.as_deref())
-                .await
-                .unwrap_or_default(),
-            _ => {
-                // fall back to PG search
-                mb_store
-                    .search_conversations(
-                        user,
-                        &q.q,
-                        limit,
-                        q.category.as_deref(),
-                        domains.as_deref(),
-                    )
-                    .await
-                    .unwrap_or_default()
-            }
-        }
-    } else {
-        mb_store
-            .search_conversations(user, &q.q, limit, q.category.as_deref(), domains.as_deref())
-            .await
-            .unwrap_or_default()
-    };
+    // Postgres serves this directly: `search_vector @@ plainto_tsquery`
+    // unioned with ILIKE across subject/sender/body, behind the GIN
+    // index the schema already maintains by trigger. The ILIKE arm
+    // carries CJK, which a tsvector 'simple' config would not.
+    // Meilisearch used to sit in front of this and has been removed —
+    // it was a second copy of the index that could silently diverge
+    // from the rows (2026-07-19).
+    let mut convos = mb_store
+        .search_conversations(user, &q.q, limit, q.category.as_deref(), domains.as_deref())
+        .await
+        .unwrap_or_default();
 
     // supplement with semantic search when text search returns few results
     if convos.len() < limit as usize

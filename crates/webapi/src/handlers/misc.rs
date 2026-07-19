@@ -279,7 +279,7 @@ fn writeln_epoch(out: &mut Vec<u8>, epoch: i64) -> std::io::Result<()> {
     Ok(())
 }
 
-// ── Search (meili sidecar) ────────────────────────────────────────
+// ── Search ────────────────────────────────────────────────────────
 
 #[derive(Debug, serde::Deserialize)]
 pub struct SearchQuery {
@@ -293,76 +293,36 @@ fn default_search_limit() -> u32 {
 }
 
 /// GET /api/conversations/search?q=&limit= — full-text search across
-/// the user's threads, Meili-first (G10).
+/// the user's threads.
 ///
-/// Queries the user's `mailrs_<user>` Meili index (populated live by
-/// fastcore + one-shot by `mailrs-fastcore-backfill-meili`), then
-/// hydrates full conversation rows via the by-thread-ids RPC so the UI
-/// gets unread/flags/category like a normal list. Meili unreachable →
-/// 503 (an explicit error, NOT a silent linear scan that would only
-/// see a 20k-row window and mis-rank).
+/// Ranked by the kevy text index that fastcore maintains inside the
+/// same store as the rows, then hydrated through the by-thread-ids RPC
+/// so the UI gets unread / flags / category like a normal list. This
+/// used to query a Meilisearch sidecar, which was removed: it was a
+/// second copy of the index that could drift from the rows, and did —
+/// silently, for weeks (2026-07-19).
 pub async fn search_conversations(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Query(q): Query<SearchQuery>,
 ) -> Result<Json<Vec<crate::handlers::conversations::ConversationResponse>>, StatusCode> {
-    let Some(base) = std::env::var("MAILRS_MEILI_URL").ok() else {
-        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    let req = mailrs_core_api::method::conversation::SearchConversationsRequest {
+        query: q.q,
+        category: None,
+        limit: q.limit,
     };
-    // must match fastcore's meili_index sanitization: illegal Meili
-    // index-uid chars (incl. the domain '.') map to '_'
-    let index = {
-        let mut out = String::from("mailrs_");
-        for c in user.chars() {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                out.push(c);
-            } else if c == '@' {
-                out.push_str("_at_");
-            } else {
-                out.push('_');
-            }
-        }
-        out
-    };
-    let url = format!("{base}/indexes/{index}/search");
-    let mut req = reqwest::Client::new().post(&url).json(&serde_json::json!({
-        "q": q.q,
-        "limit": q.limit,
-        "attributesToRetrieve": ["thread_id"],
-    }));
-    if let Ok(key) = std::env::var("MAILRS_MEILI_KEY") {
-        req = req.bearer_auth(key);
-    }
-    let resp = req
-        .send()
+    let hits = state
+        .core
+        .search_conversations(&user, &req)
         .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    if !resp.status().is_success() {
-        return Err(StatusCode::SERVICE_UNAVAILABLE);
-    }
-    let body: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let thread_ids: Vec<String> = body
-        .get("hits")
-        .and_then(|h| h.as_array())
-        .map(|hits| {
-            hits.iter()
-                .filter_map(|h| {
-                    h.get("thread_id")
-                        .and_then(|v| v.as_str())
-                        .map(String::from)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+        .map_err(map_core_err)?;
+    let thread_ids: Vec<String> = hits.items.iter().map(|c| c.thread_id.clone()).collect();
     if thread_ids.is_empty() {
         return Ok(Json(Vec::new()));
     }
-    // hydrate full rows, preserving Meili's relevance order
+    // hydrate full rows, preserving relevance order
     let hydrate = mailrs_core_api::method::conversation::ConversationsByIdsRequest {
-        thread_ids: thread_ids.clone(),
+        thread_ids,
         folder: None,
     };
     let rows = state

@@ -12,7 +12,7 @@
 //!
 //! What does NOT move (by design): the independent network-kevy
 //! side-state (sessions, greylist, sieve, contacts, queue, drafts,
-//! signatures, …), the meili index (rebuilt via backfill), the maildir
+//! signatures, …), the maildir
 //! bodies (physically shared — `blob_ref` resolves to the same files on
 //! both cores), and uid identity/modseq (each core allocates its own;
 //! only per-mailbox monotonicity is preserved).

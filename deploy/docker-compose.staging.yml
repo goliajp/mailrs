@@ -13,7 +13,7 @@
 #   webapi-fc        REST + web UI (host 127.0.0.1:3103)
 #   fastcore-sender  outbound queue drain (unsigned on staging — DKIM env
 #                    omitted on purpose; staging deliverability is not a gate)
-#   kevy-server / meilisearch — infra, same as prod
+#   kevy-server — infra, same as prod
 #
 # NOTE the monolith `mailrs` service (spg core, :3101) and the RPC-scaffold
 # webapi/sender shadows are GONE as of 2026-07-03 — prod runs no monolith,
@@ -27,16 +27,6 @@
 # registry. Prod remains CI-owned (v* tag -> release.yml).
 
 services:
-  meilisearch:
-    container_name: mailrs-staging-meilisearch
-    image: getmeili/meilisearch:v1.44
-    environment:
-      MEILI_ENV: production
-      MEILI_MASTER_KEY: ${MAILRS_MEILI_KEY}
-      MEILI_NO_ANALYTICS: "true"
-    volumes:
-      - meili-data:/meili_data
-    restart: unless-stopped
 
   kevy-server:
     container_name: mailrs-staging-kevy
@@ -118,8 +108,6 @@ services:
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_ALIAS_STORE_BACKEND: network
-      MAILRS_MEILI_URL: http://meilisearch:7700
-      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY}
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
       RUST_LOG: info
@@ -146,8 +134,6 @@ services:
       MAILRS_WEB_BIND: 0.0.0.0:3100
       MAILRS_WEB_STATIC_DIR: /opt/mailrs/web
       MAILRS_MAILDIR: /data/maildir
-      MAILRS_MEILI_URL: http://meilisearch:7700
-      MAILRS_MEILI_KEY: ${MAILRS_MEILI_KEY}
       RUST_LOG: info
     volumes:
       - mailrs-staging-data:/data
@@ -177,5 +163,4 @@ services:
 
 volumes:
   mailrs-staging-data:
-  meili-data:
   kevy-server-data:

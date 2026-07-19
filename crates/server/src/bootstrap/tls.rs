@@ -11,7 +11,7 @@ use crate::inbound::auth_guard::{AuthGuard, AuthGuardConfig};
 use crate::web::WebState;
 use crate::{
     acme, conversation_cache, dmarc_report, event_bus, health, listeners, oidc_jwt,
-    outbound_tls_rpt, rbl_monitor, search_index, smtp_session, system_config, tls, web, webhook,
+    outbound_tls_rpt, rbl_monitor, smtp_session, system_config, tls, web, webhook,
 };
 use mailrs_mailbox::PgMailboxStore;
 
