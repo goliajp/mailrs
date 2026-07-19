@@ -1514,6 +1514,7 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
     let business =
         Router::new()
             .route(conv::PATH_LIST_CONVERSATIONS, post(list_conversations))
+            .route(conv::PATH_SEARCH_CONVERSATIONS, post(search_conversations))
             .route(
                 conv::PATH_CONVERSATIONS_BY_THREAD_IDS,
                 post(conversations_by_thread_ids),
@@ -1921,6 +1922,38 @@ async fn list_conversations(
 
     let items = rows.into_iter().map(row_to_wire).collect();
     Json(conv::ListConversationsResponse { items })
+}
+
+/// `POST /v1/users/{user}/conversations:search` — ranked full-text
+/// lookup over the caller's threads.
+///
+/// Served by the kevy text index declared in `ensure_admin_indexes`,
+/// which kevy maintains from its commit hook — the index cannot lag the
+/// rows, unlike the external search service this replaced.
+async fn search_conversations(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+    Json(req): Json<conv::SearchConversationsRequest>,
+) -> Json<conv::SearchConversationsResponse> {
+    let limit = if req.limit == 0 {
+        20
+    } else {
+        req.limit as usize
+    };
+    let hits = state
+        .mailbox
+        .search_threads(&user, &req.query, limit)
+        .unwrap_or_default();
+    let items = hits
+        .into_iter()
+        .filter_map(|(tid, _score)| state.mailbox.get_thread(&tid).ok().flatten())
+        .filter(|row| match &req.category {
+            Some(c) => &row.category == c,
+            None => true,
+        })
+        .map(row_to_wire)
+        .collect();
+    Json(conv::SearchConversationsResponse { items })
 }
 
 /// `GET /v1/users/{user}/conversations/categories` — histogram of

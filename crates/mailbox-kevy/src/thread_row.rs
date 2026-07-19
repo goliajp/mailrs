@@ -51,6 +51,36 @@ pub struct ThreadRow {
 }
 
 impl ThreadRow {
+    /// Every field name a thread row writes. `delete_thread` deletes
+    /// exactly this set — kevy has no HCLEAR, so the list has to be
+    /// spelled out, and a field missing from it leaves the row
+    /// half-alive after a delete. Adding `search_blob` without updating
+    /// the delete list did exactly that, and would have left deleted
+    /// mail sitting in the search index (caught by
+    /// `delete_thread_clears_all_indexes`, 2026-07-19).
+    ///
+    /// `field_names_match_to_pairs` keeps this honest.
+    pub(crate) fn field_names() -> &'static [&'static [u8]] {
+        &[
+            b"search_blob",
+            b"subject",
+            b"senders_csv",
+            b"count",
+            b"unread_count",
+            b"latest_date",
+            b"latest_preview",
+            b"category",
+            b"importance_level",
+            b"importance_score",
+            b"requires_action",
+            b"pinned",
+            b"archived",
+            b"has_action",
+            b"sent_count",
+            b"starred",
+        ]
+    }
+
     fn to_pairs(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
         macro_rules! kv {
             ($k:expr, $v:expr) => {
@@ -58,6 +88,10 @@ impl ThreadRow {
             };
         }
         vec![
+            kv!(
+                "search_blob",
+                keys::search_blob(&self.subject, &self.senders_csv, &self.latest_preview)
+            ),
             kv!("subject", self.subject.clone()),
             kv!("senders_csv", self.senders_csv.clone()),
             kv!("count", self.count.to_string()),
@@ -261,6 +295,23 @@ mod tests {
     fn store() -> KevyMailboxStore {
         let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
         KevyMailboxStore::new(s)
+    }
+
+    #[test]
+    fn field_names_match_to_pairs() {
+        // The delete path deletes `field_names()`; the write path writes
+        // `to_pairs()`. Any drift between them leaves a partially
+        // deleted row behind, so pin them together.
+        let written: std::collections::BTreeSet<Vec<u8>> =
+            sample("t").to_pairs().into_iter().map(|(k, _)| k).collect();
+        let declared: std::collections::BTreeSet<Vec<u8>> = ThreadRow::field_names()
+            .iter()
+            .map(|f| f.to_vec())
+            .collect();
+        assert_eq!(
+            written, declared,
+            "ThreadRow::field_names() must list exactly what to_pairs() writes"
+        );
     }
 
     fn sample(tid: &str) -> ThreadRow {
