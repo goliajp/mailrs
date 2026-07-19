@@ -231,7 +231,172 @@ pub struct SendEmailParams {
     /// `send_as` permission or match their own address.
     #[serde(default)]
     pub from: Option<String>,
+    /// Optional Unix epoch (seconds) to delay delivery until. A future
+    /// value parks the message in the scheduled queue — manage it with
+    /// `list_own_scheduled` / `reschedule_scheduled` / `cancel_scheduled`.
+    /// Past or omitted sends immediately.
+    #[serde(default)]
+    pub scheduled_at: Option<i64>,
     /// Optional In-Reply-To Message-ID for threading.
     #[serde(default)]
     pub in_reply_to: Option<String>,
+}
+
+// ── v2 batch 11-14 params (two-lane parity with the monolith MCP) ──
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetAccountPasswordParams {
+    /// Account address whose password is being reset.
+    pub address: String,
+    /// New plaintext password. Argon2-hashed before it reaches fastcore.
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AccountGroupParams {
+    /// Account address to add / remove.
+    pub address: String,
+    /// Permission group id as returned by `list_groups`.
+    pub group_id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateAppParams {
+    /// App display name.
+    pub name: String,
+    /// Scope strings granted to the app (e.g. `mail.read`, `mail.send`).
+    #[serde(default)]
+    pub scopes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AppIdParams {
+    /// App id as returned by `list_apps` / `create_app`.
+    pub app_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CreateEmailGroupParams {
+    /// Group address, e.g. `team@example.com`.
+    pub address: String,
+    /// Group display name.
+    pub name: String,
+    /// Initial member addresses.
+    #[serde(default)]
+    pub members: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct EmailGroupIdNumParams {
+    /// Email group id as returned by `list_email_groups`.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct EmailGroupMemberParams {
+    /// Email group id as returned by `list_email_groups`.
+    pub group_id: String,
+    /// Member address to add / remove.
+    pub address: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GreylistLocalAddParams {
+    /// Address or domain the rule matches, e.g. `example.com` or
+    /// `sender@example.com`.
+    pub address_or_domain: String,
+    /// `whitelist` (bypass the greylist) or `blacklist` (reject).
+    pub list_type: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GreylistLocalRemoveParams {
+    /// Rule id as returned by `list_greylist_local`.
+    pub id: i64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetEncryptionKeyParams {
+    /// `pgp` or `smime`.
+    pub key_type: String,
+    /// Armored public key / certificate body.
+    pub public_key: String,
+    /// Optional key fingerprint.
+    #[serde(default)]
+    pub fingerprint: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DeleteEncryptionKeyParams {
+    /// `pgp` or `smime`.
+    pub key_type: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SystemConfigKeyParams {
+    /// Config key as returned by `get_system_config`.
+    pub key: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetSystemConfigParams {
+    /// Config key as returned by `get_system_config`.
+    pub key: String,
+    /// New value (stored as a string override in kevy).
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AuditListConversationsParams {
+    /// Address of the account being audited.
+    pub target_user: String,
+    /// Max threads (default 20, cap 50).
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AuditReadThreadParams {
+    /// Address of the account being audited.
+    pub target_user: String,
+    /// Thread id as returned by `audit_list_conversations`.
+    pub thread_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ReplyEmailParams {
+    /// Thread to reply into — the last message supplies In-Reply-To,
+    /// the subject, and the default recipient.
+    pub thread_id: String,
+    /// Reply body, plain-text UTF-8.
+    pub body: String,
+    /// Optional recipient override. Defaults to the last message's sender.
+    #[serde(default)]
+    pub to: Option<Vec<String>>,
+    /// Optional Cc list.
+    #[serde(default)]
+    pub cc: Option<Vec<String>>,
+    /// Optional From override — must be allowed by the caller's
+    /// `send_as` permission or match their own address.
+    #[serde(default)]
+    pub from: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SendScheduledEmailParams {
+    /// Recipient list.
+    pub to: Vec<String>,
+    /// Subject line.
+    pub subject: String,
+    /// Plain-text body. UTF-8.
+    pub body: String,
+    /// Unix epoch (seconds) to deliver at. Must be in the future.
+    pub scheduled_at: i64,
+    /// Optional Cc list.
+    #[serde(default)]
+    pub cc: Option<Vec<String>>,
+    /// Optional From override — must be allowed by the caller's
+    /// `send_as` permission or match their own address.
+    #[serde(default)]
+    pub from: Option<String>,
 }

@@ -11,24 +11,25 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-62 tools auto-discovered, grouped by category:
+82 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
 ```
 
-**Email:** send_email, read_email, search_emails, reply_email, list_conversations, get_folders, get_categories, get_contacts
-**Threads:** mark_thread_read/unread, star/unstar_thread, archive/unarchive_thread, delete_thread
+**Email:** send_email, read_thread, search_conversations, reply_email, list_conversations, list_mailboxes, get_categories, search_contacts, send_scheduled_email, get_thread_summary, get_inbox_metrics
+**Threads:** mark_thread_read, mark_thread_unread, mark_all_read, star_thread, unstar_thread, pin_thread, unpin_thread, snooze_thread, unsnooze_thread, archive_thread, unarchive_thread, delete_thread
+**Drafts & Templates:** list_drafts, save_draft, delete_draft, list_templates, save_template, delete_template, list_signatures, save_signature, delete_signature
 **Accounts:** list_accounts, create_account, remove_account, set_account_password
-**Permissions:** list_groups, get_account_permissions, add/remove_account_to/from_group
+**Permissions:** list_groups, get_account_permissions, get_my_permissions, add_account_to_group, remove_account_from_group
 **Domains:** list_domains, add_domain, remove_domain
-**Aliases:** list_aliases, add_alias, remove_alias
-**Email Groups:** list/create/delete_email_groups, list/add/remove_email_group_members
-**Apps:** list_apps, create_app, delete_app
-**Webhooks:** list_webhooks, create_webhook, delete_webhook
-**Queue:** get_queue, retry_queue_message
-**Maintenance:** reconcile_maildir
-**Greylist:** greylist_local_list, greylist_local_add, greylist_local_remove
+**Aliases:** list_aliases_admin, add_alias, remove_alias
+**Email Groups:** list_email_groups, create_email_group, delete_email_group, get_email_group_members, add_email_group_member, remove_email_group_member
+**Apps & Webhooks:** list_apps, create_app, delete_app, list_webhooks, create_webhook, delete_webhook
+**Queue & Scheduling:** get_queue, list_admin_queue, retry_queue_message, list_failed_outbound, list_own_scheduled, list_scheduled_outbound, cancel_scheduled, reschedule_scheduled
+**Encryption:** list_own_encryption_keys, get_public_key_of, set_encryption_key, delete_encryption_key
+**Greylist:** list_greylist_local, greylist_local_add, greylist_local_remove
+**Audit & System:** get_audit_log, audit_list_conversations, audit_read_thread, get_system_config, set_system_config, reset_system_config, get_server_info, reconcile_maildir
 
 ## REST API
 

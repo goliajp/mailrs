@@ -41,6 +41,10 @@ use crate::WebState;
 mod params;
 mod tools_v2_batch1;
 mod tools_v2_batch10;
+mod tools_v2_batch11;
+mod tools_v2_batch12;
+mod tools_v2_batch13;
+mod tools_v2_batch14;
 mod tools_v2_batch2;
 mod tools_v2_batch3;
 mod tools_v2_batch4;
@@ -89,6 +93,10 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch8()
             + Self::tool_router_v2_batch9()
             + Self::tool_router_v2_batch10()
+            + Self::tool_router_v2_batch11()
+            + Self::tool_router_v2_batch12()
+            + Self::tool_router_v2_batch13()
+            + Self::tool_router_v2_batch14()
     }
 }
 
@@ -272,7 +280,7 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "Send an email. Enqueues to the outbound queue; delivery is asynchronous. Returns the assigned Message-ID."
+        description = "Send an email. Enqueues to the outbound queue; delivery is asynchronous. Pass `scheduled_at` (Unix epoch seconds, future) to schedule instead of sending now. Returns the assigned Message-ID."
     )]
     async fn send_email(
         &self,
@@ -299,6 +307,7 @@ impl MailrsMcpService {
             &params.subject,
             &params.body,
             params.in_reply_to.as_deref(),
+            params.scheduled_at,
         )
         .await
         .map_err(|e| McpError::internal_error(format!("send: {e}"), None))?;

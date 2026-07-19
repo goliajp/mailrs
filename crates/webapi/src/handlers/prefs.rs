@@ -704,16 +704,6 @@ fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
     (message_id, bytes)
 }
 
-/// Enqueue one outbound row per recipient. Sender binary picks these
-/// up from `mailrs:outbound:pending`.
-fn enqueue_outbound(
-    sender: &str,
-    recipients: &[String],
-    envelope: &[u8],
-) -> Result<(), StatusCode> {
-    enqueue_outbound_at(sender, recipients, envelope, None)
-}
-
 /// Enqueue outbound. When `scheduled_at` is a future epoch, the id
 /// lands in the `mailrs:outbound:scheduled` zset (scored by send time)
 /// instead of the pending list; the sender's due-sweep promotes it to
@@ -1054,6 +1044,7 @@ pub async fn send_email_mcp(
     subject: &str,
     body: &str,
     in_reply_to: Option<&str>,
+    scheduled_at: Option<i64>,
 ) -> Result<String, String> {
     ensure_from_allowed(state, auth_user, from)
         .await
@@ -1069,12 +1060,14 @@ pub async fn send_email_mcp(
         in_reply_to: in_reply_to.map(|s| s.to_string()),
         forward_message_id: None,
         attachments: Vec::new(),
-        scheduled_at: None,
+        scheduled_at,
     };
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, from);
-    enqueue_outbound(auth_user, &recipients, &envelope)
+    // Same call the REST send handler uses — a future `scheduled_at`
+    // lands the id in the scheduled zset instead of pending.
+    enqueue_outbound_at(auth_user, &recipients, &envelope, parts.scheduled_at)
         .map_err(|c| format!("enqueue failed ({c})"))?;
     mirror_send_to_sender_view(state, auth_user, &parts, &envelope, &message_id, false).await;
     Ok(message_id)
