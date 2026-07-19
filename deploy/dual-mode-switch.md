@@ -14,7 +14,7 @@ container runs.
 | core (pg/spg) | `mailrs` (`mailrs-server --features core-rpc[,spg]`, :3300) | `http://mailrs:3300` | `docker-compose.split.yml` |
 
 Shared, unaffected by the switch: network kevy (sessions/greylist/sieve/
-contacts/queue/…), meili, maildir on disk. Only the mail store (threads/
+contacts/queue/…) and the maildir on disk. Only the mail store (threads/
 messages/uids/mailboxes/accounts/aliases) lives in the switchable core.
 
 ## Switch (either direction — the sync tool is direction-blind)
@@ -34,11 +34,10 @@ MAILRS_CORE_API_SECRET=<secret> \
 #    set MAILRS_CORE_RPC_BASE=<new-core> in .env
 docker compose up -d webapi-fc
 
-# 4. rebuild the derived meili index for the new core
-docker run --rm --entrypoint mailrs-fastcore-backfill-meili ...   # (kevy dest)
-#    (pg dest rebuilds its own FTS on insert; no meili backfill needed)
-
-# 5. verify, then retire the old core container.
+# 4. verify, then retire the old core container.
+#    No search index to rebuild: each core owns its own. kevy maintains
+#    its text index from the commit hook as core-sync writes the rows;
+#    pg maintains search_vector by trigger on insert.
 ```
 
 ## Rollback
