@@ -41,7 +41,26 @@ impl KevyMailboxStore {
         let mut hit_any = false;
         while hops < MAX_HOPS {
             let key_v2 = keys::alias_v2(&current);
-            let Some(raw) = self.store().hget(key_v2.as_bytes(), b"target")? else {
+            let mut target = self.store().hget(key_v2.as_bytes(), b"target")?;
+            // Domain catch-all. An entry keyed `@example.com` answers for
+            // every local-part in that domain that has no explicit alias
+            // and no mailbox of its own. Without it, mail to an address
+            // nobody thought to enumerate has nowhere to go and sits in
+            // the spool indefinitely — three real messages sat there for
+            // up to 11 days before anyone noticed (2026-07-20).
+            //
+            // Only consulted on the first hop: a catch-all is a policy
+            // for inbound addresses, not a link in an alias chain, and
+            // letting it fire mid-chain would silently redirect a
+            // deliberate alias whose target was merely misspelled.
+            if target.is_none()
+                && hops == 0
+                && let Some((_, domain)) = current.rsplit_once('@')
+            {
+                let key = keys::alias_v2(&format!("@{domain}"));
+                target = self.store().hget(key.as_bytes(), b"target")?;
+            }
+            let Some(raw) = target else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
             let Ok(next) = std::str::from_utf8(&raw) else {
@@ -169,6 +188,52 @@ mod tests {
     fn resolve_returns_none_when_unset() {
         let s = store();
         assert!(s.resolve_alias("nobody@example.com").unwrap().is_none());
+    }
+
+    #[test]
+    fn domain_catch_all_answers_for_unlisted_local_parts() {
+        let s = store();
+        s.upsert_alias("@example.com", "lihao@example.com").unwrap();
+        // nobody enumerated `purchase@` — the catch-all takes it
+        assert_eq!(
+            s.resolve_alias("purchase@example.com").unwrap().as_deref(),
+            Some("lihao@example.com")
+        );
+    }
+
+    #[test]
+    fn explicit_alias_beats_the_catch_all() {
+        let s = store();
+        s.upsert_alias("@example.com", "lihao@example.com").unwrap();
+        s.upsert_alias("sales@example.com", "bob@example.com")
+            .unwrap();
+        assert_eq!(
+            s.resolve_alias("sales@example.com").unwrap().as_deref(),
+            Some("bob@example.com")
+        );
+    }
+
+    #[test]
+    fn catch_all_does_not_capture_a_broken_alias_target() {
+        // `contact@` deliberately points at `gone@`, which has no
+        // mailbox. The catch-all must NOT quietly re-route that second
+        // hop to itself — a deliberate alias with a bad target is a
+        // configuration error to surface, not to paper over.
+        let s = store();
+        s.upsert_alias("@example.com", "lihao@example.com").unwrap();
+        s.upsert_alias("contact@example.com", "gone@example.com")
+            .unwrap();
+        assert_eq!(
+            s.resolve_alias("contact@example.com").unwrap().as_deref(),
+            Some("gone@example.com")
+        );
+    }
+
+    #[test]
+    fn catch_all_is_scoped_to_its_own_domain() {
+        let s = store();
+        s.upsert_alias("@example.com", "lihao@example.com").unwrap();
+        assert!(s.resolve_alias("someone@other.com").unwrap().is_none());
     }
 
     #[test]
