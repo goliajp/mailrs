@@ -3,6 +3,14 @@
 # behind it, so release.yml's gate can actually pass.
 #
 # Usage: ./scripts/release-tag.sh v2.9.31
+#        ./scripts/release-tag.sh v2.9.31 --dry-run   # print, touch nothing
+#
+# Everything past the checks is irreversible from a bystander's point of
+# view — it pushes a tag, starts a deploy pipeline, and rewrites the
+# soak sha another release may be waiting on. So it asks first, and
+# --dry-run exists because "just try it and see" once cost a bogus tag,
+# a stray CI run, and a re-stamped sha that would have hung the release
+# actually in flight.
 #
 # The problem this solves. release.yml refuses to deploy unless
 # /var/run/staging-gate.json on t01 reports, all at once:
@@ -29,9 +37,28 @@
 # A docs-only difference is fine and is the common case.
 set -euo pipefail
 
-TAG="${1:?usage: release-tag.sh v<X.Y.Z>}"
+TAG="${1:?usage: release-tag.sh v<X.Y.Z> [--dry-run]}"
+DRY_RUN=0
+[ "${2:-}" = "--dry-run" ] && DRY_RUN=1
 HOST="${STAGING_HOST:-t01}"
 cd "$(dirname "$0")/.."
+
+# Refuse to disturb a release that is mid-flight: its gate is polling
+# for a verdict naming its commit, and re-stamping would strand it.
+in_flight_guard() {
+    local staged live
+    staged="$(ssh "$HOST" 'cat /etc/staging-deploy-sha 2>/dev/null' || true)"
+    live="$(gh run list --limit 20 --json headBranch,status \
+        --jq '[.[] | select(.status=="in_progress" or .status=="queued")
+               | select(.headBranch | startswith("v"))] | .[0].headBranch' \
+        2>/dev/null || true)"
+    [ -z "$live" ] || [ "$live" = "null" ] && return 0
+    echo "!! $live is still running and its gate is waiting on ${staged:0:8}."
+    echo "   Tagging now would re-stamp that sha and hang it."
+    echo "   Wait for it, or cancel it first."
+    exit 1
+}
+in_flight_guard
 
 case "$TAG" in
     v[0-9]*.[0-9]*.[0-9]*) ;;
@@ -69,6 +96,18 @@ if [ -n "$CODE_DIFF" ]; then
     exit 1
 fi
 echo "    only non-building files differ — re-stamp is honest"
+
+if [ "$DRY_RUN" = 1 ]; then
+    echo "==> dry run — would tag $TAG, re-stamp $HOST, re-kick the soak, and push"
+    exit 0
+fi
+
+printf '==> about to tag %s, re-stamp %s and push. Continue? [y/N] ' "$TAG" "$HOST"
+read -r reply </dev/tty
+case "$reply" in
+    y | Y) ;;
+    *) echo "aborted"; exit 1 ;;
+esac
 
 echo "==> [2/5] git flow release $TAG"
 git flow release start "$TAG" >/dev/null
