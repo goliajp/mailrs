@@ -1370,6 +1370,30 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
     healed_threads > 0 || diff_healed_threads > 0 || sent_added > 0 || created > 0
 }
 
+/// Extract the searchable text of a message: the `text/plain` part if
+/// there is one, else the `text/html` part flattened. Returns `None`
+/// when neither exists (a bare attachment, say) so the caller can skip
+/// writing an empty row.
+pub(crate) fn body_text_for_search(raw: &[u8]) -> Option<String> {
+    let root = mailrs_mime::parse(raw);
+    let mut html: Option<String> = None;
+    for part in root.walk() {
+        match part.content_type.mime_type().as_str() {
+            "text/plain" => {
+                if let Some(t) = part.body_text() {
+                    return Some(t);
+                }
+            }
+            "text/html" if html.is_none() => html = part.body_text(),
+            _ => {}
+        }
+    }
+    if let Some(h) = html {
+        return Some(html2text::from_read(h.as_bytes(), 100).unwrap_or(h));
+    }
+    root.body_text()
+}
+
 /// Write-through ingest for a file the spool drain just delivered to
 /// maildir: thread aggregate + message wire + uid + side sinks, all at
 /// delivery time.
@@ -1498,6 +1522,14 @@ pub(crate) fn ingest_delivered_file(
     let _ = state
         .mailbox
         .set_thread_for_message_id(addr, &message_id, &root);
+    // Index the body for full-text search. Costs one MIME parse on a
+    // path that already has the bytes in hand, and it is what makes
+    // search cover message contents rather than just headers.
+    if let Some(text) = body_text_for_search(body)
+        && let Err(e) = state.mailbox.index_message_text(&message_id, &root, &text)
+    {
+        tracing::warn!(error = %e, %addr, %message_id, "index_message_text failed");
+    }
 }
 
 pub fn build_router(state: Arc<FastcoreState>) -> Router {
@@ -1942,9 +1974,27 @@ async fn search_conversations(
         .mailbox
         .search_threads(&user, &req.query, limit)
         .unwrap_or_default();
-    let items = hits
+    // Header/subject matches rank first — that is what a user usually
+    // means by "find that thread". Body hits fill the remainder, so a
+    // phrase that appears only inside a message is still findable.
+    let mut tids: Vec<String> = hits.into_iter().map(|(tid, _)| tid).collect();
+    if tids.len() < limit
+        && let Ok(body_hits) = state
+            .mailbox
+            .search_message_bodies(&user, &req.query, limit)
+    {
+        for tid in body_hits {
+            if tids.len() >= limit {
+                break;
+            }
+            if !tids.contains(&tid) {
+                tids.push(tid);
+            }
+        }
+    }
+    let items = tids
         .into_iter()
-        .filter_map(|(tid, _score)| state.mailbox.get_thread(&tid).ok().flatten())
+        .filter_map(|tid| state.mailbox.get_thread(&tid).ok().flatten())
         .filter(|row| match &req.category {
             Some(c) => &row.category == c,
             None => true,
@@ -2310,16 +2360,16 @@ async fn backfill_threading_route(
     .into_response()
 }
 
-/// Read the full References chain of a message from its maildir file
-/// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
-/// is empty or the file is gone — the caller just gets fewer edges.
-fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
+/// Read a message's raw bytes from its maildir file. `blob_ref` is a
+/// bare filename for INBOX or `.Folder/<filename>` for a Maildir++
+/// subfolder; both `cur` and `new` are tried since a message moves
+/// between them as flags change. `None` when the ref is empty or the
+/// file is gone.
+pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
     if blob_ref.is_empty() {
-        return Vec::new();
+        return None;
     }
-    let Some((local, domain)) = user.split_once('@') else {
-        return Vec::new();
-    };
+    let (local, domain) = user.split_once('@')?;
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let base = std::path::PathBuf::from(root).join(domain).join(local);
     let (sub, name) = match blob_ref.split_once('/') {
@@ -2332,12 +2382,22 @@ fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
             None => base.join(leaf).join(name),
         };
         if let Ok(bytes) = std::fs::read(&path) {
-            let head = &bytes[..bytes.len().min(16 * 1024)];
-            let (_, _, references, ..) = extract_headers(head);
-            return references;
+            return Some(bytes);
         }
     }
-    Vec::new()
+    None
+}
+
+/// Read the full References chain of a message from its maildir file
+/// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
+/// is empty or the file is gone — the caller just gets fewer edges.
+fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
+    let Some(bytes) = read_maildir_file(user, blob_ref) else {
+        return Vec::new();
+    };
+    let head = &bytes[..bytes.len().min(16 * 1024)];
+    let (_, _, references, ..) = extract_headers(head);
+    references
 }
 
 /// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a

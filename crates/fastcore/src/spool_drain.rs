@@ -562,7 +562,7 @@ mod tests {
         let spool_file = spool_new.join("1000000.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
+        let (delivered, _) = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 1);
         assert!(!spool_file.exists());
         let landed = user_base.join("new").join("1000000.M1P1Q1.host");
@@ -581,7 +581,7 @@ mod tests {
         let spool_file = spool_new.join("1000001.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
+        let (delivered, _) = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 0);
         assert!(spool_file.exists(), "unresolved file must stay in spool");
     }
@@ -601,7 +601,7 @@ mod tests {
         let spool_file = spool_new.join("1000002.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
+        let (delivered, _) = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 1);
         assert!(!spool_file.exists());
         assert!(bob_base.join("new").join("1000002.M1P1Q1.host").exists());
@@ -618,7 +618,7 @@ mod tests {
         let bogus = spool_new.join("garbage");
         std::fs::write(&bogus, b"not a spool envelope").unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
+        let (delivered, _) = drain_once(&spool_new, maildir_root.to_str().unwrap(), &state());
         assert_eq!(delivered, 0);
         assert!(bogus.exists());
     }
@@ -630,7 +630,7 @@ mod tests {
         let maildir_root = tmp.path().join("maildir");
         std::fs::create_dir_all(&maildir_root).unwrap();
         assert_eq!(
-            drain_once(&missing, maildir_root.to_str().unwrap(), &state()),
+            drain_once(&missing, maildir_root.to_str().unwrap(), &state()).0,
             0
         );
     }
@@ -652,7 +652,7 @@ mod tests {
         let spool_file = spool_new.join("1000003.M1P1Q1.host");
         std::fs::write(&spool_file, &blob).unwrap();
 
-        let delivered = drain_once(&spool_new, maildir_root.to_str().unwrap(), &s);
+        let (delivered, _) = drain_once(&spool_new, maildir_root.to_str().unwrap(), &s);
         assert_eq!(delivered, 1);
         assert!(!spool_file.exists());
         assert!(

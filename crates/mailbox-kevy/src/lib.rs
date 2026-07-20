@@ -142,6 +142,16 @@ impl KevyMailboxStore {
             IndexValType::Str,
             IndexKind::Text,
         );
+        // Message bodies, indexed separately from the thread rows so a
+        // long conversation doesn't rewrite one ever-growing value on
+        // every arrival.
+        let _ = s.idx_create(
+            keys::IDX_MESSAGE_TEXT,
+            keys::MSGTEXT_PREFIX,
+            keys::MESSAGE_TEXT_FIELD,
+            IndexValType::Str,
+            IndexKind::Text,
+        );
         let _ = s.idx_create(
             keys::IDX_ALIASES_BY_DOMAIN,
             keys::ALIAS_V2_PREFIX,

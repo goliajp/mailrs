@@ -69,6 +69,8 @@ password-hash = { workspace = true }
 rand_core = { workspace = true }
 base64 = "0.22"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+html2text = "0.17"
+mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = "1"
 mailrs-srs = "1"
 mailrs-mta-sts = "1"

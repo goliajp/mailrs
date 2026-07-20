@@ -506,10 +506,161 @@ mod search_tests {
     }
 
     #[test]
+    fn finds_a_thread_by_words_only_in_the_body() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("t1", "Q3 planning", "alice@x.com", ""))
+            .unwrap();
+        s.index_message_text("m1@x", "t1", "the budget spreadsheet is attached")
+            .unwrap();
+
+        // subject/sender index knows nothing about "spreadsheet"
+        assert!(s.search_threads(u, "spreadsheet", 10).unwrap().is_empty());
+        // the body index does
+        assert_eq!(
+            s.search_message_bodies(u, "spreadsheet", 10).unwrap(),
+            vec!["t1".to_string()]
+        );
+    }
+
+    #[test]
+    fn body_search_is_per_user_and_deduplicated() {
+        let s = store();
+        s.upsert_thread("a@x.com", &row("ta", "s", "p@x.com", ""))
+            .unwrap();
+        s.upsert_thread("b@x.com", &row("tb", "s", "p@x.com", ""))
+            .unwrap();
+        // two messages in the same thread both mention the term
+        s.index_message_text("m1@x", "ta", "quarterly invoice")
+            .unwrap();
+        s.index_message_text("m2@x", "ta", "quarterly invoice again")
+            .unwrap();
+        s.index_message_text("m3@x", "tb", "quarterly invoice")
+            .unwrap();
+
+        let hits = s.search_message_bodies("a@x.com", "quarterly", 10).unwrap();
+        assert_eq!(hits, vec!["ta".to_string()], "one row per thread, own only");
+    }
+
+    #[test]
+    fn forgetting_a_message_removes_it_from_body_search() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("t1", "s", "p@x.com", "")).unwrap();
+        s.index_message_text("m1@x", "t1", "confidential terms")
+            .unwrap();
+        assert_eq!(
+            s.search_message_bodies(u, "confidential", 10)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        s.forget_message_text("m1@x").unwrap();
+        assert!(
+            s.search_message_bodies(u, "confidential", 10)
+                .unwrap()
+                .is_empty(),
+            "a deleted message must not stay searchable"
+        );
+    }
+
+    #[test]
+    fn body_text_is_capped_on_a_char_boundary() {
+        // Multi-byte input right at the cap must not panic or split a
+        // char — the cap is a byte count, the content is UTF-8.
+        let long: String = "日".repeat(crate::keys::MESSAGE_TEXT_CAP);
+        let capped = crate::keys::cap_message_text(&long);
+        assert!(capped.len() <= crate::keys::MESSAGE_TEXT_CAP);
+        assert!(long.starts_with(capped));
+    }
+
+    #[test]
     fn empty_query_returns_nothing_rather_than_everything() {
         let s = store();
         let u = "u@x.com";
         s.upsert_thread(u, &row("t1", "x", "s@x.com", "")).unwrap();
         assert!(s.search_threads(u, "   ", 10).unwrap().is_empty());
+    }
+}
+
+impl KevyMailboxStore {
+    /// Store a message's body text for full-text search, capped by
+    /// [`crate::keys::MESSAGE_TEXT_CAP`]. Empty text removes the row so
+    /// the index doesn't retain a stale body.
+    pub fn index_message_text(
+        &self,
+        message_id: &str,
+        thread_id: &str,
+        body_text: &str,
+    ) -> io::Result<()> {
+        let key = crate::keys::message_text(message_id);
+        let text = crate::keys::cap_message_text(body_text.trim());
+        if text.is_empty() {
+            self.store().del(&[key.as_bytes()])?;
+            return Ok(());
+        }
+        self.store().hset(
+            key.as_bytes(),
+            &[
+                (crate::keys::MESSAGE_TEXT_FIELD, text.as_bytes()),
+                (crate::keys::MESSAGE_TEXT_TID_FIELD, thread_id.as_bytes()),
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Drop a message's indexed body — call alongside message deletion
+    /// so search can't surface mail that no longer exists.
+    pub fn forget_message_text(&self, message_id: &str) -> io::Result<()> {
+        self.store()
+            .del(&[crate::keys::message_text(message_id).as_bytes()])?;
+        Ok(())
+    }
+
+    /// Thread ids whose message bodies match `query`, best first and
+    /// de-duplicated. Ownership is enforced against the caller's
+    /// activity zset, same as [`Self::search_threads`].
+    pub fn search_message_bodies(
+        &self,
+        user: &str,
+        query: &str,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        const OVERFETCH: usize = 8;
+        if query.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let hits = self.store().idx_match(
+            crate::keys::IDX_MESSAGE_TEXT,
+            query.as_bytes(),
+            limit.saturating_mul(OVERFETCH),
+        )?;
+        let activity = crate::keys::user_threads_by_activity(user);
+        let mut out: Vec<String> = Vec::with_capacity(limit);
+        for (key, _score) in hits {
+            let Some(tid) = self
+                .store()
+                .hget(&key, crate::keys::MESSAGE_TEXT_TID_FIELD)?
+                .and_then(|v| String::from_utf8(v).ok())
+            else {
+                continue;
+            };
+            if out.contains(&tid) {
+                continue;
+            }
+            if self
+                .store()
+                .zscore(activity.as_bytes(), tid.as_bytes())?
+                .is_none()
+            {
+                continue;
+            }
+            out.push(tid);
+            if out.len() >= limit {
+                break;
+            }
+        }
+        Ok(out)
     }
 }

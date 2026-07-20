@@ -36,6 +36,7 @@ pub(crate) async fn backfill_decode_headers_route(
     let store = state.mailbox.store_ref();
     let mut rows_decoded = 0u64;
     let mut blobs_added = 0u64;
+    let mut bodies_indexed = 0u64;
     for user in &users {
         let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
         let tids = store
@@ -81,18 +82,47 @@ pub(crate) async fn backfill_decode_headers_route(
                 rows_decoded += 1;
                 crate::live_sync::upsert_contacts(user, &row.senders_csv);
             }
+            // Body text for the message-level search index. Reads each
+            // message's maildir file once — the heaviest part of this
+            // sweep, and the reason it is an explicit admin action
+            // rather than something the ingest path retrofits.
+            for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
+                let Ok(w) =
+                    serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(&blob)
+                else {
+                    continue;
+                };
+                if w.message_id.is_empty() {
+                    continue;
+                }
+                let Some(raw) = crate::read_maildir_file(user, &w.blob_ref) else {
+                    continue;
+                };
+                let Some(text) = crate::body_text_for_search(&raw) else {
+                    continue;
+                };
+                if state
+                    .mailbox
+                    .index_message_text(&w.message_id, tid, &text)
+                    .is_ok()
+                {
+                    bodies_indexed += 1;
+                }
+            }
         }
     }
     let contacts_repaired = scrub_contact_hashes(&users);
     tracing::info!(
         rows_decoded,
         blobs_added,
+        bodies_indexed,
         contacts_repaired,
         "backfill-decode-headers complete"
     );
     Json(serde_json::json!({
         "rows_decoded": rows_decoded,
         "search_blobs_added": blobs_added,
+        "bodies_indexed": bodies_indexed,
         "contacts_repaired": contacts_repaired,
     }))
     .into_response()
