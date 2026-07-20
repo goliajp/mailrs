@@ -24,6 +24,46 @@ pub const IDX_THREAD_SEARCH: &[u8] = b"mailrs_thread_search";
 /// separate pipeline that can silently fall behind.
 pub const THREAD_SEARCH_FIELD: &[u8] = b"search_blob";
 
+/// Per-message body text, indexed for full-text search. Separate from
+/// the thread row because a thread accumulates messages: folding every
+/// body into the row's `search_blob` would grow one value without
+/// bound, and rewrite all of it on each arrival.
+pub fn message_text(message_id: &str) -> String {
+    format!("mailrs:msgtext:{message_id}")
+}
+
+/// Key prefix the message-body text index is declared over.
+pub const MSGTEXT_PREFIX: &[u8] = b"mailrs:msgtext:";
+
+/// Name of the full-text index over message bodies.
+pub const IDX_MESSAGE_TEXT: &[u8] = b"mailrs_message_text";
+
+/// Indexed field on a `mailrs:msgtext:*` row.
+pub const MESSAGE_TEXT_FIELD: &[u8] = b"body";
+
+/// Companion field: which thread the message belongs to, so a body hit
+/// resolves back to a conversation without a second lookup.
+pub const MESSAGE_TEXT_TID_FIELD: &[u8] = b"tid";
+
+/// Upper bound on indexed body text, in bytes. Mail runs to megabytes
+/// once HTML and quoted history are counted, and indexing all of it
+/// would multiply the AOF for diminishing recall — the terms that
+/// identify a message are near its top. Truncation is on a char
+/// boundary.
+pub const MESSAGE_TEXT_CAP: usize = 8 * 1024;
+
+/// Truncate `text` to [`MESSAGE_TEXT_CAP`] without splitting a char.
+pub fn cap_message_text(text: &str) -> &str {
+    if text.len() <= MESSAGE_TEXT_CAP {
+        return text;
+    }
+    let mut end = MESSAGE_TEXT_CAP;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
 /// Build the value for [`THREAD_SEARCH_FIELD`].
 pub fn search_blob(subject: &str, senders_csv: &str, preview: &str) -> String {
     let mut out = String::with_capacity(subject.len() + senders_csv.len() + preview.len() + 2);
