@@ -51,8 +51,11 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         "fastcore spool drain started"
     );
     loop {
-        let delivered_new = drain_once(&incoming_new, &maildir_root, &state);
-        let delivered_cur = drain_once(&incoming_cur, &maildir_root, &state);
+        let (delivered_new, seen_new) = drain_once(&incoming_new, &maildir_root, &state);
+        let (delivered_cur, seen_cur) = drain_once(&incoming_cur, &maildir_root, &state);
+        let mut seen_all = seen_new;
+        seen_all.extend(seen_cur);
+        forget_departed(&seen_all);
         let total = delivered_new + delivered_cur;
         if total > 0 {
             tracing::info!(delivered = total, "fastcore spool drain tick");
@@ -86,19 +89,27 @@ fn forget_departed(present: &std::collections::HashSet<String>) {
 }
 
 /// Walk one spool dir once, deliver every decodable file to its
-/// recipient maildir(s), and remove it. Returns delivered count.
-fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usize {
+/// recipient maildir(s), and remove it. Returns delivered count and
+/// every filename walked — the caller unions the counts across the
+/// `new` and `cur` dirs before expiring stuck-file reports, because a
+/// per-dir expiry would let the empty dir forget the other's files and
+/// re-warn them on the very next tick.
+fn drain_once(
+    dir: &Path,
+    maildir_root: &str,
+    state: &Arc<FastcoreState>,
+) -> (usize, std::collections::HashSet<String>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) => {
             if e.kind() != std::io::ErrorKind::NotFound {
                 tracing::debug!(dir = %dir.display(), error = %e, "spool dir read");
             }
-            return 0;
+            return (0, std::collections::HashSet::new());
         }
     };
     let mut delivered = 0;
-    let mut seen_this_pass: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in entries.flatten() {
         if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
             continue;
@@ -108,7 +119,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
             Some(n) => n.to_string(),
             None => continue,
         };
-        seen_this_pass.insert(filename.clone());
+        seen.insert(filename.clone());
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
@@ -343,8 +354,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
             );
         }
     }
-    forget_departed(&seen_this_pass);
-    delivered
+    (delivered, seen)
 }
 
 /// Deliver one file to one recipient. `subfolder` is empty for INBOX

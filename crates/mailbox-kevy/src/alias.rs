@@ -191,6 +191,13 @@ mod tests {
     }
 
     #[test]
+    fn honours_the_shared_catch_all_contract() {
+        // Same assertions every AliasStore impl must pass — see
+        // `mailrs_alias_store::assert_catch_all_contract`.
+        mailrs_alias_store::assert_catch_all_contract(&store());
+    }
+
+    #[test]
     fn domain_catch_all_answers_for_unlisted_local_parts() {
         let s = store();
         s.upsert_alias("@example.com", "lihao@example.com").unwrap();
