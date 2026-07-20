@@ -61,6 +61,30 @@ pub async fn spawn(state: Arc<FastcoreState>) {
     }
 }
 
+/// Filenames already reported as undeliverable. A spool file that
+/// cannot be resolved stays on disk by design, so without this every
+/// drain tick would re-log it forever.
+static STUCK_REPORTED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+/// `true` the first time `filename` is seen as stuck. Also drops names
+/// that have since left the spool, so a file that is fixed and then
+/// breaks again is reported afresh.
+fn stuck_is_new(filename: &str) -> bool {
+    match STUCK_REPORTED.lock() {
+        Ok(mut set) => set.insert(filename.to_string()),
+        // A poisoned mutex must not silence the warning.
+        Err(_) => true,
+    }
+}
+
+/// Forget any reported name no longer present in the spool.
+fn forget_departed(present: &std::collections::HashSet<String>) {
+    if let Ok(mut set) = STUCK_REPORTED.lock() {
+        set.retain(|name| present.contains(name));
+    }
+}
+
 /// Walk one spool dir once, deliver every decodable file to its
 /// recipient maildir(s), and remove it. Returns delivered count.
 fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usize {
@@ -74,6 +98,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
         }
     };
     let mut delivered = 0;
+    let mut seen_this_pass: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in entries.flatten() {
         if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
             continue;
@@ -83,6 +108,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
             Some(n) => n.to_string(),
             None => continue,
         };
+        seen_this_pass.insert(filename.clone());
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
@@ -304,7 +330,12 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
                     "spool delivered to some recipients only"
                 );
             }
-        } else {
+        } else if stuck_is_new(&filename) {
+            // Warn once per file, not once per tick. This fires every
+            // drain interval otherwise, and three genuinely undeliverable
+            // messages spent 11 days reprinting the same two lines every
+            // 15 s until the signal was indistinguishable from noise
+            // (2026-07-20). The file still stays put for a human.
             tracing::warn!(
                 file = %filename,
                 fwd_paths = ?env.forward_paths,
@@ -312,6 +343,7 @@ fn drain_once(dir: &Path, maildir_root: &str, state: &Arc<FastcoreState>) -> usi
             );
         }
     }
+    forget_departed(&seen_this_pass);
     delivered
 }
 
