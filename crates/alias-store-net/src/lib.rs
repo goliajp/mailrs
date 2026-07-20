@@ -75,9 +75,28 @@ impl AliasStore for NetworkKevyAliasStore {
         let mut conn = self.connect()?;
         let mut current = address.to_string();
         let mut hit_any = false;
-        for _ in 0..MAX_HOPS {
+        for hop in 0..MAX_HOPS {
             let key_v2 = alias_key_v2(&current);
-            let Some(raw) = conn.hget(key_v2.as_bytes(), b"target")? else {
+            let mut target = conn.hget(key_v2.as_bytes(), b"target")?;
+            // Domain catch-all — an entry keyed `@example.com` answers
+            // for every local part in that domain with no explicit alias
+            // and no mailbox. Mirrors `KevyMailboxStore::resolve_alias`;
+            // this is the impl fastcore actually runs in prod, and the
+            // embedded one only serves tests, so a catch-all added to
+            // just one of them does nothing where it matters
+            // (2026-07-20).
+            //
+            // First hop only: a catch-all is inbound policy, not a link
+            // in a chain, and firing it mid-chain would silently reroute
+            // a deliberate alias whose target is merely wrong.
+            if target.is_none()
+                && hop == 0
+                && let Some((_, domain)) = current.rsplit_once('@')
+            {
+                let key = alias_key_v2(&format!("@{domain}"));
+                target = conn.hget(key.as_bytes(), b"target")?;
+            }
+            let Some(raw) = target else {
                 return Ok(if hit_any { Some(current) } else { None });
             };
             let Ok(next) = String::from_utf8(raw) else {
@@ -185,6 +204,19 @@ mod tests {
     /// pass stays hermetic; the store's contract shape is already
     /// covered by `mailrs_alias_store::MemoryAliasStore` and the
     /// embedded-kevy trait impl tests.
+    /// Opt-in like the roundtrip below — the catch-all contract cannot
+    /// be checked hermetically here, but this is the impl prod runs, so
+    /// it is the one that most needs checking.
+    #[test]
+    fn honours_the_shared_catch_all_contract_when_kevy_url_set() {
+        let Ok(url) = std::env::var("MAILRS_TEST_KEVY_URL") else {
+            eprintln!("skipping: MAILRS_TEST_KEVY_URL not set");
+            return;
+        };
+        let store = NetworkKevyAliasStore::new(url);
+        mailrs_alias_store::assert_catch_all_contract(&store);
+    }
+
     #[test]
     fn network_roundtrip_when_kevy_url_set() {
         let Ok(url) = std::env::var("MAILRS_TEST_KEVY_URL") else {

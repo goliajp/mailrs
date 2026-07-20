@@ -24,6 +24,18 @@ pub trait AliasStore: Send + Sync {
     /// Resolve `address` through the alias chain. `Ok(Some(_))` = the
     /// terminal address; `Ok(None)` = no alias set (deliver to original,
     /// bounce, whatever the caller decides).
+    ///
+    /// **Domain catch-all is part of this contract.** An entry stored
+    /// under `@example.com` answers for any address in that domain with
+    /// no entry of its own, and is consulted on the **first hop only** —
+    /// it is inbound policy, not a link in a chain, so it must not
+    /// re-route a deliberate alias whose target happens to be wrong.
+    /// An explicit entry always wins over the catch-all.
+    ///
+    /// Verify an implementation with
+    /// [`assert_catch_all_contract`] rather than hand-rolling the
+    /// cases: this project shipped a catch-all in one impl while the
+    /// one production actually runs kept dropping mail (2026-07-20).
     fn resolve(&self, address: &str) -> io::Result<Option<String>>;
 
     /// Point `source` at `target`. Idempotent — re-issuing with the same
@@ -59,8 +71,17 @@ impl AliasStore for MemoryAliasStore {
         let g = self.inner.lock().unwrap();
         let mut current = address.to_string();
         let mut hit = false;
-        for _ in 0..MAX_HOPS {
-            match g.get(&current) {
+        for hop in 0..MAX_HOPS {
+            // First hop may fall back to the domain catch-all; see the
+            // trait docs for why later hops must not.
+            let direct = g.get(&current);
+            let entry = match (direct, hop) {
+                (None, 0) => current
+                    .rsplit_once('@')
+                    .and_then(|(_, domain)| g.get(&format!("@{domain}"))),
+                (other, _) => other,
+            };
+            match entry {
                 Some(next) if !next.is_empty() && next != &current => {
                     hit = true;
                     current = next.clone();
@@ -128,5 +149,65 @@ mod tests {
         s.upsert("nobody@x", "somebody@x").unwrap();
         assert!(s.delete("nobody@x").unwrap());
         assert!(s.resolve("nobody@x").unwrap().is_none());
+    }
+}
+
+/// Assert that `store` honours the domain catch-all contract described
+/// on [`AliasStore::resolve`].
+///
+/// Exists because the contract was implemented in one backend while the
+/// one production actually runs went without it, and mail addressed to
+/// unenumerated local parts sat undelivered for eleven days. Every
+/// implementation should call this from its own test module; a backend
+/// that cannot run hermetically (the network one) should call it from
+/// its opt-in integration test.
+///
+/// Uses `catchall-contract.test` as its domain so it cannot collide
+/// with fixtures the caller set up.
+pub fn assert_catch_all_contract(store: &dyn AliasStore) {
+    const DOM: &str = "catchall-contract.test";
+    let addr = |local: &str| format!("{local}@{DOM}");
+
+    store.upsert(&format!("@{DOM}"), &addr("inbox")).unwrap();
+
+    // 1. answers for a local part nobody enumerated
+    assert_eq!(
+        store.resolve(&addr("never-listed")).unwrap(),
+        Some(addr("inbox")),
+        "catch-all must answer for unlisted local parts"
+    );
+
+    // 2. an explicit entry outranks it
+    store.upsert(&addr("sales"), &addr("bob")).unwrap();
+    assert_eq!(
+        store.resolve(&addr("sales")).unwrap(),
+        Some(addr("bob")),
+        "explicit alias must win over the catch-all"
+    );
+
+    // 3. it does not rescue a deliberate alias with a dead target —
+    //    that is a config error to surface, not to paper over
+    store.upsert(&addr("contact"), &addr("gone")).unwrap();
+    assert_eq!(
+        store.resolve(&addr("contact")).unwrap(),
+        Some(addr("gone")),
+        "catch-all must not capture a later hop"
+    );
+
+    // 4. it is scoped to its own domain
+    assert_eq!(
+        store.resolve("someone@other-domain.test").unwrap(),
+        None,
+        "catch-all must not answer for other domains"
+    );
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+
+    #[test]
+    fn memory_store_honours_the_catch_all_contract() {
+        assert_catch_all_contract(&MemoryAliasStore::default());
     }
 }
