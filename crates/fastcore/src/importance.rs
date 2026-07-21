@@ -109,8 +109,7 @@ pub(crate) fn score_inbound(
             use mailrs_core_sidestate::families::contacts as ct;
             // Read the relationship BEFORE recording this message, so a
             // message never counts itself as evidence of a relationship.
-            let s = ct::scoring_for(&mut conn, user, &sender);
-            let replied = ct::has_sent_to_addr(&mut conn, user, &sender);
+            let rel = read_relationship(&mut conn, user, &sender);
 
             // Capture the inbound fact. Until this landed, nothing in
             // this lane ever wrote the scoring hash, so is_mutual /
@@ -125,20 +124,43 @@ pub(crate) fn score_inbound(
             ) {
                 tracing::warn!(error = %e, %user, %sender, "importance: inbound contact fact not recorded");
             }
-
-            (
-                Some(ContactFacts {
-                    is_mutual: s.is_mutual,
-                    is_vip: s.is_vip,
-                    is_mailing_list: s.is_mailing_list,
-                    importance_bias: s.importance_bias,
-                }),
-                replied,
-            )
+            rel
         }
         None => (None, false),
     };
 
+    store_verdict(state, user, thread_id, facts, contact, is_reply_to_my_email);
+}
+
+/// Read the sender relationship without mutating it.
+fn read_relationship(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    sender: &str,
+) -> (Option<ContactFacts>, bool) {
+    use mailrs_core_sidestate::families::contacts as ct;
+    let s = ct::scoring_for(conn, user, sender);
+    let replied = ct::has_sent_to_addr(conn, user, sender);
+    (
+        Some(ContactFacts {
+            is_mutual: s.is_mutual,
+            is_vip: s.is_vip,
+            is_mailing_list: s.is_mailing_list,
+            importance_bias: s.importance_bias,
+        }),
+        replied,
+    )
+}
+
+/// Fold the signals and persist the verdict on the thread row.
+fn store_verdict(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    facts: MessageFacts,
+    contact: Option<ContactFacts>,
+    is_reply_to_my_email: bool,
+) {
     let signals = importance::signals_for_inbound(facts, contact, is_reply_to_my_email);
     let (level, score) = importance::calculate_importance(&signals);
 
@@ -240,6 +262,114 @@ pub(crate) fn backfill_relationships(state: &Arc<FastcoreState>) -> (u64, u64, u
         tracing::info!(%user, addresses = tally.len(), "relationship backfill: user done");
     }
     (n_users, n_addrs, n_msgs)
+}
+
+/// Recompute the importance verdict for threads that never got one.
+///
+/// Scoring happens at ingest, so only mail arriving after the feature
+/// shipped carries a verdict — every pre-existing thread would stay
+/// blank forever, which is invisible to the user and makes the whole
+/// feature look like it did nothing. This rebuilds them from the
+/// message already on disk.
+///
+/// **Read-only with respect to the relationship counters.** It must not
+/// call `record_inbound`: the counters were just rebuilt to absolute
+/// values, and HINCRBY-ing on top of them here would corrupt the very
+/// facts the score depends on.
+///
+/// `only_missing` skips threads that already carry a verdict, so a
+/// re-run is cheap and does not fight live scoring.
+/// Returns `(threads_scored, threads_skipped)`.
+pub(crate) fn backfill_thread_importance(
+    state: &Arc<FastcoreState>,
+    only_missing: bool,
+) -> (u64, u64) {
+    let users = state.mailbox.list_account_addresses().unwrap_or_default();
+    let store = state.mailbox.store_ref();
+    let (mut scored, mut skipped) = (0u64, 0u64);
+
+    for user in &users {
+        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let Ok(entries) = store.zrevrange(activity.as_bytes(), 0, -1) else {
+            continue;
+        };
+        for (tid_bytes, _) in entries {
+            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
+                continue;
+            };
+            if only_missing {
+                let has = matches!(state.mailbox.get_thread(tid), Ok(Some(r)) if !r.importance_level.is_empty());
+                if has {
+                    skipped += 1;
+                    continue;
+                }
+            }
+            let Some((sender, raw)) = latest_inbound_raw(state, user, tid) else {
+                skipped += 1;
+                continue;
+            };
+            let head = &raw[..raw.len().min(16 * 1024)];
+            let facts = message_facts(&sender, head, &raw);
+            let (contact, replied) = match state.net_conn() {
+                Some(mut conn) => read_relationship(&mut conn, user, &sender),
+                None => (None, false),
+            };
+            store_verdict(state, user, tid, facts, contact, replied);
+            scored += 1;
+        }
+    }
+    (scored, skipped)
+}
+
+/// Newest inbound (not self-sent) message of a thread: its sender
+/// address and raw bytes, read back from maildir. Importance follows
+/// the latest inbound message, matching the ingest rule.
+fn latest_inbound_raw(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+) -> Option<(String, Vec<u8>)> {
+    let (local, domain) = user.split_once('@')?;
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let base = std::path::PathBuf::from(&root).join(domain).join(local);
+
+    let wires = state.mailbox.list_thread_messages(thread_id).ok()?;
+    // list_thread_messages is date-ordered; walk newest first.
+    for blob in wires.iter().rev() {
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(blob) else {
+            continue;
+        };
+        let sender = v.get("sender").and_then(|x| x.as_str()).unwrap_or("");
+        if sender.is_empty() || mailrs_mailbox_kevy::senders_csv_contains_user(sender, user) {
+            continue; // own send carries no inbound verdict
+        }
+        let Some(blob_ref) = v.get("blob_ref").and_then(|x| x.as_str()) else {
+            continue;
+        };
+        if let Some(raw) = read_maildir_file(&base, blob_ref) {
+            return Some((first_address(sender), raw));
+        }
+    }
+    None
+}
+
+/// Read one maildir file by `blob_ref` — a Maildir++ subfolder path or a
+/// bare INBOX filename tried under `cur/` then `new/`.
+fn read_maildir_file(base: &std::path::Path, blob_ref: &str) -> Option<Vec<u8>> {
+    if let Some((sub, file)) = blob_ref.split_once('/') {
+        for leaf in ["cur", "new"] {
+            if let Ok(b) = std::fs::read(base.join(sub).join(leaf).join(file)) {
+                return Some(b);
+            }
+        }
+        return std::fs::read(base.join(sub).join(file)).ok();
+    }
+    for leaf in ["cur", "new"] {
+        if let Ok(b) = std::fs::read(base.join(leaf).join(blob_ref)) {
+            return Some(b);
+        }
+    }
+    None
 }
 
 #[cfg(test)]

@@ -38,7 +38,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post, put};
 use kevy_embedded::{Config, Store};
 use mailrs_alias_store::AliasStore;
@@ -1711,6 +1711,13 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/maintenance:backfill-contact-relationships",
                 post(backfill_contact_relationships_route),
+            )
+            // Importance verdicts for threads that predate the feature —
+            // scoring only runs at ingest, so without this every existing
+            // thread would stay blank forever.
+            .route(
+                "/v1/admin/maintenance:backfill-thread-importance",
+                post(backfill_thread_importance_route),
             )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
@@ -3402,6 +3409,24 @@ async fn move_spam_to_junk_route(
     }
     tracing::info!(moved, missing, "spam/scam → junk migration complete");
     Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-thread-importance` — score
+/// threads that predate the feature. `?all=1` rescores every thread;
+/// the default only fills in threads with no verdict yet.
+async fn backfill_thread_importance_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let only_missing = q.get("all").map(String::as_str) != Some("1");
+    let (scored, skipped) = crate::importance::backfill_thread_importance(&state, only_missing);
+    tracing::info!(
+        scored,
+        skipped,
+        only_missing,
+        "thread importance backfill done"
+    );
+    axum::Json(serde_json::json!({ "scored": scored, "skipped": skipped })).into_response()
 }
 
 /// `POST /v1/admin/maintenance:backfill-contact-relationships` —
