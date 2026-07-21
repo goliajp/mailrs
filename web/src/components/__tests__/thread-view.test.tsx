@@ -185,6 +185,7 @@ function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
     risk_score: 0,
     sender: 'Alice Smith <alice@example.com>',
     sender_intent: 'inform',
+    sender_trust: 'verified',
     subject: 'Test Subject',
     summary: '',
     text_body: 'Hello, this is a test message',

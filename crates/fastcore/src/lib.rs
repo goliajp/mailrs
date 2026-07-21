@@ -558,6 +558,45 @@ async fn run_ingest_once(
 /// index via `resolve_thread_by_ancestry`; `references[0]` is only the
 /// last-resort root guess (it is NOT stable across hops — remote MUAs
 /// rewrite it, which fragmented conversations before v2.9.5).
+/// Read the sender-authentication verdict from a message's own
+/// `Authentication-Results` header, folded to a stable token. Empty
+/// when the header is absent (e.g. mail that reached the maildir by a
+/// path that didn't stamp it). This is the self-hosted "is this sender
+/// who they claim to be" signal — pure auth results, no model.
+pub(crate) fn extract_sender_trust(raw: &[u8]) -> String {
+    let head = &raw[..raw.len().min(16 * 1024)];
+    // Find the (possibly folded) Authentication-Results field. Headers
+    // are ASCII field names; scan lines, unfolding continuations.
+    let text = String::from_utf8_lossy(head);
+    let mut value: Option<String> = None;
+    let mut collecting = false;
+    for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
+        if collecting {
+            if line.starts_with(' ') || line.starts_with('\t') {
+                value.as_mut().unwrap().push(' ');
+                value.as_mut().unwrap().push_str(line.trim());
+                continue;
+            }
+            break; // header ended
+        }
+        if let Some(rest) = line
+            .strip_prefix("Authentication-Results:")
+            .or_else(|| line.strip_prefix("authentication-results:"))
+        {
+            value = Some(rest.trim().to_string());
+            collecting = true;
+        }
+    }
+    let Some(v) = value else {
+        return String::new();
+    };
+    let results = mailrs_inbound::parse_auth_results(&v);
+    if results.is_empty() {
+        return String::new();
+    }
+    mailrs_inbound::sender_trust(&results).as_str().to_string()
+}
+
 pub(crate) fn extract_headers(
     raw: &[u8],
 ) -> (String, String, Vec<String>, String, i64, String, String) {
@@ -799,6 +838,9 @@ struct MailFile {
     /// read/unread fact. Self-heal must respect it or every boot
     /// resurrects already-read mail as unread.
     seen: bool,
+    /// Sender-auth verdict from the file's `Authentication-Results`
+    /// header (`verified` / `suspicious` / `unverified` / `""`).
+    sender_trust: String,
 }
 
 /// Walk the user's maildir(s) and populate any thread whose messages
@@ -942,6 +984,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
             from,
             to,
             seen: maildir_seen_flag(&bare),
+            sender_trust: extract_sender_trust(&bytes),
         });
     }
 
@@ -1137,6 +1180,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                 flags: 1,
                 message_id: m.message_id.clone(),
                 in_reply_to: m.in_reply_to.clone(),
+                sender_trust: m.sender_trust.clone(),
                 thread_id: tid.to_string(),
                 modseq: 0,
                 user_address: user.to_string(),
@@ -1251,6 +1295,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                     flags: 1,
                     message_id: m.message_id.clone(),
                     in_reply_to: m.in_reply_to.clone(),
+                    sender_trust: m.sender_trust.clone(),
                     thread_id: root.clone(),
                     modseq: 0,
                     user_address: user.to_string(),
@@ -1502,6 +1547,7 @@ pub(crate) fn ingest_delivered_file(
         flags: if unread { 0 } else { 1 },
         message_id: message_id.clone(),
         in_reply_to,
+        sender_trust: extract_sender_trust(body),
         thread_id: root.clone(),
         modseq: 0,
         user_address: addr.to_string(),

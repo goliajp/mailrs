@@ -136,6 +136,7 @@ export const wireMessageSchema = z.object({
   risk_score: z.number().default(0),
   sender: z.string().default(''),
   sender_intent: z.string().default('inform'),
+  sender_trust: z.string().default(''),
   structured_data: z.unknown().nullish(),
   subject: z.string().default(''),
   summary: z.string().default(''),
