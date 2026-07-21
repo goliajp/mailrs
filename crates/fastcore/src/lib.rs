@@ -23,6 +23,7 @@ mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
 mod imap;
+mod importance;
 mod junk_ttl;
 pub mod live_sync;
 mod managesieve;
@@ -1526,6 +1527,11 @@ pub(crate) fn ingest_delivered_file(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
+    // Importance follows the latest INBOUND message, like the thread's
+    // display fields — the user's own reply must not restate it.
+    if !is_own {
+        crate::importance::score_inbound(state, addr, &root, &from, head, body);
+    }
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let m = crate::imap::backend::bump_modseq(state, addr);
@@ -1698,6 +1704,13 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/maintenance:backfill-inbox-index",
                 post(backfill_inbox_index_route),
+            )
+            // Contact relationship counters, rebuilt from message
+            // history so importance scoring sees existing correspondents
+            // instead of waiting months for new traffic (idempotent).
+            .route(
+                "/v1/admin/maintenance:backfill-contact-relationships",
+                post(backfill_contact_relationships_route),
             )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
@@ -3389,6 +3402,24 @@ async fn move_spam_to_junk_route(
     }
     tracing::info!(moved, missing, "spam/scam → junk migration complete");
     Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-contact-relationships` —
+/// one-shot rebuild of the per-sender received/sent counters that
+/// importance scoring reads. Runs in process: a `docker exec` helper
+/// would open a second embedded kevy and replay the AOF alongside the
+/// live one (the 2026-07-13 backfill OOM).
+async fn backfill_contact_relationships_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let (users, addresses, messages) = crate::importance::backfill_relationships(&state);
+    tracing::info!(users, addresses, messages, "relationship backfill complete");
+    axum::Json(serde_json::json!({
+        "users": users,
+        "addresses": addresses,
+        "messages_scanned": messages,
+    }))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot

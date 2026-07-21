@@ -9,9 +9,9 @@
 //! [`Pipeline`](crate::Pipeline) framework can compute their own signals
 //! however they like and call this function directly.
 
+use crate::SenderTrust;
 use crate::auth_header::build_auth_header;
 use crate::context::{AuthResults, DmarcPolicy};
-use crate::SenderTrust;
 
 /// Score contributed to the spam total when receive-time authentication
 /// folds to [`SenderTrust::Suspicious`] (DMARC alignment failed, or a hard
@@ -361,7 +361,10 @@ mod tests {
         input.content_score = 6.0;
         match make_delivery_decision(&input) {
             DeliveryDecision::Junk { reason, .. } => {
-                assert!(!reason.contains("sender=suspicious"), "reason was: {reason}");
+                assert!(
+                    !reason.contains("sender=suspicious"),
+                    "reason was: {reason}"
+                );
             }
             other => panic!("expected Junk, got {other:?}"),
         }

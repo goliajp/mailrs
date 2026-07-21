@@ -107,6 +107,25 @@ fn load_dkim_from_env() -> Option<Arc<DkimSignConfig>> {
     }))
 }
 
+/// Record "this user has sent to this address" on the shared contact
+/// hash. Best-effort: a delivery that already succeeded must never be
+/// failed or retried because a derived counter could not be bumped.
+fn record_sent_relationship(cfg: &Cfg, sender: &str, recipient: &str) {
+    let from = sender.trim().to_lowercase();
+    let to = recipient.trim().to_lowercase();
+    if from.is_empty() || to.is_empty() {
+        return;
+    }
+    let Ok(mut conn) = kevy(&cfg.kevy_url) else {
+        tracing::warn!(%from, %to, "sent-relationship: no kevy connection");
+        return;
+    };
+    if let Err(e) = mailrs_core_sidestate::families::contacts::record_sent_to(&mut conn, &from, &to)
+    {
+        tracing::warn!(error = %e, %from, %to, "sent-relationship: hincrby failed");
+    }
+}
+
 fn kevy(url: &str) -> std::io::Result<kevy_client::Connection> {
     kevy_client::Connection::open(url)
 }
@@ -831,6 +850,12 @@ async fn process_one(cfg: Cfg, id: String) {
     tracing::info!(%id, %sender, %recipient, attempt = attempts_prev + 1, "delivering");
     match try_deliver(&cfg, &sender, &recipient, &message_bytes).await {
         Outcome::Delivered => {
+            // Relationship fact: the user has now sent to this address.
+            // This is the only writer of `sent_count`, and without it
+            // `is_mutual` / `has_sent_to` — the strongest inbound
+            // importance signals — can never become true
+            // (RFC 20260721-self-hosted-importance-ranking).
+            record_sent_relationship(&cfg, &sender, &recipient);
             if let Err(e) = drop_blob(cfg, id.clone()).await {
                 tracing::error!(%id, err = %e, "drop_blob after success failed");
             } else {

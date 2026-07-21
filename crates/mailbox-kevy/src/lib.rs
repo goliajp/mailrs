@@ -67,6 +67,7 @@ mod account;
 mod alias;
 mod deliver;
 mod domain;
+mod importance;
 pub mod keys;
 mod list_threads;
 mod mark_seen;

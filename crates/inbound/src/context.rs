@@ -231,11 +231,11 @@ mod tests {
 
         // (spf, dkim, dmarc) triples covering each verdict.
         let cases = [
-            ("pass", "pass", "pass"),   // Verified
-            ("pass", "none", "fail"),   // Suspicious (classic spoof: SPF ok, DMARC fail)
-            ("fail", "none", "none"),   // Suspicious (hard SPF fail, no DMARC)
-            ("none", "none", "none"),   // Unverified
-            ("pass", "fail", "none"),   // Unverified (one pass, one fail, no DMARC)
+            ("pass", "pass", "pass"), // Verified
+            ("pass", "none", "fail"), // Suspicious (classic spoof: SPF ok, DMARC fail)
+            ("fail", "none", "none"), // Suspicious (hard SPF fail, no DMARC)
+            ("none", "none", "none"), // Unverified
+            ("pass", "fail", "none"), // Unverified (one pass, one fail, no DMARC)
         ];
         for (spf, dkim, dmarc) in cases {
             let structured = AuthResults {
