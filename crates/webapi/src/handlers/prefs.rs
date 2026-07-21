@@ -877,6 +877,9 @@ async fn mirror_send_to_sender_view(
         flags,
         message_id: message_id.to_string(),
         in_reply_to: parts.in_reply_to.clone().unwrap_or_default(),
+        // the user's own outbound copy — sender authentication is not a
+        // meaningful question for mail we are sending ourselves.
+        sender_trust: String::new(),
         thread_id: thread_id.clone(),
         modseq: 0,
         user_address: user.to_string(),

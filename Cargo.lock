@@ -3240,6 +3240,7 @@ dependencies = [
  "mailrs-imap-codec 1.0.0",
  "mailrs-imap-format 1.0.0",
  "mailrs-imap-proto 1.0.5",
+ "mailrs-inbound",
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
  "mailrs-mime",

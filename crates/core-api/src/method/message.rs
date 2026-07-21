@@ -84,6 +84,15 @@ pub struct MessageWire {
     pub message_id: String,
     /// RFC 5322 `In-Reply-To:` (no angle brackets).
     pub in_reply_to: String,
+    /// Sender-authentication verdict derived from the message's own
+    /// `Authentication-Results` header at ingest: `"verified"` (DMARC
+    /// pass), `"suspicious"` (an auth method failed — likely spoofed),
+    /// `"unverified"` (auth ran but nothing conclusive), or `""` for
+    /// messages ingested before this field existed. Self-hosted: it is
+    /// the cryptographic auth result folded by
+    /// `mailrs_inbound::sender_trust`, no model involved.
+    #[serde(default)]
+    pub sender_trust: String,
     /// Resolved thread identifier.
     pub thread_id: ThreadId,
     /// CONDSTORE per-message MODSEQ.
@@ -111,6 +120,9 @@ impl From<&mailrs_mailbox::types::MessageMeta> for MessageWire {
             flags: m.flags,
             message_id: m.message_id.clone(),
             in_reply_to: m.in_reply_to.clone(),
+            // monolith (PG) path does not persist auth results yet;
+            // empty means "no verdict", which renders as no badge.
+            sender_trust: String::new(),
             thread_id: m.thread_id.clone(),
             modseq: m.modseq,
             // MessageMeta has no user_address — caller fills if needed.
@@ -135,6 +147,9 @@ impl From<&mailrs_mailbox::types::Message> for MessageWire {
             flags: m.flags,
             message_id: m.message_id.clone(),
             in_reply_to: m.in_reply_to.clone(),
+            // monolith (PG) path does not persist auth results yet;
+            // empty means "no verdict", which renders as no badge.
+            sender_trust: String::new(),
             thread_id: m.thread_id.clone(),
             modseq: m.modseq,
             user_address: m.user_address.clone(),

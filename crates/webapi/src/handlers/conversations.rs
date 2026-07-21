@@ -161,6 +161,12 @@ pub struct ThreadMessageResponse {
     /// reconciliation (see 2026-07-08 timeline-duplication reports).
     pub uid: u32,
     pub sender: String,
+    /// Sender-authentication verdict from `MessageWire.sender_trust`:
+    /// `"verified"` (DMARC pass), `"suspicious"` (an auth method
+    /// failed — likely spoofed), `"unverified"`, or `""` for messages
+    /// ingested before the signal existed. Self-hosted cryptographic
+    /// auth result, no model.
+    pub sender_trust: String,
     pub recipients: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cc: Option<String>,
@@ -197,6 +203,7 @@ impl ThreadMessageResponse {
             uid: w.uid,
             // idempotent rfc2047 pass for pre-fix rows (see summary conv)
             sender: mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
+            sender_trust: w.sender_trust.clone(),
             recipients: mailrs_rfc2047::decode(w.recipients.as_bytes()).into_owned(),
             cc: None,
             subject: w.subject,

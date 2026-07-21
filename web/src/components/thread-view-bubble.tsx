@@ -7,6 +7,7 @@ import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { InviteCard } from '@/components/invite-card'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { type FeedbackAction, recordFeedback } from '@/lib/api'
 import { formatTimeOfDay } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
@@ -75,6 +76,7 @@ export const ThreadTimelineItem = memo(function ThreadTimelineItem({
             <span className={`text-sm font-semibold ${isOwn ? 'text-accent' : 'text-fg'}`}>
               {isOwn ? 'Me' : displayName}
             </span>
+            {!isOwn && <SenderTrustBadge trust={msg.sender_trust} />}
             <span className="text-fg-muted text-xs">
               {formatTimeOfDay(msg.internal_date)}
               {msg.attachments.length > 0 && (
