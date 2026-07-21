@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # direct-deploy.sh — the default release path (user decision 2026-07-18):
-# build locally, publish to ghcr, and roll staging + prod together. CI
+# build locally, publish to ghcr, and roll prod. Staging was retired
 # (v*/web-v* tags) runs only when explicitly requested — it takes ~1.5 h
 # vs ~15 min for this script, and the quality gates that matter (local
-# fmt+clippy+test, staging soak, post-deploy replay-clean + route probe)
+# fmt+clippy+test, post-deploy replay-clean + route probe)
 # all live outside CI anyway.
 #
 # Usage:
@@ -15,7 +15,7 @@
 #   2. push ghcr.io/goliajp/mailrs:<version> (arm64-only; best-effort —
 #      a push failure warns but never blocks the deploy)
 #   3. prod (t02): save|ssh load, bump MAILRS_VERSION, compose up
-#   4. staging (t01): delegate to staging-build-deploy.sh SKIP_BUILD=1
+#   (staging retired 2026-07-21 — prod is the only target)
 #      (it ships the image + soak harness + kicks the 30-min soak)
 #   5. verify prod: :3301 up, health version matches, AOF replay (clean)
 set -euo pipefail
@@ -31,22 +31,8 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
-# Surface the PREVIOUS soak verdict before overwriting it with this
-# deploy's kick. Direct-deploy doesn't gate on soak (user decision
-# 2026-07-18: default is direct), but shipping on top of a failed or
-# never-read verdict should at least be a loud, conscious act.
-PREV_SOAK=$(ssh t01 'cat /var/run/staging-gate.json 2>/dev/null' || true)
-if [ -z "$PREV_SOAK" ]; then
-    echo "!! WARNING: no previous staging soak verdict found — deploying anyway"
-elif ! printf '%s' "$PREV_SOAK" | grep -q '"pass": *true'; then
-    echo "!! WARNING: previous staging soak verdict was NOT pass — deploying anyway:"
-    printf '    %s\n' "$PREV_SOAK"
-else
-    echo "==> previous staging soak: pass=true ($(printf '%s' "$PREV_SOAK" | grep -o '"sha": *"[^"]*"' || true))"
-fi
-
 if [ "${SKIP_BUILD:-0}" != 1 ]; then
-    echo "==> [1/5] local arm64 build ($VERSION)"
+    echo "==> [1/4] local arm64 build ($VERSION)"
     docker buildx build \
         --platform linux/arm64 \
         --build-arg VERSION="$VERSION" \
@@ -55,25 +41,22 @@ if [ "${SKIP_BUILD:-0}" != 1 ]; then
         --load \
         .
 else
-    echo "==> [1/5] SKIP_BUILD=1 — reusing local $TAG"
+    echo "==> [1/4] SKIP_BUILD=1 — reusing local $TAG"
 fi
 
-echo "==> [2/5] push $GHCR (best-effort)"
+echo "==> [2/4] push $GHCR (best-effort)"
 docker tag "$TAG" "$GHCR"
 if ! docker push "$GHCR"; then
     echo "!! ghcr push failed — continuing with the deploy (image still ships via save|load)"
 fi
 
-echo "==> [3/5] prod: save | ssh load + compose up"
+echo "==> [3/4] prod: save | ssh load + compose up"
 docker save "$GHCR" | gzip -1 | ssh "$PROD" 'gunzip | docker load'
 ssh "$PROD" "cd /apps/mailrs \
   && sed -i 's/^MAILRS_VERSION=.*/MAILRS_VERSION=$VERSION/' .env \
   && docker compose up -d --pull never --no-deps receiver fastcore webapi-fc fastcore-sender"
 
-echo "==> [4/5] staging: delegate to staging-build-deploy.sh"
-SKIP_BUILD=1 ./scripts/staging-build-deploy.sh
-
-echo "==> [5/5] verify prod"
+echo "==> [4/4] verify prod"
 for i in $(seq 1 90); do
     # any 2xx-4xx means the router is up; only connection failures loop
     CODE=$(ssh "$PROD" "docker exec mailrs-fastcore curl -s -m3 -o /dev/null -w '%{http_code}' http://localhost:3301/healthz" 2>/dev/null || true)
