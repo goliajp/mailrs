@@ -175,12 +175,41 @@ pub enum SenderTrust {
     Suspicious,
 }
 
-/// Fold parsed method results into a [`SenderTrust`] verdict.
+/// Core fold: given the three relevant method results (each looked up as
+/// `Option<&str>`), produce the [`SenderTrust`] verdict.
 ///
 /// DMARC is authoritative when present, because it is the method that
 /// ties the visible From domain to a passing SPF or DKIM check — which
 /// is exactly the spoofing question. Only when DMARC is absent do we
 /// fall back to the weaker signal of a raw SPF/DKIM failure.
+///
+/// This is the single source of truth shared by both fold paths: the
+/// header-parse path ([`sender_trust`]) and the receive-time structured
+/// path ([`crate::AuthResults::sender_trust`]). Keeping one core prevents
+/// the two from drifting apart.
+pub fn fold_sender_trust(
+    dmarc: Option<&str>,
+    spf: Option<&str>,
+    dkim: Option<&str>,
+) -> SenderTrust {
+    match dmarc {
+        Some("pass") => return SenderTrust::Verified,
+        Some("fail") => return SenderTrust::Suspicious,
+        _ => {}
+    }
+    // No usable DMARC verdict. A hard SPF or DKIM fail with nothing
+    // passing still points at spoofing/misconfiguration.
+    let any_pass = spf == Some("pass") || dkim == Some("pass");
+    let any_fail = spf == Some("fail") || dkim == Some("fail");
+    match (any_fail, any_pass) {
+        (true, false) => SenderTrust::Suspicious,
+        _ => SenderTrust::Unverified,
+    }
+}
+
+/// Fold parsed header method results into a [`SenderTrust`] verdict.
+/// Thin wrapper over [`fold_sender_trust`] that pulls the DMARC / SPF /
+/// DKIM tokens out of the parsed `results`.
 pub fn sender_trust(results: &[AuthResult]) -> SenderTrust {
     let find = |m: &str| {
         results
@@ -188,22 +217,7 @@ pub fn sender_trust(results: &[AuthResult]) -> SenderTrust {
             .find(|r| r.method == m)
             .map(|r| r.result.as_str())
     };
-
-    match find("dmarc") {
-        Some("pass") => return SenderTrust::Verified,
-        Some("fail") => return SenderTrust::Suspicious,
-        _ => {}
-    }
-    // No usable DMARC verdict. A hard SPF or DKIM fail with nothing
-    // passing still points at spoofing/misconfiguration.
-    let spf = find("spf");
-    let dkim = find("dkim");
-    let any_pass = spf == Some("pass") || dkim == Some("pass");
-    let any_fail = spf == Some("fail") || dkim == Some("fail");
-    match (any_fail, any_pass) {
-        (true, false) => SenderTrust::Suspicious,
-        _ => SenderTrust::Unverified,
-    }
+    fold_sender_trust(find("dmarc"), find("spf"), find("dkim"))
 }
 
 /// String form for storage / wire — stable tokens, not for display.
