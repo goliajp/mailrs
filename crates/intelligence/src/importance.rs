@@ -145,9 +145,178 @@ pub fn calculate_importance(signals: &ImportanceSignals) -> (ImportanceLevel, f3
     (level, score)
 }
 
+/// Per-sender relationship facts, as a serving lane's contact store
+/// reports them (the monolith's `contacts` table, or the shared
+/// side-state `contact_scoring` family the fastcore lane calls).
+///
+/// Deliberately lane-neutral: this crate stays free of the wire types
+/// so it remains reusable. Callers copy the four fields across.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ContactFacts {
+    /// Both sides have sent — the strongest relationship signal.
+    pub is_mutual: bool,
+    /// User explicitly marked this sender VIP.
+    pub is_vip: bool,
+    /// Sender looks like a mailing list.
+    pub is_mailing_list: bool,
+    /// Manual per-contact bias in `[-1.0, 1.0]`.
+    pub importance_bias: f32,
+}
+
+/// Facts derivable from the message itself, with no relationship
+/// context. Every one comes from a `mailrs-clean` pure helper
+/// (`detect_bulk_sender` / `is_automated_sender` / `clean_email_html`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MessageFacts {
+    /// `List-*` / bulk headers present.
+    pub is_bulk_sender: bool,
+    /// Sender local-part looks automated (`no-reply@` etc).
+    pub is_automated: bool,
+    /// Tracking pixel found in the body.
+    pub has_tracking_pixel: bool,
+    /// HTML is mostly chrome / template markup.
+    pub is_template_heavy: bool,
+    /// Number of links in the body.
+    pub link_count: usize,
+}
+
+/// Build the [`ImportanceSignals`] for an **inbound** message, shared by
+/// every serving lane.
+///
+/// This exists so the two lanes can't drift: the subtle parts are the
+/// mailing-list fallback (an unknown sender falls back to the bulk-header
+/// verdict) and the three fixed values below — duplicating those by hand
+/// per lane is exactly how the lanes diverge
+/// (see the two-impls-need-a-contract-test rule).
+///
+/// Fixed for the inbound path:
+/// - `is_direct_recipient = true` — the message was delivered to this
+///   user's mailbox, so they are a recipient.
+/// - `has_action_items = false` — that signal comes from LLM analysis,
+///   which prod does not run. A lane that does run it updates the score
+///   afterwards rather than guessing here.
+/// - `text_to_html_ratio = 1.0` — not currently measured by either lane;
+///   the scorer does not read it today.
+pub fn signals_for_inbound(
+    msg: MessageFacts,
+    contact: Option<ContactFacts>,
+    is_reply_to_my_email: bool,
+) -> ImportanceSignals {
+    ImportanceSignals {
+        is_mutual_contact: contact.is_some_and(|c| c.is_mutual),
+        is_direct_recipient: true,
+        is_reply_to_my_email,
+        has_action_items: false,
+        is_vip_sender: contact.is_some_and(|c| c.is_vip),
+        is_bulk_sender: msg.is_bulk_sender,
+        // Unknown sender → fall back to the bulk-header verdict.
+        is_mailing_list: contact.map_or(msg.is_bulk_sender, |c| c.is_mailing_list),
+        is_automated: msg.is_automated,
+        has_tracking_pixel: msg.has_tracking_pixel,
+        is_template_heavy: msg.is_template_heavy,
+        text_to_html_ratio: 1.0,
+        link_count: msg.link_count,
+        contact_importance_bias: contact.map_or(0.0, |c| c.importance_bias),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── shared inbound signal derivation (RFC 20260721) ───────────
+
+    #[test]
+    fn unknown_sender_falls_back_to_bulk_verdict_for_mailing_list() {
+        // No contact record: is_mailing_list must mirror the bulk-header
+        // verdict rather than defaulting to false.
+        let bulk = MessageFacts {
+            is_bulk_sender: true,
+            ..Default::default()
+        };
+        assert!(signals_for_inbound(bulk, None, false).is_mailing_list);
+
+        let not_bulk = MessageFacts::default();
+        assert!(!signals_for_inbound(not_bulk, None, false).is_mailing_list);
+    }
+
+    #[test]
+    fn known_contact_overrides_bulk_verdict_for_mailing_list() {
+        // A contact record is authoritative: bulk headers present but the
+        // contact is not a list → not a mailing list.
+        let msg = MessageFacts {
+            is_bulk_sender: true,
+            ..Default::default()
+        };
+        let contact = ContactFacts {
+            is_mailing_list: false,
+            ..Default::default()
+        };
+        let s = signals_for_inbound(msg, Some(contact), false);
+        assert!(!s.is_mailing_list);
+        assert!(s.is_bulk_sender, "bulk verdict itself is untouched");
+    }
+
+    #[test]
+    fn contact_fields_map_through() {
+        let contact = ContactFacts {
+            is_mutual: true,
+            is_vip: true,
+            is_mailing_list: false,
+            importance_bias: 0.25,
+        };
+        let s = signals_for_inbound(MessageFacts::default(), Some(contact), true);
+        assert!(s.is_mutual_contact);
+        assert!(s.is_vip_sender);
+        assert!(s.is_reply_to_my_email);
+        assert!((s.contact_importance_bias - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn inbound_fixed_values_hold() {
+        let s = signals_for_inbound(MessageFacts::default(), None, false);
+        assert!(s.is_direct_recipient, "inbound delivery implies recipient");
+        assert!(!s.has_action_items, "action items come from LLM analysis");
+        assert!(!s.is_mutual_contact);
+        assert_eq!(s.contact_importance_bias, 0.0);
+    }
+
+    #[test]
+    fn message_facts_map_through() {
+        let msg = MessageFacts {
+            is_bulk_sender: false,
+            is_automated: true,
+            has_tracking_pixel: true,
+            is_template_heavy: true,
+            link_count: 42,
+        };
+        let s = signals_for_inbound(msg, None, false);
+        assert!(s.is_automated);
+        assert!(s.has_tracking_pixel);
+        assert!(s.is_template_heavy);
+        assert_eq!(s.link_count, 42);
+    }
+
+    #[test]
+    fn mutual_direct_contact_scores_above_baseline() {
+        // End-to-end through the scorer: a real relationship must beat
+        // the 0.3 baseline that an unknown sender gets.
+        let known = signals_for_inbound(
+            MessageFacts::default(),
+            Some(ContactFacts {
+                is_mutual: true,
+                ..Default::default()
+            }),
+            true,
+        );
+        let unknown = signals_for_inbound(MessageFacts::default(), None, false);
+        let (_, known_score) = calculate_importance(&known);
+        let (_, unknown_score) = calculate_importance(&unknown);
+        assert!(
+            known_score > unknown_score,
+            "known={known_score} unknown={unknown_score}"
+        );
+    }
 
     #[test]
     fn baseline_score_is_normal() {
