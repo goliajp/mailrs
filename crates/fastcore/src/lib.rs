@@ -2707,14 +2707,25 @@ async fn mark_read(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    // Classify the read BEFORE marking seen — mark_seen does not move
-    // latest_date, but reading the thread first keeps the latency
-    // measurement independent of anything the write path might change.
+    // Only a genuine unread -> read transition is an engagement event.
+    // `mark_seen` returns whether the hash carried an unread_count
+    // field, not whether anything changed, so the unread state has to
+    // be read here. Without this a client that re-marks an open thread
+    // inflates read_count, and the ranker would later learn from a
+    // number that measures UI chatter rather than attention.
+    let was_unread = state
+        .mailbox
+        .get_thread(&thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|r| r.unread_count > 0);
     let event = crate::importance::read_event(&state, &thread_id, now_secs());
     if let Err(e) = state.mailbox.mark_seen(&user, &thread_id) {
         tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
     }
-    crate::importance::record_engagement(&state, &user, &thread_id, event);
+    if was_unread {
+        crate::importance::record_engagement(&state, &user, &thread_id, event);
+    }
     action_result(true)
 }
 
@@ -3681,6 +3692,19 @@ async fn set_message_flags_route(
         } else {
             state.mailbox.mark_unread(&user, &wire.thread_id)
         };
+        // Reading over IMAP is still reading. Without this, engagement
+        // would only ever be recorded for the web UI, and a user on
+        // Apple Mail or Thunderbird would look like they never open
+        // anything — a systematic hole in the data the ranker learns
+        // from, invisible until the learner started producing nonsense.
+        //
+        // `was_seen != is_seen` already makes this a genuine unread ->
+        // read transition, so re-syncing an unchanged flag records
+        // nothing.
+        if is_seen {
+            let event = crate::importance::read_event(&state, &wire.thread_id, now_secs());
+            crate::importance::record_engagement(&state, &user, &wire.thread_id, event);
+        }
     }
     axum::http::StatusCode::NO_CONTENT.into_response()
 }
