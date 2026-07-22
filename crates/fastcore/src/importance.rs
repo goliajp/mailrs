@@ -45,6 +45,22 @@ fn all_addresses(csv: &str) -> Vec<String> {
         .collect()
 }
 
+/// First address in a participant union that is not the user.
+///
+/// `senders_csv` is a participant **union**, not "latest sender" — once
+/// the user replies, their own address is in it, and on a thread the
+/// user started theirs is first. Engagement has to be attributed to the
+/// correspondent, so picking `[0]` blindly would credit the user's own
+/// address on exactly the threads that matter most (the ones they
+/// replied to).
+fn first_other_address(senders_csv: &str, user: &str) -> String {
+    let me = user.trim().to_lowercase();
+    all_addresses(senders_csv)
+        .into_iter()
+        .find(|a| *a != me)
+        .unwrap_or_default()
+}
+
 /// Message-shape signals, all from `mailrs-clean` pure helpers.
 ///
 /// `head` is the header region, `raw` the whole message: the HTML
@@ -264,6 +280,65 @@ pub(crate) fn backfill_relationships(state: &Arc<FastcoreState>) -> (u64, u64, u
     (n_users, n_addrs, n_msgs)
 }
 
+/// A read this soon after arrival reads as "the user was waiting for
+/// this" rather than "the user eventually got round to it". Ten minutes
+/// is deliberately generous — the signal we want is same-sitting
+/// attention, not reflexes.
+const FAST_READ_SECS: i64 = 600;
+
+/// Record an engagement event against the thread's inbound sender.
+///
+/// Implicit behaviour is the raw material for per-user learning: it is
+/// the only signal that distinguishes "bulk-looking mail this user
+/// actually reads" from "bulk-looking mail this user ignores", which no
+/// amount of header inspection can tell apart.
+///
+/// Best-effort throughout — this rides on user actions (open, archive,
+/// star) that must never fail because a counter could not be written.
+pub(crate) fn record_engagement(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    event: mailrs_core_sidestate::families::contacts::Engagement,
+) {
+    let Ok(Some(row)) = state.mailbox.get_thread(thread_id) else {
+        return;
+    };
+    // Attribute to the correspondent, never to the user themselves — a
+    // thread the user started has their own address first in the union.
+    // An all-self thread yields nothing and is skipped.
+    let sender = first_other_address(&row.senders_csv, user);
+    if sender.is_empty() {
+        return;
+    }
+    let Some(mut conn) = state.net_conn() else {
+        return;
+    };
+    if let Err(e) = mailrs_core_sidestate::families::contacts::record_engagement(
+        &mut conn, user, &sender, event,
+    ) {
+        tracing::warn!(error = %e, %user, %sender, "engagement not recorded");
+    }
+}
+
+/// Classify a read as fast or not, from the thread's latest arrival.
+pub(crate) fn read_event(
+    state: &Arc<FastcoreState>,
+    thread_id: &str,
+    now: i64,
+) -> mailrs_core_sidestate::families::contacts::Engagement {
+    use mailrs_core_sidestate::families::contacts::Engagement;
+    let latest = state
+        .mailbox
+        .get_thread(thread_id)
+        .ok()
+        .flatten()
+        .map(|r| r.latest_date)
+        .unwrap_or(0);
+    let fast = latest > 0 && now >= latest && (now - latest) <= FAST_READ_SECS;
+    Engagement::Read { fast }
+}
+
 /// Recompute the importance verdict for threads that never got one.
 ///
 /// Scoring happens at ingest, so only mail arriving after the feature
@@ -375,6 +450,30 @@ fn read_maildir_file(base: &std::path::Path, blob_ref: &str) -> Option<Vec<u8>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn engagement_attributes_to_the_correspondent_not_the_user() {
+        let me = "lihao@golia.jp";
+        // Thread the user started: their address comes first in the
+        // union, but the signal belongs to the other party.
+        assert_eq!(
+            first_other_address("lihao@golia.jp, Alice <alice@x.com>", me),
+            "alice@x.com"
+        );
+        // Thread someone else started and the user replied to.
+        assert_eq!(
+            first_other_address("Alice <alice@x.com>, lihao@golia.jp", me),
+            "alice@x.com"
+        );
+        // Case-insensitive on the user's own address.
+        assert_eq!(
+            first_other_address("LIHAO@GOLIA.JP, bob@y.com", me),
+            "bob@y.com"
+        );
+        // Nothing but the user → no correspondent to credit.
+        assert_eq!(first_other_address("lihao@golia.jp", me), "");
+        assert_eq!(first_other_address("", me), "");
+    }
 
     #[test]
     fn all_addresses_splits_and_normalises() {
