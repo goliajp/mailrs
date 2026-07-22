@@ -121,22 +121,43 @@ impl PgMailboxStore {
     }
 
     /// check if user has sent email to this address (for is_reply_to_my_email detection)
+    /// Has this user ever delivered mail to this address?
+    ///
+    /// Answered from `outbound_queue`, which **is** the fact: a row per
+    /// envelope pair, and only `status = 'pending'` rows are ever
+    /// deleted, so delivered history is permanent. Reading it directly
+    /// means there is no counter to maintain, nothing to backfill, and
+    /// no second source of truth that can drift away from the queue.
+    ///
+    /// (`email_contacts.sent_count` still exists for display, but must
+    /// not be the authority here — it was never maintained, so every
+    /// answer through it was `false`.)
+    ///
+    /// Needs `idx_outbound_sender_recipient`; this runs once per inbound
+    /// message during importance scoring, and without a matching index
+    /// the predicate degrades to a seq scan over a table that stores
+    /// full message bodies (see `rules/hot-path-needs-a-plan.md`).
     pub async fn has_sent_to(
         &self,
         user: &str,
         recipient_email: &str,
     ) -> Result<bool, sqlx::Error> {
         let email = normalize_email(recipient_email);
-        let row = sqlx::query_as::<_, (i64,)>(
-            "SELECT COUNT(*) FROM email_contacts
-             WHERE user_address = $1 AND email = $2 AND sent_count > 0",
+        // EXISTS + LIMIT 1: we need presence, not a count, so stop at
+        // the first hit instead of walking every message ever sent.
+        let row = sqlx::query_as::<_, (bool,)>(
+            "SELECT EXISTS (
+               SELECT 1 FROM outbound_queue
+               WHERE sender = $1 AND recipient = $2 AND status = 'delivered'
+               LIMIT 1
+             )",
         )
         .bind(user)
         .bind(&email)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(row.0 > 0)
+        Ok(row.0)
     }
 
     /// record user feedback on a sender (for learning)

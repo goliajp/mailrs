@@ -143,6 +143,12 @@ CREATE TABLE outbound_queue (
 );
 CREATE INDEX idx_queue_pending ON outbound_queue(status, next_retry)
     WHERE status = 'pending';
+-- Serves has_sent_to: "has this user ever delivered to this address?",
+-- read once per inbound message by importance scoring. The delivered
+-- row is the fact itself, so there is no sent_count to maintain.
+-- See migrate-049.
+CREATE INDEX idx_outbound_sender_recipient ON outbound_queue(sender, recipient)
+    WHERE status = 'delivered';
 
 CREATE TABLE dmarc_results (
     id BIGSERIAL PRIMARY KEY,
