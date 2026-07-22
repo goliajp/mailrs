@@ -46,11 +46,7 @@ pub(crate) fn spawn_outbound_delivery(
     let tls_rpt_obs = Arc::new(outbound_tls_rpt::TlsRptObserver::new(
         outbound_tls_rpt::PgTlsRptStore::new(pool.clone()).into_arc(),
     ));
-    worker = worker.with_event_sender(make_delivery_event_sender(
-        event_bus,
-        tls_rpt_obs.clone(),
-        Some(pool.clone()),
-    ));
+    worker = worker.with_event_sender(make_delivery_event_sender(event_bus, tls_rpt_obs.clone()));
 
     spawn_tlsrpt_flush_task(
         tls_rpt_obs,
@@ -155,33 +151,6 @@ pub(crate) fn build_delivery_worker(
     worker
 }
 
-/// Look up a delivered queue row and record "this user sent to this
-/// address" on the contacts table.
-///
-/// Best-effort throughout: the delivery already succeeded, so nothing
-/// here may surface as an error to the sender. The queue row is the
-/// only place the envelope pair survives — `DeliveryEvent::Success`
-/// carries just the queue id and the domain.
-async fn record_sent_relationship(pool: &crate::pg::BackendPool, queue_id: i64) {
-    let msg = match mailrs_outbound_queue::queue::get_message(pool, queue_id).await {
-        Ok(Some(m)) => m,
-        Ok(None) => return,
-        Err(e) => {
-            tracing::warn!(error = %e, queue_id, "sent-relationship: queue lookup failed");
-            return;
-        }
-    };
-    let from = msg.sender.trim().to_lowercase();
-    let to = msg.recipient.trim().to_lowercase();
-    if from.is_empty() || to.is_empty() {
-        return;
-    }
-    let store = mailrs_mailbox::PgMailboxStore::new(pool.clone());
-    if let Err(e) = store.upsert_contact_outbound(&from, &to, "").await {
-        tracing::warn!(error = %e, %from, %to, "sent-relationship: contact upsert failed");
-    }
-}
-
 /// Build the closure the `DeliveryWorker` calls on every
 /// outbound event. Bridges:
 ///   - `DeliveryEvent::Attempt` → `SmtpEvent::DeliveryAttempt`
@@ -190,12 +159,9 @@ async fn record_sent_relationship(pool: &crate::pg::BackendPool, queue_id: i64) 
 ///     events aren't on the web UI's surface yet).
 ///   - `DeliveryEvent::{Success, Failed, Bounced}` → matching
 ///     `SmtpEvent` variants emitted on the event bus.
-///   - `DeliveryEvent::Success` additionally records the sender →
-///     recipient relationship fact used by importance scoring.
 pub(crate) fn make_delivery_event_sender(
     event_bus: EventBus,
     tls_rpt_obs: Arc<outbound_tls_rpt::TlsRptObserver>,
-    contacts_pool: Option<crate::pg::BackendPool>,
 ) -> Arc<dyn Fn(mailrs_outbound_queue::DeliveryEvent) + Send + Sync> {
     Arc::new(move |evt| {
         use mailrs_outbound_queue::DeliveryEvent;
@@ -217,20 +183,13 @@ pub(crate) fn make_delivery_event_sender(
                 return;
             }
             DeliveryEvent::Success { queue_id, domain } => {
-                // Relationship fact: the user has now sent to this
-                // address. Nothing wrote `sent_count` in either lane
-                // before this, so `is_mutual` / `has_sent_to` — the two
-                // strongest importance signals — were permanently false
+                // No relationship counter is written here on purpose:
+                // the delivered `outbound_queue` row already *is* the
+                // "user sent to this address" fact, and it is never
+                // deleted. `has_sent_to` reads it directly, so a
+                // counter would only add a second source of truth that
+                // can drift from the queue
                 // (RFC 20260721-self-hosted-importance-ranking).
-                //
-                // Done here rather than inside the delivery worker:
-                // `mailrs-outbound-queue` is a published, business-
-                // agnostic stone and must not learn about contacts.
-                if let Some(pool) = contacts_pool.clone() {
-                    tokio::spawn(async move {
-                        record_sent_relationship(&pool, queue_id).await;
-                    });
-                }
                 SmtpEvent::DeliverySuccess { queue_id, domain }
             }
             DeliveryEvent::Failed {
