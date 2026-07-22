@@ -61,8 +61,7 @@ RUN echo "cache-bust=$CACHE_BUST version=$VERSION" \
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-server --features spg,core-rpc \
-    && cargo build --release --bin mailrs-receiver \
+    cargo build --release --bin mailrs-receiver \
     && cargo build --release --bin mailrs-webapi \
     && cargo build --release --bin mailrs-sender \
     && cargo build --release --bin mailrs-fastcore \
@@ -75,7 +74,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
     && cargo build --release -p mailrs-core-sync \
-    && cp /build/target/release/mailrs-server /usr/local/bin/mailrs-server \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
     && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
@@ -119,11 +117,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # .claude/memory/ghcr-cert-perm-trap.md for the v1.7.89 incident.
 RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sbin/nologin mailrs
 
-COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-server
-# receiver split (P6): the standalone receiver binary ships in the same
-# image. Idle unless a container's entrypoint is overridden to
-# mailrs-receiver (the receiver-split topology); the default mailrs-server
-# entrypoint never touches it. One image, two roles.
+# The monolith (mailrs-server) is deliberately NOT built or shipped.
+# Nothing runs it: every service in both the prod and staging compose
+# files overrides the entrypoint to one of the four role binaries below.
+# It was still the heaviest build step in this stage, because the spg
+# feature pulls in the whole embedded SQL engine.
+#
+# The crate stays in the workspace and stays covered by cargo test: the
+# pg/spg core mode is wanted later, just not as this fat process. When
+# it comes back it should be a slim pg-core serving core-api — the same
+# contract fastcore serves — rather than a second implementation of
+# every protocol. See .claude/rfcs/20260722-monolith-out-of-image.md.
 COPY --from=rust-builder /usr/local/bin/mailrs-receiver /usr/local/bin/mailrs-receiver
 # Phase 3 (webapi split): same one-image-many-roles pattern. Idle unless
 # the container's entrypoint is overridden to `mailrs-webapi`. Talks to
@@ -165,9 +169,8 @@ COPY --from=web-builder /build/dist /opt/mailrs/web
 # the non-root mailrs user. Without this, mailrs's bind fallback shifts
 # every privileged listener to <port+1000> (e.g. SMTP 25 → 1025) and
 # external mail traffic stops landing. Discovered in v1.7.91 cutover.
-RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/mailrs-server
-# the receiver binary binds the same privileged SMTP ports (25 / 465 / 587)
-# when run as the receiver-split front door, so it needs the same capability.
+# the receiver binary binds the privileged SMTP ports (25 / 465 / 587)
+# as the front door, so it needs this capability.
 RUN setcap 'cap_net_bind_service=+ep' /usr/local/bin/mailrs-receiver
 
 # create data directories with correct ownership
@@ -197,9 +200,16 @@ EXPOSE 25 80 110 587 465 143 993 995 3100 4190
 
 VOLUME ["/data", "/certs"]
 
+# Serves mailrs-webapi, which binds 3100 inside the container. The other
+# three roles bind different ports and disable this check in compose.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:3100/api/health || exit 1
 
 USER mailrs
 
-ENTRYPOINT ["mailrs-server"]
+# Every role sets its own entrypoint in compose; this default only
+# decides what a bare `docker run` of the image does. It used to be the
+# monolith, which is no longer shipped. mailrs-webapi is the closest
+# thing to a sensible default: it is the public entry point and the one
+# role the image HEALTHCHECK above matches.
+ENTRYPOINT ["mailrs-webapi"]
