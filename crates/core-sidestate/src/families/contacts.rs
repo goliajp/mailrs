@@ -140,6 +140,62 @@ pub async fn upsert_inbound<S: NetKevy>(
     }
 }
 
+/// How the user engaged with a message from this sender.
+///
+/// These are the *implicit* signals — what the user did, not what they
+/// declared. They are the raw material for per-user learning: a sender
+/// whose mail is opened within minutes matters more than one whose mail
+/// is archived unread, regardless of how bulk-ish the headers look.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Engagement {
+    /// Thread was opened. `fast` when it happened close enough to
+    /// arrival to read as "the user was waiting for this".
+    Read { fast: bool },
+    /// Archived while still unread — the user dismissed it unseen.
+    ArchivedUnread,
+    /// Explicitly starred.
+    Starred,
+    /// Explicitly marked junk.
+    MarkedJunk,
+}
+
+impl Engagement {
+    /// Counter fields this event bumps.
+    fn fields(self) -> &'static [&'static [u8]] {
+        match self {
+            Engagement::Read { fast: true } => &[b"read_count", b"read_fast_count"],
+            Engagement::Read { fast: false } => &[b"read_count"],
+            Engagement::ArchivedUnread => &[b"archived_unread_count"],
+            Engagement::Starred => &[b"starred_count"],
+            Engagement::MarkedJunk => &[b"marked_junk_count"],
+        }
+    }
+}
+
+/// Record one engagement event against a sender's relationship record.
+///
+/// Counters, not an event log: the learner needs rates per sender
+/// (opened 9 of 10, archived unread 8 of 10), and a rate is all a raw
+/// log would be reduced to anyway. HINCRBY keeps concurrent marks from
+/// losing increments (`kevy/atomic-counter`).
+///
+/// Best-effort by contract — the caller is servicing a user action that
+/// must not fail because a derived counter could not be written.
+pub fn record_engagement(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    email: &str,
+    event: Engagement,
+) -> std::io::Result<()> {
+    let key = contact_key(user, email);
+    conn.pipeline(|p| {
+        for f in event.fields() {
+            p.cmd(&[b"HINCRBY", key.as_bytes(), f, b"1"]);
+        }
+    })?;
+    Ok(())
+}
+
 /// Read one sender's scoring record, in process.
 ///
 /// The HTTP handler below is a thin wrapper over this; the fastcore

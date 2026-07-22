@@ -2707,9 +2707,14 @@ async fn mark_read(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    // Classify the read BEFORE marking seen — mark_seen does not move
+    // latest_date, but reading the thread first keeps the latency
+    // measurement independent of anything the write path might change.
+    let event = crate::importance::read_event(&state, &thread_id, now_secs());
     if let Err(e) = state.mailbox.mark_seen(&user, &thread_id) {
         tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
     }
+    crate::importance::record_engagement(&state, &user, &thread_id, event);
     action_result(true)
 }
 
@@ -2742,12 +2747,19 @@ async fn star_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_starred(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_starred(&user, &thread_id, true)
+        .unwrap_or(false);
+    if ok {
+        crate::importance::record_engagement(
+            &state,
+            &user,
+            &thread_id,
+            mailrs_core_sidestate::families::contacts::Engagement::Starred,
+        );
+    }
+    action_result(ok)
 }
 
 async fn unstar_thread(
@@ -2778,12 +2790,28 @@ async fn archive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_archived(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    // Archiving something still unread is the user dismissing it
+    // unseen — the strongest implicit "not worth my attention" signal
+    // there is. Read the unread state before the archive write.
+    let dismissed_unread = state
+        .mailbox
+        .get_thread(&thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|r| r.unread_count > 0);
+    let ok = state
+        .mailbox
+        .set_archived(&user, &thread_id, true)
+        .unwrap_or(false);
+    if ok && dismissed_unread {
+        crate::importance::record_engagement(
+            &state,
+            &user,
+            &thread_id,
+            mailrs_core_sidestate::families::contacts::Engagement::ArchivedUnread,
+        );
+    }
+    action_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
@@ -2795,6 +2823,14 @@ async fn mark_junk(
         .mailbox
         .set_junk(&user, &thread_id, true)
         .unwrap_or(false);
+    if ok {
+        crate::importance::record_engagement(
+            &state,
+            &user,
+            &thread_id,
+            mailrs_core_sidestate::families::contacts::Engagement::MarkedJunk,
+        );
+    }
     // v2.8.0: feed the Bayesian corpus off the user's explicit junk
     // verdict (RFC 20260713). Best-effort; never blocks the move.
     if ok {
