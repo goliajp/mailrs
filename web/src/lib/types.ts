@@ -286,6 +286,7 @@ export type ThreadMessage = {
   risk_score: number
   sender: string
   sender_intent: string
+  sender_trust: string
   structured_data?: null | StructuredData
   subject: string
   summary: string

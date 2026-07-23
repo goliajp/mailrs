@@ -1,4 +1,5 @@
 import type { ConversationSummary } from '@/lib/types'
+import type { WireSentMessage } from '@/wire/schemas/mail'
 
 import { type QueryKey, useMutation } from '@tanstack/react-query'
 import { getDefaultStore } from 'jotai'
@@ -118,6 +119,12 @@ export function useDeleteMutation() {
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
       const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      // Also strip any per-message Sent rows for this thread so a
+      // delete triggered from the Sent view (or any view) removes the
+      // row visibly instant. Refetch reconciles via invalidateMail().
+      queryClient.setQueryData<readonly WireSentMessage[]>(mailKeys.sent(), (old) =>
+        old ? old.filter((m) => m.thread_id !== threadId) : old
+      )
       return { snapshots }
     },
     onSettled: () => invalidateMail(),
@@ -184,6 +191,55 @@ export const useMarkNotificationMutation = () => useBucketMoveMutation(wireMarkN
 export const useMarkPromotionMutation = () => useBucketMoveMutation(wireMarkPromotion)
 export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbox)
 
+// ── send-side optimistic ─────────────────────────────────────────────
+//
+// Called by both new-conversation and reply-box after a successful
+// sendMail. Prepends a placeholder onto the sent-messages cache so the
+// row appears in the UI instantly, then invalidates the queries the
+// server just updated (backend mirror_send_to_sender_view is
+// synchronous — refetch swaps this uid=0 placeholder for the real row
+// in one network RTT).
+//
+// One helper, two callers, on purpose: the "reply-box copies
+// new-conversation's optimistic write" road ends with the two drifting
+// out of sync the first time we tweak the placeholder shape
+// (feedback-two-impls-need-a-contract-test).
+export function applyOptimisticSent(msg: {
+  message_id: string
+  subject: string
+  thread_id: string
+  to: string
+}): void {
+  const placeholder: WireSentMessage = {
+    internal_date: Math.floor(Date.now() / 1000),
+    message_id: msg.message_id,
+    subject: msg.subject,
+    // uid=0 is temporary. Real rows have a real uid; the invalidate
+    // below refetches server truth and swaps this out. SentList's
+    // openMessage sets focusedMessageUid to msg.uid; a click on the
+    // placeholder before refetch lands opens the thread but doesn't
+    // scroll to a specific message — acceptable degradation for a
+    // ~200 ms window.
+    thread_id: msg.thread_id,
+    to: msg.to,
+    uid: 0,
+  }
+  queryClient.setQueryData<readonly WireSentMessage[]>(mailKeys.sent(), (old) =>
+    old ? [placeholder, ...old] : [placeholder]
+  )
+  void queryClient.invalidateQueries({ queryKey: mailKeys.sent() })
+  void queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })
+  // A reply/forward drops a new message into a thread the user is
+  // watching. Kick that thread's query too so the reply shows up in
+  // the open timeline without waiting on the WS event or the 30 s
+  // staleTime.
+  if (msg.thread_id) {
+    void queryClient.invalidateQueries({ queryKey: mailKeys.thread(msg.thread_id) })
+  }
+}
+
+// ---- mark read / unread ----
+
 export function useMarkReadMutation() {
   return useMutation<unknown, Error, { domains?: string[]; threadId: string }, Context>({
     mutationFn: ({ domains, threadId }) => wireMarkThreadRead(threadId, domains),
@@ -224,8 +280,6 @@ export function useMarkReadMutation() {
   })
 }
 
-// ---- mark read / unread ----
-
 export function useMarkUnreadMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => wireMarkThreadUnread(threadId),
@@ -249,6 +303,8 @@ export function useMarkUnreadMutation() {
   })
 }
 
+// ---- star / unstar ----
+
 export function usePinMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => wirePinThread(threadId),
@@ -266,8 +322,6 @@ export function usePinMutation() {
   })
 }
 
-// ---- star / unstar ----
-
 export function useSnoozeMutation() {
   return useMutation<unknown, Error, { threadId: string; until: string }, Context>({
     mutationFn: ({ threadId, until }) => snoozeApi(threadId, until),
@@ -282,6 +336,8 @@ export function useSnoozeMutation() {
     onSettled: () => invalidateMail(),
   })
 }
+
+// ---- pin / unpin ----
 
 export function useStarMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -300,8 +356,6 @@ export function useStarMutation() {
   })
 }
 
-// ---- pin / unpin ----
-
 export function useUnarchiveMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => wireUnarchiveThread(threadId),
@@ -318,6 +372,8 @@ export function useUnarchiveMutation() {
     onSettled: () => invalidateMail(),
   })
 }
+
+// ---- archive / unarchive ----
 
 export function useUnpinMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -336,14 +392,14 @@ export function useUnpinMutation() {
   })
 }
 
-// ---- archive / unarchive ----
-
 export function useUnsnoozeMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => unsnoozeApi(threadId),
     onSettled: () => invalidateMail(),
   })
 }
+
+// ---- snooze (server returns success; we drop the row optimistically) ----
 
 export function useUnstarMutation() {
   return useMutation<unknown, Error, { threadId: string }, Context>({
@@ -362,14 +418,14 @@ export function useUnstarMutation() {
   })
 }
 
-// ---- snooze (server returns success; we drop the row optimistically) ----
-
 function addStickyUnread(threadId: string) {
   const store = getDefaultStore()
   const next = new Set(store.get(stickyUnreadIdsAtom))
   next.add(threadId)
   store.set(stickyUnreadIdsAtom, next)
 }
+
+// ---- delete (single + batch share the same backend) ----
 
 async function cancelConversationFetches() {
   // Cancel both the legacy key (still used by any not-yet-migrated
@@ -381,8 +437,6 @@ async function cancelConversationFetches() {
     queryClient.cancelQueries({ queryKey: conversationKeys.lists() }),
   ])
 }
-
-// ---- delete (single + batch share the same backend) ----
 
 // A bucket move (junk / not-junk / notification / promotion / inbox)
 // changes WHICH list a thread belongs to, so the destination list — a
@@ -400,6 +454,8 @@ function invalidateBucketMove() {
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
 }
 
+// ---- batch operations ----
+
 // Invalidates ONLY list-shape queries — never the thread query.
 //
 // Read/unread/star/pin/archive/etc. don't change the message content of a
@@ -415,6 +471,10 @@ function invalidateBucketMove() {
 function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
+  // Deleting/archiving a thread that has sent mail in it also removes
+  // rows from the per-message Sent view — refetch so SentList doesn't
+  // stale-display messages whose thread has already gone.
+  queryClient.invalidateQueries({ queryKey: mailKeys.sent() }).catch(() => {})
   // v2.1 phase-3 — after the mail list migrated onto
   // `conversationKeys.infinite`, we broaden the invalidation to the
   // whole `conversation` entity namespace so both list + infinite
@@ -422,8 +482,6 @@ function invalidateMail() {
   // holds regardless of which screen a caller is on.
   queryClient.invalidateQueries({ queryKey: conversationKeys.all() }).catch(() => {})
 }
-
-// ---- batch operations ----
 
 // Invalidates only the small server-computed aggregate (categories) —
 // leaves the conversations list cache alone. Used by mark-read /

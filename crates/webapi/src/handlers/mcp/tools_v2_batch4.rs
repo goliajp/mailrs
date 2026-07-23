@@ -35,11 +35,11 @@ impl MailrsMcpService {
     }
 
     #[tool(
-        description = "List the caller's own future-dated scheduled sends. Filters mailrs:outbound:scheduled to entries where the envelope's sender field matches the authenticated user. No admin required."
+        description = "List the caller's own future-dated scheduled sends. Filters mailrs:outbound:scheduled-idx to entries where the envelope's sender field matches the authenticated user. No admin required."
     )]
     async fn list_own_scheduled(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        let raw = with_kevy(|c| c.zrange(b"mailrs:outbound:scheduled", 0, -1))
+        let raw = with_kevy(|c| c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1))
             .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
         let user_c = user.clone();
         let items: Vec<serde_json::Value> = with_kevy(move |c| {
@@ -48,7 +48,7 @@ impl MailrsMcpService {
                 let Ok(id) = String::from_utf8(m.clone()) else {
                     continue;
                 };
-                let hkey = format!("mailrs:outbound:{id}");
+                let hkey = format!("mailrs:outbound:job:{id}");
                 let Some(blob) = c.hget(hkey.as_bytes(), b"blob")? else {
                     continue;
                 };
@@ -58,7 +58,9 @@ impl MailrsMcpService {
                 if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
                     continue;
                 }
-                let score = c.zscore(b"mailrs:outbound:scheduled", &m)?.unwrap_or(0.0) as i64;
+                let score = c
+                    .zscore(b"mailrs:outbound:scheduled-idx", &m)?
+                    .unwrap_or(0.0) as i64;
                 out.push(serde_json::json!({
                     "id": id,
                     "scheduled_at": score,

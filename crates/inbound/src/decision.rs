@@ -9,8 +9,22 @@
 //! [`Pipeline`](crate::Pipeline) framework can compute their own signals
 //! however they like and call this function directly.
 
+use crate::SenderTrust;
 use crate::auth_header::build_auth_header;
 use crate::context::{AuthResults, DmarcPolicy};
+
+/// Score contributed to the spam total when receive-time authentication
+/// folds to [`SenderTrust::Suspicious`] (DMARC alignment failed, or a hard
+/// SPF/DKIM fail with no DMARC record — i.e. the From domain is being
+/// spoofed or the sender's setup is broken).
+///
+/// Deliberately a **signal, not a hard rule**: at 3.0 against the default
+/// 5.0 threshold, a suspicious sender alone still reaches the inbox (where
+/// the UI's sender-trust badge flags it), but suspicious **plus** any
+/// moderate content signal (>= 2.0) crosses the threshold into Junk. This
+/// avoids junking a legit small domain with a transient DMARC fail under
+/// `p=none`, while still catching spoofed phishing that also looks spammy.
+pub const SUSPICIOUS_SENDER_SCORE: f64 = 3.0;
 
 /// Final decision the receive pipeline emits for one message.
 ///
@@ -186,11 +200,22 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         };
     }
 
-    let total_score = input.content_score + input.ptr_score + input.ai_score;
+    // Receive-time sender authentication, folded to a trust verdict.
+    // `Suspicious` (spoof / broken sender setup) contributes to the spam
+    // total as a signal — never on its own enough to Junk (see
+    // `SUSPICIOUS_SENDER_SCORE`), so it combines with content/ptr/ai
+    // rather than overriding them.
+    let suspicious_score = if input.auth.sender_trust() == SenderTrust::Suspicious {
+        SUSPICIOUS_SENDER_SCORE
+    } else {
+        0.0
+    };
+
+    let total_score = input.content_score + input.ptr_score + input.ai_score + suspicious_score;
     if total_score >= input.spam_threshold {
         return DeliveryDecision::Junk {
             auth_header,
-            reason: build_junk_reason(input, total_score),
+            reason: build_junk_reason(input, total_score, suspicious_score),
         };
     }
 
@@ -205,17 +230,23 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
 /// entirely this string-build. Using `String::with_capacity` + `write!`
 /// avoids both the intermediate `Vec<String>` from `matched_rules.join`
 /// and the geometric resize cascade that `format!` does (16 → 32 → 64 …).
-fn build_junk_reason(input: &PipelineInput, total_score: f64) -> String {
+fn build_junk_reason(input: &PipelineInput, total_score: f64, suspicious_score: f64) -> String {
     use std::fmt::Write as _;
-    // Capacity for the prefix (~50 bytes) + 5 numeric fields (~6 bytes
+    // Capacity for the prefix (~50 bytes) + numeric fields (~6 bytes
     // each w/ {:.1}) + a generous 64-byte budget for matched_rules.
     // Real-world reasons rarely exceed 150 bytes.
-    let mut out = String::with_capacity(160);
+    let mut out = String::with_capacity(176);
     let _ = write!(
         out,
-        "score {total_score:.1} >= {:.1} (content={:.1}, ptr={:.1}, ai={:.1}, ",
+        "score {total_score:.1} >= {:.1} (content={:.1}, ptr={:.1}, ai={:.1}",
         input.spam_threshold, input.content_score, input.ptr_score, input.ai_score,
     );
+    // Only mention the sender-trust contribution when it fired, so clean
+    // mail's reason string stays as before.
+    if suspicious_score > 0.0 {
+        let _ = write!(out, ", sender=suspicious(+{suspicious_score:.1})");
+    }
+    out.push_str(", ");
     // Inline the rule-name join — avoid `matched_rules.join(", ")` which
     // builds an intermediate Vec<&str> + sums the lengths first.
     let mut first = true;
@@ -244,6 +275,30 @@ mod tests {
         }
     }
 
+    /// DMARC alignment failed but the domain publishes `p=none`, so the
+    /// policy gates don't fire — the message reaches the score path. This
+    /// is the exact gap `SUSPICIOUS_SENDER_SCORE` targets.
+    fn suspicious_auth() -> AuthResults {
+        AuthResults {
+            spf: "pass".into(),
+            dkim: "none".into(),
+            arc: "none".into(),
+            dmarc: "fail".into(),
+            dmarc_policy: DmarcPolicy::None,
+        }
+    }
+
+    /// Ordinary un-authenticated mail: no DMARC record, nothing failing.
+    fn unverified_auth() -> AuthResults {
+        AuthResults {
+            spf: "none".into(),
+            dkim: "none".into(),
+            arc: "none".into(),
+            dmarc: "none".into(),
+            dmarc_policy: DmarcPolicy::None,
+        }
+    }
+
     fn baseline_input() -> PipelineInput {
         PipelineInput {
             greylisted: false,
@@ -265,6 +320,79 @@ mod tests {
     fn baseline_passes_to_accept() {
         let d = make_delivery_decision(&baseline_input());
         assert!(matches!(d, DeliveryDecision::Accept { .. }));
+    }
+
+    // ── sender-trust as a scored signal (RFC 20260721) ────────────
+
+    #[test]
+    fn suspicious_sender_alone_stays_accept() {
+        // Suspicious contributes SUSPICIOUS_SENDER_SCORE (3.0) < threshold
+        // (5.0), so on its own it must NOT junk — it only flags (badge).
+        let mut input = baseline_input();
+        input.auth = suspicious_auth();
+        input.content_score = 0.0;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+
+    #[test]
+    fn suspicious_sender_plus_content_crosses_threshold() {
+        // 2.5 content + 3.0 suspicious = 5.5 >= 5.0 → Junk, and the reason
+        // must name the suspicious contribution.
+        let mut input = baseline_input();
+        input.auth = suspicious_auth();
+        input.content_score = 2.5;
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { reason, .. } => {
+                assert!(reason.contains("sender=suspicious"), "reason was: {reason}");
+                assert!(reason.contains("5.5"), "reason was: {reason}");
+            }
+            other => panic!("expected Junk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn suspicious_contribution_absent_from_clean_reason() {
+        // A content-only junk (verified sender) must keep the old reason
+        // shape — no phantom sender=suspicious token.
+        let mut input = baseline_input();
+        input.content_score = 6.0;
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { reason, .. } => {
+                assert!(
+                    !reason.contains("sender=suspicious"),
+                    "reason was: {reason}"
+                );
+            }
+            other => panic!("expected Junk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn verified_sender_contributes_zero() {
+        // Verified sender + content 4.0 < 5.0 → Accept (no suspicious add).
+        let mut input = baseline_input();
+        input.auth = passing_auth();
+        input.content_score = 4.0;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+
+    #[test]
+    fn unverified_sender_contributes_zero() {
+        // Plain un-authenticated mail is Unverified, not Suspicious —
+        // no score contribution. content 4.0 < 5.0 → Accept.
+        let mut input = baseline_input();
+        input.auth = unverified_auth();
+        input.content_score = 4.0;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
     }
 
     #[test]

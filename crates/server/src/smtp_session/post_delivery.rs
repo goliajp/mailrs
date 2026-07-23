@@ -15,7 +15,7 @@ pub(super) async fn post_delivery_process(
     resolver: Option<&TokioResolver>,
 ) {
     use mailrs_clean as html_clean;
-    use mailrs_intelligence::importance::{self, ImportanceSignals};
+    use mailrs_intelligence::importance;
 
     // 1. contact upsert
     let display_name = extract_display_name(sender);
@@ -61,21 +61,24 @@ pub(super) async fn post_delivery_process(
         .flatten();
     let is_reply = mb_store.has_sent_to(user, sender).await.unwrap_or(false);
 
-    let signals = ImportanceSignals {
-        is_mutual_contact: contact_info.as_ref().is_some_and(|c| c.is_mutual),
-        is_direct_recipient: true, // inbound to this user = direct
-        is_reply_to_my_email: is_reply,
-        has_action_items: false, // will be updated by AI analysis later
-        is_vip_sender: contact_info.as_ref().is_some_and(|c| c.is_vip),
-        is_bulk_sender: is_bulk,
-        is_mailing_list: contact_info.as_ref().map_or(is_bulk, |c| c.is_mailing_list),
-        is_automated: is_auto,
-        has_tracking_pixel: has_tracking,
-        is_template_heavy,
-        text_to_html_ratio: 1.0,
-        link_count,
-        contact_importance_bias: contact_info.as_ref().map_or(0.0, |c| c.importance_bias),
-    };
+    // Signal derivation is shared with the fastcore lane so the two
+    // can't drift (RFC 20260721-self-hosted-importance-ranking).
+    let signals = importance::signals_for_inbound(
+        importance::MessageFacts {
+            is_bulk_sender: is_bulk,
+            is_automated: is_auto,
+            has_tracking_pixel: has_tracking,
+            is_template_heavy,
+            link_count,
+        },
+        contact_info.as_ref().map(|c| importance::ContactFacts {
+            is_mutual: c.is_mutual,
+            is_vip: c.is_vip,
+            is_mailing_list: c.is_mailing_list,
+            importance_bias: c.importance_bias,
+        }),
+        is_reply,
+    );
 
     let (level, score) = importance::calculate_importance(&signals);
 

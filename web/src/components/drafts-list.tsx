@@ -1,10 +1,12 @@
+import type { ContextMenuItem } from '@/components/context-menu'
 import type { Draft } from '@/lib/api'
 
 import { toast } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 
+import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
@@ -73,38 +75,13 @@ export function DraftsList() {
           if (item.type === 'divider') {
             return <DateDivider key={`d:${item.label}`} label={item.label} />
           }
-          const d = item.draft
           return (
-            <div
-              className="hover:bg-bg-secondary group relative h-16 border-l-[3px] border-l-transparent"
-              key={d.id}
-            >
-              <button
-                className="flex h-full w-full flex-col justify-center gap-1 px-4 py-2 pr-10 text-left"
-                onClick={() => openDraft(d)}
-                type="button"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-fg-secondary truncate text-sm font-medium">
-                    {draftTitle(d.subject)}
-                  </span>
-                  <span className="text-fg-muted text-tiny shrink-0">
-                    {formatFullDate(Number(d.updated_at))}
-                  </span>
-                </div>
-                <span className="text-fg-muted truncate text-sm">
-                  To: {d.to || '—'} · {draftPreview(d.body)}
-                </span>
-              </button>
-              <button
-                aria-label="Delete draft"
-                className="text-fg-muted hover:text-danger absolute top-1/2 right-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={() => removeDraft(Number(d.id))}
-                type="button"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
+            <DraftRow
+              draft={item.draft}
+              key={item.draft.id}
+              onDelete={removeDraft}
+              onOpen={openDraft}
+            />
           )
         })}
       </div>
@@ -124,6 +101,75 @@ export function DraftsList() {
     </div>
   )
 }
+
+// One draft row + its context menu. Same pattern as SentRow /
+// ConversationItem: right-click / long-press → Open + Delete.
+// Hover-to-reveal trash button kept for pointer-only flows; the
+// context menu is the discoverable, mobile-safe path.
+const DraftRow = memo(function DraftRow({
+  draft,
+  onDelete,
+  onOpen,
+}: {
+  draft: Draft
+  onDelete: (id: number) => void
+  onOpen: (d: Draft) => void
+}) {
+  const ctx = useContextMenu()
+  const items = useMemo<ContextMenuItem[]>(
+    () => [
+      {
+        label: 'Open',
+        onClick: () => onOpen(draft),
+      },
+      {
+        danger: true,
+        label: 'Delete',
+        onClick: () => onDelete(Number(draft.id)),
+      },
+    ],
+    [draft, onOpen, onDelete]
+  )
+
+  return (
+    <div
+      className="hover:bg-bg-secondary group relative h-16 border-l-[3px] border-l-transparent"
+      onTouchEnd={ctx.onTouchEnd}
+      onTouchMove={ctx.onTouchMove}
+      onTouchStart={ctx.onTouchStart}
+      role="listitem"
+    >
+      <button
+        className="flex h-full w-full flex-col justify-center gap-1 px-4 py-2 pr-10 text-left"
+        onClick={() => onOpen(draft)}
+        onContextMenu={ctx.open}
+        type="button"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-fg-secondary truncate text-sm font-medium">
+            {draftTitle(draft.subject)}
+          </span>
+          <span className="text-fg-muted text-tiny shrink-0">
+            {formatFullDate(Number(draft.updated_at))}
+          </span>
+        </div>
+        <span className="text-fg-muted truncate text-sm">
+          To: {draft.to || '—'} · {draftPreview(draft.body)}
+        </span>
+      </button>
+      <button
+        aria-label="Delete draft"
+        className="text-fg-muted hover:text-danger absolute top-1/2 right-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={() => onDelete(Number(draft.id))}
+        type="button"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+      <ContextMenu items={items} onClose={ctx.close} position={ctx.position} />
+      <ActionSheet items={items} onClose={ctx.close} open={ctx.actionSheetOpen} />
+    </div>
+  )
+})
 
 function draftPreview(body: string): string {
   const flat = body.replace(/\s+/g, ' ').trim()

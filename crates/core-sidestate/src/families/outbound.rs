@@ -113,44 +113,47 @@ fn write_row(conn: &mut kevy_client::Connection, row: &OutboundMessageWire) {
     );
 }
 
-pub async fn enqueue<S: NetKevy>(
-    State(state): State<Arc<S>>,
-    Json(req): Json<EnqueueRequest>,
-) -> Result<Json<EnqueueResponse>, StatusCode> {
-    let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let id = conn
-        .incr(b"mailrs:outbound:counter")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let now = now_secs();
+/// Allocate an id and write a fresh pending job.
+///
+/// Extracted from the axum handler so callers that already own a
+/// `kevy_client::Connection` (the webapi's `/api/mail/send` path)
+/// enqueue through the same primitive as the RPC route. Two writers
+/// hitting the same key layout in different ways is exactly how the
+/// pre-2.9.38 mismatch happened (webapi was writing legacy
+/// `mailrs:outbound:{id}` + `pending`, sender was reading v2
+/// `mailrs:outbound:job:{id}` + `pending-idx`, so no send delivered).
+///
+/// Returns the allocated id.
+pub fn write_fresh_pending(
+    conn: &mut kevy_client::Connection,
+    sender: &str,
+    recipient: &str,
+    message_data_base64: &str,
+    scheduled_at: Option<i64>,
+    original_sender: Option<&str>,
+    now: i64,
+) -> std::io::Result<i64> {
+    let id = conn.incr(b"mailrs:outbound:counter")?;
     let row = OutboundMessageWire {
         id,
-        sender: req.sender,
-        recipient: req.recipient,
-        original_sender: req.original_sender,
-        message_data_base64: req.message_data_base64,
+        sender: sender.to_string(),
+        recipient: recipient.to_string(),
+        original_sender: original_sender.map(String::from),
+        message_data_base64: message_data_base64.to_string(),
         status: QueueStatus::Pending,
         attempts: 0,
         last_error: None,
         next_retry: None,
-        scheduled_at: req.scheduled_at,
+        scheduled_at,
         created_at: now,
         updated_at: now,
     };
-    // v2.3 §P8-A (2026-07-09): batch the HSET + (ZADD or LPUSH) into
-    // one pipeline. Both ops are non-CAS best-effort writes (their
-    // pre-fix _ = ignored the error), so pipeline non-atomicity is
-    // functionally equivalent — same crash-window as before, one
-    // less RTT on the enqueue path.
     let blob = row_blob(&row);
     let job_k = job_key(id);
     let id_str = id.to_string();
     let now_str = now.to_string();
-    let sched_score = req.scheduled_at.map(|t| t.to_string());
-    // v2.5.3 §P8-B-C (Phase 8.2): drop legacy `mailrs:outbound:{id}` +
-    // `mailrs:outbound:pending` + `mailrs:outbound:scheduled` writes.
-    // sender's Phase 8.1 read cutover means those keys are already dead;
-    // enqueue now writes only the v2 job hash + pending-idx (or scheduled-idx).
-    let _ = conn.pipeline(|p| {
+    let sched_score = scheduled_at.map(|t| t.to_string());
+    conn.pipeline(|p| {
         p.cmd(&[
             b"HSET",
             job_k.as_bytes(),
@@ -173,7 +176,56 @@ pub async fn enqueue<S: NetKevy>(
                 p.cmd(&[b"LPUSH", PENDING_IDX, id_str.as_bytes()]);
             }
         }
-    });
+    })?;
+    Ok(id)
+}
+
+/// Put an existing job back on the pending index — the retry primitive.
+///
+/// Sets state=pending on the job hash and LPUSHes pending-idx so the
+/// next sender BRPOP picks it up. Matches the semantics of the sender's
+/// own `dual_write_pending` retry helper. Silently no-ops if the job
+/// hash doesn't exist (nothing sensible to requeue).
+pub fn requeue_pending(
+    conn: &mut kevy_client::Connection,
+    id: i64,
+    now: i64,
+) -> std::io::Result<bool> {
+    let job_k = job_key(id);
+    if conn.exists(&[job_k.as_bytes()])? == 0 {
+        return Ok(false);
+    }
+    let id_str = id.to_string();
+    let now_str = now.to_string();
+    conn.pipeline(|p| {
+        p.cmd(&[
+            b"HSET",
+            job_k.as_bytes(),
+            b"state",
+            b"pending",
+            b"updated_at",
+            now_str.as_bytes(),
+        ]);
+        p.cmd(&[b"LPUSH", PENDING_IDX, id_str.as_bytes()]);
+    })?;
+    Ok(true)
+}
+
+pub async fn enqueue<S: NetKevy>(
+    State(state): State<Arc<S>>,
+    Json(req): Json<EnqueueRequest>,
+) -> Result<Json<EnqueueResponse>, StatusCode> {
+    let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let id = write_fresh_pending(
+        &mut conn,
+        &req.sender,
+        &req.recipient,
+        &req.message_data_base64,
+        req.scheduled_at,
+        req.original_sender.as_deref(),
+        now_secs(),
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(EnqueueResponse { id }))
 }
 

@@ -62,6 +62,16 @@ pub(crate) fn blob_ref_location(
 }
 
 /// Read raw bytes for a MessageWire from maildir.
+/// Shared with prefs.rs for the forward-inline path — a compose-time
+/// forward looks up the original .eml the same way `/api/mail/messages/{uid}/raw`
+/// does.
+pub(crate) async fn read_maildir_bytes_pub(
+    user: &str,
+    blob_ref: &str,
+) -> Result<Vec<u8>, StatusCode> {
+    read_maildir_bytes(user, blob_ref).await
+}
+
 async fn read_maildir_bytes(user: &str, blob_ref: &str) -> Result<Vec<u8>, StatusCode> {
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let Some((path, id)) = blob_ref_location(&maildir_root, user, blob_ref) else {
@@ -237,7 +247,12 @@ pub async fn cancel_pending_send(
     let target = message_id;
     let user_c = user.clone();
     let removed = crate::handlers::kevy_util::with_kevy(move |c| {
-        let ids = c.lrange(b"mailrs:outbound:pending", 0, -1)?;
+        // v2: pending is `mailrs:outbound:pending-idx` and the job row
+        // is `mailrs:outbound:job:{id}` — the pre-2.9.38 form read the
+        // legacy `pending` list + `mailrs:outbound:{id}` blob, which
+        // sender no longer produces, so cancel-pending walked an empty
+        // list and never matched anything real.
+        let ids = c.lrange(b"mailrs:outbound:pending-idx", 0, -1)?;
         let mut removed = 0u32;
         let mut keep = Vec::new();
         for id_bytes in ids {
@@ -245,7 +260,7 @@ pub async fn cancel_pending_send(
                 keep.push(id_bytes);
                 continue;
             };
-            let hkey = format!("mailrs:outbound:{id_str}");
+            let hkey = format!("mailrs:outbound:job:{id_str}");
             let blob = c.hget(hkey.as_bytes(), b"blob")?;
             // Strict JSON compare: parse the envelope, match on the
             // sender field AND the Message-ID header extracted from
@@ -257,9 +272,7 @@ pub async fn cancel_pending_send(
                 && let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes)
             {
                 let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
-                // New envelopes use message_data_b64 (base64 of RFC 5322
-                // bytes). Fall back to the legacy plaintext field for
-                // in-flight items from before the switch.
+                // v2 blobs always carry message_data_b64.
                 let md_owned: String =
                     if let Some(b64) = env.get("message_data_b64").and_then(|v| v.as_str()) {
                         use base64::Engine as _;
@@ -277,6 +290,8 @@ pub async fn cancel_pending_send(
                 if sender == user_c && md_owned.contains(&header) {
                     removed += 1;
                     matched = true;
+                    // Drop the job hash so a re-drain of pending-idx
+                    // sees try_claim's state check fail.
                     c.del(&[hkey.as_bytes()])?;
                 }
             }
@@ -284,18 +299,19 @@ pub async fn cancel_pending_send(
                 keep.push(id_bytes);
             }
         }
-        c.del(&[b"mailrs:outbound:pending".as_slice()])?;
+        c.del(&[b"mailrs:outbound:pending-idx".as_slice()])?;
         for id in keep {
-            c.lpush(b"mailrs:outbound:pending", &[id.as_slice()])?;
+            c.lpush(b"mailrs:outbound:pending-idx", &[id.as_slice()])?;
         }
         // also sweep the scheduled zset — a scheduled send hasn't reached
-        // the pending list yet, so cancelling it must look here too (G13)
-        let sched = c.zrange(b"mailrs:outbound:scheduled", 0, -1)?;
+        // the pending list yet, so cancelling it must look here too (G13).
+        // v2 scheduled key is `scheduled-idx` (see stone outbound.rs).
+        let sched = c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1)?;
         for id_bytes in sched {
             let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
                 continue;
             };
-            let hkey = format!("mailrs:outbound:{id_str}");
+            let hkey = format!("mailrs:outbound:job:{id_str}");
             let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
                 continue;
             };
@@ -314,7 +330,7 @@ pub async fn cancel_pending_send(
                 .unwrap_or_default();
             let header = format!("Message-ID: <{target}>\r\n");
             if sender == user_c && md.contains(&header) {
-                c.zrem(b"mailrs:outbound:scheduled", &[id_bytes.as_slice()])?;
+                c.zrem(b"mailrs:outbound:scheduled-idx", &[id_bytes.as_slice()])?;
                 c.del(&[hkey.as_bytes()])?;
                 removed += 1;
             }
@@ -349,7 +365,7 @@ pub async fn update_flags(
 
 // ── G13.3 · scheduled cancel / reschedule ─────────────────────────
 
-const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled";
+const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled-idx";
 
 /// POST /api/scheduled/{id}/cancel — G13.3. Removes the outbound
 /// entry from the scheduled zset and drops its envelope blob. Only
@@ -359,7 +375,7 @@ pub async fn cancel_scheduled(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<String>,
 ) -> StatusCode {
-    let hkey = format!("mailrs:outbound:{id}");
+    let hkey = format!("mailrs:outbound:job:{id}");
     let hkey_c = hkey.clone();
     let id_c = id.clone();
     let user_c = user.clone();
@@ -407,7 +423,7 @@ pub async fn reschedule_scheduled(
     if req.scheduled_at <= now {
         return StatusCode::BAD_REQUEST;
     }
-    let hkey = format!("mailrs:outbound:{id}");
+    let hkey = format!("mailrs:outbound:job:{id}");
     let user_c = user.clone();
     let id_c = id.clone();
     let new_score = req.scheduled_at;

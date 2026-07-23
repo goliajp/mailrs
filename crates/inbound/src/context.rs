@@ -140,6 +140,24 @@ pub struct AuthResults {
     pub dmarc_policy: DmarcPolicy,
 }
 
+impl AuthResults {
+    /// Receive-time sender-trust verdict, folded from the structured
+    /// SPF/DKIM/DMARC tokens this transaction produced.
+    ///
+    /// Delegates to [`fold_sender_trust`](crate::auth_header::fold_sender_trust)
+    /// — the same core the header-parse path uses — so the two never
+    /// diverge. The tokens are already lowercase RFC keywords
+    /// (`pass`/`fail`/`none`/...); non-`pass`/`fail` values fold to
+    /// `Unverified` naturally.
+    pub fn sender_trust(&self) -> crate::auth_header::SenderTrust {
+        crate::auth_header::fold_sender_trust(
+            Some(self.dmarc.as_str()),
+            Some(self.spf.as_str()),
+            Some(self.dkim.as_str()),
+        )
+    }
+}
+
 impl Default for AuthResults {
     fn default() -> Self {
         Self {
@@ -201,6 +219,43 @@ mod tests {
         assert_eq!(a.arc, "none");
         assert_eq!(a.dmarc, "none");
         assert_eq!(a.dmarc_policy, DmarcPolicy::None);
+    }
+
+    // Contract: the structured `AuthResults::sender_trust()` fold must
+    // agree with the header-parse fold on the same SPF/DKIM/DMARC tokens.
+    // Both delegate to `fold_sender_trust`; this pins that they can't
+    // drift (feedback-two-impls-need-a-contract-test).
+    #[test]
+    fn structured_and_header_folds_agree() {
+        use crate::auth_header::{build_auth_header, parse_auth_results, sender_trust};
+
+        // (spf, dkim, dmarc) triples covering each verdict.
+        let cases = [
+            ("pass", "pass", "pass"), // Verified
+            ("pass", "none", "fail"), // Suspicious (classic spoof: SPF ok, DMARC fail)
+            ("fail", "none", "none"), // Suspicious (hard SPF fail, no DMARC)
+            ("none", "none", "none"), // Unverified
+            ("pass", "fail", "none"), // Unverified (one pass, one fail, no DMARC)
+        ];
+        for (spf, dkim, dmarc) in cases {
+            let structured = AuthResults {
+                spf: spf.into(),
+                dkim: dkim.into(),
+                arc: "none".into(),
+                dmarc: dmarc.into(),
+                dmarc_policy: DmarcPolicy::None,
+            };
+            // Round-trip through the header the receive pipeline emits.
+            let header = build_auth_header("mx.test", spf, dkim, "none", dmarc, None);
+            let value = header.trim_start_matches("Authentication-Results:");
+            let from_header = sender_trust(&parse_auth_results(value));
+
+            assert_eq!(
+                structured.sender_trust(),
+                from_header,
+                "folds disagreed for spf={spf} dkim={dkim} dmarc={dmarc}"
+            );
+        }
     }
 
     #[test]
