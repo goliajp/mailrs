@@ -595,6 +595,24 @@ impl Client {
         self.get_authed(path, "get_message_by_uid_for_user").await
     }
 
+    /// GET /v1/users/{user}/messages/by-message-id/{message_id} —
+    /// resolve a MessageWire from its RFC 5322 Message-ID. Used by
+    /// webapi's `/api/mail/send` when the compose request carries
+    /// `forward_message_id` and needs to read the original .eml to
+    /// inline its body into the forward.
+    pub async fn find_by_message_id_for_user(
+        &self,
+        user: &str,
+        message_id: &str,
+    ) -> ApiResult<method::message::MessageWire> {
+        let path = format!(
+            "/v1/users/{}/messages/by-message-id/{}",
+            Self::enc(user),
+            Self::enc(message_id),
+        );
+        self.get_authed(path, "find_by_message_id_for_user").await
+    }
+
     /// GET /v1/mailboxes/{id}/messages/uid/{uid}/raw  → raw RFC 5322 bytes.
     pub async fn get_message_raw(&self, mailbox_id: i64, uid: u32) -> ApiResult<Vec<u8>> {
         let path = format!("/v1/mailboxes/{mailbox_id}/messages/uid/{uid}/raw");

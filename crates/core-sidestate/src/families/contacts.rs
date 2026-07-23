@@ -86,6 +86,9 @@ pub fn record_inbound(
     is_mailing_list: bool,
     is_automated: bool,
 ) -> std::io::Result<()> {
+    if is_self(user, email) {
+        return Ok(());
+    }
     let key = contact_key(user, email);
     let flags: [(&[u8], &[u8]); 3] = [
         (b"display_name", display_name.as_bytes()),
@@ -102,16 +105,30 @@ pub fn record_inbound(
     Ok(())
 }
 
+/// True when `email` is the user themselves — a message to or from
+/// one's own address (a note-to-self, a multi-device sync) carries no
+/// relationship, and recording it builds a self-referential contact
+/// like `contact:lihao@x:lihao@x` that is meaningless as a signal.
+/// Seen in prod: a self-send had left sent_count=6 on such a key.
+fn is_self(user: &str, email: &str) -> bool {
+    email.trim().eq_ignore_ascii_case(user.trim())
+}
+
 /// Record that `user` sent a message to `email`.
 ///
 /// This is the counter that makes a relationship *mutual* — without it
 /// `is_mutual` and `has_sent_to` can never be true, and the strongest
 /// importance signals (+0.3 each) stay permanently off.
+///
+/// A send to oneself is not a relationship and is ignored.
 pub fn record_sent_to(
     conn: &mut kevy_client::Connection,
     user: &str,
     email: &str,
 ) -> std::io::Result<()> {
+    if is_self(user, email) {
+        return Ok(());
+    }
     let key = contact_key(user, email);
     conn.pipeline(|p| {
         p.cmd(&[b"HINCRBY", key.as_bytes(), b"sent_count", b"1"]);
@@ -187,6 +204,9 @@ pub fn record_engagement(
     email: &str,
     event: Engagement,
 ) -> std::io::Result<()> {
+    if is_self(user, email) {
+        return Ok(());
+    }
     let key = contact_key(user, email);
     conn.pipeline(|p| {
         for f in event.fields() {
@@ -292,4 +312,23 @@ pub async fn sender_feedback<S: NetKevy>(
         );
     }
     StatusCode::NO_CONTENT
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_self;
+
+    #[test]
+    fn self_send_is_detected_case_and_space_insensitively() {
+        assert!(is_self("lihao@golia.jp", "lihao@golia.jp"));
+        assert!(is_self("lihao@golia.jp", "LIHAO@GOLIA.JP"));
+        assert!(is_self("lihao@golia.jp", "  lihao@golia.jp "));
+    }
+
+    #[test]
+    fn a_different_correspondent_is_not_self() {
+        assert!(!is_self("lihao@golia.jp", "alice@x.com"));
+        // a substring / same local-part on another domain is not self
+        assert!(!is_self("lihao@golia.jp", "lihao@other.jp"));
+    }
 }

@@ -483,14 +483,13 @@ pub async fn get_message_single(
 // ── /api/queue/{id}/retry — outbound queue retry ──────────────────
 
 pub async fn queue_retry(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
-    // Push it back onto pending; sender picks it up on the next tick.
-    // Kevy-client's LREM isn't stable, so we don't try to remove from
-    // inflight explicitly; if the sender was hung it'll still process
-    // the item once.
-    let id_str = id.to_string();
+    // Set state=pending on the v2 job hash and LPUSH pending-idx —
+    // the same shape sender's own retry path uses. The pre-2.9.38 form
+    // wrote the legacy `mailrs:outbound:pending`, which sender had
+    // stopped consuming, so retries silently no-op'd.
+    let now = now_secs();
     with_kevy(move |c| {
-        c.lpush(b"mailrs:outbound:pending", &[id_str.as_bytes()])?;
-        Ok(())
+        mailrs_core_sidestate::families::outbound::requeue_pending(c, id, now).map(|_| ())
     })?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -1225,9 +1224,13 @@ pub async fn delete_greylist_entry(Path(id): Path<i64>) -> Result<StatusCode, St
 
 pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
     // Return the last 100 IDs in pending + inflight.
+    // v2: read the pending-idx sender actually drains; the legacy
+    // `mailrs:outbound:pending` / `mailrs:outbound:inflight` lists have
+    // been dead since Phase 8.1 (see stone outbound.rs), so the old
+    // read returned only stuck ghosts.
     let ids = with_kevy(|c| {
         let pending = c
-            .lrange(b"mailrs:outbound:pending", 0, 99)
+            .lrange(b"mailrs:outbound:pending-idx", 0, 99)
             .unwrap_or_default();
         let inflight = c
             .lrange(b"mailrs:outbound:inflight", 0, 99)
@@ -1238,7 +1241,7 @@ pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
     for (label, list) in [("pending", &ids.0), ("inflight", &ids.1)] {
         for b in list {
             let id_str = String::from_utf8_lossy(b).to_string();
-            let key = format!("mailrs:outbound:{id_str}");
+            let key = format!("mailrs:outbound:job:{id_str}");
             let key_c = key.clone();
             let blob = with_kevy(move |c| c.hget(key_c.as_bytes(), b"blob"))?;
             if let Some(b) = blob

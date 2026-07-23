@@ -355,7 +355,7 @@ fn memchr_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 /// Parse `data` (raw RFC-5322 bytes) into text/html body + attachments.
 /// Same pipeline as monolith's `crate::message_util::parse_message`.
-fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<serde_json::Value>) {
+pub(crate) fn parse_body(data: &[u8]) -> (Option<String>, Option<String>, Vec<serde_json::Value>) {
     let root = mailrs_mime::parse(data);
     let mut text_body: Option<String> = None;
     let mut html_body: Option<String> = None;
