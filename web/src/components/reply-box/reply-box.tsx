@@ -8,6 +8,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
 import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
+import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
@@ -232,6 +233,16 @@ export function ReplyBox({
         return
       }
       const sentMessageId = result.message_id
+      // Optimistic: put the reply/forward into the Sent cache instantly
+      // + invalidate so the open thread and any list views refetch.
+      if (sentMessageId) {
+        applyOptimisticSent({
+          message_id: sentMessageId,
+          subject: resolvedSubject,
+          thread_id: threadId,
+          to: to.join(', '),
+        })
+      }
 
       composeRef.current?.clearCompose()
       setForwardTo('')
