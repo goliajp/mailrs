@@ -1,12 +1,16 @@
+import type { ContextMenuItem } from '@/components/context-menu'
 import type { WireSentMessage } from '@/wire/schemas/mail'
 
+import { toast } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 
+import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { useDeleteMutation } from '@/hooks/use-mail-mutations'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
@@ -60,28 +64,7 @@ export function SentList() {
           if (item.type === 'divider') {
             return <DateDivider key={`d:${item.label}`} label={item.label} />
           }
-          const m = item.msg
-          return (
-            <button
-              className="hover:bg-bg-secondary flex h-16 items-start gap-3 border-l-[3px] border-l-transparent px-4 py-2 text-left transition-colors"
-              key={m.uid}
-              onClick={() => openMessage(m)}
-              type="button"
-            >
-              <SenderAvatar className="shrink-0" sender={firstRecipient(m.to)} size={36} />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-fg-secondary truncate text-sm font-medium">
-                    {recipientLabel(m.to)}
-                  </span>
-                  <span className="text-fg-muted text-tiny shrink-0">
-                    {formatFullDate(m.internal_date)}
-                  </span>
-                </div>
-                <span className="text-fg-muted truncate text-sm">{subjectLabel(m.subject)}</span>
-              </div>
-            </button>
-          )
+          return <SentRow key={item.msg.uid} msg={item.msg} onOpen={openMessage} />
         })}
       </div>
     )
@@ -100,6 +83,77 @@ export function SentList() {
     </div>
   )
 }
+
+// One Sent row + its context menu. Right-click / long-press opens
+// Open / Delete — parity with the inbox conversation-list, which
+// already uses this pattern. Deleting from Sent uses the same
+// useDeleteMutation as the thread-view trash button, so its
+// optimistic patch + invalidation are shared, not duplicated.
+const SentRow = memo(function SentRow({
+  msg,
+  onOpen,
+}: {
+  msg: WireSentMessage
+  onOpen: (m: WireSentMessage) => void
+}) {
+  const ctx = useContextMenu()
+  const deleteMutation = useDeleteMutation()
+
+  const items = useMemo<ContextMenuItem[]>(
+    () => [
+      {
+        label: 'Open',
+        onClick: () => onOpen(msg),
+      },
+      {
+        danger: true,
+        label: 'Delete',
+        onClick: () => {
+          deleteMutation.mutate(
+            { threadId: msg.thread_id },
+            {
+              onError: (err) =>
+                toast.error(err instanceof Error ? err.message : 'Failed to delete'),
+              onSuccess: () => toast.success('Deleted'),
+            }
+          )
+        },
+      },
+    ],
+    [msg, onOpen, deleteMutation]
+  )
+
+  return (
+    <div
+      onTouchEnd={ctx.onTouchEnd}
+      onTouchMove={ctx.onTouchMove}
+      onTouchStart={ctx.onTouchStart}
+      role="listitem"
+    >
+      <button
+        className="hover:bg-bg-secondary flex h-16 w-full items-start gap-3 border-l-[3px] border-l-transparent px-4 py-2 text-left transition-colors"
+        onClick={() => onOpen(msg)}
+        onContextMenu={ctx.open}
+        type="button"
+      >
+        <SenderAvatar className="shrink-0" sender={firstRecipient(msg.to)} size={36} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-fg-secondary truncate text-sm font-medium">
+              {recipientLabel(msg.to)}
+            </span>
+            <span className="text-fg-muted text-tiny shrink-0">
+              {formatFullDate(msg.internal_date)}
+            </span>
+          </div>
+          <span className="text-fg-muted truncate text-sm">{subjectLabel(msg.subject)}</span>
+        </div>
+      </button>
+      <ContextMenu items={items} onClose={ctx.close} position={ctx.position} />
+      <ActionSheet items={items} onClose={ctx.close} open={ctx.actionSheetOpen} />
+    </div>
+  )
+})
 
 // first recipient of a possibly-multi To header — the avatar keys off it.
 function firstRecipient(to: string): string {
