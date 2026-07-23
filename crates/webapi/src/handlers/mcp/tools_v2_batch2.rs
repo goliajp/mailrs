@@ -66,7 +66,7 @@ impl MailrsMcpService {
     async fn list_scheduled_outbound(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let raw = with_kevy(|c| c.zrange(b"mailrs:outbound:scheduled", 0, -1))
+        let raw = with_kevy(|c| c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1))
             .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
         // zrange returns members without scores in kevy-client 1.13; fetch
         // score per member via zscore in the same connection.
@@ -76,7 +76,9 @@ impl MailrsMcpService {
                 let Ok(id) = String::from_utf8(m.clone()) else {
                     continue;
                 };
-                let score = c.zscore(b"mailrs:outbound:scheduled", &m)?.unwrap_or(0.0);
+                let score = c
+                    .zscore(b"mailrs:outbound:scheduled-idx", &m)?
+                    .unwrap_or(0.0);
                 out.push(serde_json::json!({ "id": id, "scheduled_at": score as i64 }));
             }
             Ok(out)

@@ -4035,6 +4035,7 @@ dependencies = [
  "jsonwebtoken",
  "kevy-client",
  "mailrs-core-api",
+ "mailrs-core-sidestate",
  "mailrs-ical",
  "mailrs-jmap 1.1.2",
  "mailrs-message-store",
