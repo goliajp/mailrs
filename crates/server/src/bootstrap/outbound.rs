@@ -183,6 +183,13 @@ pub(crate) fn make_delivery_event_sender(
                 return;
             }
             DeliveryEvent::Success { queue_id, domain } => {
+                // No relationship counter is written here on purpose:
+                // the delivered `outbound_queue` row already *is* the
+                // "user sent to this address" fact, and it is never
+                // deleted. `has_sent_to` reads it directly, so a
+                // counter would only add a second source of truth that
+                // can drift from the queue
+                // (RFC 20260721-self-hosted-importance-ranking).
                 SmtpEvent::DeliverySuccess { queue_id, domain }
             }
             DeliveryEvent::Failed {

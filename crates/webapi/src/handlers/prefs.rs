@@ -410,7 +410,7 @@ pub async fn get_queue_stats(
     Extension(AuthedUser(_user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let out = with_kevy(|c| {
-        let pending = c.llen(b"mailrs:outbound:pending").unwrap_or(0) as i64;
+        let pending = c.llen(b"mailrs:outbound:pending-idx").unwrap_or(0) as i64;
         let inflight = c.llen(b"mailrs:outbound:inflight").unwrap_or(0) as i64;
         let suppression = c.scard(b"mailrs:outbound:suppression").unwrap_or(0) as i64;
         Ok(serde_json::json!({
@@ -704,6 +704,112 @@ fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
     (message_id, bytes)
 }
 
+/// Prepend the original message onto a forward's body/html and copy
+/// its attachments across, so a compose whose isBackendForward path
+/// sent only the user's leading line actually carries the forwarded
+/// content the recipient expects to see.
+///
+/// The frontend contract (reply-box.tsx `isBackendForward`) is: when
+/// `forward_message_id` is set, ship only the typed text — backend
+/// inlines the original. `build_rfc5322` on its own ignores that
+/// field, which is why every forward before 2.9.38 arrived as just
+/// the leading line (no body, no attachments).
+///
+/// Best-effort: a lookup failure logs a warning and passes the send
+/// through unmodified rather than fail — the compose already exists
+/// on the caller's side and the operator can retry manually.
+async fn inline_forward_content(state: &Arc<WebState>, user: &str, parts: &mut ComposeParts) {
+    let Some(mid) = parts.forward_message_id.as_ref().filter(|s| !s.is_empty()) else {
+        return;
+    };
+    let wire = match state.core.find_by_message_id_for_user(user, mid).await {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, message_id = %mid, "forward inline: message lookup failed");
+            return;
+        }
+    };
+    let raw = match super::messages::read_maildir_bytes_pub(user, &wire.blob_ref).await {
+        Ok(r) => r,
+        Err(status) => {
+            tracing::warn!(
+                status = ?status, %user, blob_ref = %wire.blob_ref,
+                "forward inline: raw fetch failed"
+            );
+            return;
+        }
+    };
+    let (orig_text, orig_html, _atts) = super::conversations::parse_body(&raw);
+
+    // Attachments: walk the parsed MIME tree, skip the multipart
+    // wrappers and the text/plain + text/html body parts (those went
+    // into orig_text/orig_html above), and push everything else onto
+    // parts.attachments. build_rfc5322 wraps the outer message in
+    // multipart/mixed when parts.attachments is non-empty and lays
+    // each attachment out with its filename + content-type + base64.
+    //
+    // A part is a body part when it's text/plain or text/html AND
+    // does not have `Content-Disposition: attachment` (inline is a
+    // body; attachment-disposition text is treated as a file). Same
+    // rule the retired monolith send/text.rs used.
+    let parsed = mailrs_mime::parse(&raw);
+    for part in parsed.walk() {
+        if part.content_type.is_multipart() {
+            continue;
+        }
+        let mt = part.content_type.mime_type();
+        let is_body_part = (mt == "text/plain" || mt == "text/html")
+            && part
+                .disposition
+                .as_ref()
+                .map(|d| !d.is_attachment())
+                .unwrap_or(true);
+        if is_body_part {
+            continue;
+        }
+        let filename = part
+            .attachment_filename()
+            .map(String::from)
+            .unwrap_or_else(|| "attachment".to_string());
+        parts.attachments.push(Attachment {
+            filename,
+            content_type: mt,
+            bytes: part.body.to_vec(),
+        });
+    }
+
+    let user_text = std::mem::take(&mut parts.body);
+    parts.body = match orig_text.as_deref() {
+        Some(text) => format!("{user_text}\n\n---------- Forwarded message ----------\n{text}"),
+        None => user_text.clone(),
+    };
+
+    // HTML: if the compose didn't submit HTML, synth a paragraph from
+    // the plain text so a divider + forwarded HTML can be appended.
+    let user_html_owned = std::mem::take(&mut parts.html_body);
+    let user_html = if user_html_owned.is_empty() {
+        format!("<p>{}</p>", user_text.replace('\n', "<br>"))
+    } else {
+        user_html_owned
+    };
+    parts.html_body = if let Some(html) = orig_html {
+        format!(
+            "{user_html}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><div style=\"color:#555\">{html}</div>"
+        )
+    } else if let Some(text) = orig_text.as_deref() {
+        let escaped = text
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('\n', "<br>");
+        format!(
+            "{user_html}<hr style=\"border:none;border-top:1px solid #ccc;margin:16px 0\"><pre style=\"font-family:sans-serif;white-space:pre-wrap\">{escaped}</pre>"
+        )
+    } else {
+        user_html
+    };
+}
+
 /// Enqueue outbound. When `scheduled_at` is a future epoch, the id
 /// lands in the `mailrs:outbound:scheduled` zset (scored by send time)
 /// instead of the pending list; the sender's due-sweep promotes it to
@@ -716,42 +822,28 @@ fn enqueue_outbound_at(
 ) -> Result<(), StatusCode> {
     let created = now_secs();
     let send_at = scheduled_at.filter(|t| *t > created);
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(envelope);
+    let sender = sender.to_string();
     for rcpt in recipients {
         let rcpt = rcpt.trim().to_string();
         if rcpt.is_empty() {
             continue;
         }
-        let ckey = "mailrs:outbound:counter".to_string();
-        let ckey_c = ckey.clone();
-        let id = with_kevy(move |c| next_id(c, &ckey_c))?;
-        use base64::Engine as _;
-        let b64 = base64::engine::general_purpose::STANDARD.encode(envelope);
-        let blob = serde_json::json!({
-            "id": id,
-            "sender": sender,
-            "recipient": rcpt,
-            "message_data_b64": b64,
-            "created_at": created,
-            "scheduled_at": send_at,
-        });
-        let payload = blob.to_string();
+        // Enqueue via the shared stone primitive so the write hits the
+        // v2 job hash + pending-idx that sender actually reads. The
+        // pre-2.9.38 form wrote a legacy `mailrs:outbound:{id}` +
+        // `mailrs:outbound:pending`, which sender had stopped reading —
+        // so every send from webapi silently stopped delivering until
+        // an operator drained the queue by hand.
+        let sender_c = sender.clone();
+        let b64_c = b64.clone();
+        let rcpt_c = rcpt.clone();
         with_kevy(move |c| {
-            c.hset(
-                format!("mailrs:outbound:{id}").as_bytes(),
-                &[(b"blob", payload.as_bytes())],
-            )?;
-            match send_at {
-                Some(t) => {
-                    c.zadd(
-                        b"mailrs:outbound:scheduled",
-                        &[(t as f64, id.to_string().as_bytes())],
-                    )?;
-                }
-                None => {
-                    c.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()])?;
-                }
-            }
-            Ok(())
+            mailrs_core_sidestate::families::outbound::write_fresh_pending(
+                c, &sender_c, &rcpt_c, &b64_c, send_at, None, created,
+            )
+            .map(|_| ())
         })?;
     }
     Ok(())
@@ -877,6 +969,9 @@ async fn mirror_send_to_sender_view(
         flags,
         message_id: message_id.to_string(),
         in_reply_to: parts.in_reply_to.clone().unwrap_or_default(),
+        // the user's own outbound copy — sender authentication is not a
+        // meaningful question for mail we are sending ourselves.
+        sender_trust: String::new(),
         thread_id: thread_id.clone(),
         modseq: 0,
         user_address: user.to_string(),
@@ -1005,7 +1100,7 @@ pub async fn send_message(
         req.from
     };
     ensure_from_allowed(&state, &user, &from).await?;
-    let parts = ComposeParts {
+    let mut parts = ComposeParts {
         from: from.clone(),
         to: req.to,
         cc: req.cc,
@@ -1018,6 +1113,12 @@ pub async fn send_message(
         forward_message_id: req.forward_message_id,
         attachments: Vec::new(),
     };
+    // If the compose is a forward, look up the original message and
+    // prepend its body onto what the user typed. Pre-2.9.38 the field
+    // was passed through untouched and build_rfc5322 ignored it, so
+    // every forward sent only the user's leading text — the recipient
+    // saw "FYI." with none of the forwarded content.
+    inline_forward_content(&state, &user, &mut parts).await;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
@@ -1129,6 +1230,9 @@ pub async fn send_message_multipart(
         parts.from = user.clone();
     }
     ensure_from_allowed(&state, &user, &parts.from).await?;
+    // Same fix as the JSON handler: prepend the forwarded original
+    // when the request carries forward_message_id.
+    inline_forward_content(&state, &user, &mut parts).await;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());

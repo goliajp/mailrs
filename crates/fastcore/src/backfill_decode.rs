@@ -37,6 +37,7 @@ pub(crate) async fn backfill_decode_headers_route(
     let mut rows_decoded = 0u64;
     let mut blobs_added = 0u64;
     let mut bodies_indexed = 0u64;
+    let mut trust_stamped = 0u64;
     for user in &users {
         let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
         let tids = store
@@ -87,7 +88,7 @@ pub(crate) async fn backfill_decode_headers_route(
             // sweep, and the reason it is an explicit admin action
             // rather than something the ingest path retrofits.
             for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
-                let Ok(w) =
+                let Ok(mut w) =
                     serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(&blob)
                 else {
                     continue;
@@ -98,13 +99,30 @@ pub(crate) async fn backfill_decode_headers_route(
                 let Some(raw) = crate::read_maildir_file(user, &w.blob_ref) else {
                     continue;
                 };
-                let Some(text) = crate::body_text_for_search(&raw) else {
-                    continue;
-                };
-                if state
-                    .mailbox
-                    .index_message_text(&w.message_id, tid, &text)
-                    .is_ok()
+                // Stamp the sender-auth verdict on rows ingested before
+                // the field existed, so browsing old mail shows the same
+                // badge new mail does. Rewrite the wire only when it
+                // actually gains a verdict.
+                if w.sender_trust.is_empty() {
+                    let trust = crate::extract_sender_trust(&raw);
+                    if !trust.is_empty() {
+                        w.sender_trust = trust;
+                        if let Ok(payload) = serde_json::to_vec(&w) {
+                            let _ = state.mailbox.upsert_message(
+                                tid,
+                                &w.message_id,
+                                w.internal_date,
+                                &payload,
+                            );
+                            trust_stamped += 1;
+                        }
+                    }
+                }
+                if let Some(text) = crate::body_text_for_search(&raw)
+                    && state
+                        .mailbox
+                        .index_message_text(&w.message_id, tid, &text)
+                        .is_ok()
                 {
                     bodies_indexed += 1;
                 }
@@ -116,6 +134,7 @@ pub(crate) async fn backfill_decode_headers_route(
         rows_decoded,
         blobs_added,
         bodies_indexed,
+        trust_stamped,
         contacts_repaired,
         "backfill-decode-headers complete"
     );
@@ -123,6 +142,7 @@ pub(crate) async fn backfill_decode_headers_route(
         "rows_decoded": rows_decoded,
         "search_blobs_added": blobs_added,
         "bodies_indexed": bodies_indexed,
+        "trust_stamped": trust_stamped,
         "contacts_repaired": contacts_repaired,
     }))
     .into_response()

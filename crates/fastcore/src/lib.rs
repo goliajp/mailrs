@@ -23,6 +23,7 @@ mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
 mod imap;
+mod importance;
 mod junk_ttl;
 pub mod live_sync;
 mod managesieve;
@@ -37,7 +38,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post, put};
 use kevy_embedded::{Config, Store};
 use mailrs_alias_store::AliasStore;
@@ -558,6 +559,45 @@ async fn run_ingest_once(
 /// index via `resolve_thread_by_ancestry`; `references[0]` is only the
 /// last-resort root guess (it is NOT stable across hops — remote MUAs
 /// rewrite it, which fragmented conversations before v2.9.5).
+/// Read the sender-authentication verdict from a message's own
+/// `Authentication-Results` header, folded to a stable token. Empty
+/// when the header is absent (e.g. mail that reached the maildir by a
+/// path that didn't stamp it). This is the self-hosted "is this sender
+/// who they claim to be" signal — pure auth results, no model.
+pub(crate) fn extract_sender_trust(raw: &[u8]) -> String {
+    let head = &raw[..raw.len().min(16 * 1024)];
+    // Find the (possibly folded) Authentication-Results field. Headers
+    // are ASCII field names; scan lines, unfolding continuations.
+    let text = String::from_utf8_lossy(head);
+    let mut value: Option<String> = None;
+    let mut collecting = false;
+    for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
+        if collecting {
+            if line.starts_with(' ') || line.starts_with('\t') {
+                value.as_mut().unwrap().push(' ');
+                value.as_mut().unwrap().push_str(line.trim());
+                continue;
+            }
+            break; // header ended
+        }
+        if let Some(rest) = line
+            .strip_prefix("Authentication-Results:")
+            .or_else(|| line.strip_prefix("authentication-results:"))
+        {
+            value = Some(rest.trim().to_string());
+            collecting = true;
+        }
+    }
+    let Some(v) = value else {
+        return String::new();
+    };
+    let results = mailrs_inbound::parse_auth_results(&v);
+    if results.is_empty() {
+        return String::new();
+    }
+    mailrs_inbound::sender_trust(&results).as_str().to_string()
+}
+
 pub(crate) fn extract_headers(
     raw: &[u8],
 ) -> (String, String, Vec<String>, String, i64, String, String) {
@@ -799,6 +839,9 @@ struct MailFile {
     /// read/unread fact. Self-heal must respect it or every boot
     /// resurrects already-read mail as unread.
     seen: bool,
+    /// Sender-auth verdict from the file's `Authentication-Results`
+    /// header (`verified` / `suspicious` / `unverified` / `""`).
+    sender_trust: String,
 }
 
 /// Walk the user's maildir(s) and populate any thread whose messages
@@ -942,6 +985,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
             from,
             to,
             seen: maildir_seen_flag(&bare),
+            sender_trust: extract_sender_trust(&bytes),
         });
     }
 
@@ -1137,6 +1181,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                 flags: 1,
                 message_id: m.message_id.clone(),
                 in_reply_to: m.in_reply_to.clone(),
+                sender_trust: m.sender_trust.clone(),
                 thread_id: tid.to_string(),
                 modseq: 0,
                 user_address: user.to_string(),
@@ -1251,6 +1296,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                     flags: 1,
                     message_id: m.message_id.clone(),
                     in_reply_to: m.in_reply_to.clone(),
+                    sender_trust: m.sender_trust.clone(),
                     thread_id: root.clone(),
                     modseq: 0,
                     user_address: user.to_string(),
@@ -1481,6 +1527,11 @@ pub(crate) fn ingest_delivered_file(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
+    // Importance follows the latest INBOUND message, like the thread's
+    // display fields — the user's own reply must not restate it.
+    if !is_own {
+        crate::importance::score_inbound(state, addr, &root, &from, head, body);
+    }
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let m = crate::imap::backend::bump_modseq(state, addr);
@@ -1502,6 +1553,7 @@ pub(crate) fn ingest_delivered_file(
         flags: if unread { 0 } else { 1 },
         message_id: message_id.clone(),
         in_reply_to,
+        sender_trust: extract_sender_trust(body),
         thread_id: root.clone(),
         modseq: 0,
         user_address: addr.to_string(),
@@ -1652,6 +1704,20 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/maintenance:backfill-inbox-index",
                 post(backfill_inbox_index_route),
+            )
+            // Contact relationship counters, rebuilt from message
+            // history so importance scoring sees existing correspondents
+            // instead of waiting months for new traffic (idempotent).
+            .route(
+                "/v1/admin/maintenance:backfill-contact-relationships",
+                post(backfill_contact_relationships_route),
+            )
+            // Importance verdicts for threads that predate the feature —
+            // scoring only runs at ingest, so without this every existing
+            // thread would stay blank forever.
+            .route(
+                "/v1/admin/maintenance:backfill-thread-importance",
+                post(backfill_thread_importance_route),
             )
             .route(mb::PATH_LIST_MAILBOXES, get(list_mailboxes))
             .route(
@@ -2641,8 +2707,24 @@ async fn mark_read(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
+    // Only a genuine unread -> read transition is an engagement event.
+    // `mark_seen` returns whether the hash carried an unread_count
+    // field, not whether anything changed, so the unread state has to
+    // be read here. Without this a client that re-marks an open thread
+    // inflates read_count, and the ranker would later learn from a
+    // number that measures UI chatter rather than attention.
+    let was_unread = state
+        .mailbox
+        .get_thread(&thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|r| r.unread_count > 0);
+    let event = crate::importance::read_event(&state, &thread_id, now_secs());
     if let Err(e) = state.mailbox.mark_seen(&user, &thread_id) {
         tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
+    }
+    if was_unread {
+        crate::importance::record_engagement(&state, &user, &thread_id, event);
     }
     action_result(true)
 }
@@ -2676,12 +2758,19 @@ async fn star_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_starred(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_starred(&user, &thread_id, true)
+        .unwrap_or(false);
+    if ok {
+        crate::importance::record_engagement(
+            &state,
+            &user,
+            &thread_id,
+            mailrs_core_sidestate::families::contacts::Engagement::Starred,
+        );
+    }
+    action_result(ok)
 }
 
 async fn unstar_thread(
@@ -2712,12 +2801,28 @@ async fn archive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_archived(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    // Archiving something still unread is the user dismissing it
+    // unseen — the strongest implicit "not worth my attention" signal
+    // there is. Read the unread state before the archive write.
+    let dismissed_unread = state
+        .mailbox
+        .get_thread(&thread_id)
+        .ok()
+        .flatten()
+        .is_some_and(|r| r.unread_count > 0);
+    let ok = state
+        .mailbox
+        .set_archived(&user, &thread_id, true)
+        .unwrap_or(false);
+    if ok && dismissed_unread {
+        crate::importance::record_engagement(
+            &state,
+            &user,
+            &thread_id,
+            mailrs_core_sidestate::families::contacts::Engagement::ArchivedUnread,
+        );
+    }
+    action_result(ok)
 }
 
 /// v2.4.1 Phase 3 (RFC-B §3.4) — mark a thread as junk.
@@ -2729,6 +2834,14 @@ async fn mark_junk(
         .mailbox
         .set_junk(&user, &thread_id, true)
         .unwrap_or(false);
+    if ok {
+        crate::importance::record_engagement(
+            &state,
+            &user,
+            &thread_id,
+            mailrs_core_sidestate::families::contacts::Engagement::MarkedJunk,
+        );
+    }
     // v2.8.0: feed the Bayesian corpus off the user's explicit junk
     // verdict (RFC 20260713). Best-effort; never blocks the move.
     if ok {
@@ -3345,6 +3458,42 @@ async fn move_spam_to_junk_route(
     Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
 }
 
+/// `POST /v1/admin/maintenance:backfill-thread-importance` — score
+/// threads that predate the feature. `?all=1` rescores every thread;
+/// the default only fills in threads with no verdict yet.
+async fn backfill_thread_importance_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let only_missing = q.get("all").map(String::as_str) != Some("1");
+    let (scored, skipped) = crate::importance::backfill_thread_importance(&state, only_missing);
+    tracing::info!(
+        scored,
+        skipped,
+        only_missing,
+        "thread importance backfill done"
+    );
+    axum::Json(serde_json::json!({ "scored": scored, "skipped": skipped })).into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-contact-relationships` —
+/// one-shot rebuild of the per-sender received/sent counters that
+/// importance scoring reads. Runs in process: a `docker exec` helper
+/// would open a second embedded kevy and replay the AOF alongside the
+/// live one (the 2026-07-13 backfill OOM).
+async fn backfill_contact_relationships_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let (users, addresses, messages) = crate::importance::backfill_relationships(&state);
+    tracing::info!(users, addresses, messages, "relationship backfill complete");
+    axum::Json(serde_json::json!({
+        "users": users,
+        "addresses": addresses,
+        "messages_scanned": messages,
+    }))
+    .into_response()
+}
+
 /// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot
 /// promotion of every existing thread into the v2.4.0 folder zsets
 /// (v2.8.2). Until this release `record_message_arrival` (the main
@@ -3543,6 +3692,19 @@ async fn set_message_flags_route(
         } else {
             state.mailbox.mark_unread(&user, &wire.thread_id)
         };
+        // Reading over IMAP is still reading. Without this, engagement
+        // would only ever be recorded for the web UI, and a user on
+        // Apple Mail or Thunderbird would look like they never open
+        // anything — a systematic hole in the data the ranker learns
+        // from, invisible until the learner started producing nonsense.
+        //
+        // `was_seen != is_seen` already makes this a genuine unread ->
+        // read transition, so re-syncing an unchanged flag records
+        // nothing.
+        if is_seen {
+            let event = crate::importance::read_event(&state, &wire.thread_id, now_secs());
+            crate::importance::record_engagement(&state, &user, &wire.thread_id, event);
+        }
     }
     axum::http::StatusCode::NO_CONTENT.into_response()
 }

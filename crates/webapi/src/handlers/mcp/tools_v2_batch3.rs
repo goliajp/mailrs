@@ -29,7 +29,7 @@ pub struct RescheduleParams {
     pub scheduled_at: i64,
 }
 
-const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled";
+const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled-idx";
 
 #[tool_router(router = tool_router_v2_batch3, vis = "pub")]
 impl MailrsMcpService {
@@ -42,7 +42,7 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let id = params.id;
-        let hkey = format!("mailrs:outbound:{id}");
+        let hkey = format!("mailrs:outbound:job:{id}");
         let user_c = user.clone();
         let id_c = id.clone();
         let removed = with_kevy(move |c| {
@@ -90,7 +90,7 @@ impl MailrsMcpService {
             )]));
         }
         let id = params.id;
-        let hkey = format!("mailrs:outbound:{id}");
+        let hkey = format!("mailrs:outbound:job:{id}");
         let user_c = user.clone();
         let id_c = id.clone();
         let new_score = params.scheduled_at;

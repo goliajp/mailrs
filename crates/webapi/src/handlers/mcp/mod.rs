@@ -506,8 +506,9 @@ impl MailrsMcpService {
     #[tool(description = "Outbound queue stats (pending count).")]
     async fn get_queue(&self) -> Result<CallToolResult, McpError> {
         let _user = self.require_user()?;
-        let pending = crate::handlers::kevy_util::with_kevy(|c| c.llen(b"mailrs:outbound:pending"))
-            .map_err(|_| McpError::internal_error("queue read failed", None))?;
+        let pending =
+            crate::handlers::kevy_util::with_kevy(|c| c.llen(b"mailrs:outbound:pending-idx"))
+                .map_err(|_| McpError::internal_error("queue read failed", None))?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "pending": pending }).to_string(),
         )]))

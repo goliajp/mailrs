@@ -300,21 +300,15 @@ impl MailStore for JmapAdapter {
         let sender = user.to_string();
         let raw_owned = raw.to_vec();
         let write = crate::handlers::kevy_util::with_kevy(move |c| {
+            use base64::Engine as _;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_owned);
             for rcpt in &recipients {
-                let id = c.incr(b"mailrs:outbound:counter").unwrap_or(created);
-                use base64::Engine as _;
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_owned);
-                let blob = serde_json::json!({
-                    "id": id,
-                    "sender": sender,
-                    "recipient": rcpt,
-                    "message_data_b64": b64,
-                    "created_at": created,
-                })
-                .to_string();
-                let hkey = format!("mailrs:outbound:{id}");
-                c.hset(hkey.as_bytes(), &[(b"blob" as &[u8], blob.as_bytes())])?;
-                c.lpush(b"mailrs:outbound:pending", &[id.to_string().as_bytes()])?;
+                // v2 enqueue (see prefs.rs::enqueue_outbound_at): the
+                // legacy write path silently swallowed sends until an
+                // operator ran the drain by hand.
+                mailrs_core_sidestate::families::outbound::write_fresh_pending(
+                    c, &sender, rcpt, &b64, None, None, created,
+                )?;
             }
             Ok(())
         });

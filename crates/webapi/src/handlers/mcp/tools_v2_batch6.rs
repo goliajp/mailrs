@@ -19,7 +19,7 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         let (pending_ids, inflight_ids): (Vec<Vec<u8>>, Vec<Vec<u8>>) = with_kevy(|c| {
             let pending = c
-                .lrange(b"mailrs:outbound:pending", 0, 99)
+                .lrange(b"mailrs:outbound:pending-idx", 0, 99)
                 .unwrap_or_default();
             let inflight = c
                 .lrange(b"mailrs:outbound:inflight", 0, 99)
@@ -31,7 +31,7 @@ impl MailrsMcpService {
         for (label, ids) in [("pending", &pending_ids), ("inflight", &inflight_ids)] {
             for b in ids {
                 let id_str = String::from_utf8_lossy(b).to_string();
-                let key = format!("mailrs:outbound:{id_str}");
+                let key = format!("mailrs:outbound:job:{id_str}");
                 let key_c = key.clone();
                 let blob = match with_kevy(move |c| c.hget(key_c.as_bytes(), b"blob")) {
                     Ok(v) => v,

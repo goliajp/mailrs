@@ -46,6 +46,8 @@ mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-core = { path = "../core" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }
 mailrs-bayes = { path = "../bayes" }
+mailrs-clean = { path = "../clean" }
+mailrs-intelligence = { path = "../intelligence" }
 mailrs-triage = { path = "../triage" }
 mailrs-alias-store = { path = "../alias-store" }
 mailrs-alias-store-net = { path = "../alias-store-net" }
@@ -70,6 +72,7 @@ rand_core = { workspace = true }
 base64 = "0.22"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 html2text = "0.17"
+mailrs-inbound = { path = "../inbound", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = "1"
 mailrs-srs = "1"

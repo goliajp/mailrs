@@ -15,6 +15,10 @@ path = "src/main.rs"
 
 [dependencies]
 mailrs-core-api = { path = "../core-api", features = ["client"] }
+# webapi enqueues outbound directly against the shared network kevy
+# (v2 job hash + pending-idx); the primitives live in core-sidestate
+# so the stone's RPC handler and webapi write via the same routine.
+mailrs-core-sidestate = { path = "../core-sidestate" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws", "multipart"] }
 futures-util = "0.3"

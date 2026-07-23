@@ -9,6 +9,7 @@ import { X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
+import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
@@ -237,6 +238,19 @@ export function NewConversation() {
 
       if (result.success) {
         const sentMessageId = result.message_id
+        // Optimistic: prepend a placeholder into the Sent cache so the
+        // row appears before the server refetch lands. Backend's
+        // mirror_send_to_sender_view writes synchronously, so the
+        // real row swaps in within one network RTT (see
+        // hooks/use-mail-mutations::applyOptimisticSent).
+        if (sentMessageId) {
+          applyOptimisticSent({
+            message_id: sentMessageId,
+            subject,
+            thread_id: replySource?.threadId ?? '',
+            to: recipients.join(', '),
+          })
+        }
         toast.success('Message sent', {
           ...(sentMessageId
             ? {
