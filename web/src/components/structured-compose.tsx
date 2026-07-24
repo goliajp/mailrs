@@ -7,7 +7,6 @@ import type {
 } from '@/components/composer/types'
 
 import { X } from 'lucide-react'
-import { marked } from 'marked'
 import {
   forwardRef,
   lazy,
@@ -25,6 +24,7 @@ import { DividerBlock } from '@/components/composer/blocks/divider-block'
 import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
+import { renderMarkdownToHtml } from '@/lib/render-markdown'
 
 // SignatureBlock pulls in tiptap + prosemirror + lowlight + highlight.js
 // (≈700 kB raw). it only renders when the user has signatures enabled AND
@@ -391,7 +391,7 @@ function htmlToText(html: string): string {
 
 function renderTextBlockHtml(data: TextBlockData): string {
   if (data.format === 'markdown') {
-    return marked.parse(data.content, { async: false, breaks: true, gfm: true }) as string
+    return renderMarkdownToHtml(data.content)
   }
   return data.html
 }

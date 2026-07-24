@@ -2454,6 +2454,51 @@ pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
     None
 }
 
+/// Remove the maildir file at `blob_ref` — the disk counterpart of
+/// `KevyMailboxStore::delete_thread`. Tries both `cur/` and `new/`
+/// because a message hops between them as its `\Seen` flag flips.
+///
+/// Best-effort: an fs error (permission, race, already gone) logs a
+/// warning but must not fail the surrounding delete — the point of
+/// this helper is to prevent self-heal from resurrecting the row on
+/// its next tick, and a missing file already satisfies that. Returns
+/// true if any file was actually unlinked (helpful for the caller's
+/// log line).
+pub(crate) fn unlink_maildir_file(user: &str, blob_ref: &str) -> bool {
+    if blob_ref.is_empty() {
+        return false;
+    }
+    let Some((local, domain)) = user.split_once('@') else {
+        return false;
+    };
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let base = std::path::PathBuf::from(root).join(domain).join(local);
+    let (sub, name) = match blob_ref.split_once('/') {
+        Some((s, n)) => (Some(s), n),
+        None => (None, blob_ref),
+    };
+    let mut removed = false;
+    for leaf in ["cur", "new"] {
+        let path = match sub {
+            Some(s) => base.join(s).join(leaf).join(name),
+            None => base.join(leaf).join(name),
+        };
+        match std::fs::remove_file(&path) {
+            Ok(()) => {
+                removed = true;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                tracing::warn!(
+                    error = %e, path = %path.display(),
+                    "delete_thread: could not unlink maildir file"
+                );
+            }
+        }
+    }
+    removed
+}
+
 /// Read the full References chain of a message from its maildir file
 /// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
 /// is empty or the file is gone — the caller just gets fewer edges.
@@ -2942,12 +2987,31 @@ async fn delete_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .delete_thread(&user, &thread_id)
-            .unwrap_or(false),
-    )
+    // The kevy side of the delete returns the maildir blob_refs it saw
+    // before wiping the message rows. Without unlinking those files
+    // here, self-heal's next tick re-imports every one of them and the
+    // "deleted" thread re-appears — confirmed on prod 2026-07-24 with
+    // two ghost FYI threads that survived multiple UI deletes.
+    let (existed, blob_refs) = match state.mailbox.delete_thread(&user, &thread_id) {
+        Ok(pair) => pair,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, %thread_id, "delete_thread kevy failed");
+            return action_result(false);
+        }
+    };
+    let mut unlinked = 0u32;
+    for blob_ref in &blob_refs {
+        if unlink_maildir_file(&user, blob_ref) {
+            unlinked += 1;
+        }
+    }
+    if existed {
+        tracing::info!(
+            %user, %thread_id, messages = blob_refs.len(), unlinked,
+            "delete_thread: cleared thread + unlinked maildir files"
+        );
+    }
+    action_result(existed)
 }
 
 /// `POST /v1/users/{user}/conversations:by-thread-ids` — hydrate full

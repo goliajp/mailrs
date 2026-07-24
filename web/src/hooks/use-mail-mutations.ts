@@ -5,6 +5,7 @@ import { type QueryKey, useMutation } from '@tanstack/react-query'
 import { getDefaultStore } from 'jotai'
 
 import { snoozeConversation as snoozeApi, unsnoozeConversation as unsnoozeApi } from '@/lib/api'
+import { dedupeSentByMessageId } from '@/lib/dedupe-sent'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
@@ -204,6 +205,7 @@ export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbo
 // new-conversation's optimistic write" road ends with the two drifting
 // out of sync the first time we tweak the placeholder shape
 // (feedback-two-impls-need-a-contract-test).
+
 export function applyOptimisticSent(msg: {
   message_id: string
   subject: string
@@ -225,7 +227,7 @@ export function applyOptimisticSent(msg: {
     uid: 0,
   }
   queryClient.setQueryData<readonly WireSentMessage[]>(mailKeys.sent(), (old) =>
-    old ? [placeholder, ...old] : [placeholder]
+    dedupeSentByMessageId(placeholder, old)
   )
   void queryClient.invalidateQueries({ queryKey: mailKeys.sent() })
   void queryClient.invalidateQueries({ queryKey: mailKeys.conversations() })

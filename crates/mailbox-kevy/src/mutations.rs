@@ -243,21 +243,89 @@ impl KevyMailboxStore {
     /// Reads `category` BEFORE the deletion so we know which
     /// per-category zset to clean — that index is keyed by the
     /// category string, not derivable from the tid alone.
-    pub fn delete_thread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+    ///
+    /// **Returns the `blob_ref`s of every message the thread carried.**
+    /// The caller is responsible for `unlink`-ing those maildir files —
+    /// they live on disk, kevy can't reach them, and self-heal will
+    /// resurrect the whole thread from any surviving file on its next
+    /// tick. Confirmed on prod 2026-07-24 with two "ghost FYI" threads
+    /// that the pre-fix delete had turned into permanent zombies.
+    pub fn delete_thread(&self, user: &str, thread_id: &str) -> io::Result<(bool, Vec<String>)> {
         let thread_key = keys::thread(thread_id);
-        // No "hclear" in kevy 3.17 either; keep the explicit field list.
-        // Single source of truth with the write path — a field written
-        // but not listed here survives the delete and resurrects the row.
+        let msgs_zset = keys::thread_messages(thread_id);
+        let store = self.store();
+
+        // Enumerate messages OUTSIDE the atomic block: AtomicCtx has no
+        // `zrange`, and every blob is a plain `get` — one round trip
+        // per message on a typical thread (< 20 hops).
+        let members = store.zrange(msgs_zset.as_bytes(), 0, -1)?;
+        let mut per_msg: Vec<(String, Option<u32>, Option<String>)> =
+            Vec::with_capacity(members.len());
+        for (mid_bytes, _score) in &members {
+            let Ok(mid) = std::str::from_utf8(mid_bytes) else {
+                continue;
+            };
+            let blob = store.get(keys::message_blob(mid).as_bytes())?;
+            let (uid, blob_ref) = match blob.as_deref() {
+                Some(bytes) => {
+                    let v: serde_json::Value =
+                        serde_json::from_slice(bytes).unwrap_or(serde_json::Value::Null);
+                    let uid = v
+                        .get("uid")
+                        .and_then(|x| x.as_u64())
+                        .filter(|u| *u > 0)
+                        .map(|u| u as u32);
+                    let blob_ref = v
+                        .get("blob_ref")
+                        .and_then(|x| x.as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(String::from);
+                    (uid, blob_ref)
+                }
+                None => (None, None),
+            };
+            per_msg.push((mid.to_string(), uid, blob_ref));
+        }
+        let blob_refs: Vec<String> = per_msg.iter().filter_map(|(_, _, br)| br.clone()).collect();
+
+        // No "hclear" in kevy 3.17; keep the explicit field list. Single
+        // source of truth with the write path — a field written but not
+        // listed here survives the delete and resurrects the row.
         let fields = crate::thread_row::ThreadRow::field_names();
-        self.store().atomic(|ctx| {
+        let msg_by_uid_key = keys::user_msg_by_uid(user);
+        let uid_by_mid_key = keys::user_uid_by_mid(user);
+
+        let existed = store.atomic(|ctx| {
             let category = ctx
                 .hget(thread_key.as_bytes(), b"category")?
                 .and_then(|v| String::from_utf8(v).ok());
             let Some(cat) = category else {
-                // hash doesn't exist
+                // hash doesn't exist — nothing to clean.
                 return Ok(false);
             };
+
+            // Per-message cleanup — msg blob, RFC Message-ID → thread
+            // pointer, and both directions of the uid ↔ message-id map.
+            // Any of these left behind kept the message reachable via
+            // find_by_message_id / by_uid lookups even after the row
+            // vanished from the thread aggregate.
+            for (mid, uid, _blob_ref) in &per_msg {
+                ctx.del(&[keys::message_blob(mid).as_bytes()]);
+                ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
+                if let Some(u) = uid {
+                    let uid_s = u.to_string();
+                    ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
+                }
+                ctx.hdel(uid_by_mid_key.as_bytes(), &[mid.as_bytes()])?;
+            }
+
+            // The thread's own message-index zset.
+            ctx.del(&[msgs_zset.as_bytes()]);
+
+            // Thread aggregate fields.
             ctx.hdel(thread_key.as_bytes(), fields)?;
+
+            // Per-user thread indexes.
             let indexes = [
                 keys::user_threads_by_activity(user),
                 keys::user_threads_by_category(user, &cat),
@@ -280,7 +348,8 @@ impl KevyMailboxStore {
                 ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
             }
             Ok(true)
-        })
+        })?;
+        Ok((existed, blob_refs))
     }
 }
 
@@ -369,7 +438,13 @@ mod tests {
         let inbox = keys::user_threads_inbox(u);
         assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
 
-        assert!(s.delete_thread(u, "t1").unwrap());
+        let (existed, blob_refs) = s.delete_thread(u, "t1").unwrap();
+        assert!(existed);
+        // record_message_arrival did not write a message blob, so the
+        // returned blob_ref list is empty — this test covers the
+        // thread-hash + index cleanup half only. A dedicated
+        // messages-and-files test would seed upsert_message first.
+        assert!(blob_refs.is_empty());
         assert!(s.get_thread("t1").unwrap().is_none());
         for idx in [
             keys::user_threads_by_activity(u),
@@ -427,7 +502,57 @@ mod tests {
     #[test]
     fn delete_missing_returns_false() {
         let s = store();
-        assert!(!s.delete_thread("u@x.com", "nope").unwrap());
+        let (existed, blob_refs) = s.delete_thread("u@x.com", "nope").unwrap();
+        assert!(!existed);
+        assert!(blob_refs.is_empty());
+    }
+
+    #[test]
+    fn delete_returns_blob_refs_for_upserted_messages() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u)).unwrap();
+        // Two messages under the thread, each with a distinct blob_ref
+        // pointing at a maildir filename the caller must unlink.
+        let m1 = serde_json::json!({
+            "uid": 42, "blob_ref": "1784.M0P1Q0.host:2,S", "thread_id": "t1",
+            "message_id": "aaa@x", "internal_date": 100,
+        })
+        .to_string();
+        let m2 = serde_json::json!({
+            "uid": 43, "blob_ref": ".Sent/1785.M0P1Q1.host:2,S", "thread_id": "t1",
+            "message_id": "bbb@x", "internal_date": 200,
+        })
+        .to_string();
+        s.upsert_message("t1", "aaa@x", 100, m1.as_bytes()).unwrap();
+        s.upsert_message("t1", "bbb@x", 200, m2.as_bytes()).unwrap();
+
+        let (existed, blob_refs) = s.delete_thread(u, "t1").unwrap();
+        assert!(existed);
+        let mut br = blob_refs;
+        br.sort();
+        assert_eq!(
+            br,
+            vec![
+                "1784.M0P1Q0.host:2,S".to_string(),
+                ".Sent/1785.M0P1Q1.host:2,S".to_string(),
+            ]
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>()
+        );
+
+        // Neither the message blobs nor the thread-messages zset should
+        // survive — the whole point of the refactor.
+        assert!(s.get_message("aaa@x").unwrap().is_none());
+        assert!(s.get_message("bbb@x").unwrap().is_none());
+        assert_eq!(
+            s.store()
+                .zcard(keys::thread_messages("t1").as_bytes())
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
