@@ -934,7 +934,20 @@ async fn mirror_send_to_sender_view(
             });
             ids[0].0.clone()
         }
-        Ok(_) => String::new(),
+        Ok(_) => {
+            // Empty-Ok used to fall through as `blob_ref = ""`, silently.
+            // Prod evidence 2026-07-24: a Jul 2 send hit this branch and
+            // left a phantom row in Sent — no maildir file, size=0,
+            // "(no text content)" in the UI, never enqueued, never
+            // delivered. Treat it as the failure it is: warn AND use
+            // the same synthetic ref the Err branch uses so downstream
+            // has SOMETHING traceable to grep for.
+            tracing::warn!(
+                %user, %message_id,
+                "mirror_send: deliver_batch returned no ids, using synthetic blob_ref"
+            );
+            format!("kevy:{message_id}")
+        }
         Err(e) => {
             tracing::warn!(err = %e, %user, "mirror_send: maildir write failed, using synthetic blob_ref");
             format!("kevy:{message_id}")

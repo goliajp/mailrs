@@ -85,7 +85,11 @@ impl KevyMailboxStore {
         //    stale pre-migration values that were never in the unread
         //    index (2026-07-17: years-old mail flooded the Unread tab
         //    after the first prod rethread).
-        self.delete_thread(user, from)?;
+        // Merge — messages have already been re-pointed to `into`;
+        // dropping `from` here only removes empty scaffolding, no
+        // maildir files should exist for it anymore. Discard the
+        // returned blob_refs deliberately.
+        let (_existed, _blob_refs) = self.delete_thread(user, from)?;
         if let Some(mut row) = merged {
             if let Some((count, unread, sent)) = self.recount_from_messages(user, into)? {
                 row.count = count;
@@ -147,8 +151,10 @@ impl KevyMailboxStore {
                 }
                 self.upsert_thread(user, &row)?;
             } else {
-                // no messages left — drop the empty thread entirely
-                self.delete_thread(user, &old_tid)?;
+                // no messages left — drop the empty thread entirely.
+                // Split moved every message away already, so no maildir
+                // files remain on this side.
+                let (_existed, _blob_refs) = self.delete_thread(user, &old_tid)?;
             }
         }
         // create the new thread's aggregate
