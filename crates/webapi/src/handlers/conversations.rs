@@ -647,34 +647,57 @@ pub async fn mark_not_junk(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    // 1) Extract the thread's senders_csv from the mailbox hash and
-    //    SADD every distinct address into the recipient's whitelist.
-    //    Best-effort — kevy errors don't fail the mark-not-junk
+    // 1) Extract the thread's senders_csv (via core RPC — thread data
+    //    lives in fastcore's embedded kevy, NOT the network kevy that
+    //    with_kevy connects to; the earlier version read a
+    //    mailrs:thread:{tid} hash that never existed on the network
+    //    side, so senders was always empty and the whitelist below
+    //    never got written).
+    //    SADD every distinct address into the recipient's whitelist,
+    //    which is stored on the network kevy where the receiver's
+    //    spam-list snapshot loader reads it (`crates/receiver/src/
+    //    spam_lists.rs:41`, key `spam:{user}:whitelist`).
+    //    Best-effort — kevy / RPC errors don't fail the mark-not-junk
     //    action; the folder move below is the load-bearing part.
-    let user_lc = user.to_lowercase();
-    let tid = thread_id.clone();
-    let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        let hash_key = format!("mailrs:thread:{tid}");
-        let senders = c
-            .hget(hash_key.as_bytes(), b"senders_csv")
-            .ok()
-            .flatten()
-            .and_then(|v| String::from_utf8(v).ok())
-            .unwrap_or_default();
-        if senders.is_empty() {
-            return Ok(());
+    let senders_csv = match state
+        .core
+        .conversations_by_thread_ids(
+            &user,
+            &wire::ConversationsByIdsRequest {
+                folder: None,
+                thread_ids: vec![thread_id.clone()],
+            },
+        )
+        .await
+    {
+        Ok(resp) => resp
+            .items
+            .into_iter()
+            .next()
+            .map(|c| c.participants)
+            .unwrap_or_default(),
+        Err(e) => {
+            tracing::warn!(err = ?e, %user, %thread_id, "mark_not_junk: thread lookup failed; whitelist not updated");
+            String::new()
         }
-        let wl_key = format!("spam:{user_lc}:whitelist");
-        for raw in senders.split(',') {
-            let addr = raw.trim().to_lowercase();
-            if addr.is_empty() || addr == user_lc {
-                // don't whitelist the owner's own address
-                continue;
+    };
+
+    if !senders_csv.is_empty() {
+        let user_lc = user.to_lowercase();
+        let senders = senders_csv;
+        let _ = crate::handlers::kevy_util::with_kevy(move |c| {
+            let wl_key = format!("spam:{user_lc}:whitelist");
+            for raw in senders.split(',') {
+                let addr = raw.trim().to_lowercase();
+                if addr.is_empty() || addr == user_lc {
+                    // don't whitelist the owner's own address
+                    continue;
+                }
+                let _ = c.sadd(wl_key.as_bytes(), &[addr.as_bytes()]);
             }
-            let _ = c.sadd(wl_key.as_bytes(), &[addr.as_bytes()]);
-        }
-        Ok(())
-    });
+            Ok(())
+        });
+    }
 
     // 2) Move the thread out of Junk into Inbox on the mailbox side.
     state
