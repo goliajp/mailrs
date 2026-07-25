@@ -159,15 +159,15 @@ fn load_dkim_from_env() -> Option<Arc<DkimSignConfig>> {
 /// Only genuine 5xx replies count. `Outcome::Permanent` also covers our
 /// own refusals — malformed recipients, signing failures, and the
 /// suppression check itself — and none of those are evidence about the
-/// remote mailbox. `is_hard_bounce` keys off the leading `5`, which is
-/// exactly the distinction wanted here.
+/// remote mailbox. See [`is_remote_hard_bounce`] for how the two are
+/// told apart.
 ///
 /// Best-effort: a message that already failed must not fail louder
 /// because the side-state write did not land.
 fn record_suppression(cfg: &Cfg, recipient: &str, reason: &str) {
     use mailrs_core_sidestate::families::suppression;
 
-    if !mailrs_outbound_queue::queue::is_hard_bounce(reason) {
+    if !is_remote_hard_bounce(reason) {
         return;
     }
     let Ok(mut conn) = kevy(&cfg.kevy_url) else {
@@ -606,6 +606,25 @@ enum Outcome {
     Transient(String),
     /// 5xx anywhere in the exchange — do not retry.
     Permanent(String),
+}
+
+/// Whether a failure reason carries a remote 5xx rejection.
+///
+/// `outbound_queue::is_hard_bounce` tests whether the string *starts*
+/// with a 5, which suits a bare SMTP reply. Our reasons are assembled
+/// as `"{mx} {code} {text}"`, so the code never leads and that check
+/// silently returned false for every real rejection — the suppression
+/// list stayed empty through a live 550. Scan the tokens instead.
+///
+/// Looking for a standalone three-digit 5xx also excludes the failures
+/// we generate ourselves — "invalid recipient", "dkim sign", the
+/// suppression check — none of which say anything about the remote
+/// mailbox. Enhanced codes like `5.1.1` are not three digits, so they
+/// cannot trigger it either.
+fn is_remote_hard_bounce(reason: &str) -> bool {
+    reason.split_whitespace().any(|token| {
+        token.len() == 3 && token.starts_with('5') && token.bytes().all(|b| b.is_ascii_digit())
+    })
 }
 
 /// ARC-seal `message` when this delivery is a forward, else `None`.
@@ -1174,7 +1193,37 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_addr_spec, is_forward, signed_d_tag};
+    use super::{extract_addr_spec, is_forward, is_remote_hard_bounce, signed_d_tag};
+
+    #[test]
+    fn detects_a_5xx_inside_a_real_reason_string() {
+        // Verbatim from a live rejection — the code is the second token,
+        // which is why a starts_with('5') check found nothing.
+        assert!(is_remote_hard_bounce(
+            "gmail-smtp-in.l.google.com 550 5.1.1 The email account that you tried to reach does not exist."
+        ));
+        assert!(is_remote_hard_bounce(
+            "mx.example.com 552 message too large"
+        ));
+    }
+
+    #[test]
+    fn ignores_transient_and_self_inflicted_failures() {
+        assert!(!is_remote_hard_bounce("mx.example.com 450 try again later"));
+        assert!(!is_remote_hard_bounce("invalid recipient: not-an-address"));
+        assert!(!is_remote_hard_bounce("dkim sign: key unreadable"));
+        assert!(!is_remote_hard_bounce(
+            "recipient on suppression list: a@b.c"
+        ));
+        assert!(!is_remote_hard_bounce("no MX for example.com"));
+    }
+
+    #[test]
+    fn an_enhanced_code_alone_does_not_count() {
+        // 5.1.1 is not a three-digit token, so a reason carrying only
+        // an enhanced code must not be read as a rejection.
+        assert!(!is_remote_hard_bounce("failed with status 5.1.1"));
+    }
 
     #[test]
     fn a_rewritten_envelope_sender_marks_a_forward() {
