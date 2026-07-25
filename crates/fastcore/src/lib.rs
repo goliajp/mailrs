@@ -19,6 +19,7 @@
 
 mod acme_task;
 mod aof_compact;
+pub mod arc_seal;
 mod backfill_decode;
 mod bayes_train;
 pub mod bounce;

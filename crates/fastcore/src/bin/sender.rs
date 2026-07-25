@@ -52,6 +52,28 @@ struct Cfg {
     /// are all set. Public MX (Gmail / Outlook / etc.) drop unsigned
     /// mail from mailrs-hosted domains into spam.
     dkim: Option<Arc<DkimSignConfig>>,
+    /// Signing key for ARC seals on forwarded mail. Same key and
+    /// selector as DKIM — ARC verifiers look the public key up under
+    /// `<selector>._domainkey.<domain>`, exactly where DKIM's already
+    /// is, so sealing needs no new DNS.
+    arc_key: Option<Arc<mailrs_dkim::RsaSigningKey>>,
+}
+
+/// Parse the DKIM private key once for ARC sealing.
+///
+/// Separate from `DkimSignConfig`'s lazily-parsed copy because that one
+/// is private to the signer. Returns `None` when no key is configured,
+/// which simply means forwards go out unsealed.
+fn load_arc_key() -> Option<Arc<mailrs_dkim::RsaSigningKey>> {
+    let path = std::env::var("MAILRS_DKIM_PRIVATE_KEY").ok()?;
+    let pem = std::fs::read_to_string(&path).ok()?;
+    match mailrs_dkim::RsaSigningKey::from_pkcs8_pem(&pem) {
+        Ok(k) => Some(Arc::new(k)),
+        Err(e) => {
+            tracing::warn!(error = %e, "ARC: key unparseable; forwards will not be sealed");
+            None
+        }
+    }
 }
 
 impl Cfg {
@@ -75,6 +97,7 @@ impl Cfg {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(60),
             dkim: load_dkim_from_env(),
+            arc_key: load_arc_key(),
         }
     }
 }
@@ -585,6 +608,36 @@ enum Outcome {
     Permanent(String),
 }
 
+/// ARC-seal `message` when this delivery is a forward, else `None`.
+///
+/// Returns `None` on every non-applicable or failing path — an unsealed
+/// forward still goes out. See `arc_seal`'s module docs.
+fn arc_seal_target(
+    cfg: &Cfg,
+    sender: &str,
+    original_sender: &str,
+    message: &[u8],
+) -> Option<Vec<u8>> {
+    if !is_forward(sender, original_sender) {
+        return None;
+    }
+    let key = cfg.arc_key.as_ref()?;
+    let dkim = cfg.dkim.as_ref()?;
+    mailrs_fastcore::arc_seal::seal_forwarded(message, key, &dkim.domain, &dkim.selector)
+}
+
+/// Whether this delivery is a forward rather than an original send.
+///
+/// The envelope sender is rewritten (SRS) when we forward on someone
+/// else's behalf, so it stops matching the original. Equal values — and
+/// the null sender on both sides, which is what system mail uses — mean
+/// this is our own message.
+fn is_forward(sender: &str, original_sender: &str) -> bool {
+    let s = sender.trim().trim_matches(['<', '>']);
+    let o = original_sender.trim().trim_matches(['<', '>']);
+    !o.is_empty() && !s.is_empty() && !s.eq_ignore_ascii_case(o)
+}
+
 /// Pull the `d=` tag out of the DKIM-Signature header that signing just
 /// prepended.
 ///
@@ -632,9 +685,31 @@ fn extract_addr_spec(raw: &str) -> &str {
 /// Attempt SMTP delivery via the recipient's MX hosts, in priority
 /// order. Returns the first non-transient outcome; on all-transient
 /// exhaustion returns `Outcome::Transient` with the last error.
-async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8]) -> Outcome {
+async fn try_deliver(
+    cfg: &Cfg,
+    sender: &str,
+    recipient_raw: &str,
+    message: &[u8],
+    original_sender: &str,
+) -> Outcome {
     let recipient = extract_addr_spec(recipient_raw);
     let sender = extract_addr_spec(sender);
+
+    // ARC-seal first, so the DKIM signature covers a message that
+    // already carries its ARC set.
+    //
+    // A forward is where the envelope sender differs from the original
+    // sender — the SRS rewrite in enqueue_redirect produces exactly
+    // that. Ordinary sends have the two equal, and system mail has both
+    // as the null sender, so neither gets sealed.
+    let sealed_msg;
+    let message: &[u8] = match arc_seal_target(cfg, sender, original_sender, message) {
+        Some(bytes) => {
+            sealed_msg = bytes;
+            &sealed_msg
+        }
+        None => message,
+    };
 
     // DKIM sign if a signing key is configured. Fatal signing errors
     // are permanent (won't heal on retry): message data is malformed
@@ -957,7 +1032,12 @@ async fn process_one(cfg: Cfg, id: String) {
     }
 
     tracing::info!(%id, %sender, %recipient, attempt = attempts_prev + 1, "delivering");
-    match try_deliver(&cfg, &sender, &recipient, &message_bytes).await {
+    let original_sender = envelope
+        .get("original_sender")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    match try_deliver(&cfg, &sender, &recipient, &message_bytes, &original_sender).await {
         Outcome::Delivered => {
             // Relationship fact: the user has now sent to this address.
             // This is the only writer of `sent_count`, and without it
@@ -1094,7 +1174,30 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_addr_spec, signed_d_tag};
+    use super::{extract_addr_spec, is_forward, signed_d_tag};
+
+    #[test]
+    fn a_rewritten_envelope_sender_marks_a_forward() {
+        assert!(is_forward(
+            "SRS0=abc=xy=other.com=user@golia.jp",
+            "user@other.com"
+        ));
+    }
+
+    #[test]
+    fn an_ordinary_send_is_not_a_forward() {
+        assert!(!is_forward("a@golia.jp", "a@golia.jp"));
+        assert!(!is_forward("A@Golia.JP", "a@golia.jp"));
+        assert!(!is_forward("<a@golia.jp>", "a@golia.jp"));
+    }
+
+    #[test]
+    fn system_mail_is_not_a_forward() {
+        // DSNs enqueue with the null sender on both sides.
+        assert!(!is_forward("<>", "<>"));
+        assert!(!is_forward("", ""));
+        assert!(!is_forward("a@golia.jp", ""));
+    }
 
     #[test]
     fn reads_the_d_tag_from_a_signature() {
