@@ -72,6 +72,16 @@ pub struct FastcoreState {
     /// `* n EXISTS` to their client (RFC 2177). Drain + RPC + IMAP all
     /// live in this process, so no kevy pub/sub hop is needed.
     pub notify: tokio::sync::broadcast::Sender<String>,
+    /// False when the store's boot report showed a damaged AOF.
+    ///
+    /// kevy 4.0 turns the boot verdict into data (`Store::open_report`)
+    /// rather than a line on stderr. That exists because of our own
+    /// incident: a corrupt frame black-holed three days of writes while
+    /// every restart looked normal. Surfacing it here means a deploy
+    /// over a damaged boot cannot go green — the container keeps
+    /// serving mail (a live-but-unhealthy instance still delivers; a
+    /// dead one does not) but the health check refuses.
+    pub boot_intact: bool,
     /// Network-kevy URL (`MAILRS_KEVY_URL`) for the shared side-state
     /// routes (drafts / signatures / templates / reactions / webhooks /
     /// audit / outbound / groups). These live in the INDEPENDENT network
@@ -108,7 +118,15 @@ impl FastcoreState {
             alias_store,
             notify,
             net_url,
+            boot_intact: true,
         }
+    }
+
+    /// Record the store's boot verdict. Called once at startup with the
+    /// result of `Store::open_report`; see [`Self::boot_intact`].
+    pub fn with_boot_intact(mut self, intact: bool) -> Self {
+        self.boot_intact = intact;
+        self
     }
 
     /// Open a fresh network-kevy connection for a side-state handler.
@@ -132,18 +150,59 @@ impl Handler for FastcoreState {
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
-            ready: true,
+            ready: self.boot_intact,
         }
     }
 
     async fn readyz(&self) -> HealthResponse {
-        // kevy is in-process; if the binary is up, the store is up.
+        // kevy is in-process, so the store is up whenever the binary
+        // is — but "up" is not "intact". A boot that dropped bytes is
+        // serving a keyspace smaller than the files held, and that must
+        // not read as ready.
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
-            ready: true,
+            ready: self.boot_intact,
         }
     }
+}
+
+/// Log the store's boot verdict and say whether it was intact.
+///
+/// `Store::open_report` is kevy 4.0's answer to a failure mode we
+/// reported: a corrupt AOF frame silently truncated replay, every
+/// subsequent write landed past the stop point and was dropped again,
+/// and the only evidence was a line on stderr nobody read. The verdict
+/// is data now, so it can gate a deploy.
+///
+/// Intact means the replay reached the end of what the files held:
+/// nothing corrupt, nothing dropped. `resynced_bytes` is reported but
+/// does not by itself mean damage — under `replay_resync` it counts
+/// bytes hopped over to recover a good tail, which is a better outcome
+/// than surrendering it.
+fn report_boot(store: &Store) -> bool {
+    let r = store.open_report();
+    let intact = !r.corrupt && r.dropped_bytes == 0;
+    if intact {
+        tracing::info!(
+            replayed_commands = r.replayed_commands,
+            replayed_bytes = r.replayed_bytes,
+            elapsed_ms = r.elapsed_ms,
+            "kevy boot report: intact"
+        );
+    } else {
+        tracing::error!(
+            replayed_commands = r.replayed_commands,
+            replayed_bytes = r.replayed_bytes,
+            dropped_bytes = r.dropped_bytes,
+            corrupt = r.corrupt,
+            resynced_bytes = r.resynced_bytes,
+            quarantine = ?r.quarantine_paths,
+            "kevy boot report: DAMAGED — health check will report not-ready; \
+             the quarantined bytes are preserved, do not restart over this"
+        );
+    }
+    intact
 }
 
 pub async fn run() {
@@ -192,6 +251,7 @@ pub async fn run() {
         );
     }
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
+    let boot_intact = report_boot(&store);
     let mailbox = KevyMailboxStore::new(store);
     // v2.6.0 §P6: register the admin-CRUD range indexes idempotently.
     mailbox.ensure_admin_indexes();
@@ -226,7 +286,9 @@ pub async fn run() {
             Arc::new(mailbox.clone())
         }
     };
-    let state = Arc::new(FastcoreState::new_with_alias_store(mailbox, alias_store));
+    let state = Arc::new(
+        FastcoreState::new_with_alias_store(mailbox, alias_store).with_boot_intact(boot_intact),
+    );
 
     // Spawn the ingestion sync loop before the HTTP listener so new
     // messages start replicating as soon as the process boots. Failures
