@@ -43,6 +43,10 @@ psl = "2"
 # pg-store feature
 sqlx = { workspace = true, optional = true }
 spg-sqlx = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
+quick-xml = { version = "0.41.0", features = ["serialize"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+mailrs-mime = { version = "2.0.1", path = "../mime" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

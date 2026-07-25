@@ -22,6 +22,7 @@ mod aof_compact;
 mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
+pub mod dmarc_ingest;
 mod imap;
 mod importance;
 mod junk_ttl;

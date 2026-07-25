@@ -123,6 +123,10 @@
     {
       "name": "Password Reset",
       "description": "Password reset flow"
+    },
+    {
+      "name": "Admin DMARC",
+      "description": "Inbound DMARC aggregate reports"
     }
   ],
   "paths": {
@@ -6148,6 +6152,149 @@
           }
         }
       }
+    },
+    "/api/admin/dmarc/reports": {
+      "get": {
+        "operationId": "listDmarcReports",
+        "summary": "List inbound DMARC aggregate reports, newest window first",
+        "tags": [
+          "Admin DMARC"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DmarcReportSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/dmarc/reports/{sid}": {
+      "get": {
+        "operationId": "getDmarcReport",
+        "summary": "One DMARC report with its per-source rows",
+        "tags": [
+          "Admin DMARC"
+        ],
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": {
+                      "$ref": "#/components/schemas/DmarcReportSummary"
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DmarcReportRow"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/dmarc/sources": {
+      "get": {
+        "operationId": "listDmarcSources",
+        "summary": "Per-source-IP rollup with alignment rate",
+        "tags": [
+          "Admin DMARC"
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "maximum": 365
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source rollup",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DmarcSourceSummary"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "passing": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "reports": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8225,6 +8372,105 @@
         "required": [
           "to"
         ]
+      },
+      "DmarcReportSummary": {
+        "type": "object",
+        "properties": {
+          "sid": {
+            "type": "string",
+            "description": "Storage id, <org_name>!<report_id>"
+          },
+          "org_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "policy_domain": {
+            "type": "string"
+          },
+          "begin": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Window start, unix seconds"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Window end, unix seconds"
+          },
+          "p": {
+            "type": "string",
+            "description": "Published policy: none / quarantine / reject"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "passing": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DmarcReportRow": {
+        "type": "object",
+        "properties": {
+          "source_ip": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "dkim": {
+            "type": "string",
+            "description": "Alignment-aware DKIM outcome"
+          },
+          "spf": {
+            "type": "string",
+            "description": "Alignment-aware SPF outcome"
+          },
+          "header_from": {
+            "type": "string"
+          },
+          "envelope_from": {
+            "type": "string",
+            "nullable": true
+          },
+          "passed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DmarcSourceSummary": {
+        "type": "object",
+        "properties": {
+          "source_ip": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "passing": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   }

@@ -1389,6 +1389,7 @@ checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+ "zlib-rs",
 ]
 
 [[package]]
@@ -3181,11 +3182,15 @@ dependencies = [
  "criterion 0.8.2",
  "flate2",
  "mailrs-mail-builder 1.0.0",
+ "mailrs-mime",
  "psl",
+ "quick-xml 0.41.0",
+ "serde",
  "spg-sqlx",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",
+ "zip",
 ]
 
 [[package]]
@@ -3238,6 +3243,7 @@ dependencies = [
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
+ "mailrs-dmarc",
  "mailrs-imap-codec 1.0.0",
  "mailrs-imap-format 1.0.0",
  "mailrs-imap-proto 1.0.5",
@@ -4899,6 +4905,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
+dependencies = [
+ "memchr",
+ "serde",
 ]
 
 [[package]]
@@ -7733,13 +7749,32 @@ dependencies = [
  "indexmap 2.14.0",
  "memchr",
  "typed-path",
+ "zopfli",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b142a20ec14a91d5bc708c1dc21b080c550113d8aa77afa29635673a65dd02c5"
 
 [[package]]
 name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+
+[[package]]
+name = "zopfli"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249"
+dependencies = [
+ "bumpalo",
+ "crc32fast",
+ "log",
+ "simd-adler32",
+]
 
 [[package]]
 name = "zune-core"

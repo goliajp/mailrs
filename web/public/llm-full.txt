@@ -371,6 +371,89 @@ Error responses:
 
 ---
 
+## DMARC aggregate reports (inbound)
+
+Receivers that get mail claiming one of your domains send back daily
+RFC 7489 aggregate reports. mailrs parses any that arrive at the
+collector mailbox (`MAILRS_DMARC_REPORT_MAILBOX`, default local-part
+`dmarc`) and stores them. These endpoints read that store.
+
+All three require the `admin.domains` permission.
+
+```
+curl -H "Authorization: Bearer <API_KEY>" \
+     "https://mail.golia.ai/api/admin/dmarc/reports?limit=50"
+
+curl -H "Authorization: Bearer <API_KEY>" \
+     "https://mail.golia.ai/api/admin/dmarc/reports/google.com!1234567890"
+
+curl -H "Authorization: Bearer <API_KEY>" \
+     "https://mail.golia.ai/api/admin/dmarc/sources?domain=golia.jp&days=30"
+```
+
+`GET /api/admin/dmarc/reports` — newest reporting window first:
+```json
+{
+  "items": [{
+    "sid": "google.com!1234567890",
+    "org_name": "google.com",
+    "email": "noreply-dmarc-support@google.com",
+    "policy_domain": "golia.jp",
+    "begin": 1784937600,
+    "end": 1785023999,
+    "p": "quarantine",
+    "total": 7,
+    "passing": 5,
+    "rows": 2
+  }]
+}
+```
+
+`GET /api/admin/dmarc/reports/{sid}` adds the per-source rows, highest
+volume first. `passed` reflects `policy_evaluated` (alignment-aware),
+not the raw SPF/DKIM results:
+```json
+{
+  "report": { "...": "as above" },
+  "rows": [{
+    "source_ip": "203.0.113.10",
+    "count": 5,
+    "disposition": "none",
+    "dkim": "pass",
+    "spf": "pass",
+    "header_from": "golia.jp",
+    "envelope_from": null,
+    "passed": true
+  }]
+}
+```
+
+`GET /api/admin/dmarc/sources` rolls rows up per sending IP across the
+window. A source at 0% alignment is either a misconfigured sender of
+yours or someone spoofing the domain:
+```json
+{
+  "items": [{
+    "source_ip": "203.0.113.10",
+    "total": 8,
+    "passing": 8,
+    "domains": ["golia.jp"]
+  }],
+  "total": 8,
+  "passing": 8,
+  "reports": 2
+}
+```
+
+Query parameters: `limit` (reports, default 50, max 200), `domain` and
+`days` (sources, default all domains / 30 days, max 365).
+
+Error responses:
+- 403 — missing `admin.domains` permission
+- 404 — unknown `sid` on the detail endpoint
+
+---
+
 ## 2. Permission System
 
 mailrs uses group-based RBAC (role-based access control).

@@ -4315,6 +4315,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/dmarc/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List inbound DMARC aggregate reports, newest window first */
+        get: operations["listDmarcReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/dmarc/reports/{sid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One DMARC report with its per-source rows */
+        get: operations["getDmarcReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/dmarc/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-source-IP rollup with alignment rate */
+        get: operations["listDmarcSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4929,6 +4980,52 @@ export interface components {
         CheckDeliverabilityRequest: {
             to: string[];
             from?: string;
+        };
+        DmarcReportSummary: {
+            /** @description Storage id, <org_name>!<report_id> */
+            sid?: string;
+            org_name?: string;
+            email?: string;
+            policy_domain?: string;
+            /**
+             * Format: int64
+             * @description Window start, unix seconds
+             */
+            begin?: number;
+            /**
+             * Format: int64
+             * @description Window end, unix seconds
+             */
+            end?: number;
+            /** @description Published policy: none / quarantine / reject */
+            p?: string;
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            passing?: number;
+            /** Format: int64 */
+            rows?: number;
+        };
+        DmarcReportRow: {
+            source_ip?: string;
+            /** Format: int64 */
+            count?: number;
+            disposition?: string;
+            /** @description Alignment-aware DKIM outcome */
+            dkim?: string;
+            /** @description Alignment-aware SPF outcome */
+            spf?: string;
+            header_from?: string;
+            envelope_from?: string | null;
+            passed?: boolean;
+        };
+        DmarcSourceSummary: {
+            source_ip?: string;
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            passing?: number;
+            domains?: string[];
         };
     };
     responses: never;
@@ -8055,6 +8152,85 @@ export interface operations {
                 };
                 content: {
                     "application/xml": string;
+                };
+            };
+        };
+    };
+    listDmarcReports: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reports */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["DmarcReportSummary"][];
+                    };
+                };
+            };
+        };
+    };
+    getDmarcReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Report detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        report?: components["schemas"]["DmarcReportSummary"];
+                        rows?: components["schemas"]["DmarcReportRow"][];
+                    };
+                };
+            };
+        };
+    };
+    listDmarcSources: {
+        parameters: {
+            query?: {
+                domain?: string;
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Source rollup */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["DmarcSourceSummary"][];
+                        /** Format: int64 */
+                        total?: number;
+                        /** Format: int64 */
+                        passing?: number;
+                        reports?: number;
+                    };
                 };
             };
         };

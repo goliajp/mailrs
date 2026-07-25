@@ -182,6 +182,13 @@ fn drain_once(
                 unresolved.push(fwd.clone());
                 continue;
             };
+            // 1b. DMARC aggregate reports sent to the collector mailbox
+            //     are parsed and stored here. Delivery is unaffected —
+            //     the report still lands in the mailbox as ordinary
+            //     mail, and every failure inside is logged and
+            //     swallowed. Non-collector recipients short-circuit on
+            //     the address check before any MIME work happens.
+            crate::dmarc_ingest::maybe_ingest(&addr, body);
             // 2. Consult the recipient's sieve script. Actions map to a
             //    Decision that overrides the default INBOX write.
             let outcome = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
