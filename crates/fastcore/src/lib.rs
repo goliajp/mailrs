@@ -233,7 +233,19 @@ pub async fn run() {
     // consumer under normal load.
     let mut cfg = Config::default()
         .with_persist(&kevy_dir)
-        .with_feed(16 * 1024 * 1024);
+        .with_feed(16 * 1024 * 1024)
+        // Recover the good tail behind a corrupt region instead of
+        // surrendering everything after it. Strict replay stops at the
+        // first bad frame — which is precisely how three days of writes
+        // went missing here in 2026-07: the damage was an 8-byte splice
+        // mid-file, and everything past it was intact. kevy's crashgate
+        // replays that exact shape and recovers 100500/100500 records.
+        //
+        // A boundary is trusted only when length, CRC and a well-formed
+        // single-command parse all agree, and skipped ranges are still
+        // reported with the corrupt flag raised — so this recovers data
+        // without hiding that anything happened.
+        .with_replay_resync(true);
     // kevy 4.0 canary window. The AOF record format is new in 4.0
     // (KEVYAOF2, length-prefixed + CRC32C), and the upgrade happens on
     // the first rewrite — one-way, per kevy's UPGRADING. Appends to an
@@ -289,6 +301,9 @@ pub async fn run() {
     let state = Arc::new(
         FastcoreState::new_with_alias_store(mailbox, alias_store).with_boot_intact(boot_intact),
     );
+    // Held for the shutdown path — the router takes ownership of the
+    // original below.
+    let shutdown_state = state.clone();
 
     // Spawn the ingestion sync loop before the HTTP listener so new
     // messages start replicating as soon as the process boots. Failures
@@ -385,11 +400,33 @@ pub async fn run() {
             r.unwrap();
         }
         _ = sigterm.recv() => {
-            tracing::info!("SIGTERM — shutting down cleanly so the kevy AOF flushes");
+            tracing::info!("SIGTERM — flushing kevy before exit");
+            flush_kevy(&shutdown_state);
         }
         _ = tokio::signal::ctrl_c() => {
-            tracing::info!("SIGINT — shutting down cleanly so the kevy AOF flushes");
+            tracing::info!("SIGINT — flushing kevy before exit");
+            flush_kevy(&shutdown_state);
         }
+    }
+}
+
+/// Flush and seal the store on the way out.
+///
+/// The previous version relied on returning from `run()` dropping the
+/// runtime, which released every task's `Arc<Store>`, which let kevy's
+/// DropGuard flush. That works only if nothing else still holds a
+/// clone — a race the code could not actually prove it won.
+///
+/// kevy 4.0 makes it explicit: `shutdown()` fsyncs everything and then
+/// refuses further writes with `KevyError::Closed`, and it is
+/// clone-safe, so it does not matter who else is holding the store.
+/// 4.0 also force-fsyncs the AOF tail before writing the feed's
+/// clean-shutdown marker — the marker could previously claim a
+/// durability the tail did not have.
+fn flush_kevy(state: &Arc<FastcoreState>) {
+    match state.mailbox.store_ref().shutdown() {
+        Ok(()) => tracing::info!("kevy shutdown complete — AOF fsynced, writes refused"),
+        Err(e) => tracing::error!(error = %e, "kevy shutdown failed; AOF tail may be unflushed"),
     }
 }
 
