@@ -65,6 +65,14 @@ export default defineConfig({
     // them up (they import @playwright/test which throws under the
     // vitest runner). Scope vitest to src/ only.
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // zod 4 lists "types" before "import" in its exports map. Under the
+    // jsdom environment the externalised-dependency path resolves that
+    // condition first and loads index.d.cts — a declaration file with no
+    // runtime exports — so every `import { z }` yielded undefined and
+    // each of the 11 suites touching zod failed at import time.
+    // Inlining routes zod through vite's own transform, which honours
+    // the "import" condition.
+    server: { deps: { inline: ['zod'] } },
     setupFiles: ['./src/test-setup.ts'],
   },
   plugins: [react(), tailwindcss()],
