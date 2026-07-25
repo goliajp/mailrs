@@ -57,8 +57,23 @@ fn classify(part: &mailrs_mime::Part<'_>) -> Option<Encoding> {
     match (ct_type, ct_subtype) {
         ("application", "gzip" | "x-gzip" | "x-gzip-compressed") => return Some(Encoding::Gzip),
         ("application", "zip" | "x-zip" | "x-zip-compressed") => return Some(Encoding::Zip),
-        ("application" | "text", "xml") => return Some(Encoding::Plain),
+        ("application" | "text", "xml" | "json") => return Some(Encoding::Plain),
         _ => {}
+    }
+
+    // RFC 6839 structured-syntax suffixes. TLS-RPT reports arrive as
+    // `application/tlsrpt+gzip`, which is a gzip payload even though
+    // the subtype is not literally "gzip".
+    if ct_type == "application" {
+        if ct_subtype.ends_with("+gzip") {
+            return Some(Encoding::Gzip);
+        }
+        if ct_subtype.ends_with("+zip") {
+            return Some(Encoding::Zip);
+        }
+        if ct_subtype.ends_with("+json") || ct_subtype.ends_with("+xml") {
+            return Some(Encoding::Plain);
+        }
     }
 
     // Content-Type was unhelpful (octet-stream is common). Try the
@@ -205,6 +220,32 @@ mod tests {
         let payloads = extract_report_payloads(&msg);
         assert_eq!(payloads.len(), 1);
         assert_eq!(payloads[0], XML);
+    }
+
+    #[test]
+    fn extracts_a_tlsrpt_structured_suffix_attachment() {
+        // TLS-RPT (RFC 8460) uses application/tlsrpt+gzip. The payload
+        // is gzip; only the subtype spelling differs.
+        let json = br#"{"organization-name":"example"}"#;
+        let msg = message_with(
+            "application/tlsrpt+gzip",
+            "example.com!golia.jp!1.json.gz",
+            &b64(&gzipped(json)),
+        );
+
+        let payloads = extract_report_payloads(&msg);
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0], json);
+    }
+
+    #[test]
+    fn extracts_a_bare_json_attachment() {
+        let json = br#"{"organization-name":"example"}"#;
+        let msg = message_with("application/json", "report.json", &b64(json));
+
+        let payloads = extract_report_payloads(&msg);
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0], json);
     }
 
     #[test]
