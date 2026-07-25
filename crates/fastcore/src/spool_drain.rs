@@ -193,6 +193,8 @@ fn drain_once(
             //     the complainant off the sending list. Same shape: a
             //     side effect, never a filter.
             crate::fbl::maybe_record_complaint(maildir_root, &addr, body);
+            // 1d. TLS-RPT reports (RFC 8460) to the tlsrpt collector.
+            crate::tlsrpt_ingest::maybe_ingest(&addr, body);
             // 2. Consult the recipient's sieve script. Actions map to a
             //    Decision that overrides the default INBOX write.
             let outcome = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));

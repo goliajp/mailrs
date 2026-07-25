@@ -36,6 +36,7 @@ pub mod sender_sts;
 mod sieve_apply;
 mod spool_drain;
 pub mod tlsrpt;
+pub mod tlsrpt_ingest;
 
 use std::sync::Arc;
 
