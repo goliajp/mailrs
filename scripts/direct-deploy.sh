@@ -52,6 +52,14 @@ fi
 
 echo "==> [3/4] prod: save | ssh load + compose up"
 docker save "$GHCR" | gzip -1 | ssh "$PROD" 'gunzip | docker load'
+# Ship the compose file too. Without this a deploy silently keeps the
+# host's old one, so any environment change (a new variable, a changed
+# default) never reaches the containers while the version number and
+# the image both look correct. That is exactly how MAILRS_DKIM_KEYS sat
+# unread in .env while every domain signed with the wrong d= — see
+# v2.10.0. A timestamped backup stays on the host for rollback.
+ssh "$PROD" "cd /apps/mailrs && cp docker-compose.yml docker-compose.yml.bak-\$(date +%Y%m%d-%H%M%S)"
+scp -q deploy/docker-compose.prod.yml "$PROD:/apps/mailrs/docker-compose.yml"
 ssh "$PROD" "cd /apps/mailrs \
   && sed -i 's/^MAILRS_VERSION=.*/MAILRS_VERSION=$VERSION/' .env \
   && docker compose up -d --pull never --no-deps receiver fastcore webapi-fc fastcore-sender"
