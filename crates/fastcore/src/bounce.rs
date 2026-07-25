@@ -106,9 +106,37 @@ pub fn dsn_identity() -> (String, String) {
         std::env::var("MAILRS_HELO_HOSTNAME").unwrap_or_else(|_| DEFAULT_REPORTING_MTA.into());
     let from_domain = match std::env::var("MAILRS_DSN_FROM_DOMAIN") {
         Ok(d) if !d.trim().is_empty() => d.trim().to_string(),
-        _ => reporting_mta.clone(),
+        _ => organisational_domain(&reporting_mta),
     };
     (reporting_mta, from_domain)
+}
+
+/// Reduce a hostname to its registrable domain — `mail.golia.ai` →
+/// `golia.ai`. Returns the input unchanged when the public-suffix list
+/// cannot parse it (a bare hostname, an address literal).
+///
+/// The fallback path uses this instead of the MTA hostname directly,
+/// and the distinction is not cosmetic. A DSN `From:` on a *subdomain*
+/// is evaluated against the organisational domain's `sp=` rather than
+/// its `p=`, and needs a DKIM key published for that exact subdomain to
+/// align. Neither is usually true, so falling back to the hostname
+/// produces bounces that fail DMARC under a stricter policy than the
+/// domain's own mail.
+///
+/// This was a live defect: v2.10.0 set MAILRS_HELO_HOSTNAME to a real
+/// FQDN while one of the two containers was missing
+/// MAILRS_DSN_FROM_DOMAIN, so its bounces went out as
+/// MAILER-DAEMON@mail.golia.ai — squarely under `sp=reject`. The
+/// earlier `mailrs` default had been accidentally safe, because a
+/// nonexistent domain has no policy to be rejected by. Config is still
+/// the right place to set this; the fallback just no longer picks a
+/// value that is worse than picking nothing.
+fn organisational_domain(host: &str) -> String {
+    let host = host.trim().trim_end_matches('.');
+    match psl::domain_str(host) {
+        Some(d) => d.to_string(),
+        None => host.to_string(),
+    }
 }
 
 /// Fallback when `MAILRS_HELO_HOSTNAME` is unset.
@@ -389,28 +417,61 @@ mod tests {
     }
 
     #[test]
-    fn dsn_identity_falls_back_to_the_mta_hostname() {
-        // Unset MAILRS_DSN_FROM_DOMAIN must not change behaviour for a
-        // deployment that has not been reconfigured yet.
+    fn dsn_identity_prefers_explicit_config() {
         unsafe {
-            std::env::set_var("MAILRS_HELO_HOSTNAME", "mx.example.test");
-            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
+            std::env::set_var("MAILRS_HELO_HOSTNAME", "mail.golia.ai");
+            std::env::set_var("MAILRS_DSN_FROM_DOMAIN", "golia.ai");
         }
         let (mta, from) = dsn_identity();
-        assert_eq!(mta, "mx.example.test");
-        assert_eq!(from, "mx.example.test");
-
-        unsafe {
-            std::env::set_var("MAILRS_DSN_FROM_DOMAIN", "example.test");
-        }
-        let (mta, from) = dsn_identity();
-        assert_eq!(mta, "mx.example.test");
-        assert_eq!(from, "example.test");
+        assert_eq!(mta, "mail.golia.ai");
+        assert_eq!(from, "golia.ai");
 
         unsafe {
             std::env::remove_var("MAILRS_HELO_HOSTNAME");
             std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
         }
+    }
+
+    #[test]
+    fn dsn_identity_fallback_never_yields_a_subdomain() {
+        // The regression this guards: a deployment that sets a real
+        // FQDN for HELO but forgets MAILRS_DSN_FROM_DOMAIN used to send
+        // bounces From: a subdomain, which is judged by sp= and has no
+        // aligned key. Falling back to the organisational domain keeps
+        // the bounce under the same policy as the domain's own mail.
+        unsafe {
+            std::env::set_var("MAILRS_HELO_HOSTNAME", "mail.golia.ai");
+            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
+        }
+        let (mta, from) = dsn_identity();
+
+        assert_eq!(mta, "mail.golia.ai", "Reporting-MTA stays the host");
+        assert_eq!(from, "golia.ai", "From: drops to the organisational domain");
+
+        unsafe {
+            std::env::remove_var("MAILRS_HELO_HOSTNAME");
+        }
+    }
+
+    #[test]
+    fn organisational_domain_reduces_subdomains() {
+        assert_eq!(organisational_domain("mail.golia.ai"), "golia.ai");
+        assert_eq!(organisational_domain("a.b.c.golia.jp"), "golia.jp");
+        assert_eq!(organisational_domain("mail.golia.ai."), "golia.ai");
+    }
+
+    #[test]
+    fn organisational_domain_leaves_a_registrable_domain_alone() {
+        assert_eq!(organisational_domain("golia.ai"), "golia.ai");
+        assert_eq!(organisational_domain("dadaya.jp"), "dadaya.jp");
+    }
+
+    #[test]
+    fn organisational_domain_passes_through_what_it_cannot_parse() {
+        // The bare-hostname default. Not a valid From: domain either
+        // way, but it must not panic or silently become something else.
+        assert_eq!(organisational_domain("mailrs"), "mailrs");
+        assert_eq!(organisational_domain(""), "");
     }
 
     #[test]

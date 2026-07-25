@@ -145,6 +145,11 @@ services:
       # mail.golia.jp costs reputation points at strict receivers even
       # though both A records point here.
       MAILRS_HELO_HOSTNAME: mail.golia.ai
+      # sender originates its own DSNs (delivery-failure bounces), so it
+      # needs the same identity split as fastcore. Without this the
+      # fallback yields MAILER-DAEMON@mail.golia.ai — a subdomain, which
+      # lands under sp=reject with no aligned key.
+      MAILRS_DSN_FROM_DOMAIN: ${MAILRS_DSN_FROM_DOMAIN:-golia.ai}
       MAILRS_SENDER_MAX_ATTEMPTS: "10"
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"

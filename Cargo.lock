@@ -3265,6 +3265,7 @@ dependencies = [
  "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-triage",
  "password-hash",
+ "psl",
  "rand_core 0.6.4",
  "reqwest 0.13.4",
  "rustls",
@@ -4845,9 +4846,9 @@ dependencies = [
 
 [[package]]
 name = "psl"
-version = "2.1.213"
+version = "2.1.222"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04e78830163eebdf905adb55ba26ba9b3ba554b08bd84c2fbe3b643c8addf22c"
+checksum = "33fa2bb454bd1a4e046f36c4e8b60f034143ce14d09cfbf4608a65619e9f8611"
 dependencies = [
  "psl-types",
 ]

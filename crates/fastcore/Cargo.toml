@@ -94,6 +94,7 @@ mailrs-dmarc = { version = "2.0.0", path = "../dmarc", default-features = false 
 mailrs-arf = { version = "1.0.0", path = "../arf" }
 mailrs-arc = { version = "3.0.0", path = "../arc" }
 mailrs-dkim = { version = "3.0.0", path = "../dkim" }
+psl = "2.1.222"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
