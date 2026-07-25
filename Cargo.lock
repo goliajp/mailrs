@@ -3238,6 +3238,7 @@ dependencies = [
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-alias-store",
  "mailrs-alias-store-net",
+ "mailrs-arf 1.0.0",
  "mailrs-bayes",
  "mailrs-clean 1.0.3",
  "mailrs-core",

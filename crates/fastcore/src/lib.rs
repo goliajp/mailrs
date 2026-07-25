@@ -23,6 +23,7 @@ mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
 pub mod dmarc_ingest;
+pub mod fbl;
 mod imap;
 mod importance;
 mod junk_ttl;

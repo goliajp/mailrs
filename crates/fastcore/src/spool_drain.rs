@@ -189,6 +189,10 @@ fn drain_once(
             //     swallowed. Non-collector recipients short-circuit on
             //     the address check before any MIME work happens.
             crate::dmarc_ingest::maybe_ingest(&addr, body);
+            // 1c. Feedback-loop complaints to abuse@ / postmaster@ take
+            //     the complainant off the sending list. Same shape: a
+            //     side effect, never a filter.
+            crate::fbl::maybe_record_complaint(maildir_root, &addr, body);
             // 2. Consult the recipient's sieve script. Actions map to a
             //    Decision that overrides the default INBOX write.
             let outcome = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
@@ -208,10 +212,10 @@ fn drain_once(
                     let allow = env.target_folder.eq_ignore_ascii_case("INBOX")
                         && !crate::bounce::suppress_bounce(&env.reverse_path);
                     if allow {
-                        let helo = std::env::var("MAILRS_HELO_HOSTNAME")
-                            .unwrap_or_else(|_| "mailrs".into());
+                        let (reporting_mta, from_domain) = crate::bounce::dsn_identity();
                         let dsn = crate::bounce::compose_dsn(
-                            &helo,
+                            &reporting_mta,
+                            &from_domain,
                             &env.reverse_path,
                             &addr,
                             "5.7.1",
@@ -430,7 +434,7 @@ fn provision_if_account(state: &Arc<FastcoreState>, maildir_root: &str, addr: &s
 /// Quick recipient-existence probe used before choosing between direct
 /// delivery and alias resolution. Splits `addr@dom`, checks the
 /// per-user `new/` dir exists. Returns false for malformed addresses.
-fn has_maildir(maildir_root: &str, addr: &str) -> bool {
+pub(crate) fn has_maildir(maildir_root: &str, addr: &str) -> bool {
     let Some((local, domain)) = addr.split_once('@') else {
         return false;
     };

@@ -46,6 +46,8 @@
 
 use std::sync::Arc;
 
+/// Per-domain DKIM key map built from `MAILRS_DKIM_KEYS`.
+pub mod dkim_env;
 /// DKIM signing helpers (RFC 6376): config + sign-and-prepend.
 pub mod dkim_sign;
 /// Delivery Status Notification (RFC 3464) formatting.

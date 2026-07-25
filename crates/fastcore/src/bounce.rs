@@ -92,14 +92,56 @@ fn original_headers(original: &[u8]) -> Vec<u8> {
     slice[..end].to_vec()
 }
 
+/// The two identities a DSN needs, read from the environment.
+///
+/// Returns `(reporting_mta, from_domain)`. They are deliberately
+/// separate values — see [`compose_dsn`] for why conflating them
+/// breaks either RFC 3464 or DMARC.
+///
+/// - `reporting_mta` ← `MAILRS_HELO_HOSTNAME`
+/// - `from_domain` ← `MAILRS_DSN_FROM_DOMAIN`, falling back to
+///   `reporting_mta` so an unset variable preserves the old behaviour.
+pub fn dsn_identity() -> (String, String) {
+    let reporting_mta =
+        std::env::var("MAILRS_HELO_HOSTNAME").unwrap_or_else(|_| DEFAULT_REPORTING_MTA.into());
+    let from_domain = match std::env::var("MAILRS_DSN_FROM_DOMAIN") {
+        Ok(d) if !d.trim().is_empty() => d.trim().to_string(),
+        _ => reporting_mta.clone(),
+    };
+    (reporting_mta, from_domain)
+}
+
+/// Fallback when `MAILRS_HELO_HOSTNAME` is unset.
+///
+/// Not a valid FQDN, and deliberately so: it is obviously wrong in
+/// logs and headers rather than quietly plausible. Production must set
+/// the variable.
+const DEFAULT_REPORTING_MTA: &str = "mailrs";
+
 /// Compose an RFC 3464 multipart/report DSN.
 ///
-/// `reporting_mta` — our HELO hostname; `original_sender` — the local
-/// user who sent the failed message (DSN recipient); `failed_recipient`
-/// — the remote address that failed; `diagnostic` — remote SMTP reply
-/// or local reason.
+/// Two distinct identities, because their requirements conflict:
+///
+/// - `reporting_mta` — the **MTA's hostname**. RFC 3464 §2.2.2 wants a
+///   DNS name for the `Reporting-MTA:` field, so this must be the host
+///   that actually handled the message (e.g. `mail.golia.ai`), matching
+///   the sending IP's PTR.
+/// - `from_domain` — the domain in `MAILER-DAEMON@…`. This one is
+///   subject to DMARC at the receiving end, so it must be a domain we
+///   can align a DKIM signature to. Using the MTA hostname here puts a
+///   *subdomain* in `From:`, which falls under `sp=` rather than `p=`
+///   and needs a signing key published for that exact subdomain.
+///
+/// Postfix draws the same line (`Reporting-MTA` from `myhostname`,
+/// the envelope from `myorigin`). Passing one value for both is what
+/// produced `MAILER-DAEMON@mailrs` in production.
+///
+/// `original_sender` — the local user who sent the failed message (DSN
+/// recipient); `failed_recipient` — the remote address that failed;
+/// `diagnostic` — remote SMTP reply or local reason.
 pub fn compose_dsn(
     reporting_mta: &str,
+    from_domain: &str,
     original_sender: &str,
     failed_recipient: &str,
     status: &str,
@@ -111,7 +153,9 @@ pub fn compose_dsn(
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let boundary = format!("=_mailrs_dsn_{now}");
-    let dsn_mid = format!("<dsn-{now}-{}@{reporting_mta}>", now % 997);
+    // Message-ID shares the From: domain — a Message-ID whose domain
+    // does not resolve is another reputation signal.
+    let dsn_mid = format!("<dsn-{now}-{}@{from_domain}>", now % 997);
     let (orig_mid, orig_refs) = threading_headers(original);
     let date = chrono::DateTime::from_timestamp(now as i64, 0)
         .map(|d| d.to_rfc2822())
@@ -119,7 +163,7 @@ pub fn compose_dsn(
 
     let mut h = String::new();
     h.push_str(&format!(
-        "From: Mail Delivery System <MAILER-DAEMON@{reporting_mta}>\r\n"
+        "From: Mail Delivery System <MAILER-DAEMON@{from_domain}>\r\n"
     ));
     h.push_str(&format!("To: <{original_sender}>\r\n"));
     h.push_str("Subject: Undelivered Mail Returned to Sender\r\n");
@@ -295,6 +339,7 @@ mod tests {
         let orig = b"Message-ID: <orig@x.y>\r\nReferences: <root@x.y>\r\nSubject: hi\r\n\r\nbody";
         let dsn = compose_dsn(
             "mx.test",
+            "test.example",
             "sender@x.y",
             "gone@remote.z",
             "5.1.1",
@@ -313,9 +358,66 @@ mod tests {
     }
 
     #[test]
+    fn dsn_separates_reporting_mta_from_the_sender_domain() {
+        // The MTA hostname belongs in Reporting-MTA (RFC 3464 §2.2.2);
+        // the From: domain has to be DMARC-alignable. Conflating them
+        // is what shipped MAILER-DAEMON@mailrs to production.
+        let dsn = compose_dsn(
+            "mail.golia.ai",
+            "golia.ai",
+            "sender@golia.ai",
+            "gone@remote.z",
+            "5.1.1",
+            "550 no such user",
+            b"Subject: hi\r\n\r\nbody",
+        );
+        let text = String::from_utf8_lossy(&dsn);
+
+        assert!(
+            text.contains("From: Mail Delivery System <MAILER-DAEMON@golia.ai>"),
+            "From: must use the alignable domain, not the MTA hostname"
+        );
+        assert!(
+            text.contains("Reporting-MTA: dns; mail.golia.ai"),
+            "Reporting-MTA must be the MTA hostname"
+        );
+        assert!(text.contains("This is the mail system at mail.golia.ai."));
+        assert!(
+            text.contains("@golia.ai>\r\n"),
+            "Message-ID must share the From: domain so it resolves"
+        );
+    }
+
+    #[test]
+    fn dsn_identity_falls_back_to_the_mta_hostname() {
+        // Unset MAILRS_DSN_FROM_DOMAIN must not change behaviour for a
+        // deployment that has not been reconfigured yet.
+        unsafe {
+            std::env::set_var("MAILRS_HELO_HOSTNAME", "mx.example.test");
+            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
+        }
+        let (mta, from) = dsn_identity();
+        assert_eq!(mta, "mx.example.test");
+        assert_eq!(from, "mx.example.test");
+
+        unsafe {
+            std::env::set_var("MAILRS_DSN_FROM_DOMAIN", "example.test");
+        }
+        let (mta, from) = dsn_identity();
+        assert_eq!(mta, "mx.example.test");
+        assert_eq!(from, "example.test");
+
+        unsafe {
+            std::env::remove_var("MAILRS_HELO_HOSTNAME");
+            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
+        }
+    }
+
+    #[test]
     fn dsn_without_original_mid_still_valid() {
         let dsn = compose_dsn(
             "mx.test",
+            "test.example",
             "s@x.y",
             "r@z.w",
             "5.0.0",
