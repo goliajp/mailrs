@@ -234,28 +234,23 @@ async fn discover_rua(domain: &str) -> Option<RuaEndpoint> {
 fn enqueue_report_email(url: &str, to: &str, email: &[u8]) -> std::io::Result<()> {
     use base64::Engine as _;
     let mut conn = kevy_client::Connection::open(url).map_err(std::io::Error::other)?;
-    let now_ms = std::time::SystemTime::now()
+    let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
+        .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let id = format!("{now_ms}-tlsrpt");
-    let env = serde_json::json!({
-        "sender": "<>",
-        "recipient": to,
-        "message_data_b64": base64::engine::general_purpose::STANDARD.encode(email),
-        "attempts": 0,
-        "next_attempt": 0,
-        "id": &id,
-        "envelope_from": "<>",
-    });
-    let key = format!("mailrs:outbound:{id}");
-    conn.hset(
-        key.as_bytes(),
-        &[(b"blob".as_slice(), env.to_string().as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
-    conn.lpush(b"mailrs:outbound:pending", &[id.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    // Same shared primitive the rest of the outbound path uses. The
+    // hand-rolled `mailrs:outbound:{id}` + legacy `pending` list this
+    // replaced had no reader under fastcore, so no TLS-RPT report was
+    // ever actually submitted.
+    mailrs_core_sidestate::families::outbound::write_fresh_pending(
+        &mut conn,
+        "<>",
+        to,
+        &base64::engine::general_purpose::STANDARD.encode(email),
+        None,
+        Some("<>"),
+        now,
+    )?;
     Ok(())
 }
 

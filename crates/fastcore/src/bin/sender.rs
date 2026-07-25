@@ -585,6 +585,32 @@ enum Outcome {
     Permanent(String),
 }
 
+/// Pull the `d=` tag out of the DKIM-Signature header that signing just
+/// prepended.
+///
+/// Diagnostics only — a `None` never gates anything. Scans a bounded
+/// prefix because the signature is prepended, so the header is always
+/// at the very start; that also keeps the tag split from wandering into
+/// the body, where semicolons are just bytes.
+fn signed_d_tag(signed: &[u8]) -> Option<String> {
+    let head = &signed[..signed.len().min(1024)];
+    let text = String::from_utf8_lossy(head);
+    let sig = text.strip_prefix("DKIM-Signature:")?;
+    // Header ends at the first bare CRLF (a folded continuation line
+    // starts with whitespace, so it is not a terminator).
+    let header_end = sig
+        .match_indices("\r\n")
+        .find(|(i, _)| !sig[i + 2..].starts_with([' ', '\t']))
+        .map(|(i, _)| i)
+        .unwrap_or(sig.len());
+    for tag in sig[..header_end].split(';') {
+        if let Some(v) = tag.trim().strip_prefix("d=") {
+            return Some(v.trim().to_string());
+        }
+    }
+    None
+}
+
 /// Extract the addr-spec from an RFC 5322 mailbox token.
 ///
 /// Accepts both `addr@domain` (bare `addr-spec`) and
@@ -618,6 +644,16 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
         Some(dkim) => match dkim.sign(message) {
             Ok(bytes) => {
                 signed = bytes;
+                // Log the d= we actually signed with. Alignment failures
+                // are invisible from this side — the message leaves
+                // fine and only fails at the far end, on a forward,
+                // weeks later. Recording the tag makes the question
+                // "did this domain sign as itself?" answerable from
+                // logs instead of from a round trip through a third
+                // party's inbox.
+                if let Some(d) = signed_d_tag(&signed) {
+                    tracing::info!(dkim_d = %d, %sender, "signed");
+                }
                 &signed
             }
             Err(e) => {
@@ -1058,7 +1094,38 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_addr_spec;
+    use super::{extract_addr_spec, signed_d_tag};
+
+    #[test]
+    fn reads_the_d_tag_from_a_signature() {
+        let msg = b"DKIM-Signature: v=1; a=rsa-sha256; d=bitreits.com; s=mail;\r\n\
+                    \tbh=abc; b=xyz\r\nFrom: a@b.c\r\n\r\nbody";
+
+        assert_eq!(signed_d_tag(msg).as_deref(), Some("bitreits.com"));
+    }
+
+    #[test]
+    fn reads_the_d_tag_across_a_folded_header() {
+        let msg = b"DKIM-Signature: v=1; a=rsa-sha256;\r\n\
+                    \ts=mail; d=doracawl.com; bh=abc;\r\n\tb=xyz\r\nFrom: a@b.c\r\n\r\nbody";
+
+        assert_eq!(signed_d_tag(msg).as_deref(), Some("doracawl.com"));
+    }
+
+    #[test]
+    fn stops_at_the_end_of_the_signature_header() {
+        // A `d=` later in the message must not be picked up.
+        let msg = b"DKIM-Signature: v=1; a=rsa-sha256; s=mail; b=xyz\r\n\
+                    From: a@b.c\r\n\r\nbody with d=not-a-domain; in it";
+
+        assert_eq!(signed_d_tag(msg), None);
+    }
+
+    #[test]
+    fn unsigned_message_has_no_tag() {
+        assert_eq!(signed_d_tag(b"From: a@b.c\r\n\r\nbody"), None);
+        assert_eq!(signed_d_tag(b""), None);
+    }
 
     #[test]
     fn bare_addr_spec_passes_through() {
