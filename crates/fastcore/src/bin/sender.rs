@@ -36,7 +36,14 @@ const FAILED_KEY: &[u8] = b"mailrs:outbound:failed";
 #[derive(Clone)]
 struct Cfg {
     kevy_url: String,
+    /// EHLO name announced on outbound sessions. Must match the PTR of
+    /// the sending IP — receivers check forward-confirmed reverse DNS.
     helo: String,
+    /// Domain used in `MAILER-DAEMON@…` on DSNs we originate. Distinct
+    /// from `helo`: this one has to survive DMARC at the far end, so it
+    /// must be a domain with an aligned DKIM key, not the MTA hostname.
+    /// See `bounce::compose_dsn`.
+    dsn_from_domain: String,
     max_attempts: u32,
     poll_ms: u64,
     retry_min_secs: i64,
@@ -54,6 +61,7 @@ impl Cfg {
                 .expect("MAILRS_KEVY_URL required (kevy://host:port)"),
             helo: std::env::var("MAILRS_HELO_HOSTNAME")
                 .unwrap_or_else(|_| "mail.golia.jp".to_string()),
+            dsn_from_domain: mailrs_fastcore::bounce::dsn_identity().1,
             max_attempts: std::env::var("MAILRS_SENDER_MAX_ATTEMPTS")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -98,13 +106,64 @@ fn load_dkim_from_env() -> Option<Arc<DkimSignConfig>> {
     } else {
         return None;
     };
+    // Per-domain overrides from MAILRS_DKIM_KEYS. Without these every
+    // outbound message signs with the default `d=`, which only aligns
+    // for the default domain — every other hosted domain fails DMARC
+    // the moment SPF stops covering it (i.e. on any forward).
+    let extra_keys = mailrs_outbound_queue::dkim_env::extra_keys_from_env();
+    if extra_keys.is_empty() {
+        tracing::info!("DKIM: single-domain mode (MAILRS_DKIM_KEYS unset)");
+    } else {
+        let mut domains: Vec<&str> = extra_keys.keys().map(String::as_str).collect();
+        domains.sort_unstable();
+        tracing::info!(
+            count = extra_keys.len(),
+            domains = %domains.join(","),
+            "DKIM: per-domain signing keys loaded"
+        );
+    }
     Some(Arc::new(DkimSignConfig {
         selector,
         domain,
         private_key_pem: pem,
         parsed_key: Arc::new(std::sync::OnceLock::new()),
-        extra_keys: std::collections::HashMap::new(),
+        extra_keys,
     }))
+}
+
+/// Put a permanently-failed recipient on the suppression list.
+///
+/// Only genuine 5xx replies count. `Outcome::Permanent` also covers our
+/// own refusals — malformed recipients, signing failures, and the
+/// suppression check itself — and none of those are evidence about the
+/// remote mailbox. `is_hard_bounce` keys off the leading `5`, which is
+/// exactly the distinction wanted here.
+///
+/// Best-effort: a message that already failed must not fail louder
+/// because the side-state write did not land.
+fn record_suppression(cfg: &Cfg, recipient: &str, reason: &str) {
+    use mailrs_core_sidestate::families::suppression;
+
+    if !mailrs_outbound_queue::queue::is_hard_bounce(reason) {
+        return;
+    }
+    let Ok(mut conn) = kevy(&cfg.kevy_url) else {
+        tracing::warn!(%recipient, "suppression: no kevy connection");
+        return;
+    };
+    match suppression::add(
+        &mut conn,
+        recipient,
+        suppression::Source::HardBounce,
+        reason,
+        now_secs(),
+    ) {
+        Ok(()) => tracing::info!(
+            %recipient,
+            "suppressed after hard bounce (expires in 90 days)"
+        ),
+        Err(e) => tracing::warn!(error = %e, %recipient, "suppression: add failed"),
+    }
 }
 
 /// Record "this user has sent to this address" on the shared contact
@@ -462,6 +521,7 @@ async fn enqueue_bounce_dsn(
     }
     let dsn = mailrs_fastcore::bounce::compose_dsn(
         &cfg.helo,
+        &cfg.dsn_from_domain,
         sender.trim_matches(|c| c == '<' || c == '>'),
         recipient,
         "5.0.0",
@@ -571,6 +631,19 @@ async fn try_deliver(cfg: &Cfg, sender: &str, recipient_raw: &str, message: &[u8
     };
     if domain.is_empty() || domain.contains(char::is_whitespace) {
         return Outcome::Permanent(format!("invalid recipient: {recipient_raw}"));
+    }
+
+    // Suppression check. Repeatedly delivering to an address that hard-
+    // bounced or complained is what costs sending reputation, so this
+    // runs before any DNS or connection work. The reason string
+    // deliberately does not start with a 5xx code — see
+    // record_suppression, which would otherwise re-suppress on the way
+    // back out.
+    if let Ok(mut conn) = kevy(&cfg.kevy_url)
+        && mailrs_core_sidestate::families::suppression::is_suppressed(&mut conn, recipient)
+    {
+        tracing::info!(%recipient, "suppressed recipient — not delivering");
+        return Outcome::Permanent(format!("recipient on suppression list: {recipient}"));
     }
 
     let resolver = match TokioResolver::builder_tokio() {
@@ -864,6 +937,7 @@ async fn process_one(cfg: Cfg, id: String) {
         }
         Outcome::Permanent(reason) => {
             tracing::warn!(%id, reason = %reason, "permanent — moving to failed");
+            record_suppression(&cfg, &recipient, &reason);
             mailrs_fastcore::live_sync::audit_system("mail.send_failed", &recipient, &reason);
             enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
             if let Err(e) = move_to_failed(cfg, id.clone(), reason, true).await {

@@ -84,7 +84,14 @@ services:
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       MAILRS_MAILDIR: /data/maildir
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
-      MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mailrs}
+      # Must be an FQDN: it becomes Reporting-MTA in every DSN we
+      # originate, and the old "mailrs" default is not resolvable.
+      MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mail.golia.ai}
+      # Domain for MAILER-DAEMON@… on DSNs. Organisational domain, not
+      # the MTA hostname: a subdomain there would fall under sp=reject
+      # and would need its own DKIM key published. golia.ai has an
+      # aligned key, so DSNs pass DMARC as-is.
+      MAILRS_DSN_FROM_DOMAIN: ${MAILRS_DSN_FROM_DOMAIN:-golia.ai}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_ALIAS_STORE_BACKEND: network
@@ -133,13 +140,22 @@ services:
       disable: true
     environment:
       MAILRS_KEVY_URL: kevy://kevy-server:6379
-      MAILRS_HELO_HOSTNAME: mail.golia.jp
+      # EHLO name must match the PTR of the sending IP (FCrDNS).
+      # 52.195.89.111 reverses to mail.golia.ai, so announcing
+      # mail.golia.jp costs reputation points at strict receivers even
+      # though both A records point here.
+      MAILRS_HELO_HOSTNAME: mail.golia.ai
       MAILRS_SENDER_MAX_ATTEMPTS: "10"
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"
       MAILRS_DKIM_DOMAIN: golia.jp
       MAILRS_DKIM_SELECTOR: mail
       MAILRS_DKIM_PRIVATE_KEY: /dkim/golia.jp.key
+      # Per-domain signing keys. Without this every hosted domain signs
+      # d=golia.jp, which only stays aligned while SPF covers the hop —
+      # any forward breaks DMARC. All seven domains publish the same
+      # public key, so one file serves them all.
+      MAILRS_DKIM_KEYS: ${MAILRS_DKIM_KEYS:-}
       RUST_LOG: info
     volumes:
       - /apps/mailrs/dkim:/dkim:ro
