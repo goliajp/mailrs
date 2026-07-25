@@ -82,6 +82,10 @@ services:
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
+      # kevy 4.0 canary: keep the AOF at v1 so a downgrade to 3.18 is a
+      # binary swap. Remove this line to let 4.0 convert the file on its
+      # first rewrite — that step is one-way.
+      MAILRS_KEVY_AOF_REWRITE: ${MAILRS_KEVY_AOF_REWRITE:-off}
       MAILRS_MAILDIR: /data/maildir
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we

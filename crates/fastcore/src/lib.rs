@@ -172,9 +172,25 @@ pub async fn run() {
     // a slow consumer doesn't lose events. 16 MiB buffer ≈ 250K
     // change frames (~64 B each) — plenty for a per-user IDLE
     // consumer under normal load.
-    let cfg = Config::default()
+    let mut cfg = Config::default()
         .with_persist(&kevy_dir)
         .with_feed(16 * 1024 * 1024);
+    // kevy 4.0 canary window. The AOF record format is new in 4.0
+    // (KEVYAOF2, length-prefixed + CRC32C), and the upgrade happens on
+    // the first rewrite — one-way, per kevy's UPGRADING. Appends to an
+    // existing v1 file stay v1, so while rewrite is off a downgrade to
+    // 3.18 is still just a binary swap back.
+    //
+    // Set MAILRS_KEVY_AOF_REWRITE=off during the canary; unset it to
+    // let the three-trigger policy run and convert the file.
+    if std::env::var("MAILRS_KEVY_AOF_REWRITE").as_deref() == Ok("off") {
+        cfg = cfg.with_auto_aof_rewrite(0, u64::MAX);
+        tracing::warn!(
+            "kevy AOF auto-rewrite DISABLED (canary) — file stays v1, \
+             downgrade to 3.18 remains possible; unset \
+             MAILRS_KEVY_AOF_REWRITE to re-enable"
+        );
+    }
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
     let mailbox = KevyMailboxStore::new(store);
     // v2.6.0 §P6: register the admin-CRUD range indexes idempotently.
