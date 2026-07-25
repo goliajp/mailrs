@@ -586,6 +586,18 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/admin/accounts/{address}/webhook-subscriptions",
             get(handlers::admin::list_webhooks),
         )
+        .route(
+            "/api/admin/dmarc/reports",
+            get(handlers::dmarc::list_reports),
+        )
+        .route(
+            "/api/admin/dmarc/reports/{sid}",
+            get(handlers::dmarc::get_report),
+        )
+        .route(
+            "/api/admin/dmarc/sources",
+            get(handlers::dmarc::list_sources),
+        )
         .route("/api/admin/audit-log", get(handlers::admin::list_audit_log))
         .route(
             "/api/admin/audit-log/export",
