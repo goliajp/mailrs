@@ -63,7 +63,10 @@ impl GreylistStage {
         let field = sender.to_lowercase();
         let c = client.clone();
         tokio::task::spawn_blocking(move || {
-            c.with_conn(|conn| conn.hget(key.as_bytes(), field.as_bytes()))
+            c.with_conn(|conn| {
+                conn.hget(key.as_bytes(), field.as_bytes())
+                    .map_err(std::io::Error::other)
+            })
         })
         .await
         .ok()

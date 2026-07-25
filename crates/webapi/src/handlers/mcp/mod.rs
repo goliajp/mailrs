@@ -465,8 +465,10 @@ impl MailrsMcpService {
         let key = format!("mailrs:user:{user}:contacts");
         let q = params.q.to_lowercase();
         let limit = params.limit as usize;
-        let flat = crate::handlers::kevy_util::with_kevy(move |c| c.hgetall(key.as_bytes()))
-            .map_err(|_| McpError::internal_error("contacts read failed", None))?;
+        let flat = crate::handlers::kevy_util::with_kevy(move |c| {
+            c.hgetall(key.as_bytes()).map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("contacts read failed", None))?;
         // hgetall is flat [field, value, ...] — field = email, value = display
         let mut items: Vec<String> = Vec::new();
         for pair in flat.chunks(2) {
@@ -491,8 +493,10 @@ impl MailrsMcpService {
     async fn list_signatures(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let key = format!("signatures:{user}");
-        let flat = crate::handlers::kevy_util::with_kevy(move |c| c.hgetall(key.as_bytes()))
-            .map_err(|_| McpError::internal_error("signatures read failed", None))?;
+        let flat = crate::handlers::kevy_util::with_kevy(move |c| {
+            c.hgetall(key.as_bytes()).map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("signatures read failed", None))?;
         let items: Vec<serde_json::Value> = flat
             .chunks(2)
             .filter_map(|p| p.get(1))
@@ -506,9 +510,11 @@ impl MailrsMcpService {
     #[tool(description = "Outbound queue stats (pending count).")]
     async fn get_queue(&self) -> Result<CallToolResult, McpError> {
         let _user = self.require_user()?;
-        let pending =
-            crate::handlers::kevy_util::with_kevy(|c| c.llen(b"mailrs:outbound:pending-idx"))
-                .map_err(|_| McpError::internal_error("queue read failed", None))?;
+        let pending = crate::handlers::kevy_util::with_kevy(|c| {
+            c.llen(b"mailrs:outbound:pending-idx")
+                .map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("queue read failed", None))?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "pending": pending }).to_string(),
         )]))
@@ -535,8 +541,10 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         // domains are shared side-state (env + network kevy admin:domains),
         // not switchable-core data — read network kevy directly.
-        let flat = crate::handlers::kevy_util::with_kevy(|c| c.hgetall(b"admin:domains"))
-            .map_err(|_| McpError::internal_error("domains read failed", None))?;
+        let flat = crate::handlers::kevy_util::with_kevy(|c| {
+            c.hgetall(b"admin:domains").map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("domains read failed", None))?;
         let items: Vec<serde_json::Value> = flat
             .chunks(2)
             .filter_map(|p| p.get(1))
@@ -951,6 +959,7 @@ impl MailrsMcpService {
         let limit = params.limit as i64;
         let rows = crate::handlers::kevy_util::with_kevy(move |c| {
             c.lrange(b"admin:audit_log", 0, limit - 1)
+                .map_err(std::io::Error::other)
         })
         .map_err(|_| McpError::internal_error("audit read failed", None))?;
         let items: Vec<serde_json::Value> = rows

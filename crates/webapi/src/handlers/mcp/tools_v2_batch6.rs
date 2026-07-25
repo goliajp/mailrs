@@ -33,7 +33,10 @@ impl MailrsMcpService {
                 let id_str = String::from_utf8_lossy(b).to_string();
                 let key = format!("mailrs:outbound:job:{id_str}");
                 let key_c = key.clone();
-                let blob = match with_kevy(move |c| c.hget(key_c.as_bytes(), b"blob")) {
+                let blob = match with_kevy(move |c| {
+                    c.hget(key_c.as_bytes(), b"blob")
+                        .map_err(std::io::Error::other)
+                }) {
                     Ok(v) => v,
                     Err(_) => continue,
                 };
@@ -60,8 +63,11 @@ impl MailrsMcpService {
     async fn list_failed_outbound(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let raw = with_kevy(|c| c.smembers(b"mailrs:outbound:failed"))
-            .map_err(|_| McpError::internal_error("failed set read", None))?;
+        let raw = with_kevy(|c| {
+            c.smembers(b"mailrs:outbound:failed")
+                .map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("failed set read", None))?;
         let ids: Vec<String> = raw
             .into_iter()
             .filter_map(|v| String::from_utf8(v).ok())

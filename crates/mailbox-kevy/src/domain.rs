@@ -19,25 +19,29 @@ impl KevyMailboxStore {
     pub fn upsert_domain(&self, name: &str, created_at: i64) -> io::Result<()> {
         let key_v2 = keys::domain_v2(name);
         let created_str = created_at.to_string();
-        self.store().atomic(|ctx| {
-            if ctx.hget(key_v2.as_bytes(), b"created_at")?.is_none() {
-                ctx.hset(
-                    key_v2.as_bytes(),
-                    &[(b"created_at".as_slice(), created_str.as_bytes())],
-                )?;
-            }
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                if ctx.hget(key_v2.as_bytes(), b"created_at")?.is_none() {
+                    ctx.hset(
+                        key_v2.as_bytes(),
+                        &[(b"created_at".as_slice(), created_str.as_bytes())],
+                    )?;
+                }
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Remove a domain. Returns whether it existed.
     pub fn delete_domain(&self, name: &str) -> io::Result<bool> {
         let key_v2 = keys::domain_v2(name);
-        self.store().atomic(|ctx| {
-            let existed = ctx.hget(key_v2.as_bytes(), b"created_at")?.is_some();
-            ctx.del(&[key_v2.as_bytes()]);
-            Ok(existed)
-        })
+        self.store()
+            .atomic(|ctx| {
+                let existed = ctx.hget(key_v2.as_bytes(), b"created_at")?.is_some();
+                ctx.del(&[key_v2.as_bytes()]);
+                Ok(existed)
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// List every domain as `(name, created_at)`, sorted by name.
@@ -50,13 +54,16 @@ impl KevyMailboxStore {
         let mut out = Vec::new();
         let mut cursor = None;
         loop {
-            let (rows, next) = self.store().idx_query(
-                keys::IDX_DOMAINS_BY_CREATED,
-                &IndexValue::I64(i64::MIN),
-                &IndexValue::I64(i64::MAX),
-                cursor.as_ref(),
-                10_000,
-            )?;
+            let (rows, next) = self
+                .store()
+                .idx_query(
+                    keys::IDX_DOMAINS_BY_CREATED,
+                    &IndexValue::I64(i64::MIN),
+                    &IndexValue::I64(i64::MAX),
+                    cursor.as_ref(),
+                    10_000,
+                )
+                .map_err(std::io::Error::other)?;
             for (key, val) in rows {
                 let Some(name_bytes) = key.strip_prefix(keys::DOMAIN_V2_PREFIX) else {
                     continue;

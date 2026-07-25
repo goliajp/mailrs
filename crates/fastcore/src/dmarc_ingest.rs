@@ -160,7 +160,7 @@ fn sanitize(s: &str) -> String {
 /// rather than rewritten, so a receiver re-sending the same report
 /// costs one read and no writes.
 pub fn store_report(kevy_url: &str, report: &AggregateReport) -> std::io::Result<StoreOutcome> {
-    let mut conn = kevy_client::Connection::open(kevy_url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(kevy_url).map_err(std::io::Error::other)?;
     let sid = storage_id(report);
     let report_key = format!("{REPORT_PREFIX}{sid}");
 

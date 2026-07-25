@@ -22,33 +22,35 @@ impl KevyMailboxStore {
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let new_idx = keys::user_threads_by_category(user, new_category);
-        self.store().atomic(|ctx| {
-            let old = ctx
-                .hget(thread_key.as_bytes(), b"category")?
-                .and_then(|v| String::from_utf8(v).ok());
-            let Some(old) = old else {
-                return Ok(false);
-            };
-            if old == new_category {
-                return Ok(true);
-            }
-            let score = ctx
-                .hget(thread_key.as_bytes(), b"latest_date")?
-                .and_then(|v| {
-                    std::str::from_utf8(&v)
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                })
-                .unwrap_or(0);
-            ctx.hset(
-                thread_key.as_bytes(),
-                &[(b"category" as &[u8], new_category.as_bytes())],
-            )?;
-            let old_idx = keys::user_threads_by_category(user, &old);
-            ctx.zrem(old_idx.as_bytes(), &[thread_id.as_bytes()])?;
-            ctx.zadd(new_idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-            Ok(true)
-        })
+        self.store()
+            .atomic(|ctx| {
+                let old = ctx
+                    .hget(thread_key.as_bytes(), b"category")?
+                    .and_then(|v| String::from_utf8(v).ok());
+                let Some(old) = old else {
+                    return Ok(false);
+                };
+                if old == new_category {
+                    return Ok(true);
+                }
+                let score = ctx
+                    .hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| {
+                        std::str::from_utf8(&v)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                    })
+                    .unwrap_or(0);
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"category" as &[u8], new_category.as_bytes())],
+                )?;
+                let old_idx = keys::user_threads_by_category(user, &old);
+                ctx.zrem(old_idx.as_bytes(), &[thread_id.as_bytes()])?;
+                ctx.zadd(new_idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)
     }
 }
 

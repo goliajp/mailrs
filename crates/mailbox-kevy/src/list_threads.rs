@@ -194,14 +194,12 @@ impl KevyMailboxStore {
                 .unwrap_or(0);
             let temp = format!("mailrs:tmp:zunion:{user}:{ts_nanos}");
             let refs: Vec<&[u8]> = union_keys.iter().map(|k| k.as_bytes()).collect();
-            self.store().zunionstore(
-                temp.as_bytes(),
-                &refs,
-                None,
-                kevy_embedded::ZAggregate::Max,
-            )?;
             self.store()
-                .expire(temp.as_bytes(), std::time::Duration::from_secs(60))?;
+                .zunionstore(temp.as_bytes(), &refs, None, kevy_embedded::ZAggregate::Max)
+                .map_err(std::io::Error::other)?;
+            self.store()
+                .expire(temp.as_bytes(), std::time::Duration::from_secs(60))
+                .map_err(std::io::Error::other)?;
             index_keys = vec![temp.clone()];
             owned_temp = Some(temp);
         } else {
@@ -213,14 +211,12 @@ impl KevyMailboxStore {
                     .unwrap_or(0);
                 let temp = format!("mailrs:tmp:zinter:{user}:{ts_nanos}");
                 let refs: Vec<&[u8]> = index_keys.iter().map(|k| k.as_bytes()).collect();
-                self.store().zinterstore(
-                    temp.as_bytes(),
-                    &refs,
-                    None,
-                    kevy_embedded::ZAggregate::Max,
-                )?;
                 self.store()
-                    .expire(temp.as_bytes(), std::time::Duration::from_secs(60))?;
+                    .zinterstore(temp.as_bytes(), &refs, None, kevy_embedded::ZAggregate::Max)
+                    .map_err(std::io::Error::other)?;
+                self.store()
+                    .expire(temp.as_bytes(), std::time::Duration::from_secs(60))
+                    .map_err(std::io::Error::other)?;
                 Some(temp)
             } else {
                 None
@@ -229,7 +225,10 @@ impl KevyMailboxStore {
         let key: &str = owned_temp
             .as_deref()
             .unwrap_or_else(|| index_keys[0].as_str());
-        let total = self.store().zcard(key.as_bytes())?;
+        let total = self
+            .store()
+            .zcard(key.as_bytes())
+            .map_err(std::io::Error::other)?;
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
@@ -245,7 +244,8 @@ impl KevyMailboxStore {
             let max = (ts - 1) as f64;
             let raw = self
                 .store()
-                .zrev_range_by_score(key.as_bytes(), max, f64::NEG_INFINITY)?;
+                .zrev_range_by_score(key.as_bytes(), max, f64::NEG_INFINITY)
+                .map_err(std::io::Error::other)?;
             raw.into_iter().take(limit).collect()
         } else {
             if offset >= total {
@@ -254,7 +254,8 @@ impl KevyMailboxStore {
             let stop_exclusive = offset + limit;
             let stop_inclusive_idx = (stop_exclusive.min(total) as i64) - 1;
             self.store()
-                .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)?
+                .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)
+                .map_err(std::io::Error::other)?
         };
         // v2 Stage B.3: fetch the N thread hashes inside one atomic
         // closure so the whole page assembles under a single shard
@@ -281,7 +282,7 @@ impl KevyMailboxStore {
         if let Some(temp) = owned_temp {
             let _ = self.store().del(&[temp.as_bytes()]);
         }
-        result
+        result.map_err(std::io::Error::other)
     }
 }
 

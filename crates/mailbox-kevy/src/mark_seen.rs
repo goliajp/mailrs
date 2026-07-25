@@ -19,7 +19,10 @@ impl KevyMailboxStore {
     /// with no unread threads returns 0.
     pub fn mark_all_seen(&self, user: &str) -> io::Result<u32> {
         let idx = keys::user_threads_has_unread(user);
-        let members = self.store().zrange(idx.as_bytes(), 0, -1)?;
+        let members = self
+            .store()
+            .zrange(idx.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
         let mut flipped = 0u32;
         for (tid_bytes, _score) in members {
             let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
@@ -57,27 +60,35 @@ impl KevyMailboxStore {
             ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
             Ok(exists)
         });
-        let exists = found?;
+        let exists = found.map_err(std::io::Error::other)?;
         // Sink the \Seen fact into every per-message wire too. The
         // thread-hash zero above is a cache; the wires are what
         // self-heal recounts and what a rethread merge recounts from —
         // without this, a restart (self-heal) or a merge resurrected
         // already-read mail as unread (2026-07-17).
         let msgs_key = keys::thread_messages(thread_id);
-        let members = self.store().zrange(msgs_key.as_bytes(), 0, -1)?;
+        let members = self
+            .store()
+            .zrange(msgs_key.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
         for (mid_bytes, _score) in &members {
             let Ok(mid) = std::str::from_utf8(mid_bytes) else {
                 continue;
             };
             let blob_key = keys::message_blob(mid);
-            if let Some(bytes) = self.store().get(blob_key.as_bytes())?
+            if let Some(bytes) = self
+                .store()
+                .get(blob_key.as_bytes())
+                .map_err(std::io::Error::other)?
                 && let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes)
             {
                 let flags = wire["flags"].as_u64().unwrap_or(0);
                 if flags & 1 == 0 {
                     wire["flags"] = serde_json::Value::from(flags | 1);
                     if let Ok(payload) = serde_json::to_vec(&wire) {
-                        self.store().set(blob_key.as_bytes(), &payload)?;
+                        self.store()
+                            .set(blob_key.as_bytes(), &payload)
+                            .map_err(std::io::Error::other)?;
                     }
                 }
             }

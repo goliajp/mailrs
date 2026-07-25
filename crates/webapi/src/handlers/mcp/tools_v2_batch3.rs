@@ -46,7 +46,10 @@ impl MailrsMcpService {
         let user_c = user.clone();
         let id_c = id.clone();
         let removed = with_kevy(move |c| {
-            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
+            let Some(bytes) = c
+                .hget(hkey.as_bytes(), b"blob")
+                .map_err(std::io::Error::other)?
+            else {
                 return Ok(false);
             };
             let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -55,8 +58,9 @@ impl MailrsMcpService {
             if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
                 return Ok(false);
             }
-            c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
-            c.del(&[hkey.as_bytes()])?;
+            c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])
+                .map_err(std::io::Error::other)?;
+            c.del(&[hkey.as_bytes()]).map_err(std::io::Error::other)?;
             Ok(true)
         })
         .unwrap_or(false);
@@ -95,7 +99,10 @@ impl MailrsMcpService {
         let id_c = id.clone();
         let new_score = params.scheduled_at;
         let ok = with_kevy(move |c| {
-            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
+            let Some(bytes) = c
+                .hget(hkey.as_bytes(), b"blob")
+                .map_err(std::io::Error::other)?
+            else {
                 return Ok(false);
             };
             let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -104,8 +111,10 @@ impl MailrsMcpService {
             if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
                 return Ok(false);
             }
-            c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
-            c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])?;
+            c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])
+                .map_err(std::io::Error::other)?;
+            c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])
+                .map_err(std::io::Error::other)?;
             Ok(true)
         })
         .unwrap_or(false);

@@ -78,7 +78,8 @@ pub async fn submit_rsvp(
                 (b"recurrence_id", rec.as_bytes()),
                 (b"replied_at", ts.as_bytes()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     });
     match write {
@@ -127,7 +128,8 @@ pub async fn submit_counter(
                 (b"comment", comment.as_bytes()),
                 (b"sent_at", ts.as_bytes()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     });
     match write {

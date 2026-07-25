@@ -49,7 +49,7 @@ pub fn open_store(data_dir: Option<&Path>) -> io::Result<KevyStore> {
         Some(dir) => cfg.with_persist(dir),
         None => cfg,
     };
-    let store = Store::open(cfg)?;
+    let store = Store::open(cfg).map_err(std::io::Error::other)?;
     Ok(Arc::new(store))
 }
 
@@ -68,6 +68,7 @@ fn emit_kevy_metric(m: KevyMetric) {
             commands,
             bytes,
             elapsed_ms,
+            ..
         } => {
             metrics::gauge!("mailrs_kevy_replay_commands").set(commands as f64);
             metrics::gauge!("mailrs_kevy_replay_bytes").set(bytes as f64);

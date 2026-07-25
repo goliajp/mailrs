@@ -47,12 +47,15 @@ impl MailrsMcpService {
         let id = params.id;
         let id_c = id.clone();
         let ok = with_kevy(move |c| {
-            let members = c.smembers(b"mailrs:outbound:failed")?;
+            let members = c
+                .smembers(b"mailrs:outbound:failed")
+                .map_err(std::io::Error::other)?;
             let present = members.iter().any(|m| m == id_c.as_bytes());
             if !present {
                 return Ok(false);
             }
-            c.srem(b"mailrs:outbound:failed", &[id_c.as_bytes()])?;
+            c.srem(b"mailrs:outbound:failed", &[id_c.as_bytes()])
+                .map_err(std::io::Error::other)?;
             // v2 requeue — legacy pending list is dead; sender only
             // reads pending-idx.
             let id_i64: i64 = std::str::from_utf8(id_c.as_bytes())

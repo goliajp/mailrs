@@ -66,8 +66,11 @@ impl MailrsMcpService {
     async fn list_scheduled_outbound(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let raw = with_kevy(|c| c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1))
-            .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
+        let raw = with_kevy(|c| {
+            c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1)
+                .map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
         // zrange returns members without scores in kevy-client 1.13; fetch
         // score per member via zscore in the same connection.
         let items: Vec<serde_json::Value> = with_kevy(move |c| {
@@ -77,7 +80,8 @@ impl MailrsMcpService {
                     continue;
                 };
                 let score = c
-                    .zscore(b"mailrs:outbound:scheduled-idx", &m)?
+                    .zscore(b"mailrs:outbound:scheduled-idx", &m)
+                    .map_err(std::io::Error::other)?
                     .unwrap_or(0.0);
                 out.push(serde_json::json!({ "id": id, "scheduled_at": score as i64 }));
             }
@@ -99,7 +103,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         let key = format!("admin:email-group:{}:members", params.id);
-        let members = with_kevy(move |c| c.smembers(key.as_bytes()))
+        let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))
             .map_err(|_| McpError::internal_error("kevy read", None))?;
         let items: Vec<String> = members
             .into_iter()

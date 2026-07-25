@@ -64,7 +64,7 @@ pub struct CoreRpcState {
 impl mailrs_core_sidestate::NetKevy for CoreRpcState {
     fn net_conn(&self) -> Option<kevy_client::Connection> {
         let url = self.net_url.as_ref()?;
-        kevy_client::Connection::open(url).ok()
+        kevy_client::Connection::connect(url).ok()
     }
 }
 

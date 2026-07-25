@@ -50,28 +50,33 @@ impl KevyMailboxStore {
         let domain = address.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let active = extract_active(blob_json);
         let created_at = extract_created_at(blob_json).to_string();
-        self.store().atomic(|ctx| {
-            ctx.hset(
-                key.as_bytes(),
-                &[
-                    (b"blob".as_slice(), blob_json.as_bytes()),
-                    (b"domain".as_slice(), domain.as_bytes()),
-                    (b"active".as_slice(), active),
-                    (b"created_at".as_slice(), created_at.as_bytes()),
-                ],
-            )?;
-            // v2.6.2 §P6 legacy drop: `mailrs:accounts:index` no longer
-            // written — `list_account_addresses` walks
-            // `accounts_by_active` idx instead.
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                ctx.hset(
+                    key.as_bytes(),
+                    &[
+                        (b"blob".as_slice(), blob_json.as_bytes()),
+                        (b"domain".as_slice(), domain.as_bytes()),
+                        (b"active".as_slice(), active),
+                        (b"created_at".as_slice(), created_at.as_bytes()),
+                    ],
+                )?;
+                // v2.6.2 §P6 legacy drop: `mailrs:accounts:index` no longer
+                // written — `list_account_addresses` walks
+                // `accounts_by_active` idx instead.
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Load the raw JSON blob for `address`. Returns `Ok(None)` when
     /// the account doesn't exist.
     pub fn get_account_blob(&self, address: &str) -> io::Result<Option<String>> {
         let key = keys::account(address);
-        let raw = self.store().hget(key.as_bytes(), b"blob")?;
+        let raw = self
+            .store()
+            .hget(key.as_bytes(), b"blob")
+            .map_err(std::io::Error::other)?;
         match raw {
             Some(bytes) => Ok(Some(String::from_utf8(bytes).map_err(|e| {
                 io::Error::new(io::ErrorKind::InvalidData, format!("account blob: {e}"))
@@ -90,13 +95,16 @@ impl KevyMailboxStore {
         let mut out = Vec::new();
         let mut cursor = None;
         loop {
-            let (rows, next) = self.store().idx_query(
-                keys::IDX_ACCOUNTS_BY_ACTIVE,
-                &IndexValue::Str(Vec::new()),
-                &IndexValue::Str(vec![0xff, 0xff]),
-                cursor.as_ref(),
-                10_000,
-            )?;
+            let (rows, next) = self
+                .store()
+                .idx_query(
+                    keys::IDX_ACCOUNTS_BY_ACTIVE,
+                    &IndexValue::Str(Vec::new()),
+                    &IndexValue::Str(vec![0xff, 0xff]),
+                    cursor.as_ref(),
+                    10_000,
+                )
+                .map_err(std::io::Error::other)?;
             for (key, _) in rows {
                 let Some(addr_bytes) = key.strip_prefix(keys::ACCOUNT_PREFIX) else {
                     continue;
@@ -117,14 +125,19 @@ impl KevyMailboxStore {
     /// Upsert the effective_permissions JSON blob for `address`.
     pub fn upsert_permissions(&self, address: &str, blob_json: &str) -> io::Result<()> {
         let key = keys::account_permissions(address);
-        self.store().set(key.as_bytes(), blob_json.as_bytes())?;
+        self.store()
+            .set(key.as_bytes(), blob_json.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 
     /// Load the effective_permissions JSON blob for `address`, if any.
     pub fn get_permissions_blob(&self, address: &str) -> io::Result<Option<String>> {
         let key = keys::account_permissions(address);
-        let raw = self.store().get(key.as_bytes())?;
+        let raw = self
+            .store()
+            .get(key.as_bytes())
+            .map_err(std::io::Error::other)?;
         match raw {
             Some(bytes) => Ok(Some(String::from_utf8(bytes).map_err(|e| {
                 io::Error::new(io::ErrorKind::InvalidData, format!("perms blob: {e}"))
@@ -139,10 +152,12 @@ impl KevyMailboxStore {
     pub fn delete_account(&self, address: &str) -> io::Result<()> {
         let acct = keys::account(address);
         let perms = keys::account_permissions(address);
-        self.store().atomic(|ctx| {
-            ctx.del(&[acct.as_bytes(), perms.as_bytes()]);
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                ctx.del(&[acct.as_bytes(), perms.as_bytes()]);
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 }
 

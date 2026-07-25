@@ -156,7 +156,7 @@ pub fn totals(report: &Report) -> (u64, u64) {
 
 /// Persist a parsed report. Returns whether it was new.
 fn store_report(kevy_url: &str, report: &Report) -> std::io::Result<bool> {
-    let mut conn = kevy_client::Connection::open(kevy_url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(kevy_url).map_err(std::io::Error::other)?;
     let sid = storage_id(report);
     let report_key = format!("{REPORT_PREFIX}{sid}");
 

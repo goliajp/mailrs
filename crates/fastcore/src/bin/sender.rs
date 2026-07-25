@@ -209,7 +209,7 @@ fn record_sent_relationship(cfg: &Cfg, sender: &str, recipient: &str) {
 }
 
 fn kevy(url: &str) -> std::io::Result<kevy_client::Connection> {
-    kevy_client::Connection::open(url)
+    kevy_client::Connection::connect(url).map_err(std::io::Error::other)
 }
 
 fn now_secs() -> i64 {
@@ -240,7 +240,10 @@ async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option<String>> {
         // outer main loop's brpop_wait window is more accurate. In
         // practice the pending-idx dup fraction shrinks fast once
         // Phase 8 lands, since we RPOP one entry per claim now.
-        let Some((_key, id_bytes)) = c.brpop(&[PENDING_IDX_KEY], Some(wait))? else {
+        let Some((_key, id_bytes)) = c
+            .brpop(&[PENDING_IDX_KEY], Some(wait))
+            .map_err(std::io::Error::other)?
+        else {
             return Ok(None);
         };
         let id = String::from_utf8_lossy(&id_bytes).to_string();
@@ -268,14 +271,18 @@ async fn pop_next(cfg: Cfg, wait: Duration) -> std::io::Result<Option<String>> {
 /// terminal) or the WATCH aborted (another sender beat us).
 fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<bool> {
     let job_k = format!("mailrs:outbound:job:{id}");
-    c.watch(&[job_k.as_bytes()])?;
-    let state = c.hget(job_k.as_bytes(), b"state")?.unwrap_or_default();
+    c.watch(&[job_k.as_bytes()])
+        .map_err(std::io::Error::other)?;
+    let state = c
+        .hget(job_k.as_bytes(), b"state")
+        .map_err(std::io::Error::other)?
+        .unwrap_or_default();
     if state != b"pending" {
-        c.unwatch()?;
+        c.unwatch().map_err(std::io::Error::other)?;
         return Ok(false);
     }
     let now = now_secs_str();
-    let mut tx = c.multi()?;
+    let mut tx = c.multi().map_err(std::io::Error::other)?;
     tx.queue(&[
         b"HSET",
         job_k.as_bytes(),
@@ -283,9 +290,11 @@ fn try_claim(c: &mut kevy_client::Connection, id: &str) -> std::io::Result<bool>
         b"inflight",
         b"claimed_at",
         now.as_bytes(),
-    ])?;
-    tx.queue(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"])?;
-    match tx.exec_watched()? {
+    ])
+    .map_err(std::io::Error::other)?;
+    tx.queue(&[b"HINCRBY", job_k.as_bytes(), b"attempts", b"1"])
+        .map_err(std::io::Error::other)?;
+    match tx.exec_watched().map_err(std::io::Error::other)? {
         Some(_) => Ok(true),
         None => Ok(false), // another sender's WATCH won
     }
@@ -307,7 +316,9 @@ async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
         let mut cursor = 0u64;
         let mut recovered = 0usize;
         loop {
-            let (next, keys) = c.scan(cursor, Some(b"mailrs:outbound:job:*"), Some(SCAN_BATCH))?;
+            let (next, keys) = c
+                .scan(cursor, Some(b"mailrs:outbound:job:*"), Some(SCAN_BATCH))
+                .map_err(std::io::Error::other)?;
             for key in keys {
                 let Ok(key_str) = std::str::from_utf8(&key) else {
                     continue;
@@ -316,8 +327,9 @@ async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
                     continue;
                 };
                 let id_owned = id.to_string();
-                let state = c.hget(&key, b"state")?;
-                let claimed_at_bytes = c.hget(&key, b"claimed_at")?;
+                let state = c.hget(&key, b"state").map_err(std::io::Error::other)?;
+                let claimed_at_bytes =
+                    c.hget(&key, b"claimed_at").map_err(std::io::Error::other)?;
                 let (Some(state), Some(claimed_at_bytes)) = (state, claimed_at_bytes) else {
                     continue;
                 };
@@ -334,15 +346,21 @@ async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
                     continue;
                 }
                 // Optimistic CAS: re-check state + claimed_at, then flip.
-                c.watch(&[&key])?;
-                let state_now = c.hget(&key, b"state")?.unwrap_or_default();
-                let claimed_now = c.hget(&key, b"claimed_at")?.unwrap_or_default();
+                c.watch(&[&key]).map_err(std::io::Error::other)?;
+                let state_now = c
+                    .hget(&key, b"state")
+                    .map_err(std::io::Error::other)?
+                    .unwrap_or_default();
+                let claimed_now = c
+                    .hget(&key, b"claimed_at")
+                    .map_err(std::io::Error::other)?
+                    .unwrap_or_default();
                 if state_now != b"inflight" || claimed_now != claimed_at_bytes {
-                    c.unwatch()?;
+                    c.unwatch().map_err(std::io::Error::other)?;
                     continue;
                 }
                 let now = now_secs_str();
-                let mut tx = c.multi()?;
+                let mut tx = c.multi().map_err(std::io::Error::other)?;
                 tx.queue(&[
                     b"HSET",
                     &key,
@@ -350,12 +368,15 @@ async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
                     b"pending",
                     b"updated_at",
                     now.as_bytes(),
-                ])?;
-                tx.queue(&[b"HDEL", &key, b"claimed_at"])?;
+                ])
+                .map_err(std::io::Error::other)?;
+                tx.queue(&[b"HDEL", &key, b"claimed_at"])
+                    .map_err(std::io::Error::other)?;
                 // v2.5.3 §P8-B-C: only LPUSH the v2 pending-idx.
                 // sender BRPOPs pending-idx now, not the legacy list.
-                tx.queue(&[b"LPUSH", PENDING_IDX_KEY, id_owned.as_bytes()])?;
-                if tx.exec_watched()?.is_some() {
+                tx.queue(&[b"LPUSH", PENDING_IDX_KEY, id_owned.as_bytes()])
+                    .map_err(std::io::Error::other)?;
+                if tx.exec_watched().map_err(std::io::Error::other)?.is_some() {
                     recovered += 1;
                     tracing::info!(id = %id_owned, "recover_stale: reset inflight -> pending");
                 }
@@ -380,17 +401,24 @@ async fn promote_due(cfg: Cfg) -> std::io::Result<()> {
         let mut c = kevy(&cfg.kevy_url)?;
         let now = now_secs() as f64;
         // ascending by score; batch of 100 due items per tick is plenty
-        let members = c.zrange(SCHEDULED_KEY, 0, 99)?;
+        let members = c
+            .zrange(SCHEDULED_KEY, 0, 99)
+            .map_err(std::io::Error::other)?;
         for m in members {
-            let score = c.zscore(SCHEDULED_KEY, &m)?.unwrap_or(f64::MAX);
+            let score = c
+                .zscore(SCHEDULED_KEY, &m)
+                .map_err(std::io::Error::other)?
+                .unwrap_or(f64::MAX);
             if score > now {
                 break; // rest are future
             }
             // due: pending first, then remove from scheduled — a crash
             // between the two re-promotes harmlessly (idempotent).
             // v2.5.3 §P8-B-C: promote to v2 pending-idx directly.
-            c.lpush(PENDING_IDX_KEY, &[m.as_slice()])?;
-            c.zrem(SCHEDULED_KEY, &[m.as_slice()])?;
+            c.lpush(PENDING_IDX_KEY, &[m.as_slice()])
+                .map_err(std::io::Error::other)?;
+            c.zrem(SCHEDULED_KEY, &[m.as_slice()])
+                .map_err(std::io::Error::other)?;
         }
         Ok(())
     })
@@ -407,7 +435,9 @@ async fn load_envelope(cfg: Cfg, id: String) -> std::io::Result<Option<serde_jso
     spawn_blocking(move || {
         let mut c = kevy(&cfg.kevy_url)?;
         let key = format!("mailrs:outbound:job:{id}");
-        let blob = c.hget(key.as_bytes(), b"blob")?;
+        let blob = c
+            .hget(key.as_bytes(), b"blob")
+            .map_err(std::io::Error::other)?;
         let Some(bytes) = blob else { return Ok(None) };
         let v: serde_json::Value = serde_json::from_slice(&bytes)
             .map_err(|e| std::io::Error::other(format!("blob json: {e}")))?;
@@ -507,7 +537,8 @@ async fn move_to_failed(
         // — are operator-inspection surfaces (webapi's failed queue
         // view), not part of the v2 job FSM. They stay independent of
         // the P8-B-C cutover.
-        c.sadd(FAILED_KEY, &[id_c.as_bytes()])?;
+        c.sadd(FAILED_KEY, &[id_c.as_bytes()])
+            .map_err(std::io::Error::other)?;
         let audit_key = format!("mailrs:outbound:failed:{id_c}");
         c.hset(
             audit_key.as_bytes(),
@@ -515,7 +546,8 @@ async fn move_to_failed(
                 (b"failed_at" as &[u8], now_secs().to_string().as_bytes()),
                 (b"reason", reason_c.as_bytes()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         // v2.5.3 §P8-B-C: legacy `mailrs:outbound:{id}` blob DEL removed.
         // `keep_blob` parameter is now moot; caller passes it for
         // backward-source-compat but the value has no effect.
@@ -564,8 +596,10 @@ async fn enqueue_bounce_dsn(
                 (b"recipient" as &[u8], sender.as_bytes()),
                 (b"blob", b64.as_bytes()),
             ],
-        )?;
-        c.lpush(mailrs_fastcore::bounce::BOUNCE_PENDING, &[id.as_bytes()])?;
+        )
+        .map_err(std::io::Error::other)?;
+        c.lpush(mailrs_fastcore::bounce::BOUNCE_PENDING, &[id.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok::<(), std::io::Error>(())
     })
     .await;
@@ -590,7 +624,8 @@ async fn requeue(cfg: Cfg, id: String, envelope: serde_json::Value) -> std::io::
         // handles state=pending + HDEL claimed_at + LPUSH pending-idx.
         let job_k = format!("mailrs:outbound:job:{id_c}");
         let payload = envelope.to_string();
-        c.hset(job_k.as_bytes(), &[(b"blob" as &[u8], payload.as_bytes())])?;
+        c.hset(job_k.as_bytes(), &[(b"blob" as &[u8], payload.as_bytes())])
+            .map_err(std::io::Error::other)?;
         dual_write_pending(&mut c, &id_c)?;
         Ok(())
     })

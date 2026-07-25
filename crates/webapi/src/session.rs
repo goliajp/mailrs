@@ -98,9 +98,13 @@ fn agent_scopes_allow(scopes: &[String], method: &axum::http::Method, path: &str
 /// `agent_key_legacy_index` / `agent_key_revoked`).
 async fn resolve_agent_key(kevy_url: String, token: String) -> Option<AgentAuth> {
     tokio::task::spawn_blocking(move || -> std::io::Result<Option<AgentAuth>> {
-        let mut client = kevy_client::Connection::open(&kevy_url)?;
+        let mut client =
+            kevy_client::Connection::connect(&kevy_url).map_err(std::io::Error::other)?;
         let index_key = format!("{AGENT_KEY_INDEX_PREFIX}{token}");
-        let Some(raw) = client.get(index_key.as_bytes())? else {
+        let Some(raw) = client
+            .get(index_key.as_bytes())
+            .map_err(std::io::Error::other)?
+        else {
             tracing::debug!(reason = "agent_key_miss", "agent key rejected");
             return Ok(None);
         };
@@ -117,7 +121,9 @@ async fn resolve_agent_key(kevy_url: String, token: String) -> Option<AgentAuth>
         // revocation check: the key is valid only while its record is
         // still present in the owner's hash (delete_agent_key removes it)
         let hash_key = format!("agent:keys:{}", index.user);
-        let Some(record) = client.hget(hash_key.as_bytes(), index.id.to_string().as_bytes())?
+        let Some(record) = client
+            .hget(hash_key.as_bytes(), index.id.to_string().as_bytes())
+            .map_err(std::io::Error::other)?
         else {
             tracing::debug!(reason = "agent_key_revoked", user = %index.user, "agent key rejected");
             return Ok(None);
@@ -223,9 +229,10 @@ const SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
 async fn resolve_session(kevy_url: String, token: String) -> Option<SessionBlob> {
     let token_clone = token.clone();
     let raw = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
-        let mut client = kevy_client::Connection::open(&kevy_url)?;
+        let mut client =
+            kevy_client::Connection::connect(&kevy_url).map_err(std::io::Error::other)?;
         let key = format!("{SESSION_KEY_PREFIX}{token_clone}");
-        let bytes = client.get(key.as_bytes())?;
+        let bytes = client.get(key.as_bytes()).map_err(std::io::Error::other)?;
         if bytes.is_some() {
             let _ = client.expire(
                 key.as_bytes(),

@@ -85,7 +85,7 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
         tracing::warn!("no network kevy — FBL complaint not recorded");
         return;
     };
-    let Ok(mut conn) = kevy_client::Connection::open(&url) else {
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
         tracing::warn!(address = %complainant, "FBL: no kevy connection");
         return;
     };

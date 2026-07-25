@@ -73,142 +73,144 @@ impl KevyMailboxStore {
         let category = m.category.as_bytes().to_vec();
         let tid_b = m.thread_id.as_bytes().to_vec();
 
-        self.store().atomic(|ctx| {
-            // senders_csv is the participant UNION, not "latest sender" —
-            // blindly overwriting meant a user's own reply erased every
-            // other participant and the Inbox row flipped to "Me"
-            // (2026-07-18). Merge case-insensitively, newest appended.
-            let merged_senders: Vec<u8> = {
-                let existing = ctx
-                    .hget(thread_key.as_bytes(), b"senders_csv")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let mut out: Vec<String> = Vec::new();
-                for part in existing.split(',').chain(m.senders_csv.split(',')) {
-                    let p = part.trim();
-                    if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
-                        out.push(p.to_string());
+        self.store()
+            .atomic(|ctx| {
+                // senders_csv is the participant UNION, not "latest sender" —
+                // blindly overwriting meant a user's own reply erased every
+                // other participant and the Inbox row flipped to "Me"
+                // (2026-07-18). Merge case-insensitively, newest appended.
+                let merged_senders: Vec<u8> = {
+                    let existing = ctx
+                        .hget(thread_key.as_bytes(), b"senders_csv")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_default();
+                    let mut out: Vec<String> = Vec::new();
+                    for part in existing.split(',').chain(m.senders_csv.split(',')) {
+                        let p = part.trim();
+                        if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
+                            out.push(p.to_string());
+                        }
+                    }
+                    out.join(",").into_bytes()
+                };
+                // The row's display fields + list position follow the last
+                // INBOUND message only. The user's own reply must not
+                // re-date or re-title the Inbox row (2026-07-18) — an own
+                // write only seeds the fields when the thread is brand new
+                // (sent-only thread, nothing to preserve).
+                let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
+                // `search_blob` is the field the full-text index reads;
+                // it has to move in lockstep with the three fields it
+                // concatenates or search goes stale for this thread.
+                if !m.is_own || !have_display {
+                    let blob = keys::search_blob(
+                        m.subject,
+                        &String::from_utf8_lossy(&merged_senders),
+                        m.latest_preview,
+                    )
+                    .into_bytes();
+                    let pairs: &[(&[u8], &[u8])] = &[
+                        (b"subject", &subj),
+                        (b"senders_csv", &merged_senders),
+                        (b"latest_date", &date_s),
+                        (b"latest_preview", &preview),
+                        (b"category", &category),
+                        (keys::THREAD_SEARCH_FIELD, &blob),
+                    ];
+                    ctx.hset(thread_key.as_bytes(), pairs)?;
+                } else {
+                    // own send: only the participant union changed, but the
+                    // blob embeds it, so refresh both.
+                    let cur_subject = ctx
+                        .hget(thread_key.as_bytes(), b"subject")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_default();
+                    let cur_preview = ctx
+                        .hget(thread_key.as_bytes(), b"latest_preview")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_default();
+                    let blob = keys::search_blob(
+                        &cur_subject,
+                        &String::from_utf8_lossy(&merged_senders),
+                        &cur_preview,
+                    )
+                    .into_bytes();
+                    ctx.hset(
+                        thread_key.as_bytes(),
+                        &[
+                            (b"senders_csv" as &[u8], merged_senders.as_slice()),
+                            (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
+                        ],
+                    )?;
+                }
+                // list-position score: the preserved display date for own
+                // writes, the fresh inbound date otherwise.
+                let score: f64 = if m.is_own && have_display {
+                    ctx.hget(thread_key.as_bytes(), b"latest_date")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(m.latest_date as f64)
+                } else {
+                    m.latest_date as f64
+                };
+
+                // Atomic counters.
+                let total = ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
+                if m.is_own {
+                    ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
+                }
+                let new_unread = if m.unread && !m.is_own {
+                    ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?
+                } else {
+                    // peek current unread; if positive the row still belongs
+                    // in has_unread regardless of this write.
+                    ctx.hget(thread_key.as_bytes(), b"unread_count")?
+                        .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
+                        .unwrap_or(0i64)
+                };
+                let sent = ctx
+                    .hget(thread_key.as_bytes(), b"sent_count")?
+                    .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
+                    .unwrap_or(0i64);
+
+                // Activity / category index — scored on the display date so
+                // an own reply keeps the row where the last inbound left it.
+                ctx.zadd(activity.as_bytes(), &[(score, &tid_b)])?;
+                ctx.zadd(cat.as_bytes(), &[(score, &tid_b)])?;
+
+                // has_unread: zadd if and only if the post-arrival
+                // unread_count > 0. The closure can't zrem yet (1.15
+                // AtomicCtx lacks it), so a fast-read flag carries when
+                // the toggle has to flip the other way.
+                if new_unread > 0 {
+                    ctx.zadd(has_unread.as_bytes(), &[(score, &tid_b)])?;
+                }
+
+                // Folder/bucket membership (v2.9). The thread joins exactly
+                // one of {inbox, notifications, promotions, junk} per
+                // `bucket_of(category)`, and is removed from the other three.
+                // A sent-only thread (total == sent, i.e. no received
+                // message) lives in the Sent axis alone — it must not
+                // surface in any inbound bucket; junk is the exception (a
+                // spam-classified thread belongs in Junk regardless).
+                if bucket == keys::Bucket::Junk || total > sent {
+                    ctx.zadd(bucket_zset.as_bytes(), &[(score, &tid_b)])?;
+                    for other in &other_buckets {
+                        ctx.zrem(other.as_bytes(), &[&tid_b])?;
+                    }
+                } else {
+                    // Sent-only (total == sent, non-junk): the thread belongs
+                    // to the Sent axis alone. Self-heal any stale inbound-
+                    // bucket membership left by an earlier upsert (e.g. a
+                    // pg-dump import whose sent_count aggregate was 0 before
+                    // fastcore recomputed it). Mirrors `upsert_thread`.
+                    for z in keys::Bucket::all_zsets(m.user) {
+                        ctx.zrem(z.as_bytes(), &[&tid_b])?;
                     }
                 }
-                out.join(",").into_bytes()
-            };
-            // The row's display fields + list position follow the last
-            // INBOUND message only. The user's own reply must not
-            // re-date or re-title the Inbox row (2026-07-18) — an own
-            // write only seeds the fields when the thread is brand new
-            // (sent-only thread, nothing to preserve).
-            let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
-            // `search_blob` is the field the full-text index reads;
-            // it has to move in lockstep with the three fields it
-            // concatenates or search goes stale for this thread.
-            if !m.is_own || !have_display {
-                let blob = keys::search_blob(
-                    m.subject,
-                    &String::from_utf8_lossy(&merged_senders),
-                    m.latest_preview,
-                )
-                .into_bytes();
-                let pairs: &[(&[u8], &[u8])] = &[
-                    (b"subject", &subj),
-                    (b"senders_csv", &merged_senders),
-                    (b"latest_date", &date_s),
-                    (b"latest_preview", &preview),
-                    (b"category", &category),
-                    (keys::THREAD_SEARCH_FIELD, &blob),
-                ];
-                ctx.hset(thread_key.as_bytes(), pairs)?;
-            } else {
-                // own send: only the participant union changed, but the
-                // blob embeds it, so refresh both.
-                let cur_subject = ctx
-                    .hget(thread_key.as_bytes(), b"subject")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let cur_preview = ctx
-                    .hget(thread_key.as_bytes(), b"latest_preview")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let blob = keys::search_blob(
-                    &cur_subject,
-                    &String::from_utf8_lossy(&merged_senders),
-                    &cur_preview,
-                )
-                .into_bytes();
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[
-                        (b"senders_csv" as &[u8], merged_senders.as_slice()),
-                        (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
-                    ],
-                )?;
-            }
-            // list-position score: the preserved display date for own
-            // writes, the fresh inbound date otherwise.
-            let score: f64 = if m.is_own && have_display {
-                ctx.hget(thread_key.as_bytes(), b"latest_date")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(m.latest_date as f64)
-            } else {
-                m.latest_date as f64
-            };
-
-            // Atomic counters.
-            let total = ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
-            if m.is_own {
-                ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
-            }
-            let new_unread = if m.unread && !m.is_own {
-                ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?
-            } else {
-                // peek current unread; if positive the row still belongs
-                // in has_unread regardless of this write.
-                ctx.hget(thread_key.as_bytes(), b"unread_count")?
-                    .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
-                    .unwrap_or(0i64)
-            };
-            let sent = ctx
-                .hget(thread_key.as_bytes(), b"sent_count")?
-                .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
-                .unwrap_or(0i64);
-
-            // Activity / category index — scored on the display date so
-            // an own reply keeps the row where the last inbound left it.
-            ctx.zadd(activity.as_bytes(), &[(score, &tid_b)])?;
-            ctx.zadd(cat.as_bytes(), &[(score, &tid_b)])?;
-
-            // has_unread: zadd if and only if the post-arrival
-            // unread_count > 0. The closure can't zrem yet (1.15
-            // AtomicCtx lacks it), so a fast-read flag carries when
-            // the toggle has to flip the other way.
-            if new_unread > 0 {
-                ctx.zadd(has_unread.as_bytes(), &[(score, &tid_b)])?;
-            }
-
-            // Folder/bucket membership (v2.9). The thread joins exactly
-            // one of {inbox, notifications, promotions, junk} per
-            // `bucket_of(category)`, and is removed from the other three.
-            // A sent-only thread (total == sent, i.e. no received
-            // message) lives in the Sent axis alone — it must not
-            // surface in any inbound bucket; junk is the exception (a
-            // spam-classified thread belongs in Junk regardless).
-            if bucket == keys::Bucket::Junk || total > sent {
-                ctx.zadd(bucket_zset.as_bytes(), &[(score, &tid_b)])?;
-                for other in &other_buckets {
-                    ctx.zrem(other.as_bytes(), &[&tid_b])?;
-                }
-            } else {
-                // Sent-only (total == sent, non-junk): the thread belongs
-                // to the Sent axis alone. Self-heal any stale inbound-
-                // bucket membership left by an earlier upsert (e.g. a
-                // pg-dump import whose sent_count aggregate was 0 before
-                // fastcore recomputed it). Mirrors `upsert_thread`.
-                for z in keys::Bucket::all_zsets(m.user) {
-                    ctx.zrem(z.as_bytes(), &[&tid_b])?;
-                }
-            }
-            Ok(())
-        })
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 }
 

@@ -473,7 +473,7 @@ fn enqueue_redirect(
     let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
         return Err(std::io::Error::other("MAILRS_KEVY_URL unset"));
     };
-    let mut conn = kevy_client::Connection::open(&url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
     // SRS forward-rewrite the MAIL FROM (G6): when we forward on behalf
     // of an external sender, the receiving MX runs SPF against OUR IP —

@@ -17,8 +17,8 @@ use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
 
 fn admin_read_hash(key: &[u8]) -> Result<Vec<serde_json::Value>, McpError> {
-    let flat =
-        with_kevy(|c| c.hgetall(key)).map_err(|_| McpError::internal_error("kevy read", None))?;
+    let flat = with_kevy(|c| c.hgetall(key).map_err(std::io::Error::other))
+        .map_err(|_| McpError::internal_error("kevy read", None))?;
     Ok(flat
         .chunks(2)
         .filter_map(|p| p.get(1))
