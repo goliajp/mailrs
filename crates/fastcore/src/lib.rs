@@ -117,7 +117,7 @@ impl FastcoreState {
     /// network kevy is configured so handlers can serve an empty result.
     pub fn net_conn(&self) -> Option<kevy_client::Connection> {
         let url = self.net_url.as_ref()?;
-        kevy_client::Connection::open(url).ok()
+        kevy_client::Connection::connect(url).ok()
     }
 }
 

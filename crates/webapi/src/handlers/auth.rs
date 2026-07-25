@@ -97,8 +97,10 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
     let totp_key_r = totp_key.clone();
     let totp_enrolled_secret = match crate::handlers::kevy_util::with_kevy(move |c| {
         Ok((
-            c.hget(totp_key_r.as_bytes(), b"secret")?,
-            c.hget(totp_key_r.as_bytes(), b"enabled")?,
+            c.hget(totp_key_r.as_bytes(), b"secret")
+                .map_err(std::io::Error::other)?,
+            c.hget(totp_key_r.as_bytes(), b"enabled")
+                .map_err(std::io::Error::other)?,
         ))
     }) {
         Ok(v) => v,
@@ -132,7 +134,8 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
             let code_owned = code.to_string();
             crate::handlers::kevy_util::with_kevy(move |c| {
                 let recovery_str = c
-                    .hget(rc_key.as_bytes(), b"recovery_codes")?
+                    .hget(rc_key.as_bytes(), b"recovery_codes")
+                    .map_err(std::io::Error::other)?
                     .and_then(|v| String::from_utf8(v).ok())
                     .unwrap_or_default();
                 let mut codes: Vec<&str> =
@@ -145,7 +148,8 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
                 c.hset(
                     rc_key.as_bytes(),
                     &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-                )?;
+                )
+                .map_err(std::io::Error::other)?;
                 Ok(true)
             })
             .unwrap_or(false)
@@ -203,17 +207,19 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         let token_clone = token.clone();
         let addr_clone = acct.public.address.clone();
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            let mut c = kevy_client::Connection::open(&url)?;
+            let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
             let key = format!("session:{token_clone}");
             c.set_with_ttl(
                 key.as_bytes(),
                 &blob_bytes,
                 std::time::Duration::from_secs(7 * 24 * 3600),
-            )?;
+            )
+            .map_err(std::io::Error::other)?;
             // Per-user session index — makes it possible to revoke all
             // active sessions when the password changes.
             let idx = format!("session:by_addr:{addr_clone}");
-            c.sadd(idx.as_bytes(), &[token_clone.as_bytes()])?;
+            c.sadd(idx.as_bytes(), &[token_clone.as_bytes()])
+                .map_err(std::io::Error::other)?;
             Ok(())
         })
         .await;
@@ -318,12 +324,14 @@ pub async fn verify_credentials(
             .into_response();
     }
     let totp_key = format!("totp:{}", req.address);
-    let totp_required =
-        crate::handlers::kevy_util::with_kevy(move |c| c.hget(totp_key.as_bytes(), b"enabled"))
-            .ok()
-            .flatten()
-            .map(|v| v == b"1")
-            .unwrap_or(false);
+    let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(totp_key.as_bytes(), b"enabled")
+            .map_err(std::io::Error::other)
+    })
+    .ok()
+    .flatten()
+    .map(|v| v == b"1")
+    .unwrap_or(false);
     (
         StatusCode::OK,
         Json(serde_json::json!({
@@ -365,24 +373,28 @@ pub async fn verify_totp(
     }
     let key = format!("totp:{}", req.address);
     let key_r = key.clone();
-    let secret =
-        match crate::handlers::kevy_util::with_kevy(move |c| c.hget(key_r.as_bytes(), b"secret")) {
-            Ok(Some(v)) => String::from_utf8(v).unwrap_or_default(),
-            _ => {
-                return (
-                    StatusCode::OK,
-                    Json(serde_json::json!({"valid": false, "reason": "totp_not_configured"})),
-                )
-                    .into_response();
-            }
-        };
+    let secret = match crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(key_r.as_bytes(), b"secret")
+            .map_err(std::io::Error::other)
+    }) {
+        Ok(Some(v)) => String::from_utf8(v).unwrap_or_default(),
+        _ => {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({"valid": false, "reason": "totp_not_configured"})),
+            )
+                .into_response();
+        }
+    };
     let enabled_key = key.clone();
-    let enabled =
-        crate::handlers::kevy_util::with_kevy(move |c| c.hget(enabled_key.as_bytes(), b"enabled"))
-            .ok()
-            .flatten()
-            .map(|v| v == b"1")
-            .unwrap_or(false);
+    let enabled = crate::handlers::kevy_util::with_kevy(move |c| {
+        c.hget(enabled_key.as_bytes(), b"enabled")
+            .map_err(std::io::Error::other)
+    })
+    .ok()
+    .flatten()
+    .map(|v| v == b"1")
+    .unwrap_or(false);
     if !enabled {
         return (
             StatusCode::OK,
@@ -400,7 +412,8 @@ pub async fn verify_totp(
         let code_owned = req.code.clone();
         crate::handlers::kevy_util::with_kevy(move |c| {
             let recovery_str = c
-                .hget(rc_key.as_bytes(), b"recovery_codes")?
+                .hget(rc_key.as_bytes(), b"recovery_codes")
+                .map_err(std::io::Error::other)?
                 .and_then(|v| String::from_utf8(v).ok())
                 .unwrap_or_default();
             let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
@@ -412,7 +425,8 @@ pub async fn verify_totp(
             c.hset(
                 rc_key.as_bytes(),
                 &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-            )?;
+            )
+            .map_err(std::io::Error::other)?;
             Ok(true)
         })
         .unwrap_or(false)
@@ -534,9 +548,9 @@ pub async fn logout(req: axum::extract::Request) -> Response {
 
     if let (Some(t), Ok(url)) = (token, std::env::var("MAILRS_KEVY_URL")) {
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            let mut c = kevy_client::Connection::open(&url)?;
+            let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
             let key = format!("session:{t}");
-            let _ = c.del(&[key.as_bytes()])?;
+            let _ = c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
             Ok(())
         })
         .await;

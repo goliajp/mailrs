@@ -41,8 +41,11 @@ fn blacklist_key(user: &str) -> String {
 fn list_set(user: &str, key: &str) -> Result<Vec<String>, StatusCode> {
     let key_owned = key.to_string();
     let _ = user;
-    let members: Vec<Vec<u8>> = with_kevy(move |c| c.smembers(key_owned.as_bytes()))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let members: Vec<Vec<u8>> = with_kevy(move |c| {
+        c.smembers(key_owned.as_bytes())
+            .map_err(std::io::Error::other)
+    })
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut out: Vec<String> = members
         .into_iter()
         .filter_map(|b| String::from_utf8(b).ok())
@@ -58,7 +61,8 @@ fn add_to_set(key: &str, address: &str) -> Result<(), StatusCode> {
     }
     let key_owned = key.to_string();
     with_kevy(move |c| {
-        c.sadd(key_owned.as_bytes(), &[addr.as_bytes()])?;
+        c.sadd(key_owned.as_bytes(), &[addr.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
@@ -68,7 +72,8 @@ fn remove_from_set(key: &str, address: &str) -> Result<(), StatusCode> {
     let addr = address.to_lowercase();
     let key_owned = key.to_string();
     with_kevy(move |c| {
-        c.srem(key_owned.as_bytes(), &[addr.as_bytes()])?;
+        c.srem(key_owned.as_bytes(), &[addr.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)

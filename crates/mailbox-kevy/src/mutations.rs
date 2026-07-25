@@ -108,28 +108,30 @@ impl KevyMailboxStore {
             .filter(|k| *k != target)
             .collect();
         let new_category = bucket.category().as_bytes();
-        self.store().atomic(|ctx| {
-            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
-                return Ok(false);
-            }
-            ctx.hset(
-                thread_key.as_bytes(),
-                &[(b"category" as &[u8], new_category)],
-            )?;
-            let score = ctx
-                .hget(thread_key.as_bytes(), b"latest_date")?
-                .and_then(|v| {
-                    std::str::from_utf8(&v)
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                })
-                .unwrap_or(0);
-            ctx.zadd(target.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-            for other in &others {
-                ctx.zrem(other.as_bytes(), &[thread_id.as_bytes()])?;
-            }
-            Ok(true)
-        })
+        self.store()
+            .atomic(|ctx| {
+                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                    return Ok(false);
+                }
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"category" as &[u8], new_category)],
+                )?;
+                let score = ctx
+                    .hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| {
+                        std::str::from_utf8(&v)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                    })
+                    .unwrap_or(0);
+                ctx.zadd(target.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+                for other in &others {
+                    ctx.zrem(other.as_bytes(), &[thread_id.as_bytes()])?;
+                }
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Common path: read latest_date (for the zadd score), hset the
@@ -148,28 +150,30 @@ impl KevyMailboxStore {
         let thread_key = keys::thread(thread_id);
         let idx = index_key_fn(user);
         let val: &[u8] = if on { b"1" } else { b"0" };
-        self.store().atomic(|ctx| {
-            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
-                return Ok(false);
-            }
-            ctx.hset(thread_key.as_bytes(), &[(field.as_bytes(), val)])?;
-            if on {
-                // Need a score — use the row's latest_date so the index
-                // stays sortable by recency.
-                let score = ctx
-                    .hget(thread_key.as_bytes(), b"latest_date")?
-                    .and_then(|v| {
-                        std::str::from_utf8(&v)
-                            .ok()
-                            .and_then(|s| s.parse::<i64>().ok())
-                    })
-                    .unwrap_or(0);
-                ctx.zadd(idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-            } else {
-                ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-            }
-            Ok(true)
-        })
+        self.store()
+            .atomic(|ctx| {
+                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                    return Ok(false);
+                }
+                ctx.hset(thread_key.as_bytes(), &[(field.as_bytes(), val)])?;
+                if on {
+                    // Need a score — use the row's latest_date so the index
+                    // stays sortable by recency.
+                    let score = ctx
+                        .hget(thread_key.as_bytes(), b"latest_date")?
+                        .and_then(|v| {
+                            std::str::from_utf8(&v)
+                                .ok()
+                                .and_then(|s| s.parse::<i64>().ok())
+                        })
+                        .unwrap_or(0);
+                    ctx.zadd(idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
+                } else {
+                    ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
+                }
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Flip a thread back to unread. Mirrors `mark_seen` in the
@@ -181,32 +185,34 @@ impl KevyMailboxStore {
     pub fn mark_unread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let idx = keys::user_threads_has_unread(user);
-        self.store().atomic(|ctx| {
-            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
-                return Ok(false);
-            }
-            let latest = ctx
-                .hget(thread_key.as_bytes(), b"latest_date")?
-                .and_then(|v| {
-                    std::str::from_utf8(&v)
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                })
-                .unwrap_or(0);
-            let cur = ctx
-                .hget(thread_key.as_bytes(), b"unread_count")?
-                .and_then(|v| {
-                    std::str::from_utf8(&v)
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                })
-                .unwrap_or(0);
-            if cur < 1 {
-                ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
-            }
-            ctx.zadd(idx.as_bytes(), &[(latest as f64, thread_id.as_bytes())])?;
-            Ok(true)
-        })
+        self.store()
+            .atomic(|ctx| {
+                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                    return Ok(false);
+                }
+                let latest = ctx
+                    .hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| {
+                        std::str::from_utf8(&v)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                    })
+                    .unwrap_or(0);
+                let cur = ctx
+                    .hget(thread_key.as_bytes(), b"unread_count")?
+                    .and_then(|v| {
+                        std::str::from_utf8(&v)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                    })
+                    .unwrap_or(0);
+                if cur < 1 {
+                    ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
+                }
+                ctx.zadd(idx.as_bytes(), &[(latest as f64, thread_id.as_bytes())])?;
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Set `snoozed_until` (epoch seconds; `0` = unsnooze) on the
@@ -224,16 +230,18 @@ impl KevyMailboxStore {
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let val = snoozed_until.to_string();
-        self.store().atomic(|ctx| {
-            if !ctx.hexists(thread_key.as_bytes(), b"count")? {
-                return Ok(false);
-            }
-            ctx.hset(
-                thread_key.as_bytes(),
-                &[(b"snoozed_until" as &[u8], val.as_bytes())],
-            )?;
-            Ok(true)
-        })
+        self.store()
+            .atomic(|ctx| {
+                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                    return Ok(false);
+                }
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"snoozed_until" as &[u8], val.as_bytes())],
+                )?;
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Hard-delete `thread_id` for `user`. Removes the row hash + drops
@@ -258,14 +266,18 @@ impl KevyMailboxStore {
         // Enumerate messages OUTSIDE the atomic block: AtomicCtx has no
         // `zrange`, and every blob is a plain `get` — one round trip
         // per message on a typical thread (< 20 hops).
-        let members = store.zrange(msgs_zset.as_bytes(), 0, -1)?;
+        let members = store
+            .zrange(msgs_zset.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
         let mut per_msg: Vec<(String, Option<u32>, Option<String>)> =
             Vec::with_capacity(members.len());
         for (mid_bytes, _score) in &members {
             let Ok(mid) = std::str::from_utf8(mid_bytes) else {
                 continue;
             };
-            let blob = store.get(keys::message_blob(mid).as_bytes())?;
+            let blob = store
+                .get(keys::message_blob(mid).as_bytes())
+                .map_err(std::io::Error::other)?;
             let (uid, blob_ref) = match blob.as_deref() {
                 Some(bytes) => {
                     let v: serde_json::Value =
@@ -295,60 +307,62 @@ impl KevyMailboxStore {
         let msg_by_uid_key = keys::user_msg_by_uid(user);
         let uid_by_mid_key = keys::user_uid_by_mid(user);
 
-        let existed = store.atomic(|ctx| {
-            let category = ctx
-                .hget(thread_key.as_bytes(), b"category")?
-                .and_then(|v| String::from_utf8(v).ok());
-            let Some(cat) = category else {
-                // hash doesn't exist — nothing to clean.
-                return Ok(false);
-            };
+        let existed = store
+            .atomic(|ctx| {
+                let category = ctx
+                    .hget(thread_key.as_bytes(), b"category")?
+                    .and_then(|v| String::from_utf8(v).ok());
+                let Some(cat) = category else {
+                    // hash doesn't exist — nothing to clean.
+                    return Ok(false);
+                };
 
-            // Per-message cleanup — msg blob, RFC Message-ID → thread
-            // pointer, and both directions of the uid ↔ message-id map.
-            // Any of these left behind kept the message reachable via
-            // find_by_message_id / by_uid lookups even after the row
-            // vanished from the thread aggregate.
-            for (mid, uid, _blob_ref) in &per_msg {
-                ctx.del(&[keys::message_blob(mid).as_bytes()]);
-                ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
-                if let Some(u) = uid {
-                    let uid_s = u.to_string();
-                    ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
+                // Per-message cleanup — msg blob, RFC Message-ID → thread
+                // pointer, and both directions of the uid ↔ message-id map.
+                // Any of these left behind kept the message reachable via
+                // find_by_message_id / by_uid lookups even after the row
+                // vanished from the thread aggregate.
+                for (mid, uid, _blob_ref) in &per_msg {
+                    ctx.del(&[keys::message_blob(mid).as_bytes()]);
+                    ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
+                    if let Some(u) = uid {
+                        let uid_s = u.to_string();
+                        ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
+                    }
+                    ctx.hdel(uid_by_mid_key.as_bytes(), &[mid.as_bytes()])?;
                 }
-                ctx.hdel(uid_by_mid_key.as_bytes(), &[mid.as_bytes()])?;
-            }
 
-            // The thread's own message-index zset.
-            ctx.del(&[msgs_zset.as_bytes()]);
+                // The thread's own message-index zset.
+                ctx.del(&[msgs_zset.as_bytes()]);
 
-            // Thread aggregate fields.
-            ctx.hdel(thread_key.as_bytes(), fields)?;
+                // Thread aggregate fields.
+                ctx.hdel(thread_key.as_bytes(), fields)?;
 
-            // Per-user thread indexes.
-            let indexes = [
-                keys::user_threads_by_activity(user),
-                keys::user_threads_by_category(user, &cat),
-                keys::user_threads_pinned(user),
-                keys::user_threads_archived(user),
-                keys::user_threads_has_unread(user),
-                keys::user_threads_has_action(user),
-                keys::user_threads_starred(user),
-                // v2.8.2 — the Phase 2 folder zsets were missing from
-                // this cleanup list, leaving orphan members behind on
-                // every delete (invisible rows, inflated zcard totals).
-                // v2.9 — the notifications/promotions buckets join them.
-                keys::user_threads_inbox(user),
-                keys::user_threads_notifications(user),
-                keys::user_threads_promotions(user),
-                keys::user_threads_junk(user),
-                keys::user_threads_sent(user),
-            ];
-            for idx in &indexes {
-                ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-            }
-            Ok(true)
-        })?;
+                // Per-user thread indexes.
+                let indexes = [
+                    keys::user_threads_by_activity(user),
+                    keys::user_threads_by_category(user, &cat),
+                    keys::user_threads_pinned(user),
+                    keys::user_threads_archived(user),
+                    keys::user_threads_has_unread(user),
+                    keys::user_threads_has_action(user),
+                    keys::user_threads_starred(user),
+                    // v2.8.2 — the Phase 2 folder zsets were missing from
+                    // this cleanup list, leaving orphan members behind on
+                    // every delete (invisible rows, inflated zcard totals).
+                    // v2.9 — the notifications/promotions buckets join them.
+                    keys::user_threads_inbox(user),
+                    keys::user_threads_notifications(user),
+                    keys::user_threads_promotions(user),
+                    keys::user_threads_junk(user),
+                    keys::user_threads_sent(user),
+                ];
+                for idx in &indexes {
+                    ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
+                }
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)?;
         Ok((existed, blob_refs))
     }
 }

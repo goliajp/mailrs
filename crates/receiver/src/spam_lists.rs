@@ -65,7 +65,9 @@ pub async fn load_recipient_lists_async(
 }
 
 fn read_lowercase_set(client: &KevyNetClient, key: &str) -> Option<HashSet<String>> {
-    let bytes = client.with_conn(|c| c.smembers(key.as_bytes())).ok()?;
+    let bytes = client
+        .with_conn(|c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))
+        .ok()?;
     let mut out = HashSet::with_capacity(bytes.len());
     for b in bytes {
         if let Ok(s) = std::str::from_utf8(&b) {
@@ -98,10 +100,16 @@ mod tests {
         // Seed the sets. The whitelist entry is uppercased on the way
         // in so the assertion proves normalization.
         client
-            .with_conn(|c| c.sadd(b"spam:u@example.com:whitelist", &[b"Friend@GOLIA.jp"]))
+            .with_conn(|c| {
+                c.sadd(b"spam:u@example.com:whitelist", &[b"Friend@GOLIA.jp"])
+                    .map_err(std::io::Error::other)
+            })
             .expect("sadd whitelist");
         client
-            .with_conn(|c| c.sadd(b"spam:u@example.com:blacklist", &[b"spammer@EVIL.com"]))
+            .with_conn(|c| {
+                c.sadd(b"spam:u@example.com:blacklist", &[b"spammer@EVIL.com"])
+                    .map_err(std::io::Error::other)
+            })
             .expect("sadd blacklist");
 
         let (wl, bl) = load_recipient_lists(&client, "U@Example.com");

@@ -268,7 +268,7 @@ pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<
 }
 
 fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
-    let Ok(mut conn) = kevy_client::Connection::open(url) else {
+    let Ok(mut conn) = kevy_client::Connection::connect(url) else {
         return;
     };
     // First pop blocks up to 10 s (matches prior wake-up cadence); after

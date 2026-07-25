@@ -20,7 +20,7 @@ where
 {
     let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::open(&url)?;
+        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
         f(&mut c)
     });
     handle
@@ -44,7 +44,7 @@ pub async fn get_keys(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("pgp_keys:{user}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     let mut items = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -73,7 +73,8 @@ pub async fn save_key(
     let email = req.email;
     let body = req.key_armored;
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(email.as_bytes(), body.as_bytes())])?;
+        c.hset(key.as_bytes(), &[(email.as_bytes(), body.as_bytes())])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -151,7 +152,8 @@ pub async fn spam_feedback(
     let mid = req.message_id;
     let val = if req.is_spam { "spam" } else { "ham" };
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(mid.as_bytes(), val.as_bytes())])?;
+        c.hset(key.as_bytes(), &[(mid.as_bytes(), val.as_bytes())])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)

@@ -98,10 +98,12 @@ pub fn record_inbound(
         ),
         (b"is_automated", if is_automated { b"1" } else { b"0" }),
     ];
-    conn.hset(key.as_bytes(), &flags)?;
+    conn.hset(key.as_bytes(), &flags)
+        .map_err(std::io::Error::other)?;
     conn.pipeline(|p| {
         p.cmd(&[b"HINCRBY", key.as_bytes(), b"received_count", b"1"]);
-    })?;
+    })
+    .map_err(std::io::Error::other)?;
     Ok(())
 }
 
@@ -132,7 +134,8 @@ pub fn record_sent_to(
     let key = contact_key(user, email);
     conn.pipeline(|p| {
         p.cmd(&[b"HINCRBY", key.as_bytes(), b"sent_count", b"1"]);
-    })?;
+    })
+    .map_err(std::io::Error::other)?;
     Ok(())
 }
 
@@ -212,7 +215,8 @@ pub fn record_engagement(
         for f in event.fields() {
             p.cmd(&[b"HINCRBY", key.as_bytes(), f, b"1"]);
         }
-    })?;
+    })
+    .map_err(std::io::Error::other)?;
     Ok(())
 }
 

@@ -29,21 +29,25 @@ impl KevyMailboxStore {
     ) -> io::Result<()> {
         let blob_key = keys::message_blob(message_id);
         let zset = keys::thread_messages(thread_id);
-        self.store().atomic(|ctx| {
-            ctx.set(blob_key.as_bytes(), payload);
-            ctx.zadd(
-                zset.as_bytes(),
-                &[(internal_date as f64, message_id.as_bytes())],
-            )?;
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                ctx.set(blob_key.as_bytes(), payload);
+                ctx.zadd(
+                    zset.as_bytes(),
+                    &[(internal_date as f64, message_id.as_bytes())],
+                )?;
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Read message bytes for `message_id`. Returns `None` if the key
     /// is missing (deleted or never written).
     pub fn get_message(&self, message_id: &str) -> io::Result<Option<Vec<u8>>> {
         let key = keys::message_blob(message_id);
-        self.store().get(key.as_bytes())
+        self.store()
+            .get(key.as_bytes())
+            .map_err(std::io::Error::other)
     }
 
     /// Look up a message by (user, uid) via the per-user uid → message_id
@@ -53,7 +57,8 @@ impl KevyMailboxStore {
         let idx_key = keys::user_msg_by_uid(user);
         let mid_bytes = self
             .store()
-            .hget(idx_key.as_bytes(), uid.to_string().as_bytes())?;
+            .hget(idx_key.as_bytes(), uid.to_string().as_bytes())
+            .map_err(std::io::Error::other)?;
         let Some(mid_bytes) = mid_bytes else {
             return Ok(None);
         };
@@ -84,33 +89,37 @@ impl KevyMailboxStore {
         let rev_key = keys::user_uid_by_mid(user);
         let idx_key = keys::user_msg_by_uid(user);
         let counter_key = keys::user_next_uid(user);
-        self.store().atomic(|ctx| {
-            ctx.hset(
-                rev_key.as_bytes(),
-                &[(message_id.as_bytes(), uid.to_string().as_bytes())],
-            )?;
-            ctx.hset(
-                idx_key.as_bytes(),
-                &[(uid.to_string().as_bytes(), message_id.as_bytes())],
-            )?;
-            let cur = ctx
-                .get(counter_key.as_bytes())?
-                .and_then(|b| String::from_utf8(b).ok())
-                .and_then(|s| s.parse::<i64>().ok())
-                .unwrap_or(0);
-            if cur < uid as i64 {
-                ctx.set(counter_key.as_bytes(), uid.to_string().as_bytes());
-            }
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                ctx.hset(
+                    rev_key.as_bytes(),
+                    &[(message_id.as_bytes(), uid.to_string().as_bytes())],
+                )?;
+                ctx.hset(
+                    idx_key.as_bytes(),
+                    &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+                )?;
+                let cur = ctx
+                    .get(counter_key.as_bytes())?
+                    .and_then(|b| String::from_utf8(b).ok())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(0);
+                if cur < uid as i64 {
+                    ctx.set(counter_key.as_bytes(), uid.to_string().as_bytes());
+                }
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     pub fn index_uid(&self, user: &str, uid: u32, message_id: &str) -> io::Result<()> {
         let idx_key = keys::user_msg_by_uid(user);
-        self.store().hset(
-            idx_key.as_bytes(),
-            &[(uid.to_string().as_bytes(), message_id.as_bytes())],
-        )?;
+        self.store()
+            .hset(
+                idx_key.as_bytes(),
+                &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+            )
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 
@@ -131,25 +140,27 @@ impl KevyMailboxStore {
         let rev_key = keys::user_uid_by_mid(user);
         let counter_key = keys::user_next_uid(user);
         let idx_key = keys::user_msg_by_uid(user);
-        self.store().atomic(|ctx| {
-            if let Some(existing) = ctx.hget(rev_key.as_bytes(), message_id.as_bytes())?
-                && let Ok(s) = std::str::from_utf8(&existing)
-                && let Ok(uid) = s.parse::<u32>()
-            {
-                return Ok(uid);
-            }
-            let uid_i = ctx.incr(counter_key.as_bytes())?;
-            let uid = uid_i.clamp(1, u32::MAX as i64) as u32;
-            ctx.hset(
-                rev_key.as_bytes(),
-                &[(message_id.as_bytes(), uid.to_string().as_bytes())],
-            )?;
-            ctx.hset(
-                idx_key.as_bytes(),
-                &[(uid.to_string().as_bytes(), message_id.as_bytes())],
-            )?;
-            Ok(uid)
-        })
+        self.store()
+            .atomic(|ctx| {
+                if let Some(existing) = ctx.hget(rev_key.as_bytes(), message_id.as_bytes())?
+                    && let Ok(s) = std::str::from_utf8(&existing)
+                    && let Ok(uid) = s.parse::<u32>()
+                {
+                    return Ok(uid);
+                }
+                let uid_i = ctx.incr(counter_key.as_bytes())?;
+                let uid = uid_i.clamp(1, u32::MAX as i64) as u32;
+                ctx.hset(
+                    rev_key.as_bytes(),
+                    &[(message_id.as_bytes(), uid.to_string().as_bytes())],
+                )?;
+                ctx.hset(
+                    idx_key.as_bytes(),
+                    &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+                )?;
+                Ok(uid)
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// List all messages in `thread_id` in chronological order
@@ -162,20 +173,25 @@ impl KevyMailboxStore {
     /// per-message payloads.
     pub fn list_thread_messages(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
         let zset = keys::thread_messages(thread_id);
-        let entries = self.store().zrange(zset.as_bytes(), 0, -1)?;
-        self.store().atomic(|ctx| {
-            let mut out = Vec::with_capacity(entries.len());
-            for (mid_bytes, _score) in &entries {
-                let Ok(mid) = std::str::from_utf8(mid_bytes) else {
-                    continue;
-                };
-                let blob_key = keys::message_blob(mid);
-                if let Some(bytes) = ctx.get(blob_key.as_bytes())? {
-                    out.push(bytes);
+        let entries = self
+            .store()
+            .zrange(zset.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
+        self.store()
+            .atomic(|ctx| {
+                let mut out = Vec::with_capacity(entries.len());
+                for (mid_bytes, _score) in &entries {
+                    let Ok(mid) = std::str::from_utf8(mid_bytes) else {
+                        continue;
+                    };
+                    let blob_key = keys::message_blob(mid);
+                    if let Some(bytes) = ctx.get(blob_key.as_bytes())? {
+                        out.push(bytes);
+                    }
                 }
-            }
-            Ok(out)
-        })
+                Ok(out)
+            })
+            .map_err(std::io::Error::other)
     }
 }
 

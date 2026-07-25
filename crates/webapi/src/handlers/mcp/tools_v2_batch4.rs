@@ -39,8 +39,11 @@ impl MailrsMcpService {
     )]
     async fn list_own_scheduled(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
-        let raw = with_kevy(|c| c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1))
-            .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
+        let raw = with_kevy(|c| {
+            c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1)
+                .map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
         let user_c = user.clone();
         let items: Vec<serde_json::Value> = with_kevy(move |c| {
             let mut out = Vec::new();
@@ -49,7 +52,10 @@ impl MailrsMcpService {
                     continue;
                 };
                 let hkey = format!("mailrs:outbound:job:{id}");
-                let Some(blob) = c.hget(hkey.as_bytes(), b"blob")? else {
+                let Some(blob) = c
+                    .hget(hkey.as_bytes(), b"blob")
+                    .map_err(std::io::Error::other)?
+                else {
                     continue;
                 };
                 let Ok(env) = serde_json::from_slice::<serde_json::Value>(&blob) else {
@@ -59,7 +65,8 @@ impl MailrsMcpService {
                     continue;
                 }
                 let score = c
-                    .zscore(b"mailrs:outbound:scheduled-idx", &m)?
+                    .zscore(b"mailrs:outbound:scheduled-idx", &m)
+                    .map_err(std::io::Error::other)?
                     .unwrap_or(0.0) as i64;
                 out.push(serde_json::json!({
                     "id": id,

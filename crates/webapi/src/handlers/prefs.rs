@@ -35,7 +35,7 @@ where
 {
     let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::open(&url)?;
+        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
         f(&mut c)
     });
     handle
@@ -55,6 +55,7 @@ fn now_secs() -> i64 {
 fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Result<i64> {
     // v2 Stage B.2: single-op INCR — kevy-side atomic, no race.
     c.incr(counter_key.as_bytes())
+        .map_err(std::io::Error::other)
 }
 
 // ── drafts ─────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ pub async fn list_drafts(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::DraftWire>>, StatusCode> {
     let key = format!("drafts:{user}");
-    let out = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     let mut drafts = Vec::new();
     for val in out
         .into_iter()
@@ -112,7 +113,8 @@ pub async fn save_draft(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(mailrs_core_api::method::admin::SaveDraftResponse {
@@ -128,7 +130,8 @@ pub async fn delete_draft(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("drafts:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -142,7 +145,7 @@ pub async fn list_signatures(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::SignatureWire>>, StatusCode> {
     let key = format!("signatures:{user}");
-    let out = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     let mut items = Vec::new();
     for val in out
         .into_iter()
@@ -182,7 +185,8 @@ pub async fn save_signature(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(
@@ -198,7 +202,8 @@ pub async fn delete_signature(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("signatures:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -212,7 +217,7 @@ pub async fn list_templates(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::TemplateWire>>, StatusCode> {
     let key = format!("templates:{user}");
-    let out = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     let mut items = Vec::new();
     for val in out
         .into_iter()
@@ -255,7 +260,8 @@ pub async fn save_template(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(mailrs_core_api::method::admin::SaveTemplateResponse {
@@ -271,7 +277,8 @@ pub async fn delete_template(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("templates:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -296,7 +303,8 @@ pub async fn submit_feedback(
     let action = req.action;
     let ts = now_secs().to_string();
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(action.as_bytes(), ts.as_bytes())])?;
+        c.hset(key.as_bytes(), &[(action.as_bytes(), ts.as_bytes())])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -449,7 +457,7 @@ pub async fn get_contacts(
     let key = format!("mailrs:user:{user}:contacts");
     let query = q.q.to_lowercase();
     let limit = q.limit.max(1) as usize;
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     // hgetall returns [field, value, field, value, ...] — extract pairs.
     let mut matches: Vec<String> = Vec::new();
     let mut i = 0;
@@ -929,7 +937,7 @@ async fn mirror_send_to_sender_view(
             let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
             let n = envelope.len() as i64;
             let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-                c.incr_by(uk.as_bytes(), n)?;
+                c.incr_by(uk.as_bytes(), n).map_err(std::io::Error::other)?;
                 Ok(())
             });
             ids[0].0.clone()
@@ -1037,24 +1045,30 @@ async fn mirror_send_to_sender_view(
                 } else {
                     addr.clone()
                 };
-                c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])?;
+                c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])
+                    .map_err(std::io::Error::other)?;
                 // Track last-used ts in a companion zset so we can
                 // evict the least-recently-emailed contacts once the
                 // set grows past a soft cap. Without this the hash
                 // grows unbounded.
-                c.zadd(ts_key.as_bytes(), &[(now_ts as f64, addr.as_bytes())])?;
+                c.zadd(ts_key.as_bytes(), &[(now_ts as f64, addr.as_bytes())])
+                    .map_err(std::io::Error::other)?;
             }
             // Enforce a 2000-entry cap. If the zset exceeds it, drop
             // the oldest entries from both the hash and the zset.
-            let size = c.zcard(ts_key.as_bytes())?;
+            let size = c.zcard(ts_key.as_bytes()).map_err(std::io::Error::other)?;
             const CAP: usize = 2000;
             if size > CAP {
                 let overflow = (size - CAP) as i64;
-                let old = c.zrange(ts_key.as_bytes(), 0, overflow - 1)?;
+                let old = c
+                    .zrange(ts_key.as_bytes(), 0, overflow - 1)
+                    .map_err(std::io::Error::other)?;
                 let old_refs: Vec<&[u8]> = old.iter().map(|v| v.as_slice()).collect();
                 if !old_refs.is_empty() {
-                    c.hdel(key.as_bytes(), &old_refs)?;
-                    c.zrem(ts_key.as_bytes(), &old_refs)?;
+                    c.hdel(key.as_bytes(), &old_refs)
+                        .map_err(std::io::Error::other)?;
+                    c.zrem(ts_key.as_bytes(), &old_refs)
+                        .map_err(std::io::Error::other)?;
                 }
             }
             Ok(())

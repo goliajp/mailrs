@@ -39,7 +39,7 @@ impl MailrsMcpService {
     async fn list_own_encryption_keys(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let key = format!("encryption_keys:{user}");
-        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))
+        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
             .map_err(|_| McpError::internal_error("kevy read", None))?;
         let mut out = Vec::new();
         let mut i = 0;
@@ -78,8 +78,11 @@ impl MailrsMcpService {
         }
         let hkey = format!("encryption_keys:{}", params.address);
         let kt = key_type.clone();
-        let value = with_kevy(move |c| c.hget(hkey.as_bytes(), kt.as_bytes()))
-            .map_err(|_| McpError::internal_error("kevy read", None))?;
+        let value = with_kevy(move |c| {
+            c.hget(hkey.as_bytes(), kt.as_bytes())
+                .map_err(std::io::Error::other)
+        })
+        .map_err(|_| McpError::internal_error("kevy read", None))?;
         let Some(bytes) = value else {
             return Ok(CallToolResult::success(vec![Content::text(
                 serde_json::json!({ "ok": false, "reason": "no key for that (address, key_type)" })

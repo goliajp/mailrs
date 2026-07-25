@@ -795,7 +795,8 @@ async fn health_handler(
     // Cheap kevy round-trip. Any success => backend healthy; any error
     // => backend unreachable. Runs on the shared shard connection, no
     // fresh TCP per request.
-    let kevy_ok = handlers::kevy_util::with_kevy(|c| c.ping()).is_ok();
+    let kevy_ok =
+        handlers::kevy_util::with_kevy(|c| c.ping().map_err(std::io::Error::other)).is_ok();
     axum::Json(serde_json::json!({
         "status": if kevy_ok { "healthy" } else { "degraded" },
         "ok": kevy_ok,

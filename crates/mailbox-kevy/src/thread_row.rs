@@ -212,76 +212,81 @@ impl KevyMailboxStore {
         let is_sender = senders_csv_contains_user(&row.senders_csv, user);
         let score = row.latest_date as f64;
         let member: &[u8] = row.thread_id.as_bytes();
-        self.store().atomic(|ctx| {
-            ctx.hset(key.as_bytes(), &pair_refs)?;
+        self.store()
+            .atomic(|ctx| {
+                ctx.hset(key.as_bytes(), &pair_refs)?;
 
-            ctx.zadd(activity.as_bytes(), &[(score, member)])?;
-            ctx.zadd(cat.as_bytes(), &[(score, member)])?;
+                ctx.zadd(activity.as_bytes(), &[(score, member)])?;
+                ctx.zadd(cat.as_bytes(), &[(score, member)])?;
 
-            if row.pinned {
-                ctx.zadd(pinned.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(pinned.as_bytes(), &[member])?;
-            }
-            if row.archived {
-                ctx.zadd(archived.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(archived.as_bytes(), &[member])?;
-            }
-            if row.unread_count > 0 {
-                ctx.zadd(has_unread.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(has_unread.as_bytes(), &[member])?;
-            }
-            if row.has_action {
-                ctx.zadd(has_action.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(has_action.as_bytes(), &[member])?;
-            }
-            if row.starred {
-                ctx.zadd(starred.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(starred.as_bytes(), &[member])?;
-            }
-
-            // Sent-folder index — populated when the user's own email
-            // shows up in the thread's senders_csv (i.e. they sent at
-            // least one message). Fastcore trusts senders_csv here
-            // rather than the pg-dump-provided `sent_count`, which
-            // comes from a monolith SQL aggregate that also fires on
-            // inbound-direction events and produces false positives.
-            if is_sender {
-                ctx.zadd(sent.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(sent.as_bytes(), &[member])?;
-            }
-            // v2.9 triage — bucket membership. The thread joins exactly
-            // one of {inbox, notifications, promotions, junk} per
-            // `bucket_of(category)` and is removed from the other three,
-            // so a category flip (e.g. "mark as promotion") migrates
-            // cleanly. A sent-only thread (count == sent_count, no
-            // received message) belongs to the Sent axis alone and must
-            // not surface in any inbound bucket; Junk is the exception.
-            if bucket == keys::Bucket::Junk || row.count > row.sent_count {
-                ctx.zadd(bucket_zset.as_bytes(), &[(score, member)])?;
-                for other in &other_buckets {
-                    ctx.zrem(other.as_bytes(), &[member])?;
+                if row.pinned {
+                    ctx.zadd(pinned.as_bytes(), &[(score, member)])?;
+                } else {
+                    ctx.zrem(pinned.as_bytes(), &[member])?;
                 }
-            } else {
-                // Sent-only: not in any inbound bucket.
-                for z in keys::Bucket::all_zsets(user) {
-                    ctx.zrem(z.as_bytes(), &[member])?;
+                if row.archived {
+                    ctx.zadd(archived.as_bytes(), &[(score, member)])?;
+                } else {
+                    ctx.zrem(archived.as_bytes(), &[member])?;
                 }
-            }
-            Ok(())
-        })
+                if row.unread_count > 0 {
+                    ctx.zadd(has_unread.as_bytes(), &[(score, member)])?;
+                } else {
+                    ctx.zrem(has_unread.as_bytes(), &[member])?;
+                }
+                if row.has_action {
+                    ctx.zadd(has_action.as_bytes(), &[(score, member)])?;
+                } else {
+                    ctx.zrem(has_action.as_bytes(), &[member])?;
+                }
+                if row.starred {
+                    ctx.zadd(starred.as_bytes(), &[(score, member)])?;
+                } else {
+                    ctx.zrem(starred.as_bytes(), &[member])?;
+                }
+
+                // Sent-folder index — populated when the user's own email
+                // shows up in the thread's senders_csv (i.e. they sent at
+                // least one message). Fastcore trusts senders_csv here
+                // rather than the pg-dump-provided `sent_count`, which
+                // comes from a monolith SQL aggregate that also fires on
+                // inbound-direction events and produces false positives.
+                if is_sender {
+                    ctx.zadd(sent.as_bytes(), &[(score, member)])?;
+                } else {
+                    ctx.zrem(sent.as_bytes(), &[member])?;
+                }
+                // v2.9 triage — bucket membership. The thread joins exactly
+                // one of {inbox, notifications, promotions, junk} per
+                // `bucket_of(category)` and is removed from the other three,
+                // so a category flip (e.g. "mark as promotion") migrates
+                // cleanly. A sent-only thread (count == sent_count, no
+                // received message) belongs to the Sent axis alone and must
+                // not surface in any inbound bucket; Junk is the exception.
+                if bucket == keys::Bucket::Junk || row.count > row.sent_count {
+                    ctx.zadd(bucket_zset.as_bytes(), &[(score, member)])?;
+                    for other in &other_buckets {
+                        ctx.zrem(other.as_bytes(), &[member])?;
+                    }
+                } else {
+                    // Sent-only: not in any inbound bucket.
+                    for z in keys::Bucket::all_zsets(user) {
+                        ctx.zrem(z.as_bytes(), &[member])?;
+                    }
+                }
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Read a single thread row back. Returns `None` if the hash is
     /// empty (deleted or never existed).
     pub fn get_thread(&self, thread_id: &str) -> io::Result<Option<ThreadRow>> {
         let key = keys::thread(thread_id);
-        let pairs = self.store().hgetall(key.as_bytes())?;
+        let pairs = self
+            .store()
+            .hgetall(key.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(ThreadRow::from_pairs(thread_id.to_string(), &pairs))
     }
 }
