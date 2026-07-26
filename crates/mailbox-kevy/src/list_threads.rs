@@ -192,6 +192,18 @@ impl KevyMailboxStore {
             return self.list_bucket_via_table(user, bucket, filter, offset, limit);
         }
 
+        // The category axis has the opposite drift from the bucket
+        // axes: its zsets accumulate. Nothing removes a thread from
+        // `by_category:inbox` when it is reclassified, so on prod that
+        // key held 28598 entries against 6787 live rows — 76% of it
+        // was threads that had moved elsewhere. The rows carry the
+        // current verdict, so this both cuts over and corrects.
+        if let Some(cat) = filter.bare_category()
+            && bucket_reads_table()
+        {
+            return self.list_category_via_table(user, cat, filter, offset, limit);
+        }
+
         // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
         // caller stacks ≥ 2 predicates (e.g. inbox ∩ has_unread),
         // materialize the intersection into a per-request temp zset
@@ -373,6 +385,8 @@ mod tests {
     #[test]
     fn category_filter_uses_per_category_index() {
         let s = store();
+        // the category axis is served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         s.upsert_thread(u, &row("a1", 100, "inbox")).unwrap();
         s.upsert_thread(u, &row("a2", 200, "social")).unwrap();
@@ -512,6 +526,22 @@ impl ListThreadsFilter<'_> {
     /// predicate would need an intersection this path does not do, so
     /// those keep going through the zset route until their own axis is
     /// cut over.
+    /// The category axis with nothing stacked on it.
+    ///
+    /// Separate from `bare_bucket`: a caller passes `category` without
+    /// a folder, and the vocabularies differ (`spam` here is `junk`
+    /// there).
+    fn bare_category(&self) -> Option<&str> {
+        let cat = self.category?;
+        let bare = self.folder.is_none()
+            && !self.pinned
+            && !self.archived
+            && !self.has_unread
+            && !self.has_action
+            && !self.starred;
+        bare.then_some(cat)
+    }
+
     fn bare_bucket(&self) -> Option<&'static str> {
         let bucket = match self.folder? {
             f if f.eq_ignore_ascii_case("junk") => "junk",
@@ -533,6 +563,36 @@ impl ListThreadsFilter<'_> {
 }
 
 impl KevyMailboxStore {
+    /// Serve a category page off the second declared ORDERPATH.
+    fn list_category_via_table(
+        &self,
+        user: &str,
+        cat: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let total = self.count_thread_ids_by_category_via_table(user, cat)?;
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+        let tids = match filter.before_ts {
+            Some(ts) => {
+                self.list_thread_ids_by_category_before_via_table(user, cat, ts - 1, limit)?
+            }
+            None => {
+                if offset >= total {
+                    return Ok((Vec::new(), total));
+                }
+                let mut page =
+                    self.list_thread_ids_by_category_via_table(user, cat, offset + limit)?;
+                page.drain(..offset.min(page.len()));
+                page
+            }
+        };
+        self.hydrate_page(&tids, total)
+    }
+
     /// Serve the Junk page off the declared ORDERPATH.
     ///
     /// `before_ts` becomes a range on the `activity` component — the
@@ -581,13 +641,17 @@ impl KevyMailboxStore {
             }
         };
 
-        // Same single-lock hydration the zset path uses, for the same
-        // reason: no interleaving writer may shift a row's counters
-        // between two hgetalls within one page.
+        self.hydrate_page(&tids, total)
+    }
+
+    /// Read the page's thread hashes under one shard lock, the same
+    /// way the zset path does — no interleaving writer may shift a
+    /// row's counters between two hgetalls within one page.
+    fn hydrate_page(&self, tids: &[String], total: usize) -> io::Result<(Vec<ThreadRow>, usize)> {
         self.store()
             .atomic(|ctx| {
                 let mut out = Vec::with_capacity(tids.len());
-                for tid in &tids {
+                for tid in tids {
                     let pairs = ctx.hgetall(keys::thread(tid).as_bytes())?;
                     if let Some(row) = ThreadRow::from_pairs(tid.clone(), &pairs) {
                         out.push(row);
@@ -790,6 +854,93 @@ mod bucket_axis_tests {
             sent_count: 0,
             starred: false,
         }
+    }
+
+    /// Every mutation that touches a thread must leave the membership
+    /// row agreeing with it.
+    ///
+    /// The row is a second copy of facts the thread hash already
+    /// holds, and only `upsert_thread` used to maintain it — so any
+    /// path that wrote the hash directly (move_category, mark_seen,
+    /// the flag setters) silently desynchronised the axes that read
+    /// from the row. This walks each mutation and re-reads the row.
+    #[test]
+    fn every_mutation_keeps_the_membership_row_in_step() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        let u = "alice@x.com";
+        let mut seed = row("t", 100, "inbox");
+        seed.unread_count = 2;
+        st.upsert_thread(u, &seed).unwrap();
+
+        let field = |name: &str| -> String {
+            let key = crate::keys::thread_user(u, "t");
+            st.store()
+                .hgetall(key.as_bytes())
+                .unwrap()
+                .into_iter()
+                .find(|(f, _)| f == name.as_bytes())
+                .map(|(_, v)| String::from_utf8_lossy(&v).into_owned())
+                .unwrap_or_default()
+        };
+
+        st.set_starred(u, "t", true).unwrap();
+        assert_eq!(field("starred"), "1", "set_starred must update the row");
+
+        st.set_archived(u, "t", true).unwrap();
+        assert_eq!(field("archived"), "1", "set_archived must update the row");
+
+        st.set_pinned(u, "t", true).unwrap();
+        assert_eq!(field("pinned"), "1", "set_pinned must update the row");
+
+        st.mark_seen(u, "t").unwrap();
+        assert_eq!(field("unread"), "0", "mark_seen must update the row");
+
+        st.move_category(u, "t", "spam").unwrap();
+        assert_eq!(
+            field("category"),
+            "spam",
+            "move_category must update the row"
+        );
+        assert_eq!(field("bucket"), "junk", "and the bucket derived from it");
+    }
+
+    /// Reclassification must remove the thread from its old category.
+    ///
+    /// The zset this replaces never did: on prod one account's
+    /// `by_category:inbox` held 28598 entries against 6787 live rows,
+    /// because nothing deleted the old entry when a thread moved.
+    #[test]
+    fn reclassifying_leaves_the_old_category() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        st.upsert_thread("alice@x.com", &row("t", 100, "inbox"))
+            .unwrap();
+        st.upsert_thread("alice@x.com", &row("t", 100, "spam"))
+            .unwrap();
+
+        let count = |cat: &str| {
+            let f = ListThreadsFilter {
+                category: Some(cat),
+                ..Default::default()
+            };
+            st.list_threads_by_activity("alice@x.com", &f, 0, 10)
+                .unwrap()
+        };
+        let (inbox, inbox_total) = count("inbox");
+        assert!(
+            inbox.is_empty(),
+            "the old category must not keep the thread"
+        );
+        assert_eq!(inbox_total, 0, "nor keep counting it");
+        let (spam, spam_total) = count("spam");
+        assert_eq!(spam.len(), 1, "the new category must hold it");
+        assert_eq!(spam_total, 1);
     }
 
     /// Each bucket is a partition: a thread lands in exactly one of

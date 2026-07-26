@@ -633,6 +633,46 @@ impl KevyMailboxStore {
         }
     }
 
+    /// How many threads currently carry this category.
+    pub fn count_thread_ids_by_category_via_table(
+        &self,
+        user: &str,
+        cat: &str,
+    ) -> io::Result<usize> {
+        let (lo, hi) =
+            self.bucket_bounds(b"threaduser.by_user_category", user, b"category", cat)?;
+        self.store
+            .idx_count(
+                b"threaduser.by_user_category",
+                &kevy_embedded::IndexValue::Str(lo),
+                &kevy_embedded::IndexValue::Str(hi),
+            )
+            .map(|n| n as usize)
+            .map_err(io::Error::other)
+    }
+
+    /// The cursor page of the category axis.
+    pub fn list_thread_ids_by_category_before_via_table(
+        &self,
+        user: &str,
+        cat: &str,
+        max_activity: i64,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        let clause = kevy_index::WhereClause {
+            eqs: vec![
+                (b"user".to_vec(), user.as_bytes().to_vec()),
+                (b"category".to_vec(), cat.as_bytes().to_vec()),
+            ],
+            range: Some((
+                b"activity".to_vec(),
+                i64::MIN.to_string().into_bytes(),
+                max_activity.to_string().into_bytes(),
+            )),
+        };
+        self.run_orderpath(b"threaduser.by_user_category", user, &clause, limit)
+    }
+
     fn bucket_bounds(
         &self,
         index: &[u8],

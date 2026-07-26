@@ -125,6 +125,13 @@ impl KevyMailboxStore {
                             .and_then(|s| s.parse::<i64>().ok())
                     })
                     .unwrap_or(0);
+                ctx.hset(
+                    keys::thread_user(user, thread_id).as_bytes(),
+                    &[
+                        (b"bucket".as_slice(), bucket.name().as_bytes()),
+                        (b"category".as_slice(), new_category),
+                    ],
+                )?;
                 ctx.zadd(target.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
                 for other in &others {
                     ctx.zrem(other.as_bytes(), &[thread_id.as_bytes()])?;
@@ -156,6 +163,12 @@ impl KevyMailboxStore {
                     return Ok(false);
                 }
                 ctx.hset(thread_key.as_bytes(), &[(field.as_bytes(), val)])?;
+                // The membership row names these flags identically and
+                // the table's indexes read them from there.
+                ctx.hset(
+                    keys::thread_user(user, thread_id).as_bytes(),
+                    &[(field.as_bytes(), val)],
+                )?;
                 if on {
                     // Need a score — use the row's latest_date so the index
                     // stays sortable by recency.

@@ -58,6 +58,11 @@ impl KevyMailboxStore {
             // row back up. Writing an explicit zero prevents that.
             ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
             ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
+            // Mirror onto the membership row the table reads from.
+            ctx.hset(
+                keys::thread_user(user, thread_id).as_bytes(),
+                &[(b"unread" as &[u8], b"0")],
+            )?;
             Ok(exists)
         });
         let exists = found.map_err(std::io::Error::other)?;
