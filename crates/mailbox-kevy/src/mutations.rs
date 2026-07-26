@@ -18,18 +18,12 @@ impl KevyMailboxStore {
     ///
     /// Returns true if the row existed.
     pub fn set_archived(&self, user: &str, thread_id: &str, archived: bool) -> io::Result<bool> {
-        self.toggle_flag(
-            user,
-            thread_id,
-            "archived",
-            archived,
-            keys::user_threads_archived,
-        )
+        self.toggle_flag(user, thread_id, "archived", archived)
     }
 
     /// Flip `pinned` on or off. Same shape as `set_archived`.
     pub fn set_pinned(&self, user: &str, thread_id: &str, pinned: bool) -> io::Result<bool> {
-        self.toggle_flag(user, thread_id, "pinned", pinned, keys::user_threads_pinned)
+        self.toggle_flag(user, thread_id, "pinned", pinned)
     }
 
     /// Flip `has_action` on or off. Same shape.
@@ -39,25 +33,13 @@ impl KevyMailboxStore {
         thread_id: &str,
         has_action: bool,
     ) -> io::Result<bool> {
-        self.toggle_flag(
-            user,
-            thread_id,
-            "has_action",
-            has_action,
-            keys::user_threads_has_action,
-        )
+        self.toggle_flag(user, thread_id, "has_action", has_action)
     }
 
     /// Flip `starred` on or off. Same shape — toggles `starred` field
     /// + per-user `starred` zset membership.
     pub fn set_starred(&self, user: &str, thread_id: &str, starred: bool) -> io::Result<bool> {
-        self.toggle_flag(
-            user,
-            thread_id,
-            "starred",
-            starred,
-            keys::user_threads_starred,
-        )
+        self.toggle_flag(user, thread_id, "starred", starred)
     }
 
     /// Move a thread between the Inbox and Junk top-level folders
@@ -102,11 +84,6 @@ impl KevyMailboxStore {
         bucket: keys::Bucket,
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let target = bucket.zset(user);
-        let others: Vec<String> = keys::Bucket::all_zsets(user)
-            .into_iter()
-            .filter(|k| *k != target)
-            .collect();
         let new_category = bucket.category().as_bytes();
         self.store()
             .atomic(|ctx| {
@@ -117,14 +94,6 @@ impl KevyMailboxStore {
                     thread_key.as_bytes(),
                     &[(b"category" as &[u8], new_category)],
                 )?;
-                let score = ctx
-                    .hget(thread_key.as_bytes(), b"latest_date")?
-                    .and_then(|v| {
-                        std::str::from_utf8(&v)
-                            .ok()
-                            .and_then(|s| s.parse::<i64>().ok())
-                    })
-                    .unwrap_or(0);
                 ctx.hset(
                     keys::thread_user(user, thread_id).as_bytes(),
                     &[
@@ -132,10 +101,6 @@ impl KevyMailboxStore {
                         (b"category".as_slice(), new_category),
                     ],
                 )?;
-                ctx.zadd(target.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-                for other in &others {
-                    ctx.zrem(other.as_bytes(), &[thread_id.as_bytes()])?;
-                }
                 Ok(true)
             })
             .map_err(std::io::Error::other)
@@ -143,19 +108,14 @@ impl KevyMailboxStore {
 
     /// Common path: read latest_date (for the zadd score), hset the
     /// boolean field, and add or remove from the matching index zset.
-    fn toggle_flag<F>(
+    fn toggle_flag(
         &self,
         user: &str,
         thread_id: &str,
         field: &'static str,
         on: bool,
-        index_key_fn: F,
-    ) -> io::Result<bool>
-    where
-        F: FnOnce(&str) -> String,
-    {
+    ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let idx = index_key_fn(user);
         let val: &[u8] = if on { b"1" } else { b"0" };
         self.store()
             .atomic(|ctx| {
@@ -172,17 +132,6 @@ impl KevyMailboxStore {
                 if on {
                     // Need a score — use the row's latest_date so the index
                     // stays sortable by recency.
-                    let score = ctx
-                        .hget(thread_key.as_bytes(), b"latest_date")?
-                        .and_then(|v| {
-                            std::str::from_utf8(&v)
-                                .ok()
-                                .and_then(|s| s.parse::<i64>().ok())
-                        })
-                        .unwrap_or(0);
-                    ctx.zadd(idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-                } else {
-                    ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
                 }
                 Ok(true)
             })
@@ -197,20 +146,11 @@ impl KevyMailboxStore {
     /// Returns `true` when the row existed. Idempotent.
     pub fn mark_unread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let idx = keys::user_threads_has_unread(user);
         self.store()
             .atomic(|ctx| {
                 if !ctx.hexists(thread_key.as_bytes(), b"count")? {
                     return Ok(false);
                 }
-                let latest = ctx
-                    .hget(thread_key.as_bytes(), b"latest_date")?
-                    .and_then(|v| {
-                        std::str::from_utf8(&v)
-                            .ok()
-                            .and_then(|s| s.parse::<i64>().ok())
-                    })
-                    .unwrap_or(0);
                 let cur = ctx
                     .hget(thread_key.as_bytes(), b"unread_count")?
                     .and_then(|v| {
@@ -222,7 +162,11 @@ impl KevyMailboxStore {
                 if cur < 1 {
                     ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
                 }
-                ctx.zadd(idx.as_bytes(), &[(latest as f64, thread_id.as_bytes())])?;
+                // The unread axis reads the row, not the counter.
+                ctx.hset(
+                    keys::thread_user(user, thread_id).as_bytes(),
+                    &[(b"unread" as &[u8], b"1")],
+                )?;
                 Ok(true)
             })
             .map_err(std::io::Error::other)
@@ -373,6 +317,11 @@ impl KevyMailboxStore {
                 for idx in &indexes {
                     ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
                 }
+                // The membership row is the thread's presence on every
+                // axis the table serves, so deleting the thread has to
+                // delete it too — otherwise the row outlives the data
+                // and every axis keeps listing a thread that is gone.
+                ctx.del(&[keys::thread_user(user, thread_id).as_bytes()]);
                 Ok(true)
             })
             .map_err(std::io::Error::other)?;
@@ -411,6 +360,11 @@ mod tests {
         }
     }
 
+    /// Count on the axis the UI queries, not on a raw index.
+    fn axis_count(s: &KevyMailboxStore, user: &str, f: crate::ListThreadsFilter<'_>) -> usize {
+        s.list_threads_by_activity(user, &f, 0, 1000).unwrap().1
+    }
+
     #[test]
     fn set_archived_round_trip() {
         let s = store();
@@ -419,24 +373,31 @@ mod tests {
 
         assert!(s.set_archived(u, "t1", true).unwrap());
         assert!(s.get_thread("t1").unwrap().unwrap().archived);
-        let arch = keys::user_threads_archived(u);
-        assert_eq!(s.store().zcard(arch.as_bytes()).unwrap(), 1);
+        let archived = |s: &KevyMailboxStore| {
+            axis_count(
+                s,
+                u,
+                crate::ListThreadsFilter {
+                    archived: true,
+                    ..Default::default()
+                },
+            )
+        };
+        assert_eq!(archived(&s), 1);
 
         assert!(s.set_archived(u, "t1", false).unwrap());
         assert!(!s.get_thread("t1").unwrap().unwrap().archived);
-        assert_eq!(s.store().zcard(arch.as_bytes()).unwrap(), 0);
+        assert_eq!(archived(&s), 0);
     }
 
     #[test]
-    fn set_pinned_uses_pinned_zset() {
+    fn set_pinned_shows_up_on_the_pinned_axis() {
         let s = store();
         // the flag axes are served from the declared table
         s.ensure_thread_table();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u)).unwrap();
         assert!(s.set_pinned(u, "t1", true).unwrap());
-        let pinned = keys::user_threads_pinned(u);
-        assert_eq!(s.store().zcard(pinned.as_bytes()).unwrap(), 1);
         // appears in the pinned filter list
         let f = crate::ListThreadsFilter {
             pinned: true,
@@ -448,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_thread_clears_all_indexes() {
+    fn delete_thread_clears_every_axis() {
         let s = store();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u)).unwrap();
@@ -456,21 +417,32 @@ mod tests {
         s.set_pinned(u, "t1", true).unwrap();
         s.set_has_action(u, "t1", true).unwrap();
 
-        // every zset has the row now
-        for idx in [
-            keys::user_threads_by_activity(u),
-            keys::user_threads_by_category(u, "inbox"),
-            keys::user_threads_pinned(u),
-            keys::user_threads_archived(u),
-            keys::user_threads_has_unread(u),
-            keys::user_threads_has_action(u),
-        ] {
-            assert_eq!(s.store().zcard(idx.as_bytes()).unwrap(), 1, "idx {idx}");
-        }
-
-        // v2.8.2: arrival also filed the row into the Inbox folder zset.
-        let inbox = keys::user_threads_inbox(u);
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
+        // the thread is on every axis now
+        let on_axes = |s: &KevyMailboxStore| {
+            [
+                crate::ListThreadsFilter {
+                    pinned: true,
+                    ..Default::default()
+                },
+                crate::ListThreadsFilter {
+                    archived: true,
+                    ..Default::default()
+                },
+                crate::ListThreadsFilter {
+                    has_action: true,
+                    ..Default::default()
+                },
+                crate::ListThreadsFilter {
+                    folder: Some("Inbox"),
+                    ..Default::default()
+                },
+                crate::ListThreadsFilter::default(),
+            ]
+            .into_iter()
+            .map(|f| axis_count(s, u, f))
+            .collect::<Vec<_>>()
+        };
+        assert_eq!(on_axes(&s), vec![1, 1, 1, 1, 1]);
 
         let (existed, blob_refs) = s.delete_thread(u, "t1").unwrap();
         assert!(existed);
@@ -501,36 +473,38 @@ mod tests {
         let s = store();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u)).unwrap(); // inbound → Inbox
-        let inbox = keys::user_threads_inbox(u);
-        let notif = keys::user_threads_notifications(u);
-        let promo = keys::user_threads_promotions(u);
-        let junk = keys::user_threads_junk(u);
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
 
-        // Inbox → Promotions: only Promotions holds it now.
+        // Where the four bucket axes say the thread is. Exactly one
+        // must claim it at every step — that is the invariant the four
+        // separate zsets used to encode by hand.
+        let where_is_it = |s: &KevyMailboxStore| -> Vec<&'static str> {
+            ["Inbox", "Notifications", "Promotions", "Junk"]
+                .into_iter()
+                .filter(|folder| {
+                    let f = crate::ListThreadsFilter {
+                        folder: Some(folder),
+                        ..Default::default()
+                    };
+                    axis_count(s, u, f) == 1
+                })
+                .collect()
+        };
+
+        assert_eq!(where_is_it(&s), vec!["Inbox"]);
+
         assert!(s.set_bucket(u, "t1", keys::Bucket::Promotions).unwrap());
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(promo.as_bytes()).unwrap(), 1);
+        assert_eq!(where_is_it(&s), vec!["Promotions"]);
         assert_eq!(s.get_thread("t1").unwrap().unwrap().category, "promotion");
 
-        // Promotions → Notifications.
         assert!(s.set_bucket(u, "t1", keys::Bucket::Notifications).unwrap());
-        assert_eq!(s.store().zcard(promo.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(notif.as_bytes()).unwrap(), 1);
+        assert_eq!(where_is_it(&s), vec!["Notifications"]);
 
-        // Notifications → Junk (via the set_junk back-compat wrapper).
+        // via the set_junk back-compat wrapper
         assert!(s.set_junk(u, "t1", true).unwrap());
-        assert_eq!(s.store().zcard(notif.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(junk.as_bytes()).unwrap(), 1);
+        assert_eq!(where_is_it(&s), vec!["Junk"]);
 
-        // Junk → Inbox (move-to-inbox path).
         assert!(s.set_bucket(u, "t1", keys::Bucket::Inbox).unwrap());
-        assert_eq!(s.store().zcard(junk.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
-        // Exactly one bucket ever holds it.
-        for z in [&notif, &promo, &junk] {
-            assert_eq!(s.store().zcard(z.as_bytes()).unwrap(), 0);
-        }
+        assert_eq!(where_is_it(&s), vec!["Inbox"]);
     }
 
     #[test]
