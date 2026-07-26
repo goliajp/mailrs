@@ -90,6 +90,10 @@ services:
       # the host compose on every deploy, which silently removed this
       # switch once mid-migration.
       MAILRS_JUNK_READ: ${MAILRS_JUNK_READ:-table}
+      # Transparent tiering budget in MB, or `auto` for 70% of the
+      # cgroup limit. Unset = off (everything stays in RAM). Cold
+      # values move to a vlog on disk and read back transparently.
+      MAILRS_KEVY_TIER_MB: ${MAILRS_KEVY_TIER_MB:-}
       # Canary over (2026-07-26): 4.0 ran clean through four mail-flow
       # gates, so rewrite is allowed and the AOF converts to v2 (every
       # record length-prefixed + CRC32C). One-way — 3.18 cannot read v2.
