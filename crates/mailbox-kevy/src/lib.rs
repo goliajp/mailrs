@@ -330,6 +330,7 @@ fn thread_user_spec() -> kevy_index::TableSpec {
             col("category", ValType::Str),
             col("activity", ValType::I64),
             col("sent_only", ValType::I64),
+            col("is_sender", ValType::I64),
             col("starred", ValType::I64),
             col("archived", ValType::I64),
             col("pinned", ValType::I64),
@@ -342,14 +343,23 @@ fn thread_user_spec() -> kevy_index::TableSpec {
         // and then filters to one user and sorts by activity through
         // the stored values, which is what keeps this to five small
         // indexes instead of five more composites.
-        indexes: ["starred", "archived", "pinned", "unread", "has_action"]
-            .iter()
-            .map(|c| TableIndex {
-                column: c.as_bytes().to_vec(),
-                kind: IndexKind::Range,
-                values: values.clone(),
-            })
-            .collect(),
+        indexes: [
+            "starred",
+            "archived",
+            "pinned",
+            "unread",
+            "has_action",
+            // The Sent axis has the same shape: key on the flag,
+            // filter to the user, sort by recency.
+            "is_sender",
+        ]
+        .iter()
+        .map(|c| TableIndex {
+            column: c.as_bytes().to_vec(),
+            kind: IndexKind::Range,
+            values: values.clone(),
+        })
+        .collect(),
         // `ord` is the tie-breaker, not a queryable dimension.
         // `activity` is a whole-second timestamp, so threads that
         // arrive in the same second collide — 929 collisions over
@@ -383,6 +393,13 @@ fn thread_user_spec() -> kevy_index::TableSpec {
                     ("activity", true),
                     ("ord", false),
                 ],
+            ),
+            // The default axis — no predicate, just the user's threads
+            // newest first. The only ORDERPATH here with nothing
+            // between `user` and the sort key.
+            path(
+                "by_user_activity",
+                &[("user", false), ("activity", true), ("ord", false)],
             ),
             path(
                 "by_user_category",
@@ -747,6 +764,44 @@ impl KevyMailboxStore {
     pub fn count_thread_ids_by_flag_via_table(&self, user: &str, flag: &str) -> io::Result<usize> {
         self.list_thread_ids_by_flag_via_table(user, flag, 100_000, 0, None)
             .map(|v| v.len())
+    }
+
+    /// The default axis: one user's threads, newest first, no
+    /// predicate.
+    pub fn list_thread_ids_by_activity_via_table(
+        &self,
+        user: &str,
+        limit: usize,
+        before_ts: Option<i64>,
+    ) -> io::Result<Vec<String>> {
+        let clause = kevy_index::WhereClause {
+            eqs: vec![(b"user".to_vec(), user.as_bytes().to_vec())],
+            range: before_ts.map(|ts| {
+                (
+                    b"activity".to_vec(),
+                    i64::MIN.to_string().into_bytes(),
+                    ts.to_string().into_bytes(),
+                )
+            }),
+        };
+        self.run_orderpath(b"threaduser.by_user_activity", user, &clause, limit)
+    }
+
+    /// How many threads the user has in total.
+    pub fn count_thread_ids_by_activity_via_table(&self, user: &str) -> io::Result<usize> {
+        let clause = kevy_index::WhereClause {
+            eqs: vec![(b"user".to_vec(), user.as_bytes().to_vec())],
+            range: None,
+        };
+        let (lo, hi) = self.composite_bounds_for(b"threaduser.by_user_activity", &clause)?;
+        self.store
+            .idx_count(
+                b"threaduser.by_user_activity",
+                &kevy_embedded::IndexValue::Str(lo),
+                &kevy_embedded::IndexValue::Str(hi),
+            )
+            .map(|n| n as usize)
+            .map_err(io::Error::other)
     }
 
     fn bucket_bounds(

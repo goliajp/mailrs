@@ -214,6 +214,21 @@ impl KevyMailboxStore {
             return self.list_flag_via_table(user, flag, filter, offset, limit);
         }
 
+        // Sent is the sent_only flag; np is the union of two bucket
+        // axes, merged here because an ORDERPATH answers one range and
+        // a union is two.
+        if bucket_reads_table() {
+            if filter.is_bare_sent() {
+                return self.list_flag_via_table(user, "is_sender", filter, offset, limit);
+            }
+            if filter.is_bare_np() {
+                return self.list_np_via_table(user, filter, offset, limit);
+            }
+            if filter.is_bare_default() {
+                return self.list_default_via_table(user, filter, offset, limit);
+            }
+        }
+
         // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
         // caller stacks ≥ 2 predicates (e.g. inbox ∩ has_unread),
         // materialize the intersection into a per-request temp zset
@@ -334,8 +349,13 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     fn row(tid: &str, date: i64, category: &str) -> ThreadRow {
@@ -579,6 +599,30 @@ impl ListThreadsFilter<'_> {
         }
     }
 
+    /// The Sent axis with nothing stacked on it.
+    fn is_bare_sent(&self) -> bool {
+        self.folder.is_some_and(|f| f.eq_ignore_ascii_case("sent")) && self.no_predicates()
+    }
+
+    /// The merged Notifications + Promotions view.
+    fn is_bare_np(&self) -> bool {
+        self.folder.is_some_and(|f| f.eq_ignore_ascii_case("np")) && self.no_predicates()
+    }
+
+    /// No folder, no category, no flag — the default recency axis.
+    fn is_bare_default(&self) -> bool {
+        self.folder.is_none() && self.category.is_none() && self.no_predicates()
+    }
+
+    fn no_predicates(&self) -> bool {
+        self.category.is_none()
+            && !self.pinned
+            && !self.archived
+            && !self.has_unread
+            && !self.has_action
+            && !self.starred
+    }
+
     fn bare_bucket(&self) -> Option<&'static str> {
         let bucket = match self.folder? {
             f if f.eq_ignore_ascii_case("junk") => "junk",
@@ -600,6 +644,78 @@ impl ListThreadsFilter<'_> {
 }
 
 impl KevyMailboxStore {
+    /// The default axis, off the pure-recency ORDERPATH.
+    fn list_default_via_table(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let total = self.count_thread_ids_by_activity_via_table(user)?;
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+        let tids = match filter.before_ts {
+            Some(ts) => self.list_thread_ids_by_activity_via_table(user, limit, Some(ts - 1))?,
+            None => {
+                if offset >= total {
+                    return Ok((Vec::new(), total));
+                }
+                let mut page =
+                    self.list_thread_ids_by_activity_via_table(user, offset + limit, None)?;
+                page.drain(..offset.min(page.len()));
+                page
+            }
+        };
+        self.hydrate_page(&tids, total)
+    }
+
+    /// The merged Notifications + Promotions view.
+    ///
+    /// An ORDERPATH answers one contiguous range, and this is two, so
+    /// the merge happens here: take a full page from each side, then
+    /// interleave by recency. Both sides are already sorted, so this
+    /// is a two-way merge rather than a sort — and taking `offset +
+    /// limit` from each guarantees the merged prefix is correct no
+    /// matter how the two interleave.
+    fn list_np_via_table(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let total = self.count_thread_ids_by_bucket_via_table(user, "notifications")?
+            + self.count_thread_ids_by_bucket_via_table(user, "promotions")?;
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+        let want = offset + limit;
+        let mut merged: Vec<ThreadRow> = Vec::new();
+        for bucket in ["notifications", "promotions"] {
+            let tids = match filter.before_ts {
+                Some(ts) => {
+                    self.list_thread_ids_by_bucket_before_via_table(user, bucket, ts - 1, want)?
+                }
+                None => self.list_thread_ids_by_bucket_via_table(user, bucket, want)?,
+            };
+            let (rows, _) = self.hydrate_page(&tids, 0)?;
+            merged.extend(rows);
+        }
+        merged.sort_by(|a, b| {
+            b.latest_date
+                .cmp(&a.latest_date)
+                .then_with(|| a.thread_id.cmp(&b.thread_id))
+        });
+        if offset >= merged.len() {
+            return Ok((Vec::new(), total));
+        }
+        merged.drain(..offset);
+        merged.truncate(limit);
+        Ok((merged, total))
+    }
+
     /// Serve one boolean-predicate page off that flag's index.
     fn list_flag_via_table(
         &self,
@@ -1005,6 +1121,94 @@ mod bucket_axis_tests {
         let (spam, spam_total) = count("spam");
         assert_eq!(spam.len(), 1, "the new category must hold it");
         assert_eq!(spam_total, 1);
+    }
+
+    /// The np view is the only axis whose order this code produces
+    /// rather than the engine — a two-way merge of two sorted sides.
+    /// Interleave the two buckets so a merge bug cannot hide behind
+    /// one side happening to be newer throughout.
+    #[test]
+    fn np_merges_both_buckets_by_recency() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        let u = "alice@x.com";
+        for (tid, when, cat) in [
+            ("n1", 100, "notification"),
+            ("p1", 150, "promotion"),
+            ("n2", 200, "notification"),
+            ("p2", 250, "promotion"),
+        ] {
+            st.upsert_thread(u, &row(tid, when, cat)).unwrap();
+        }
+        // Must not appear: neither bucket.
+        st.upsert_thread(u, &row("inb", 999, "inbox")).unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("np"),
+            ..Default::default()
+        };
+        let (rows, total) = st.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["p2", "n2", "p1", "n1"],
+            "the two buckets must interleave by recency"
+        );
+        assert_eq!(total, 4);
+
+        // And paging through the merge must stay contiguous.
+        let (p1, _) = st.list_threads_by_activity(u, &f, 0, 2).unwrap();
+        let (p2, _) = st.list_threads_by_activity(u, &f, 2, 2).unwrap();
+        assert_eq!(
+            p1.iter()
+                .chain(p2.iter())
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["p2", "n2", "p1", "n1"],
+            "offset paging across a merge must not repeat or skip"
+        );
+    }
+
+    /// Sent is the sent_only flag, and it is the complement of what
+    /// the inbox axis excludes.
+    #[test]
+    fn sent_axis_holds_only_sent_only_threads() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        let u = "alice@x.com";
+
+        let mut mine = row("mine", 200, "inbox");
+        mine.senders_csv = u.into();
+        mine.sent_count = mine.count;
+        st.upsert_thread(u, &mine).unwrap();
+
+        let mut replied = row("replied", 100, "inbox");
+        replied.senders_csv = format!("bob@y.com,{u}");
+        replied.count = 3;
+        replied.sent_count = 1;
+        st.upsert_thread(u, &replied).unwrap();
+
+        // Never written in — must not be in Sent.
+        st.upsert_thread(u, &row("theirs", 50, "inbox")).unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("Sent"),
+            ..Default::default()
+        };
+        let (rows, total) = st.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["mine", "replied"],
+            "Sent holds every thread the user wrote in, replies included"
+        );
+        assert_eq!(total, 2);
     }
 
     /// Each bucket is a partition: a thread lands in exactly one of

@@ -200,7 +200,11 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()))
+        let s = KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     #[test]

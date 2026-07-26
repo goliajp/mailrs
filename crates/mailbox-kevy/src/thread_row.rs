@@ -209,7 +209,11 @@ pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Ve
     // an inbox thread. Reading it as "has ever sent" dropped 190
     // threads from one account's inbox on prod.
     let sent_only = row.count > 0 && row.sent_count >= row.count;
-    let _ = user;
+    // Distinct from `sent_only`: the Sent folder shows every thread
+    // the user has written in, the way Gmail does, while the inbox
+    // only excludes threads that are *nothing but* their own messages.
+    // A conversation they replied in is in both.
+    let is_sender = senders_csv_contains_user(&row.senders_csv, user);
     vec![
         (b"user".to_vec(), user.as_bytes().to_vec()),
         (b"tid".to_vec(), row.thread_id.as_bytes().to_vec()),
@@ -224,6 +228,7 @@ pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Ve
             row.latest_date.to_string().into_bytes(),
         ),
         (b"sent_only".to_vec(), flag(sent_only).to_vec()),
+        (b"is_sender".to_vec(), flag(is_sender).to_vec()),
         (b"starred".to_vec(), flag(row.starred).to_vec()),
         (b"archived".to_vec(), flag(row.archived).to_vec()),
         (b"pinned".to_vec(), flag(row.pinned).to_vec()),
@@ -406,8 +411,13 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     #[test]
