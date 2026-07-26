@@ -285,29 +285,6 @@ impl KevyMailboxStore {
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        let activity = keys::user_threads_by_activity(user);
-        let cat = keys::user_threads_by_category(user, &row.category);
-        let pinned = keys::user_threads_pinned(user);
-        let archived = keys::user_threads_archived(user);
-        let has_unread = keys::user_threads_has_unread(user);
-        let has_action = keys::user_threads_has_action(user);
-        let starred = keys::user_threads_starred(user);
-        let sent = keys::user_threads_sent(user);
-        // v2.4.0 Phase 2 / v2.9 triage — top-level bucket zsets. A thread
-        // lives in exactly ONE of {inbox, notifications, promotions,
-        // junk}, derived purely from `category` via `bucket_of`. Sent
-        // remains an orthogonal axis via `is_sender` below (a thread can
-        // be both a bucket AND Sent — showing up in the user's Sent view
-        // whenever they replied at least once).
-        let bucket = keys::bucket_of(&row.category);
-        let bucket_zset = bucket.zset(user);
-        let other_buckets: Vec<String> = keys::Bucket::all_zsets(user)
-            .into_iter()
-            .filter(|k| *k != bucket_zset)
-            .collect();
-        let is_sender = senders_csv_contains_user(&row.senders_csv, user);
-        let score = row.latest_date as f64;
-        let member: &[u8] = row.thread_id.as_bytes();
         let tu_key = keys::thread_user(user, &row.thread_id);
         let tu_pairs = thread_user_pairs(user, row);
         let tu_refs: Vec<(&[u8], &[u8])> = tu_pairs
@@ -318,75 +295,14 @@ impl KevyMailboxStore {
             .atomic(|ctx| {
                 ctx.hset(key.as_bytes(), &pair_refs)?;
 
-                // Membership row for the declared `threaduser` table.
-                // Written alongside the zsets, read by nothing yet — the
-                // zsets stay authoritative until the read cutover.
-                //
-                // It carries the per-user facts the twelve zsets encode
-                // in their key names, so the engine can maintain the
-                // access paths instead of these hand-written zadd/zrem
-                // pairs. `bucket` is stored rather than derived because
-                // the engine cannot call `bucket_of`.
+                // The membership row for the declared `threaduser`
+                // table, and now the only thing this writes: every
+                // access path the twelve zsets used to encode in their
+                // key names is a column here, maintained by the engine.
+                // `bucket` is stored rather than derived because the
+                // engine cannot call `bucket_of`.
                 ctx.hset(tu_key.as_bytes(), &tu_refs)?;
 
-                ctx.zadd(activity.as_bytes(), &[(score, member)])?;
-                ctx.zadd(cat.as_bytes(), &[(score, member)])?;
-
-                if row.pinned {
-                    ctx.zadd(pinned.as_bytes(), &[(score, member)])?;
-                } else {
-                    ctx.zrem(pinned.as_bytes(), &[member])?;
-                }
-                if row.archived {
-                    ctx.zadd(archived.as_bytes(), &[(score, member)])?;
-                } else {
-                    ctx.zrem(archived.as_bytes(), &[member])?;
-                }
-                if row.unread_count > 0 {
-                    ctx.zadd(has_unread.as_bytes(), &[(score, member)])?;
-                } else {
-                    ctx.zrem(has_unread.as_bytes(), &[member])?;
-                }
-                if row.has_action {
-                    ctx.zadd(has_action.as_bytes(), &[(score, member)])?;
-                } else {
-                    ctx.zrem(has_action.as_bytes(), &[member])?;
-                }
-                if row.starred {
-                    ctx.zadd(starred.as_bytes(), &[(score, member)])?;
-                } else {
-                    ctx.zrem(starred.as_bytes(), &[member])?;
-                }
-
-                // Sent-folder index — populated when the user's own email
-                // shows up in the thread's senders_csv (i.e. they sent at
-                // least one message). Fastcore trusts senders_csv here
-                // rather than the pg-dump-provided `sent_count`, which
-                // comes from a monolith SQL aggregate that also fires on
-                // inbound-direction events and produces false positives.
-                if is_sender {
-                    ctx.zadd(sent.as_bytes(), &[(score, member)])?;
-                } else {
-                    ctx.zrem(sent.as_bytes(), &[member])?;
-                }
-                // v2.9 triage — bucket membership. The thread joins exactly
-                // one of {inbox, notifications, promotions, junk} per
-                // `bucket_of(category)` and is removed from the other three,
-                // so a category flip (e.g. "mark as promotion") migrates
-                // cleanly. A sent-only thread (count == sent_count, no
-                // received message) belongs to the Sent axis alone and must
-                // not surface in any inbound bucket; Junk is the exception.
-                if bucket == keys::Bucket::Junk || row.count > row.sent_count {
-                    ctx.zadd(bucket_zset.as_bytes(), &[(score, member)])?;
-                    for other in &other_buckets {
-                        ctx.zrem(other.as_bytes(), &[member])?;
-                    }
-                } else {
-                    // Sent-only: not in any inbound bucket.
-                    for z in keys::Bucket::all_zsets(user) {
-                        ctx.zrem(z.as_bytes(), &[member])?;
-                    }
-                }
                 Ok(())
             })
             .map_err(std::io::Error::other)
@@ -501,32 +417,46 @@ mod tests {
     }
 
     #[test]
-    fn pinned_archived_flags_toggle_zset_membership() {
+    fn pinned_archived_flags_toggle_membership_row() {
         let s = store();
+        let field = |tid: &str, name: &str| -> String {
+            s.store()
+                .hgetall(keys::thread_user("u@x.com", tid).as_bytes())
+                .unwrap()
+                .into_iter()
+                .find(|(f, _)| f == name.as_bytes())
+                .map(|(_, v)| String::from_utf8_lossy(&v).into_owned())
+                .unwrap_or_default()
+        };
+
         let mut row = sample("t2");
         row.archived = true;
         row.pinned = false;
         s.upsert_thread("u@x.com", &row).unwrap();
-        let archived = keys::user_threads_archived("u@x.com");
-        let pinned = keys::user_threads_pinned("u@x.com");
-        assert_eq!(s.store().zcard(archived.as_bytes()).unwrap(), 1);
-        assert_eq!(s.store().zcard(pinned.as_bytes()).unwrap(), 0);
+        assert_eq!(field("t2", "archived"), "1");
+        assert_eq!(field("t2", "pinned"), "0");
 
         // flip both
         row.archived = false;
         row.pinned = true;
         s.upsert_thread("u@x.com", &row).unwrap();
-        assert_eq!(s.store().zcard(archived.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(pinned.as_bytes()).unwrap(), 1);
+        assert_eq!(field("t2", "archived"), "0");
+        assert_eq!(field("t2", "pinned"), "1");
     }
 
     #[test]
-    fn activity_zset_carries_latest_date_score() {
+    fn membership_row_carries_latest_date_as_activity() {
         let s = store();
         let row = sample("t3");
         s.upsert_thread("u@x.com", &row).unwrap();
-        let activity = keys::user_threads_by_activity("u@x.com");
-        let score = s.store().zscore(activity.as_bytes(), b"t3").unwrap();
-        assert_eq!(score, Some(row.latest_date as f64));
+        let activity = s
+            .store()
+            .hgetall(keys::thread_user("u@x.com", "t3").as_bytes())
+            .unwrap()
+            .into_iter()
+            .find(|(f, _)| f == b"activity")
+            .map(|(_, v)| String::from_utf8_lossy(&v).into_owned())
+            .unwrap_or_default();
+        assert_eq!(activity, row.latest_date.to_string());
     }
 }
