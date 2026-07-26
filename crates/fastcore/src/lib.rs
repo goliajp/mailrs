@@ -1836,6 +1836,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:backfill-thread-user",
                 post(backfill_thread_user_route),
             )
+            // Engine-side reconciliation for the declared table: drift
+            // recheck per compiled index plus a column-type spot check.
+            .route(
+                "/v1/admin/maintenance:table-verify",
+                post(table_verify_route),
+            )
             // Contact relationship counters, rebuilt from message
             // history so importance scoring sees existing correspondents
             // instead of waiting months for new traffic (idempotent).
@@ -3687,6 +3693,56 @@ async fn backfill_contact_relationships_route(
         "messages_scanned": messages,
     }))
     .into_response()
+}
+
+/// `POST /v1/admin/maintenance:table-verify` — ask the engine whether
+/// the access paths it maintains agree with the rows.
+///
+/// `drift` is the number that matters: non-zero means an index no
+/// longer re-derives to what it stores, which is the failure this whole
+/// migration exists to make impossible by hand. `coerce_failures` and
+/// `type_mismatches` say a column's declared type does not match what
+/// was written — a schema bug rather than a maintenance one.
+///
+/// kevy returns six unnamed counters per index; the names are recovered
+/// here from the doc comment on `TableVerifyReport`.
+async fn table_verify_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let name = q.get("table").map(String::as_str).unwrap_or("threaduser");
+    match state.mailbox.store_ref().table_verify(name.as_bytes()) {
+        Ok((per_index, spot)) => {
+            let indexes: Vec<serde_json::Value> = per_index
+                .into_iter()
+                .map(|(n, c)| {
+                    serde_json::json!({
+                        "index": String::from_utf8_lossy(&n),
+                        "entries": c[0],
+                        "bytes": c[1],
+                        "coerce_failures": c[2],
+                        "duplicates": c[3],
+                        "drift": c[4],
+                        "checked": c[5],
+                    })
+                })
+                .collect();
+            Json(serde_json::json!({
+                "table": name,
+                "indexes": indexes,
+                "spot_check": { "rows": spot[0], "type_mismatches": spot[1] },
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, %name, "table_verify failed");
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{e}"),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// `POST /v1/admin/maintenance:backfill-thread-user` — one segment of
