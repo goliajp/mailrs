@@ -336,18 +336,20 @@ fn thread_user_spec() -> kevy_index::TableSpec {
             col("unread", ValType::I64),
             col("has_action", ValType::I64),
         ],
-        indexes: vec![
-            TableIndex {
-                column: b"starred".to_vec(),
+        // The boolean predicates, each keyed on its own flag with
+        // `user` and `activity` stored alongside. Unlike the bucket
+        // axes these are not a sort prefix: the query keys on the flag
+        // and then filters to one user and sorts by activity through
+        // the stored values, which is what keeps this to five small
+        // indexes instead of five more composites.
+        indexes: ["starred", "archived", "pinned", "unread", "has_action"]
+            .iter()
+            .map(|c| TableIndex {
+                column: c.as_bytes().to_vec(),
                 kind: IndexKind::Range,
                 values: values.clone(),
-            },
-            TableIndex {
-                column: b"archived".to_vec(),
-                kind: IndexKind::Range,
-                values,
-            },
-        ],
+            })
+            .collect(),
         // `ord` is the tie-breaker, not a queryable dimension.
         // `activity` is a whole-second timestamp, so threads that
         // arrive in the same second collide — 929 collisions over
@@ -673,6 +675,80 @@ impl KevyMailboxStore {
         self.run_orderpath(b"threaduser.by_user_category", user, &clause, limit)
     }
 
+    /// Threads carrying one boolean flag, newest first, for one user.
+    ///
+    /// Keys on the flag's own Range index and reaches the other two
+    /// dimensions through the values stored beside it: `FILTER user`
+    /// narrows to the account, `SORT activity DESC` orders the result.
+    /// That is what keeps five predicates to five small indexes rather
+    /// than five more composites — but it also means the sort is a
+    /// clause rather than the key's own order, so `flag_sort_is_global`
+    /// pins the semantics.
+    pub fn list_thread_ids_by_flag_via_table(
+        &self,
+        user: &str,
+        flag: &str,
+        limit: usize,
+        offset: usize,
+        before_ts: Option<i64>,
+    ) -> io::Result<Vec<String>> {
+        use kevy_embedded::{IndexValue, ScalarQueryOpts, ValueFilter};
+        let index = format!("threaduser.{flag}");
+        let (lo, hi);
+        let mut filters = vec![ValueFilter::Eq {
+            field: b"user",
+            value: user.as_bytes(),
+        }];
+        // The cursor is another FILTER on a stored value, not a key
+        // range — the key here is the flag, not the timestamp.
+        if let Some(ts) = before_ts {
+            lo = i64::MIN.to_string();
+            hi = ts.to_string();
+            filters.push(ValueFilter::Range {
+                field: b"activity",
+                min: lo.as_bytes(),
+                max: hi.as_bytes(),
+            });
+        }
+        let page = self
+            .store
+            .idx_query_claused(
+                index.as_bytes(),
+                &IndexValue::I64(1),
+                &IndexValue::I64(1),
+                None,
+                limit,
+                ScalarQueryOpts {
+                    filters: &filters,
+                    sort: Some((b"activity", true)),
+                    distinct: None,
+                    facets: &[],
+                    offset,
+                },
+            )
+            .map_err(io::Error::other)?;
+        let prefix_len = keys::thread_user(user, "").len();
+        Ok(page
+            .rows
+            .into_iter()
+            .filter_map(|(key, _)| {
+                let k = String::from_utf8(key).ok()?;
+                k.get(prefix_len..).map(str::to_string)
+            })
+            .collect())
+    }
+
+    /// How many threads carry the flag for this user.
+    ///
+    /// `idx_count` takes no clauses, so this counts the rows a clause
+    /// query returns. The flag axes are small in practice (starred,
+    /// pinned, has_action are user-curated), and the cap bounds the
+    /// worst case.
+    pub fn count_thread_ids_by_flag_via_table(&self, user: &str, flag: &str) -> io::Result<usize> {
+        self.list_thread_ids_by_flag_via_table(user, flag, 100_000, 0, None)
+            .map(|v| v.len())
+    }
+
     fn bucket_bounds(
         &self,
         index: &[u8],
@@ -847,5 +923,81 @@ mod orderpath_read_tests {
             .list_thread_ids_by_bucket_via_table("alice@x.com", "inbox", 50)
             .unwrap();
         assert_eq!(got, vec![long_tid, "short".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod flag_axis_tests {
+    use super::*;
+    use kevy_embedded::{Config, Store};
+
+    fn flagged(tid: &str, activity: i64, starred: bool) -> thread_row::ThreadRow {
+        thread_row::ThreadRow {
+            thread_id: tid.into(),
+            subject: String::new(),
+            senders_csv: String::new(),
+            count: 1,
+            unread_count: 0,
+            latest_date: activity,
+            latest_preview: String::new(),
+            category: "inbox".into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred,
+        }
+    }
+
+    /// Does `SORT` order the whole match set, or only the rows a page
+    /// happened to select?
+    ///
+    /// This decides whether the flag axes can be served from a single
+    /// index per flag (keyed on the flag, `FILTER user`, `SORT
+    /// activity`) or whether each needs its own composite ORDERPATH.
+    /// If the sort were page-local, asking for 3 of 10 would return
+    /// three arbitrary threads in descending order rather than the
+    /// three newest — a paging bug that looks like correct output.
+    #[test]
+    fn flag_sort_is_global_not_page_local() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        // Insert oldest-first so a page-local sort would surface the
+        // oldest three rather than the newest.
+        for i in 1..=10 {
+            st.write_thread_user_if_changed(
+                "alice@x.com",
+                &flagged(&format!("t{i:02}"), 1000 + i, true),
+            )
+            .unwrap();
+        }
+        // A second user's starred threads must not appear.
+        st.write_thread_user_if_changed("bob@y.com", &flagged("bobs", 9999, true))
+            .unwrap();
+
+        let got = st
+            .list_thread_ids_by_flag_via_table("alice@x.com", "starred", 3, 0, None)
+            .unwrap();
+        assert_eq!(
+            got,
+            vec!["t10", "t09", "t08"],
+            "SORT must order the whole match set, and FILTER must scope it to the user"
+        );
+
+        // And the page after it must continue, not restart.
+        let next = st
+            .list_thread_ids_by_flag_via_table("alice@x.com", "starred", 3, 3, None)
+            .unwrap();
+        assert_eq!(
+            next,
+            vec!["t07", "t06", "t05"],
+            "OFFSET must page through the sorted set"
+        );
     }
 }
