@@ -146,11 +146,37 @@ impl KevyMailboxStore {
         offset: i64,
         limit: i64,
     ) -> io::Result<(u64, u64)> {
-        let activity = keys::user_threads_by_activity(user);
-        let entries = self
-            .store()
-            .zrevrange(activity.as_bytes(), offset, offset + limit - 1)
-            .map_err(std::io::Error::other)?;
+        // Every zset the user has, not just by_activity: the legacy
+        // indexes disagree with each other, and on prod one account's
+        // `sent` held 58 threads where `by_activity` held 9. Walking
+        // one of them would leave the other's 49 without a membership
+        // row — which is exactly the gap that held the Sent cutover.
+        //
+        // The union is the complete set of threads the user has, so
+        // once these rows exist the table is a superset of every zset
+        // and they can all be dropped.
+        let sources = keys::all_user_thread_zsets(user);
+        let mut seen = std::collections::BTreeSet::new();
+        let mut union: Vec<(Vec<u8>, f64)> = Vec::new();
+        for key in &sources {
+            let entries = self
+                .store()
+                .zrevrange(key.as_bytes(), 0, -1)
+                .map_err(std::io::Error::other)?;
+            for (member, score) in entries {
+                if seen.insert(member.clone()) {
+                    union.push((member, score));
+                }
+            }
+        }
+        // Newest first so a paged caller sees a stable order.
+        union.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let start = offset.max(0) as usize;
+        let entries: Vec<(Vec<u8>, f64)> = union
+            .into_iter()
+            .skip(start)
+            .take(limit.max(0) as usize)
+            .collect();
         let mut scanned = 0u64;
         let mut written = 0u64;
         for (tid_bytes, _score) in entries {
@@ -411,6 +437,61 @@ fn thread_user_spec() -> kevy_index::TableSpec {
                 ],
             ),
         ],
+    }
+}
+
+#[cfg(test)]
+mod backfill_source_tests {
+    use super::*;
+    use kevy_embedded::{Config, Store};
+
+    /// The backfill must cover threads that only one legacy zset knows
+    /// about.
+    ///
+    /// On prod one account's `sent` held 58 threads where
+    /// `by_activity` held 9; a backfill walking either alone leaves
+    /// the other's threads without a membership row, and the axis
+    /// served from the table then silently misses them.
+    #[test]
+    fn backfill_covers_threads_missing_from_by_activity() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        let u = "noreply@x.com";
+
+        // A thread the sent zset knows and by_activity does not — the
+        // shape that produced the prod gap.
+        let tid = "orphan";
+        st.store()
+            .hset(
+                keys::thread(tid).as_bytes(),
+                &[
+                    (b"subject".as_slice(), b"s".as_slice()),
+                    (b"senders_csv".as_slice(), u.as_bytes()),
+                    (b"count".as_slice(), b"2".as_slice()),
+                    (b"sent_count".as_slice(), b"1".as_slice()),
+                    (b"latest_date".as_slice(), b"500".as_slice()),
+                    (b"category".as_slice(), b"inbox".as_slice()),
+                ],
+            )
+            .unwrap();
+        st.store()
+            .zadd(
+                keys::user_threads_sent(u).as_bytes(),
+                &[(500.0, tid.as_bytes())],
+            )
+            .unwrap();
+
+        let (scanned, written) = st.backfill_thread_user(u, 0, 500).unwrap();
+        assert_eq!(scanned, 1, "the union must reach a sent-only thread");
+        assert_eq!(written, 1);
+
+        let row = st
+            .store()
+            .hgetall(keys::thread_user(u, tid).as_bytes())
+            .unwrap();
+        assert!(!row.is_empty(), "the membership row must exist afterwards");
     }
 }
 

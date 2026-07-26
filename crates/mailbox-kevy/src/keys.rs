@@ -449,3 +449,26 @@ mod tests {
         assert_eq!(OUTBOUND_PENDING, "mailrs:outbound:pending");
     }
 }
+
+/// Every per-user thread index the legacy zset layer maintains.
+///
+/// Used by the membership-row backfill: the individual zsets disagree
+/// with each other (one prod account's `sent` held 58 threads where
+/// `by_activity` held 9), so only their union is the user's real
+/// thread set.
+pub fn all_user_thread_zsets(user: &str) -> Vec<String> {
+    let mut out = vec![
+        user_threads_by_activity(user),
+        user_threads_sent(user),
+        user_threads_starred(user),
+        user_threads_archived(user),
+        user_threads_pinned(user),
+        user_threads_has_unread(user),
+        user_threads_has_action(user),
+    ];
+    out.extend(Bucket::all_zsets(user));
+    for cat in ["inbox", "notification", "promotion", "spam"] {
+        out.push(user_threads_by_category(user, cat));
+    }
+    out
+}
