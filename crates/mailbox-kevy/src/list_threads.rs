@@ -173,6 +173,23 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        // Junk read cutover (kevy v4 TABLE migration). The declared
+        // ORDERPATH replaces `user_threads_junk` for this axis.
+        //
+        // A shadow read over all 12 accounts showed the zset holding a
+        // fraction of what the rows say — one account at 166 of 1456,
+        // four others empty against non-empty rows — because
+        // maintaining it by hand meant a write path could forget an
+        // axis with nothing to catch it. Serving the table also fixes
+        // that, so this changes what users see: threads already judged
+        // spam start appearing in Junk.
+        //
+        // Set MAILRS_JUNK_READ=zset to serve the old axis again; no
+        // rebuild is needed since both are still maintained on write.
+        if filter.is_bare_junk() && junk_reads_table() {
+            return self.list_junk_via_table(user, filter, offset, limit);
+        }
+
         // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
         // caller stacks ≥ 2 predicates (e.g. inbox ∩ has_unread),
         // materialize the intersection into a per-request temp zset
@@ -475,5 +492,179 @@ mod tests {
             .unwrap();
         assert_eq!(total, 1);
         assert!(got.is_empty());
+    }
+}
+
+/// Whether the Junk axis is served from the declared table.
+///
+/// Read per call rather than cached: the revert must take effect on a
+/// container restart with an env change, not on a redeploy.
+fn junk_reads_table() -> bool {
+    std::env::var("MAILRS_JUNK_READ").as_deref() != Ok("zset")
+}
+
+impl ListThreadsFilter<'_> {
+    /// The Junk axis with nothing stacked on it.
+    ///
+    /// The ORDERPATH answers `(user, bucket, activity DESC)`; any extra
+    /// predicate would need an intersection this path does not do, so
+    /// those keep going through the zset route until their own axis is
+    /// cut over.
+    fn is_bare_junk(&self) -> bool {
+        self.folder.is_some_and(|f| f.eq_ignore_ascii_case("junk"))
+            && self.category.is_none()
+            && !self.pinned
+            && !self.archived
+            && !self.has_unread
+            && !self.has_action
+            && !self.starred
+    }
+}
+
+impl KevyMailboxStore {
+    /// Serve the Junk page off the declared ORDERPATH.
+    ///
+    /// `before_ts` becomes a range on the `activity` component — the
+    /// composite encoding puts it right after the two equality columns,
+    /// which is exactly the shape composite bounds support.
+    fn list_junk_via_table(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let total = self.count_thread_ids_by_bucket_via_table(user, "junk")?;
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+
+        let tids = match filter.before_ts {
+            Some(ts) => {
+                self.list_thread_ids_by_bucket_before_via_table(user, "junk", ts - 1, limit)?
+            }
+            None => {
+                if offset >= total {
+                    return Ok((Vec::new(), total));
+                }
+                let mut page =
+                    self.list_thread_ids_by_bucket_via_table(user, "junk", offset + limit)?;
+                page.drain(..offset.min(page.len()));
+                page
+            }
+        };
+
+        // Same single-lock hydration the zset path uses, for the same
+        // reason: no interleaving writer may shift a row's counters
+        // between two hgetalls within one page.
+        self.store()
+            .atomic(|ctx| {
+                let mut out = Vec::with_capacity(tids.len());
+                for tid in &tids {
+                    let pairs = ctx.hgetall(keys::thread(tid).as_bytes())?;
+                    if let Some(row) = ThreadRow::from_pairs(tid.clone(), &pairs) {
+                        out.push(row);
+                    }
+                }
+                Ok((out, total))
+            })
+            .map_err(std::io::Error::other)
+    }
+}
+
+#[cfg(test)]
+mod junk_cutover_tests {
+    use super::*;
+    use crate::thread_row::ThreadRow;
+    use kevy_embedded::{Config, Store};
+    use std::sync::Arc;
+
+    fn row(tid: &str, activity: i64, category: &str) -> ThreadRow {
+        ThreadRow {
+            thread_id: tid.into(),
+            subject: "s".into(),
+            senders_csv: "a@x.com".into(),
+            count: 1,
+            unread_count: 0,
+            latest_date: activity,
+            latest_preview: String::new(),
+            category: category.into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        }
+    }
+
+    fn seeded() -> KevyMailboxStore {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        for (tid, when) in [("j1", 100), ("j2", 200), ("j3", 300), ("j4", 400)] {
+            st.upsert_thread("alice@x.com", &row(tid, when, "spam"))
+                .unwrap();
+        }
+        st.upsert_thread("alice@x.com", &row("keep", 500, "inbox"))
+            .unwrap();
+        st
+    }
+
+    fn junk_filter<'a>() -> ListThreadsFilter<'a> {
+        ListThreadsFilter {
+            folder: Some("Junk"),
+            ..Default::default()
+        }
+    }
+
+    /// The served page must be the same threads in the same order the
+    /// zset path produced, including the total used for paging.
+    #[test]
+    fn junk_page_is_newest_first_and_excludes_other_buckets() {
+        let st = seeded();
+        let (rows, total) = st
+            .list_threads_by_activity("alice@x.com", &junk_filter(), 0, 10)
+            .unwrap();
+        assert_eq!(total, 4);
+        let ids: Vec<&str> = rows.iter().map(|r| r.thread_id.as_str()).collect();
+        assert_eq!(ids, vec!["j4", "j3", "j2", "j1"]);
+    }
+
+    /// Offset paging must not repeat or skip across page boundaries.
+    #[test]
+    fn junk_offset_paging_is_contiguous() {
+        let st = seeded();
+        let (p1, _) = st
+            .list_threads_by_activity("alice@x.com", &junk_filter(), 0, 2)
+            .unwrap();
+        let (p2, _) = st
+            .list_threads_by_activity("alice@x.com", &junk_filter(), 2, 2)
+            .unwrap();
+        let ids: Vec<&str> = p1
+            .iter()
+            .chain(p2.iter())
+            .map(|r| r.thread_id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["j4", "j3", "j2", "j1"]);
+    }
+
+    /// "Load more" passes the tail's timestamp; the next page must be
+    /// strictly older, which is the range the composite answers.
+    #[test]
+    fn junk_cursor_returns_strictly_older_threads() {
+        let st = seeded();
+        let filter = ListThreadsFilter {
+            before_ts: Some(300),
+            ..junk_filter()
+        };
+        let (rows, _) = st
+            .list_threads_by_activity("alice@x.com", &filter, 0, 10)
+            .unwrap();
+        let ids: Vec<&str> = rows.iter().map(|r| r.thread_id.as_str()).collect();
+        assert_eq!(ids, vec!["j2", "j1"]);
     }
 }

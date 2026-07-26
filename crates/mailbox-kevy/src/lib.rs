@@ -495,6 +495,72 @@ impl KevyMailboxStore {
         )
     }
 
+    /// How many threads sit on one (user, bucket) axis.
+    ///
+    /// Counts in the index rather than materialising keys — the page
+    /// total on a 1400-row axis should not cost 1400 key copies.
+    pub fn count_thread_ids_by_bucket_via_table(
+        &self,
+        user: &str,
+        bucket: &str,
+    ) -> io::Result<usize> {
+        let (lo, hi) = self.bucket_bounds(b"threaduser.by_user_bucket", user, b"bucket", bucket)?;
+        self.store
+            .idx_count(
+                b"threaduser.by_user_bucket",
+                &kevy_embedded::IndexValue::Str(lo),
+                &kevy_embedded::IndexValue::Str(hi),
+            )
+            .map(|n| n as usize)
+            .map_err(io::Error::other)
+    }
+
+    /// The cursor page: threads on this axis older than `max_activity`.
+    ///
+    /// `activity` is the component right after the two equality columns
+    /// in the composite, which is the only position a range may
+    /// constrain — so this is the shape the declared ORDERPATH was
+    /// designed to answer, not a scan with a filter on top.
+    pub fn list_thread_ids_by_bucket_before_via_table(
+        &self,
+        user: &str,
+        bucket: &str,
+        max_activity: i64,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        use kevy_index::WhereClause;
+        let clause = WhereClause {
+            eqs: vec![
+                (b"user".to_vec(), user.as_bytes().to_vec()),
+                (b"bucket".to_vec(), bucket.as_bytes().to_vec()),
+            ],
+            range: Some((
+                b"activity".to_vec(),
+                i64::MIN.to_string().into_bytes(),
+                max_activity.to_string().into_bytes(),
+            )),
+        };
+        self.run_orderpath(b"threaduser.by_user_bucket", user, &clause, limit)
+    }
+
+    fn bucket_bounds(
+        &self,
+        index: &[u8],
+        user: &str,
+        second_col: &[u8],
+        second_val: &str,
+    ) -> io::Result<(Vec<u8>, Vec<u8>)> {
+        use kevy_index::WhereClause;
+        let clause = WhereClause {
+            eqs: vec![
+                (b"user".to_vec(), user.as_bytes().to_vec()),
+                (second_col.to_vec(), second_val.as_bytes().to_vec()),
+            ],
+            range: None,
+        };
+        self.composite_bounds_for(index, &clause)
+    }
+
     fn query_orderpath(
         &self,
         index: &[u8],
@@ -503,8 +569,25 @@ impl KevyMailboxStore {
         second_val: &str,
         limit: usize,
     ) -> io::Result<Vec<String>> {
-        use kevy_index::{CompositeCol, WhereClause, composite_bounds};
+        use kevy_index::WhereClause;
+        let clause = WhereClause {
+            eqs: vec![
+                (b"user".to_vec(), user.as_bytes().to_vec()),
+                (second_col.to_vec(), second_val.as_bytes().to_vec()),
+            ],
+            range: None,
+        };
+        self.run_orderpath(index, user, &clause, limit)
+    }
 
+    /// Resolve the composite columns for `index` from the declared
+    /// spec, so the bounds are always encoded the way the segment was.
+    fn composite_bounds_for(
+        &self,
+        index: &[u8],
+        clause: &kevy_index::WhereClause,
+    ) -> io::Result<(Vec<u8>, Vec<u8>)> {
+        use kevy_index::{CompositeCol, composite_bounds};
         let spec = thread_user_spec();
         let path = spec
             .orderpaths
@@ -525,16 +608,17 @@ impl KevyMailboxStore {
                 })
             })
             .collect::<io::Result<_>>()?;
+        composite_bounds(&cols, clause).map_err(io::Error::other)
+    }
 
-        let clause = WhereClause {
-            eqs: vec![
-                (b"user".to_vec(), user.as_bytes().to_vec()),
-                (second_col.to_vec(), second_val.as_bytes().to_vec()),
-            ],
-            range: None,
-        };
-        let (lo, hi) = composite_bounds(&cols, &clause).map_err(io::Error::other)?;
-
+    fn run_orderpath(
+        &self,
+        index: &[u8],
+        user: &str,
+        clause: &kevy_index::WhereClause,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        let (lo, hi) = self.composite_bounds_for(index, clause)?;
         let (rows, _cursor) = self
             .store
             .idx_query(
