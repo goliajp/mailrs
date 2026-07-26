@@ -59,6 +59,7 @@
 #![allow(missing_docs)]
 #![allow(dead_code)]
 
+use std::io;
 use std::sync::Arc;
 
 use kevy_embedded::Store;
@@ -126,6 +127,47 @@ impl KevyMailboxStore {
     /// spec on first call and refuses to re-declare on subsequent
     /// boots. Callers should invoke once during startup after the
     /// store handle is available.
+    /// Fill in membership rows for threads that predate the table.
+    ///
+    /// Returns `(scanned, written)`. **Only writes where the row is
+    /// absent or a field differs** — a second run over converged data
+    /// writes nothing and reports `written == 0`, which is what makes
+    /// it safe to call repeatedly and what
+    /// `periodic-work-must-converge` asks for. An idempotent hset that
+    /// rewrites identical bytes is idempotent but not convergent; the
+    /// difference is the whole point of that rule.
+    ///
+    /// `offset` / `limit` page through one user's activity index so the
+    /// caller can spread the work across ticks instead of holding the
+    /// shard against live traffic for a single long sweep.
+    pub fn backfill_thread_user(
+        &self,
+        user: &str,
+        offset: i64,
+        limit: i64,
+    ) -> io::Result<(u64, u64)> {
+        let activity = keys::user_threads_by_activity(user);
+        let entries = self
+            .store()
+            .zrevrange(activity.as_bytes(), offset, offset + limit - 1)
+            .map_err(std::io::Error::other)?;
+        let mut scanned = 0u64;
+        let mut written = 0u64;
+        for (tid_bytes, _score) in entries {
+            let Ok(tid) = String::from_utf8(tid_bytes) else {
+                continue;
+            };
+            scanned += 1;
+            let Some(row) = self.get_thread(&tid)? else {
+                continue;
+            };
+            if self.write_thread_user_if_changed(user, &row)? {
+                written += 1;
+            }
+        }
+        Ok((scanned, written))
+    }
+
     /// Declare the `threaduser` table — the access paths the engine
     /// maintains in place of twelve hand-written zsets.
     ///

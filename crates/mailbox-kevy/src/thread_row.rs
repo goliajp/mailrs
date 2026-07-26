@@ -178,7 +178,65 @@ fn flag(v: bool) -> &'static [u8] {
     if v { b"1" } else { b"0" }
 }
 
+/// The membership-row fields for one (user, thread) pair.
+///
+/// Shared by the live write path and the backfill so the two cannot
+/// disagree about what a row contains — a drift between "what writes
+/// put there" and "what backfill puts there" would be exactly the
+/// class of bug this whole migration exists to remove.
+pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let bucket = keys::bucket_of(&row.category);
+    let is_sender = senders_csv_contains_user(&row.senders_csv, user);
+    vec![
+        (b"user".to_vec(), user.as_bytes().to_vec()),
+        (b"tid".to_vec(), row.thread_id.as_bytes().to_vec()),
+        (b"bucket".to_vec(), bucket.name().as_bytes().to_vec()),
+        (b"category".to_vec(), row.category.as_bytes().to_vec()),
+        (
+            b"activity".to_vec(),
+            row.latest_date.to_string().into_bytes(),
+        ),
+        (b"sent".to_vec(), flag(is_sender).to_vec()),
+        (b"starred".to_vec(), flag(row.starred).to_vec()),
+        (b"archived".to_vec(), flag(row.archived).to_vec()),
+        (b"pinned".to_vec(), flag(row.pinned).to_vec()),
+        (b"unread".to_vec(), flag(row.unread_count > 0).to_vec()),
+        (b"has_action".to_vec(), flag(row.has_action).to_vec()),
+    ]
+}
+
 impl KevyMailboxStore {
+    /// Write the membership row only when it is absent or differs.
+    ///
+    /// Returns whether anything was written. The read-compare costs one
+    /// HGETALL against a write that would otherwise churn the AOF on
+    /// every backfill pass over already-correct data.
+    pub(crate) fn write_thread_user_if_changed(
+        &self,
+        user: &str,
+        row: &ThreadRow,
+    ) -> io::Result<bool> {
+        let key = keys::thread_user(user, &row.thread_id);
+        let want = thread_user_pairs(user, row);
+        let have: std::collections::HashMap<Vec<u8>, Vec<u8>> = self
+            .store()
+            .hgetall(key.as_bytes())
+            .map_err(std::io::Error::other)?
+            .into_iter()
+            .collect();
+        if want.iter().all(|(k, v)| have.get(k) == Some(v)) {
+            return Ok(false);
+        }
+        let refs: Vec<(&[u8], &[u8])> = want
+            .iter()
+            .map(|(k, v)| (k.as_slice(), v.as_slice()))
+            .collect();
+        self.store()
+            .hset(key.as_bytes(), &refs)
+            .map_err(std::io::Error::other)?;
+        Ok(true)
+    }
+
     /// Write the thread aggregate hash + bump it to head of every index
     /// zset the row's flags say it belongs to.
     ///
@@ -219,7 +277,11 @@ impl KevyMailboxStore {
         let score = row.latest_date as f64;
         let member: &[u8] = row.thread_id.as_bytes();
         let tu_key = keys::thread_user(user, &row.thread_id);
-        let activity_s = row.latest_date.to_string();
+        let tu_pairs = thread_user_pairs(user, row);
+        let tu_refs: Vec<(&[u8], &[u8])> = tu_pairs
+            .iter()
+            .map(|(k, v)| (k.as_slice(), v.as_slice()))
+            .collect();
         self.store()
             .atomic(|ctx| {
                 ctx.hset(key.as_bytes(), &pair_refs)?;
@@ -233,22 +295,7 @@ impl KevyMailboxStore {
                 // access paths instead of these hand-written zadd/zrem
                 // pairs. `bucket` is stored rather than derived because
                 // the engine cannot call `bucket_of`.
-                ctx.hset(
-                    tu_key.as_bytes(),
-                    &[
-                        (b"user".as_slice(), user.as_bytes()),
-                        (b"tid".as_slice(), row.thread_id.as_bytes()),
-                        (b"bucket".as_slice(), bucket.name().as_bytes()),
-                        (b"category".as_slice(), row.category.as_bytes()),
-                        (b"activity".as_slice(), activity_s.as_bytes()),
-                        (b"sent".as_slice(), flag(is_sender)),
-                        (b"starred".as_slice(), flag(row.starred)),
-                        (b"archived".as_slice(), flag(row.archived)),
-                        (b"pinned".as_slice(), flag(row.pinned)),
-                        (b"unread".as_slice(), flag(row.unread_count > 0)),
-                        (b"has_action".as_slice(), flag(row.has_action)),
-                    ],
-                )?;
+                ctx.hset(tu_key.as_bytes(), &tu_refs)?;
 
                 ctx.zadd(activity.as_bytes(), &[(score, member)])?;
                 ctx.zadd(cat.as_bytes(), &[(score, member)])?;
@@ -334,6 +381,33 @@ mod tests {
     fn store() -> KevyMailboxStore {
         let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
         KevyMailboxStore::new(s)
+    }
+
+    #[test]
+    fn membership_backfill_converges() {
+        // `periodic-work-must-converge`: the second pass over data that
+        // is already right must write nothing. An unconditional hset
+        // would be idempotent and still churn the AOF forever.
+        let st = store();
+        let row = sample("t-converge");
+        assert!(
+            st.write_thread_user_if_changed("alice@x.com", &row)
+                .unwrap(),
+            "first write must create the row"
+        );
+        assert!(
+            !st.write_thread_user_if_changed("alice@x.com", &row)
+                .unwrap(),
+            "second write over identical data must be a no-op"
+        );
+
+        let mut moved = row.clone();
+        moved.category = "spam".into();
+        assert!(
+            st.write_thread_user_if_changed("alice@x.com", &moved)
+                .unwrap(),
+            "a changed field must write again"
+        );
     }
 
     #[test]
