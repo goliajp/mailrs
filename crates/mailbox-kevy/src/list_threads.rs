@@ -516,6 +516,10 @@ impl ListThreadsFilter<'_> {
         let bucket = match self.folder? {
             f if f.eq_ignore_ascii_case("junk") => "junk",
             f if f.eq_ignore_ascii_case("inbox") => "inbox",
+            f if f.eq_ignore_ascii_case("notifications") => "notifications",
+            f if f.eq_ignore_ascii_case("promotions") => "promotions",
+            // "np" is the union of the two and needs a different shape;
+            // it keeps going through the zset route.
             _ => return None,
         };
         let bare = self.category.is_none()
@@ -757,5 +761,77 @@ mod junk_cutover_tests {
             .unwrap();
         let ids: Vec<&str> = rows.iter().map(|r| r.thread_id.as_str()).collect();
         assert_eq!(ids, vec!["j2", "j1"]);
+    }
+}
+
+#[cfg(test)]
+mod bucket_axis_tests {
+    use super::*;
+    use crate::thread_row::ThreadRow;
+    use kevy_embedded::{Config, Store};
+    use std::sync::Arc;
+
+    fn row(tid: &str, activity: i64, category: &str) -> ThreadRow {
+        ThreadRow {
+            thread_id: tid.into(),
+            subject: "s".into(),
+            senders_csv: "a@x.com".into(),
+            count: 1,
+            unread_count: 0,
+            latest_date: activity,
+            latest_preview: String::new(),
+            category: category.into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        }
+    }
+
+    /// Each bucket is a partition: a thread lands in exactly one of
+    /// them, so every axis must exclude the other three.
+    #[test]
+    fn bucket_axes_partition_the_threads() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        for (tid, cat) in [
+            ("i", "inbox"),
+            ("n", "notification"),
+            ("p", "promotion"),
+            ("j", "spam"),
+        ] {
+            st.upsert_thread("alice@x.com", &row(tid, 100, cat))
+                .unwrap();
+        }
+
+        for (folder, want) in [
+            ("Inbox", "i"),
+            ("Notifications", "n"),
+            ("Promotions", "p"),
+            ("Junk", "j"),
+        ] {
+            let filter = ListThreadsFilter {
+                folder: Some(folder),
+                ..Default::default()
+            };
+            let (rows, total) = st
+                .list_threads_by_activity("alice@x.com", &filter, 0, 10)
+                .unwrap();
+            assert_eq!(
+                rows.iter()
+                    .map(|r| r.thread_id.as_str())
+                    .collect::<Vec<_>>(),
+                vec![want],
+                "{folder} must hold exactly its own bucket"
+            );
+            assert_eq!(total, 1, "{folder} count must exclude the other buckets");
+        }
     }
 }
