@@ -243,22 +243,57 @@ impl KevyMailboxStore {
                     values,
                 },
             ],
+            // `tid` is the tie-breaker, not a queryable dimension.
+            // `activity` is a whole-second timestamp, so threads that
+            // arrive in the same second collide — 929 collisions over
+            // 30k rows on prod. Without a total order the position of a
+            // colliding row is undefined between calls, which is how a
+            // paged reader silently skips or repeats one at a page
+            // boundary.
             orderpaths: vec![
                 path(
                     "by_user_bucket",
-                    &[("user", false), ("bucket", false), ("activity", true)],
+                    &[
+                        ("user", false),
+                        ("bucket", false),
+                        ("activity", true),
+                        ("tid", false),
+                    ],
                 ),
                 path(
                     "by_user_category",
-                    &[("user", false), ("category", false), ("activity", true)],
+                    &[
+                        ("user", false),
+                        ("category", false),
+                        ("activity", true),
+                        ("tid", false),
+                    ],
                 ),
             ],
         };
+        // The catalog persists across boots, so a redeclaration is
+        // rejected rather than applied — which would silently pin the
+        // table to whatever shape the first boot happened to declare.
+        // Compare and rebuild only on a real change.
+        let current = self
+            .store
+            .table_list()
+            .into_iter()
+            .find(|t| t.name == spec.name);
+        match current {
+            Some(ref existing) if *existing == spec => {
+                tracing::debug!("threaduser table already matches");
+                return;
+            }
+            Some(_) => {
+                tracing::info!("threaduser table spec changed — rebuilding indexes");
+                self.store.table_drop(&spec.name);
+            }
+            None => {}
+        }
         match self.store.table_declare(spec) {
             Ok(()) => tracing::info!("threaduser table declared"),
-            // Already present from a previous boot — the catalog
-            // persists, so this is the steady state, not a problem.
-            Err(e) => tracing::debug!(error = %e, "threaduser table already declared"),
+            Err(e) => tracing::error!(error = %e, "threaduser table declaration failed"),
         }
     }
 
