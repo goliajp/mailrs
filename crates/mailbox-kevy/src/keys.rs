@@ -193,6 +193,20 @@ impl Bucket {
         }
     }
 
+    /// Stable name of the bucket itself, for the `bucket` column on the
+    /// membership row. Distinct from [`Self::category`], which is the
+    /// canonical *category* value a forced bucket writes — several
+    /// categories map onto one bucket, so the column has to carry the
+    /// bucket, not a representative category.
+    pub fn name(self) -> &'static str {
+        match self {
+            Bucket::Inbox => "inbox",
+            Bucket::Notifications => "notifications",
+            Bucket::Promotions => "promotions",
+            Bucket::Junk => "junk",
+        }
+    }
+
     /// All four bucket zset keys — used to zrem a thread from the three
     /// it's leaving when moving into one, and by `delete_thread` cleanup.
     pub fn all_zsets(user: &str) -> [String; 4] {
@@ -230,6 +244,25 @@ pub fn bucket_of(category: &str) -> Bucket {
 pub fn user_msg_by_uid(user: &str) -> String {
     format!("mailrs:user:{user}:msg_by_uid")
 }
+
+/// Membership row for one (user, thread) pair — the row the declared
+/// `threaduser` table is built over.
+///
+/// Threads themselves are multi-owner: `mailrs:thread:<tid>` is global
+/// and `tid` is derived from a Message-ID, so two recipients of the
+/// same message share one thread hash. Every per-user fact therefore
+/// belongs on a row of its own, not as a column on the thread — writing
+/// `user` onto the shared hash would make one owner wrong on every
+/// write, silently.
+///
+/// This holds exactly what the twelve per-user zsets hold today, in one
+/// place the engine can index instead of twelve places we sync by hand.
+pub fn thread_user(user: &str, tid: &str) -> String {
+    format!("mailrs:threaduser:{user}:{tid}")
+}
+
+/// Key-prefix domain the `threaduser` table is declared over.
+pub const THREAD_USER_PREFIX: &[u8] = b"mailrs:threaduser:";
 
 /// Reverse index: `mailrs:user:<u>:uid_by_mid` — hash message_id → uid,
 /// so a rerun of self-heal can reuse the previously-allocated uid

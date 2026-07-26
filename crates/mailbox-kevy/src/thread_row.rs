@@ -172,6 +172,12 @@ impl ThreadRow {
     }
 }
 
+/// `1` / `0` as the stored bytes for a boolean column. i64-typed in the
+/// declaration so `FILTER flag EQ 1` coerces cleanly.
+fn flag(v: bool) -> &'static [u8] {
+    if v { b"1" } else { b"0" }
+}
+
 impl KevyMailboxStore {
     /// Write the thread aggregate hash + bump it to head of every index
     /// zset the row's flags say it belongs to.
@@ -212,9 +218,37 @@ impl KevyMailboxStore {
         let is_sender = senders_csv_contains_user(&row.senders_csv, user);
         let score = row.latest_date as f64;
         let member: &[u8] = row.thread_id.as_bytes();
+        let tu_key = keys::thread_user(user, &row.thread_id);
+        let activity_s = row.latest_date.to_string();
         self.store()
             .atomic(|ctx| {
                 ctx.hset(key.as_bytes(), &pair_refs)?;
+
+                // Membership row for the declared `threaduser` table.
+                // Written alongside the zsets, read by nothing yet — the
+                // zsets stay authoritative until the read cutover.
+                //
+                // It carries the per-user facts the twelve zsets encode
+                // in their key names, so the engine can maintain the
+                // access paths instead of these hand-written zadd/zrem
+                // pairs. `bucket` is stored rather than derived because
+                // the engine cannot call `bucket_of`.
+                ctx.hset(
+                    tu_key.as_bytes(),
+                    &[
+                        (b"user".as_slice(), user.as_bytes()),
+                        (b"tid".as_slice(), row.thread_id.as_bytes()),
+                        (b"bucket".as_slice(), bucket.name().as_bytes()),
+                        (b"category".as_slice(), row.category.as_bytes()),
+                        (b"activity".as_slice(), activity_s.as_bytes()),
+                        (b"sent".as_slice(), flag(is_sender)),
+                        (b"starred".as_slice(), flag(row.starred)),
+                        (b"archived".as_slice(), flag(row.archived)),
+                        (b"pinned".as_slice(), flag(row.pinned)),
+                        (b"unread".as_slice(), flag(row.unread_count > 0)),
+                        (b"has_action".as_slice(), flag(row.has_action)),
+                    ],
+                )?;
 
                 ctx.zadd(activity.as_bytes(), &[(score, member)])?;
                 ctx.zadd(cat.as_bytes(), &[(score, member)])?;
