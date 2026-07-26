@@ -2264,27 +2264,28 @@ async fn get_categories(
     ];
     let categories: Vec<conv::CategoryCount> = candidates
         .into_iter()
-        .map(|cat| {
-            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(&_user, cat);
-            let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
-            conv::CategoryCount {
-                category: cat.to_string(),
-                count,
-            }
+        .map(|cat| conv::CategoryCount {
+            category: cat.to_string(),
+            count: state
+                .mailbox
+                .count_thread_ids_by_category_via_table(&_user, cat)
+                .unwrap_or(0) as i64,
         })
         .filter(|c| c.count > 0)
         .collect();
     Json(conv::ConversationCategoriesResponse { categories })
 }
 
-/// `GET /v1/users/{user}/conversations/unseen-count` — single ZCARD on
-/// the has_unread zset.
+/// `GET /v1/users/{user}/conversations/unseen-count` — a count on the
+/// unread axis.
 async fn get_unseen_count(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
 ) -> Json<conv::UnseenCountResponse> {
-    let key = mailrs_mailbox_kevy::keys::user_threads_has_unread(&user);
-    let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
+    let count = state
+        .mailbox
+        .count_thread_ids_by_flag_via_table(&user, "unread")
+        .unwrap_or(0) as i64;
     Json(conv::UnseenCountResponse { count })
 }
 
@@ -2840,13 +2841,11 @@ async fn list_mailboxes(
     use mailrs_core_api::method::mailbox::{ListMailboxesResponse, MailboxWire};
     let total = state
         .mailbox
-        .store_ref()
-        .zcard(mailrs_mailbox_kevy::keys::user_threads_by_activity(&user).as_bytes())
+        .count_thread_ids_by_activity_via_table(&user)
         .unwrap_or(0) as u32;
     let unseen = state
         .mailbox
-        .store_ref()
-        .zcard(mailrs_mailbox_kevy::keys::user_threads_has_unread(&user).as_bytes())
+        .count_thread_ids_by_flag_via_table(&user, "unread")
         .unwrap_or(0) as u32;
     let items = vec![
         MailboxWire {
