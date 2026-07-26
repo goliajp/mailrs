@@ -1842,6 +1842,13 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:table-verify",
                 post(table_verify_route),
             )
+            // Row-level census behind the VERIFY counters — answers
+            // "which rows are missing from an index", which VERIFY
+            // reports as a count and not an identity.
+            .route(
+                "/v1/admin/maintenance:threaduser-census",
+                post(threaduser_census_route),
+            )
             // Contact relationship counters, rebuilt from message
             // history so importance scoring sees existing correspondents
             // instead of waiting months for new traffic (idempotent).
@@ -3691,6 +3698,56 @@ async fn backfill_contact_relationships_route(
         "users": users,
         "addresses": addresses,
         "messages_scanned": messages,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:threaduser-census` — walk every
+/// membership row and report which ones could not be indexed.
+///
+/// `TABLE.VERIFY` says how many entries an index holds; when that is
+/// short of the row count it does not say *which* rows are missing. A
+/// composite orderpath can only encode a row where every sort column is
+/// present, so this counts rows by which column is empty.
+async fn threaduser_census_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let store = state.mailbox.store_ref();
+    let keys = store.keys(Some(b"mailrs:threaduser:*"), None);
+    let mut total = 0u64;
+    let mut empty: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut samples: Vec<String> = Vec::new();
+    for k in &keys {
+        total += 1;
+        let pairs = match store.hgetall(k) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let map: std::collections::HashMap<&[u8], &[u8]> = pairs
+            .iter()
+            .map(|(f, v)| (f.as_slice(), v.as_slice()))
+            .collect();
+        let mut bad = false;
+        for col in [
+            "user", "tid", "bucket", "category", "activity", "starred", "archived",
+        ] {
+            if map
+                .get(col.as_bytes())
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
+            {
+                *empty.entry(col.to_string()).or_default() += 1;
+                bad = true;
+            }
+        }
+        if bad && samples.len() < 5 {
+            samples.push(String::from_utf8_lossy(k).into_owned());
+        }
+    }
+    Json(serde_json::json!({
+        "rows": total,
+        "empty_or_missing": empty,
+        "samples": samples,
     }))
     .into_response()
 }
