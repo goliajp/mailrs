@@ -329,7 +329,7 @@ fn thread_user_spec() -> kevy_index::TableSpec {
             col("bucket", ValType::Str),
             col("category", ValType::Str),
             col("activity", ValType::I64),
-            col("sent", ValType::I64),
+            col("sent_only", ValType::I64),
             col("starred", ValType::I64),
             col("archived", ValType::I64),
             col("pinned", ValType::I64),
@@ -377,7 +377,7 @@ fn thread_user_spec() -> kevy_index::TableSpec {
                 &[
                     ("user", false),
                     ("bucket", false),
-                    ("sent", false),
+                    ("sent_only", false),
                     ("activity", true),
                     ("ord", false),
                 ],
@@ -621,7 +621,7 @@ impl KevyMailboxStore {
             eqs: vec![
                 (b"user".to_vec(), user.as_bytes().to_vec()),
                 (b"bucket".to_vec(), bucket.as_bytes().to_vec()),
-                (b"sent".to_vec(), b"0".to_vec()),
+                (b"sent_only".to_vec(), b"0".to_vec()),
             ],
             range: max_activity.map(|ts| {
                 (

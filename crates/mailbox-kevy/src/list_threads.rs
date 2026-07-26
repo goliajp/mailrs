@@ -673,6 +673,7 @@ mod junk_cutover_tests {
         // Sent-only: alice is the sole sender.
         let mut mine = row("mine", 200, "inbox");
         mine.senders_csv = "alice@x.com".into();
+        mine.sent_count = mine.count;
         st.upsert_thread("alice@x.com", &mine).unwrap();
 
         let filter = ListThreadsFilter {
@@ -689,6 +690,39 @@ mod junk_cutover_tests {
             "a sent-only thread must not reach the inbox"
         );
         assert_eq!(total, 1, "the count must exclude it too, not just the page");
+    }
+
+    /// The case that "has ever sent" got wrong: a conversation the
+    /// user took part in is still theirs to read. Reading the flag as
+    /// "is a sender" dropped 190 of one account's inbox threads.
+    #[test]
+    fn inbox_keeps_threads_the_user_replied_in() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        let mut replied = row("replied", 100, "inbox");
+        replied.senders_csv = "bob@y.com,alice@x.com".into();
+        replied.count = 3;
+        replied.sent_count = 1;
+        st.upsert_thread("alice@x.com", &replied).unwrap();
+
+        let filter = ListThreadsFilter {
+            folder: Some("Inbox"),
+            ..Default::default()
+        };
+        let (rows, total) = st
+            .list_threads_by_activity("alice@x.com", &filter, 0, 10)
+            .unwrap();
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["replied"],
+            "a thread the user replied in must stay in the inbox"
+        );
+        assert_eq!(total, 1);
     }
 
     /// Offset paging must not repeat or skip across page boundaries.
