@@ -3793,6 +3793,30 @@ async fn shadow_read_route(
                 })
                 .collect();
 
+            // Symmetric detail for the other direction: what the table
+            // has and the zset does not. On the Inbox axis this is the
+            // question of whether the rows include sent-only threads
+            // the zset deliberately excludes.
+            let extra: Vec<serde_json::Value> = only_table
+                .iter()
+                .take(5)
+                .map(|tid| {
+                    let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                    let row = store.hgetall(key.as_bytes()).unwrap_or_default();
+                    let field = |name: &str| -> Option<String> {
+                        row.iter()
+                            .find(|(f, _)| f == name.as_bytes())
+                            .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                    };
+                    serde_json::json!({
+                        "tid": tid,
+                        "sent": field("sent"),
+                        "category": field("category"),
+                        "archived": field("archived"),
+                    })
+                })
+                .collect();
+
             if !only_zset.is_empty() || !only_table.is_empty() || !order_matches {
                 total_divergent += 1;
                 report.push(serde_json::json!({
@@ -3805,6 +3829,7 @@ async fn shadow_read_route(
                     "only_in_table": only_table.len(),
                     "order_matches": order_matches,
                     "zset_only_rows": missing,
+                    "table_only_rows": extra,
                 }));
             }
         }
