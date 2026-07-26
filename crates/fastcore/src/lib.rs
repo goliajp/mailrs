@@ -3757,11 +3757,42 @@ async fn shadow_read_route(
                 }
             };
 
+            // Both sides capped at `limit`, so a full page on either
+            // side means the tails were never compared — the sets can
+            // differ purely from where each was cut. Say so rather than
+            // reporting a divergence the data does not support.
+            let truncated = zset.len() >= limit || table.len() >= limit;
+
             let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
             let ts: std::collections::BTreeSet<&String> = table.iter().collect();
-            let only_zset: Vec<&&String> = zs.difference(&ts).take(5).collect();
-            let only_table: Vec<&&String> = ts.difference(&zs).take(5).collect();
+            let only_zset: Vec<&String> = zs.difference(&ts).map(|s| *s).collect();
+            let only_table: Vec<&String> = ts.difference(&zs).map(|s| *s).collect();
             let order_matches = zset == table;
+
+            // A thread the zset claims and the table does not is the
+            // only shape that could lose data on cutover. Report what
+            // the membership row actually says about it, so a stale
+            // zset entry is distinguishable from a missing row.
+            let missing: Vec<serde_json::Value> = only_zset
+                .iter()
+                .take(5)
+                .map(|tid| {
+                    let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                    let row = store.hgetall(key.as_bytes()).unwrap_or_default();
+                    let field = |name: &str| -> Option<String> {
+                        row.iter()
+                            .find(|(f, _)| f == name.as_bytes())
+                            .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                    };
+                    serde_json::json!({
+                        "tid": tid,
+                        "row_exists": !row.is_empty(),
+                        "row_bucket": field("bucket"),
+                        "row_category": field("category"),
+                    })
+                })
+                .collect();
+
             if !only_zset.is_empty() || !only_table.is_empty() || !order_matches {
                 total_divergent += 1;
                 report.push(serde_json::json!({
@@ -3769,9 +3800,11 @@ async fn shadow_read_route(
                     "bucket": bucket,
                     "zset_len": zset.len(),
                     "table_len": table.len(),
-                    "only_in_zset": only_zset.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                    "only_in_table": only_table.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                    "truncated": truncated,
+                    "only_in_zset": only_zset.len(),
+                    "only_in_table": only_table.len(),
                     "order_matches": order_matches,
+                    "zset_only_rows": missing,
                 }));
             }
         }
