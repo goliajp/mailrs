@@ -1849,6 +1849,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:threaduser-census",
                 post(threaduser_census_route),
             )
+            // Deletes the legacy per-user thread zsets. Nothing writes
+            // or reads them any more; this reclaims the memory.
+            .route(
+                "/v1/admin/maintenance:drop-legacy-zsets",
+                post(drop_legacy_zsets_route),
+            )
             // Shadow read — the engine's answer against the
             // hand-maintained zset's, before any read is cut over.
             .route("/v1/admin/maintenance:shadow-read", post(shadow_read_route))
@@ -4117,6 +4123,55 @@ async fn shadow_read_route(
         "axes_checked": users.len() * 16,
         "axes_divergent": total_divergent,
         "divergences": report,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:drop-legacy-zsets` — delete the
+/// hand-maintained per-user thread indexes.
+///
+/// Every axis is served from the declared table and no write path
+/// touches these keys, so they are dead weight held in memory. Runs
+/// in-process rather than through a second store handle: opening the
+/// embedded store twice replays the AOF twice and gets the container
+/// OOM-killed.
+///
+/// `?dry=1` reports what would go without deleting it.
+async fn drop_legacy_zsets_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let dry = q.get("dry").map(String::as_str) == Some("1");
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut found = 0u64;
+    let mut members = 0u64;
+    let mut deleted = 0u64;
+    for user in &users {
+        for key in mailrs_mailbox_kevy::keys::all_user_thread_zsets(user) {
+            let n = store.zcard(key.as_bytes()).unwrap_or(0);
+            if n == 0 {
+                continue;
+            }
+            found += 1;
+            members += n as u64;
+            if !dry {
+                deleted += store.del(&[key.as_bytes()]).unwrap_or(0) as u64;
+            }
+        }
+    }
+    tracing::info!(dry, found, members, deleted, "legacy zset sweep");
+    Json(serde_json::json!({
+        "dry_run": dry,
+        "keys_found": found,
+        "members_held": members,
+        "keys_deleted": deleted,
     }))
     .into_response()
 }

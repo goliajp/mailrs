@@ -146,43 +146,33 @@ impl KevyMailboxStore {
         offset: i64,
         limit: i64,
     ) -> io::Result<(u64, u64)> {
-        // Every zset the user has, not just by_activity: the legacy
-        // indexes disagree with each other, and on prod one account's
-        // `sent` held 58 threads where `by_activity` held 9. Walking
-        // one of them would leave the other's 49 without a membership
-        // row — which is exactly the gap that held the Sent cutover.
+        // The membership rows themselves. Every write path maintains
+        // them now, so this no longer discovers threads — it refreshes
+        // rows against the current schema, which is what a column
+        // addition needs and nothing else does.
         //
-        // The union is the complete set of threads the user has, so
-        // once these rows exist the table is a superset of every zset
-        // and they can all be dropped.
-        let sources = keys::all_user_thread_zsets(user);
-        let mut seen = std::collections::BTreeSet::new();
-        let mut union: Vec<(Vec<u8>, f64)> = Vec::new();
-        for key in &sources {
-            let entries = self
-                .store()
-                .zrevrange(key.as_bytes(), 0, -1)
-                .map_err(std::io::Error::other)?;
-            for (member, score) in entries {
-                if seen.insert(member.clone()) {
-                    union.push((member, score));
-                }
-            }
-        }
-        // Newest first so a paged caller sees a stable order.
-        union.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        let start = offset.max(0) as usize;
-        let entries: Vec<(Vec<u8>, f64)> = union
+        // (It read the union of the legacy zsets while those were
+        // still written. They are not, so reading them would now
+        // return a shrinking, stale set.)
+        let prefix = keys::thread_user(user, "");
+        let mut ids: Vec<String> = self
+            .store()
+            .keys(Some(format!("{prefix}*").as_bytes()), None)
             .into_iter()
-            .skip(start)
+            .filter_map(|k| {
+                let k = String::from_utf8(k).ok()?;
+                k.get(prefix.len()..).map(str::to_string)
+            })
+            .collect();
+        ids.sort();
+        let entries: Vec<String> = ids
+            .into_iter()
+            .skip(offset.max(0) as usize)
             .take(limit.max(0) as usize)
             .collect();
         let mut scanned = 0u64;
         let mut written = 0u64;
-        for (tid_bytes, _score) in entries {
-            let Ok(tid) = String::from_utf8(tid_bytes) else {
-                continue;
-            };
+        for tid in entries {
             scanned += 1;
             let Some(row) = self.get_thread(&tid)? else {
                 continue;
@@ -445,53 +435,61 @@ mod backfill_source_tests {
     use super::*;
     use kevy_embedded::{Config, Store};
 
-    /// The backfill must cover threads that only one legacy zset knows
-    /// about.
+    /// The backfill refreshes existing rows against the current
+    /// schema — that is its whole job now.
     ///
-    /// On prod one account's `sent` held 58 threads where
-    /// `by_activity` held 9; a backfill walking either alone leaves
-    /// the other's threads without a membership row, and the axis
-    /// served from the table then silently misses them.
+    /// It used to enumerate the legacy zsets to *discover* rows the
+    /// write paths had missed, and while those zsets were maintained
+    /// that mattered: one prod account's `sent` held 58 threads where
+    /// `by_activity` held 9, and reading either alone left the other's
+    /// behind. Nothing writes them any more, so reading them would
+    /// return a stale and shrinking set; the rows are the truth.
     #[test]
-    fn backfill_covers_threads_missing_from_by_activity() {
+    fn backfill_refreshes_existing_rows_and_then_converges() {
         let st = KevyMailboxStore::new(Arc::new(
             Store::open(Config::default()).expect("open in-memory kevy"),
         ));
         st.ensure_thread_table();
-        let u = "noreply@x.com";
+        let u = "alice@x.com";
 
-        // A thread the sent zset knows and by_activity does not — the
-        // shape that produced the prod gap.
-        let tid = "orphan";
-        st.store()
-            .hset(
-                keys::thread(tid).as_bytes(),
-                &[
-                    (b"subject".as_slice(), b"s".as_slice()),
-                    (b"senders_csv".as_slice(), u.as_bytes()),
-                    (b"count".as_slice(), b"2".as_slice()),
-                    (b"sent_count".as_slice(), b"1".as_slice()),
-                    (b"latest_date".as_slice(), b"500".as_slice()),
-                    (b"category".as_slice(), b"inbox".as_slice()),
-                ],
-            )
-            .unwrap();
-        st.store()
-            .zadd(
-                keys::user_threads_sent(u).as_bytes(),
-                &[(500.0, tid.as_bytes())],
-            )
-            .unwrap();
+        let mut row = thread_row::ThreadRow {
+            thread_id: "t1".into(),
+            subject: "s".into(),
+            senders_csv: "bob@y.com".into(),
+            count: 1,
+            unread_count: 0,
+            latest_date: 100,
+            latest_preview: String::new(),
+            category: "inbox".into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        };
+        st.upsert_thread(u, &row).unwrap();
 
+        // Converged: a pass over correct rows writes nothing.
         let (scanned, written) = st.backfill_thread_user(u, 0, 500).unwrap();
-        assert_eq!(scanned, 1, "the union must reach a sent-only thread");
-        assert_eq!(written, 1);
+        assert_eq!(scanned, 1);
+        assert_eq!(written, 0, "a converged pass must not write");
 
-        let row = st
-            .store()
-            .hgetall(keys::thread_user(u, tid).as_bytes())
+        // Simulate a row left behind by an older schema: clear a
+        // column the current builder produces.
+        st.store()
+            .hdel(keys::thread_user(u, "t1").as_bytes(), &[b"ord".as_slice()])
             .unwrap();
-        assert!(!row.is_empty(), "the membership row must exist afterwards");
+        let (scanned, written) = st.backfill_thread_user(u, 0, 500).unwrap();
+        assert_eq!(scanned, 1);
+        assert_eq!(written, 1, "a stale row must be rewritten");
+
+        // And it stays converged afterwards.
+        row.latest_date = 100;
+        let (_, written) = st.backfill_thread_user(u, 0, 500).unwrap();
+        assert_eq!(written, 0);
     }
 }
 
