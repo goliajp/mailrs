@@ -243,7 +243,7 @@ impl KevyMailboxStore {
                     values,
                 },
             ],
-            // `tid` is the tie-breaker, not a queryable dimension.
+            // `ord` is the tie-breaker, not a queryable dimension.
             // `activity` is a whole-second timestamp, so threads that
             // arrive in the same second collide — 929 collisions over
             // 30k rows on prod. Without a total order the position of a
@@ -257,7 +257,7 @@ impl KevyMailboxStore {
                         ("user", false),
                         ("bucket", false),
                         ("activity", true),
-                        ("tid", false),
+                        ("ord", false),
                     ],
                 ),
                 path(
@@ -266,7 +266,7 @@ impl KevyMailboxStore {
                         ("user", false),
                         ("category", false),
                         ("activity", true),
-                        ("tid", false),
+                        ("ord", false),
                     ],
                 ),
             ],
