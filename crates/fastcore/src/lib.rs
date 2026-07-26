@@ -246,6 +246,27 @@ pub async fn run() {
         // reported with the corrupt flag raised — so this recovers data
         // without hiding that anything happened.
         .with_replay_resync(true);
+    // Transparent tiering. Off by default: the whole dataset fits in
+    // RAM today, and a budget below the working set trades latency for
+    // memory in a way that has to be measured before it is imposed.
+    //
+    // MAILRS_KEVY_TIER_MB=<n> sets an explicit budget; `auto` takes
+    // 70% of the detected cgroup limit. Cold values move to a vlog on
+    // disk and read back transparently, so this changes footprint and
+    // tail latency, never answers.
+    if let Ok(spec) = std::env::var("MAILRS_KEVY_TIER_MB") {
+        cfg = match spec.as_str() {
+            "auto" => cfg.with_tier_budget_auto(),
+            n => match n.parse::<u64>() {
+                Ok(mb) => cfg.with_tier_budget(mb * 1024 * 1024),
+                Err(_) => {
+                    tracing::warn!(%spec, "MAILRS_KEVY_TIER_MB unparseable — tiering stays off");
+                    cfg
+                }
+            },
+        };
+        tracing::info!(%spec, "kevy transparent tiering enabled");
+    }
     // kevy 4.0 canary window. The AOF record format is new in 4.0
     // (KEVYAOF2, length-prefixed + CRC32C), and the upgrade happens on
     // the first rewrite — one-way, per kevy's UPGRADING. Appends to an
@@ -1803,12 +1824,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:sweep-legacy-admin-keys",
                 post(sweep_legacy_admin_keys_route),
             )
-            // Ops endpoint — migrate monolith-era spam/scam-category
-            // threads into the Junk folder (idempotent).
-            .route(
-                "/v1/admin/maintenance:move-spam-to-junk",
-                post(move_spam_to_junk_route),
-            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -1821,12 +1836,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/maintenance:backfill-triage",
                 post(backfill_triage_route),
-            )
-            // Ops endpoint — file every existing thread into the
-            // v2.4.0 Inbox/Junk folder zsets (v2.8.2, idempotent).
-            .route(
-                "/v1/admin/maintenance:backfill-inbox-index",
-                post(backfill_inbox_index_route),
             )
             // Segmented promotion of existing threads into the
             // `threaduser` table's membership rows (v4 TABLE migration).
@@ -1855,6 +1864,8 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:drop-legacy-zsets",
                 post(drop_legacy_zsets_route),
             )
+            // RAM versus disk, so tiering can be judged on numbers.
+            .route("/v1/admin/maintenance:tier-info", post(tier_info_route))
             // Shadow read — the engine's answer against the
             // hand-maintained zset's, before any read is cut over.
             .route("/v1/admin/maintenance:shadow-read", post(shadow_read_route))
@@ -3616,65 +3627,6 @@ async fn backfill_triage_route(
     .into_response()
 }
 
-/// `POST /v1/admin/maintenance:move-spam-to-junk` — one-shot migration
-/// of every thread whose category is `spam` / `scam` into the Junk
-/// folder zset (user report 2026-07-13: "junk 是空的，而且还是有
-/// spam" — 1219 spam + 73 scam threads from the monolith-era AI
-/// categorizer were sitting in the Inbox folder because the Phase 4.3
-/// backfill binary never ran on prod, see
-/// `feedback-junk-backfill-oom-finding`).
-///
-/// Walks each account's `by_category:{spam,scam}` zsets and calls
-/// `set_junk(user, thread, true)` — the same atomic move the
-/// mark-junk UI action uses (junk zset add + inbox zset remove +
-/// category stamp). Idempotent: already-moved threads just refresh.
-async fn move_spam_to_junk_route(
-    State(state): State<Arc<FastcoreState>>,
-) -> axum::response::Response {
-    let users = match state.mailbox.list_account_addresses() {
-        Ok(u) => u,
-        Err(e) => {
-            tracing::error!(err = %e, "list_account_addresses failed");
-            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let store = state.mailbox.store_ref();
-    let mut moved = 0u64;
-    let mut missing = 0u64;
-    for user in &users {
-        for cat in ["spam", "scam"] {
-            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
-            let n = store.zcard(key.as_bytes()).unwrap_or(0);
-            if n == 0 {
-                continue;
-            }
-            let entries = match store.zrevrange(key.as_bytes(), 0, (n as i64) - 1) {
-                Ok(e) => e,
-                Err(e) => {
-                    tracing::warn!(err = %e, %user, cat, "zrevrange failed; skipping");
-                    continue;
-                }
-            };
-            for (tid_bytes, _score) in entries {
-                let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                    continue;
-                };
-                match state.mailbox.set_junk(user, tid, true) {
-                    Ok(true) => moved += 1,
-                    // Thread row gone (category zset entry is stale) —
-                    // count separately so the response shows drift.
-                    Ok(false) => missing += 1,
-                    Err(e) => {
-                        tracing::warn!(err = %e, %user, %tid, "set_junk failed");
-                    }
-                }
-            }
-        }
-    }
-    tracing::info!(moved, missing, "spam/scam → junk migration complete");
-    Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
-}
-
 /// `POST /v1/admin/maintenance:backfill-thread-importance` — score
 /// threads that predate the feature. `?all=1` rescores every thread;
 /// the default only fills in threads with no verdict yet.
@@ -4127,6 +4079,36 @@ async fn shadow_read_route(
     .into_response()
 }
 
+/// `POST /v1/admin/maintenance:tier-info` — what the store is holding
+/// in RAM versus on disk.
+///
+/// `cold_keys` / `cold_bytes` are what tiering moved out; `stub_bytes`
+/// is what that cost to keep addressable. With tiering off the budget
+/// reads 0 and nothing is cold, which is the honest baseline to
+/// compare against.
+async fn tier_info_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
+    let info = state.mailbox.store_ref().info();
+    Json(serde_json::json!({
+        "keys": info.keys,
+        "used_memory": info.used_memory,
+        "aof_bytes": info.aof_bytes,
+        // None when tiering is off — the difference between "nothing
+        // is cold" and "nothing can be cold" is worth keeping visible.
+        "tier": info.tiering.map(|t| {
+            serde_json::json!({
+                "budget_bytes": t.tier_budget_bytes,
+                "effective_target": t.tier_effective_target,
+                "cold_keys": t.cold_keys,
+                "cold_bytes": t.cold_bytes,
+                "stub_bytes": t.stub_bytes,
+                "index_reserved_bytes": t.index_reserved_bytes,
+                "vlog_size_bytes": t.vlog_size_bytes,
+            })
+        }),
+    }))
+    .into_response()
+}
+
 /// `POST /v1/admin/maintenance:drop-legacy-zsets` — delete the
 /// hand-maintained per-user thread indexes.
 ///
@@ -4319,95 +4301,6 @@ async fn backfill_thread_user_route(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
-}
-
-/// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot
-/// promotion of every existing thread into the v2.4.0 folder zsets
-/// (v2.8.2). Until this release `record_message_arrival` (the main
-/// ingest path) never wrote `user_threads_inbox`, so the Inbox axis
-/// only held threads that happened to pass through `upsert_thread` /
-/// `set_junk` — the UI had to keep its default view on the mixed
-/// by_activity zset. Walks each account's by_activity zset and files
-/// every live row: spam/scam → Junk, ≥ 1 received message → Inbox,
-/// sent-only → neither (Sent axis already covers it). Idempotent:
-/// zadd overwrites the score in place.
-async fn backfill_inbox_index_route(
-    State(state): State<Arc<FastcoreState>>,
-) -> axum::response::Response {
-    let users = match state.mailbox.list_account_addresses() {
-        Ok(u) => u,
-        Err(e) => {
-            tracing::error!(err = %e, "list_account_addresses failed");
-            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let store = state.mailbox.store_ref();
-    let mut inbox_added = 0u64;
-    let mut junk_added = 0u64;
-    let mut sent_only = 0u64;
-    let mut stale = 0u64;
-    for user in &users {
-        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let inbox = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
-        let junk = mailrs_mailbox_kevy::keys::user_threads_junk(user);
-        let entries = match store.zrevrange(activity.as_bytes(), 0, -1) {
-            Ok(e) => e,
-            Err(e) => {
-                tracing::warn!(err = %e, %user, "zrevrange by_activity failed; skipping");
-                continue;
-            }
-        };
-        for (tid_bytes, _score) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
-            let row = match state.mailbox.get_thread(tid) {
-                Ok(Some(r)) => r,
-                Ok(None) => {
-                    stale += 1;
-                    continue;
-                }
-                Err(e) => {
-                    tracing::warn!(err = %e, %user, %tid, "get_thread failed");
-                    continue;
-                }
-            };
-            let is_junk = row.category.eq_ignore_ascii_case("spam")
-                || row.category.eq_ignore_ascii_case("scam");
-            let score = row.latest_date as f64;
-            if is_junk {
-                let _ = store.zadd(junk.as_bytes(), &[(score, tid.as_bytes())]);
-                junk_added += 1;
-            } else if row.count > row.sent_count {
-                let _ = store.zadd(inbox.as_bytes(), &[(score, tid.as_bytes())]);
-                inbox_added += 1;
-            } else {
-                // Sent-only: belongs to the Sent axis alone. Remove any
-                // stale inbound-bucket membership (a pg-dump import whose
-                // sent_count was 0 at upsert time, later recomputed to
-                // equal count, left the thread stuck in Inbox). This makes
-                // the backfill a self-correcting sweep, not add-only.
-                for z in mailrs_mailbox_kevy::keys::Bucket::all_zsets(user) {
-                    let _ = store.zrem(z.as_bytes(), &[tid.as_bytes()]);
-                }
-                sent_only += 1;
-            }
-        }
-    }
-    tracing::info!(
-        inbox_added,
-        junk_added,
-        sent_only,
-        stale,
-        "inbox-index backfill complete"
-    );
-    Json(serde_json::json!({
-        "inbox_added": inbox_added,
-        "junk_added": junk_added,
-        "sent_only_skipped": sent_only,
-        "stale_entries": stale,
-    }))
-    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot
