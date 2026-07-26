@@ -218,16 +218,17 @@ impl KevyMailboxStore {
         // axes, merged here because an ORDERPATH answers one range and
         // a union is two.
         if bucket_reads_table() {
-            // Sent is held back: on one account the zset holds 58
-            // threads where the rows say 9, and that gap is neither a
-            // tie nor the staleness pattern the other axes showed. It
-            // stays on the zset until the difference is explained —
-            // MAILRS_SENT_READ=table opts in once it is.
+            // Sent was held back for a round: one account's zset held
+            // 58 threads where the rows said 9. The cause was not the
+            // predicate but the backfill's source — those threads had
+            // no membership row at all, because the backfill walked
+            // by_activity and that zset was missing them. Walking the
+            // union of every legacy zset wrote the 49, and the axis
+            // now agrees exactly.
             if filter.is_bare_sent() {
-                if std::env::var("MAILRS_SENT_READ").as_deref() == Ok("table") {
-                    return self.list_flag_via_table(user, "is_sender", filter, offset, limit);
-                }
-            } else if filter.is_bare_np() {
+                return self.list_flag_via_table(user, "is_sender", filter, offset, limit);
+            }
+            if filter.is_bare_np() {
                 return self.list_np_via_table(user, filter, offset, limit);
             }
             if filter.is_bare_default() {
