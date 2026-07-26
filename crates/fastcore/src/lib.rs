@@ -3735,6 +3735,14 @@ async fn shadow_read_route(
         for (bucket, zkey) in [
             ("inbox", mailrs_mailbox_kevy::keys::user_threads_inbox(user)),
             ("junk", mailrs_mailbox_kevy::keys::user_threads_junk(user)),
+            (
+                "notifications",
+                mailrs_mailbox_kevy::keys::user_threads_notifications(user),
+            ),
+            (
+                "promotions",
+                mailrs_mailbox_kevy::keys::user_threads_promotions(user),
+            ),
         ] {
             let zset: Vec<String> = match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
                 Ok(e) => e
@@ -3846,7 +3854,7 @@ async fn shadow_read_route(
 
     Json(serde_json::json!({
         "limit": limit,
-        "axes_checked": users.len() * 2,
+        "axes_checked": users.len() * 4,
         "axes_divergent": total_divergent,
         "divergences": report,
     }))
