@@ -3792,6 +3792,44 @@ async fn shadow_read_route(
             let ts: std::collections::BTreeSet<&String> = table.iter().collect();
             let only_z = zs.difference(&ts).count();
             let only_t = ts.difference(&zs).count();
+            // For Sent, show what the rows actually say about the
+            // threads the zset claims and the table does not — the
+            // 58-vs-9 gap on one account is unexplained and the
+            // membership row is where the answer has to be.
+            let detail: Vec<serde_json::Value> = if axis == "sent" {
+                zs.difference(&ts)
+                    .take(4)
+                    .map(|tid| {
+                        let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                        let row = store.hgetall(key.as_bytes()).unwrap_or_default();
+                        let f = |n: &str| -> Option<String> {
+                            row.iter()
+                                .find(|(k, _)| k == n.as_bytes())
+                                .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                        };
+                        let th = store
+                            .hgetall(mailrs_mailbox_kevy::keys::thread(tid).as_bytes())
+                            .unwrap_or_default();
+                        let tf = |n: &str| -> Option<String> {
+                            th.iter()
+                                .find(|(k, _)| k == n.as_bytes())
+                                .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                        };
+                        serde_json::json!({
+                            "tid": tid,
+                            "row_exists": !row.is_empty(),
+                            "row_is_sender": f("is_sender"),
+                            "row_sent_only": f("sent_only"),
+                            "thread_senders": tf("senders_csv"),
+                            "thread_sent_count": tf("sent_count"),
+                            "thread_count": tf("count"),
+                        })
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
             // np's table side is unsorted here (two concatenated
             // ranges); only membership is meaningful for it.
             let order_matches = axis == "np" || zset == table;
@@ -3806,7 +3844,7 @@ async fn shadow_read_route(
                     "only_in_zset": only_z,
                     "only_in_table": only_t,
                     "order_matches": order_matches,
-                    "zset_only_rows": [],
+                    "zset_only_rows": detail,
                     "table_only_rows": [],
                     "order_diff": serde_json::Value::Null,
                 }));
