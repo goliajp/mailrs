@@ -3475,6 +3475,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "kevy-embedded",
+ "kevy-index",
  "mailrs-alias-store",
  "mailrs-mailbox",
  "serde",

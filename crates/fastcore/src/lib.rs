@@ -267,6 +267,10 @@ pub async fn run() {
     let mailbox = KevyMailboxStore::new(store);
     // v2.6.0 §P6: register the admin-CRUD range indexes idempotently.
     mailbox.ensure_admin_indexes();
+    // v4 TABLE layer: declare the access paths the engine maintains.
+    // Nothing reads them yet — the per-user zsets stay authoritative
+    // until the shadow-read window says the two agree.
+    mailbox.ensure_thread_table();
 
     // Alias-store backend selector — RFC 20260705 Step 2.
     // Default (`embed` / unset): historical fastcore-owned alias table

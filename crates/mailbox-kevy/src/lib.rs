@@ -126,6 +126,100 @@ impl KevyMailboxStore {
     /// spec on first call and refuses to re-declare on subsequent
     /// boots. Callers should invoke once during startup after the
     /// store handle is available.
+    /// Declare the `threaduser` table — the access paths the engine
+    /// maintains in place of twelve hand-written zsets.
+    ///
+    /// Idempotent: a second declaration of the same spec is refused by
+    /// the catalog, which persisted it on the first call. Declaration
+    /// is atomic — on any error nothing installs, so there is no
+    /// half-declared table to clean up.
+    ///
+    /// **Nothing reads these paths yet.** The zsets remain
+    /// authoritative through the backfill and the shadow-read window;
+    /// this only starts the engine maintaining a parallel answer that
+    /// `TABLE.VERIFY` can be checked against.
+    ///
+    /// Two ORDERPATHs cover the two orderings the UI actually asks for
+    /// — the mutually-exclusive bucket (inbox / notifications /
+    /// promotions / junk) and the finer category — both newest-first.
+    /// The six orthogonal flags are stored as index VALUES instead of
+    /// getting paths of their own, so "starred within inbox" is a
+    /// FILTER over a path that already exists rather than a third
+    /// composite.
+    ///
+    /// NOTE: `kevy-index` is imported directly because `kevy-embedded`
+    /// 4.0.0 does not re-export `TableSpec` / `TableIndex` /
+    /// `OrderPath`, which makes its own `Store::table_declare`
+    /// uncallable through the facade. Drop this dependency once the
+    /// re-export lands upstream.
+    pub fn ensure_thread_table(&self) {
+        use kevy_index::{IndexKind, OrderPath, TableIndex, TableSpec, ValType};
+
+        fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
+            (name.as_bytes().to_vec(), t)
+        }
+        fn path(name: &str, on: &[(&str, bool)]) -> OrderPath {
+            OrderPath {
+                name: name.as_bytes().to_vec(),
+                on: on
+                    .iter()
+                    .map(|(c, desc)| (c.as_bytes().to_vec(), *desc))
+                    .collect(),
+            }
+        }
+        let values: Vec<Vec<u8>> = ["user", "activity"]
+            .iter()
+            .map(|c| c.as_bytes().to_vec())
+            .collect();
+
+        let spec = TableSpec {
+            name: b"threaduser".to_vec(),
+            prefix: keys::THREAD_USER_PREFIX.to_vec(),
+            pk: b"tid".to_vec(),
+            columns: vec![
+                col("user", ValType::Str),
+                col("tid", ValType::Str),
+                col("bucket", ValType::Str),
+                col("category", ValType::Str),
+                col("activity", ValType::I64),
+                col("sent", ValType::I64),
+                col("starred", ValType::I64),
+                col("archived", ValType::I64),
+                col("pinned", ValType::I64),
+                col("unread", ValType::I64),
+                col("has_action", ValType::I64),
+            ],
+            indexes: vec![
+                TableIndex {
+                    column: b"starred".to_vec(),
+                    kind: IndexKind::Range,
+                    values: values.clone(),
+                },
+                TableIndex {
+                    column: b"archived".to_vec(),
+                    kind: IndexKind::Range,
+                    values,
+                },
+            ],
+            orderpaths: vec![
+                path(
+                    "by_user_bucket",
+                    &[("user", false), ("bucket", false), ("activity", true)],
+                ),
+                path(
+                    "by_user_category",
+                    &[("user", false), ("category", false), ("activity", true)],
+                ),
+            ],
+        };
+        match self.store.table_declare(spec) {
+            Ok(()) => tracing::info!("threaduser table declared"),
+            // Already present from a previous boot — the catalog
+            // persists, so this is the steady state, not a problem.
+            Err(e) => tracing::debug!(error = %e, "threaduser table already declared"),
+        }
+    }
+
     pub fn ensure_admin_indexes(&self) {
         use kevy_embedded::{IndexKind, IndexValType};
         let s = &self.store;
