@@ -365,6 +365,23 @@ fn thread_user_spec() -> kevy_index::TableSpec {
                     ("ord", false),
                 ],
             ),
+            // Inbox is not simply `bucket = inbox`: a thread the user
+            // only ever sent to belongs in Sent, not in the inbox.
+            // Putting `sent` in the sort prefix makes that exclusion
+            // part of the declared query shape rather than a filter
+            // applied after the fact — on prod it is 72 threads for
+            // one account that would otherwise show up in their own
+            // inbox.
+            path(
+                "by_user_bucket_sent",
+                &[
+                    ("user", false),
+                    ("bucket", false),
+                    ("sent", false),
+                    ("activity", true),
+                    ("ord", false),
+                ],
+            ),
             path(
                 "by_user_category",
                 &[
@@ -541,6 +558,79 @@ impl KevyMailboxStore {
             )),
         };
         self.run_orderpath(b"threaduser.by_user_bucket", user, &clause, limit)
+    }
+
+    /// Inbox-shaped read: one bucket, excluding threads the user only
+    /// ever sent. Newest first.
+    pub fn list_thread_ids_by_bucket_unsent_via_table(
+        &self,
+        user: &str,
+        bucket: &str,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        self.run_orderpath(
+            b"threaduser.by_user_bucket_sent",
+            user,
+            &Self::unsent_clause(user, bucket, None),
+            limit,
+        )
+    }
+
+    /// The cursor page of the same axis.
+    pub fn list_thread_ids_by_bucket_unsent_before_via_table(
+        &self,
+        user: &str,
+        bucket: &str,
+        max_activity: i64,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        self.run_orderpath(
+            b"threaduser.by_user_bucket_sent",
+            user,
+            &Self::unsent_clause(user, bucket, Some(max_activity)),
+            limit,
+        )
+    }
+
+    /// How many threads sit on the inbox-shaped axis.
+    pub fn count_thread_ids_by_bucket_unsent_via_table(
+        &self,
+        user: &str,
+        bucket: &str,
+    ) -> io::Result<usize> {
+        let (lo, hi) = self.composite_bounds_for(
+            b"threaduser.by_user_bucket_sent",
+            &Self::unsent_clause(user, bucket, None),
+        )?;
+        self.store
+            .idx_count(
+                b"threaduser.by_user_bucket_sent",
+                &kevy_embedded::IndexValue::Str(lo),
+                &kevy_embedded::IndexValue::Str(hi),
+            )
+            .map(|n| n as usize)
+            .map_err(io::Error::other)
+    }
+
+    fn unsent_clause(
+        user: &str,
+        bucket: &str,
+        max_activity: Option<i64>,
+    ) -> kevy_index::WhereClause {
+        kevy_index::WhereClause {
+            eqs: vec![
+                (b"user".to_vec(), user.as_bytes().to_vec()),
+                (b"bucket".to_vec(), bucket.as_bytes().to_vec()),
+                (b"sent".to_vec(), b"0".to_vec()),
+            ],
+            range: max_activity.map(|ts| {
+                (
+                    b"activity".to_vec(),
+                    i64::MIN.to_string().into_bytes(),
+                    ts.to_string().into_bytes(),
+                )
+            }),
+        }
     }
 
     fn bucket_bounds(

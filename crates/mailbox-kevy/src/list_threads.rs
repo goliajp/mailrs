@@ -186,8 +186,10 @@ impl KevyMailboxStore {
         //
         // Set MAILRS_JUNK_READ=zset to serve the old axis again; no
         // rebuild is needed since both are still maintained on write.
-        if filter.is_bare_junk() && junk_reads_table() {
-            return self.list_junk_via_table(user, filter, offset, limit);
+        if let Some(bucket) = filter.bare_bucket()
+            && bucket_reads_table()
+        {
+            return self.list_bucket_via_table(user, bucket, filter, offset, limit);
         }
 
         // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
@@ -499,7 +501,7 @@ mod tests {
 ///
 /// Read per call rather than cached: the revert must take effect on a
 /// container restart with an env change, not on a redeploy.
-fn junk_reads_table() -> bool {
+fn bucket_reads_table() -> bool {
     std::env::var("MAILRS_JUNK_READ").as_deref() != Ok("zset")
 }
 
@@ -510,14 +512,19 @@ impl ListThreadsFilter<'_> {
     /// predicate would need an intersection this path does not do, so
     /// those keep going through the zset route until their own axis is
     /// cut over.
-    fn is_bare_junk(&self) -> bool {
-        self.folder.is_some_and(|f| f.eq_ignore_ascii_case("junk"))
-            && self.category.is_none()
+    fn bare_bucket(&self) -> Option<&'static str> {
+        let bucket = match self.folder? {
+            f if f.eq_ignore_ascii_case("junk") => "junk",
+            f if f.eq_ignore_ascii_case("inbox") => "inbox",
+            _ => return None,
+        };
+        let bare = self.category.is_none()
             && !self.pinned
             && !self.archived
             && !self.has_unread
             && !self.has_action
-            && !self.starred
+            && !self.starred;
+        bare.then_some(bucket)
     }
 }
 
@@ -527,28 +534,44 @@ impl KevyMailboxStore {
     /// `before_ts` becomes a range on the `activity` component — the
     /// composite encoding puts it right after the two equality columns,
     /// which is exactly the shape composite bounds support.
-    fn list_junk_via_table(
+    fn list_bucket_via_table(
         &self,
         user: &str,
+        bucket: &str,
         filter: &ListThreadsFilter<'_>,
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let total = self.count_thread_ids_by_bucket_via_table(user, "junk")?;
+        // Inbox excludes threads the user only ever sent — the zset it
+        // replaces did, and a thread you sent belongs in Sent. That
+        // exclusion lives in a separate ORDERPATH rather than in a
+        // post-filter, so the count stays an index count.
+        let unsent_only = bucket == "inbox";
+        let total = if unsent_only {
+            self.count_thread_ids_by_bucket_unsent_via_table(user, bucket)?
+        } else {
+            self.count_thread_ids_by_bucket_via_table(user, bucket)?
+        };
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
 
         let tids = match filter.before_ts {
+            Some(ts) if unsent_only => {
+                self.list_thread_ids_by_bucket_unsent_before_via_table(user, bucket, ts - 1, limit)?
+            }
             Some(ts) => {
-                self.list_thread_ids_by_bucket_before_via_table(user, "junk", ts - 1, limit)?
+                self.list_thread_ids_by_bucket_before_via_table(user, bucket, ts - 1, limit)?
             }
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
                 }
-                let mut page =
-                    self.list_thread_ids_by_bucket_via_table(user, "junk", offset + limit)?;
+                let mut page = if unsent_only {
+                    self.list_thread_ids_by_bucket_unsent_via_table(user, bucket, offset + limit)?
+                } else {
+                    self.list_thread_ids_by_bucket_via_table(user, bucket, offset + limit)?
+                };
                 page.drain(..offset.min(page.len()));
                 page
             }
@@ -632,6 +655,40 @@ mod junk_cutover_tests {
         assert_eq!(total, 4);
         let ids: Vec<&str> = rows.iter().map(|r| r.thread_id.as_str()).collect();
         assert_eq!(ids, vec!["j4", "j3", "j2", "j1"]);
+    }
+
+    /// The exclusion the zset encoded by omission: a thread the user
+    /// only ever sent belongs in Sent, not in their inbox. On prod
+    /// this was 72 threads for one account.
+    #[test]
+    fn inbox_excludes_sent_only_threads() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        // Received: alice is not among the senders.
+        st.upsert_thread("alice@x.com", &row("received", 100, "inbox"))
+            .unwrap();
+        // Sent-only: alice is the sole sender.
+        let mut mine = row("mine", 200, "inbox");
+        mine.senders_csv = "alice@x.com".into();
+        st.upsert_thread("alice@x.com", &mine).unwrap();
+
+        let filter = ListThreadsFilter {
+            folder: Some("Inbox"),
+            ..Default::default()
+        };
+        let (rows, total) = st
+            .list_threads_by_activity("alice@x.com", &filter, 0, 10)
+            .unwrap();
+        let ids: Vec<&str> = rows.iter().map(|r| r.thread_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["received"],
+            "a sent-only thread must not reach the inbox"
+        );
+        assert_eq!(total, 1, "the count must exclude it too, not just the page");
     }
 
     /// Offset paging must not repeat or skip across page boundaries.
