@@ -427,29 +427,6 @@ pub const IDX_ACCOUNTS_BY_DOMAIN: &[u8] = b"accounts_by_domain";
 /// Range index over `mailrs:account:*`.active — active accounts one RTT.
 pub const IDX_ACCOUNTS_BY_ACTIVE: &[u8] = b"accounts_by_active";
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn key_shapes_are_stable() {
-        // Lock down a few representative shapes — if these change, any
-        // existing kevy data on disk is invalidated.
-        assert_eq!(thread("tid-abc"), "mailrs:thread:tid-abc");
-        assert_eq!(
-            user_threads_by_activity("u@x.com"),
-            "mailrs:user:u@x.com:threads:by_activity"
-        );
-        assert_eq!(mailbox(7), "mailrs:mailbox:7");
-        assert_eq!(mailbox_messages(7), "mailrs:mailbox:7:messages");
-        assert_eq!(
-            message_by_message_id("u@x.com", "abc@def.com"),
-            "mailrs:message:by-message-id:u@x.com:abc@def.com"
-        );
-        assert_eq!(OUTBOUND_PENDING, "mailrs:outbound:pending");
-    }
-}
-
 /// Every per-user thread index the legacy zset layer maintains.
 ///
 /// Used by the membership-row backfill: the individual zsets disagree
@@ -471,4 +448,27 @@ pub fn all_user_thread_zsets(user: &str) -> Vec<String> {
         out.push(user_threads_by_category(user, cat));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_shapes_are_stable() {
+        // Lock down a few representative shapes — if these change, any
+        // existing kevy data on disk is invalidated.
+        assert_eq!(thread("tid-abc"), "mailrs:thread:tid-abc");
+        assert_eq!(
+            user_threads_by_activity("u@x.com"),
+            "mailrs:user:u@x.com:threads:by_activity"
+        );
+        assert_eq!(mailbox(7), "mailrs:mailbox:7");
+        assert_eq!(mailbox_messages(7), "mailrs:mailbox:7:messages");
+        assert_eq!(
+            message_by_message_id("u@x.com", "abc@def.com"),
+            "mailrs:message:by-message-id:u@x.com:abc@def.com"
+        );
+        assert_eq!(OUTBOUND_PENDING, "mailrs:outbound:pending");
+    }
 }
