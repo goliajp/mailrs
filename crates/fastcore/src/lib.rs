@@ -1828,6 +1828,14 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:backfill-inbox-index",
                 post(backfill_inbox_index_route),
             )
+            // Segmented promotion of existing threads into the
+            // `threaduser` table's membership rows (v4 TABLE migration).
+            // Paged on purpose: a full scan competes with live traffic
+            // for the same store, so the caller drives it in batches.
+            .route(
+                "/v1/admin/maintenance:backfill-thread-user",
+                post(backfill_thread_user_route),
+            )
             // Contact relationship counters, rebuilt from message
             // history so importance scoring sees existing correspondents
             // instead of waiting months for new traffic (idempotent).
@@ -3679,6 +3687,51 @@ async fn backfill_contact_relationships_route(
         "messages_scanned": messages,
     }))
     .into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-thread-user` — one segment of
+/// the membership-row backfill for the declared `threaduser` table.
+///
+/// Call with `?user=<addr>&offset=<n>&limit=<n>`; omit `user` to get the
+/// account list back and nothing else, which is how a driver discovers
+/// what to iterate. Each call walks one page of that user's by_activity
+/// zset and writes the membership row **only where it is absent or a
+/// field differs**, so re-running over converged data reports
+/// `written: 0` and costs one HGETALL per row rather than a write.
+///
+/// `done` is true when the page came back short, meaning the caller has
+/// reached the end of this user's threads.
+async fn backfill_thread_user_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(user) = q.get("user") else {
+        let users = state.mailbox.list_account_addresses().unwrap_or_default();
+        return Json(serde_json::json!({ "users": users })).into_response();
+    };
+    let offset: i64 = q.get("offset").and_then(|v| v.parse().ok()).unwrap_or(0);
+    let limit: i64 = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(500);
+
+    match state.mailbox.backfill_thread_user(user, offset, limit) {
+        Ok((scanned, written)) => {
+            if written > 0 {
+                tracing::info!(%user, offset, scanned, written, "threaduser backfill segment");
+            }
+            Json(serde_json::json!({
+                "user": user,
+                "offset": offset,
+                "limit": limit,
+                "scanned": scanned,
+                "written": written,
+                "done": (scanned as i64) < limit,
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, %user, "threaduser backfill failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 /// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot
