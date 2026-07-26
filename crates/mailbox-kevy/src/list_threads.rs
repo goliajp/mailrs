@@ -204,6 +204,16 @@ impl KevyMailboxStore {
             return self.list_category_via_table(user, cat, filter, offset, limit);
         }
 
+        // The boolean predicates. Each keys on its own flag index and
+        // reaches user + recency through the values stored beside it,
+        // which is why five predicates cost five small indexes rather
+        // than five more composites.
+        if let Some(flag) = filter.bare_flag()
+            && bucket_reads_table()
+        {
+            return self.list_flag_via_table(user, flag, filter, offset, limit);
+        }
+
         // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
         // caller stacks ≥ 2 predicates (e.g. inbox ∩ has_unread),
         // materialize the intersection into a per-request temp zset
@@ -404,6 +414,8 @@ mod tests {
     #[test]
     fn pinned_filter_returns_only_pinned() {
         let s = store();
+        // the flag axes are served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         let mut p = row("p1", 100, "inbox");
         p.pinned = true;
@@ -542,6 +554,31 @@ impl ListThreadsFilter<'_> {
         bare.then_some(cat)
     }
 
+    /// Exactly one boolean predicate, with no folder or category.
+    ///
+    /// Two stacked flags would need an intersection this path does not
+    /// do, so they keep going through the ZINTERSTORE route.
+    fn bare_flag(&self) -> Option<&'static str> {
+        if self.folder.is_some() || self.category.is_some() {
+            return None;
+        }
+        let set: Vec<&'static str> = [
+            ("starred", self.starred),
+            ("archived", self.archived),
+            ("pinned", self.pinned),
+            ("unread", self.has_unread),
+            ("has_action", self.has_action),
+        ]
+        .iter()
+        .filter(|(_, on)| *on)
+        .map(|(n, _)| *n)
+        .collect();
+        match set.as_slice() {
+            [only] => Some(only),
+            _ => None,
+        }
+    }
+
     fn bare_bucket(&self) -> Option<&'static str> {
         let bucket = match self.folder? {
             f if f.eq_ignore_ascii_case("junk") => "junk",
@@ -563,6 +600,33 @@ impl ListThreadsFilter<'_> {
 }
 
 impl KevyMailboxStore {
+    /// Serve one boolean-predicate page off that flag's index.
+    fn list_flag_via_table(
+        &self,
+        user: &str,
+        flag: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let total = self.count_thread_ids_by_flag_via_table(user, flag)?;
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+        let tids = match filter.before_ts {
+            Some(ts) => {
+                self.list_thread_ids_by_flag_via_table(user, flag, limit, 0, Some(ts - 1))?
+            }
+            None => {
+                if offset >= total {
+                    return Ok((Vec::new(), total));
+                }
+                self.list_thread_ids_by_flag_via_table(user, flag, limit, offset, None)?
+            }
+        };
+        self.hydrate_page(&tids, total)
+    }
+
     /// Serve a category page off the second declared ORDERPATH.
     fn list_category_via_table(
         &self,

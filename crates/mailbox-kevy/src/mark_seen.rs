@@ -164,6 +164,8 @@ mod tests {
     #[test]
     fn list_after_mark_seen_excludes_from_has_unread_filter() {
         let s = store();
+        // the flag axes are served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         s.record_message_arrival(&arr("a", u, true)).unwrap();
         s.record_message_arrival(&arr("b", u, true)).unwrap();

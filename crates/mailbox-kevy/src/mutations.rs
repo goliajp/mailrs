@@ -425,6 +425,8 @@ mod tests {
     #[test]
     fn set_pinned_uses_pinned_zset() {
         let s = store();
+        // the flag axes are served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u)).unwrap();
         assert!(s.set_pinned(u, "t1", true).unwrap());
