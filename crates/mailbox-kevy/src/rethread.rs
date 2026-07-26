@@ -399,7 +399,7 @@ impl KevyMailboxStore {
     ///
     /// The text index spans every thread key regardless of owner (kevy
     /// indexes are declared over a key prefix and thread rows carry no
-    /// owner field), so hits are filtered against the caller's activity
+    /// owner field), so hits are filtered against the caller's membership
     /// zset afterwards. Over-fetches by `OVERFETCH` to leave room for
     /// hits belonging to other accounts.
     pub fn search_threads(
@@ -420,7 +420,6 @@ impl KevyMailboxStore {
                 limit.saturating_mul(OVERFETCH),
             )
             .map_err(std::io::Error::other)?;
-        let activity = crate::keys::user_threads_by_activity(user);
         let mut out = Vec::with_capacity(limit);
         for (key, score) in hits {
             let Ok(key) = String::from_utf8(key) else {
@@ -430,11 +429,12 @@ impl KevyMailboxStore {
                 continue;
             };
             // ownership check — the index is global, the answer is not
+            let owned = crate::keys::thread_user(user, tid);
             if self
                 .store()
-                .zscore(activity.as_bytes(), tid.as_bytes())
+                .exists(&[owned.as_bytes()])
                 .map_err(std::io::Error::other)?
-                .is_none()
+                == 0
             {
                 continue;
             }
@@ -664,7 +664,7 @@ impl KevyMailboxStore {
 
     /// Thread ids whose message bodies match `query`, best first and
     /// de-duplicated. Ownership is enforced against the caller's
-    /// activity zset, same as [`Self::search_threads`].
+    /// membership rows, same as [`Self::search_threads`].
     pub fn search_message_bodies(
         &self,
         user: &str,
@@ -683,7 +683,6 @@ impl KevyMailboxStore {
                 limit.saturating_mul(OVERFETCH),
             )
             .map_err(std::io::Error::other)?;
-        let activity = crate::keys::user_threads_by_activity(user);
         let mut out: Vec<String> = Vec::with_capacity(limit);
         for (key, _score) in hits {
             let Some(tid) = self
@@ -697,11 +696,12 @@ impl KevyMailboxStore {
             if out.contains(&tid) {
                 continue;
             }
+            let owned = crate::keys::thread_user(user, &tid);
             if self
                 .store()
-                .zscore(activity.as_bytes(), tid.as_bytes())
+                .exists(&[owned.as_bytes()])
                 .map_err(std::io::Error::other)?
-                .is_none()
+                == 0
             {
                 continue;
             }
