@@ -46,6 +46,19 @@ impl KevyMailboxStore {
                     &[(b"category" as &[u8], new_category.as_bytes())],
                 )?;
                 let old_idx = keys::user_threads_by_category(user, &old);
+                // The membership row carries the same two facts, and
+                // the bucket/category axes are served from it — leaving
+                // it behind would make a move invisible in the UI.
+                ctx.hset(
+                    keys::thread_user(user, thread_id).as_bytes(),
+                    &[
+                        (b"category".as_slice(), new_category.as_bytes()),
+                        (
+                            b"bucket".as_slice(),
+                            keys::bucket_of(new_category).name().as_bytes(),
+                        ),
+                    ],
+                )?;
                 ctx.zrem(old_idx.as_bytes(), &[thread_id.as_bytes()])?;
                 ctx.zadd(new_idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
                 Ok(true)
@@ -119,6 +132,8 @@ mod tests {
     #[test]
     fn list_filter_picks_up_new_category() {
         let s = store();
+        // the category axis is served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, "inbox")).unwrap();
         s.move_category(u, "t1", "promotions").unwrap();

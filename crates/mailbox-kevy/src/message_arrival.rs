@@ -210,7 +210,22 @@ impl KevyMailboxStore {
                 }
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::other)?;
+
+        // Membership row for the declared table. This is the main
+        // ingest path and it does not go through `upsert_thread`, so
+        // without this every arriving thread would be absent from
+        // every axis the table serves — the same shape of gap the
+        // v2.8.2 comment above describes for the folder zsets.
+        //
+        // Derived from the thread hash rather than from `m`: the row
+        // above is the merge of this arrival with whatever was already
+        // there, and the membership row has to describe the merged
+        // result, not just this message.
+        if let Some(row) = self.get_thread(m.thread_id)? {
+            self.write_thread_user_if_changed(m.user, &row)?;
+        }
+        Ok(())
     }
 }
 
