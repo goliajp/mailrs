@@ -184,12 +184,33 @@ fn flag(v: bool) -> &'static [u8] {
 /// disagree about what a row contains — a drift between "what writes
 /// put there" and "what backfill puts there" would be exactly the
 /// class of bug this whole migration exists to remove.
+/// A bounded tie-breaker derived from the thread id.
+///
+/// The id is a Message-ID and can exceed kevy's `MAX_STR_COMPONENT`
+/// (255 bytes), and a composite orderpath **excludes the whole row**
+/// when any component is over that — two threads on prod disappeared
+/// from both composites that way. FNV-1a folded into a non-negative
+/// i64 is always in range, so the sort stays total without any row
+/// being able to fall out of it.
+fn tid_ord(tid: &str) -> i64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in tid.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    (h >> 1) as i64
+}
+
 pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Vec<u8>)> {
     let bucket = keys::bucket_of(&row.category);
     let is_sender = senders_csv_contains_user(&row.senders_csv, user);
     vec![
         (b"user".to_vec(), user.as_bytes().to_vec()),
         (b"tid".to_vec(), row.thread_id.as_bytes().to_vec()),
+        (
+            b"ord".to_vec(),
+            tid_ord(&row.thread_id).to_string().into_bytes(),
+        ),
         (b"bucket".to_vec(), bucket.name().as_bytes().to_vec()),
         (b"category".to_vec(), row.category.as_bytes().to_vec()),
         (
