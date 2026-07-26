@@ -195,82 +195,8 @@ impl KevyMailboxStore {
     /// uncallable through the facade. Drop this dependency once the
     /// re-export lands upstream.
     pub fn ensure_thread_table(&self) {
-        use kevy_index::{IndexKind, OrderPath, TableIndex, TableSpec, ValType};
+        let spec = thread_user_spec();
 
-        fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
-            (name.as_bytes().to_vec(), t)
-        }
-        fn path(name: &str, on: &[(&str, bool)]) -> OrderPath {
-            OrderPath {
-                name: name.as_bytes().to_vec(),
-                on: on
-                    .iter()
-                    .map(|(c, desc)| (c.as_bytes().to_vec(), *desc))
-                    .collect(),
-            }
-        }
-        let values: Vec<Vec<u8>> = ["user", "activity"]
-            .iter()
-            .map(|c| c.as_bytes().to_vec())
-            .collect();
-
-        let spec = TableSpec {
-            name: b"threaduser".to_vec(),
-            prefix: keys::THREAD_USER_PREFIX.to_vec(),
-            pk: b"tid".to_vec(),
-            columns: vec![
-                col("user", ValType::Str),
-                col("tid", ValType::Str),
-                col("bucket", ValType::Str),
-                col("category", ValType::Str),
-                col("activity", ValType::I64),
-                col("sent", ValType::I64),
-                col("starred", ValType::I64),
-                col("archived", ValType::I64),
-                col("pinned", ValType::I64),
-                col("unread", ValType::I64),
-                col("has_action", ValType::I64),
-            ],
-            indexes: vec![
-                TableIndex {
-                    column: b"starred".to_vec(),
-                    kind: IndexKind::Range,
-                    values: values.clone(),
-                },
-                TableIndex {
-                    column: b"archived".to_vec(),
-                    kind: IndexKind::Range,
-                    values,
-                },
-            ],
-            // `ord` is the tie-breaker, not a queryable dimension.
-            // `activity` is a whole-second timestamp, so threads that
-            // arrive in the same second collide — 929 collisions over
-            // 30k rows on prod. Without a total order the position of a
-            // colliding row is undefined between calls, which is how a
-            // paged reader silently skips or repeats one at a page
-            // boundary.
-            orderpaths: vec![
-                path(
-                    "by_user_bucket",
-                    &[
-                        ("user", false),
-                        ("bucket", false),
-                        ("activity", true),
-                        ("ord", false),
-                    ],
-                ),
-                path(
-                    "by_user_category",
-                    &[
-                        ("user", false),
-                        ("category", false),
-                        ("activity", true),
-                        ("ord", false),
-                    ],
-                ),
-            ],
-        };
         // The catalog persists across boots, so a redeclaration is
         // rejected rather than applied — which would silently pin the
         // table to whatever shape the first boot happened to declare.
@@ -365,3 +291,172 @@ impl KevyMailboxStore {
 // MailboxStore trait impl + per-method bodies land in subsequent loops.
 // For now we expose only the constructor so the fastcore binary can
 // instantiate it; calling any method will panic until 7.5+ ships.
+
+/// The `threaduser` table declaration.
+///
+/// Split out of `ensure_thread_table` so the column/orderpath
+/// agreement can be asserted in a test: kevy panics rather than
+/// returning an error when an ORDERPATH names a column the table
+/// never declared, and that panic happens at boot.
+fn thread_user_spec() -> kevy_index::TableSpec {
+    use kevy_index::{IndexKind, OrderPath, TableIndex, TableSpec, ValType};
+
+    fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
+        (name.as_bytes().to_vec(), t)
+    }
+    fn path(name: &str, on: &[(&str, bool)]) -> OrderPath {
+        OrderPath {
+            name: name.as_bytes().to_vec(),
+            on: on
+                .iter()
+                .map(|(c, desc)| (c.as_bytes().to_vec(), *desc))
+                .collect(),
+        }
+    }
+    let values: Vec<Vec<u8>> = ["user", "activity"]
+        .iter()
+        .map(|c| c.as_bytes().to_vec())
+        .collect();
+
+    TableSpec {
+        name: b"threaduser".to_vec(),
+        prefix: keys::THREAD_USER_PREFIX.to_vec(),
+        pk: b"tid".to_vec(),
+        columns: vec![
+            col("user", ValType::Str),
+            col("tid", ValType::Str),
+            col("ord", ValType::I64),
+            col("bucket", ValType::Str),
+            col("category", ValType::Str),
+            col("activity", ValType::I64),
+            col("sent", ValType::I64),
+            col("starred", ValType::I64),
+            col("archived", ValType::I64),
+            col("pinned", ValType::I64),
+            col("unread", ValType::I64),
+            col("has_action", ValType::I64),
+        ],
+        indexes: vec![
+            TableIndex {
+                column: b"starred".to_vec(),
+                kind: IndexKind::Range,
+                values: values.clone(),
+            },
+            TableIndex {
+                column: b"archived".to_vec(),
+                kind: IndexKind::Range,
+                values,
+            },
+        ],
+        // `ord` is the tie-breaker, not a queryable dimension.
+        // `activity` is a whole-second timestamp, so threads that
+        // arrive in the same second collide — 929 collisions over
+        // 30k rows on prod. Without a total order the position of a
+        // colliding row is undefined between calls, which is how a
+        // paged reader silently skips or repeats one at a page
+        // boundary.
+        orderpaths: vec![
+            path(
+                "by_user_bucket",
+                &[
+                    ("user", false),
+                    ("bucket", false),
+                    ("activity", true),
+                    ("ord", false),
+                ],
+            ),
+            path(
+                "by_user_category",
+                &[
+                    ("user", false),
+                    ("category", false),
+                    ("activity", true),
+                    ("ord", false),
+                ],
+            ),
+        ],
+    }
+}
+
+#[cfg(test)]
+mod table_spec_tests {
+    use super::*;
+
+    /// Every column an ORDERPATH or index sorts on must be declared.
+    ///
+    /// kevy resolves these with `column_type(col).expect("validated")`
+    /// while compiling the table, so an undeclared column is a panic on
+    /// the boot path — the process restart-loops rather than reporting
+    /// a bad declaration. This landed on prod once (v2.12.5, rolled
+    /// back in minutes) when a column was added to an orderpath and not
+    /// to `columns`.
+    #[test]
+    fn orderpath_columns_are_declared() {
+        let spec = thread_user_spec();
+        let declared: std::collections::BTreeSet<Vec<u8>> =
+            spec.columns.iter().map(|(n, _)| n.clone()).collect();
+
+        for op in &spec.orderpaths {
+            for (col, _) in &op.on {
+                assert!(
+                    declared.contains(col),
+                    "orderpath {} sorts on undeclared column {}",
+                    String::from_utf8_lossy(&op.name),
+                    String::from_utf8_lossy(col)
+                );
+            }
+        }
+        for ix in &spec.indexes {
+            assert!(
+                declared.contains(&ix.column),
+                "index keys on undeclared column {}",
+                String::from_utf8_lossy(&ix.column)
+            );
+            for v in &ix.values {
+                assert!(
+                    declared.contains(v),
+                    "index on {} stores undeclared column {}",
+                    String::from_utf8_lossy(&ix.column),
+                    String::from_utf8_lossy(v)
+                );
+            }
+        }
+    }
+
+    /// The membership rows the write path produces must carry every
+    /// declared column — a column present in the spec and absent from
+    /// the row is a row the composite indexes silently exclude.
+    #[test]
+    fn written_fields_cover_declared_columns() {
+        let row = thread_row::ThreadRow {
+            thread_id: "t1".into(),
+            subject: String::new(),
+            senders_csv: String::new(),
+            count: 1,
+            unread_count: 0,
+            latest_date: 1,
+            latest_preview: String::new(),
+            category: "inbox".into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        };
+        let written: std::collections::BTreeSet<Vec<u8>> =
+            thread_row::thread_user_pairs("u@x.com", &row)
+                .into_iter()
+                .map(|(k, _)| k)
+                .collect();
+        for (col, _) in &thread_user_spec().columns {
+            assert!(
+                written.contains(col),
+                "declared column {} is never written",
+                String::from_utf8_lossy(col)
+            );
+        }
+    }
+}
