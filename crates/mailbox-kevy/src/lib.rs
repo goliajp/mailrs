@@ -460,3 +460,178 @@ mod table_spec_tests {
         }
     }
 }
+
+impl KevyMailboxStore {
+    /// Thread ids for one (user, bucket) pair, newest first, read from
+    /// the declared ORDERPATH instead of a hand-maintained zset.
+    ///
+    /// `bucket` is the stored folder name (`inbox` / `notifications` /
+    /// `promotions` / `junk`). Ordering comes from the composite
+    /// encoding — `activity` is declared DESC, so the byte order the
+    /// segment scans in is already the order the UI wants, and `ord`
+    /// makes it total.
+    pub fn list_thread_ids_by_bucket_via_table(
+        &self,
+        user: &str,
+        bucket: &str,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        self.query_orderpath(b"threaduser.by_user_bucket", user, b"bucket", bucket, limit)
+    }
+
+    /// Same, keyed on the message category rather than the folder.
+    pub fn list_thread_ids_by_category_via_table(
+        &self,
+        user: &str,
+        category: &str,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        self.query_orderpath(
+            b"threaduser.by_user_category",
+            user,
+            b"category",
+            category,
+            limit,
+        )
+    }
+
+    fn query_orderpath(
+        &self,
+        index: &[u8],
+        user: &str,
+        second_col: &[u8],
+        second_val: &str,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        use kevy_index::{CompositeCol, WhereClause, composite_bounds};
+
+        let spec = thread_user_spec();
+        let path = spec
+            .orderpaths
+            .iter()
+            .find(|p| index.ends_with(&p.name))
+            .ok_or_else(|| io::Error::other("no such orderpath in the spec"))?;
+        let cols: Vec<CompositeCol> = path
+            .on
+            .iter()
+            .map(|(col, desc)| {
+                let ty = spec
+                    .column_type(col)
+                    .ok_or_else(|| io::Error::other("orderpath names an undeclared column"))?;
+                Ok(CompositeCol {
+                    name: col.clone(),
+                    ty,
+                    desc: *desc,
+                })
+            })
+            .collect::<io::Result<_>>()?;
+
+        let clause = WhereClause {
+            eqs: vec![
+                (b"user".to_vec(), user.as_bytes().to_vec()),
+                (second_col.to_vec(), second_val.as_bytes().to_vec()),
+            ],
+            range: None,
+        };
+        let (lo, hi) = composite_bounds(&cols, &clause).map_err(io::Error::other)?;
+
+        let (rows, _cursor) = self
+            .store
+            .idx_query(
+                index,
+                &kevy_embedded::IndexValue::Str(lo),
+                &kevy_embedded::IndexValue::Str(hi),
+                None,
+                limit,
+            )
+            .map_err(io::Error::other)?;
+
+        // The row key is `mailrs:threaduser:{user}:{tid}`; the tid can
+        // itself contain colons (it is a Message-ID), so split off the
+        // known prefix rather than splitting on the separator.
+        let prefix_len = keys::thread_user(user, "").len();
+        Ok(rows
+            .into_iter()
+            .filter_map(|(key, _)| {
+                let k = String::from_utf8(key).ok()?;
+                k.get(prefix_len..).map(str::to_string)
+            })
+            .collect())
+    }
+}
+
+#[cfg(test)]
+mod orderpath_read_tests {
+    use super::*;
+    use kevy_embedded::{Config, Store};
+
+    fn row(tid: &str, activity: i64, category: &str) -> thread_row::ThreadRow {
+        thread_row::ThreadRow {
+            thread_id: tid.into(),
+            subject: String::new(),
+            senders_csv: String::new(),
+            count: 1,
+            unread_count: 0,
+            latest_date: activity,
+            latest_preview: String::new(),
+            category: category.into(),
+            importance_level: "normal".into(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        }
+    }
+
+    /// The engine's answer must be the order the UI asks for: newest
+    /// first, scoped to one user and one bucket, with rows belonging to
+    /// other users or other buckets absent.
+    #[test]
+    fn orderpath_returns_newest_first_scoped_to_the_user() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        for (tid, when) in [("old", 100), ("newest", 300), ("middle", 200)] {
+            st.write_thread_user_if_changed("alice@x.com", &row(tid, when, "inbox"))
+                .unwrap();
+        }
+        // A different user's copy of a thread, and a junk thread — both
+        // must stay out of alice's inbox answer.
+        st.write_thread_user_if_changed("bob@x.com", &row("bobs", 999, "inbox"))
+            .unwrap();
+        st.write_thread_user_if_changed("alice@x.com", &row("spammy", 999, "spam"))
+            .unwrap();
+
+        let got = st
+            .list_thread_ids_by_bucket_via_table("alice@x.com", "inbox", 50)
+            .unwrap();
+        assert_eq!(got, vec!["newest", "middle", "old"]);
+    }
+
+    /// Threads whose ids exceed kevy's 255-byte string component cap
+    /// must still be indexed — that is the whole reason the sort ends
+    /// on a folded hash rather than on the id itself.
+    #[test]
+    fn an_overlong_thread_id_is_still_indexed() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        let long_tid = format!("<{}@example.com>", "x".repeat(300));
+        st.write_thread_user_if_changed("alice@x.com", &row(&long_tid, 500, "inbox"))
+            .unwrap();
+        st.write_thread_user_if_changed("alice@x.com", &row("short", 100, "inbox"))
+            .unwrap();
+
+        let got = st
+            .list_thread_ids_by_bucket_via_table("alice@x.com", "inbox", 50)
+            .unwrap();
+        assert_eq!(got, vec![long_tid, "short".to_string()]);
+    }
+}

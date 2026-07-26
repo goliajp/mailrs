@@ -1849,6 +1849,9 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:threaduser-census",
                 post(threaduser_census_route),
             )
+            // Shadow read — the engine's answer against the
+            // hand-maintained zset's, before any read is cut over.
+            .route("/v1/admin/maintenance:shadow-read", post(shadow_read_route))
             // Contact relationship counters, rebuilt from message
             // history so importance scoring sees existing correspondents
             // instead of waiting months for new traffic (idempotent).
@@ -3698,6 +3701,87 @@ async fn backfill_contact_relationships_route(
         "users": users,
         "addresses": addresses,
         "messages_scanned": messages,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:shadow-read` — compare the ORDERPATH's
+/// answer with the zset's for every account, without serving either.
+///
+/// The zsets stay authoritative through this phase. This is the only
+/// step that can show the two agree on **content and order** before a
+/// read is cut over; `TABLE.VERIFY` proves the index matches the rows,
+/// which is a different claim — the rows themselves could be wrong.
+///
+/// Divergence is reported per user rather than summed, because one
+/// account disagreeing is a different problem from all of them.
+async fn shadow_read_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let limit: usize = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(200);
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut report = Vec::new();
+    let mut total_divergent = 0u64;
+
+    for user in &users {
+        for (bucket, zkey) in [
+            ("inbox", mailrs_mailbox_kevy::keys::user_threads_inbox(user)),
+            ("junk", mailrs_mailbox_kevy::keys::user_threads_junk(user)),
+        ] {
+            let zset: Vec<String> = match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
+                Ok(e) => e
+                    .into_iter()
+                    .filter_map(|(m, _)| String::from_utf8(m).ok())
+                    .collect(),
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, bucket, "zrevrange failed");
+                    continue;
+                }
+            };
+            let table = match state
+                .mailbox
+                .list_thread_ids_by_bucket_via_table(user, bucket, limit)
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, bucket, "orderpath query failed");
+                    continue;
+                }
+            };
+
+            let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
+            let ts: std::collections::BTreeSet<&String> = table.iter().collect();
+            let only_zset: Vec<&&String> = zs.difference(&ts).take(5).collect();
+            let only_table: Vec<&&String> = ts.difference(&zs).take(5).collect();
+            let order_matches = zset == table;
+            if !only_zset.is_empty() || !only_table.is_empty() || !order_matches {
+                total_divergent += 1;
+                report.push(serde_json::json!({
+                    "user": user,
+                    "bucket": bucket,
+                    "zset_len": zset.len(),
+                    "table_len": table.len(),
+                    "only_in_zset": only_zset.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                    "only_in_table": only_table.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                    "order_matches": order_matches,
+                }));
+            }
+        }
+    }
+
+    Json(serde_json::json!({
+        "limit": limit,
+        "axes_checked": users.len() * 2,
+        "axes_divergent": total_divergent,
+        "divergences": report,
     }))
     .into_response()
 }
