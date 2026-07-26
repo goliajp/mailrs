@@ -3746,10 +3746,19 @@ async fn shadow_read_route(
                     continue;
                 }
             };
-            let table = match state
-                .mailbox
-                .list_thread_ids_by_bucket_via_table(user, bucket, limit)
-            {
+            // Inbox is served from the sent-excluding ORDERPATH, so
+            // compare against that one — otherwise this reports a
+            // divergence the serving path does not have.
+            let table_result = if bucket == "inbox" {
+                state
+                    .mailbox
+                    .list_thread_ids_by_bucket_unsent_via_table(user, bucket, limit)
+            } else {
+                state
+                    .mailbox
+                    .list_thread_ids_by_bucket_via_table(user, bucket, limit)
+            };
+            let table = match table_result {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::warn!(err = %e, %user, bucket, "orderpath query failed");
