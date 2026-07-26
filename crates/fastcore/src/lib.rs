@@ -3786,6 +3786,35 @@ async fn shadow_read_route(
             let only_table: Vec<&String> = ts.difference(&zs).copied().collect();
             let order_matches = zset == table;
 
+            // When the sets agree but the order does not, the useful
+            // question is where they first part and whether the two
+            // threads there share an activity timestamp — a tie the
+            // two sides break differently is harmless, a genuine
+            // ordering difference is not.
+            let order_diff = if order_matches {
+                serde_json::Value::Null
+            } else {
+                let at = zset.iter().zip(table.iter()).position(|(a, b)| a != b);
+                match at {
+                    Some(i) => {
+                        let act = |tid: &String| -> Option<String> {
+                            let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                            store.hgetall(key.as_bytes()).ok().and_then(|row| {
+                                row.iter()
+                                    .find(|(f, _)| f == b"activity")
+                                    .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                            })
+                        };
+                        serde_json::json!({
+                            "at_index": i,
+                            "zset_activity": act(&zset[i]),
+                            "table_activity": act(&table[i]),
+                        })
+                    }
+                    None => serde_json::json!({ "at_index": "length only" }),
+                }
+            };
+
             // A thread the zset claims and the table does not is the
             // only shape that could lose data on cutover. Report what
             // the membership row actually says about it, so a stale
@@ -3845,6 +3874,7 @@ async fn shadow_read_route(
                     "only_in_zset": only_zset.len(),
                     "only_in_table": only_table.len(),
                     "order_matches": order_matches,
+                    "order_diff": order_diff,
                     "zset_only_rows": missing,
                     "table_only_rows": extra,
                 }));
