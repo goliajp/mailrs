@@ -3732,6 +3732,70 @@ async fn shadow_read_route(
     let mut total_divergent = 0u64;
 
     for user in &users {
+        // Boolean predicate axes — each served from its own flag
+        // index rather than a sort prefix.
+        for (flag, zkey) in [
+            (
+                "starred",
+                mailrs_mailbox_kevy::keys::user_threads_starred(user),
+            ),
+            (
+                "archived",
+                mailrs_mailbox_kevy::keys::user_threads_archived(user),
+            ),
+            (
+                "pinned",
+                mailrs_mailbox_kevy::keys::user_threads_pinned(user),
+            ),
+            (
+                "unread",
+                mailrs_mailbox_kevy::keys::user_threads_has_unread(user),
+            ),
+            (
+                "has_action",
+                mailrs_mailbox_kevy::keys::user_threads_has_action(user),
+            ),
+        ] {
+            let zset: Vec<String> = match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
+                Ok(e) => e
+                    .into_iter()
+                    .filter_map(|(m, _)| String::from_utf8(m).ok())
+                    .collect(),
+                Err(_) => continue,
+            };
+            let table = match state
+                .mailbox
+                .list_thread_ids_by_flag_via_table(user, flag, limit, 0, None)
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, flag, "flag index query failed");
+                    continue;
+                }
+            };
+            let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
+            let ts: std::collections::BTreeSet<&String> = table.iter().collect();
+            let only_z = zs.difference(&ts).count();
+            let only_t = ts.difference(&zs).count();
+            let order_matches = zset == table;
+            if only_z > 0 || only_t > 0 || !order_matches {
+                total_divergent += 1;
+                report.push(serde_json::json!({
+                    "user": user,
+                    "bucket": format!("flag:{flag}"),
+                    "zset_len": zset.len(),
+                    "table_len": table.len(),
+                    "truncated": zset.len() >= limit || table.len() >= limit,
+                    "only_in_zset": only_z,
+                    "only_in_table": only_t,
+                    "order_matches": order_matches,
+                    "zset_only_rows": [],
+                    "table_only_rows": [],
+                    "order_diff": serde_json::Value::Null,
+                }));
+            }
+        }
+
         // Category axis — the other declared ORDERPATH. Distinct from
         // the bucket axis: `bucket` is the folder a thread is filed
         // under, `category` is the classifier's verdict, and the two
@@ -3931,7 +3995,7 @@ async fn shadow_read_route(
 
     Json(serde_json::json!({
         "limit": limit,
-        "axes_checked": users.len() * 8,
+        "axes_checked": users.len() * 13,
         "axes_divergent": total_divergent,
         "divergences": report,
     }))
