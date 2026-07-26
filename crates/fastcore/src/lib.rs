@@ -3765,8 +3765,8 @@ async fn shadow_read_route(
 
             let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
             let ts: std::collections::BTreeSet<&String> = table.iter().collect();
-            let only_zset: Vec<&String> = zs.difference(&ts).map(|s| *s).collect();
-            let only_table: Vec<&String> = ts.difference(&zs).map(|s| *s).collect();
+            let only_zset: Vec<&String> = zs.difference(&ts).copied().collect();
+            let only_table: Vec<&String> = ts.difference(&zs).copied().collect();
             let order_matches = zset == table;
 
             // A thread the zset claims and the table does not is the
