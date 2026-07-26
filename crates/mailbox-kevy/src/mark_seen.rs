@@ -13,21 +13,15 @@ use super::keys;
 
 impl KevyMailboxStore {
     /// Mark `thread_id` as seen for `user` — zero the unread counter
-    /// Sweep every unread thread for `user` — walks the
-    /// `user:<u>:threads:has_unread` zset and calls `mark_seen` on each.
+    /// Sweep every unread thread for `user` — reads the unread axis
+    /// off the declared table and calls `mark_seen` on each.
     /// Returns the number of threads flipped. Idempotent: a second call
     /// with no unread threads returns 0.
     pub fn mark_all_seen(&self, user: &str) -> io::Result<u32> {
-        let idx = keys::user_threads_has_unread(user);
-        let members = self
-            .store()
-            .zrange(idx.as_bytes(), 0, -1)
-            .map_err(std::io::Error::other)?;
+        let members = self.list_thread_ids_by_flag_via_table(user, "unread", 100_000, 0, None)?;
         let mut flipped = 0u32;
-        for (tid_bytes, _score) in members {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &members {
+            let tid = tid.as_str();
             // Copy the tid so we don't borrow across the mark_seen call
             // (which reads from other zsets internally).
             let tid = tid.to_string();
@@ -45,7 +39,6 @@ impl KevyMailboxStore {
     /// count actually flipped); `false` if the row doesn't exist.
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let idx = keys::user_threads_has_unread(user);
         let found = self.store().atomic(|ctx| {
             let exists = ctx.hexists(thread_key.as_bytes(), b"unread_count")?;
             // Always drop from the has_unread index AND always plant
@@ -56,7 +49,6 @@ impl KevyMailboxStore {
             // no persistent zero. Any subsequent `hincrby thread:<tid>
             // unread_count 1` would count from 0 → 1 and light the
             // row back up. Writing an explicit zero prevents that.
-            ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
             ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
             // Mirror onto the membership row the table reads from.
             ctx.hset(
@@ -134,19 +126,19 @@ mod tests {
     }
 
     #[test]
-    fn mark_seen_zeros_unread_and_drops_from_index() {
+    fn mark_seen_zeros_unread_and_drops_from_the_axis() {
         let s = store();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, true)).unwrap();
-        let unread_idx = keys::user_threads_has_unread(u);
-        assert_eq!(s.store().zcard(unread_idx.as_bytes()).unwrap(), 1);
+        let unread = || s.count_thread_ids_by_flag_via_table(u, "unread").unwrap();
+        assert_eq!(unread(), 1);
 
         let flipped = s.mark_seen(u, "t1").unwrap();
         assert!(flipped);
 
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.unread_count, 0);
-        assert_eq!(s.store().zcard(unread_idx.as_bytes()).unwrap(), 0);
+        assert_eq!(unread(), 0, "the unread axis must drop it");
     }
 
     #[test]
