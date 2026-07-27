@@ -2164,9 +2164,19 @@ async fn list_conversations(
     Json(req): Json<conv::ListConversationsRequest>,
 ) -> Json<conv::ListConversationsResponse> {
     let f = &req.filter;
+    // Archived is a tab, not a predicate inside the current folder —
+    // the UI's own tab resolver returns 'archived' ahead of the folder
+    // it was opened from. The client keeps sending that folder, so
+    // honouring both answers "archived within Inbox", which is 0 for a
+    // thread filed under notifications and is not what the tab means.
+    let folder = if f.archived {
+        None
+    } else {
+        f.folder.as_deref()
+    };
     let filter = ListThreadsFilter {
         category: f.category.as_deref(),
-        folder: f.folder.as_deref(),
+        folder,
         pinned: false,
         archived: f.archived,
         has_unread: f.unread.unwrap_or(false),
