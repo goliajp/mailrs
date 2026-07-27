@@ -214,6 +214,18 @@ impl KevyMailboxStore {
             return self.list_flag_via_table(user, flag, filter, offset, limit);
         }
 
+        // A folder or category with a flag stacked on it. The zsets
+        // answered this with ZINTERSTORE; one index answers it now,
+        // because every column the other predicate needs is stored
+        // beside the flag. Without this the whole class — "archived
+        // within Inbox", "unread within Inbox" — falls through to a
+        // path that no longer has any index to read.
+        if bucket_reads_table()
+            && let Some((flag, scope)) = filter.stacked_predicate()
+        {
+            return self.list_stacked_via_table(user, flag, scope, filter, offset, limit);
+        }
+
         // Sent is the sent_only flag; np is the union of two bucket
         // axes, merged here because an ORDERPATH answers one range and
         // a union is two.
@@ -630,6 +642,46 @@ impl ListThreadsFilter<'_> {
             && !self.starred
     }
 
+    /// One flag plus one scope (a folder's bucket, or a category).
+    ///
+    /// Returns the flag's index name and the `(column, value)` the
+    /// engine should filter on. `None` when the shape is not one flag
+    /// and one scope — those are handled by the bare paths, or by
+    /// nothing yet.
+    fn stacked_predicate(&self) -> Option<(&'static str, (&'static str, String))> {
+        let flags: Vec<&'static str> = [
+            ("starred", self.starred),
+            ("archived", self.archived),
+            ("pinned", self.pinned),
+            ("unread", self.has_unread),
+            ("has_action", self.has_action),
+        ]
+        .iter()
+        .filter(|(_, on)| *on)
+        .map(|(n, _)| *n)
+        .collect();
+        let [flag] = flags.as_slice() else {
+            return None;
+        };
+
+        // A folder scopes by bucket; a category scopes by category.
+        // Both cannot apply at once here.
+        match (self.folder, self.category) {
+            (Some(f), None) => {
+                let bucket = match f {
+                    f if f.eq_ignore_ascii_case("inbox") => "inbox",
+                    f if f.eq_ignore_ascii_case("junk") => "junk",
+                    f if f.eq_ignore_ascii_case("notifications") => "notifications",
+                    f if f.eq_ignore_ascii_case("promotions") => "promotions",
+                    _ => return None,
+                };
+                Some((flag, ("bucket", bucket.to_string())))
+            }
+            (None, Some(cat)) => Some((flag, ("category", cat.to_string()))),
+            _ => None,
+        }
+    }
+
     fn bare_bucket(&self) -> Option<&'static str> {
         let bucket = match self.folder? {
             f if f.eq_ignore_ascii_case("junk") => "junk",
@@ -721,6 +773,35 @@ impl KevyMailboxStore {
         merged.drain(..offset);
         merged.truncate(limit);
         Ok((merged, total))
+    }
+
+    /// Serve a flag page scoped to a folder or category.
+    fn list_stacked_via_table(
+        &self,
+        user: &str,
+        flag: &str,
+        scope: (&str, String),
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let extra = [(scope.0, scope.1.as_str())];
+        let total = self.count_thread_ids_by_flag_filtered(user, flag, &extra)?;
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+        let tids = match filter.before_ts {
+            Some(ts) => {
+                self.list_thread_ids_by_flag_filtered(user, flag, &extra, limit, 0, Some(ts - 1))?
+            }
+            None => {
+                if offset >= total {
+                    return Ok((Vec::new(), total));
+                }
+                self.list_thread_ids_by_flag_filtered(user, flag, &extra, limit, offset, None)?
+            }
+        };
+        self.hydrate_page(&tids, total)
     }
 
     /// Serve one boolean-predicate page off that flag's index.
@@ -1128,6 +1209,106 @@ mod bucket_axis_tests {
         let (spam, spam_total) = count("spam");
         assert_eq!(spam.len(), 1, "the new category must hold it");
         assert_eq!(spam_total, 1);
+    }
+
+    /// A flag stacked on a folder — the shape the UI produces every
+    /// time someone opens Archived, or filters Inbox by unread.
+    ///
+    /// This class returned **nothing** for a day after the legacy
+    /// zsets were deleted: the bare paths did not match it and the
+    /// fallback was a ZINTERSTORE over indexes that no longer existed.
+    #[test]
+    fn a_flag_stacked_on_a_folder_is_served() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        let u = "alice@x.com";
+
+        let mut archived_inbox = row("ai", 300, "inbox");
+        archived_inbox.archived = true;
+        st.upsert_thread(u, &archived_inbox).unwrap();
+
+        let mut archived_junk = row("aj", 200, "spam");
+        archived_junk.archived = true;
+        st.upsert_thread(u, &archived_junk).unwrap();
+
+        // Live inbox thread, not archived.
+        st.upsert_thread(u, &row("live", 100, "inbox")).unwrap();
+
+        let archived_in = |folder: &'static str| {
+            let f = ListThreadsFilter {
+                folder: Some(folder),
+                archived: true,
+                ..Default::default()
+            };
+            st.list_threads_by_activity(u, &f, 0, 50).unwrap()
+        };
+
+        let (rows, total) = archived_in("Inbox");
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ai"],
+            "archived-within-Inbox must return the archived inbox thread"
+        );
+        assert_eq!(total, 1, "and count it");
+
+        let (rows, _) = archived_in("Junk");
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.thread_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["aj"],
+            "the scope must actually scope"
+        );
+    }
+
+    /// Unread and starred stack the same way.
+    #[test]
+    fn unread_and_starred_stack_on_a_folder_too() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+        let u = "alice@x.com";
+
+        let mut unread = row("u1", 300, "inbox");
+        unread.unread_count = 2;
+        st.upsert_thread(u, &unread).unwrap();
+
+        let mut starred = row("s1", 200, "inbox");
+        starred.starred = true;
+        st.upsert_thread(u, &starred).unwrap();
+
+        st.upsert_thread(u, &row("plain", 100, "inbox")).unwrap();
+
+        let ids = |f: ListThreadsFilter<'_>| {
+            st.list_threads_by_activity(u, &f, 0, 50)
+                .unwrap()
+                .0
+                .into_iter()
+                .map(|r| r.thread_id)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            ids(ListThreadsFilter {
+                folder: Some("Inbox"),
+                has_unread: true,
+                ..Default::default()
+            }),
+            vec!["u1".to_string()]
+        );
+        assert_eq!(
+            ids(ListThreadsFilter {
+                folder: Some("Inbox"),
+                starred: true,
+                ..Default::default()
+            }),
+            vec!["s1".to_string()]
+        );
     }
 
     /// The np view is the only axis whose order this code produces
