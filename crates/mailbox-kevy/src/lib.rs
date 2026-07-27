@@ -329,10 +329,27 @@ fn thread_user_spec() -> kevy_index::TableSpec {
                 .collect(),
         }
     }
-    let values: Vec<Vec<u8>> = ["user", "activity"]
-        .iter()
-        .map(|c| c.as_bytes().to_vec())
-        .collect();
+    // Stored alongside every flag index: `user` and `activity` scope
+    // and order the axis, and the rest let a stacked predicate be a
+    // FILTER on the same index rather than an intersection of several.
+    // The UI stacks constantly — "archived within Inbox", "unread
+    // within Inbox" — and those combinations have no index of their
+    // own.
+    let values: Vec<Vec<u8>> = [
+        "user",
+        "activity",
+        "bucket",
+        "category",
+        "sent_only",
+        "starred",
+        "archived",
+        "pinned",
+        "unread",
+        "has_action",
+    ]
+    .iter()
+    .map(|c| c.as_bytes().to_vec())
+    .collect();
 
     TableSpec {
         name: b"threaduser".to_vec(),
@@ -788,6 +805,25 @@ impl KevyMailboxStore {
         offset: usize,
         before_ts: Option<i64>,
     ) -> io::Result<Vec<String>> {
+        self.list_thread_ids_by_flag_filtered(user, flag, &[], limit, offset, before_ts)
+    }
+
+    /// The same axis with extra equality predicates applied by the
+    /// engine.
+    ///
+    /// `extra` is `(column, value)` pairs over the columns stored
+    /// beside the index. This is how a stacked filter — "archived
+    /// within Inbox" — is answered from one index instead of an
+    /// intersection of two.
+    pub fn list_thread_ids_by_flag_filtered(
+        &self,
+        user: &str,
+        flag: &str,
+        extra: &[(&str, &str)],
+        limit: usize,
+        offset: usize,
+        before_ts: Option<i64>,
+    ) -> io::Result<Vec<String>> {
         use kevy_embedded::{IndexValue, ScalarQueryOpts, ValueFilter};
         let index = format!("threaduser.{flag}");
         let (lo, hi);
@@ -804,6 +840,12 @@ impl KevyMailboxStore {
                 field: b"activity",
                 min: lo.as_bytes(),
                 max: hi.as_bytes(),
+            });
+        }
+        for (col, val) in extra {
+            filters.push(ValueFilter::Eq {
+                field: col.as_bytes(),
+                value: val.as_bytes(),
             });
         }
         let page = self
@@ -841,7 +883,17 @@ impl KevyMailboxStore {
     /// pinned, has_action are user-curated), and the cap bounds the
     /// worst case.
     pub fn count_thread_ids_by_flag_via_table(&self, user: &str, flag: &str) -> io::Result<usize> {
-        self.list_thread_ids_by_flag_via_table(user, flag, 100_000, 0, None)
+        self.count_thread_ids_by_flag_filtered(user, flag, &[])
+    }
+
+    /// Count on a flag axis with extra predicates applied.
+    pub fn count_thread_ids_by_flag_filtered(
+        &self,
+        user: &str,
+        flag: &str,
+        extra: &[(&str, &str)],
+    ) -> io::Result<usize> {
+        self.list_thread_ids_by_flag_filtered(user, flag, extra, 100_000, 0, None)
             .map(|v| v.len())
     }
 
