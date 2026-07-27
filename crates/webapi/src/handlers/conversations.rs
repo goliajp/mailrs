@@ -687,9 +687,11 @@ pub async fn mark_not_junk(
         let senders = senders_csv;
         let _ = crate::handlers::kevy_util::with_kevy(move |c| {
             let wl_key = format!("spam:{user_lc}:whitelist");
-            for raw in senders.split(',') {
-                let addr = raw.trim().to_lowercase();
-                if addr.is_empty() || addr == user_lc {
+            // Bare addresses only: delivery compares the envelope
+            // sender, so a stored `Name <addr>` never matches and the
+            // whitelist silently does nothing.
+            for addr in mailrs_core_api::types::sender_addresses(&senders) {
+                if addr == user_lc {
                     // don't whitelist the owner's own address
                     continue;
                 }
