@@ -266,13 +266,12 @@ impl KevyMailboxStore {
 
         let existed = store
             .atomic(|ctx| {
-                let category = ctx
-                    .hget(thread_key.as_bytes(), b"category")?
-                    .and_then(|v| String::from_utf8(v).ok());
-                let Some(cat) = category else {
-                    // hash doesn't exist — nothing to clean.
+                // The category used to pick which per-category zset to
+                // clean; all this asks now is whether the thread is
+                // there at all.
+                if !ctx.hexists(thread_key.as_bytes(), b"category")? {
                     return Ok(false);
-                };
+                }
 
                 // Per-message cleanup — msg blob, RFC Message-ID → thread
                 // pointer, and both directions of the uid ↔ message-id map.
@@ -295,32 +294,18 @@ impl KevyMailboxStore {
                 // Thread aggregate fields.
                 ctx.hdel(thread_key.as_bytes(), fields)?;
 
-                // Per-user thread indexes.
-                let indexes = [
-                    keys::user_threads_by_activity(user),
-                    keys::user_threads_by_category(user, &cat),
-                    keys::user_threads_pinned(user),
-                    keys::user_threads_archived(user),
-                    keys::user_threads_has_unread(user),
-                    keys::user_threads_has_action(user),
-                    keys::user_threads_starred(user),
-                    // v2.8.2 — the Phase 2 folder zsets were missing from
-                    // this cleanup list, leaving orphan members behind on
-                    // every delete (invisible rows, inflated zcard totals).
-                    // v2.9 — the notifications/promotions buckets join them.
-                    keys::user_threads_inbox(user),
-                    keys::user_threads_notifications(user),
-                    keys::user_threads_promotions(user),
-                    keys::user_threads_junk(user),
-                    keys::user_threads_sent(user),
-                ];
-                for idx in &indexes {
-                    ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
-                }
                 // The membership row is the thread's presence on every
                 // axis the table serves, so deleting the thread has to
                 // delete it too — otherwise the row outlives the data
                 // and every axis keeps listing a thread that is gone.
+                //
+                // This replaced a twelve-key zrem sweep: one row now
+                // carries what twelve indexes used to, and the list of
+                // keys to remember to clean out is gone with them. That
+                // list had been wrong twice — the folder zsets were
+                // missing from it until v2.8.2, then the two new
+                // buckets until v2.9, each time leaving orphans behind
+                // on every delete.
                 ctx.del(&[keys::thread_user(user, thread_id).as_bytes()]);
                 Ok(true)
             })

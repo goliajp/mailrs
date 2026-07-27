@@ -66,11 +66,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-sender \
     && cargo build --release --bin mailrs-fastcore \
     && cargo build --release --bin mailrs-fastcore-migrate \
-    && cargo build --release --bin mailrs-fastcore-backfill-sent \
     && cargo build --release --bin mailrs-fastcore-backfill-contacts \
     && cargo build --release --bin mailrs-fastcore-backfill-uid-index \
     && cargo build --release --bin mailrs-fastcore-backfill-usage \
-    && cargo build --release --bin mailrs-fastcore-backfill-junk-index \
     && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
     && cargo build --release -p mailrs-core-sync \
@@ -79,11 +77,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
     && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
     && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate \
-    && cp /build/target/release/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent \
     && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
     && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
     && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
-    && cp /build/target/release/mailrs-fastcore-backfill-junk-index /usr/local/bin/mailrs-fastcore-backfill-junk-index \
     && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
     && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump \
     && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
@@ -143,7 +139,6 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fa
 # Phase 10 (fastcore migration): NDJSON → kevy importer.
 # Run via `docker exec -i mailrs-fastcore-migrate`.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-sent /usr/local/bin/mailrs-fastcore-backfill-sent
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage
@@ -152,7 +147,6 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/loca
 # `docker exec mailrs-fastcore mailrs-fastcore-backfill-junk-index`
 # run that Phase 4 deploys carry — kept in the image so the runbook
 # stays reproducible.
-COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-junk-index /usr/local/bin/mailrs-fastcore-backfill-junk-index
 # Fastcore-native outbound SMTP sender. Drains mailrs:outbound:pending
 # and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
 # to `mailrs-fastcore-sender`.
