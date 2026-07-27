@@ -90,15 +90,26 @@ impl KevyMailboxStore {
                 if !ctx.hexists(thread_key.as_bytes(), b"count")? {
                     return Ok(false);
                 }
+                // Moving a thread into a folder un-archives it.
+                // Archiving means "out of the incoming stream"; filing
+                // it somewhere is putting it back. Without this the
+                // thread lands in its new bucket and stays in the
+                // Archived tab, which is where it was moved *from* —
+                // the move appears to do nothing.
+                //
+                // Safe because this is only ever a user action:
+                // classification on the ingest path goes through
+                // record_message_arrival and never calls this.
                 ctx.hset(
                     thread_key.as_bytes(),
-                    &[(b"category" as &[u8], new_category)],
+                    &[(b"category" as &[u8], new_category), (b"archived", b"0")],
                 )?;
                 ctx.hset(
                     keys::thread_user(user, thread_id).as_bytes(),
                     &[
                         (b"bucket".as_slice(), bucket.name().as_bytes()),
                         (b"category".as_slice(), new_category),
+                        (b"archived".as_slice(), b"0".as_slice()),
                     ],
                 )?;
                 Ok(true)
@@ -451,6 +462,47 @@ mod tests {
         ] {
             assert_eq!(s.store().zcard(idx.as_bytes()).unwrap(), 0, "idx {idx}");
         }
+    }
+
+    /// Filing an archived thread has to take it out of Archived —
+    /// otherwise the move lands it in the new bucket and leaves it in
+    /// the tab it was moved from, so nothing appears to happen.
+    #[test]
+    fn filing_an_archived_thread_unarchives_it() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u)).unwrap();
+        s.set_archived(u, "t1", true).unwrap();
+        assert!(s.get_thread("t1").unwrap().unwrap().archived);
+
+        let archived_count = |s: &KevyMailboxStore| {
+            axis_count(
+                s,
+                u,
+                crate::ListThreadsFilter {
+                    archived: true,
+                    ..Default::default()
+                },
+            )
+        };
+        assert_eq!(archived_count(&s), 1);
+
+        assert!(s.set_bucket(u, "t1", keys::Bucket::Notifications).unwrap());
+        assert!(
+            !s.get_thread("t1").unwrap().unwrap().archived,
+            "the thread must no longer be archived"
+        );
+        assert_eq!(archived_count(&s), 0, "and must leave the Archived axis");
+
+        let in_notifications = axis_count(
+            &s,
+            u,
+            crate::ListThreadsFilter {
+                folder: Some("Notifications"),
+                ..Default::default()
+            },
+        );
+        assert_eq!(in_notifications, 1, "while arriving in its new bucket");
     }
 
     #[test]
