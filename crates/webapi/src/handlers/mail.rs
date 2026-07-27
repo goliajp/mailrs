@@ -89,10 +89,10 @@ pub async fn list_folder_messages(
 
 /// GET /api/mail/folders — fastcore-native. Returns bare `FolderInfo[]`.
 ///
-/// `unseen` count for INBOX comes from `zcard mailrs:user:<u>:threads:has_unread`
-/// on the network kevy — that zset is the same one the "has_unread"
-/// filter queries. Other folders read 0 (Sent/Drafts/Trash aren't
-/// tracked by their own has_unread zset yet).
+/// `unseen` for INBOX comes from core's unseen-count, which reads the
+/// unread axis of the declared `threaduser` table — the same answer
+/// the "has_unread" filter gets. Other folders read 0 (Sent/Drafts/
+/// Trash have no unread axis of their own).
 pub async fn get_folders(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,

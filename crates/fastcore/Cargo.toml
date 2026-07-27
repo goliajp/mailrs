@@ -18,10 +18,6 @@ name = "mailrs-fastcore-migrate"
 path = "src/bin/migrate.rs"
 
 [[bin]]
-name = "mailrs-fastcore-backfill-sent"
-path = "src/bin/backfill_sent.rs"
-
-[[bin]]
 name = "mailrs-fastcore-backfill-contacts"
 path = "src/bin/backfill_contacts.rs"
 
@@ -32,10 +28,6 @@ path = "src/bin/backfill_uid_index.rs"
 [[bin]]
 name = "mailrs-fastcore-backfill-usage"
 path = "src/bin/backfill_usage.rs"
-
-[[bin]]
-name = "mailrs-fastcore-backfill-junk-index"
-path = "src/bin/backfill_junk_index.rs"
 
 [[bin]]
 name = "mailrs-fastcore-sender"
