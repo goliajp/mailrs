@@ -696,6 +696,32 @@ pub async fn mark_not_junk(
                     continue;
                 }
                 let _ = c.sadd(wl_key.as_bytes(), &[addr.as_bytes()]);
+
+                // Also exempt the sender from greylisting. Marking
+                // not-junk says "I want this mail"; greylisting then
+                // defers their next message until the sender retries,
+                // which reads as the mail arriving late. Delivery and
+                // receipt outrank protection, and the user has already
+                // made the call for this address.
+                let entry = serde_json::json!({
+                    "id": 0,
+                    "address_or_domain": addr,
+                    "list_type": "white",
+                    "created_at": std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                });
+                if let Ok(payload) = serde_json::to_vec(&entry) {
+                    // Field id = the address itself, so marking the
+                    // same sender twice updates one entry instead of
+                    // accumulating duplicates.
+                    let field = format!("not-junk:{addr}");
+                    let _ = c.hset(
+                        b"admin:greylist:local-lists",
+                        &[(field.as_bytes(), payload.as_slice())],
+                    );
+                }
             }
             Ok(())
         });
