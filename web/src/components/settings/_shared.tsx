@@ -10,10 +10,14 @@ import { MobileModal } from '@/components/mobile-modal'
 
 export type AgentKey = {
   created_at: string
-  expires_at: null | string
   id: string
   name: string
   prefix: string
+  /**
+   * Empty = full owner access. Enforced server-side by
+   * `crates/webapi/src/session.rs:80 — agent_scopes_allow`.
+   */
+  scopes: string[]
 }
 
 export type CalendarFeed = {

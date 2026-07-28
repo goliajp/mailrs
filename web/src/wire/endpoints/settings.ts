@@ -28,9 +28,15 @@ import {
 
 // ── agent API keys ──────────────────────────────────────────────
 
+/**
+ * Backend: `crates/webapi/src/handlers/complete.rs:1320` —
+ * `CreateAgentKeyRequest { name, scopes }`. It reads nothing else; the
+ * `expires_in_days` this used to send was dropped on the floor by serde
+ * while the UI reported the key as expiring.
+ */
 export async function wireCreateAgentKey(payload: {
-  expires_in_days?: null | number
   name: string
+  scopes?: string[]
 }): Promise<WireCreatedAgentKey> {
   return wireFetch(createdAgentKeySchema, {
     body: payload,
