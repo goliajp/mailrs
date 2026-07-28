@@ -33,7 +33,25 @@ describe('agentKeyListSchema', () => {
       id: '2',
       name: 'admin.golia.jp',
       prefix: 'mk_b04cf',
+      scopes: [],
     })
+  })
+
+  it('surfaces scopes and never invents an expiry the backend has no field for', () => {
+    const parsed = agentKeyListSchema.parse({
+      items: [
+        { created_at: 1784700000, id: 4, name: 'sms', prefix: 'mk_9bfe8', scopes: ['mail:read'] },
+      ],
+    })
+    expect(parsed.items[0].scopes).toEqual(['mail:read'])
+    expect(parsed.items[0]).not.toHaveProperty('expires_at')
+  })
+
+  it('defaults scopes to empty when a legacy record predates the field', () => {
+    const parsed = agentKeyListSchema.parse({
+      items: [{ created_at: 1784335185, id: 1, name: 'legacy', prefix: 'mk_d21ab' }],
+    })
+    expect(parsed.items[0].scopes).toEqual([])
   })
 
   it('accepts a bare array response', () => {

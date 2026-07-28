@@ -57,6 +57,14 @@ const CATEGORIES: { key: Category; label: string }[] = [
 
 const CATEGORY_KEYS = new Set(CATEGORIES.map((c) => c.key))
 
+// Sections that render a data table get the full panel width — a 42rem
+// column truncates columns that have the room to be read.
+const WIDE_CATEGORIES = new Set<Category>(['api-keys'])
+
+// Table state (search / sort / page) lives in the URL; it belongs to the
+// section that put it there, so switching sections clears it.
+const TABLE_PARAMS = ['dir', 'page', 'q', 'size', 'sort']
+
 export function Settings() {
   const tabIds = useId()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -65,6 +73,7 @@ export function Settings() {
   const setActive = (key: Category) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
+      for (const name of TABLE_PARAMS) next.delete(name)
       if (key === 'account') next.delete('tab')
       else next.set('tab', key)
       return next
@@ -114,7 +123,7 @@ export function Settings() {
           id={`${tabIds}-panel`}
           role="tabpanel"
         >
-          <div className="mx-auto max-w-2xl">
+          <div className={panelWidthClass(active)}>
             <Suspense fallback={<SectionFallback />}>
               {active === 'account' && <AccountSection />}
               {active === 'security' && <SecuritySection />}
@@ -130,6 +139,11 @@ export function Settings() {
       </div>
     </div>
   )
+}
+
+function panelWidthClass(active: Category): string {
+  if (WIDE_CATEGORIES.has(active)) return 'w-full'
+  return 'mx-auto max-w-2xl'
 }
 
 function parseTab(raw: null | string): Category {
