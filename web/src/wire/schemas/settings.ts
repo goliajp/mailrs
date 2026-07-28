@@ -18,13 +18,17 @@ const wireTimestampSchema = z.union([z.string(), z.number()]).nullish()
 
 // ── agent API keys ──────────────────────────────────────────────
 //
-// Backend: crates/webapi/src/handlers/complete.rs — list_agent_keys /
-// create_agent_key. Row shape (verified against prod network kevy
-// 2026-07-18): {id: i64, name: String, scopes: Vec<String>, created_at:
-// i64, prefix: String}. `scopes` is an ARRAY — declaring it z.string()
-// failed every parse and blanked the list ("No API keys" while the key
-// existed). The transform doesn't surface scopes, so it stays
-// undeclared under .passthrough().
+// Backend: crates/webapi/src/handlers/complete.rs:1308 — list_agent_keys /
+// :1328 create_agent_key. Row shape (verified against prod network kevy
+// 2026-07-18, re-verified against the handler 2026-07-29): {id: i64, name:
+// String, scopes: Vec<String>, created_at: i64, prefix: String}. `scopes`
+// is an ARRAY — declaring it z.string() failed every parse and blanked the
+// list ("No API keys" while the key existed).
+//
+// There is NO `expires_at`: the record written at complete.rs:1335 has no
+// expiry field and `create_agent_key` ignores any expiry in the request.
+// The transform used to emit a permanently-null `expires_at`, which the UI
+// rendered as if expiry were a supported feature — dropped 2026-07-29.
 
 const rawAgentKeySchema = z
   .object({
@@ -32,15 +36,16 @@ const rawAgentKeySchema = z
     id: wireIdSchema,
     name: z.string().default(''),
     prefix: z.string().default(''),
+    scopes: z.array(z.string()).default([]),
   })
   .passthrough()
 
 export const agentKeySchema = rawAgentKeySchema.transform((v) => ({
   created_at: v.created_at != null ? String(v.created_at) : '',
-  expires_at: null as null | string,
   id: v.id,
   name: v.name,
   prefix: v.prefix,
+  scopes: v.scopes,
 }))
 
 export type WireAgentKey = z.infer<typeof agentKeySchema>
