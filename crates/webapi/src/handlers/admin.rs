@@ -725,21 +725,18 @@ pub async fn check_domain_dns(
     Extension(_user): Extension<AuthedUser>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
-    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
-        ResolverConfig::default(),
-        ResolverOpts::default(),
-    );
+    let resolver = hickory_resolver::TokioResolver::builder_tokio()
+        .and_then(|b| b.build())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    async fn txt(r: &hickory_resolver::TokioAsyncResolver, n: &str) -> Option<String> {
+    async fn txt(r: &hickory_resolver::TokioResolver, n: &str) -> Option<String> {
         let l = r.txt_lookup(n).await.ok()?;
         let joined: Vec<String> = l
+            .answers()
             .iter()
-            .map(|t| {
-                t.txt_data()
-                    .iter()
-                    .flat_map(|b| std::str::from_utf8(b).ok().map(str::to_owned))
-                    .collect::<String>()
+            .filter_map(|record| match &record.data {
+                hickory_resolver::proto::rr::RData::TXT(txt) => Some(txt.to_string()),
+                _ => None,
             })
             .collect();
         if joined.is_empty() {
@@ -755,7 +752,15 @@ pub async fn check_domain_dns(
     let mx_hosts: Vec<String> = resolver
         .mx_lookup(&name)
         .await
-        .map(|r| r.iter().map(|mx| mx.exchange().to_utf8()).collect())
+        .map(|r| {
+            r.answers()
+                .iter()
+                .filter_map(|record| match &record.data {
+                    hickory_resolver::proto::rr::RData::MX(mx) => Some(mx.exchange.to_utf8()),
+                    _ => None,
+                })
+                .collect()
+        })
         .unwrap_or_default();
 
     Ok(Json(serde_json::json!({

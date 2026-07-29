@@ -316,26 +316,22 @@ pub async fn submit_feedback(
 /// and return the parsed SVG URL. Trivial handler; no kevy or spg.
 /// Response: `{ "l": "https://...svg", "a": "https://...pem" }` or 404.
 pub async fn get_bimi(Path(domain): Path<String>) -> Result<Json<serde_json::Value>, StatusCode> {
-    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
     let record = format!("default._bimi.{domain}");
     // Fresh resolver per request — same pattern as monolith's DNS layer.
-    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
-        ResolverConfig::default(),
-        ResolverOpts::default(),
-    );
+    let resolver = hickory_resolver::TokioResolver::builder_tokio()
+        .and_then(|b| b.build())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let lookup = resolver
         .txt_lookup(&record)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
     let mut logo: Option<String> = None;
     let mut cert: Option<String> = None;
-    for txt in lookup.iter() {
-        let joined: String = txt
-            .txt_data()
-            .iter()
-            .flat_map(|b| std::str::from_utf8(b).ok().map(str::to_owned))
-            .collect::<Vec<_>>()
-            .join("");
+    for record in lookup.answers() {
+        let hickory_resolver::proto::rr::RData::TXT(txt) = &record.data else {
+            continue;
+        };
+        let joined = txt.to_string();
         for kv in joined.split(';') {
             let kv = kv.trim();
             if let Some(v) = kv.strip_prefix("l=") {

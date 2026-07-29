@@ -93,24 +93,22 @@ pub struct DeliverabilityQuery {
 pub async fn check_deliverability(
     Query(q): Query<DeliverabilityQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
-    let resolver = hickory_resolver::TokioAsyncResolver::tokio(
-        ResolverConfig::default(),
-        ResolverOpts::default(),
-    );
+    let resolver = hickory_resolver::TokioResolver::builder_tokio()
+        .and_then(|b| b.build())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    async fn txt_join(
-        resolver: &hickory_resolver::TokioAsyncResolver,
-        name: &str,
-    ) -> Option<String> {
+    async fn txt_join(resolver: &hickory_resolver::TokioResolver, name: &str) -> Option<String> {
         let l = resolver.txt_lookup(name).await.ok()?;
+        // hickory 0.26 dropped `Lookup::iter()` / `TXT::txt_data()`; walk the
+        // answer records instead. `TXT`'s Display concatenates the 255-byte
+        // character-strings with no separator, which is what a long SPF or
+        // DKIM record needs.
         let joined: Vec<String> = l
+            .answers()
             .iter()
-            .map(|txt| {
-                txt.txt_data()
-                    .iter()
-                    .flat_map(|b| std::str::from_utf8(b).ok().map(str::to_owned))
-                    .collect::<String>()
+            .filter_map(|record| match &record.data {
+                hickory_resolver::proto::rr::RData::TXT(txt) => Some(txt.to_string()),
+                _ => None,
             })
             .collect();
         if joined.is_empty() {
