@@ -53,6 +53,7 @@ impl KevyMailboxStore {
         let date_s = m.latest_date.to_string().into_bytes();
         let preview = m.latest_preview.as_bytes().to_vec();
         let category = m.category.as_bytes().to_vec();
+        let tu_key = keys::thread_user(m.user, m.thread_id);
 
         self.store()
             .atomic(|ctx| {
@@ -135,6 +136,41 @@ impl KevyMailboxStore {
                 if m.unread && !m.is_own {
                     ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?;
                 }
+
+                // The same three counters again, on this user's row.
+                //
+                // The thread hash has no user segment, so the block
+                // above counts every local recipient's delivery of the
+                // same message into one total: devops@golia.jp sending
+                // to lihao@golia.jp reaches two maildirs, runs this
+                // twice, and leaves count=2 next to a message index
+                // holding one message — plus a sent_count from the
+                // sender's own copy that lihao then reads as their own.
+                // These are per-user quantities and this is where they
+                // belong (RFC 20260730 S1).
+                //
+                // Undeclared by the TableSpec on purpose: nothing
+                // indexes, orders or filters on them, so they ride
+                // along as payload and the spec never changes — see
+                // `undeclared_fields_ride_along_without_disturbing_the_indexes`.
+                // They are also kept out of `thread_user_pairs`, whose
+                // hset would otherwise overwrite these increments with
+                // the global row's values on the very next line.
+                // All three unconditionally, with a zero delta where
+                // there is nothing to add, so the fields exist from the
+                // row's first write. An absent field and a zero one are
+                // not the same thing: `mark_seen` carries a comment
+                // about a missing `unread_count` letting a later
+                // `hincrby` count from 0 and relight a thread the user
+                // had read. Planting explicit zeros is what closed
+                // that, and the same reasoning applies here.
+                ctx.hincrby(tu_key.as_bytes(), b"count", 1)?;
+                ctx.hincrby(tu_key.as_bytes(), b"sent_count", i64::from(m.is_own))?;
+                ctx.hincrby(
+                    tu_key.as_bytes(),
+                    b"unread_count",
+                    i64::from(m.unread && !m.is_own),
+                )?;
 
                 Ok(())
             })
@@ -274,6 +310,94 @@ mod tests {
         assert_eq!(row.unread_count, 0);
         // Without any unread, the unread axis stays empty.
         assert_eq!(flag_count(&s, "u@x.com", "unread"), 0);
+    }
+
+    /// Read a counter off one user's membership row.
+    fn tu_count(s: &KevyMailboxStore, user: &str, tid: &str, field: &str) -> i64 {
+        s.store()
+            .hget(keys::thread_user(user, tid).as_bytes(), field.as_bytes())
+            .unwrap()
+            .and_then(|v| String::from_utf8(v).ok())
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// One message, two local mailboxes — the reported bug.
+    ///
+    /// `devops@golia.jp` sends to `lihao@golia.jp`; both are accounts
+    /// here, so the message is delivered twice and the shared thread
+    /// hash counts it twice, attributing the sender's own copy to
+    /// whoever reads the row. The per-user rows must each describe one
+    /// mailbox: one message, and a send only for the account that sent
+    /// it.
+    #[test]
+    fn each_participant_counts_only_their_own_copy() {
+        let s = store();
+        let recipient = MessageArrival {
+            thread_id: "t1",
+            user: "lihao@x.com",
+            subject: "Subj",
+            senders_csv: "devops@x.com",
+            latest_date: 100,
+            latest_preview: "preview",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        };
+        let sender_copy = MessageArrival {
+            user: "devops@x.com",
+            unread: false,
+            is_own: true,
+            ..recipient
+        };
+        s.record_message_arrival(&recipient).unwrap();
+        s.record_message_arrival(&sender_copy).unwrap();
+
+        // The shared row still shows the sum — S1 writes both, and the
+        // read path has not moved yet.
+        let shared = s.get_thread("t1").unwrap().unwrap();
+        assert_eq!((shared.count, shared.sent_count), (2, 1));
+
+        assert_eq!(tu_count(&s, "lihao@x.com", "t1", "count"), 1);
+        assert_eq!(
+            tu_count(&s, "lihao@x.com", "t1", "sent_count"),
+            0,
+            "lihao sent nothing; the sender's copy is not theirs"
+        );
+        assert_eq!(tu_count(&s, "lihao@x.com", "t1", "unread_count"), 1);
+
+        assert_eq!(tu_count(&s, "devops@x.com", "t1", "count"), 1);
+        assert_eq!(tu_count(&s, "devops@x.com", "t1", "sent_count"), 1);
+        assert_eq!(tu_count(&s, "devops@x.com", "t1", "unread_count"), 0);
+    }
+
+    /// The membership row is rewritten on every arrival with `hset`.
+    /// If the counters were in that pair list they would be reset to
+    /// the shared row's totals each time.
+    #[test]
+    fn a_second_arrival_does_not_reset_the_per_user_counters() {
+        let s = store();
+        s.record_message_arrival(&arr("t1", "u@x.com", "One", 100, true))
+            .unwrap();
+        s.record_message_arrival(&arr("t1", "u@x.com", "Two", 200, true))
+            .unwrap();
+
+        assert_eq!(tu_count(&s, "u@x.com", "t1", "count"), 2);
+        assert_eq!(tu_count(&s, "u@x.com", "t1", "unread_count"), 2);
+    }
+
+    /// The display fields have to be on the row too, or a page served
+    /// from it later would have to join back to the shared hash.
+    #[test]
+    fn the_membership_row_carries_what_a_list_page_renders() {
+        let s = store();
+        s.record_message_arrival(&arr("t1", "u@x.com", "Hello", 100, true))
+            .unwrap();
+        let key = keys::thread_user("u@x.com", "t1");
+        for field in ["subject", "senders_csv", "latest_preview", "activity"] {
+            let got = s.store().hget(key.as_bytes(), field.as_bytes()).unwrap();
+            assert!(got.is_some(), "{field} missing from the membership row");
+        }
     }
 
     #[test]

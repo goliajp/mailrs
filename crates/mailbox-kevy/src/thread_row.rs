@@ -234,6 +234,37 @@ pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Ve
         (b"pinned".to_vec(), flag(row.pinned).to_vec()),
         (b"unread".to_vec(), flag(row.unread_count > 0).to_vec()),
         (b"has_action".to_vec(), flag(row.has_action).to_vec()),
+        // Display payload, so a list page can be served from this row
+        // alone instead of joining back to the shared thread hash
+        // (RFC 20260730 S1). Undeclared by the TableSpec — nothing
+        // indexes or sorts on them — so adding them does not change the
+        // spec and does not rebuild 30k rows' indexes at boot.
+        //
+        // `latest_date` is absent because it is already here as
+        // `activity`, and `category` because it is already a column.
+        //
+        // The three counters are absent for a different reason: they
+        // are maintained per user by `hincrby` on the arrival path, and
+        // this list is written with `hset`, which would overwrite each
+        // increment with the shared row's total.
+        (b"subject".to_vec(), row.subject.as_bytes().to_vec()),
+        (b"senders_csv".to_vec(), row.senders_csv.as_bytes().to_vec()),
+        (
+            b"latest_preview".to_vec(),
+            row.latest_preview.as_bytes().to_vec(),
+        ),
+        (
+            b"importance_level".to_vec(),
+            row.importance_level.as_bytes().to_vec(),
+        ),
+        (
+            b"importance_score".to_vec(),
+            row.importance_score.to_string().into_bytes(),
+        ),
+        (
+            b"requires_action".to_vec(),
+            flag(row.requires_action).to_vec(),
+        ),
     ]
 }
 

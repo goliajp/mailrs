@@ -173,10 +173,13 @@ impl KevyMailboxStore {
                 if cur < 1 {
                     ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
                 }
-                // The unread axis reads the row, not the counter.
+                // The unread axis reads the row, not the counter — and
+                // the per-user counter has to follow the same flip, or
+                // marking unread would light the axis while this user's
+                // count still said zero (RFC 20260730 S1).
                 ctx.hset(
                     keys::thread_user(user, thread_id).as_bytes(),
-                    &[(b"unread" as &[u8], b"1")],
+                    &[(b"unread" as &[u8], b"1" as &[u8]), (b"unread_count", b"1")],
                 )?;
                 Ok(true)
             })
