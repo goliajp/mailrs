@@ -228,7 +228,7 @@ pub(crate) fn backfill_relationships(state: &Arc<FastcoreState>) -> (u64, u64, u
             let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
                 continue;
             };
-            let Ok(wires) = state.mailbox.list_thread_messages(tid) else {
+            let Ok(wires) = state.mailbox.thread_messages_for_maintenance(tid) else {
                 continue;
             };
             for blob in wires {
@@ -408,7 +408,10 @@ fn latest_inbound_raw(
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let base = std::path::PathBuf::from(&root).join(domain).join(local);
 
-    let wires = state.mailbox.list_thread_messages(thread_id).ok()?;
+    let wires = state
+        .mailbox
+        .thread_messages_for_maintenance(thread_id)
+        .ok()?;
     // list_thread_messages is date-ordered; walk newest first.
     for blob in wires.iter().rev() {
         let Ok(v) = serde_json::from_slice::<serde_json::Value>(blob) else {

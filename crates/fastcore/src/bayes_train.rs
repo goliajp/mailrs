@@ -328,7 +328,7 @@ fn fetch_thread_raw(state: &Arc<FastcoreState>, user: &str, thread_id: &str) -> 
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let base = std::path::PathBuf::from(&root).join(domain).join(local);
 
-    let wires = match state.mailbox.list_thread_messages(thread_id) {
+    let wires = match state.mailbox.list_thread_messages(user, thread_id) {
         Ok(w) => w,
         Err(_) => return Vec::new(),
     };
