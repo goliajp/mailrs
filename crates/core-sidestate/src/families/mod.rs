@@ -8,4 +8,5 @@ pub mod groups_admin;
 pub mod outbound;
 pub mod prefs;
 pub mod send;
+pub mod send_read;
 pub mod suppression;

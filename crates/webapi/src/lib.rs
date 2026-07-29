@@ -221,6 +221,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/spam/blacklist/{address}",
             delete(handlers::spam_lists::remove_blacklist),
         )
+        // The Send list — one row per send, with delivery status. Not
+        // wired into the UI yet; `:shadow` is the gate that says whether
+        // it is safe to (RFC 20260730-send-status S3).
+        .route("/api/mail/sends", get(handlers::sends::list_sends))
+        .route(
+            "/api/mail/sends:shadow",
+            post(handlers::sends::shadow_sends),
+        )
         .route(
             "/api/mail/drafts",
             get(handlers::prefs::list_drafts).post(handlers::prefs::save_draft),
