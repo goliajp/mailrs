@@ -102,11 +102,30 @@ fn original_headers(original: &[u8]) -> Vec<u8> {
 /// - `from_domain` ← `MAILRS_DSN_FROM_DOMAIN`, falling back to
 ///   `reporting_mta` so an unset variable preserves the old behaviour.
 pub fn dsn_identity() -> (String, String) {
-    let reporting_mta =
-        std::env::var("MAILRS_HELO_HOSTNAME").unwrap_or_else(|_| DEFAULT_REPORTING_MTA.into());
-    let from_domain = match std::env::var("MAILRS_DSN_FROM_DOMAIN") {
-        Ok(d) if !d.trim().is_empty() => d.trim().to_string(),
-        _ => organisational_domain(&reporting_mta),
+    dsn_identity_from(
+        std::env::var("MAILRS_HELO_HOSTNAME").ok().as_deref(),
+        std::env::var("MAILRS_DSN_FROM_DOMAIN").ok().as_deref(),
+    )
+}
+
+/// The decision itself, with the environment already read.
+///
+/// Split out because the tests for it used to `set_var` on process-global
+/// state, and cargo runs a binary's tests in parallel threads — two tests
+/// racing the same two variables saw each other's values, which is how
+/// `dsn_identity_fallback_never_yields_a_subdomain` failed inside a full
+/// workspace run and passed on its own. A mutex would have serialised the
+/// race; taking the inputs as arguments removes it, and the logic is
+/// worth testing without an environment anyway.
+pub fn dsn_identity_from(helo: Option<&str>, dsn_from_domain: Option<&str>) -> (String, String) {
+    let reporting_mta = helo
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_REPORTING_MTA)
+        .to_string();
+    let from_domain = match dsn_from_domain.map(str::trim).filter(|d| !d.is_empty()) {
+        Some(d) => d.to_string(),
+        None => organisational_domain(&reporting_mta),
     };
     (reporting_mta, from_domain)
 }
@@ -439,18 +458,25 @@ mod tests {
         // bounces From: a subdomain, which is judged by sp= and has no
         // aligned key. Falling back to the organisational domain keeps
         // the bounce under the same policy as the domain's own mail.
-        unsafe {
-            std::env::set_var("MAILRS_HELO_HOSTNAME", "mail.golia.ai");
-            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
-        }
-        let (mta, from) = dsn_identity();
+        let (mta, from) = dsn_identity_from(Some("mail.golia.ai"), None);
 
         assert_eq!(mta, "mail.golia.ai", "Reporting-MTA stays the host");
         assert_eq!(from, "golia.ai", "From: drops to the organisational domain");
+    }
 
-        unsafe {
-            std::env::remove_var("MAILRS_HELO_HOSTNAME");
-        }
+    #[test]
+    fn an_explicit_dsn_domain_wins_and_blank_counts_as_unset() {
+        assert_eq!(
+            dsn_identity_from(Some("mail.golia.ai"), Some("golia.jp")),
+            ("mail.golia.ai".into(), "golia.jp".into())
+        );
+        // A variable present but empty is a deployment that meant to set
+        // it and did not; treating it as set would put the bounce on an
+        // empty domain.
+        assert_eq!(
+            dsn_identity_from(Some("mail.golia.ai"), Some("   ")),
+            ("mail.golia.ai".into(), "golia.ai".into())
+        );
     }
 
     #[test]
