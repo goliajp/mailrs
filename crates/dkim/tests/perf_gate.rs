@@ -1,4 +1,21 @@
 //! Regression budgets for `mailrs-dkim`. See [BUDGETS.md](../BUDGETS.md).
+//!
+//! Release-profile only. Every budget in this file was measured against
+//! an optimised build (`canon_body/relaxed` is ~140 ns there against a
+//! 5 µs budget); a dev build runs the same code roughly 35× slower, so
+//! the margin that looks like 35× is actually about zero. It held only
+//! while the machine was idle — under the parallel load `cargo test
+//! --workspace` creates for itself the median crossed 5 µs and the gate
+//! went red, ten out of ten times green when run alone.
+//!
+//! A gate that reports how busy the host is, rather than how fast the
+//! code is, teaches everyone to skip past red. Rather than inflate the
+//! numbers — which would drop real coverage in release too — the file
+//! compiles only when the budgets are meaningful. Run it with
+//! `cargo test -p mailrs-dkim --release`.
+//!
+//! Same treatment as `crates/mailrs-mmalloc/tests/perf_gate.rs`.
+#![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};
 
