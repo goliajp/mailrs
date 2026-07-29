@@ -61,7 +61,10 @@ fn main() {
             let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
                 continue;
             };
-            for payload in mailbox.list_thread_messages(tid).unwrap_or_default() {
+            for payload in mailbox
+                .thread_messages_for_maintenance(tid)
+                .unwrap_or_default()
+            {
                 let Ok(wire) = serde_json::from_slice::<MessageWire>(&payload) else {
                     continue;
                 };

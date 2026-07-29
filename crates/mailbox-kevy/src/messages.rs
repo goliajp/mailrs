@@ -171,7 +171,51 @@ impl KevyMailboxStore {
     /// in kevy 3.17), then the get fanout serializes under a single
     /// shard lock so callers observe a consistent snapshot for the
     /// per-message payloads.
-    pub fn list_thread_messages(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
+    /// Returns an empty list for a thread `user` has no copy of.
+    ///
+    /// The message index is keyed by thread alone, so reading it
+    /// without asking who wants it hands any account the contents of
+    /// any thread it can name — and a thread id is the root message's
+    /// Message-ID, which every correspondent in the thread already
+    /// knows and which is enumerable for machine senders
+    /// (`post-208490793@substack.com`,
+    /// `goliajp/devops/check-suites/CS_.../178533` are both real
+    /// examples from prod). The pg lane has taken `user` since it was
+    /// written (`mailrs-mailbox/src/pg/thread_ops/mod.rs:92`); this
+    /// lane dropped it during the fastcore rewrite and nothing failed,
+    /// because no test asked whether a stranger could read the thread.
+    ///
+    /// Membership is the per-user row: present for every thread a user
+    /// has a copy of, and 30,510 of 30,510 on prod at the time of
+    /// writing (`threaduser-census`).
+    pub fn list_thread_messages(&self, user: &str, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
+        if !self.is_thread_participant(user, thread_id)? {
+            return Ok(Vec::new());
+        }
+        self.thread_messages_unscoped(thread_id)
+    }
+
+    /// Whether `user` holds a copy of `thread_id`.
+    pub(crate) fn is_thread_participant(&self, user: &str, thread_id: &str) -> io::Result<bool> {
+        self.store()
+            .hexists(keys::thread_user(user, thread_id).as_bytes(), b"tid")
+            .map_err(std::io::Error::other)
+    }
+
+    /// Unfiltered read for in-process maintenance sweeps — self-heal,
+    /// backfills, rethread.
+    ///
+    /// Deliberately not the default. These callers walk a single user's
+    /// own index already, but heal exists precisely to repair threads
+    /// whose membership row is missing, so gating it on that row would
+    /// make the repair a no-op against the damage it is meant to fix.
+    /// Never call this from a request path: it answers for any thread
+    /// whoever asks.
+    pub fn thread_messages_for_maintenance(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
+        self.thread_messages_unscoped(thread_id)
+    }
+
+    pub(crate) fn thread_messages_unscoped(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
         let zset = keys::thread_messages(thread_id);
         let entries = self
             .store()
@@ -211,6 +255,76 @@ mod tests {
         s
     }
 
+    /// Give `user` a copy of `tid` the way a delivery does.
+    fn deliver(s: &KevyMailboxStore, user: &str, tid: &str) {
+        s.record_message_arrival(&crate::MessageArrival {
+            thread_id: tid,
+            user,
+            subject: "Subj",
+            senders_csv: "alice@x.com",
+            latest_date: 100,
+            latest_preview: "preview",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn a_stranger_reads_nothing_from_someone_elses_thread() {
+        // The message index is keyed by thread alone, so before the
+        // membership gate this returned the full timeline to anybody
+        // who could name the thread — and the name is the root
+        // Message-ID, which every correspondent already has.
+        let s = store();
+        deliver(&s, "owner@x.com", "t1");
+        s.upsert_message("t1", "msg-1", 100, b"private").unwrap();
+
+        assert!(
+            s.list_thread_messages("stranger@x.com", "t1")
+                .unwrap()
+                .is_empty(),
+        );
+        assert_eq!(
+            s.list_thread_messages("owner@x.com", "t1").unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn both_participants_of_a_shared_thread_can_read_it() {
+        // Two local accounts on one thread — the case that produced the
+        // phantom counter — must both keep access.
+        let s = store();
+        deliver(&s, "a@x.com", "t1");
+        deliver(&s, "b@x.com", "t1");
+        s.upsert_message("t1", "msg-1", 100, b"shared").unwrap();
+
+        assert_eq!(s.list_thread_messages("a@x.com", "t1").unwrap().len(), 1);
+        assert_eq!(s.list_thread_messages("b@x.com", "t1").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn maintenance_reads_bypass_the_gate_on_purpose() {
+        // Self-heal repairs threads whose membership row is missing;
+        // gating it would make the repair a no-op against the exact
+        // damage it exists to fix.
+        let s = store();
+        s.upsert_message("orphan", "msg-1", 100, b"payload")
+            .unwrap();
+
+        assert!(
+            s.list_thread_messages("anyone@x.com", "orphan")
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            s.thread_messages_for_maintenance("orphan").unwrap().len(),
+            1
+        );
+    }
+
     #[test]
     fn upsert_then_get_round_trips() {
         let s = store();
@@ -226,7 +340,7 @@ mod tests {
         s.upsert_message("t1", "msg-2", 200, b"second").unwrap();
         s.upsert_message("t1", "msg-1", 100, b"first").unwrap();
         s.upsert_message("t1", "msg-3", 300, b"third").unwrap();
-        let got = s.list_thread_messages("t1").unwrap();
+        let got = s.thread_messages_for_maintenance("t1").unwrap();
         assert_eq!(
             got,
             vec![b"first".to_vec(), b"second".to_vec(), b"third".to_vec()]
@@ -236,7 +350,7 @@ mod tests {
     #[test]
     fn list_empty_thread_returns_empty_vec() {
         let s = store();
-        let got = s.list_thread_messages("never-existed").unwrap();
+        let got = s.thread_messages_for_maintenance("never-existed").unwrap();
         assert!(got.is_empty());
     }
 

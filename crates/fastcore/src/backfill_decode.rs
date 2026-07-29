@@ -87,7 +87,11 @@ pub(crate) async fn backfill_decode_headers_route(
             // message's maildir file once — the heaviest part of this
             // sweep, and the reason it is an explicit admin action
             // rather than something the ingest path retrofits.
-            for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
+            for blob in state
+                .mailbox
+                .thread_messages_for_maintenance(tid)
+                .unwrap_or_default()
+            {
                 let Ok(mut w) =
                     serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(&blob)
                 else {
