@@ -274,6 +274,104 @@ pub fn write_send(
     Ok(())
 }
 
+/// Record one recipient's outcome and re-derive the send's status.
+///
+/// Moves the send between `by_status` zsets rather than only adding to
+/// the new one. An index that is added to and never removed from is the
+/// shape that left `by_category:inbox` holding 28,598 entries against
+/// 6,787 live rows — 76% of it threads that had moved elsewhere. Same
+/// mistake, same cost, so the removal is not optional and the test names
+/// it.
+pub fn update_recipient(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    send_id: &str,
+    state: &RecipientState,
+) -> std::io::Result<Status> {
+    let before = read_recipients(conn, user, send_id)?;
+    let old_status = current_status(conn, user, send_id)?;
+
+    conn.hset(
+        rcpt_key(user, send_id).as_bytes(),
+        &[(state.recipient.as_bytes(), state.encode().as_bytes())],
+    )
+    .map_err(std::io::Error::other)?;
+
+    let mut after: Vec<RecipientState> = before
+        .into_iter()
+        .filter(|r| r.recipient != state.recipient)
+        .collect();
+    after.push(state.clone());
+    let status = Status::derive(&after);
+
+    if Some(status) == old_status {
+        return Ok(status);
+    }
+
+    let created = created_at(conn, user, send_id)?;
+    conn.hset(
+        send_key(user, send_id).as_bytes(),
+        &[(b"status" as &[u8], status.as_str().as_bytes())],
+    )
+    .map_err(std::io::Error::other)?;
+    if let Some(old) = old_status {
+        conn.zrem(by_status_key(user, old).as_bytes(), &[send_id.as_bytes()])
+            .map_err(std::io::Error::other)?;
+    }
+    conn.zadd(
+        by_status_key(user, status).as_bytes(),
+        &[(created as f64, send_id.as_bytes())],
+    )
+    .map_err(std::io::Error::other)?;
+    Ok(status)
+}
+
+/// Attach the maildir blob holding the RFC 5322 bytes.
+///
+/// Written after the fact because the maildir file is produced by the
+/// mirror, which runs after the enqueue, while the row must exist during
+/// it. Resend re-enqueues these bytes and re-edit parses them back, so
+/// without this both buttons have nothing to act on.
+pub fn set_envelope_ref(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    send_id: &str,
+    envelope_ref: &str,
+) -> std::io::Result<()> {
+    conn.hset(
+        send_key(user, send_id).as_bytes(),
+        &[(b"envelope_ref" as &[u8], envelope_ref.as_bytes())],
+    )
+    .map_err(std::io::Error::other)?;
+    Ok(())
+}
+
+fn current_status(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    send_id: &str,
+) -> std::io::Result<Option<Status>> {
+    let raw = conn
+        .hget(send_key(user, send_id).as_bytes(), b"status")
+        .map_err(std::io::Error::other)?;
+    Ok(raw
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| Status::parse(&s)))
+}
+
+fn created_at(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    send_id: &str,
+) -> std::io::Result<i64> {
+    Ok(conn
+        .hget(send_key(user, send_id).as_bytes(), b"created_at")
+        .map_err(std::io::Error::other)?
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0))
+}
+
 /// Read one send's recipient states.
 pub fn read_recipients(
     conn: &mut kevy_client::Connection,
@@ -420,6 +518,49 @@ mod tests {
             assert_eq!(Status::parse(s.as_str()), Some(s));
         }
         assert_eq!(Status::parse("nonsense"), None);
+    }
+
+    /// A transient failure with retries left is not a verdict.
+    ///
+    /// The sender computes `pending` this way; asserting it here keeps the
+    /// rule in one place rather than trusting the caller. A send shown as
+    /// failed while a retry is queued invites resending mail that is
+    /// about to arrive.
+    #[test]
+    fn a_transient_failure_with_retries_left_keeps_the_send_in_flight() {
+        let with_retries = RecipientState {
+            recipient: "a@x.com".into(),
+            delivered: false,
+            pending: true,
+            code: 451,
+            message: "4.7.1 try again later".into(),
+        };
+        assert_eq!(
+            Status::derive(std::slice::from_ref(&with_retries)),
+            Status::Sending
+        );
+
+        let exhausted = RecipientState {
+            pending: false,
+            ..with_retries
+        };
+        assert_eq!(Status::derive(&[exhausted]), Status::Failed);
+    }
+
+    /// The failure text is what a support conversation runs on, so the
+    /// code is duplicated into its own field rather than replacing it.
+    #[test]
+    fn a_rejection_keeps_both_the_code_and_the_remotes_words() {
+        let s = RecipientState {
+            recipient: "a@x.com".into(),
+            delivered: false,
+            pending: false,
+            code: 550,
+            message: "5.1.1 <a@x.com>: Recipient address rejected: User unknown".into(),
+        };
+        let back = RecipientState::decode("a@x.com", &s.encode()).unwrap();
+        assert_eq!(back.code, 550);
+        assert!(back.message.contains("User unknown"));
     }
 
     #[test]
