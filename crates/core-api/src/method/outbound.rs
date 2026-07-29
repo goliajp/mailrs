@@ -61,6 +61,15 @@ pub struct OutboundMessageWire {
     pub created_at: i64,
     /// Epoch seconds when row was last updated.
     pub updated_at: i64,
+    /// The send this job belongs to — one send fans out to one job per
+    /// recipient, and the sender needs the group to report a per-
+    /// recipient outcome against it (RFC 20260730-send-status S2).
+    ///
+    /// `Option` because rows enqueued before this field existed
+    /// deserialize with `None`, and because the tls-rpt and bounce paths
+    /// enqueue mail that no user composed and so has no Send row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub send_id: Option<String>,
 }
 
 /// Outbound queue status enum.

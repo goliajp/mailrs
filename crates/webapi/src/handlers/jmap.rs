@@ -306,8 +306,23 @@ impl MailStore for JmapAdapter {
                 // v2 enqueue (see prefs.rs::enqueue_outbound_at): the
                 // legacy write path silently swallowed sends until an
                 // operator ran the drain by hand.
+                // JMAP submission does not go through the compose
+                // handlers, so it has no Send row yet. Wiring it is a
+                // separate step; None is the honest value until then.
                 mailrs_core_sidestate::families::outbound::write_fresh_pending(
-                    c, &sender, rcpt, &b64, None, None, created,
+                    c,
+                    &mailrs_core_sidestate::families::outbound::FreshPending {
+                        sender: &sender,
+                        recipient: rcpt,
+                        message_data_base64: &b64,
+                        scheduled_at: None,
+                        original_sender: None,
+                        // JMAP submission bypasses the compose handlers,
+                        // so it has no Send row yet. Wiring it is its own
+                        // step; None is the honest value until then.
+                        send_id: None,
+                    },
+                    created,
                 )?;
             }
             Ok(())

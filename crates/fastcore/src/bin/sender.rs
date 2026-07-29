@@ -643,6 +643,92 @@ enum Outcome {
     Permanent(String),
 }
 
+/// Report one recipient's outcome onto the Send row (RFC
+/// 20260730-send-status S2).
+///
+/// Called once, before the outcome is matched for queue handling, so
+/// every arm is covered by construction. The match here is exhaustive:
+/// a new `Outcome` variant fails to compile until it decides what the
+/// user should see, which is the point — the previous design let the
+/// view learn about a send from a periodic sweep, and a variant that
+/// forgot to report would put us back there.
+///
+/// The remote's code and text are stored verbatim. When a send fails,
+/// the receiving server's own words are the only useful thing on the
+/// screen.
+fn report_send_outcome(
+    cfg: &Cfg,
+    send_id: Option<&str>,
+    user: &str,
+    recipient: &str,
+    outcome: &Outcome,
+    attempts: u32,
+) {
+    use mailrs_core_sidestate::families::send as sendfam;
+    let Some(send_id) = send_id else {
+        // Mail nobody composed — tls-rpt, a bounce DSN, a sieve
+        // redirect. There is no Send row to report against, and
+        // inventing one would put mail in the user's Send list that they
+        // never wrote.
+        return;
+    };
+    let state = match outcome {
+        Outcome::Delivered => sendfam::RecipientState {
+            recipient: recipient.to_string(),
+            delivered: true,
+            pending: false,
+            code: 250,
+            message: String::new(),
+        },
+        Outcome::Permanent(reason) => sendfam::RecipientState {
+            recipient: recipient.to_string(),
+            delivered: false,
+            pending: false,
+            code: extract_code(reason),
+            message: reason.clone(),
+        },
+        Outcome::Transient(reason) => sendfam::RecipientState {
+            recipient: recipient.to_string(),
+            delivered: false,
+            // Retries left keeps the whole send `sending`; only the
+            // final attempt is a verdict. Publishing "failed" while a
+            // retry is pending invites resending mail that is about to
+            // arrive.
+            pending: attempts < cfg.max_attempts,
+            code: extract_code(reason),
+            message: reason.clone(),
+        },
+    };
+    let url = cfg.kevy_url.clone();
+    let user = user.to_string();
+    let send_id = send_id.to_string();
+    if let Err(e) = (|| -> std::io::Result<()> {
+        let mut c = kevy(&url)?;
+        sendfam::update_recipient(&mut c, &user, &send_id, &state)?;
+        Ok(())
+    })() {
+        tracing::warn!(err = %e, %send_id, %recipient, "send row outcome write failed");
+    }
+}
+
+/// Pull a three-digit SMTP code out of a reason string, or 0.
+///
+/// The reason is the remote's text as we received it; the code is
+/// duplicated into its own field so a UI can colour by class without
+/// parsing prose, while the prose stays intact.
+fn extract_code(reason: &str) -> u16 {
+    for token in reason.split_whitespace() {
+        let digits: String = token.chars().take_while(char::is_ascii_digit).collect();
+        if digits.len() == 3
+            && let Ok(code) = digits.parse::<u16>()
+            && (200..=599).contains(&code)
+        {
+            return code;
+        }
+    }
+    0
+}
+
 /// Whether a failure reason carries a remote 5xx rejection.
 ///
 /// `outbound_queue::is_hard_bounce` tests whether the string *starts*
@@ -1091,7 +1177,18 @@ async fn process_one(cfg: Cfg, id: String) {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    match try_deliver(&cfg, &sender, &recipient, &message_bytes, &original_sender).await {
+    let outcome = try_deliver(&cfg, &sender, &recipient, &message_bytes, &original_sender).await;
+    // Once, before the queue handling below, so every arm is covered by
+    // construction rather than by remembering.
+    report_send_outcome(
+        &cfg,
+        envelope.get("send_id").and_then(|v| v.as_str()),
+        &sender,
+        &recipient,
+        &outcome,
+        attempts_prev + 1,
+    );
+    match outcome {
         Outcome::Delivered => {
             // Relationship fact: the user has now sent to this address.
             // This is the only writer of `sent_count`, and without it
@@ -1228,7 +1325,23 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_addr_spec, is_forward, is_remote_hard_bounce, signed_d_tag};
+    use super::{extract_addr_spec, extract_code, is_forward, is_remote_hard_bounce, signed_d_tag};
+
+    /// The code is pulled out of the remote's own sentence, which is
+    /// rarely code-first. Same reason `is_remote_hard_bounce` needed a
+    /// token scan rather than `starts_with('5')`.
+    #[test]
+    fn a_code_is_found_anywhere_in_the_remotes_sentence() {
+        assert_eq!(
+            extract_code("gmail-smtp-in.l.google.com 550 5.1.1 does not exist."),
+            550
+        );
+        assert_eq!(extract_code("451 4.7.1 greylisted, try later"), 451);
+        // 5.1.1 is an enhanced status code, not a reply code, and must
+        // not be mistaken for one.
+        assert_eq!(extract_code("mx.example.com said: 5.1.1 unknown"), 0);
+        assert_eq!(extract_code("connection timed out"), 0);
+    }
 
     #[test]
     fn detects_a_5xx_inside_a_real_reason_string() {
