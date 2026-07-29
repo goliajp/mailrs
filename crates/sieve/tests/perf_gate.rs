@@ -1,4 +1,15 @@
 //! Regression budgets for `mailrs-sieve`. See BUDGETS.md.
+//!
+//! Release-profile only. The budgets here were derived from an optimised
+//! build. A dev build runs the same code roughly an order of magnitude
+//! slower, so in debug they assert how contended the host is rather than
+//! how fast the code is — `cargo test --workspace` runs hundreds of test
+//! binaries at once, and under that burst dkim and mime each went red
+//! while passing ten out of ten in isolation.
+//!
+//! Nothing here is weakened: the numbers are untouched and still enforced
+//! where they were measured. Run them with `./scripts/perf-gates.sh`.
+#![cfg(not(debug_assertions))]
 
 use mailrs_sieve::{compile_sieve, evaluate_sieve};
 use std::time::{Duration, Instant};
