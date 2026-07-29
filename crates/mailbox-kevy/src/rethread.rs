@@ -209,7 +209,11 @@ impl KevyMailboxStore {
     /// per-message wires: unread = messages without the \Seen flag that
     /// the user didn't send; sent = messages the user sent. `None` when
     /// the thread has no messages to count (keep the hash values).
-    fn recount_from_messages(&self, user: &str, tid: &str) -> io::Result<Option<(i64, i64, i64)>> {
+    pub(crate) fn recount_from_messages(
+        &self,
+        user: &str,
+        tid: &str,
+    ) -> io::Result<Option<(i64, i64, i64)>> {
         let blobs = self.thread_messages_unscoped(tid)?;
         if blobs.is_empty() {
             return Ok(None);

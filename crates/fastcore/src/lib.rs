@@ -1848,6 +1848,14 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:backfill-thread-user",
                 post(backfill_thread_user_route),
             )
+            // Rebuild thread counters from the messages they summarise.
+            // The arrival path increments them by hand next to an index
+            // that dedupes, so a message delivered to two local
+            // mailboxes counts twice.
+            .route(
+                "/v1/admin/maintenance:recount-threads",
+                post(recount_threads_route),
+            )
             // Engine-side reconciliation for the declared table: drift
             // recheck per compiled index plus a column-type spot check.
             .route(
@@ -4289,6 +4297,51 @@ async fn table_verify_route(
 ///
 /// `done` is true when the page came back short, meaning the caller has
 /// reached the end of this user's threads.
+/// `POST /v1/admin/maintenance:recount-threads?user=&offset=&limit=`
+///
+/// Rebuilds `count` / `unread_count` / `sent_count` from the per-thread
+/// message index. Idempotent — a second pass over converged data
+/// reports `repaired: 0`. Omit `user` to list the accounts to sweep.
+///
+/// `shared` counts threads held by more than one local account, where a
+/// global row cannot represent both views and the sweeping user's wins.
+async fn recount_threads_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(user) = q.get("user") else {
+        let users = state.mailbox.list_account_addresses().unwrap_or_default();
+        return Json(serde_json::json!({ "users": users })).into_response();
+    };
+    let offset: i64 = q.get("offset").and_then(|v| v.parse().ok()).unwrap_or(0);
+    let limit: i64 = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(500);
+
+    match state.mailbox.backfill_thread_counts(user, offset, limit) {
+        Ok(r) => {
+            if r.repaired > 0 {
+                tracing::info!(
+                    %user, offset, scanned = r.scanned, repaired = r.repaired,
+                    shared = r.shared, "thread counter recount segment"
+                );
+            }
+            Json(serde_json::json!({
+                "user": user,
+                "offset": offset,
+                "limit": limit,
+                "scanned": r.scanned,
+                "repaired": r.repaired,
+                "shared": r.shared,
+                "done": (r.scanned as i64) < limit,
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, %user, "thread counter recount failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 async fn backfill_thread_user_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<std::collections::HashMap<String, String>>,
