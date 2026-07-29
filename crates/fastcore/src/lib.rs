@@ -1856,6 +1856,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:recount-threads",
                 post(recount_threads_route),
             )
+            // The same two copies, compared rather than repaired. The
+            // gate for reading from the per-user one.
+            .route(
+                "/v1/admin/maintenance:shadow-counts",
+                post(shadow_counts_route),
+            )
             // Engine-side reconciliation for the declared table: drift
             // recheck per compiled index plus a column-type spot check.
             .route(
@@ -4297,6 +4303,55 @@ async fn table_verify_route(
 ///
 /// `done` is true when the page came back short, meaning the caller has
 /// reached the end of this user's threads.
+/// `POST /v1/admin/maintenance:shadow-counts?user=&offset=&limit=`
+///
+/// Compares the shared thread row's counters against this user's own
+/// before the read path moves to the latter (RFC 20260730 S3).
+///
+/// `diverged_single` is the number to act on: a thread only this
+/// account holds, where the two copies disagree, means a writer updated
+/// one and not the other. It has to be zero before S4 flips the read.
+/// `diverged_shared` is the double-counting being fixed showing up as
+/// intended, and is expected to be non-zero.
+async fn shadow_counts_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(user) = q.get("user") else {
+        let users = state.mailbox.list_account_addresses().unwrap_or_default();
+        return Json(serde_json::json!({ "users": users })).into_response();
+    };
+    let offset: i64 = q.get("offset").and_then(|v| v.parse().ok()).unwrap_or(0);
+    let limit: i64 = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(500);
+
+    match state.mailbox.shadow_thread_counts(user, offset, limit) {
+        Ok(r) => {
+            if r.diverged_single > 0 {
+                tracing::warn!(
+                    %user, diverged_single = r.diverged_single,
+                    "thread counter copies disagree on threads only this account holds"
+                );
+            }
+            Json(serde_json::json!({
+                "user": user,
+                "offset": offset,
+                "limit": limit,
+                "scanned": r.scanned,
+                "agreed": r.agreed,
+                "diverged_single": r.diverged_single,
+                "diverged_shared": r.diverged_shared,
+                "samples": r.samples,
+                "done": (r.scanned as i64) < limit,
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, %user, "shadow count report failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 /// `POST /v1/admin/maintenance:recount-threads?user=&offset=&limit=`
 ///
 /// Rebuilds `count` / `unread_count` / `sent_count` from the per-thread

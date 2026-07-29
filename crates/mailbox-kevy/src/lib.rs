@@ -79,6 +79,7 @@ mod move_category;
 mod mutations;
 mod recount;
 mod rethread;
+mod shadow_counts;
 mod thread_row;
 pub use list_threads::ListThreadsFilter;
 pub use mailrs_mailbox::threading::normalize_subject;
