@@ -175,18 +175,17 @@ async fn build_upstream_urls(domain: &str) -> Vec<String> {
 /// (the URL of the brand-verified SVG). Returns `None` if the DNS
 /// query fails or the record has no `l=` tag.
 async fn bimi_lookup(domain: &str) -> Option<String> {
-    use hickory_resolver::TokioAsyncResolver;
-    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
-    let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
+    use hickory_resolver::TokioResolver;
+    let resolver = TokioResolver::builder_tokio()
+        .and_then(|b| b.build())
+        .ok()?;
     let record = format!("default._bimi.{domain}");
     let lookup = resolver.txt_lookup(&record).await.ok()?;
-    for txt in lookup.iter() {
-        let joined: String = txt
-            .txt_data()
-            .iter()
-            .flat_map(|b| std::str::from_utf8(b).ok().map(str::to_owned))
-            .collect::<Vec<_>>()
-            .join("");
+    for record in lookup.answers() {
+        let hickory_resolver::proto::rr::RData::TXT(txt) = &record.data else {
+            continue;
+        };
+        let joined = txt.to_string();
         for kv in joined.split(';') {
             let kv = kv.trim();
             if let Some(v) = kv.strip_prefix("l=") {
