@@ -510,11 +510,15 @@ fn enqueue_redirect(
         .unwrap_or(0);
     mailrs_core_sidestate::families::outbound::write_fresh_pending(
         &mut conn,
-        &mail_from,
-        target,
-        &b64_body,
-        None,
-        Some(reverse_path),
+        &mailrs_core_sidestate::families::outbound::FreshPending {
+            sender: &mail_from,
+            recipient: target,
+            message_data_base64: &b64_body,
+            scheduled_at: None,
+            original_sender: Some(reverse_path),
+            // A sieve redirect forwards mail the user did not write.
+            send_id: None,
+        },
         now,
     )?;
     Ok(())

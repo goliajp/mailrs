@@ -244,11 +244,15 @@ fn enqueue_report_email(url: &str, to: &str, email: &[u8]) -> std::io::Result<()
     // ever actually submitted.
     mailrs_core_sidestate::families::outbound::write_fresh_pending(
         &mut conn,
-        "<>",
-        to,
-        &base64::engine::general_purpose::STANDARD.encode(email),
-        None,
-        Some("<>"),
+        &mailrs_core_sidestate::families::outbound::FreshPending {
+            sender: "<>",
+            recipient: to,
+            message_data_base64: &base64::engine::general_purpose::STANDARD.encode(email),
+            scheduled_at: None,
+            original_sender: Some("<>"),
+            // Generated, not composed — no Send row.
+            send_id: None,
+        },
         now,
     )?;
     Ok(())

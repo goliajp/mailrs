@@ -75,6 +75,7 @@ fn read_row(conn: &mut kevy_client::Connection, id: i64) -> Option<OutboundMessa
     let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
     Some(OutboundMessageWire {
         id,
+        send_id: v.get("send_id").and_then(|x| x.as_str()).map(String::from),
         sender: v.get("sender")?.as_str()?.to_string(),
         recipient: v.get("recipient")?.as_str()?.to_string(),
         original_sender: v
@@ -124,15 +125,42 @@ fn write_row(conn: &mut kevy_client::Connection, row: &OutboundMessageWire) {
 /// `mailrs:outbound:job:{id}` + `pending-idx`, so no send delivered).
 ///
 /// Returns the allocated id.
+/// One outbound job to enqueue.
+///
+/// Named fields rather than positional arguments because four of them
+/// are string-ish and adjacent — `sender`, `recipient`,
+/// `original_sender`, `send_id`. Swapping any two compiles cleanly and
+/// silently misroutes mail; clippy flagged the arity and it was right,
+/// so this removes the class rather than silencing the lint.
+pub struct FreshPending<'a> {
+    /// Envelope sender (SMTP MAIL FROM).
+    pub sender: &'a str,
+    /// Envelope recipient — one job per recipient.
+    pub recipient: &'a str,
+    pub message_data_base64: &'a str,
+    /// Future send time; `None` delivers as soon as the sender claims it.
+    pub scheduled_at: Option<i64>,
+    /// Pre-SRS sender for forwarded mail.
+    pub original_sender: Option<&'a str>,
+    /// The Send this job belongs to, when a user composed it. `None` for
+    /// generated mail — tls-rpt reports, bounce DSNs, sieve redirects —
+    /// which must not appear in anyone's Send list.
+    pub send_id: Option<&'a str>,
+}
+
 pub fn write_fresh_pending(
     conn: &mut kevy_client::Connection,
-    sender: &str,
-    recipient: &str,
-    message_data_base64: &str,
-    scheduled_at: Option<i64>,
-    original_sender: Option<&str>,
+    job: &FreshPending<'_>,
     now: i64,
 ) -> std::io::Result<i64> {
+    let FreshPending {
+        sender,
+        recipient,
+        message_data_base64,
+        scheduled_at,
+        original_sender,
+        send_id,
+    } = *job;
     let id = conn
         .incr(b"mailrs:outbound:counter")
         .map_err(std::io::Error::other)?;
@@ -149,6 +177,7 @@ pub fn write_fresh_pending(
         scheduled_at,
         created_at: now,
         updated_at: now,
+        send_id: send_id.map(String::from),
     };
     let blob = row_blob(&row);
     let job_k = job_key(id);
@@ -226,11 +255,17 @@ pub async fn enqueue<S: NetKevy>(
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     let id = write_fresh_pending(
         &mut conn,
-        &req.sender,
-        &req.recipient,
-        &req.message_data_base64,
-        req.scheduled_at,
-        req.original_sender.as_deref(),
+        &FreshPending {
+            sender: &req.sender,
+            recipient: &req.recipient,
+            message_data_base64: &req.message_data_base64,
+            scheduled_at: req.scheduled_at,
+            original_sender: req.original_sender.as_deref(),
+            // No Send row: this RPC enqueues mail nobody composed in the
+            // UI (tls-rpt, bounces). A missing group is the honest
+            // answer, not an invented one.
+            send_id: None,
+        },
         now_secs(),
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -249,6 +284,9 @@ fn row_blob(row: &OutboundMessageWire) -> String {
         "attempts": row.attempts, "last_error": row.last_error,
         "next_retry": row.next_retry, "scheduled_at": row.scheduled_at,
         "created_at": row.created_at, "updated_at": row.updated_at,
+        // Without this the field round-trips as None and the sender can
+        // never find the Send row to report an outcome against.
+        "send_id": row.send_id,
     })
     .to_string()
 }

@@ -839,6 +839,9 @@ fn enqueue_outbound_at(
     use base64::Engine as _;
     let b64 = base64::engine::general_purpose::STANDARD.encode(envelope);
     let sender = sender.to_string();
+    // The job carries the group so the sender can report a per-recipient
+    // outcome against the Send row (S2).
+    let send_id_owned: Option<String> = send_meta.as_ref().map(|m| m.message_id.to_string());
     for rcpt in recipients {
         let rcpt = rcpt.trim().to_string();
         if rcpt.is_empty() {
@@ -853,9 +856,19 @@ fn enqueue_outbound_at(
         let sender_c = sender.clone();
         let b64_c = b64.clone();
         let rcpt_c = rcpt.clone();
+        let send_id_c = send_id_owned.clone();
         with_kevy(move |c| {
             mailrs_core_sidestate::families::outbound::write_fresh_pending(
-                c, &sender_c, &rcpt_c, &b64_c, send_at, None, created,
+                c,
+                &mailrs_core_sidestate::families::outbound::FreshPending {
+                    sender: &sender_c,
+                    recipient: &rcpt_c,
+                    message_data_base64: &b64_c,
+                    scheduled_at: send_at,
+                    original_sender: None,
+                    send_id: send_id_c.as_deref(),
+                },
+                created,
             )
             .map(|_| ())
         })?;
@@ -1005,6 +1018,32 @@ async fn mirror_send_to_sender_view(
             format!("kevy:{message_id}")
         }
     };
+
+    // Attach the maildir blob to the Send row, which was written during
+    // the enqueue and could not know this yet: the file is produced here,
+    // afterwards. Resend re-enqueues these bytes and re-edit parses them
+    // back into compose fields, so without this both buttons have nothing
+    // to act on (RFC 20260730-send-status S2).
+    //
+    // A synthetic `kevy:` ref means the maildir write failed — the bytes
+    // are not on disk, so it is recorded as-is rather than pretending a
+    // file exists. Resend has to refuse on those rather than re-enqueue
+    // an envelope it cannot read.
+    if !is_draft {
+        let user_c = user.to_string();
+        let send_id = message_id.to_string();
+        let blob_c = blob_ref.clone();
+        if let Err(code) = with_kevy(move |c| {
+            mailrs_core_sidestate::families::send::set_envelope_ref(c, &user_c, &send_id, &blob_c)
+        }) {
+            tracing::warn!(
+                %user, %message_id, ?code,
+                "mirror_send: envelope_ref not attached — resend and re-edit \
+                 will be unavailable for this send"
+            );
+        }
+    }
+
     // Mark as read (sent) or draft in the maildir tag.
     if !blob_ref.is_empty() && !blob_ref.starts_with("kevy:") {
         let flag = if is_draft {
