@@ -55,10 +55,24 @@ impl KevyMailboxStore {
         let Some(mut row) = self.get_thread(tid)? else {
             return Ok(false);
         };
-        let Some((count, unread, sent)) = self.recount_from_messages(user, tid)? else {
-            // No messages to count from — leave the row alone rather
-            // than zeroing a thread whose index has not been built yet.
-            return Ok(false);
+        let (count, unread, sent) = match self.recount_from_messages(user, tid)? {
+            Some(counted) => counted,
+            None => {
+                // No messages to count from. Zeroing would erase a
+                // thread whose index has not been built yet, but
+                // leaving the per-user row unwritten is worse: it reads
+                // as zero anyway, and once S4 serves counts from it the
+                // thread renders as empty. 182 of lihao's threads on
+                // prod are in this state — an aggregate row with no
+                // message entities behind it — and the S3 shadow report
+                // is how they surfaced.
+                //
+                // The per-user row has to be able to answer for every
+                // thread it exists for. When the messages cannot say,
+                // the shared row is the only information there is, so
+                // carry it over rather than inventing a zero.
+                (row.count, row.unread_count, row.sent_count)
+            }
         };
 
         let tu_key = keys::thread_user(user, tid);
@@ -349,13 +363,41 @@ mod tests {
     }
 
     #[test]
-    fn a_thread_with_no_indexed_messages_is_not_zeroed() {
+    /// A thread whose aggregate row has no message entities behind it —
+    /// 182 of one prod account's threads, found by the S3 shadow report.
+    ///
+    /// The count cannot be derived, so neither copy may be zeroed. It
+    /// also may not be left unwritten: an absent per-user field reads as
+    /// zero, so once S4 serves counts from that row the thread would
+    /// render empty. The shared value carries over.
+    fn a_thread_with_no_indexed_messages_carries_the_shared_count_over() {
         let s = store();
         s.record_message_arrival(&arrival("t1", "u@x.com", "alice@y.com", false))
             .unwrap();
+        // Wipe the per-user copy to model a row that predates S1.
+        s.store()
+            .hdel(
+                keys::thread_user("u@x.com", "t1").as_bytes(),
+                &[b"count" as &[u8], b"unread_count", b"sent_count"],
+            )
+            .unwrap();
 
-        assert!(!s.repair_thread_counts("u@x.com", "t1").unwrap());
-        assert_eq!(s.get_thread("t1").unwrap().unwrap().count, 1);
+        assert!(s.repair_thread_counts("u@x.com", "t1").unwrap());
+
+        assert_eq!(
+            s.get_thread("t1").unwrap().unwrap().count,
+            1,
+            "the shared row must not be zeroed"
+        );
+        let per_user = s
+            .store()
+            .hget(keys::thread_user("u@x.com", "t1").as_bytes(), b"count")
+            .unwrap();
+        assert_eq!(
+            per_user.as_deref(),
+            Some(b"1" as &[u8]),
+            "and the per-user row must answer, not stay absent"
+        );
     }
 
     #[test]
