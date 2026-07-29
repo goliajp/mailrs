@@ -50,10 +50,15 @@ impl KevyMailboxStore {
             // unread_count 1` would count from 0 → 1 and light the
             // row back up. Writing an explicit zero prevents that.
             ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
-            // Mirror onto the membership row the table reads from.
+            // Mirror onto the membership row the table reads from —
+            // both the flag the index keys on and the per-user counter
+            // the arrival path increments. Zeroing only the shared
+            // row's counter would leave this user's count standing
+            // after they read the thread (RFC 20260730 S1: every
+            // writer of a counter maintains both copies of it).
             ctx.hset(
                 keys::thread_user(user, thread_id).as_bytes(),
-                &[(b"unread" as &[u8], b"0")],
+                &[(b"unread" as &[u8], b"0" as &[u8]), (b"unread_count", b"0")],
             )?;
             Ok(exists)
         });
