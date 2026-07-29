@@ -77,6 +77,7 @@ mod message_arrival;
 mod messages;
 mod move_category;
 mod mutations;
+mod recount;
 mod rethread;
 mod thread_row;
 pub use list_threads::ListThreadsFilter;
