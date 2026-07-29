@@ -818,11 +818,21 @@ async fn inline_forward_content(state: &Arc<WebState>, user: &str, parts: &mut C
 /// lands in the `mailrs:outbound:scheduled` zset (scored by send time)
 /// instead of the pending list; the sender's due-sweep promotes it to
 /// pending when the time arrives (G13). Past / None sends immediately.
+/// Enqueue an outbound message and record the send.
+///
+/// `send_meta` carries what the Send view renders. It is written with
+/// `?`, in this fallible step, on purpose: a send that returns 200 must
+/// have its Send row, and a send whose row cannot be written must not be
+/// sent. The alternative is what this replaces —
+/// `mirror_send_to_sender_view`, which records the same fact
+/// best-effort, returns `()`, and left a delivered mail invisible in
+/// Sent for 1m42s on 2026-07-30 (RFC 20260730-send-status).
 fn enqueue_outbound_at(
     sender: &str,
     recipients: &[String],
     envelope: &[u8],
     scheduled_at: Option<i64>,
+    send_meta: Option<SendMeta<'_>>,
 ) -> Result<(), StatusCode> {
     let created = now_secs();
     let send_at = scheduled_at.filter(|t| *t > created);
@@ -850,7 +860,45 @@ fn enqueue_outbound_at(
             .map(|_| ())
         })?;
     }
+
+    if let Some(meta) = send_meta {
+        use mailrs_core_sidestate::families::send as sendfam;
+        let row = sendfam::SendRow {
+            send_id: meta.message_id.to_string(),
+            message_id: meta.message_id.to_string(),
+            thread_id: meta.thread_id.to_string(),
+            subject: meta.subject.to_string(),
+            to_csv: meta.to.join(","),
+            cc_csv: meta.cc.join(","),
+            created_at: created,
+            status: if send_at.is_some() {
+                sendfam::Status::Scheduled
+            } else {
+                sendfam::Status::Sending
+            },
+            envelope_ref: meta.envelope_ref.to_string(),
+            resent_from: meta.resent_from.map(str::to_string),
+        };
+        let user = sender.clone();
+        let rcpts: Vec<String> = recipients.to_vec();
+        with_kevy(move |c| sendfam::write_send(c, &user, &row, &rcpts))?;
+    }
     Ok(())
+}
+
+/// What the Send view renders, handed to [`enqueue_outbound_at`] so the
+/// row lands in the same fallible step as the queue write.
+struct SendMeta<'a> {
+    message_id: &'a str,
+    thread_id: &'a str,
+    subject: &'a str,
+    to: &'a [String],
+    cc: &'a [String],
+    /// Maildir blob holding the RFC 5322 bytes — resend re-enqueues
+    /// these, re-edit parses them back. Empty until the mirror has
+    /// written the file, which happens after this call; S2 fills it in.
+    envelope_ref: &'a str,
+    resent_from: Option<&'a str>,
 }
 
 /// Take the first ~120 chars of `body` (or html-stripped `html_body`
@@ -1146,7 +1194,26 @@ pub async fn send_message(
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    enqueue_outbound_at(&user, &recipients, &envelope, parts.scheduled_at)?;
+    // The Send row lands here, inside the fallible step, so a 200
+    // implies it exists. `thread_id` mirrors what
+    // `mirror_send_to_sender_view` derives for a fresh send: its own
+    // Message-ID when the mail starts a conversation.
+    let send_meta = SendMeta {
+        message_id: &message_id,
+        thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+        subject: &parts.subject,
+        to: &parts.to,
+        cc: &parts.cc,
+        envelope_ref: "",
+        resent_from: None,
+    };
+    enqueue_outbound_at(
+        &user,
+        &recipients,
+        &envelope,
+        parts.scheduled_at,
+        Some(send_meta),
+    )?;
     mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
@@ -1191,8 +1258,23 @@ pub async fn send_email_mcp(
     let (message_id, envelope) = build_rfc5322(&parts, from);
     // Same call the REST send handler uses — a future `scheduled_at`
     // lands the id in the scheduled zset instead of pending.
-    enqueue_outbound_at(auth_user, &recipients, &envelope, parts.scheduled_at)
-        .map_err(|c| format!("enqueue failed ({c})"))?;
+    let send_meta = SendMeta {
+        message_id: &message_id,
+        thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+        subject: &parts.subject,
+        to: &parts.to,
+        cc: &parts.cc,
+        envelope_ref: "",
+        resent_from: None,
+    };
+    enqueue_outbound_at(
+        auth_user,
+        &recipients,
+        &envelope,
+        parts.scheduled_at,
+        Some(send_meta),
+    )
+    .map_err(|c| format!("enqueue failed ({c})"))?;
     mirror_send_to_sender_view(state, auth_user, &parts, &envelope, &message_id, false).await;
     Ok(message_id)
 }
@@ -1261,13 +1343,112 @@ pub async fn send_message_multipart(
     recipients.extend(parts.bcc.clone());
     let from = parts.from.clone();
     let (message_id, envelope) = build_rfc5322(&parts, &from);
-    enqueue_outbound_at(&user, &recipients, &envelope, parts.scheduled_at)?;
+    // The Send row lands here, inside the fallible step, so a 200
+    // implies it exists. `thread_id` mirrors what
+    // `mirror_send_to_sender_view` derives for a fresh send: its own
+    // Message-ID when the mail starts a conversation.
+    let send_meta = SendMeta {
+        message_id: &message_id,
+        thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+        subject: &parts.subject,
+        to: &parts.to,
+        cc: &parts.cc,
+        envelope_ref: "",
+        resent_from: None,
+    };
+    enqueue_outbound_at(
+        &user,
+        &recipients,
+        &envelope,
+        parts.scheduled_at,
+        Some(send_meta),
+    )?;
     mirror_send_to_sender_view(&state, &user, &parts, &envelope, &message_id, false).await;
     Ok(Json(SendResponse {
         message_id,
         success: true,
         message: None,
     }))
+}
+
+#[cfg(test)]
+mod send_meta_tests {
+    use super::*;
+
+    fn parts_for(subject: &str, to: &[&str], in_reply_to: Option<&str>) -> ComposeParts {
+        ComposeParts {
+            from: "me@x.com".into(),
+            to: to.iter().map(|s| s.to_string()).collect(),
+            cc: vec![],
+            bcc: vec![],
+            subject: subject.into(),
+            body: "body".into(),
+            html_body: String::new(),
+            in_reply_to: in_reply_to.map(String::from),
+            forward_message_id: None,
+            attachments: Vec::new(),
+            scheduled_at: None,
+        }
+    }
+
+    /// A fresh send starts its own conversation, so the thread is its own
+    /// Message-ID — the same derivation `mirror_send_to_sender_view` uses,
+    /// asserted here so the Send row and the thread copy cannot disagree
+    /// about which conversation a send belongs to.
+    #[test]
+    fn a_new_send_threads_on_its_own_message_id() {
+        let parts = parts_for("hello", &["a@y.com"], None);
+        let (message_id, _envelope) = build_rfc5322(&parts, &parts.from);
+        let meta = SendMeta {
+            message_id: &message_id,
+            thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+            subject: &parts.subject,
+            to: &parts.to,
+            cc: &parts.cc,
+            envelope_ref: "",
+            resent_from: None,
+        };
+        assert_eq!(meta.thread_id, message_id);
+    }
+
+    #[test]
+    fn a_reply_threads_on_its_parent() {
+        let parts = parts_for("re: hello", &["a@y.com"], Some("parent@y.com"));
+        let (message_id, _envelope) = build_rfc5322(&parts, &parts.from);
+        let meta = SendMeta {
+            message_id: &message_id,
+            thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
+            subject: &parts.subject,
+            to: &parts.to,
+            cc: &parts.cc,
+            envelope_ref: "",
+            resent_from: None,
+        };
+        assert_eq!(meta.thread_id, "parent@y.com");
+        assert_ne!(meta.thread_id, message_id);
+    }
+
+    /// The row a send returns 200 with has to describe every recipient
+    /// the envelope went to, or the Send view under-reports who was
+    /// mailed — and `partial` becomes unreachable for the case it exists
+    /// for.
+    #[test]
+    fn the_row_covers_to_and_cc() {
+        let mut parts = parts_for("hi", &["a@y.com", "b@y.com"], None);
+        parts.cc = vec!["c@y.com".into()];
+        let (message_id, _envelope) = build_rfc5322(&parts, &parts.from);
+        let meta = SendMeta {
+            message_id: &message_id,
+            thread_id: &message_id,
+            subject: &parts.subject,
+            to: &parts.to,
+            cc: &parts.cc,
+            envelope_ref: "",
+            resent_from: None,
+        };
+        assert_eq!(meta.to.len(), 2);
+        assert_eq!(meta.cc.len(), 1);
+    }
 }
 
 #[cfg(test)]
