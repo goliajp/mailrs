@@ -34,10 +34,17 @@ GHCR="ghcr.io/goliajp/mailrs:$VERSION"
 PROD="root@t02.golia.jp"
 cd "$(dirname "$0")/.."
 
-if [ -n "$(git status --porcelain)" ]; then
-    echo "!! working tree dirty — commit first (deploys must be reproducible)"
-    exit 1
-fi
+assert_clean_tree() {
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "!! working tree dirty — commit first (deploys must be reproducible)"
+        echo "!! $(git status --porcelain | wc -l | tr -d ' ') path(s):"
+        git status --porcelain | head -10
+        exit 1
+    fi
+}
+
+HEAD_AT_START="$(git rev-parse HEAD)"
+assert_clean_tree
 
 if [ "${SKIP_GATE:-0}" != 1 ]; then
     echo "==> [0/5] gate: fmt + clippy + test + perf"
@@ -60,6 +67,18 @@ if [ "${SKIP_GATE:-0}" != 1 ]; then
     ./scripts/perf-gates.sh
 else
     echo "!! [0/5] SKIP_GATE=1 — shipping unverified code to prod"
+fi
+
+# The gate takes minutes and `docker buildx build .` sends the working
+# directory, not the commit — so a tree edited while the gate ran ships
+# code the gate never saw and no commit records. Checking once at the
+# top does not cover that window; this one caught nothing on 2026-07-30
+# only because the deploy was killed by hand.
+assert_clean_tree
+if [ "$(git rev-parse HEAD)" != "$HEAD_AT_START" ]; then
+    echo "!! HEAD moved during the gate ($HEAD_AT_START -> $(git rev-parse HEAD))"
+    echo "!! the gate verified a different commit than this would ship"
+    exit 1
 fi
 
 if [ "${SKIP_BUILD:-0}" != 1 ]; then
