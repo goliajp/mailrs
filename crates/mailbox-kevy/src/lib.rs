@@ -104,6 +104,16 @@ impl KevyMailboxStore {
         // (subsequent boots) are swallowed by `idx_create`'s own
         // idempotency contract.
         s.ensure_admin_indexes();
+        // The thread axes are READ from the declared table, so a store
+        // that never declared it answers every thread query with
+        // nothing — no error, just empty. That was left to the caller
+        // and 34 call sites paired it with `new()` by hand; the ones
+        // that forgot (fastcore's own test helper, the core-sync
+        // round-trip, and all three `bin/` backfill tools) read empty
+        // and reported success. Declaring here is idempotent — the
+        // method early-returns when the live spec already matches — so
+        // the pairing cannot come apart.
+        s.ensure_thread_table();
         s
     }
 
