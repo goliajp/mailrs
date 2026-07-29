@@ -114,10 +114,13 @@ pub async fn authorize(
     // redirect_uri they wanted, harvesting authorization codes.
     let cid_key = format!("oidc:client:{}", q.client_id);
     let cid_r = cid_key.clone();
-    let registered_ru = with_kevy(move |c| c.hget(cid_r.as_bytes(), b"redirect_uri"))
-        .ok()
-        .flatten()
-        .and_then(|v| String::from_utf8(v).ok());
+    let registered_ru = with_kevy(move |c| {
+        c.hget(cid_r.as_bytes(), b"redirect_uri")
+            .map_err(std::io::Error::other)
+    })
+    .ok()
+    .flatten()
+    .and_then(|v| String::from_utf8(v).ok());
     let Some(ru) = registered_ru else {
         return (
             StatusCode::BAD_REQUEST,
@@ -157,14 +160,16 @@ pub async fn authorize(
                 (b"scope", scope.as_bytes()),
                 (b"expires_at", expires_at.to_string().as_bytes()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         // Belt-and-braces: also set kevy TTL so a stolen code can't
         // outlast expires_at even if the token endpoint is DoS'd and
         // the exp check is somehow skipped.
         c.expire(
             code_key_c.as_bytes(),
             std::time::Duration::from_secs(AUTH_CODE_TTL_SECS as u64),
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     });
     // Percent-encode state so a value containing `&` / `#` / `=` doesn't
@@ -209,7 +214,10 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
                     .into_response();
             };
             let code_key = format!("oidc:code:{code}");
-            let flat = match with_kevy(move |c| c.hgetall(code_key.as_bytes())) {
+            let flat = match with_kevy(move |c| {
+                c.hgetall(code_key.as_bytes())
+                    .map_err(std::io::Error::other)
+            }) {
                 Ok(v) => v,
                 Err(_) => {
                     return (
@@ -291,12 +299,14 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
             // Verify client_secret unless the client was registered
             // as a public (PKCE-only) client (secret field empty).
             let ci = client_id.clone();
-            let registered_secret =
-                with_kevy(move |c| c.hget(format!("oidc:client:{ci}").as_bytes(), b"secret"))
-                    .ok()
-                    .flatten()
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
+            let registered_secret = with_kevy(move |c| {
+                c.hget(format!("oidc:client:{ci}").as_bytes(), b"secret")
+                    .map_err(std::io::Error::other)
+            })
+            .ok()
+            .flatten()
+            .and_then(|v| String::from_utf8(v).ok())
+            .unwrap_or_default();
             if !registered_secret.is_empty() {
                 let presented = req.client_secret.as_deref().unwrap_or("");
                 // Constant-time compare (bytewise XOR fold).
@@ -335,7 +345,8 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
                         (b"scope", scope_c.as_bytes()),
                         (b"expires_at", expires.to_string().as_bytes()),
                     ],
-                )?;
+                )
+                .map_err(std::io::Error::other)?;
                 c.hset(
                     rt_key.as_bytes(),
                     &[
@@ -343,8 +354,10 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
                         (b"client_id", client_c.as_bytes()),
                         (b"scope", scope_c.as_bytes()),
                     ],
-                )?;
-                c.del(&[del_code_key.as_bytes()])?;
+                )
+                .map_err(std::io::Error::other)?;
+                c.del(&[del_code_key.as_bytes()])
+                    .map_err(std::io::Error::other)?;
                 Ok(())
             });
 
@@ -371,7 +384,9 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
                     .into_response();
             };
             let rt_key = format!("oidc:refresh:{refresh}");
-            let flat = with_kevy(move |c| c.hgetall(rt_key.as_bytes())).unwrap_or_default();
+            let flat =
+                with_kevy(move |c| c.hgetall(rt_key.as_bytes()).map_err(std::io::Error::other))
+                    .unwrap_or_default();
             if flat.is_empty() {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -406,7 +421,8 @@ pub async fn token(Form(req): Form<TokenRequest>) -> impl IntoResponse {
                         (b"scope", scope_c.as_bytes()),
                         (b"expires_at", expires.to_string().as_bytes()),
                     ],
-                )?;
+                )
+                .map_err(std::io::Error::other)?;
                 Ok(())
             });
             (
@@ -449,7 +465,8 @@ pub async fn userinfo(headers: axum::http::HeaderMap) -> impl IntoResponse {
             .into_response();
     };
     let key = format!("oidc:token:{token}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes())).unwrap_or_default();
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+        .unwrap_or_default();
     if flat.is_empty() {
         return (
             StatusCode::UNAUTHORIZED,
@@ -578,12 +595,17 @@ pub struct CreateOauthClientResponse {
 pub async fn list_oauth_clients(
     Extension(_user): Extension<AuthedUser>,
 ) -> Json<serde_json::Value> {
-    let members = with_kevy(|c| c.smembers(b"oidc:clients:index")).unwrap_or_default();
+    let members = with_kevy(|c| {
+        c.smembers(b"oidc:clients:index")
+            .map_err(std::io::Error::other)
+    })
+    .unwrap_or_default();
     let mut items = Vec::new();
     for m in members {
         if let Ok(cid) = String::from_utf8(m) {
             let key = format!("oidc:client:{cid}");
-            let flat = with_kevy(move |c| c.hgetall(key.as_bytes())).unwrap_or_default();
+            let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+                .unwrap_or_default();
             let mut fields = std::collections::HashMap::new();
             let mut i = 0;
             while i + 1 < flat.len() {
@@ -640,8 +662,10 @@ pub async fn create_oauth_client(
                 (b"scopes", scopes_c.as_bytes()),
                 (b"created_at", now.to_string().as_bytes()),
             ],
-        )?;
-        c.sadd(b"oidc:clients:index", &[cid_c.as_bytes()])?;
+        )
+        .map_err(std::io::Error::other)?;
+        c.sadd(b"oidc:clients:index", &[cid_c.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     });
     Json(CreateOauthClientResponse {
@@ -661,8 +685,9 @@ pub async fn delete_oauth_client(
     let key = format!("oidc:client:{client_id}");
     let cid_c = client_id.clone();
     let _ = with_kevy(move |c| {
-        c.del(&[key.as_bytes()])?;
-        c.srem(b"oidc:clients:index", &[cid_c.as_bytes()])?;
+        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
+        c.srem(b"oidc:clients:index", &[cid_c.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     });
     StatusCode::NO_CONTENT

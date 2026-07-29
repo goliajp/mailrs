@@ -92,14 +92,84 @@ fn original_headers(original: &[u8]) -> Vec<u8> {
     slice[..end].to_vec()
 }
 
+/// The two identities a DSN needs, read from the environment.
+///
+/// Returns `(reporting_mta, from_domain)`. They are deliberately
+/// separate values — see [`compose_dsn`] for why conflating them
+/// breaks either RFC 3464 or DMARC.
+///
+/// - `reporting_mta` ← `MAILRS_HELO_HOSTNAME`
+/// - `from_domain` ← `MAILRS_DSN_FROM_DOMAIN`, falling back to
+///   `reporting_mta` so an unset variable preserves the old behaviour.
+pub fn dsn_identity() -> (String, String) {
+    let reporting_mta =
+        std::env::var("MAILRS_HELO_HOSTNAME").unwrap_or_else(|_| DEFAULT_REPORTING_MTA.into());
+    let from_domain = match std::env::var("MAILRS_DSN_FROM_DOMAIN") {
+        Ok(d) if !d.trim().is_empty() => d.trim().to_string(),
+        _ => organisational_domain(&reporting_mta),
+    };
+    (reporting_mta, from_domain)
+}
+
+/// Reduce a hostname to its registrable domain — `mail.golia.ai` →
+/// `golia.ai`. Returns the input unchanged when the public-suffix list
+/// cannot parse it (a bare hostname, an address literal).
+///
+/// The fallback path uses this instead of the MTA hostname directly,
+/// and the distinction is not cosmetic. A DSN `From:` on a *subdomain*
+/// is evaluated against the organisational domain's `sp=` rather than
+/// its `p=`, and needs a DKIM key published for that exact subdomain to
+/// align. Neither is usually true, so falling back to the hostname
+/// produces bounces that fail DMARC under a stricter policy than the
+/// domain's own mail.
+///
+/// This was a live defect: v2.10.0 set MAILRS_HELO_HOSTNAME to a real
+/// FQDN while one of the two containers was missing
+/// MAILRS_DSN_FROM_DOMAIN, so its bounces went out as
+/// MAILER-DAEMON@mail.golia.ai — squarely under `sp=reject`. The
+/// earlier `mailrs` default had been accidentally safe, because a
+/// nonexistent domain has no policy to be rejected by. Config is still
+/// the right place to set this; the fallback just no longer picks a
+/// value that is worse than picking nothing.
+fn organisational_domain(host: &str) -> String {
+    let host = host.trim().trim_end_matches('.');
+    match psl::domain_str(host) {
+        Some(d) => d.to_string(),
+        None => host.to_string(),
+    }
+}
+
+/// Fallback when `MAILRS_HELO_HOSTNAME` is unset.
+///
+/// Not a valid FQDN, and deliberately so: it is obviously wrong in
+/// logs and headers rather than quietly plausible. Production must set
+/// the variable.
+const DEFAULT_REPORTING_MTA: &str = "mailrs";
+
 /// Compose an RFC 3464 multipart/report DSN.
 ///
-/// `reporting_mta` — our HELO hostname; `original_sender` — the local
-/// user who sent the failed message (DSN recipient); `failed_recipient`
-/// — the remote address that failed; `diagnostic` — remote SMTP reply
-/// or local reason.
+/// Two distinct identities, because their requirements conflict:
+///
+/// - `reporting_mta` — the **MTA's hostname**. RFC 3464 §2.2.2 wants a
+///   DNS name for the `Reporting-MTA:` field, so this must be the host
+///   that actually handled the message (e.g. `mail.golia.ai`), matching
+///   the sending IP's PTR.
+/// - `from_domain` — the domain in `MAILER-DAEMON@…`. This one is
+///   subject to DMARC at the receiving end, so it must be a domain we
+///   can align a DKIM signature to. Using the MTA hostname here puts a
+///   *subdomain* in `From:`, which falls under `sp=` rather than `p=`
+///   and needs a signing key published for that exact subdomain.
+///
+/// Postfix draws the same line (`Reporting-MTA` from `myhostname`,
+/// the envelope from `myorigin`). Passing one value for both is what
+/// produced `MAILER-DAEMON@mailrs` in production.
+///
+/// `original_sender` — the local user who sent the failed message (DSN
+/// recipient); `failed_recipient` — the remote address that failed;
+/// `diagnostic` — remote SMTP reply or local reason.
 pub fn compose_dsn(
     reporting_mta: &str,
+    from_domain: &str,
     original_sender: &str,
     failed_recipient: &str,
     status: &str,
@@ -111,7 +181,9 @@ pub fn compose_dsn(
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let boundary = format!("=_mailrs_dsn_{now}");
-    let dsn_mid = format!("<dsn-{now}-{}@{reporting_mta}>", now % 997);
+    // Message-ID shares the From: domain — a Message-ID whose domain
+    // does not resolve is another reputation signal.
+    let dsn_mid = format!("<dsn-{now}-{}@{from_domain}>", now % 997);
     let (orig_mid, orig_refs) = threading_headers(original);
     let date = chrono::DateTime::from_timestamp(now as i64, 0)
         .map(|d| d.to_rfc2822())
@@ -119,7 +191,7 @@ pub fn compose_dsn(
 
     let mut h = String::new();
     h.push_str(&format!(
-        "From: Mail Delivery System <MAILER-DAEMON@{reporting_mta}>\r\n"
+        "From: Mail Delivery System <MAILER-DAEMON@{from_domain}>\r\n"
     ));
     h.push_str(&format!("To: <{original_sender}>\r\n"));
     h.push_str("Subject: Undelivered Mail Returned to Sender\r\n");
@@ -196,7 +268,7 @@ pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<
 }
 
 fn drain_one(state: &Arc<FastcoreState>, url: &str, maildir_root: &str) {
-    let Ok(mut conn) = kevy_client::Connection::open(url) else {
+    let Ok(mut conn) = kevy_client::Connection::connect(url) else {
         return;
     };
     // First pop blocks up to 10 s (matches prior wake-up cadence); after
@@ -295,6 +367,7 @@ mod tests {
         let orig = b"Message-ID: <orig@x.y>\r\nReferences: <root@x.y>\r\nSubject: hi\r\n\r\nbody";
         let dsn = compose_dsn(
             "mx.test",
+            "test.example",
             "sender@x.y",
             "gone@remote.z",
             "5.1.1",
@@ -313,9 +386,99 @@ mod tests {
     }
 
     #[test]
+    fn dsn_separates_reporting_mta_from_the_sender_domain() {
+        // The MTA hostname belongs in Reporting-MTA (RFC 3464 §2.2.2);
+        // the From: domain has to be DMARC-alignable. Conflating them
+        // is what shipped MAILER-DAEMON@mailrs to production.
+        let dsn = compose_dsn(
+            "mail.golia.ai",
+            "golia.ai",
+            "sender@golia.ai",
+            "gone@remote.z",
+            "5.1.1",
+            "550 no such user",
+            b"Subject: hi\r\n\r\nbody",
+        );
+        let text = String::from_utf8_lossy(&dsn);
+
+        assert!(
+            text.contains("From: Mail Delivery System <MAILER-DAEMON@golia.ai>"),
+            "From: must use the alignable domain, not the MTA hostname"
+        );
+        assert!(
+            text.contains("Reporting-MTA: dns; mail.golia.ai"),
+            "Reporting-MTA must be the MTA hostname"
+        );
+        assert!(text.contains("This is the mail system at mail.golia.ai."));
+        assert!(
+            text.contains("@golia.ai>\r\n"),
+            "Message-ID must share the From: domain so it resolves"
+        );
+    }
+
+    #[test]
+    fn dsn_identity_prefers_explicit_config() {
+        unsafe {
+            std::env::set_var("MAILRS_HELO_HOSTNAME", "mail.golia.ai");
+            std::env::set_var("MAILRS_DSN_FROM_DOMAIN", "golia.ai");
+        }
+        let (mta, from) = dsn_identity();
+        assert_eq!(mta, "mail.golia.ai");
+        assert_eq!(from, "golia.ai");
+
+        unsafe {
+            std::env::remove_var("MAILRS_HELO_HOSTNAME");
+            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
+        }
+    }
+
+    #[test]
+    fn dsn_identity_fallback_never_yields_a_subdomain() {
+        // The regression this guards: a deployment that sets a real
+        // FQDN for HELO but forgets MAILRS_DSN_FROM_DOMAIN used to send
+        // bounces From: a subdomain, which is judged by sp= and has no
+        // aligned key. Falling back to the organisational domain keeps
+        // the bounce under the same policy as the domain's own mail.
+        unsafe {
+            std::env::set_var("MAILRS_HELO_HOSTNAME", "mail.golia.ai");
+            std::env::remove_var("MAILRS_DSN_FROM_DOMAIN");
+        }
+        let (mta, from) = dsn_identity();
+
+        assert_eq!(mta, "mail.golia.ai", "Reporting-MTA stays the host");
+        assert_eq!(from, "golia.ai", "From: drops to the organisational domain");
+
+        unsafe {
+            std::env::remove_var("MAILRS_HELO_HOSTNAME");
+        }
+    }
+
+    #[test]
+    fn organisational_domain_reduces_subdomains() {
+        assert_eq!(organisational_domain("mail.golia.ai"), "golia.ai");
+        assert_eq!(organisational_domain("a.b.c.golia.jp"), "golia.jp");
+        assert_eq!(organisational_domain("mail.golia.ai."), "golia.ai");
+    }
+
+    #[test]
+    fn organisational_domain_leaves_a_registrable_domain_alone() {
+        assert_eq!(organisational_domain("golia.ai"), "golia.ai");
+        assert_eq!(organisational_domain("dadaya.jp"), "dadaya.jp");
+    }
+
+    #[test]
+    fn organisational_domain_passes_through_what_it_cannot_parse() {
+        // The bare-hostname default. Not a valid From: domain either
+        // way, but it must not panic or silently become something else.
+        assert_eq!(organisational_domain("mailrs"), "mailrs");
+        assert_eq!(organisational_domain(""), "");
+    }
+
+    #[test]
     fn dsn_without_original_mid_still_valid() {
         let dsn = compose_dsn(
             "mx.test",
+            "test.example",
             "s@x.y",
             "r@z.w",
             "5.0.0",

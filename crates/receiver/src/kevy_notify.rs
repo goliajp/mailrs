@@ -83,7 +83,11 @@ impl KevyEventPublisher {
         let channel = self.channel.clone();
         tokio::spawn(async move {
             let _ = tokio::task::spawn_blocking(move || {
-                client.with_conn(|c| c.publish(&channel, &json).map(|_| ()))
+                client.with_conn(|c| {
+                    c.publish(&channel, &json)
+                        .map(|_| ())
+                        .map_err(std::io::Error::other)
+                })
             })
             .await;
         });
@@ -110,7 +114,7 @@ pub fn spawn_kevy_notify_bridge(url: String, channel: Vec<u8>, origin: String, b
 
 fn notify_bridge_loop(url: &str, channel: &[u8], origin: &str, bus: &EventBus) {
     loop {
-        if let Ok(mut sub) = Subscriber::open(url, &[channel]) {
+        if let Ok(mut sub) = Subscriber::connect_channels(url, &[channel]) {
             // drain until the connection errors, then fall through to
             // reconnect.
             while let Ok((_chan, payload)) = sub.recv_message() {

@@ -156,7 +156,7 @@ fn scrub_contact_hashes(users: &[String]) -> u64 {
     let Some(url) = crate::live_sync::network_kevy_url() else {
         return 0;
     };
-    let Ok(mut conn) = kevy_client::Connection::open(&url) else {
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
         return 0;
     };
     let mut repaired = 0u64;

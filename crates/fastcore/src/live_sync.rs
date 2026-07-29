@@ -56,7 +56,7 @@ pub fn upsert_contacts(user: &str, senders_csv: &str) {
     let Some(url) = network_kevy_url() else {
         return;
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
     let key = format!("mailrs:user:{user}:contacts");
@@ -80,7 +80,7 @@ pub fn audit_system(action: &str, target: &str, detail: &str) {
     let Some(url) = network_kevy_url() else {
         return;
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
     let now = std::time::SystemTime::now()
@@ -118,7 +118,7 @@ pub fn publish_new_mail(user: &str, thread_id: &str, sender: &str, subject: &str
     let Some(url) = network_kevy_url() else {
         return;
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
     let payload = serde_json::json!({
@@ -163,7 +163,7 @@ pub fn adjust_usage_bytes(user: &str, delta: i64) {
     let Some(url) = network_kevy_url() else {
         return;
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
     let key = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
@@ -177,7 +177,7 @@ pub fn mirror_quota_limit(user: &str, limit_bytes: i64) {
     let Some(url) = network_kevy_url() else {
         return;
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
     let key = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());
@@ -190,7 +190,7 @@ pub fn quota_read(user: &str) -> (i64, i64) {
     let Some(url) = network_kevy_url() else {
         return (0, 0);
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return (0, 0);
     };
     let lk = format!("mailrs:quota:{}:limit_bytes", user.to_lowercase());

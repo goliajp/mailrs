@@ -276,7 +276,7 @@ where
 
 fn kevy() -> Option<Connection> {
     let url = std::env::var("MAILRS_KEVY_URL").ok()?;
-    Connection::open(&url).ok()
+    Connection::connect(&url).ok()
 }
 
 fn store_script(user: &str, body: &str) -> bool {

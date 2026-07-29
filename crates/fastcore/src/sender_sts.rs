@@ -78,14 +78,14 @@ fn cache_key(domain: &str) -> String {
 }
 
 fn cache_get(kevy_url: &str, domain: &str) -> Option<Policy> {
-    let mut conn = kevy_client::Connection::open(kevy_url).ok()?;
+    let mut conn = kevy_client::Connection::connect(kevy_url).ok()?;
     let raw = conn.get(cache_key(domain).as_bytes()).ok().flatten()?;
     let body = String::from_utf8(raw).ok()?;
     Policy::parse(&body).ok()
 }
 
 fn cache_put(kevy_url: &str, domain: &str, body: &str, max_age: u64) {
-    let Ok(mut conn) = kevy_client::Connection::open(kevy_url) else {
+    let Ok(mut conn) = kevy_client::Connection::connect(kevy_url) else {
         return;
     };
     let key = cache_key(domain);

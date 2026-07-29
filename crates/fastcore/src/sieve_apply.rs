@@ -200,7 +200,7 @@ pub fn maybe_vacation_reply(recipient: &str, envelope_from: &str, raw: &[u8], va
     let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
         return;
     };
-    let Ok(mut conn) = Connection::open(&url) else {
+    let Ok(mut conn) = Connection::connect(&url) else {
         return;
     };
     let handle = vac.handle.clone().unwrap_or_else(|| "default".into());
@@ -286,7 +286,7 @@ fn enqueue_vacation_outbound(conn: &mut Connection, to: &str, body: &[u8]) -> st
 /// Read `sieve:<address>` from the network kevy. Empty / unset → None.
 fn fetch_script(address: &str) -> Option<String> {
     let url = std::env::var("MAILRS_KEVY_URL").ok()?;
-    let mut conn = Connection::open(&url).ok()?;
+    let mut conn = Connection::connect(&url).ok()?;
     let key = format!("sieve:{address}");
     let raw = conn.get(key.as_bytes()).ok().flatten()?;
     let script = String::from_utf8(raw).ok()?;

@@ -13,18 +13,15 @@ use super::keys;
 
 impl KevyMailboxStore {
     /// Mark `thread_id` as seen for `user` — zero the unread counter
-    /// Sweep every unread thread for `user` — walks the
-    /// `user:<u>:threads:has_unread` zset and calls `mark_seen` on each.
+    /// Sweep every unread thread for `user` — reads the unread axis
+    /// off the declared table and calls `mark_seen` on each.
     /// Returns the number of threads flipped. Idempotent: a second call
     /// with no unread threads returns 0.
     pub fn mark_all_seen(&self, user: &str) -> io::Result<u32> {
-        let idx = keys::user_threads_has_unread(user);
-        let members = self.store().zrange(idx.as_bytes(), 0, -1)?;
+        let members = self.list_thread_ids_by_flag_via_table(user, "unread", 100_000, 0, None)?;
         let mut flipped = 0u32;
-        for (tid_bytes, _score) in members {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &members {
+            let tid = tid.as_str();
             // Copy the tid so we don't borrow across the mark_seen call
             // (which reads from other zsets internally).
             let tid = tid.to_string();
@@ -42,7 +39,6 @@ impl KevyMailboxStore {
     /// count actually flipped); `false` if the row doesn't exist.
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let idx = keys::user_threads_has_unread(user);
         let found = self.store().atomic(|ctx| {
             let exists = ctx.hexists(thread_key.as_bytes(), b"unread_count")?;
             // Always drop from the has_unread index AND always plant
@@ -53,31 +49,43 @@ impl KevyMailboxStore {
             // no persistent zero. Any subsequent `hincrby thread:<tid>
             // unread_count 1` would count from 0 → 1 and light the
             // row back up. Writing an explicit zero prevents that.
-            ctx.zrem(idx.as_bytes(), &[thread_id.as_bytes()])?;
             ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
+            // Mirror onto the membership row the table reads from.
+            ctx.hset(
+                keys::thread_user(user, thread_id).as_bytes(),
+                &[(b"unread" as &[u8], b"0")],
+            )?;
             Ok(exists)
         });
-        let exists = found?;
+        let exists = found.map_err(std::io::Error::other)?;
         // Sink the \Seen fact into every per-message wire too. The
         // thread-hash zero above is a cache; the wires are what
         // self-heal recounts and what a rethread merge recounts from —
         // without this, a restart (self-heal) or a merge resurrected
         // already-read mail as unread (2026-07-17).
         let msgs_key = keys::thread_messages(thread_id);
-        let members = self.store().zrange(msgs_key.as_bytes(), 0, -1)?;
+        let members = self
+            .store()
+            .zrange(msgs_key.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
         for (mid_bytes, _score) in &members {
             let Ok(mid) = std::str::from_utf8(mid_bytes) else {
                 continue;
             };
             let blob_key = keys::message_blob(mid);
-            if let Some(bytes) = self.store().get(blob_key.as_bytes())?
+            if let Some(bytes) = self
+                .store()
+                .get(blob_key.as_bytes())
+                .map_err(std::io::Error::other)?
                 && let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes)
             {
                 let flags = wire["flags"].as_u64().unwrap_or(0);
                 if flags & 1 == 0 {
                     wire["flags"] = serde_json::Value::from(flags | 1);
                     if let Ok(payload) = serde_json::to_vec(&wire) {
-                        self.store().set(blob_key.as_bytes(), &payload)?;
+                        self.store()
+                            .set(blob_key.as_bytes(), &payload)
+                            .map_err(std::io::Error::other)?;
                     }
                 }
             }
@@ -94,8 +102,13 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     fn arr<'a>(tid: &'a str, user: &'a str, unread: bool) -> MessageArrival<'a> {
@@ -113,19 +126,19 @@ mod tests {
     }
 
     #[test]
-    fn mark_seen_zeros_unread_and_drops_from_index() {
+    fn mark_seen_zeros_unread_and_drops_from_the_axis() {
         let s = store();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, true)).unwrap();
-        let unread_idx = keys::user_threads_has_unread(u);
-        assert_eq!(s.store().zcard(unread_idx.as_bytes()).unwrap(), 1);
+        let unread = || s.count_thread_ids_by_flag_via_table(u, "unread").unwrap();
+        assert_eq!(unread(), 1);
 
         let flipped = s.mark_seen(u, "t1").unwrap();
         assert!(flipped);
 
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.unread_count, 0);
-        assert_eq!(s.store().zcard(unread_idx.as_bytes()).unwrap(), 0);
+        assert_eq!(unread(), 0, "the unread axis must drop it");
     }
 
     #[test]
@@ -148,6 +161,8 @@ mod tests {
     #[test]
     fn list_after_mark_seen_excludes_from_has_unread_filter() {
         let s = store();
+        // the flag axes are served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         s.record_message_arrival(&arr("a", u, true)).unwrap();
         s.record_message_arrival(&arr("b", u, true)).unwrap();

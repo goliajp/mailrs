@@ -10,6 +10,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  ShieldCheck,
   Users,
 } from 'lucide-react'
 import { NavLink } from 'react-router'
@@ -24,6 +25,11 @@ const navItems = [
     icon: <Globe className="h-4 w-4" />,
     label: 'Domains',
     to: '/admin/domains',
+  },
+  {
+    icon: <ShieldCheck className="h-4 w-4" />,
+    label: 'DMARC',
+    to: '/admin/dmarc',
   },
   {
     icon: <Users className="h-4 w-4" />,

@@ -21,34 +21,36 @@ impl KevyMailboxStore {
         new_category: &str,
     ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
-        let new_idx = keys::user_threads_by_category(user, new_category);
-        self.store().atomic(|ctx| {
-            let old = ctx
-                .hget(thread_key.as_bytes(), b"category")?
-                .and_then(|v| String::from_utf8(v).ok());
-            let Some(old) = old else {
-                return Ok(false);
-            };
-            if old == new_category {
-                return Ok(true);
-            }
-            let score = ctx
-                .hget(thread_key.as_bytes(), b"latest_date")?
-                .and_then(|v| {
-                    std::str::from_utf8(&v)
-                        .ok()
-                        .and_then(|s| s.parse::<i64>().ok())
-                })
-                .unwrap_or(0);
-            ctx.hset(
-                thread_key.as_bytes(),
-                &[(b"category" as &[u8], new_category.as_bytes())],
-            )?;
-            let old_idx = keys::user_threads_by_category(user, &old);
-            ctx.zrem(old_idx.as_bytes(), &[thread_id.as_bytes()])?;
-            ctx.zadd(new_idx.as_bytes(), &[(score as f64, thread_id.as_bytes())])?;
-            Ok(true)
-        })
+        self.store()
+            .atomic(|ctx| {
+                let old = ctx
+                    .hget(thread_key.as_bytes(), b"category")?
+                    .and_then(|v| String::from_utf8(v).ok());
+                let Some(old) = old else {
+                    return Ok(false);
+                };
+                if old == new_category {
+                    return Ok(true);
+                }
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"category" as &[u8], new_category.as_bytes())],
+                )?;
+                // The membership row is what the bucket and category
+                // axes read; the engine derives both indexes from it.
+                ctx.hset(
+                    keys::thread_user(user, thread_id).as_bytes(),
+                    &[
+                        (b"category".as_slice(), new_category.as_bytes()),
+                        (
+                            b"bucket".as_slice(),
+                            keys::bucket_of(new_category).name().as_bytes(),
+                        ),
+                    ],
+                )?;
+                Ok(true)
+            })
+            .map_err(std::io::Error::other)
     }
 }
 
@@ -60,8 +62,13 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     fn arr<'a>(tid: &'a str, user: &'a str, category: &'a str) -> MessageArrival<'a> {
@@ -84,15 +91,14 @@ mod tests {
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, "inbox")).unwrap();
 
-        let inbox = keys::user_threads_by_category(u, "inbox");
-        let social = keys::user_threads_by_category(u, "social");
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
-        assert_eq!(s.store().zcard(social.as_bytes()).unwrap(), 0);
+        let count = |cat: &str| s.count_thread_ids_by_category_via_table(u, cat).unwrap();
+        assert_eq!(count("inbox"), 1);
+        assert_eq!(count("social"), 0);
 
         assert!(s.move_category(u, "t1", "social").unwrap());
 
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(social.as_bytes()).unwrap(), 1);
+        assert_eq!(count("inbox"), 0, "the old category must let it go");
+        assert_eq!(count("social"), 1, "the new one must hold it");
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.category, "social");
     }
@@ -103,9 +109,12 @@ mod tests {
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, "inbox")).unwrap();
         assert!(s.move_category(u, "t1", "inbox").unwrap());
-        // Still 1 row in inbox, nothing in any other category zset.
-        let inbox = keys::user_threads_by_category(u, "inbox");
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
+        // Still exactly one thread on the inbox category axis.
+        assert_eq!(
+            s.count_thread_ids_by_category_via_table(u, "inbox")
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -117,6 +126,8 @@ mod tests {
     #[test]
     fn list_filter_picks_up_new_category() {
         let s = store();
+        // the category axis is served from the declared table
+        s.ensure_thread_table();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, "inbox")).unwrap();
         s.move_category(u, "t1", "promotions").unwrap();

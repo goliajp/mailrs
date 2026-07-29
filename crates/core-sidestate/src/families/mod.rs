@@ -7,3 +7,4 @@ pub mod contacts;
 pub mod groups_admin;
 pub mod outbound;
 pub mod prefs;
+pub mod suppression;

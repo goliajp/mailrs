@@ -586,6 +586,18 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/admin/accounts/{address}/webhook-subscriptions",
             get(handlers::admin::list_webhooks),
         )
+        .route(
+            "/api/admin/dmarc/reports",
+            get(handlers::dmarc::list_reports),
+        )
+        .route(
+            "/api/admin/dmarc/reports/{sid}",
+            get(handlers::dmarc::get_report),
+        )
+        .route(
+            "/api/admin/dmarc/sources",
+            get(handlers::dmarc::list_sources),
+        )
         .route("/api/admin/audit-log", get(handlers::admin::list_audit_log))
         .route(
             "/api/admin/audit-log/export",
@@ -783,7 +795,8 @@ async fn health_handler(
     // Cheap kevy round-trip. Any success => backend healthy; any error
     // => backend unreachable. Runs on the shared shard connection, no
     // fresh TCP per request.
-    let kevy_ok = handlers::kevy_util::with_kevy(|c| c.ping()).is_ok();
+    let kevy_ok =
+        handlers::kevy_util::with_kevy(|c| c.ping().map_err(std::io::Error::other)).is_ok();
     axum::Json(serde_json::json!({
         "status": if kevy_ok { "healthy" } else { "degraded" },
         "ok": kevy_ok,

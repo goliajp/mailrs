@@ -1389,6 +1389,7 @@ checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+ "zlib-rs",
 ]
 
 [[package]]
@@ -2547,18 +2548,18 @@ dependencies = [
 
 [[package]]
 name = "kevy-bytes"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac4c7f3877daa30aff51bf9bbdda7abe60a0b5670d3301e4de9d91a188809bf6"
+checksum = "f06230adcb608d9c372ec8948188d08e12a6b23fb11364388c9dd2d524b7bf54"
 dependencies = [
  "kevy-hash",
 ]
 
 [[package]]
 name = "kevy-client"
-version = "1.14.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98253041c7752e3c2ec25f06f56f8fa7a07624dc21eb466dc9387e51735e1ee2"
+checksum = "1f87c756b9f60b083e6a37b771eda381e30d5cc5c3e3a5c4a077e808bf5ee15f"
 dependencies = [
  "kevy-embedded",
  "kevy-hash",
@@ -2568,9 +2569,9 @@ dependencies = [
 
 [[package]]
 name = "kevy-embedded"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38945ba24109b366ca2466a2b68b36116c35dd9c5cb549ec81e8b106e9e63f14"
+checksum = "f35be602ecf5a72d7f8748125fbb8e8b709fad3077591cd453517d21a06f0952"
 dependencies = [
  "kevy-hash",
  "kevy-index",
@@ -2578,33 +2579,34 @@ dependencies = [
  "kevy-replicate",
  "kevy-resp",
  "kevy-store",
+ "kevy-sys",
  "kevy-text",
  "kevy-vector",
 ]
 
 [[package]]
 name = "kevy-hash"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db90e74823b21f895a0359783da5e7ef49e14a07849268cb0cd133e084d82229"
+checksum = "fb54ffef9063267b08c3d070d58fd3aaefa00438729cfe68331035b812ff645b"
 
 [[package]]
 name = "kevy-index"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9e1722c365d71428ea34a35078d710fdf1f3b59aa025af00497cafda8923075"
+checksum = "0eee1245f4122fa6c397e0b805b5d3fc80eed30363410c79a4a405b0ed5e0b3f"
 
 [[package]]
 name = "kevy-madvise"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be089ccc8dd7298e6cec220b9e4688107d5674c5517f0aca63ec4bf86c0af7cd"
+checksum = "38a9478c7b13cfb6aaf8ed099d01ae2e3facbec64fdb1cf1f0efb5ac978b7f5e"
 
 [[package]]
 name = "kevy-map"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c1771af94344781638929f86226bf4bb59ec77034f6709f3353bd3d46defd1c"
+checksum = "fd463c9fa07fd3ed6eca45fa32e2155a961b1435f8322f325ce5501b65109bc3"
 dependencies = [
  "kevy-hash",
  "kevy-madvise",
@@ -2612,63 +2614,87 @@ dependencies = [
 
 [[package]]
 name = "kevy-persist"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8dc77e208aec72dea81158233c5db501ab3fab74cc20da834e3949874754f1a"
+checksum = "c594cbae9942e38f685ee64c9e3aa7aa28210b9f2b9bb2e9c8b77419684beecb"
 dependencies = [
  "kevy-resp",
  "kevy-store",
+ "kevy-sys",
 ]
 
 [[package]]
-name = "kevy-replicate"
-version = "3.18.0"
+name = "kevy-ranktree"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "203b4aa7269b94277a286143f3b0515af20aa3b886d73af3f5e34af1e79b0171"
+checksum = "2b680e347ba384dc0d29ac3ec587ebaee9f4157bc68bb31d7890e2d86c63f1c0"
+
+[[package]]
+name = "kevy-replicate"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfe026492e356d4c15f04cfae081fa2daa6808d8bd79bb33e285befbd81b8219"
 dependencies = [
  "kevy-resp",
 ]
 
 [[package]]
 name = "kevy-resp"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d0a42b588f0b237eb98884f575538a7732d43d8e51a1e62492a3bfc7cee2277"
+checksum = "afd7c2de626dfedb72f321b6c76a6bc6c3724e6af2134923f74bbb8c37400a7e"
 dependencies = [
  "kevy-bytes",
 ]
 
 [[package]]
 name = "kevy-resp-client"
-version = "3.17.3"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55b22d8a5d929eaa26cf7f79868b657c91c694063452cdc82ddaad9e4cf6881a"
+checksum = "1ee3598158e95deafd8ae70b9661e01c5fa84b8ab530410af13ecfa579ed7ed8"
 dependencies = [
  "kevy-resp",
 ]
 
 [[package]]
 name = "kevy-store"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa869eaee59158843ad085929958de984b4c0497eef05e36c35cb8590385af6"
+checksum = "82133219571e726e3acacab21bee517a2abcdb2f9c67beb97f917d9f7d073aa1"
 dependencies = [
  "kevy-bytes",
  "kevy-hash",
  "kevy-map",
+ "kevy-ranktree",
+ "kevy-vlog",
 ]
 
 [[package]]
-name = "kevy-text"
-version = "3.18.0"
+name = "kevy-sys"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d5724ce18629c77c9e12e0c7112eeae22aeb0f8bd1f2138f1119106e9c1d542"
+checksum = "6582b38c6f37efd50478b84c33c6adfdfd22e07789fce7b6e307bcaaaf16e0a1"
+
+[[package]]
+name = "kevy-text"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3baa959a74cbd39b8923b6e4fc2dfa73eebd08ed1ef3ac51192b251e9a46d31"
 
 [[package]]
 name = "kevy-vector"
-version = "3.18.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6620422bd7b2ca755e70a620ef20e786da14cd9943ef0bb59ca8b5369fd3ac"
+checksum = "6723e1ac63a7cad1b55cda778f8948705cbbae96bf7f6afa3ff7c091e5ec0680"
+
+[[package]]
+name = "kevy-vlog"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88d21c51e84fcb92dcdeb0535725d3c75ea6ac88b58e325381563f5e3863432e"
+dependencies = [
+ "kevy-sys",
+]
 
 [[package]]
 name = "lazy_static"
@@ -3181,11 +3207,15 @@ dependencies = [
  "criterion 0.8.2",
  "flate2",
  "mailrs-mail-builder 1.0.0",
+ "mailrs-mime",
  "psl",
+ "quick-xml 0.41.0",
+ "serde",
  "spg-sqlx",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",
+ "zip",
 ]
 
 [[package]]
@@ -3233,11 +3263,15 @@ dependencies = [
  "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-alias-store",
  "mailrs-alias-store-net",
+ "mailrs-arc",
+ "mailrs-arf 1.0.0",
  "mailrs-bayes",
  "mailrs-clean 1.0.3",
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
+ "mailrs-dkim",
+ "mailrs-dmarc",
  "mailrs-imap-codec 1.0.0",
  "mailrs-imap-format 1.0.0",
  "mailrs-imap-proto 1.0.5",
@@ -3256,6 +3290,7 @@ dependencies = [
  "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-triage",
  "password-hash",
+ "psl",
  "rand_core 0.6.4",
  "reqwest 0.13.4",
  "rustls",
@@ -3440,6 +3475,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "kevy-embedded",
+ "kevy-index",
  "mailrs-alias-store",
  "mailrs-mailbox",
  "serde",
@@ -4836,9 +4872,9 @@ dependencies = [
 
 [[package]]
 name = "psl"
-version = "2.1.213"
+version = "2.1.222"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04e78830163eebdf905adb55ba26ba9b3ba554b08bd84c2fbe3b643c8addf22c"
+checksum = "33fa2bb454bd1a4e046f36c4e8b60f034143ce14d09cfbf4608a65619e9f8611"
 dependencies = [
  "psl-types",
 ]
@@ -4899,6 +4935,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
+dependencies = [
+ "memchr",
+ "serde",
 ]
 
 [[package]]
@@ -7733,13 +7779,32 @@ dependencies = [
  "indexmap 2.14.0",
  "memchr",
  "typed-path",
+ "zopfli",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b142a20ec14a91d5bc708c1dc21b080c550113d8aa77afa29635673a65dd02c5"
 
 [[package]]
 name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+
+[[package]]
+name = "zopfli"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249"
+dependencies = [
+ "bumpalo",
+ "crc32fast",
+ "log",
+ "simd-adler32",
+]
 
 [[package]]
 name = "zune-core"

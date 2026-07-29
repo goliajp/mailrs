@@ -31,7 +31,7 @@ where
 {
     let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::open(&url)?;
+        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
         f(&mut c)
     });
     handle
@@ -51,10 +51,11 @@ fn now_secs() -> i64 {
 fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Result<i64> {
     // v2 Stage B.2: single-op INCR — kevy-side atomic, no race.
     c.incr(counter_key.as_bytes())
+        .map_err(std::io::Error::other)
 }
 
 fn hgetall_values(c: &mut kevy_client::Connection, key: &str) -> std::io::Result<Vec<Vec<u8>>> {
-    let flat = c.hgetall(key.as_bytes())?;
+    let flat = c.hgetall(key.as_bytes()).map_err(std::io::Error::other)?;
     Ok(flat
         .into_iter()
         .enumerate()
@@ -358,7 +359,8 @@ pub async fn create_webhook(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(
@@ -402,7 +404,8 @@ pub async fn delete_webhook(
         for addr_bytes in addrs {
             if let Ok(addr) = String::from_utf8(addr_bytes) {
                 let key = format!("{WEBHOOK_KEY_PREFIX}{addr}");
-                c.hdel(key.as_bytes(), &[id_str_c.as_bytes()])?;
+                c.hdel(key.as_bytes(), &[id_str_c.as_bytes()])
+                    .map_err(std::io::Error::other)?;
             }
         }
         Ok(())
@@ -450,7 +453,10 @@ pub async fn list_audit_log(
     } else {
         limit as i64
     };
-    let entries = with_kevy(move |c| c.lrange(AUDIT_KEY.as_bytes(), 0, scan - 1))?;
+    let entries = with_kevy(move |c| {
+        c.lrange(AUDIT_KEY.as_bytes(), 0, scan - 1)
+            .map_err(std::io::Error::other)
+    })?;
     let items: Vec<wire::AuditRowWire> = entries
         .into_iter()
         .filter_map(|v| serde_json::from_slice::<wire::AuditRowWire>(&v).ok())
@@ -477,7 +483,10 @@ pub async fn export_audit_log(
     Extension(_user): Extension<AuthedUser>,
     Query(q): Query<AuditQuery>,
 ) -> Result<Json<wire::AuditListResponse>, StatusCode> {
-    let entries = with_kevy(move |c| c.lrange(AUDIT_KEY.as_bytes(), 0, -1))?;
+    let entries = with_kevy(move |c| {
+        c.lrange(AUDIT_KEY.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)
+    })?;
     let items: Vec<wire::AuditRowWire> = entries
         .into_iter()
         .filter_map(|v| serde_json::from_slice::<wire::AuditRowWire>(&v).ok())
@@ -558,7 +567,10 @@ pub async fn get_account_quota(
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("mailrs:account:{address}");
-    let cur = with_kevy(move |c| c.hget(key.as_bytes(), b"blob"))?;
+    let cur = with_kevy(move |c| {
+        c.hget(key.as_bytes(), b"blob")
+            .map_err(std::io::Error::other)
+    })?;
     let Some(cur) = cur else {
         return Ok(Json(serde_json::json!({ "quota_bytes": null })));
     };
@@ -609,7 +621,7 @@ pub async fn get_account_sieve(
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("sieve:{address}");
-    let val = with_kevy(move |c| c.get(key.as_bytes()))?;
+    let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::other))?;
     Ok(Json(serde_json::json!({
         "script": val.and_then(|v| String::from_utf8(v).ok()).unwrap_or_default(),
     })))
@@ -629,7 +641,8 @@ pub async fn set_account_sieve(
     let key = format!("sieve:{address}");
     super::audit::record(&actor, "sieve.update", &address, "");
     with_kevy(move |c| {
-        c.set(key.as_bytes(), req.script.as_bytes())?;
+        c.set(key.as_bytes(), req.script.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -642,7 +655,7 @@ pub async fn delete_account_sieve(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("sieve:{address}");
     with_kevy(move |c| {
-        c.del(&[key.as_bytes()])?;
+        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(&actor, "sieve.delete", &address, "");
@@ -659,7 +672,7 @@ pub async fn list_account_groups(
     let addr_c = address.clone();
     // Read the account's own membership set: admin:account:<addr>:groups
     let key = format!("admin:account:{addr_c}:groups");
-    let members = with_kevy(move |c| c.smembers(key.as_bytes()))?;
+    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))?;
     let groups: Vec<String> = members
         .into_iter()
         .filter_map(|v| String::from_utf8(v).ok())
@@ -673,7 +686,7 @@ pub async fn get_account_overrides(
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("admin:account:{address}:overrides");
-    let val = with_kevy(move |c| c.get(key.as_bytes()))?;
+    let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::other))?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({}));
@@ -690,7 +703,8 @@ pub async fn set_account_overrides(
     let payload = serde_json::to_vec(&req).map_err(|_| StatusCode::BAD_REQUEST)?;
     let payload_c = payload.clone();
     with_kevy(move |c| {
-        c.set(key.as_bytes(), &payload_c)?;
+        c.set(key.as_bytes(), &payload_c)
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(
@@ -799,7 +813,10 @@ pub async fn list_suppressions(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let ids = with_kevy(|c| c.smembers(b"mailrs:outbound:suppression"))?;
+    let ids = with_kevy(|c| {
+        c.smembers(b"mailrs:outbound:suppression")
+            .map_err(std::io::Error::other)
+    })?;
     let items: Vec<String> = ids
         .into_iter()
         .filter_map(|v| String::from_utf8(v).ok())
@@ -812,7 +829,8 @@ pub async fn clear_suppressions(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
 ) -> Result<StatusCode, StatusCode> {
     with_kevy(|c| {
-        c.del(&[b"mailrs:outbound:suppression".as_slice()])?;
+        c.del(&[b"mailrs:outbound:suppression".as_slice()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(&actor, "suppressions.clear", "", "");
@@ -825,7 +843,7 @@ pub async fn list_email_group_members(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("admin:email-group:{id}:members");
-    let members = with_kevy(move |c| c.smembers(key.as_bytes()))?;
+    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))?;
     let items: Vec<String> = members
         .into_iter()
         .filter_map(|v| String::from_utf8(v).ok())
@@ -848,7 +866,8 @@ pub async fn add_email_group_member(
     let addr = req.address;
     let addr_c = addr.clone();
     with_kevy(move |c| {
-        c.sadd(key.as_bytes(), &[addr_c.as_bytes()])?;
+        c.sadd(key.as_bytes(), &[addr_c.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(&actor, "email_group.member_add", &id, &addr);
@@ -863,7 +882,8 @@ pub async fn remove_email_group_member(
     let key = format!("admin:email-group:{id}:members");
     let address_c = address.clone();
     with_kevy(move |c| {
-        c.srem(key.as_bytes(), &[address_c.as_bytes()])?;
+        c.srem(key.as_bytes(), &[address_c.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(&actor, "email_group.member_remove", &id, &address);
@@ -885,7 +905,8 @@ pub async fn set_app_scopes(
     let joined = req.scopes.join(",");
     let joined_c = joined.clone();
     with_kevy(move |c| {
-        c.set(key.as_bytes(), joined_c.as_bytes())?;
+        c.set(key.as_bytes(), joined_c.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     super::audit::record(&actor, "app.scopes_update", &app_id, &joined);
@@ -910,7 +931,7 @@ pub async fn get_rbl_status(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let val = with_kevy(|c| c.get(b"admin:rbl:status"))?;
+    let val = with_kevy(|c| c.get(b"admin:rbl:status").map_err(std::io::Error::other))?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({ "status": "unknown", "checked_at": null }));
@@ -923,7 +944,7 @@ pub async fn get_reputation(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let val = with_kevy(|c| c.get(b"admin:reputation"))?;
+    let val = with_kevy(|c| c.get(b"admin:reputation").map_err(std::io::Error::other))?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({ "score": null, "signals": [] }));
@@ -939,7 +960,10 @@ pub async fn get_spam_feedback_stats(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // We don't have SCAN in our kevy wrapper. Fall back to reading the
     // account index and iterating.
-    let accounts = with_kevy(|c| c.smembers(b"mailrs:accounts:index"))?;
+    let accounts = with_kevy(|c| {
+        c.smembers(b"mailrs:accounts:index")
+            .map_err(std::io::Error::other)
+    })?;
     let mut spam_total = 0u64;
     let mut ham_total = 0u64;
     let mut per_user = serde_json::Map::new();
@@ -948,7 +972,8 @@ pub async fn get_spam_feedback_stats(
             continue;
         };
         let key = format!("spam_feedback:{addr_s}");
-        let flat = with_kevy(move |c| c.hgetall(key.as_bytes())).unwrap_or_default();
+        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+            .unwrap_or_default();
         let mut spam = 0u64;
         let mut ham = 0u64;
         let mut i = 0;

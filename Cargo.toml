@@ -106,13 +106,13 @@ spg-embedded = "7.37"
 # would erase it silently. 3.18 also folds all 32 crates onto Rust
 # 1.97, matching our own `rust-toolchain.toml` pin. Zero pub-API
 # change per the release notes; version bump only, no code churn.
-kevy-embedded = "3.18"
+kevy-embedded = "4.0"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used only when MAILRS_KEVY_URL is set (receiver-split topology): the
 # anti subsystems (greylist / rate / auth-guard) read+write shared state
 # over the network instead of the in-process embedded Store. Blocking
 # `&mut self` client → wrapped in spawn_blocking. dogfood, same org.
-kevy-client = "1.14"
+kevy-client = "2.0"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }

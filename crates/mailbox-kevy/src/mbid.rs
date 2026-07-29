@@ -25,13 +25,18 @@ impl KevyMailboxStore {
         let id = mailbox_id(user, name);
         let val = format!("{user}\n{name}");
         self.store()
-            .set(format!("mailrs:mbid:{id}").as_bytes(), val.as_bytes())?;
+            .set(format!("mailrs:mbid:{id}").as_bytes(), val.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(id)
     }
 
     /// Resolve a mailbox id back to `(user, name)`.
     pub fn lookup_mailbox_id(&self, id: i64) -> io::Result<Option<(String, String)>> {
-        let Some(raw) = self.store().get(format!("mailrs:mbid:{id}").as_bytes())? else {
+        let Some(raw) = self
+            .store()
+            .get(format!("mailrs:mbid:{id}").as_bytes())
+            .map_err(std::io::Error::other)?
+        else {
             return Ok(None);
         };
         let s = String::from_utf8_lossy(&raw);
@@ -45,7 +50,8 @@ impl KevyMailboxStore {
     /// Drop a mailbox-id mapping (on delete).
     pub fn forget_mailbox_id(&self, id: i64) -> io::Result<()> {
         self.store()
-            .del(&[format!("mailrs:mbid:{id}").as_bytes()])?;
+            .del(&[format!("mailrs:mbid:{id}").as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 }

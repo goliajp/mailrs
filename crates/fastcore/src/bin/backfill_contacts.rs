@@ -44,7 +44,7 @@ fn main() {
 
     let net_url =
         std::env::var("MAILRS_KEVY_URL").expect("MAILRS_KEVY_URL required (network kevy)");
-    let mut net = kevy_client::Connection::open(&net_url).expect("open network kevy");
+    let mut net = kevy_client::Connection::connect(&net_url).expect("open network kevy");
 
     let users = mailbox
         .list_account_addresses()

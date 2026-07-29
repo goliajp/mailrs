@@ -44,7 +44,7 @@ fn user_bytes(base: &Path) -> u64 {
 fn main() {
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let url = std::env::var("MAILRS_KEVY_URL").expect("MAILRS_KEVY_URL required");
-    let mut conn = kevy_client::Connection::open(&url).expect("connect network kevy");
+    let mut conn = kevy_client::Connection::connect(&url).expect("connect network kevy");
 
     let mut users = 0u64;
     let Ok(domains) = std::fs::read_dir(&root) else {

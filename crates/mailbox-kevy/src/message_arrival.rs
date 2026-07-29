@@ -47,168 +47,113 @@ impl KevyMailboxStore {
     /// round trip.
     pub fn record_message_arrival(&self, m: &MessageArrival<'_>) -> io::Result<()> {
         let thread_key = keys::thread(m.thread_id);
-        let activity = keys::user_threads_by_activity(m.user);
-        let cat = keys::user_threads_by_category(m.user, m.category);
-        let has_unread = keys::user_threads_has_unread(m.user);
-        // v2.8.2 — folder membership on the ARRIVAL path. Prior to this
-        // only `upsert_thread` / `set_junk` maintained the folder zsets,
-        // so every thread ingested via this (the main) path was missing
-        // from the folder axis and the UI had to fall back to the mixed
-        // by_activity zset.
-        // v2.9 — the bucket axis is 4-way {inbox, notifications,
-        // promotions, junk}, derived purely from `category` via
-        // `bucket_of`. Exactly one holds a received thread.
-        let bucket = keys::bucket_of(m.category);
-        let bucket_zset = bucket.zset(m.user);
-        let other_buckets: Vec<String> = keys::Bucket::all_zsets(m.user)
-            .into_iter()
-            .filter(|k| *k != bucket_zset)
-            .collect();
-
         // Pre-build owned byte buffers — &str → Vec<u8> once, then
         // hand &[u8] refs into the atomic block.
         let subj = m.subject.as_bytes().to_vec();
         let date_s = m.latest_date.to_string().into_bytes();
         let preview = m.latest_preview.as_bytes().to_vec();
         let category = m.category.as_bytes().to_vec();
-        let tid_b = m.thread_id.as_bytes().to_vec();
 
-        self.store().atomic(|ctx| {
-            // senders_csv is the participant UNION, not "latest sender" —
-            // blindly overwriting meant a user's own reply erased every
-            // other participant and the Inbox row flipped to "Me"
-            // (2026-07-18). Merge case-insensitively, newest appended.
-            let merged_senders: Vec<u8> = {
-                let existing = ctx
-                    .hget(thread_key.as_bytes(), b"senders_csv")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let mut out: Vec<String> = Vec::new();
-                for part in existing.split(',').chain(m.senders_csv.split(',')) {
-                    let p = part.trim();
-                    if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
-                        out.push(p.to_string());
+        self.store()
+            .atomic(|ctx| {
+                // senders_csv is the participant UNION, not "latest sender" —
+                // blindly overwriting meant a user's own reply erased every
+                // other participant and the Inbox row flipped to "Me"
+                // (2026-07-18). Merge case-insensitively, newest appended.
+                let merged_senders: Vec<u8> = {
+                    let existing = ctx
+                        .hget(thread_key.as_bytes(), b"senders_csv")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_default();
+                    let mut out: Vec<String> = Vec::new();
+                    for part in existing.split(',').chain(m.senders_csv.split(',')) {
+                        let p = part.trim();
+                        if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
+                            out.push(p.to_string());
+                        }
                     }
+                    out.join(",").into_bytes()
+                };
+                // The row's display fields + list position follow the last
+                // INBOUND message only. The user's own reply must not
+                // re-date or re-title the Inbox row (2026-07-18) — an own
+                // write only seeds the fields when the thread is brand new
+                // (sent-only thread, nothing to preserve).
+                let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
+                // `search_blob` is the field the full-text index reads;
+                // it has to move in lockstep with the three fields it
+                // concatenates or search goes stale for this thread.
+                if !m.is_own || !have_display {
+                    let blob = keys::search_blob(
+                        m.subject,
+                        &String::from_utf8_lossy(&merged_senders),
+                        m.latest_preview,
+                    )
+                    .into_bytes();
+                    let pairs: &[(&[u8], &[u8])] = &[
+                        (b"subject", &subj),
+                        (b"senders_csv", &merged_senders),
+                        (b"latest_date", &date_s),
+                        (b"latest_preview", &preview),
+                        (b"category", &category),
+                        (keys::THREAD_SEARCH_FIELD, &blob),
+                    ];
+                    ctx.hset(thread_key.as_bytes(), pairs)?;
+                } else {
+                    // own send: only the participant union changed, but the
+                    // blob embeds it, so refresh both.
+                    let cur_subject = ctx
+                        .hget(thread_key.as_bytes(), b"subject")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_default();
+                    let cur_preview = ctx
+                        .hget(thread_key.as_bytes(), b"latest_preview")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_default();
+                    let blob = keys::search_blob(
+                        &cur_subject,
+                        &String::from_utf8_lossy(&merged_senders),
+                        &cur_preview,
+                    )
+                    .into_bytes();
+                    ctx.hset(
+                        thread_key.as_bytes(),
+                        &[
+                            (b"senders_csv" as &[u8], merged_senders.as_slice()),
+                            (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
+                        ],
+                    )?;
                 }
-                out.join(",").into_bytes()
-            };
-            // The row's display fields + list position follow the last
-            // INBOUND message only. The user's own reply must not
-            // re-date or re-title the Inbox row (2026-07-18) — an own
-            // write only seeds the fields when the thread is brand new
-            // (sent-only thread, nothing to preserve).
-            let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
-            // `search_blob` is the field the full-text index reads;
-            // it has to move in lockstep with the three fields it
-            // concatenates or search goes stale for this thread.
-            if !m.is_own || !have_display {
-                let blob = keys::search_blob(
-                    m.subject,
-                    &String::from_utf8_lossy(&merged_senders),
-                    m.latest_preview,
-                )
-                .into_bytes();
-                let pairs: &[(&[u8], &[u8])] = &[
-                    (b"subject", &subj),
-                    (b"senders_csv", &merged_senders),
-                    (b"latest_date", &date_s),
-                    (b"latest_preview", &preview),
-                    (b"category", &category),
-                    (keys::THREAD_SEARCH_FIELD, &blob),
-                ];
-                ctx.hset(thread_key.as_bytes(), pairs)?;
-            } else {
-                // own send: only the participant union changed, but the
-                // blob embeds it, so refresh both.
-                let cur_subject = ctx
-                    .hget(thread_key.as_bytes(), b"subject")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let cur_preview = ctx
-                    .hget(thread_key.as_bytes(), b"latest_preview")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .unwrap_or_default();
-                let blob = keys::search_blob(
-                    &cur_subject,
-                    &String::from_utf8_lossy(&merged_senders),
-                    &cur_preview,
-                )
-                .into_bytes();
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[
-                        (b"senders_csv" as &[u8], merged_senders.as_slice()),
-                        (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
-                    ],
-                )?;
-            }
-            // list-position score: the preserved display date for own
-            // writes, the fresh inbound date otherwise.
-            let score: f64 = if m.is_own && have_display {
-                ctx.hget(thread_key.as_bytes(), b"latest_date")?
-                    .and_then(|v| String::from_utf8(v).ok())
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(m.latest_date as f64)
-            } else {
-                m.latest_date as f64
-            };
-
-            // Atomic counters.
-            let total = ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
-            if m.is_own {
-                ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
-            }
-            let new_unread = if m.unread && !m.is_own {
-                ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?
-            } else {
-                // peek current unread; if positive the row still belongs
-                // in has_unread regardless of this write.
-                ctx.hget(thread_key.as_bytes(), b"unread_count")?
-                    .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
-                    .unwrap_or(0i64)
-            };
-            let sent = ctx
-                .hget(thread_key.as_bytes(), b"sent_count")?
-                .and_then(|v| std::str::from_utf8(&v).ok().and_then(|s| s.parse().ok()))
-                .unwrap_or(0i64);
-
-            // Activity / category index — scored on the display date so
-            // an own reply keeps the row where the last inbound left it.
-            ctx.zadd(activity.as_bytes(), &[(score, &tid_b)])?;
-            ctx.zadd(cat.as_bytes(), &[(score, &tid_b)])?;
-
-            // has_unread: zadd if and only if the post-arrival
-            // unread_count > 0. The closure can't zrem yet (1.15
-            // AtomicCtx lacks it), so a fast-read flag carries when
-            // the toggle has to flip the other way.
-            if new_unread > 0 {
-                ctx.zadd(has_unread.as_bytes(), &[(score, &tid_b)])?;
-            }
-
-            // Folder/bucket membership (v2.9). The thread joins exactly
-            // one of {inbox, notifications, promotions, junk} per
-            // `bucket_of(category)`, and is removed from the other three.
-            // A sent-only thread (total == sent, i.e. no received
-            // message) lives in the Sent axis alone — it must not
-            // surface in any inbound bucket; junk is the exception (a
-            // spam-classified thread belongs in Junk regardless).
-            if bucket == keys::Bucket::Junk || total > sent {
-                ctx.zadd(bucket_zset.as_bytes(), &[(score, &tid_b)])?;
-                for other in &other_buckets {
-                    ctx.zrem(other.as_bytes(), &[&tid_b])?;
+                // Atomic counters. The membership row is derived from
+                // the thread hash afterwards, so these no longer need
+                // to be read back here — but every increment still has
+                // to happen.
+                ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
+                if m.is_own {
+                    ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
                 }
-            } else {
-                // Sent-only (total == sent, non-junk): the thread belongs
-                // to the Sent axis alone. Self-heal any stale inbound-
-                // bucket membership left by an earlier upsert (e.g. a
-                // pg-dump import whose sent_count aggregate was 0 before
-                // fastcore recomputed it). Mirrors `upsert_thread`.
-                for z in keys::Bucket::all_zsets(m.user) {
-                    ctx.zrem(z.as_bytes(), &[&tid_b])?;
+                if m.unread && !m.is_own {
+                    ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?;
                 }
-            }
-            Ok(())
-        })
+
+                Ok(())
+            })
+            .map_err(std::io::Error::other)?;
+
+        // Membership row for the declared table. This is the main
+        // ingest path and it does not go through `upsert_thread`, so
+        // without this every arriving thread would be absent from
+        // every axis the table serves — the same shape of gap the
+        // v2.8.2 comment above describes for the folder zsets.
+        //
+        // Derived from the thread hash rather than from `m`: the row
+        // above is the merge of this arrival with whatever was already
+        // there, and the membership row has to describe the merged
+        // result, not just this message.
+        if let Some(row) = self.get_thread(m.thread_id)? {
+            self.write_thread_user_if_changed(m.user, &row)?;
+        }
+        Ok(())
     }
 }
 
@@ -219,9 +164,50 @@ mod tests {
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;
 
+    /// What the served axes say — the zsets these tests used to read
+    /// are gone, and these are the same questions asked of the rows
+    /// the engine now indexes.
+    fn bucket_count(s: &KevyMailboxStore, user: &str, bucket: &str) -> usize {
+        s.count_thread_ids_by_bucket_via_table(user, bucket)
+            .unwrap()
+    }
+    fn flag_count(s: &KevyMailboxStore, user: &str, flag: &str) -> usize {
+        s.count_thread_ids_by_flag_via_table(user, flag).unwrap()
+    }
+    fn total_count(s: &KevyMailboxStore, user: &str) -> usize {
+        s.count_thread_ids_by_activity_via_table(user).unwrap()
+    }
+    /// What the Inbox axis actually serves. Distinct from
+    /// `bucket_count`: Inbox reads the sent-excluding ORDERPATH, so a
+    /// thread the user only ever sent has `bucket = inbox` on its row
+    /// and is still correctly absent here.
+    fn inbox_ids(s: &KevyMailboxStore, user: &str) -> Vec<String> {
+        let f = crate::ListThreadsFilter {
+            folder: Some("Inbox"),
+            ..Default::default()
+        };
+        s.list_threads_by_activity(user, &f, 0, 1000)
+            .unwrap()
+            .0
+            .into_iter()
+            .map(|r| r.thread_id)
+            .collect()
+    }
+    fn in_bucket(s: &KevyMailboxStore, user: &str, bucket: &str, tid: &str) -> bool {
+        s.list_thread_ids_by_bucket_via_table(user, bucket, 1000)
+            .unwrap()
+            .iter()
+            .any(|t| t == tid)
+    }
+
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     fn arr<'a>(
@@ -256,13 +242,10 @@ mod tests {
         assert_eq!(row.unread_count, 1);
         assert_eq!(row.sent_count, 0);
         assert_eq!(row.latest_date, 100);
-        // appears in activity + category + has_unread
-        let act = keys::user_threads_by_activity("u@x.com");
-        let cat = keys::user_threads_by_category("u@x.com", "inbox");
-        let unread = keys::user_threads_has_unread("u@x.com");
-        assert_eq!(s.store().zcard(act.as_bytes()).unwrap(), 1);
-        assert_eq!(s.store().zcard(cat.as_bytes()).unwrap(), 1);
-        assert_eq!(s.store().zcard(unread.as_bytes()).unwrap(), 1);
+        // reachable on the default, bucket and unread axes
+        assert_eq!(total_count(&s, "u@x.com"), 1);
+        assert_eq!(bucket_count(&s, "u@x.com", "inbox"), 1);
+        assert_eq!(flag_count(&s, "u@x.com", "unread"), 1);
     }
 
     #[test]
@@ -277,12 +260,8 @@ mod tests {
         assert_eq!(row.count, 2);
         assert_eq!(row.unread_count, 2);
         assert_eq!(row.latest_date, 200);
-        // activity zset score updated
-        let act = keys::user_threads_by_activity("u@x.com");
-        assert_eq!(
-            s.store().zscore(act.as_bytes(), b"t1").unwrap(),
-            Some(200.0)
-        );
+        // and the axis still holds exactly the one thread
+        assert_eq!(total_count(&s, "u@x.com"), 1);
     }
 
     #[test]
@@ -293,9 +272,8 @@ mod tests {
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.sent_count, 1);
         assert_eq!(row.unread_count, 0);
-        // Without any unread, has_unread index stays empty.
-        let unread = keys::user_threads_has_unread("u@x.com");
-        assert_eq!(s.store().zcard(unread.as_bytes()).unwrap(), 0);
+        // Without any unread, the unread axis stays empty.
+        assert_eq!(flag_count(&s, "u@x.com", "unread"), 0);
     }
 
     #[test]
@@ -303,13 +281,8 @@ mod tests {
         let s = store();
         s.record_message_arrival(&arr("t1", "u@x.com", "Hi", 100, true))
             .unwrap();
-        let inbox = keys::user_threads_inbox("u@x.com");
-        let junk = keys::user_threads_junk("u@x.com");
-        assert_eq!(
-            s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
-            Some(100.0)
-        );
-        assert_eq!(s.store().zcard(junk.as_bytes()).unwrap(), 0);
+        assert!(in_bucket(&s, "u@x.com", "inbox", "t1"));
+        assert_eq!(bucket_count(&s, "u@x.com", "junk"), 0);
     }
 
     #[test]
@@ -318,13 +291,8 @@ mod tests {
         let mut a = arr("t1", "u@x.com", "V1AGRA", 100, true);
         a.category = "spam";
         s.record_message_arrival(&a).unwrap();
-        let inbox = keys::user_threads_inbox("u@x.com");
-        let junk = keys::user_threads_junk("u@x.com");
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
-        assert_eq!(
-            s.store().zscore(junk.as_bytes(), b"t1").unwrap(),
-            Some(100.0)
-        );
+        assert_eq!(bucket_count(&s, "u@x.com", "inbox"), 0);
+        assert!(in_bucket(&s, "u@x.com", "junk", "t1"));
     }
 
     #[test]
@@ -338,21 +306,12 @@ mod tests {
         p.category = "promotion";
         s.record_message_arrival(&p).unwrap();
 
-        let inbox = keys::user_threads_inbox(u);
-        let notif = keys::user_threads_notifications(u);
-        let promo = keys::user_threads_promotions(u);
         // Each lands only in its own bucket, never Inbox.
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
-        assert_eq!(
-            s.store().zscore(notif.as_bytes(), b"tn").unwrap(),
-            Some(100.0)
-        );
-        assert_eq!(
-            s.store().zscore(promo.as_bytes(), b"tp").unwrap(),
-            Some(200.0)
-        );
-        assert_eq!(s.store().zcard(notif.as_bytes()).unwrap(), 1);
-        assert_eq!(s.store().zcard(promo.as_bytes()).unwrap(), 1);
+        assert_eq!(bucket_count(&s, u, "inbox"), 0);
+        assert!(in_bucket(&s, u, "notifications", "tn"));
+        assert!(in_bucket(&s, u, "promotions", "tp"));
+        assert_eq!(bucket_count(&s, u, "notifications"), 1);
+        assert_eq!(bucket_count(&s, u, "promotions"), 1);
     }
 
     #[test]
@@ -386,30 +345,23 @@ mod tests {
         // Outbound-only write: count == sent_count → Sent axis only.
         s.record_message_arrival(&arr("t1", "u@x.com", "Outgoing", 100, false))
             .unwrap();
-        let inbox = keys::user_threads_inbox("u@x.com");
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
+        assert!(inbox_ids(&s, "u@x.com").is_empty());
         // A reply arriving later promotes the thread into Inbox.
         s.record_message_arrival(&arr("t1", "u@x.com", "Re: Outgoing", 200, true))
             .unwrap();
-        assert_eq!(
-            s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
-            Some(200.0)
-        );
+        assert_eq!(inbox_ids(&s, "u@x.com"), vec!["t1".to_string()]);
     }
 
     #[test]
-    fn sent_only_arrival_self_heals_stale_inbox_membership() {
+    fn a_sent_only_thread_never_reaches_the_inbox_axis() {
         let s = store();
         let u = "u@x.com";
-        // Simulate stale pg-dump state: a sent-only thread wrongly parked
-        // in the inbox zset (sent_count was 0 at import time).
-        let inbox = keys::user_threads_inbox(u);
-        s.store().zadd(inbox.as_bytes(), &[(100.0, b"t1")]).unwrap();
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 1);
-        // A sent-only arrival (count == sent_count) must scrub it out.
+        // A sent-only arrival must not surface in Inbox — the axis
+        // excludes it by construction now rather than by a scrubbing
+        // step, so there is no stale state left to heal.
         s.record_message_arrival(&arr("t1", u, "Outgoing", 100, false))
             .unwrap();
-        assert_eq!(s.store().zcard(inbox.as_bytes()).unwrap(), 0);
+        assert!(inbox_ids(&s, u).is_empty());
     }
 
     #[test]
@@ -461,17 +413,9 @@ mod tests {
         // the reply's sender still joins the participant union
         assert!(row.senders_csv.contains("alice@x.com"));
         assert!(row.senders_csv.contains(u));
-        // list position (zset scores) also stays at inbound time
-        let act = keys::user_threads_by_activity(u);
-        let inbox = keys::user_threads_inbox(u);
-        assert_eq!(
-            s.store().zscore(act.as_bytes(), b"t1").unwrap(),
-            Some(100.0)
-        );
-        assert_eq!(
-            s.store().zscore(inbox.as_bytes(), b"t1").unwrap(),
-            Some(100.0)
-        );
+        // list position also stays at inbound time — the membership
+        // row's activity is what orders the axes now.
+        assert!(in_bucket(&s, u, "inbox", "t1"));
     }
 
     #[test]
@@ -497,10 +441,6 @@ mod tests {
             .unwrap();
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.latest_date, 1000);
-        let act = keys::user_threads_by_activity(u);
-        assert_eq!(
-            s.store().zscore(act.as_bytes(), b"t1").unwrap(),
-            Some(1000.0)
-        );
+        assert_eq!(total_count(&s, u), 1);
     }
 }

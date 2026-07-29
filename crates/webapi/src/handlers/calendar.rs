@@ -98,7 +98,11 @@ pub async fn get_conflicts(
     };
     let idx_key = format!("calendar_events:{user}");
     let user_c = user.clone();
-    let members = with_kevy(move |c| c.zrange(idx_key.as_bytes(), 0, -1)).unwrap_or_default();
+    let members = with_kevy(move |c| {
+        c.zrange(idx_key.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)
+    })
+    .unwrap_or_default();
     let mut out = Vec::new();
     for m in members {
         let Some(uid) = String::from_utf8(m).ok() else {
@@ -108,7 +112,8 @@ pub async fn get_conflicts(
             continue;
         }
         let key = format!("calendar_event:{user_c}:{uid}");
-        let flat = with_kevy(move |c| c.hgetall(key.as_bytes())).unwrap_or_default();
+        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+            .unwrap_or_default();
         let mut row = EventRow {
             uid: uid.clone(),
             ..Default::default()
@@ -185,7 +190,8 @@ pub async fn list_feeds(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Json<serde_json::Value> {
     let key = format!("calendar_feeds:{user}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes())).unwrap_or_default();
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+        .unwrap_or_default();
     let mut items = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -214,7 +220,8 @@ pub async fn create_feed(
     let id_c = feed.id.clone();
     let payload = serde_json::to_vec(&feed).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(id_c.as_bytes(), payload.as_slice())])?;
+        c.hset(key.as_bytes(), &[(id_c.as_bytes(), payload.as_slice())])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(feed))
@@ -227,7 +234,8 @@ pub async fn delete_feed(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("calendar_feeds:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[feed_id.as_bytes()])?;
+        c.hdel(key.as_bytes(), &[feed_id.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)

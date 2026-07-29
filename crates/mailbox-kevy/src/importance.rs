@@ -37,13 +37,15 @@ impl KevyMailboxStore {
         }
         let key = keys::thread(thread_id);
         let score_s = score.to_string();
-        self.store().hset(
-            key.as_bytes(),
-            &[
-                (b"importance_level" as &[u8], level.as_bytes()),
-                (b"importance_score", score_s.as_bytes()),
-            ],
-        )?;
+        self.store()
+            .hset(
+                key.as_bytes(),
+                &[
+                    (b"importance_level" as &[u8], level.as_bytes()),
+                    (b"importance_score", score_s.as_bytes()),
+                ],
+            )
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 }
@@ -55,8 +57,13 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     #[test]

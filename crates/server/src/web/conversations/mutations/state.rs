@@ -278,7 +278,7 @@ async fn train_triage_from_maildir(
     if tokens.is_empty() {
         return;
     }
-    let Ok(mut conn) = kevy_client::Connection::open(&url) else {
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
         return;
     };
     let toks: Vec<String> = tokens.into_iter().collect();

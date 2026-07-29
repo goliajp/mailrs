@@ -41,7 +41,10 @@ impl KevyMailboxStore {
         let mut hit_any = false;
         while hops < MAX_HOPS {
             let key_v2 = keys::alias_v2(&current);
-            let mut target = self.store().hget(key_v2.as_bytes(), b"target")?;
+            let mut target = self
+                .store()
+                .hget(key_v2.as_bytes(), b"target")
+                .map_err(std::io::Error::other)?;
             // Domain catch-all. An entry keyed `@example.com` answers for
             // every local-part in that domain that has no explicit alias
             // and no mailbox of its own. Without it, mail to an address
@@ -58,7 +61,10 @@ impl KevyMailboxStore {
                 && let Some((_, domain)) = current.rsplit_once('@')
             {
                 let key = keys::alias_v2(&format!("@{domain}"));
-                target = self.store().hget(key.as_bytes(), b"target")?;
+                target = self
+                    .store()
+                    .hget(key.as_bytes(), b"target")
+                    .map_err(std::io::Error::other)?;
             }
             let Some(raw) = target else {
                 return Ok(if hit_any { Some(current) } else { None });
@@ -82,27 +88,31 @@ impl KevyMailboxStore {
         let key_v2 = keys::alias_v2(alias);
         let domain = alias.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let created_at = now_secs().to_string();
-        self.store().atomic(|ctx| {
-            ctx.hset(
-                key_v2.as_bytes(),
-                &[
-                    (b"target".as_slice(), target.as_bytes()),
-                    (b"domain".as_slice(), domain.as_bytes()),
-                    (b"created_at".as_slice(), created_at.as_bytes()),
-                    (b"active".as_slice(), b"1".as_slice()),
-                ],
-            )?;
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                ctx.hset(
+                    key_v2.as_bytes(),
+                    &[
+                        (b"target".as_slice(), target.as_bytes()),
+                        (b"domain".as_slice(), domain.as_bytes()),
+                        (b"created_at".as_slice(), created_at.as_bytes()),
+                        (b"active".as_slice(), b"1".as_slice()),
+                    ],
+                )?;
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Drop an alias entry entirely.
     pub fn delete_alias(&self, alias: &str) -> io::Result<()> {
         let key_v2 = keys::alias_v2(alias);
-        self.store().atomic(|ctx| {
-            ctx.del(&[key_v2.as_bytes()]);
-            Ok(())
-        })
+        self.store()
+            .atomic(|ctx| {
+                ctx.del(&[key_v2.as_bytes()]);
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Enumerate every alias for admin listing.
@@ -117,13 +127,16 @@ impl KevyMailboxStore {
         let mut out = Vec::new();
         let mut cursor = None;
         loop {
-            let (rows, next) = self.store().idx_query(
-                keys::IDX_ALIASES_BY_DOMAIN,
-                &IndexValue::Str(Vec::new()),
-                &IndexValue::Str(vec![0xff, 0xff]),
-                cursor.as_ref(),
-                10_000,
-            )?;
+            let (rows, next) = self
+                .store()
+                .idx_query(
+                    keys::IDX_ALIASES_BY_DOMAIN,
+                    &IndexValue::Str(Vec::new()),
+                    &IndexValue::Str(vec![0xff, 0xff]),
+                    cursor.as_ref(),
+                    10_000,
+                )
+                .map_err(std::io::Error::other)?;
             for (key, _domain_val) in rows {
                 let Some(addr_bytes) = key.strip_prefix(keys::ALIAS_V2_PREFIX) else {
                     continue;
@@ -131,7 +144,11 @@ impl KevyMailboxStore {
                 let Ok(addr) = std::str::from_utf8(addr_bytes) else {
                     continue;
                 };
-                let Some(target_bytes) = self.store().hget(&key, b"target")? else {
+                let Some(target_bytes) = self
+                    .store()
+                    .hget(&key, b"target")
+                    .map_err(std::io::Error::other)?
+                else {
                     continue;
                 };
                 let Ok(target) = String::from_utf8(target_bytes) else {
@@ -163,10 +180,12 @@ impl AliasStore for KevyMailboxStore {
 
     fn delete(&self, source: &str) -> io::Result<bool> {
         let key_v2 = keys::alias_v2(source);
-        self.store().atomic(|ctx| {
-            let removed = ctx.del(&[key_v2.as_bytes()]);
-            Ok(removed > 0)
-        })
+        self.store()
+            .atomic(|ctx| {
+                let removed = ctx.del(&[key_v2.as_bytes()]);
+                Ok(removed > 0)
+            })
+            .map_err(std::io::Error::other)
     }
 
     fn list(&self) -> io::Result<Vec<(String, String)>> {
@@ -181,7 +200,11 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()))
+        let s = KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     #[test]

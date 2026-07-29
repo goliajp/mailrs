@@ -19,9 +19,12 @@
 
 mod acme_task;
 mod aof_compact;
+pub mod arc_seal;
 mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
+pub mod dmarc_ingest;
+pub mod fbl;
 mod imap;
 mod importance;
 mod junk_ttl;
@@ -33,6 +36,7 @@ pub mod sender_sts;
 mod sieve_apply;
 mod spool_drain;
 pub mod tlsrpt;
+pub mod tlsrpt_ingest;
 
 use std::sync::Arc;
 
@@ -68,6 +72,16 @@ pub struct FastcoreState {
     /// `* n EXISTS` to their client (RFC 2177). Drain + RPC + IMAP all
     /// live in this process, so no kevy pub/sub hop is needed.
     pub notify: tokio::sync::broadcast::Sender<String>,
+    /// False when the store's boot report showed a damaged AOF.
+    ///
+    /// kevy 4.0 turns the boot verdict into data (`Store::open_report`)
+    /// rather than a line on stderr. That exists because of our own
+    /// incident: a corrupt frame black-holed three days of writes while
+    /// every restart looked normal. Surfacing it here means a deploy
+    /// over a damaged boot cannot go green — the container keeps
+    /// serving mail (a live-but-unhealthy instance still delivers; a
+    /// dead one does not) but the health check refuses.
+    pub boot_intact: bool,
     /// Network-kevy URL (`MAILRS_KEVY_URL`) for the shared side-state
     /// routes (drafts / signatures / templates / reactions / webhooks /
     /// audit / outbound / groups). These live in the INDEPENDENT network
@@ -104,7 +118,15 @@ impl FastcoreState {
             alias_store,
             notify,
             net_url,
+            boot_intact: true,
         }
+    }
+
+    /// Record the store's boot verdict. Called once at startup with the
+    /// result of `Store::open_report`; see [`Self::boot_intact`].
+    pub fn with_boot_intact(mut self, intact: bool) -> Self {
+        self.boot_intact = intact;
+        self
     }
 
     /// Open a fresh network-kevy connection for a side-state handler.
@@ -113,7 +135,7 @@ impl FastcoreState {
     /// network kevy is configured so handlers can serve an empty result.
     pub fn net_conn(&self) -> Option<kevy_client::Connection> {
         let url = self.net_url.as_ref()?;
-        kevy_client::Connection::open(url).ok()
+        kevy_client::Connection::connect(url).ok()
     }
 }
 
@@ -128,18 +150,59 @@ impl Handler for FastcoreState {
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
-            ready: true,
+            ready: self.boot_intact,
         }
     }
 
     async fn readyz(&self) -> HealthResponse {
-        // kevy is in-process; if the binary is up, the store is up.
+        // kevy is in-process, so the store is up whenever the binary
+        // is — but "up" is not "intact". A boot that dropped bytes is
+        // serving a keyspace smaller than the files held, and that must
+        // not read as ready.
         HealthResponse {
             version: mailrs_core_api::API_VERSION.into(),
             backend: BackendKind::Kevy,
-            ready: true,
+            ready: self.boot_intact,
         }
     }
+}
+
+/// Log the store's boot verdict and say whether it was intact.
+///
+/// `Store::open_report` is kevy 4.0's answer to a failure mode we
+/// reported: a corrupt AOF frame silently truncated replay, every
+/// subsequent write landed past the stop point and was dropped again,
+/// and the only evidence was a line on stderr nobody read. The verdict
+/// is data now, so it can gate a deploy.
+///
+/// Intact means the replay reached the end of what the files held:
+/// nothing corrupt, nothing dropped. `resynced_bytes` is reported but
+/// does not by itself mean damage — under `replay_resync` it counts
+/// bytes hopped over to recover a good tail, which is a better outcome
+/// than surrendering it.
+fn report_boot(store: &Store) -> bool {
+    let r = store.open_report();
+    let intact = !r.corrupt && r.dropped_bytes == 0;
+    if intact {
+        tracing::info!(
+            replayed_commands = r.replayed_commands,
+            replayed_bytes = r.replayed_bytes,
+            elapsed_ms = r.elapsed_ms,
+            "kevy boot report: intact"
+        );
+    } else {
+        tracing::error!(
+            replayed_commands = r.replayed_commands,
+            replayed_bytes = r.replayed_bytes,
+            dropped_bytes = r.dropped_bytes,
+            corrupt = r.corrupt,
+            resynced_bytes = r.resynced_bytes,
+            quarantine = ?r.quarantine_paths,
+            "kevy boot report: DAMAGED — health check will report not-ready; \
+             the quarantined bytes are preserved, do not restart over this"
+        );
+    }
+    intact
 }
 
 pub async fn run() {
@@ -168,13 +231,67 @@ pub async fn run() {
     // a slow consumer doesn't lose events. 16 MiB buffer ≈ 250K
     // change frames (~64 B each) — plenty for a per-user IDLE
     // consumer under normal load.
-    let cfg = Config::default()
+    let mut cfg = Config::default()
         .with_persist(&kevy_dir)
-        .with_feed(16 * 1024 * 1024);
+        .with_feed(16 * 1024 * 1024)
+        // Recover the good tail behind a corrupt region instead of
+        // surrendering everything after it. Strict replay stops at the
+        // first bad frame — which is precisely how three days of writes
+        // went missing here in 2026-07: the damage was an 8-byte splice
+        // mid-file, and everything past it was intact. kevy's crashgate
+        // replays that exact shape and recovers 100500/100500 records.
+        //
+        // A boundary is trusted only when length, CRC and a well-formed
+        // single-command parse all agree, and skipped ranges are still
+        // reported with the corrupt flag raised — so this recovers data
+        // without hiding that anything happened.
+        .with_replay_resync(true);
+    // Transparent tiering. Off by default: the whole dataset fits in
+    // RAM today, and a budget below the working set trades latency for
+    // memory in a way that has to be measured before it is imposed.
+    //
+    // MAILRS_KEVY_TIER_MB=<n> sets an explicit budget; `auto` takes
+    // 70% of the detected cgroup limit. Cold values move to a vlog on
+    // disk and read back transparently, so this changes footprint and
+    // tail latency, never answers.
+    if let Ok(spec) = std::env::var("MAILRS_KEVY_TIER_MB") {
+        cfg = match spec.as_str() {
+            "auto" => cfg.with_tier_budget_auto(),
+            n => match n.parse::<u64>() {
+                Ok(mb) => cfg.with_tier_budget(mb * 1024 * 1024),
+                Err(_) => {
+                    tracing::warn!(%spec, "MAILRS_KEVY_TIER_MB unparseable — tiering stays off");
+                    cfg
+                }
+            },
+        };
+        tracing::info!(%spec, "kevy transparent tiering enabled");
+    }
+    // kevy 4.0 canary window. The AOF record format is new in 4.0
+    // (KEVYAOF2, length-prefixed + CRC32C), and the upgrade happens on
+    // the first rewrite — one-way, per kevy's UPGRADING. Appends to an
+    // existing v1 file stay v1, so while rewrite is off a downgrade to
+    // 3.18 is still just a binary swap back.
+    //
+    // Set MAILRS_KEVY_AOF_REWRITE=off during the canary; unset it to
+    // let the three-trigger policy run and convert the file.
+    if std::env::var("MAILRS_KEVY_AOF_REWRITE").as_deref() == Ok("off") {
+        cfg = cfg.with_auto_aof_rewrite(0, u64::MAX);
+        tracing::warn!(
+            "kevy AOF auto-rewrite DISABLED (canary) — file stays v1, \
+             downgrade to 3.18 remains possible; unset \
+             MAILRS_KEVY_AOF_REWRITE to re-enable"
+        );
+    }
     let store = Arc::new(Store::open(cfg).expect("open kevy store"));
+    let boot_intact = report_boot(&store);
     let mailbox = KevyMailboxStore::new(store);
     // v2.6.0 §P6: register the admin-CRUD range indexes idempotently.
     mailbox.ensure_admin_indexes();
+    // v4 TABLE layer: declare the access paths the engine maintains.
+    // Nothing reads them yet — the per-user zsets stay authoritative
+    // until the shadow-read window says the two agree.
+    mailbox.ensure_thread_table();
 
     // Alias-store backend selector — RFC 20260705 Step 2.
     // Default (`embed` / unset): historical fastcore-owned alias table
@@ -206,7 +323,12 @@ pub async fn run() {
             Arc::new(mailbox.clone())
         }
     };
-    let state = Arc::new(FastcoreState::new_with_alias_store(mailbox, alias_store));
+    let state = Arc::new(
+        FastcoreState::new_with_alias_store(mailbox, alias_store).with_boot_intact(boot_intact),
+    );
+    // Held for the shutdown path — the router takes ownership of the
+    // original below.
+    let shutdown_state = state.clone();
 
     // Spawn the ingestion sync loop before the HTTP listener so new
     // messages start replicating as soon as the process boots. Failures
@@ -303,11 +425,33 @@ pub async fn run() {
             r.unwrap();
         }
         _ = sigterm.recv() => {
-            tracing::info!("SIGTERM — shutting down cleanly so the kevy AOF flushes");
+            tracing::info!("SIGTERM — flushing kevy before exit");
+            flush_kevy(&shutdown_state);
         }
         _ = tokio::signal::ctrl_c() => {
-            tracing::info!("SIGINT — shutting down cleanly so the kevy AOF flushes");
+            tracing::info!("SIGINT — flushing kevy before exit");
+            flush_kevy(&shutdown_state);
         }
+    }
+}
+
+/// Flush and seal the store on the way out.
+///
+/// The previous version relied on returning from `run()` dropping the
+/// runtime, which released every task's `Arc<Store>`, which let kevy's
+/// DropGuard flush. That works only if nothing else still holds a
+/// clone — a race the code could not actually prove it won.
+///
+/// kevy 4.0 makes it explicit: `shutdown()` fsyncs everything and then
+/// refuses further writes with `KevyError::Closed`, and it is
+/// clone-safe, so it does not matter who else is holding the store.
+/// 4.0 also force-fsyncs the AOF tail before writing the feed's
+/// clean-shutdown marker — the marker could previously claim a
+/// durability the tail did not have.
+fn flush_kevy(state: &Arc<FastcoreState>) {
+    match state.mailbox.store_ref().shutdown() {
+        Ok(()) => tracing::info!("kevy shutdown complete — AOF fsynced, writes refused"),
+        Err(e) => tracing::error!(error = %e, "kevy shutdown failed; AOF tail may be unflushed"),
     }
 }
 
@@ -1680,12 +1824,6 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:sweep-legacy-admin-keys",
                 post(sweep_legacy_admin_keys_route),
             )
-            // Ops endpoint — migrate monolith-era spam/scam-category
-            // threads into the Junk folder (idempotent).
-            .route(
-                "/v1/admin/maintenance:move-spam-to-junk",
-                post(move_spam_to_junk_route),
-            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -1699,12 +1837,38 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:backfill-triage",
                 post(backfill_triage_route),
             )
-            // Ops endpoint — file every existing thread into the
-            // v2.4.0 Inbox/Junk folder zsets (v2.8.2, idempotent).
+            // Segmented promotion of existing threads into the
+            // `threaduser` table's membership rows (v4 TABLE migration).
+            // Paged on purpose: a full scan competes with live traffic
+            // for the same store, so the caller drives it in batches.
             .route(
-                "/v1/admin/maintenance:backfill-inbox-index",
-                post(backfill_inbox_index_route),
+                "/v1/admin/maintenance:backfill-thread-user",
+                post(backfill_thread_user_route),
             )
+            // Engine-side reconciliation for the declared table: drift
+            // recheck per compiled index plus a column-type spot check.
+            .route(
+                "/v1/admin/maintenance:table-verify",
+                post(table_verify_route),
+            )
+            // Row-level census behind the VERIFY counters — answers
+            // "which rows are missing from an index", which VERIFY
+            // reports as a count and not an identity.
+            .route(
+                "/v1/admin/maintenance:threaduser-census",
+                post(threaduser_census_route),
+            )
+            // Deletes the legacy per-user thread zsets. Nothing writes
+            // or reads them any more; this reclaims the memory.
+            .route(
+                "/v1/admin/maintenance:drop-legacy-zsets",
+                post(drop_legacy_zsets_route),
+            )
+            // RAM versus disk, so tiering can be judged on numbers.
+            .route("/v1/admin/maintenance:tier-info", post(tier_info_route))
+            // Shadow read — the engine's answer against the
+            // hand-maintained zset's, before any read is cut over.
+            .route("/v1/admin/maintenance:shadow-read", post(shadow_read_route))
             // Contact relationship counters, rebuilt from message
             // history so importance scoring sees existing correspondents
             // instead of waiting months for new traffic (idempotent).
@@ -2000,9 +2164,19 @@ async fn list_conversations(
     Json(req): Json<conv::ListConversationsRequest>,
 ) -> Json<conv::ListConversationsResponse> {
     let f = &req.filter;
+    // Archived is a tab, not a predicate inside the current folder —
+    // the UI's own tab resolver returns 'archived' ahead of the folder
+    // it was opened from. The client keeps sending that folder, so
+    // honouring both answers "archived within Inbox", which is 0 for a
+    // thread filed under notifications and is not what the tab means.
+    let folder = if f.archived {
+        None
+    } else {
+        f.folder.as_deref()
+    };
     let filter = ListThreadsFilter {
         category: f.category.as_deref(),
-        folder: f.folder.as_deref(),
+        folder,
         pinned: false,
         archived: f.archived,
         has_unread: f.unread.unwrap_or(false),
@@ -2100,27 +2274,28 @@ async fn get_categories(
     ];
     let categories: Vec<conv::CategoryCount> = candidates
         .into_iter()
-        .map(|cat| {
-            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(&_user, cat);
-            let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
-            conv::CategoryCount {
-                category: cat.to_string(),
-                count,
-            }
+        .map(|cat| conv::CategoryCount {
+            category: cat.to_string(),
+            count: state
+                .mailbox
+                .count_thread_ids_by_category_via_table(&_user, cat)
+                .unwrap_or(0) as i64,
         })
         .filter(|c| c.count > 0)
         .collect();
     Json(conv::ConversationCategoriesResponse { categories })
 }
 
-/// `GET /v1/users/{user}/conversations/unseen-count` — single ZCARD on
-/// the has_unread zset.
+/// `GET /v1/users/{user}/conversations/unseen-count` — a count on the
+/// unread axis.
 async fn get_unseen_count(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
 ) -> Json<conv::UnseenCountResponse> {
-    let key = mailrs_mailbox_kevy::keys::user_threads_has_unread(&user);
-    let count = state.mailbox.store_ref().zcard(key.as_bytes()).unwrap_or(0) as i64;
+    let count = state
+        .mailbox
+        .count_thread_ids_by_flag_via_table(&user, "unread")
+        .unwrap_or(0) as i64;
     Json(conv::UnseenCountResponse { count })
 }
 
@@ -2676,13 +2851,11 @@ async fn list_mailboxes(
     use mailrs_core_api::method::mailbox::{ListMailboxesResponse, MailboxWire};
     let total = state
         .mailbox
-        .store_ref()
-        .zcard(mailrs_mailbox_kevy::keys::user_threads_by_activity(&user).as_bytes())
+        .count_thread_ids_by_activity_via_table(&user)
         .unwrap_or(0) as u32;
     let unseen = state
         .mailbox
-        .store_ref()
-        .zcard(mailrs_mailbox_kevy::keys::user_threads_has_unread(&user).as_bytes())
+        .count_thread_ids_by_flag_via_table(&user, "unread")
         .unwrap_or(0) as u32;
     let items = vec![
         MailboxWire {
@@ -3463,65 +3636,6 @@ async fn backfill_triage_route(
     .into_response()
 }
 
-/// `POST /v1/admin/maintenance:move-spam-to-junk` — one-shot migration
-/// of every thread whose category is `spam` / `scam` into the Junk
-/// folder zset (user report 2026-07-13: "junk 是空的，而且还是有
-/// spam" — 1219 spam + 73 scam threads from the monolith-era AI
-/// categorizer were sitting in the Inbox folder because the Phase 4.3
-/// backfill binary never ran on prod, see
-/// `feedback-junk-backfill-oom-finding`).
-///
-/// Walks each account's `by_category:{spam,scam}` zsets and calls
-/// `set_junk(user, thread, true)` — the same atomic move the
-/// mark-junk UI action uses (junk zset add + inbox zset remove +
-/// category stamp). Idempotent: already-moved threads just refresh.
-async fn move_spam_to_junk_route(
-    State(state): State<Arc<FastcoreState>>,
-) -> axum::response::Response {
-    let users = match state.mailbox.list_account_addresses() {
-        Ok(u) => u,
-        Err(e) => {
-            tracing::error!(err = %e, "list_account_addresses failed");
-            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let store = state.mailbox.store_ref();
-    let mut moved = 0u64;
-    let mut missing = 0u64;
-    for user in &users {
-        for cat in ["spam", "scam"] {
-            let key = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
-            let n = store.zcard(key.as_bytes()).unwrap_or(0);
-            if n == 0 {
-                continue;
-            }
-            let entries = match store.zrevrange(key.as_bytes(), 0, (n as i64) - 1) {
-                Ok(e) => e,
-                Err(e) => {
-                    tracing::warn!(err = %e, %user, cat, "zrevrange failed; skipping");
-                    continue;
-                }
-            };
-            for (tid_bytes, _score) in entries {
-                let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                    continue;
-                };
-                match state.mailbox.set_junk(user, tid, true) {
-                    Ok(true) => moved += 1,
-                    // Thread row gone (category zset entry is stale) —
-                    // count separately so the response shows drift.
-                    Ok(false) => missing += 1,
-                    Err(e) => {
-                        tracing::warn!(err = %e, %user, %tid, "set_junk failed");
-                    }
-                }
-            }
-        }
-    }
-    tracing::info!(moved, missing, "spam/scam → junk migration complete");
-    Json(serde_json::json!({ "moved": moved, "stale_entries": missing })).into_response()
-}
-
 /// `POST /v1/admin/maintenance:backfill-thread-importance` — score
 /// threads that predate the feature. `?all=1` rescores every thread;
 /// the default only fills in threads with no verdict yet.
@@ -3558,19 +3672,21 @@ async fn backfill_contact_relationships_route(
     .into_response()
 }
 
-/// `POST /v1/admin/maintenance:backfill-inbox-index` — one-shot
-/// promotion of every existing thread into the v2.4.0 folder zsets
-/// (v2.8.2). Until this release `record_message_arrival` (the main
-/// ingest path) never wrote `user_threads_inbox`, so the Inbox axis
-/// only held threads that happened to pass through `upsert_thread` /
-/// `set_junk` — the UI had to keep its default view on the mixed
-/// by_activity zset. Walks each account's by_activity zset and files
-/// every live row: spam/scam → Junk, ≥ 1 received message → Inbox,
-/// sent-only → neither (Sent axis already covers it). Idempotent:
-/// zadd overwrites the score in place.
-async fn backfill_inbox_index_route(
+/// `POST /v1/admin/maintenance:shadow-read` — compare the ORDERPATH's
+/// answer with the zset's for every account, without serving either.
+///
+/// The zsets stay authoritative through this phase. This is the only
+/// step that can show the two agree on **content and order** before a
+/// read is cut over; `TABLE.VERIFY` proves the index matches the rows,
+/// which is a different claim — the rows themselves could be wrong.
+///
+/// Divergence is reported per user rather than summed, because one
+/// account disagreeing is a different problem from all of them.
+async fn shadow_read_route(
     State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
+    let limit: usize = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(200);
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -3579,72 +3695,621 @@ async fn backfill_inbox_index_route(
         }
     };
     let store = state.mailbox.store_ref();
-    let mut inbox_added = 0u64;
-    let mut junk_added = 0u64;
-    let mut sent_only = 0u64;
-    let mut stale = 0u64;
+    let mut report = Vec::new();
+    let mut total_divergent = 0u64;
+
     for user in &users {
-        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let inbox = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
-        let junk = mailrs_mailbox_kevy::keys::user_threads_junk(user);
-        let entries = match store.zrevrange(activity.as_bytes(), 0, -1) {
-            Ok(e) => e,
-            Err(e) => {
-                tracing::warn!(err = %e, %user, "zrevrange by_activity failed; skipping");
-                continue;
-            }
-        };
-        for (tid_bytes, _score) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
+        // The three remaining shapes: Sent (its own flag index), the
+        // default recency axis (a pure ORDERPATH), and np (a merge of
+        // two bucket ranges, the only order this code produces).
+        for axis in ["sent", "default", "np"] {
+            let zkey = match axis {
+                "sent" => mailrs_mailbox_kevy::keys::user_threads_sent(user),
+                _ => mailrs_mailbox_kevy::keys::user_threads_by_activity(user),
             };
-            let row = match state.mailbox.get_thread(tid) {
-                Ok(Some(r)) => r,
-                Ok(None) => {
-                    stale += 1;
-                    continue;
+            let zset: Vec<String> = if axis == "np" {
+                let mut merged: Vec<(i64, String)> = Vec::new();
+                for k in [
+                    mailrs_mailbox_kevy::keys::user_threads_notifications(user),
+                    mailrs_mailbox_kevy::keys::user_threads_promotions(user),
+                ] {
+                    if let Ok(e) = store.zrevrange(k.as_bytes(), 0, limit as i64 - 1) {
+                        merged.extend(e.into_iter().filter_map(|(m, sc)| {
+                            String::from_utf8(m).ok().map(|t| (sc as i64, t))
+                        }));
+                    }
                 }
-                Err(e) => {
-                    tracing::warn!(err = %e, %user, %tid, "get_thread failed");
-                    continue;
-                }
-            };
-            let is_junk = row.category.eq_ignore_ascii_case("spam")
-                || row.category.eq_ignore_ascii_case("scam");
-            let score = row.latest_date as f64;
-            if is_junk {
-                let _ = store.zadd(junk.as_bytes(), &[(score, tid.as_bytes())]);
-                junk_added += 1;
-            } else if row.count > row.sent_count {
-                let _ = store.zadd(inbox.as_bytes(), &[(score, tid.as_bytes())]);
-                inbox_added += 1;
+                merged.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                merged.into_iter().map(|(_, t)| t).take(limit).collect()
             } else {
-                // Sent-only: belongs to the Sent axis alone. Remove any
-                // stale inbound-bucket membership (a pg-dump import whose
-                // sent_count was 0 at upsert time, later recomputed to
-                // equal count, left the thread stuck in Inbox). This makes
-                // the backfill a self-correcting sweep, not add-only.
-                for z in mailrs_mailbox_kevy::keys::Bucket::all_zsets(user) {
-                    let _ = store.zrem(z.as_bytes(), &[tid.as_bytes()]);
+                match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
+                    Ok(e) => e
+                        .into_iter()
+                        .filter_map(|(m, _)| String::from_utf8(m).ok())
+                        .collect(),
+                    Err(_) => continue,
                 }
-                sent_only += 1;
+            };
+            let table = match axis {
+                "sent" => state.mailbox.list_thread_ids_by_flag_via_table(
+                    user,
+                    "is_sender",
+                    limit,
+                    0,
+                    None,
+                ),
+                "default" => state
+                    .mailbox
+                    .list_thread_ids_by_activity_via_table(user, limit, None),
+                _ => {
+                    let mut m: Vec<String> = Vec::new();
+                    for b in ["notifications", "promotions"] {
+                        if let Ok(t) = state
+                            .mailbox
+                            .list_thread_ids_by_bucket_via_table(user, b, limit)
+                        {
+                            m.extend(t);
+                        }
+                    }
+                    Ok(m)
+                }
+            };
+            let Ok(table) = table else { continue };
+            let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
+            let ts: std::collections::BTreeSet<&String> = table.iter().collect();
+            let only_z = zs.difference(&ts).count();
+            let only_t = ts.difference(&zs).count();
+            // For Sent, show what the rows actually say about the
+            // threads the zset claims and the table does not — the
+            // 58-vs-9 gap on one account is unexplained and the
+            // membership row is where the answer has to be.
+            let detail: Vec<serde_json::Value> = if axis == "sent" {
+                zs.difference(&ts)
+                    .take(4)
+                    .map(|tid| {
+                        let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                        let row = store.hgetall(key.as_bytes()).unwrap_or_default();
+                        let f = |n: &str| -> Option<String> {
+                            row.iter()
+                                .find(|(k, _)| k == n.as_bytes())
+                                .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                        };
+                        let th = store
+                            .hgetall(mailrs_mailbox_kevy::keys::thread(tid).as_bytes())
+                            .unwrap_or_default();
+                        let tf = |n: &str| -> Option<String> {
+                            th.iter()
+                                .find(|(k, _)| k == n.as_bytes())
+                                .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                        };
+                        serde_json::json!({
+                            "tid": tid,
+                            "row_exists": !row.is_empty(),
+                            "row_is_sender": f("is_sender"),
+                            "row_sent_only": f("sent_only"),
+                            "thread_senders": tf("senders_csv"),
+                            "thread_sent_count": tf("sent_count"),
+                            "thread_count": tf("count"),
+                        })
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // np's table side is unsorted here (two concatenated
+            // ranges); only membership is meaningful for it.
+            let order_matches = axis == "np" || zset == table;
+            if only_z > 0 || only_t > 0 || !order_matches {
+                total_divergent += 1;
+                report.push(serde_json::json!({
+                    "user": user,
+                    "bucket": format!("axis:{axis}"),
+                    "zset_len": zset.len(),
+                    "table_len": table.len(),
+                    "truncated": zset.len() >= limit || table.len() >= limit,
+                    "only_in_zset": only_z,
+                    "only_in_table": only_t,
+                    "order_matches": order_matches,
+                    "zset_only_rows": detail,
+                    "table_only_rows": [],
+                    "order_diff": serde_json::Value::Null,
+                }));
+            }
+        }
+
+        // Boolean predicate axes — each served from its own flag
+        // index rather than a sort prefix.
+        for (flag, zkey) in [
+            (
+                "starred",
+                mailrs_mailbox_kevy::keys::user_threads_starred(user),
+            ),
+            (
+                "archived",
+                mailrs_mailbox_kevy::keys::user_threads_archived(user),
+            ),
+            (
+                "pinned",
+                mailrs_mailbox_kevy::keys::user_threads_pinned(user),
+            ),
+            (
+                "unread",
+                mailrs_mailbox_kevy::keys::user_threads_has_unread(user),
+            ),
+            (
+                "has_action",
+                mailrs_mailbox_kevy::keys::user_threads_has_action(user),
+            ),
+        ] {
+            let zset: Vec<String> = match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
+                Ok(e) => e
+                    .into_iter()
+                    .filter_map(|(m, _)| String::from_utf8(m).ok())
+                    .collect(),
+                Err(_) => continue,
+            };
+            let table = match state
+                .mailbox
+                .list_thread_ids_by_flag_via_table(user, flag, limit, 0, None)
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, flag, "flag index query failed");
+                    continue;
+                }
+            };
+            let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
+            let ts: std::collections::BTreeSet<&String> = table.iter().collect();
+            let only_z = zs.difference(&ts).count();
+            let only_t = ts.difference(&zs).count();
+            let order_matches = zset == table;
+            if only_z > 0 || only_t > 0 || !order_matches {
+                total_divergent += 1;
+                report.push(serde_json::json!({
+                    "user": user,
+                    "bucket": format!("flag:{flag}"),
+                    "zset_len": zset.len(),
+                    "table_len": table.len(),
+                    "truncated": zset.len() >= limit || table.len() >= limit,
+                    "only_in_zset": only_z,
+                    "only_in_table": only_t,
+                    "order_matches": order_matches,
+                    "zset_only_rows": [],
+                    "table_only_rows": [],
+                    "order_diff": serde_json::Value::Null,
+                }));
+            }
+        }
+
+        // Category axis — the other declared ORDERPATH. Distinct from
+        // the bucket axis: `bucket` is the folder a thread is filed
+        // under, `category` is the classifier's verdict, and the two
+        // use different vocabularies (spam vs junk, notification vs
+        // notifications).
+        for cat in ["inbox", "notification", "promotion", "spam"] {
+            let zkey = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
+            let zset: Vec<String> = match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
+                Ok(e) => e
+                    .into_iter()
+                    .filter_map(|(m, _)| String::from_utf8(m).ok())
+                    .collect(),
+                Err(_) => continue,
+            };
+            let table = match state
+                .mailbox
+                .list_thread_ids_by_category_via_table(user, cat, limit)
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, cat, "category orderpath query failed");
+                    continue;
+                }
+            };
+            let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
+            let ts: std::collections::BTreeSet<&String> = table.iter().collect();
+            let only_z = zs.difference(&ts).count();
+            let only_t = ts.difference(&zs).count();
+            let order_matches = zset == table;
+            if only_z > 0 || only_t > 0 || !order_matches {
+                total_divergent += 1;
+                report.push(serde_json::json!({
+                    "user": user,
+                    "bucket": format!("cat:{cat}"),
+                    "zset_len": zset.len(),
+                    "table_len": table.len(),
+                    "truncated": zset.len() >= limit || table.len() >= limit,
+                    "only_in_zset": only_z,
+                    "only_in_table": only_t,
+                    "order_matches": order_matches,
+                    "zset_only_rows": [],
+                    "table_only_rows": [],
+                    "order_diff": serde_json::Value::Null,
+                }));
+            }
+        }
+
+        for (bucket, zkey) in [
+            ("inbox", mailrs_mailbox_kevy::keys::user_threads_inbox(user)),
+            ("junk", mailrs_mailbox_kevy::keys::user_threads_junk(user)),
+            (
+                "notifications",
+                mailrs_mailbox_kevy::keys::user_threads_notifications(user),
+            ),
+            (
+                "promotions",
+                mailrs_mailbox_kevy::keys::user_threads_promotions(user),
+            ),
+        ] {
+            let zset: Vec<String> = match store.zrevrange(zkey.as_bytes(), 0, limit as i64 - 1) {
+                Ok(e) => e
+                    .into_iter()
+                    .filter_map(|(m, _)| String::from_utf8(m).ok())
+                    .collect(),
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, bucket, "zrevrange failed");
+                    continue;
+                }
+            };
+            // Inbox is served from the sent-excluding ORDERPATH, so
+            // compare against that one — otherwise this reports a
+            // divergence the serving path does not have.
+            let table_result = if bucket == "inbox" {
+                state
+                    .mailbox
+                    .list_thread_ids_by_bucket_unsent_via_table(user, bucket, limit)
+            } else {
+                state
+                    .mailbox
+                    .list_thread_ids_by_bucket_via_table(user, bucket, limit)
+            };
+            let table = match table_result {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, bucket, "orderpath query failed");
+                    continue;
+                }
+            };
+
+            // Both sides capped at `limit`, so a full page on either
+            // side means the tails were never compared — the sets can
+            // differ purely from where each was cut. Say so rather than
+            // reporting a divergence the data does not support.
+            let truncated = zset.len() >= limit || table.len() >= limit;
+
+            let zs: std::collections::BTreeSet<&String> = zset.iter().collect();
+            let ts: std::collections::BTreeSet<&String> = table.iter().collect();
+            let only_zset: Vec<&String> = zs.difference(&ts).copied().collect();
+            let only_table: Vec<&String> = ts.difference(&zs).copied().collect();
+            let order_matches = zset == table;
+
+            // When the sets agree but the order does not, the useful
+            // question is where they first part and whether the two
+            // threads there share an activity timestamp — a tie the
+            // two sides break differently is harmless, a genuine
+            // ordering difference is not.
+            let order_diff = if order_matches {
+                serde_json::Value::Null
+            } else {
+                let at = zset.iter().zip(table.iter()).position(|(a, b)| a != b);
+                match at {
+                    Some(i) => {
+                        let act = |tid: &String| -> Option<String> {
+                            let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                            store.hgetall(key.as_bytes()).ok().and_then(|row| {
+                                row.iter()
+                                    .find(|(f, _)| f == b"activity")
+                                    .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                            })
+                        };
+                        serde_json::json!({
+                            "at_index": i,
+                            "zset_activity": act(&zset[i]),
+                            "table_activity": act(&table[i]),
+                        })
+                    }
+                    None => serde_json::json!({ "at_index": "length only" }),
+                }
+            };
+
+            // A thread the zset claims and the table does not is the
+            // only shape that could lose data on cutover. Report what
+            // the membership row actually says about it, so a stale
+            // zset entry is distinguishable from a missing row.
+            let missing: Vec<serde_json::Value> = only_zset
+                .iter()
+                .take(5)
+                .map(|tid| {
+                    let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                    let row = store.hgetall(key.as_bytes()).unwrap_or_default();
+                    let field = |name: &str| -> Option<String> {
+                        row.iter()
+                            .find(|(f, _)| f == name.as_bytes())
+                            .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                    };
+                    serde_json::json!({
+                        "tid": tid,
+                        "row_exists": !row.is_empty(),
+                        "row_bucket": field("bucket"),
+                        "row_category": field("category"),
+                    })
+                })
+                .collect();
+
+            // Symmetric detail for the other direction: what the table
+            // has and the zset does not. On the Inbox axis this is the
+            // question of whether the rows include sent-only threads
+            // the zset deliberately excludes.
+            let extra: Vec<serde_json::Value> = only_table
+                .iter()
+                .take(5)
+                .map(|tid| {
+                    let key = mailrs_mailbox_kevy::keys::thread_user(user, tid);
+                    let row = store.hgetall(key.as_bytes()).unwrap_or_default();
+                    let field = |name: &str| -> Option<String> {
+                        row.iter()
+                            .find(|(f, _)| f == name.as_bytes())
+                            .map(|(_, v)| String::from_utf8_lossy(v).into_owned())
+                    };
+                    serde_json::json!({
+                        "tid": tid,
+                        "sent": field("sent"),
+                        "category": field("category"),
+                        "archived": field("archived"),
+                    })
+                })
+                .collect();
+
+            if !only_zset.is_empty() || !only_table.is_empty() || !order_matches {
+                total_divergent += 1;
+                report.push(serde_json::json!({
+                    "user": user,
+                    "bucket": bucket,
+                    "zset_len": zset.len(),
+                    "table_len": table.len(),
+                    "truncated": truncated,
+                    "only_in_zset": only_zset.len(),
+                    "only_in_table": only_table.len(),
+                    "order_matches": order_matches,
+                    "order_diff": order_diff,
+                    "zset_only_rows": missing,
+                    "table_only_rows": extra,
+                }));
             }
         }
     }
-    tracing::info!(
-        inbox_added,
-        junk_added,
-        sent_only,
-        stale,
-        "inbox-index backfill complete"
-    );
+
     Json(serde_json::json!({
-        "inbox_added": inbox_added,
-        "junk_added": junk_added,
-        "sent_only_skipped": sent_only,
-        "stale_entries": stale,
+        "limit": limit,
+        "axes_checked": users.len() * 16,
+        "axes_divergent": total_divergent,
+        "divergences": report,
     }))
     .into_response()
+}
+
+/// `POST /v1/admin/maintenance:tier-info` — what the store is holding
+/// in RAM versus on disk.
+///
+/// `cold_keys` / `cold_bytes` are what tiering moved out; `stub_bytes`
+/// is what that cost to keep addressable. With tiering off the budget
+/// reads 0 and nothing is cold, which is the honest baseline to
+/// compare against.
+async fn tier_info_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
+    let info = state.mailbox.store_ref().info();
+    Json(serde_json::json!({
+        "keys": info.keys,
+        "used_memory": info.used_memory,
+        "aof_bytes": info.aof_bytes,
+        // None when tiering is off — the difference between "nothing
+        // is cold" and "nothing can be cold" is worth keeping visible.
+        "tier": info.tiering.map(|t| {
+            serde_json::json!({
+                "budget_bytes": t.tier_budget_bytes,
+                "effective_target": t.tier_effective_target,
+                "cold_keys": t.cold_keys,
+                "cold_bytes": t.cold_bytes,
+                "stub_bytes": t.stub_bytes,
+                "index_reserved_bytes": t.index_reserved_bytes,
+                "vlog_size_bytes": t.vlog_size_bytes,
+            })
+        }),
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:drop-legacy-zsets` — delete the
+/// hand-maintained per-user thread indexes.
+///
+/// Every axis is served from the declared table and no write path
+/// touches these keys, so they are dead weight held in memory. Runs
+/// in-process rather than through a second store handle: opening the
+/// embedded store twice replays the AOF twice and gets the container
+/// OOM-killed.
+///
+/// `?dry=1` reports what would go without deleting it.
+async fn drop_legacy_zsets_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let dry = q.get("dry").map(String::as_str) == Some("1");
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let store = state.mailbox.store_ref();
+    let mut found = 0u64;
+    let mut members = 0u64;
+    let mut deleted = 0u64;
+    for user in &users {
+        for key in mailrs_mailbox_kevy::keys::all_user_thread_zsets(user) {
+            let n = store.zcard(key.as_bytes()).unwrap_or(0);
+            if n == 0 {
+                continue;
+            }
+            found += 1;
+            members += n as u64;
+            if !dry {
+                deleted += store.del(&[key.as_bytes()]).unwrap_or(0) as u64;
+            }
+        }
+    }
+    tracing::info!(dry, found, members, deleted, "legacy zset sweep");
+    Json(serde_json::json!({
+        "dry_run": dry,
+        "keys_found": found,
+        "members_held": members,
+        "keys_deleted": deleted,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:threaduser-census` — walk every
+/// membership row and report which ones could not be indexed.
+///
+/// `TABLE.VERIFY` says how many entries an index holds; when that is
+/// short of the row count it does not say *which* rows are missing. A
+/// composite orderpath can only encode a row where every sort column is
+/// present, so this counts rows by which column is empty.
+async fn threaduser_census_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let store = state.mailbox.store_ref();
+    let keys = store.keys(Some(b"mailrs:threaduser:*"), None);
+    let mut total = 0u64;
+    let mut empty: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut samples: Vec<String> = Vec::new();
+    for k in &keys {
+        total += 1;
+        let pairs = match store.hgetall(k) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let map: std::collections::HashMap<&[u8], &[u8]> = pairs
+            .iter()
+            .map(|(f, v)| (f.as_slice(), v.as_slice()))
+            .collect();
+        let mut bad = false;
+        for col in [
+            "user", "tid", "bucket", "category", "activity", "starred", "archived",
+        ] {
+            if map
+                .get(col.as_bytes())
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
+            {
+                *empty.entry(col.to_string()).or_default() += 1;
+                bad = true;
+            }
+        }
+        if bad && samples.len() < 5 {
+            samples.push(String::from_utf8_lossy(k).into_owned());
+        }
+    }
+    Json(serde_json::json!({
+        "rows": total,
+        "empty_or_missing": empty,
+        "samples": samples,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:table-verify` — ask the engine whether
+/// the access paths it maintains agree with the rows.
+///
+/// `drift` is the number that matters: non-zero means an index no
+/// longer re-derives to what it stores, which is the failure this whole
+/// migration exists to make impossible by hand. `coerce_failures` and
+/// `type_mismatches` say a column's declared type does not match what
+/// was written — a schema bug rather than a maintenance one.
+///
+/// kevy returns six unnamed counters per index; the names are recovered
+/// here from the doc comment on `TableVerifyReport`.
+async fn table_verify_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let name = q.get("table").map(String::as_str).unwrap_or("threaduser");
+    match state.mailbox.store_ref().table_verify(name.as_bytes()) {
+        Ok((per_index, spot)) => {
+            let indexes: Vec<serde_json::Value> = per_index
+                .into_iter()
+                .map(|(n, c)| {
+                    serde_json::json!({
+                        "index": String::from_utf8_lossy(&n),
+                        "entries": c[0],
+                        "bytes": c[1],
+                        "coerce_failures": c[2],
+                        "duplicates": c[3],
+                        "drift": c[4],
+                        "checked": c[5],
+                    })
+                })
+                .collect();
+            Json(serde_json::json!({
+                "table": name,
+                "indexes": indexes,
+                "spot_check": { "rows": spot[0], "type_mismatches": spot[1] },
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, %name, "table_verify failed");
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{e}"),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// `POST /v1/admin/maintenance:backfill-thread-user` — one segment of
+/// the membership-row backfill for the declared `threaduser` table.
+///
+/// Call with `?user=<addr>&offset=<n>&limit=<n>`; omit `user` to get the
+/// account list back and nothing else, which is how a driver discovers
+/// what to iterate. Each call walks one page of that user's by_activity
+/// zset and writes the membership row **only where it is absent or a
+/// field differs**, so re-running over converged data reports
+/// `written: 0` and costs one HGETALL per row rather than a write.
+///
+/// `done` is true when the page came back short, meaning the caller has
+/// reached the end of this user's threads.
+async fn backfill_thread_user_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(user) = q.get("user") else {
+        let users = state.mailbox.list_account_addresses().unwrap_or_default();
+        return Json(serde_json::json!({ "users": users })).into_response();
+    };
+    let offset: i64 = q.get("offset").and_then(|v| v.parse().ok()).unwrap_or(0);
+    let limit: i64 = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(500);
+
+    match state.mailbox.backfill_thread_user(user, offset, limit) {
+        Ok((scanned, written)) => {
+            if written > 0 {
+                tracing::info!(%user, offset, scanned, written, "threaduser backfill segment");
+            }
+            Json(serde_json::json!({
+                "user": user,
+                "offset": offset,
+                "limit": limit,
+                "scanned": scanned,
+                "written": written,
+                "done": (scanned as i64) < limit,
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, %user, "threaduser backfill failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 /// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot

@@ -160,7 +160,7 @@ async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
     // no kevy → default inbox (no stamp needed). Best-effort.
     if rcpt_folder != "Junk"
         && let Some(url) = &deps.kevy_url
-        && let Ok(mut conn) = kevy_client::Connection::open(url)
+        && let Ok(mut conn) = kevy_client::Connection::connect(url)
     {
         let tokens = mailrs_bayes::tokenize(full_message.as_slice());
         if let Some(category) = mailrs_triage::classify(&mut conn, &tokens)
