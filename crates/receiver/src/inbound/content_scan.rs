@@ -169,24 +169,62 @@ fn url_in_subject(data: &[u8]) -> bool {
         .unwrap_or(false)
 }
 
-/// Subject is >50% uppercase ASCII letters (≥6 alpha bytes total, to
-/// avoid `OK` / `RE:` / `FYI` false-positives). The "ALL-CAPS SHOUTING"
-/// shape correlates strongly with marketing / scam mail.
+/// Whether ASCII letters in `text` are >`num/den` uppercase, over at
+/// least `min_alpha` of them — the "ALL-CAPS SHOUTING" shape.
+///
+/// Refuses to answer for text that is substantially CJK. The ratio
+/// measures shouting only where case carries that meaning; in Japanese
+/// or Chinese mail the ASCII is almost entirely brand names, which are
+/// conventionally capitalised (`LINEMO`, `NTT`, `JR`). Scoring those
+/// as shouting made the rule a detector for "this mail mentions a
+/// brand", and it fired on 8 of the last 10 junk verdicts.
+fn is_shouting(text: &str, min_alpha: usize, num: usize, den: usize) -> bool {
+    let mut alpha = 0usize;
+    let mut upper = 0usize;
+    let mut cjk = 0usize;
+    for c in text.chars() {
+        if c.is_ascii_alphabetic() {
+            alpha += 1;
+            if c.is_ascii_uppercase() {
+                upper += 1;
+            }
+        } else if is_cjk(c) {
+            cjk += 1;
+        }
+    }
+    // Any real CJK presence means the ASCII is incidental.
+    if cjk * 2 >= alpha {
+        return false;
+    }
+    alpha >= min_alpha && upper * den > alpha * num
+}
+
+/// CJK ideographs, kana, and Hangul — the scripts with no letter case,
+/// where an uppercase ratio over the surrounding ASCII says nothing.
+fn is_cjk(c: char) -> bool {
+    matches!(c as u32,
+        0x3040..=0x30FF     // hiragana + katakana
+        | 0x3400..=0x4DBF   // CJK ext A
+        | 0x4E00..=0x9FFF   // CJK unified
+        | 0xAC00..=0xD7AF   // hangul syllables
+        | 0xF900..=0xFAFF   // CJK compatibility
+        | 0xFF66..=0xFF9F   // halfwidth katakana
+        | 0x20000..=0x2FA1F // CJK ext B..F
+    )
+}
+
+/// Subject is >50% uppercase ASCII letters (≥6 alpha total, to avoid
+/// `OK` / `RE:` / `FYI` false-positives).
+///
+/// Decodes RFC 2047 first. On the wire a Japanese subject is
+/// `=?UTF-8?B?…?=`, and base64 is ~60% uppercase — so reading the raw
+/// header measured the encoding, not the words. The same subject
+/// scored shouty encoded and not-shouty decoded.
 fn shouty_subject(data: &[u8]) -> bool {
     let Some(subject) = extract_subject(data) else {
         return false;
     };
-    let mut alpha_count = 0usize;
-    let mut upper_count = 0usize;
-    for &b in subject {
-        if b.is_ascii_alphabetic() {
-            alpha_count += 1;
-            if b.is_ascii_uppercase() {
-                upper_count += 1;
-            }
-        }
-    }
-    alpha_count >= 6 && upper_count * 2 > alpha_count
+    is_shouting(&mailrs_rfc2047::decode(subject), 6, 1, 2)
 }
 
 /// URL shortener anywhere in the message (covers `bit.ly`, `t.co`,
@@ -259,17 +297,10 @@ fn shouty_body(data: &[u8]) -> bool {
         },
     };
     let body = &data[body_start..];
-    let mut alpha_count = 0usize;
-    let mut upper_count = 0usize;
-    for &b in body {
-        if b.is_ascii_alphabetic() {
-            alpha_count += 1;
-            if b.is_ascii_uppercase() {
-                upper_count += 1;
-            }
-        }
-    }
-    alpha_count >= 200 && upper_count * 10 > alpha_count * 3
+    // Lossy is right here: a body that is not valid UTF-8 still gets
+    // scored on whatever did decode, rather than being skipped.
+    let text = String::from_utf8_lossy(body);
+    is_shouting(&text, 200, 3, 10)
 }
 
 /// evaluate all content rules and return total score + matched rule names
@@ -1003,6 +1034,52 @@ mod tests {
         data.push_str(&"this is a normal long email body with regular sentences and the typical case usage you would see in inbound mail ".repeat(3));
         let (_, rules) = evaluate_rules(data.as_bytes());
         assert!(!rules.contains(&"shouty_body".to_string()));
+    }
+
+    /// A Japanese subject on the wire is RFC 2047 base64, and base64
+    /// is ~60% uppercase. Reading the raw header scored the encoding
+    /// rather than the words — the same subject came out shouty
+    /// encoded and not-shouty decoded.
+    #[test]
+    fn an_encoded_cjk_subject_is_not_shouting() {
+        // 【7月】PayPayポイントもらえる
+        let msg = b"Subject: =?UTF-8?B?44CQN+aciOOAkVBheVBheeODneOCpOODs+ODiOOCguOCieOBiOOCiw==?=\r\n\r\nbody";
+        assert!(
+            !shouty_subject(msg),
+            "a decoded CJK subject has 6 ASCII letters, 2 of them upper"
+        );
+    }
+
+    /// Japanese brand names are conventionally all-caps, so the ASCII
+    /// inside CJK mail is dense with capitals that mean nothing about
+    /// tone. This fired on 8 of the last 10 junk verdicts on prod.
+    #[test]
+    fn brand_names_inside_cjk_are_not_shouting() {
+        let msg = "Subject: 【PayPayポイント】LINEMOベストプランVの契約で特典\r\n\r\nbody";
+        assert!(!shouty_subject(msg.as_bytes()));
+    }
+
+    /// The rule still has to work where case carries meaning.
+    #[test]
+    fn ascii_shouting_is_still_caught() {
+        let msg = b"Subject: FREE MONEY CLICK NOW WINNER\r\n\r\nbody";
+        assert!(shouty_subject(msg));
+    }
+
+    /// Mixed subjects with only a token of CJK should still be judged
+    /// on their ASCII — the guard is for text that is substantially
+    /// CJK, not for one stray character.
+    #[test]
+    fn a_single_cjk_char_does_not_disarm_the_rule() {
+        let msg = "Subject: FREE MONEY CLICK NOW WINNER 円\r\n\r\nbody";
+        assert!(shouty_subject(msg.as_bytes()));
+    }
+
+    #[test]
+    fn a_cjk_body_is_not_shouting() {
+        let body: String = "お客様のPayPayポイントの有効期限が迫っています。".repeat(30);
+        let msg = format!("Subject: x\r\n\r\n{body}");
+        assert!(!shouty_body(msg.as_bytes()));
     }
 
     #[test]

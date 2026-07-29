@@ -22,7 +22,7 @@ where
 {
     let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::open(&url)?;
+        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
         f(&mut c)
     });
     handle
@@ -32,7 +32,7 @@ where
 }
 
 fn hgetall_values(c: &mut kevy_client::Connection, key: &str) -> std::io::Result<Vec<Vec<u8>>> {
-    let flat = c.hgetall(key.as_bytes())?;
+    let flat = c.hgetall(key.as_bytes()).map_err(std::io::Error::other)?;
     Ok(flat
         .into_iter()
         .enumerate()
@@ -53,6 +53,7 @@ fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Resul
     // /api/prefs writes both read the same current value and both
     // set the same next id, losing one row.
     c.incr(counter_key.as_bytes())
+        .map_err(std::io::Error::other)
 }
 
 fn random_hex(bytes: usize) -> String {
@@ -142,7 +143,7 @@ pub async fn forgot_password(
     let rate_key = format!("pwreset:ratelimit:{}", req.address);
     let rate_key_c = rate_key.clone();
     let now = now_secs();
-    let recent = with_kevy(move |c| c.get(rate_key_c.as_bytes()))?
+    let recent = with_kevy(move |c| c.get(rate_key_c.as_bytes()).map_err(std::io::Error::other))?
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(0);
@@ -162,7 +163,8 @@ pub async fn forgot_password(
                 (b"address" as &[u8], addr_c.as_bytes()),
                 (b"issued_at", now.to_string().as_bytes()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         let _ = c.expire(
             format!("pwreset:{token}").as_bytes(),
             std::time::Duration::from_secs(3600),
@@ -170,14 +172,16 @@ pub async fn forgot_password(
         c.set(
             format!("pwreset_by_addr:{addr}").as_bytes(),
             token.as_bytes(),
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         // Bump rate-limit stamp with a matching TTL so the entry
         // self-clears after 5 minutes without cluttering kevy.
         c.set_with_ttl(
             rate_key.as_bytes(),
             now.to_string().as_bytes(),
             std::time::Duration::from_secs(300),
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -200,7 +204,10 @@ pub async fn reset_password(
         password_hash::{PasswordHasher, SaltString, rand_core::OsRng as ArgonRng},
     };
     let token = req.token.clone();
-    let addr_bytes = with_kevy(move |c| c.hget(format!("pwreset:{token}").as_bytes(), b"address"))?;
+    let addr_bytes = with_kevy(move |c| {
+        c.hget(format!("pwreset:{token}").as_bytes(), b"address")
+            .map_err(std::io::Error::other)
+    })?;
     let Some(addr_bytes) = addr_bytes else {
         return Err(StatusCode::UNAUTHORIZED);
     };
@@ -234,7 +241,8 @@ pub async fn reset_password(
     });
     let tok = req.token;
     with_kevy(move |c| {
-        c.del(&[format!("pwreset:{tok}").as_bytes()])?;
+        c.del(&[format!("pwreset:{tok}").as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -317,11 +325,14 @@ pub async fn totp_status(
 ) -> Json<serde_json::Value> {
     let key = format!("totp:{user}");
     let key_c = key.clone();
-    let enabled = with_kevy(move |c| c.hget(key_c.as_bytes(), b"enabled"))
-        .ok()
-        .flatten()
-        .map(|v| v == b"1")
-        .unwrap_or(false);
+    let enabled = with_kevy(move |c| {
+        c.hget(key_c.as_bytes(), b"enabled")
+            .map_err(std::io::Error::other)
+    })
+    .ok()
+    .flatten()
+    .map(|v| v == b"1")
+    .unwrap_or(false);
     Json(serde_json::json!({
         "enabled": enabled,
         "address": user,
@@ -350,7 +361,8 @@ pub async fn totp_setup(
                 (b"enabled", b"0"),
                 (b"recovery_codes", r.as_bytes()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({
@@ -366,12 +378,18 @@ pub async fn totp_enable(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("totp:{address}");
     let key_r = key.clone();
-    let secret = with_kevy(move |c| c.hget(key_r.as_bytes(), b"secret"))?
-        .and_then(|v| String::from_utf8(v).ok())
-        .ok_or(StatusCode::BAD_REQUEST)?;
+    let secret = with_kevy(move |c| {
+        c.hget(key_r.as_bytes(), b"secret")
+            .map_err(std::io::Error::other)
+    })?
+    .and_then(|v| String::from_utf8(v).ok())
+    .ok_or(StatusCode::BAD_REQUEST)?;
     let enabled = with_kevy({
         let k = key.clone();
-        move |c| c.hget(k.as_bytes(), b"enabled")
+        move |c| {
+            c.hget(k.as_bytes(), b"enabled")
+                .map_err(std::io::Error::other)
+        }
     })?
     .map(|v| v == b"1")
     .unwrap_or(false);
@@ -382,7 +400,8 @@ pub async fn totp_enable(
         return Err(StatusCode::UNAUTHORIZED);
     }
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"enabled" as &[u8], b"1")])?;
+        c.hset(key.as_bytes(), &[(b"enabled" as &[u8], b"1")])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({ "success": true })))
@@ -394,13 +413,19 @@ pub async fn totp_disable(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("totp:{address}");
     let key_r = key.clone();
-    let secret = with_kevy(move |c| c.hget(key_r.as_bytes(), b"secret"))?
-        .and_then(|v| String::from_utf8(v).ok())
-        .ok_or(StatusCode::BAD_REQUEST)?;
+    let secret = with_kevy(move |c| {
+        c.hget(key_r.as_bytes(), b"secret")
+            .map_err(std::io::Error::other)
+    })?
+    .and_then(|v| String::from_utf8(v).ok())
+    .ok_or(StatusCode::BAD_REQUEST)?;
     let enabled_key = key.clone();
-    let enabled = with_kevy(move |c| c.hget(enabled_key.as_bytes(), b"enabled"))?
-        .map(|v| v == b"1")
-        .unwrap_or(false);
+    let enabled = with_kevy(move |c| {
+        c.hget(enabled_key.as_bytes(), b"enabled")
+            .map_err(std::io::Error::other)
+    })?
+    .map(|v| v == b"1")
+    .unwrap_or(false);
     if !enabled {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -408,7 +433,7 @@ pub async fn totp_disable(
         return Err(StatusCode::UNAUTHORIZED);
     }
     with_kevy(move |c| {
-        c.del(&[key.as_bytes()])?;
+        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({ "success": true })))
@@ -420,7 +445,7 @@ pub async fn keys_status(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("pgp_keys:{user}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     let count = flat.len() / 2;
     Ok(Json(serde_json::json!({
         "configured": count > 0,
@@ -560,7 +585,8 @@ pub async fn create_app(
         c.hset(
             APPS_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     // Secret is returned once — the caller is responsible for storing
@@ -592,7 +618,8 @@ pub async fn delete_app(Path(app_id): Path<String>) -> Result<StatusCode, Status
             && let Some(id) = app.get("id").and_then(|v| v.as_i64())
         {
             with_kevy(move |c| {
-                c.hdel(APPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
+                c.hdel(APPS_KEY.as_bytes(), &[id.to_string().as_bytes()])
+                    .map_err(std::io::Error::other)?;
                 Ok(())
             })?;
             return Ok(StatusCode::NO_CONTENT);
@@ -703,7 +730,7 @@ pub async fn audit_conversation_detail(
     // Best we can do without a user context: read thread aggregate
     // directly from network kevy. Fastcore's per-user RPCs need a user.
     let key = format!("mailrs:thread:{thread_id}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
     if flat.is_empty() {
         return Ok(Json(
             serde_json::json!({ "thread_id": thread_id, "found": false }),
@@ -792,7 +819,7 @@ pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
     // listeners in the fastcore split — `mailrs-receiver` does — so
     // the ports come from the same env vars the receiver reads.
     let key = b"admin:config:smtp".to_vec();
-    if let Ok(Some(bytes)) = with_kevy(move |c| c.get(&key))
+    if let Ok(Some(bytes)) = with_kevy(move |c| c.get(&key).map_err(std::io::Error::other))
         && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
     {
         return Ok(Json(v));
@@ -835,7 +862,8 @@ pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
 pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<StatusCode, StatusCode> {
     let payload = serde_json::to_vec(&cfg).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     with_kevy(move |c| {
-        c.set(b"admin:config:smtp", payload.as_slice())?;
+        c.set(b"admin:config:smtp", payload.as_slice())
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -854,7 +882,10 @@ pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<Statu
 /// read from kevy; otherwise the `source: "env"` reading (or the built-
 /// in default) wins. UI renders "Environment" pill next to the value.
 pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> {
-    let flat = with_kevy(|c| c.hgetall(b"admin:system-config"))?;
+    let flat = with_kevy(|c| {
+        c.hgetall(b"admin:system-config")
+            .map_err(std::io::Error::other)
+    })?;
     let mut overrides: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -971,7 +1002,8 @@ pub async fn set_system_config_key(
         .map(|s| s.to_string())
         .unwrap_or_else(|| body.to_string());
     with_kevy(move |c| {
-        c.hset(b"admin:system-config", &[(k.as_bytes(), v.as_bytes())])?;
+        c.hset(b"admin:system-config", &[(k.as_bytes(), v.as_bytes())])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -1014,7 +1046,8 @@ pub async fn create_group(
         c.hset(
             GROUPS_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(g))
@@ -1022,11 +1055,13 @@ pub async fn create_group(
 
 pub async fn delete_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
-        c.hdel(GROUPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(GROUPS_KEY.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         c.del(&[
             format!("admin:groups:{id}:permissions").as_bytes(),
             format!("admin:groups:{id}:members").as_bytes(),
-        ])?;
+        ])
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -1036,7 +1071,7 @@ pub async fn get_group_permissions(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("admin:groups:{id}:permissions");
-    let raw = with_kevy(move |c| c.smembers(key.as_bytes()))?;
+    let raw = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))?;
     let perms: Vec<String> = raw
         .into_iter()
         .filter_map(|b| String::from_utf8(b).ok())
@@ -1055,10 +1090,11 @@ pub async fn set_group_permissions(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("admin:groups:{id}:permissions");
     with_kevy(move |c| {
-        c.del(&[key.as_bytes()])?;
+        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
         let refs: Vec<&[u8]> = req.permissions.iter().map(|s| s.as_bytes()).collect();
         if !refs.is_empty() {
-            c.sadd(key.as_bytes(), &refs)?;
+            c.sadd(key.as_bytes(), &refs)
+                .map_err(std::io::Error::other)?;
         }
         Ok(())
     })?;
@@ -1069,7 +1105,7 @@ pub async fn list_group_members(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("admin:groups:{id}:members");
-    let raw = with_kevy(move |c| c.smembers(key.as_bytes()))?;
+    let raw = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))?;
     let members: Vec<String> = raw
         .into_iter()
         .filter_map(|b| String::from_utf8(b).ok())
@@ -1089,7 +1125,8 @@ pub async fn add_group_member(
     let key = format!("admin:groups:{id}:members");
     let addr = req.address;
     with_kevy(move |c| {
-        c.sadd(key.as_bytes(), &[addr.as_bytes()])?;
+        c.sadd(key.as_bytes(), &[addr.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -1100,7 +1137,8 @@ pub async fn remove_group_member(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("admin:groups:{id}:members");
     with_kevy(move |c| {
-        c.srem(key.as_bytes(), &[address.as_bytes()])?;
+        c.srem(key.as_bytes(), &[address.as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -1157,7 +1195,8 @@ pub async fn create_email_group(
         c.hset(
             EG_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(g))
@@ -1165,7 +1204,8 @@ pub async fn create_email_group(
 
 pub async fn delete_email_group(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
-        c.hdel(EG_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(EG_KEY.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -1206,7 +1246,8 @@ pub async fn create_greylist_entry(
         c.hset(
             GL_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(g))
@@ -1214,7 +1255,8 @@ pub async fn create_greylist_entry(
 
 pub async fn delete_greylist_entry(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
-        c.hdel(GL_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(GL_KEY.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -1243,7 +1285,10 @@ pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
             let id_str = String::from_utf8_lossy(b).to_string();
             let key = format!("mailrs:outbound:job:{id_str}");
             let key_c = key.clone();
-            let blob = with_kevy(move |c| c.hget(key_c.as_bytes(), b"blob"))?;
+            let blob = with_kevy(move |c| {
+                c.hget(key_c.as_bytes(), b"blob")
+                    .map_err(std::io::Error::other)
+            })?;
             if let Some(b) = blob
                 && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b)
             {
@@ -1307,11 +1352,13 @@ pub async fn create_agent_key(
         c.hset(
             hkey.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         c.set(
             format!("agent:key:secret:{secret_c}").as_bytes(),
             index_payload.as_slice(),
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({ "id": id, "secret": secret })))
@@ -1323,20 +1370,25 @@ pub async fn delete_agent_key(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("agent:keys:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         // Also drop the secret index so revoked keys don't accumulate
         // forever. The record doesn't store the secret, so scan the
         // (single-digit-count) index keys for the matching {user,id}.
         let target = serde_json::json!({ "user": user, "id": id });
-        for idx_key in c.keys(b"agent:key:secret:*")? {
-            let Some(raw) = c.get(&idx_key)? else {
+        for idx_key in c
+            .keys(b"agent:key:secret:*")
+            .map_err(std::io::Error::other)?
+        {
+            let Some(raw) = c.get(&idx_key).map_err(std::io::Error::other)? else {
                 continue;
             };
             let matches = serde_json::from_slice::<serde_json::Value>(&raw)
                 .map(|v| v == target)
                 .unwrap_or(false);
             if matches {
-                c.del(&[idx_key.as_slice()])?;
+                c.del(&[idx_key.as_slice()])
+                    .map_err(std::io::Error::other)?;
             }
         }
         Ok(())
@@ -1357,7 +1409,7 @@ pub async fn migrate_legacy_agent_key_indexes(
         // prefix -> (user, id) from every user's key records
         let mut by_prefix: std::collections::HashMap<String, (String, i64)> =
             std::collections::HashMap::new();
-        for hkey in c.keys(b"agent:keys:*")? {
+        for hkey in c.keys(b"agent:keys:*").map_err(std::io::Error::other)? {
             let Ok(hkey_str) = std::str::from_utf8(&hkey) else {
                 continue;
             };
@@ -1381,8 +1433,11 @@ pub async fn migrate_legacy_agent_key_indexes(
         }
         let mut migrated = 0u32;
         let mut dropped = 0u32;
-        for idx_key in c.keys(b"agent:key:secret:*")? {
-            let Some(raw) = c.get(&idx_key)? else {
+        for idx_key in c
+            .keys(b"agent:key:secret:*")
+            .map_err(std::io::Error::other)?
+        {
+            let Some(raw) = c.get(&idx_key).map_err(std::io::Error::other)? else {
                 continue;
             };
             // already-migrated indexes parse as {user,id} — skip
@@ -1402,13 +1457,15 @@ pub async fn migrate_legacy_agent_key_indexes(
             match by_prefix.get(prefix) {
                 Some((owner, id)) => {
                     let val = serde_json::json!({ "user": owner, "id": id });
-                    c.set(&idx_key, val.to_string().as_bytes())?;
+                    c.set(&idx_key, val.to_string().as_bytes())
+                        .map_err(std::io::Error::other)?;
                     migrated += 1;
                 }
                 None => {
                     // no live record carries this prefix — the key was
                     // revoked; drop the dangling index
-                    c.del(&[idx_key.as_slice()])?;
+                    c.del(&[idx_key.as_slice()])
+                        .map_err(std::io::Error::other)?;
                     dropped += 1;
                 }
             }
@@ -1461,7 +1518,8 @@ pub async fn create_agent_webhook(
         c.hset(
             hkey.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(record))
@@ -1473,7 +1531,8 @@ pub async fn delete_agent_webhook(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("agent:webhooks:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)

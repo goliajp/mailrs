@@ -182,6 +182,19 @@ fn drain_once(
                 unresolved.push(fwd.clone());
                 continue;
             };
+            // 1b. DMARC aggregate reports sent to the collector mailbox
+            //     are parsed and stored here. Delivery is unaffected —
+            //     the report still lands in the mailbox as ordinary
+            //     mail, and every failure inside is logged and
+            //     swallowed. Non-collector recipients short-circuit on
+            //     the address check before any MIME work happens.
+            crate::dmarc_ingest::maybe_ingest(&addr, body);
+            // 1c. Feedback-loop complaints to abuse@ / postmaster@ take
+            //     the complainant off the sending list. Same shape: a
+            //     side effect, never a filter.
+            crate::fbl::maybe_record_complaint(maildir_root, &addr, body);
+            // 1d. TLS-RPT reports (RFC 8460) to the tlsrpt collector.
+            crate::tlsrpt_ingest::maybe_ingest(&addr, body);
             // 2. Consult the recipient's sieve script. Actions map to a
             //    Decision that overrides the default INBOX write.
             let outcome = crate::sieve_apply::decide(&addr, body, Some(&env.reverse_path));
@@ -201,10 +214,10 @@ fn drain_once(
                     let allow = env.target_folder.eq_ignore_ascii_case("INBOX")
                         && !crate::bounce::suppress_bounce(&env.reverse_path);
                     if allow {
-                        let helo = std::env::var("MAILRS_HELO_HOSTNAME")
-                            .unwrap_or_else(|_| "mailrs".into());
+                        let (reporting_mta, from_domain) = crate::bounce::dsn_identity();
                         let dsn = crate::bounce::compose_dsn(
-                            &helo,
+                            &reporting_mta,
+                            &from_domain,
                             &env.reverse_path,
                             &addr,
                             "5.7.1",
@@ -423,7 +436,7 @@ fn provision_if_account(state: &Arc<FastcoreState>, maildir_root: &str, addr: &s
 /// Quick recipient-existence probe used before choosing between direct
 /// delivery and alias resolution. Splits `addr@dom`, checks the
 /// per-user `new/` dir exists. Returns false for malformed addresses.
-fn has_maildir(maildir_root: &str, addr: &str) -> bool {
+pub(crate) fn has_maildir(maildir_root: &str, addr: &str) -> bool {
     let Some((local, domain)) = addr.split_once('@') else {
         return false;
     };
@@ -460,18 +473,7 @@ fn enqueue_redirect(
     let Ok(url) = std::env::var("MAILRS_KEVY_URL") else {
         return Err(std::io::Error::other("MAILRS_KEVY_URL unset"));
     };
-    let mut conn = kevy_client::Connection::open(&url).map_err(std::io::Error::other)?;
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0);
-    let nonce: u32 = {
-        // Cheap non-crypto uniqueness — a millisecond suffix is enough
-        // when redirects fire from the same drain tick.
-        static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    };
-    let id = format!("{now_ms}-{nonce}");
+    let mut conn = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
     let b64_body = base64::engine::general_purpose::STANDARD.encode(body);
     // SRS forward-rewrite the MAIL FROM (G6): when we forward on behalf
     // of an external sender, the receiving MX runs SPF against OUR IP —
@@ -491,27 +493,30 @@ fn enqueue_redirect(
         }
         _ => original_recipient.to_string(),
     };
-    // NOTE `recipient` singular — the sender process reads that exact
-    // field; the earlier `recipients` array made every redirect
-    // envelope land in move_to_failed as "malformed"
-    let envelope = serde_json::json!({
-        "sender": mail_from,
-        "recipient": target,
-        "message_data_b64": b64_body,
-        "attempts": 0,
-        "next_attempt": 0,
-        "id": &id,
-        "envelope_from": reverse_path,
-    });
-    let blob = envelope.to_string();
-    let hash_key = format!("mailrs:outbound:{id}");
-    conn.hset(
-        hash_key.as_bytes(),
-        &[(b"blob".as_slice(), blob.as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
-    conn.lpush(b"mailrs:outbound:pending", &[id.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    // Enqueue through the shared primitive, never by hand. It writes
+    // `mailrs:outbound:job:{id}` with state=pending plus the
+    // `pending-idx` list, which is what the sender's BRPOP + WATCH/CAS
+    // claim actually reads.
+    //
+    // This used to hand-roll `mailrs:outbound:{id}` + the legacy
+    // `pending` list. Nothing consumes those in the fastcore topology,
+    // so every DSN, every sieve redirect and every SRS-reversed bounce
+    // was written to a queue with no reader and silently never sent.
+    // webapi had the identical bug and was fixed in 2.9.38; these
+    // callers were missed. See write_fresh_pending's own doc comment.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    mailrs_core_sidestate::families::outbound::write_fresh_pending(
+        &mut conn,
+        &mail_from,
+        target,
+        &b64_body,
+        None,
+        Some(reverse_path),
+        now,
+    )?;
     Ok(())
 }
 

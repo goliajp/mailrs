@@ -53,8 +53,10 @@ pub async fn ws_events(
         std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = format!("session:{token}");
     let has_session = tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
-        let mut c = kevy_client::Connection::open(&kevy_url)?;
-        Ok(c.get(key.as_bytes())?.is_some())
+        let mut c = kevy_client::Connection::connect(&kevy_url).map_err(std::io::Error::other)?;
+        Ok(c.get(key.as_bytes())
+            .map_err(std::io::Error::other)?
+            .is_some())
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -116,7 +118,7 @@ fn spawn_kevy_feed_consumers(tx: EventBus) {
     };
     // Discover shard count in a scratch connection. If the discovery
     // itself fails the migration path is a no-op — pubsub is still up.
-    let shards = match kevy_client::Connection::open(&kevy_url) {
+    let shards = match kevy_client::Connection::connect(&kevy_url) {
         Ok(mut c) => c.feed_shards().unwrap_or(1),
         Err(e) => {
             tracing::warn!(err = %e, url = %kevy_url, "feed_shards probe failed; skipping feed consumer");
@@ -136,7 +138,7 @@ fn feed_consumer_loop(kevy_url: &str, shard: usize, tx: EventBus) {
     const IDLE_SLEEP: std::time::Duration = std::time::Duration::from_millis(250);
     const RECONNECT_SLEEP: std::time::Duration = std::time::Duration::from_secs(5);
     'outer: loop {
-        let mut conn = match kevy_client::Connection::open(kevy_url) {
+        let mut conn = match kevy_client::Connection::connect(kevy_url) {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(err = %e, shard, "feed consumer connect failed; retry 5s");

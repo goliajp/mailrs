@@ -48,7 +48,9 @@ pub fn record(actor: &str, action: &str, target: &str, detail: &str) {
     let detail = detail.to_string();
     let now = now_secs();
     let _ = with_kevy(move |c| {
-        let id = c.incr(AUDIT_CTR.as_bytes())?;
+        let id = c
+            .incr(AUDIT_CTR.as_bytes())
+            .map_err(std::io::Error::other)?;
         let fact = AuditFact {
             id,
             occurred_at: now,
@@ -59,17 +61,21 @@ pub fn record(actor: &str, action: &str, target: &str, detail: &str) {
             detail,
         };
         let payload = serde_json::to_vec(&fact).unwrap_or_default();
-        c.lpush(AUDIT_KEY, &[payload.as_slice()])?;
+        c.lpush(AUDIT_KEY, &[payload.as_slice()])
+            .map_err(std::io::Error::other)?;
         // retention: kevy-client has no LTRIM, so when the list grows a
         // window past the cap, rewrite it to the newest AUDIT_CAP rows.
         // Amortized cheap — the rewrite fires once per AUDIT_CAP/10 rows.
-        let len = c.llen(AUDIT_KEY)? as i64;
+        let len = c.llen(AUDIT_KEY).map_err(std::io::Error::other)? as i64;
         if len > AUDIT_CAP + AUDIT_CAP / 10 {
-            let keep = c.lrange(AUDIT_KEY, 0, AUDIT_CAP - 1)?;
-            c.del(&[AUDIT_KEY])?;
+            let keep = c
+                .lrange(AUDIT_KEY, 0, AUDIT_CAP - 1)
+                .map_err(std::io::Error::other)?;
+            c.del(&[AUDIT_KEY]).map_err(std::io::Error::other)?;
             // re-push oldest-first so LPUSH restores newest-first order
             for row in keep.iter().rev() {
-                c.lpush(AUDIT_KEY, &[row.as_slice()])?;
+                c.lpush(AUDIT_KEY, &[row.as_slice()])
+                    .map_err(std::io::Error::other)?;
             }
         }
         Ok(())

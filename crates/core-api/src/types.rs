@@ -250,3 +250,61 @@ mod tests {
         assert_eq!(back.domains.as_ref().map(|v| v.len()), Some(2));
     }
 }
+
+/// Parse a comma-separated `senders_csv` into bare email addresses,
+/// lowercased.
+///
+/// Handles `Name <email>`, bare `email`, and mixed. Shared because the
+/// same CSV is parsed on two paths that must agree: the contacts sync
+/// and the not-junk whitelist. They did not — the whitelist stored the
+/// whole `Name <email>` string while delivery compares the envelope's
+/// bare address, so a whitelisted sender never matched and kept
+/// landing in Junk no matter how many times it was marked.
+pub fn sender_addresses(csv: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for token in csv.split(',') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let addr = match (token.rfind('<'), token.rfind('>')) {
+            (Some(lt), Some(gt)) if gt > lt => token[lt + 1..gt].trim(),
+            _ => token,
+        };
+        if addr.contains('@') {
+            out.push(addr.to_lowercase());
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod sender_address_tests {
+    use super::sender_addresses;
+
+    #[test]
+    fn strips_display_names_and_lowercases() {
+        assert_eq!(
+            sender_addresses("GMOあおぞらネット銀行 <AC-Biz-Navi@gmo-aozora.com>"),
+            vec!["ac-biz-navi@gmo-aozora.com"]
+        );
+    }
+
+    #[test]
+    fn handles_bare_and_mixed() {
+        assert_eq!(
+            sender_addresses("a@x.com, Bob <b@y.com> , , not-an-address"),
+            vec!["a@x.com".to_string(), "b@y.com".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_display_name_containing_an_at_does_not_leak() {
+        // The angle brackets win — otherwise "@handle" in a display
+        // name would be whitelisted as if it were the sender.
+        assert_eq!(
+            sender_addresses("@someone <real@x.com>"),
+            vec!["real@x.com"]
+        );
+    }
+}

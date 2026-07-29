@@ -26,7 +26,7 @@ where
 {
     let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::open(&url)?;
+        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
         f(&mut c)
     });
     handle
@@ -71,7 +71,8 @@ pub async fn inline_upload(
                 (b"content_type" as &[u8], ct_c.as_bytes()),
                 (b"body", body_v.as_slice()),
             ],
-        )?;
+        )
+        .map_err(std::io::Error::other)?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({
@@ -87,8 +88,14 @@ pub async fn get_inline(
 ) -> Result<axum::response::Response, StatusCode> {
     let key = format!("inline:{id}");
     let key_c = key.clone();
-    let ct = with_kevy(move |c| c.hget(key_c.as_bytes(), b"content_type"))?;
-    let body = with_kevy(move |c| c.hget(key.as_bytes(), b"body"))?;
+    let ct = with_kevy(move |c| {
+        c.hget(key_c.as_bytes(), b"content_type")
+            .map_err(std::io::Error::other)
+    })?;
+    let body = with_kevy(move |c| {
+        c.hget(key.as_bytes(), b"body")
+            .map_err(std::io::Error::other)
+    })?;
     let Some(body) = body else {
         return Err(StatusCode::NOT_FOUND);
     };

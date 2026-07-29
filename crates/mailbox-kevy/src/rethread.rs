@@ -17,14 +17,19 @@ impl KevyMailboxStore {
     /// latest write wins, which is correct after a merge re-points ids.
     pub fn set_thread_for_message_id(&self, user: &str, mid: &str, tid: &str) -> io::Result<()> {
         let key = keys::message_by_message_id(user, mid);
-        self.store().set(key.as_bytes(), tid.as_bytes())?;
+        self.store()
+            .set(key.as_bytes(), tid.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 
     /// Resolve a `Message-ID:` to the thread it was indexed under.
     pub fn thread_for_message_id(&self, user: &str, mid: &str) -> io::Result<Option<String>> {
         let key = keys::message_by_message_id(user, mid);
-        let out = self.store().get(key.as_bytes())?;
+        let out = self
+            .store()
+            .get(key.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(out.and_then(|v| String::from_utf8(v).ok()))
     }
 
@@ -43,26 +48,36 @@ impl KevyMailboxStore {
 
         // 1. move messages: re-point each blob's thread_id and move the
         //    zset membership (keeping the internal_date score).
-        let members = store.zrange(from_msgs_key.as_bytes(), 0, -1)?;
+        let members = store
+            .zrange(from_msgs_key.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
         let mut moved = 0usize;
         for (mid_bytes, score) in &members {
             let Ok(mid) = std::str::from_utf8(mid_bytes) else {
                 continue;
             };
             let blob_key = keys::message_blob(mid);
-            if let Some(bytes) = store.get(blob_key.as_bytes())?
+            if let Some(bytes) = store
+                .get(blob_key.as_bytes())
+                .map_err(std::io::Error::other)?
                 && let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes)
             {
                 wire["thread_id"] = serde_json::Value::String(into.to_string());
                 if let Ok(payload) = serde_json::to_vec(&wire) {
-                    store.set(blob_key.as_bytes(), &payload)?;
+                    store
+                        .set(blob_key.as_bytes(), &payload)
+                        .map_err(std::io::Error::other)?;
                 }
             }
-            store.zadd(into_msgs_key.as_bytes(), &[(*score, mid_bytes.as_slice())])?;
+            store
+                .zadd(into_msgs_key.as_bytes(), &[(*score, mid_bytes.as_slice())])
+                .map_err(std::io::Error::other)?;
             self.set_thread_for_message_id(user, mid, into)?;
             moved += 1;
         }
-        store.del(&[from_msgs_key.as_bytes()])?;
+        store
+            .del(&[from_msgs_key.as_bytes()])
+            .map_err(std::io::Error::other)?;
 
         // 2. combine the aggregates. `from` may have no hash (already
         //    merged) — then only the zset move above mattered.
@@ -109,7 +124,10 @@ impl KevyMailboxStore {
     pub fn split_message_to_new_thread(&self, user: &str, mid: &str) -> io::Result<Option<String>> {
         let store = self.store();
         let blob_key = keys::message_blob(mid);
-        let Some(bytes) = store.get(blob_key.as_bytes())? else {
+        let Some(bytes) = store
+            .get(blob_key.as_bytes())
+            .map_err(std::io::Error::other)?
+        else {
             return Ok(None);
         };
         let Ok(mut wire) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -126,13 +144,19 @@ impl KevyMailboxStore {
         let seen = wire["flags"].as_u64().unwrap_or(0) & 1 != 0;
         wire["thread_id"] = serde_json::Value::String(new_tid.clone());
         if let Ok(payload) = serde_json::to_vec(&wire) {
-            store.set(blob_key.as_bytes(), &payload)?;
+            store
+                .set(blob_key.as_bytes(), &payload)
+                .map_err(std::io::Error::other)?;
         }
         // move the zset membership
         let old_msgs = keys::thread_messages(&old_tid);
         let new_msgs = keys::thread_messages(&new_tid);
-        store.zrem(old_msgs.as_bytes(), &[mid.as_bytes()])?;
-        store.zadd(new_msgs.as_bytes(), &[(date as f64, mid.as_bytes())])?;
+        store
+            .zrem(old_msgs.as_bytes(), &[mid.as_bytes()])
+            .map_err(std::io::Error::other)?;
+        store
+            .zadd(new_msgs.as_bytes(), &[(date as f64, mid.as_bytes())])
+            .map_err(std::io::Error::other)?;
         self.set_thread_for_message_id(user, mid, &new_tid)?;
         // rebuild the old thread's aggregate (may now be smaller)
         if !old_tid.is_empty()
@@ -261,8 +285,13 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
     }
 
     fn arrive(s: &KevyMailboxStore, tid: &str, user: &str, subject: &str, date: i64) {
@@ -370,7 +399,7 @@ impl KevyMailboxStore {
     ///
     /// The text index spans every thread key regardless of owner (kevy
     /// indexes are declared over a key prefix and thread rows carry no
-    /// owner field), so hits are filtered against the caller's activity
+    /// owner field), so hits are filtered against the caller's membership
     /// zset afterwards. Over-fetches by `OVERFETCH` to leave room for
     /// hits belonging to other accounts.
     pub fn search_threads(
@@ -383,12 +412,14 @@ impl KevyMailboxStore {
         if query.trim().is_empty() {
             return Ok(Vec::new());
         }
-        let hits = self.store().idx_match(
-            crate::keys::IDX_THREAD_SEARCH,
-            query.as_bytes(),
-            limit.saturating_mul(OVERFETCH),
-        )?;
-        let activity = crate::keys::user_threads_by_activity(user);
+        let hits = self
+            .store()
+            .idx_match(
+                crate::keys::IDX_THREAD_SEARCH,
+                query.as_bytes(),
+                limit.saturating_mul(OVERFETCH),
+            )
+            .map_err(std::io::Error::other)?;
         let mut out = Vec::with_capacity(limit);
         for (key, score) in hits {
             let Ok(key) = String::from_utf8(key) else {
@@ -398,10 +429,12 @@ impl KevyMailboxStore {
                 continue;
             };
             // ownership check — the index is global, the answer is not
+            let owned = crate::keys::thread_user(user, tid);
             if self
                 .store()
-                .zscore(activity.as_bytes(), tid.as_bytes())?
-                .is_none()
+                .exists(&[owned.as_bytes()])
+                .map_err(std::io::Error::other)?
+                == 0
             {
                 continue;
             }
@@ -603,16 +636,20 @@ impl KevyMailboxStore {
         let key = crate::keys::message_text(message_id);
         let text = crate::keys::cap_message_text(body_text.trim());
         if text.is_empty() {
-            self.store().del(&[key.as_bytes()])?;
+            self.store()
+                .del(&[key.as_bytes()])
+                .map_err(std::io::Error::other)?;
             return Ok(());
         }
-        self.store().hset(
-            key.as_bytes(),
-            &[
-                (crate::keys::MESSAGE_TEXT_FIELD, text.as_bytes()),
-                (crate::keys::MESSAGE_TEXT_TID_FIELD, thread_id.as_bytes()),
-            ],
-        )?;
+        self.store()
+            .hset(
+                key.as_bytes(),
+                &[
+                    (crate::keys::MESSAGE_TEXT_FIELD, text.as_bytes()),
+                    (crate::keys::MESSAGE_TEXT_TID_FIELD, thread_id.as_bytes()),
+                ],
+            )
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 
@@ -620,13 +657,14 @@ impl KevyMailboxStore {
     /// so search can't surface mail that no longer exists.
     pub fn forget_message_text(&self, message_id: &str) -> io::Result<()> {
         self.store()
-            .del(&[crate::keys::message_text(message_id).as_bytes()])?;
+            .del(&[crate::keys::message_text(message_id).as_bytes()])
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 
     /// Thread ids whose message bodies match `query`, best first and
     /// de-duplicated. Ownership is enforced against the caller's
-    /// activity zset, same as [`Self::search_threads`].
+    /// membership rows, same as [`Self::search_threads`].
     pub fn search_message_bodies(
         &self,
         user: &str,
@@ -637,17 +675,20 @@ impl KevyMailboxStore {
         if query.trim().is_empty() {
             return Ok(Vec::new());
         }
-        let hits = self.store().idx_match(
-            crate::keys::IDX_MESSAGE_TEXT,
-            query.as_bytes(),
-            limit.saturating_mul(OVERFETCH),
-        )?;
-        let activity = crate::keys::user_threads_by_activity(user);
+        let hits = self
+            .store()
+            .idx_match(
+                crate::keys::IDX_MESSAGE_TEXT,
+                query.as_bytes(),
+                limit.saturating_mul(OVERFETCH),
+            )
+            .map_err(std::io::Error::other)?;
         let mut out: Vec<String> = Vec::with_capacity(limit);
         for (key, _score) in hits {
             let Some(tid) = self
                 .store()
-                .hget(&key, crate::keys::MESSAGE_TEXT_TID_FIELD)?
+                .hget(&key, crate::keys::MESSAGE_TEXT_TID_FIELD)
+                .map_err(std::io::Error::other)?
                 .and_then(|v| String::from_utf8(v).ok())
             else {
                 continue;
@@ -655,10 +696,12 @@ impl KevyMailboxStore {
             if out.contains(&tid) {
                 continue;
             }
+            let owned = crate::keys::thread_user(user, &tid);
             if self
                 .store()
-                .zscore(activity.as_bytes(), tid.as_bytes())?
-                .is_none()
+                .exists(&[owned.as_bytes()])
+                .map_err(std::io::Error::other)?
+                == 0
             {
                 continue;
             }

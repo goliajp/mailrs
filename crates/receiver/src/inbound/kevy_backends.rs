@@ -50,11 +50,13 @@ impl GreylistBackend for KevyServerGreylistBackend {
         let key = key.to_vec();
         // JoinError → None, io::Error → None, miss → None: every failure
         // mode collapses to "not seen", the safe greylist default.
-        tokio::task::spawn_blocking(move || client.with_conn(|c| c.get(&key)))
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .flatten()
+        tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| c.get(&key).map_err(std::io::Error::other))
+        })
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .flatten()
     }
 
     async fn set_with_ttl(&self, key: &[u8], value: &[u8], ttl: Duration) {
@@ -62,7 +64,10 @@ impl GreylistBackend for KevyServerGreylistBackend {
         let key = key.to_vec();
         let value = value.to_vec();
         let _ = tokio::task::spawn_blocking(move || {
-            client.with_conn(|c| c.set_with_ttl(&key, &value, ttl))
+            client.with_conn(|c| {
+                c.set_with_ttl(&key, &value, ttl)
+                    .map_err(std::io::Error::other)
+            })
         })
         .await;
     }
@@ -71,7 +76,11 @@ impl GreylistBackend for KevyServerGreylistBackend {
         let client = self.client.clone();
         let key = key.to_vec();
         let _ = tokio::task::spawn_blocking(move || {
-            client.with_conn(|c| c.expire(&key, ttl).map(|_| ()))
+            client.with_conn(|c| {
+                c.expire(&key, ttl)
+                    .map(|_| ())
+                    .map_err(std::io::Error::other)
+            })
         })
         .await;
     }
@@ -124,11 +133,11 @@ impl RateLimitStore for KevyServerRateLimitStore {
         let ttl = Duration::from_secs(window_secs);
         tokio::task::spawn_blocking(move || {
             client.with_conn(|c| {
-                let count = c.incr(&redis_key)?;
+                let count = c.incr(&redis_key).map_err(std::io::Error::other)?;
                 if count == 1 {
                     // first hit in this window — arm the TTL so the
                     // counter resets when the window rolls over.
-                    c.expire(&redis_key, ttl)?;
+                    c.expire(&redis_key, ttl).map_err(std::io::Error::other)?;
                 }
                 Ok(count <= limit)
             })
@@ -163,13 +172,14 @@ fn bump_failure_scope(
     window: Duration,
     lockout: Duration,
 ) -> io::Result<()> {
-    let count = c.incr(fail_key)?;
+    let count = c.incr(fail_key).map_err(std::io::Error::other)?;
     if count == 1 {
-        c.expire(fail_key, window)?;
+        c.expire(fail_key, window).map_err(std::io::Error::other)?;
     }
     if count >= max {
-        c.set_with_ttl(lock_key, b"1", lockout)?;
-        c.del(&[fail_key])?;
+        c.set_with_ttl(lock_key, b"1", lockout)
+            .map_err(std::io::Error::other)?;
+        c.del(&[fail_key]).map_err(std::io::Error::other)?;
     }
     Ok(())
 }
@@ -222,7 +232,7 @@ impl AuthGuardStore for KevyServerAuthGuardStore {
         let remaining: io::Result<Option<u64>> = tokio::task::spawn_blocking(move || {
             client.with_conn(|c| {
                 for key in [&ip_lock, &acct_lock] {
-                    let ms = c.ttl_ms(key)?;
+                    let ms = c.ttl_ms(key).map_err(std::io::Error::other)?;
                     if ms > 0 {
                         return Ok(Some(((ms / 1000) as u64).max(1)));
                     }
@@ -273,7 +283,8 @@ impl AuthGuardStore for KevyServerAuthGuardStore {
         // scope (matches the in-process contract).
         let _ = tokio::task::spawn_blocking(move || {
             client.with_conn(|c| {
-                c.del(&[acct_fail.as_slice(), acct_lock.as_slice()])?;
+                c.del(&[acct_fail.as_slice(), acct_lock.as_slice()])
+                    .map_err(std::io::Error::other)?;
                 Ok(())
             })
         })

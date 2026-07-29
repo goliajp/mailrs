@@ -104,7 +104,9 @@ services:
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
       MAILRS_MAILDIR: /data/maildir
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
-      MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mailrs}
+      # FQDN, not a bare hostname — this is the Reporting-MTA in DSNs.
+      MAILRS_HELO_HOSTNAME: ${MAILRS_HELO_HOSTNAME:-mail.smk.ai}
+      MAILRS_DSN_FROM_DOMAIN: ${MAILRS_DSN_FROM_DOMAIN:-smk.ai}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET:-}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
       MAILRS_ALIAS_STORE_BACKEND: network
@@ -156,6 +158,7 @@ services:
       MAILRS_SENDER_MAX_ATTEMPTS: "10"
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"
+      MAILRS_DKIM_KEYS: ${MAILRS_DKIM_KEYS:-}
       RUST_LOG: info
     depends_on:
       - kevy-server

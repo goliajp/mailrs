@@ -60,9 +60,11 @@ async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) 
     let mut tries = 0;
     loop {
         let c = Arc::new(KevyNetClient::new(url.clone()));
-        let res = tokio::task::spawn_blocking(move || c.with_conn(|conn| conn.ping()))
-            .await
-            .expect("join");
+        let res = tokio::task::spawn_blocking(move || {
+            c.with_conn(|conn| conn.ping().map_err(std::io::Error::other))
+        })
+        .await
+        .expect("join");
         match res {
             Ok(()) => break,
             Err(e) => {

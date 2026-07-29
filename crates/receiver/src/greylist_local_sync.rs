@@ -71,10 +71,12 @@ fn parse_entries(flat: &[Vec<u8>]) -> GreylistLocalLists {
 
 async fn reload_once(handle: &GreylistLocalHandle, client: &Arc<KevyNetClient>) {
     let c = client.clone();
-    let flat = tokio::task::spawn_blocking(move || c.with_conn(|conn| conn.hgetall(GL_KEY)))
-        .await
-        .ok()
-        .and_then(Result::ok);
+    let flat = tokio::task::spawn_blocking(move || {
+        c.with_conn(|conn| conn.hgetall(GL_KEY).map_err(std::io::Error::other))
+    })
+    .await
+    .ok()
+    .and_then(Result::ok);
     let Some(flat) = flat else {
         // kevy unreachable — keep the previous snapshot (fail-open:
         // stale lists beat no lists)

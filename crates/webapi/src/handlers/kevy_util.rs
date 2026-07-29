@@ -111,7 +111,7 @@ where
     // panics under the current_thread runtime used by some tests. In
     // that case we just run the closure directly.
     let inner = |url: String, f: F| -> Result<T, StatusCode> {
-        let mut c = kevy_client::Connection::open(&url).map_err(|e| {
+        let mut c = kevy_client::Connection::connect(&url).map_err(|e| {
             tracing::warn!(err = %e, "with_kevy: kevy connect failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;

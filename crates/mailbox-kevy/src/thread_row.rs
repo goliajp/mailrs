@@ -172,7 +172,103 @@ impl ThreadRow {
     }
 }
 
+/// `1` / `0` as the stored bytes for a boolean column. i64-typed in the
+/// declaration so `FILTER flag EQ 1` coerces cleanly.
+fn flag(v: bool) -> &'static [u8] {
+    if v { b"1" } else { b"0" }
+}
+
+/// The membership-row fields for one (user, thread) pair.
+///
+/// Shared by the live write path and the backfill so the two cannot
+/// disagree about what a row contains — a drift between "what writes
+/// put there" and "what backfill puts there" would be exactly the
+/// class of bug this whole migration exists to remove.
+/// A bounded tie-breaker derived from the thread id.
+///
+/// The id is a Message-ID and can exceed kevy's `MAX_STR_COMPONENT`
+/// (255 bytes), and a composite orderpath **excludes the whole row**
+/// when any component is over that — two threads on prod disappeared
+/// from both composites that way. FNV-1a folded into a non-negative
+/// i64 is always in range, so the sort stays total without any row
+/// being able to fall out of it.
+fn tid_ord(tid: &str) -> i64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in tid.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    (h >> 1) as i64
+}
+
+pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let bucket = keys::bucket_of(&row.category);
+    // "sent_only" means every message in the thread came from this
+    // user — it lives in Sent and nowhere else. Merely having replied
+    // does not qualify: a conversation the user took part in is still
+    // an inbox thread. Reading it as "has ever sent" dropped 190
+    // threads from one account's inbox on prod.
+    let sent_only = row.count > 0 && row.sent_count >= row.count;
+    // Distinct from `sent_only`: the Sent folder shows every thread
+    // the user has written in, the way Gmail does, while the inbox
+    // only excludes threads that are *nothing but* their own messages.
+    // A conversation they replied in is in both.
+    let is_sender = senders_csv_contains_user(&row.senders_csv, user);
+    vec![
+        (b"user".to_vec(), user.as_bytes().to_vec()),
+        (b"tid".to_vec(), row.thread_id.as_bytes().to_vec()),
+        (
+            b"ord".to_vec(),
+            tid_ord(&row.thread_id).to_string().into_bytes(),
+        ),
+        (b"bucket".to_vec(), bucket.name().as_bytes().to_vec()),
+        (b"category".to_vec(), row.category.as_bytes().to_vec()),
+        (
+            b"activity".to_vec(),
+            row.latest_date.to_string().into_bytes(),
+        ),
+        (b"sent_only".to_vec(), flag(sent_only).to_vec()),
+        (b"is_sender".to_vec(), flag(is_sender).to_vec()),
+        (b"starred".to_vec(), flag(row.starred).to_vec()),
+        (b"archived".to_vec(), flag(row.archived).to_vec()),
+        (b"pinned".to_vec(), flag(row.pinned).to_vec()),
+        (b"unread".to_vec(), flag(row.unread_count > 0).to_vec()),
+        (b"has_action".to_vec(), flag(row.has_action).to_vec()),
+    ]
+}
+
 impl KevyMailboxStore {
+    /// Write the membership row only when it is absent or differs.
+    ///
+    /// Returns whether anything was written. The read-compare costs one
+    /// HGETALL against a write that would otherwise churn the AOF on
+    /// every backfill pass over already-correct data.
+    pub(crate) fn write_thread_user_if_changed(
+        &self,
+        user: &str,
+        row: &ThreadRow,
+    ) -> io::Result<bool> {
+        let key = keys::thread_user(user, &row.thread_id);
+        let want = thread_user_pairs(user, row);
+        let have: std::collections::HashMap<Vec<u8>, Vec<u8>> = self
+            .store()
+            .hgetall(key.as_bytes())
+            .map_err(std::io::Error::other)?
+            .into_iter()
+            .collect();
+        if want.iter().all(|(k, v)| have.get(k) == Some(v)) {
+            return Ok(false);
+        }
+        let refs: Vec<(&[u8], &[u8])> = want
+            .iter()
+            .map(|(k, v)| (k.as_slice(), v.as_slice()))
+            .collect();
+        self.store()
+            .hset(key.as_bytes(), &refs)
+            .map_err(std::io::Error::other)?;
+        Ok(true)
+    }
+
     /// Write the thread aggregate hash + bump it to head of every index
     /// zset the row's flags say it belongs to.
     ///
@@ -189,99 +285,37 @@ impl KevyMailboxStore {
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        let activity = keys::user_threads_by_activity(user);
-        let cat = keys::user_threads_by_category(user, &row.category);
-        let pinned = keys::user_threads_pinned(user);
-        let archived = keys::user_threads_archived(user);
-        let has_unread = keys::user_threads_has_unread(user);
-        let has_action = keys::user_threads_has_action(user);
-        let starred = keys::user_threads_starred(user);
-        let sent = keys::user_threads_sent(user);
-        // v2.4.0 Phase 2 / v2.9 triage — top-level bucket zsets. A thread
-        // lives in exactly ONE of {inbox, notifications, promotions,
-        // junk}, derived purely from `category` via `bucket_of`. Sent
-        // remains an orthogonal axis via `is_sender` below (a thread can
-        // be both a bucket AND Sent — showing up in the user's Sent view
-        // whenever they replied at least once).
-        let bucket = keys::bucket_of(&row.category);
-        let bucket_zset = bucket.zset(user);
-        let other_buckets: Vec<String> = keys::Bucket::all_zsets(user)
-            .into_iter()
-            .filter(|k| *k != bucket_zset)
+        let tu_key = keys::thread_user(user, &row.thread_id);
+        let tu_pairs = thread_user_pairs(user, row);
+        let tu_refs: Vec<(&[u8], &[u8])> = tu_pairs
+            .iter()
+            .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        let is_sender = senders_csv_contains_user(&row.senders_csv, user);
-        let score = row.latest_date as f64;
-        let member: &[u8] = row.thread_id.as_bytes();
-        self.store().atomic(|ctx| {
-            ctx.hset(key.as_bytes(), &pair_refs)?;
+        self.store()
+            .atomic(|ctx| {
+                ctx.hset(key.as_bytes(), &pair_refs)?;
 
-            ctx.zadd(activity.as_bytes(), &[(score, member)])?;
-            ctx.zadd(cat.as_bytes(), &[(score, member)])?;
+                // The membership row for the declared `threaduser`
+                // table, and now the only thing this writes: every
+                // access path the twelve zsets used to encode in their
+                // key names is a column here, maintained by the engine.
+                // `bucket` is stored rather than derived because the
+                // engine cannot call `bucket_of`.
+                ctx.hset(tu_key.as_bytes(), &tu_refs)?;
 
-            if row.pinned {
-                ctx.zadd(pinned.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(pinned.as_bytes(), &[member])?;
-            }
-            if row.archived {
-                ctx.zadd(archived.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(archived.as_bytes(), &[member])?;
-            }
-            if row.unread_count > 0 {
-                ctx.zadd(has_unread.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(has_unread.as_bytes(), &[member])?;
-            }
-            if row.has_action {
-                ctx.zadd(has_action.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(has_action.as_bytes(), &[member])?;
-            }
-            if row.starred {
-                ctx.zadd(starred.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(starred.as_bytes(), &[member])?;
-            }
-
-            // Sent-folder index — populated when the user's own email
-            // shows up in the thread's senders_csv (i.e. they sent at
-            // least one message). Fastcore trusts senders_csv here
-            // rather than the pg-dump-provided `sent_count`, which
-            // comes from a monolith SQL aggregate that also fires on
-            // inbound-direction events and produces false positives.
-            if is_sender {
-                ctx.zadd(sent.as_bytes(), &[(score, member)])?;
-            } else {
-                ctx.zrem(sent.as_bytes(), &[member])?;
-            }
-            // v2.9 triage — bucket membership. The thread joins exactly
-            // one of {inbox, notifications, promotions, junk} per
-            // `bucket_of(category)` and is removed from the other three,
-            // so a category flip (e.g. "mark as promotion") migrates
-            // cleanly. A sent-only thread (count == sent_count, no
-            // received message) belongs to the Sent axis alone and must
-            // not surface in any inbound bucket; Junk is the exception.
-            if bucket == keys::Bucket::Junk || row.count > row.sent_count {
-                ctx.zadd(bucket_zset.as_bytes(), &[(score, member)])?;
-                for other in &other_buckets {
-                    ctx.zrem(other.as_bytes(), &[member])?;
-                }
-            } else {
-                // Sent-only: not in any inbound bucket.
-                for z in keys::Bucket::all_zsets(user) {
-                    ctx.zrem(z.as_bytes(), &[member])?;
-                }
-            }
-            Ok(())
-        })
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
     }
 
     /// Read a single thread row back. Returns `None` if the hash is
     /// empty (deleted or never existed).
     pub fn get_thread(&self, thread_id: &str) -> io::Result<Option<ThreadRow>> {
         let key = keys::thread(thread_id);
-        let pairs = self.store().hgetall(key.as_bytes())?;
+        let pairs = self
+            .store()
+            .hgetall(key.as_bytes())
+            .map_err(std::io::Error::other)?;
         Ok(ThreadRow::from_pairs(thread_id.to_string(), &pairs))
     }
 }
@@ -293,8 +327,40 @@ mod tests {
     use std::sync::Arc;
 
     fn store() -> KevyMailboxStore {
-        let s = Arc::new(Store::open(Config::default()).expect("open in-memory kevy"));
-        KevyMailboxStore::new(s)
+        let s = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        // Reads are served from the declared table, so a test store
+        // has to look like a booted one.
+        s.ensure_thread_table();
+        s
+    }
+
+    #[test]
+    fn membership_backfill_converges() {
+        // `periodic-work-must-converge`: the second pass over data that
+        // is already right must write nothing. An unconditional hset
+        // would be idempotent and still churn the AOF forever.
+        let st = store();
+        let row = sample("t-converge");
+        assert!(
+            st.write_thread_user_if_changed("alice@x.com", &row)
+                .unwrap(),
+            "first write must create the row"
+        );
+        assert!(
+            !st.write_thread_user_if_changed("alice@x.com", &row)
+                .unwrap(),
+            "second write over identical data must be a no-op"
+        );
+
+        let mut moved = row.clone();
+        moved.category = "spam".into();
+        assert!(
+            st.write_thread_user_if_changed("alice@x.com", &moved)
+                .unwrap(),
+            "a changed field must write again"
+        );
     }
 
     #[test]
@@ -351,32 +417,46 @@ mod tests {
     }
 
     #[test]
-    fn pinned_archived_flags_toggle_zset_membership() {
+    fn pinned_archived_flags_toggle_membership_row() {
         let s = store();
+        let field = |tid: &str, name: &str| -> String {
+            s.store()
+                .hgetall(keys::thread_user("u@x.com", tid).as_bytes())
+                .unwrap()
+                .into_iter()
+                .find(|(f, _)| f == name.as_bytes())
+                .map(|(_, v)| String::from_utf8_lossy(&v).into_owned())
+                .unwrap_or_default()
+        };
+
         let mut row = sample("t2");
         row.archived = true;
         row.pinned = false;
         s.upsert_thread("u@x.com", &row).unwrap();
-        let archived = keys::user_threads_archived("u@x.com");
-        let pinned = keys::user_threads_pinned("u@x.com");
-        assert_eq!(s.store().zcard(archived.as_bytes()).unwrap(), 1);
-        assert_eq!(s.store().zcard(pinned.as_bytes()).unwrap(), 0);
+        assert_eq!(field("t2", "archived"), "1");
+        assert_eq!(field("t2", "pinned"), "0");
 
         // flip both
         row.archived = false;
         row.pinned = true;
         s.upsert_thread("u@x.com", &row).unwrap();
-        assert_eq!(s.store().zcard(archived.as_bytes()).unwrap(), 0);
-        assert_eq!(s.store().zcard(pinned.as_bytes()).unwrap(), 1);
+        assert_eq!(field("t2", "archived"), "0");
+        assert_eq!(field("t2", "pinned"), "1");
     }
 
     #[test]
-    fn activity_zset_carries_latest_date_score() {
+    fn membership_row_carries_latest_date_as_activity() {
         let s = store();
         let row = sample("t3");
         s.upsert_thread("u@x.com", &row).unwrap();
-        let activity = keys::user_threads_by_activity("u@x.com");
-        let score = s.store().zscore(activity.as_bytes(), b"t3").unwrap();
-        assert_eq!(score, Some(row.latest_date as f64));
+        let activity = s
+            .store()
+            .hgetall(keys::thread_user("u@x.com", "t3").as_bytes())
+            .unwrap()
+            .into_iter()
+            .find(|(f, _)| f == b"activity")
+            .map(|(_, v)| String::from_utf8_lossy(&v).into_owned())
+            .unwrap_or_default();
+        assert_eq!(activity, row.latest_date.to_string());
     }
 }

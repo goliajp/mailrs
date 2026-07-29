@@ -67,6 +67,7 @@ use async_trait::async_trait;
 
 pub mod align;
 pub mod eval;
+pub mod ingest;
 pub mod policy;
 
 pub use align::{check as align_check, organizational_domain};
