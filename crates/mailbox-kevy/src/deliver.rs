@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(row.latest_date, 200);
 
         // list_thread_messages returns in chronological order
-        let blobs = s.list_thread_messages("t1").unwrap();
+        let blobs = s.thread_messages_for_maintenance("t1").unwrap();
         assert_eq!(blobs, vec![b"first".to_vec(), b"second".to_vec()]);
     }
 }

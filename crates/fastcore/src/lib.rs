@@ -1191,7 +1191,10 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
             let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
                 continue;
             };
-            let msgs = state.mailbox.list_thread_messages(tid).unwrap_or_default();
+            let msgs = state
+                .mailbox
+                .thread_messages_for_maintenance(tid)
+                .unwrap_or_default();
             for payload in msgs {
                 let Ok(mut wire) = serde_json::from_slice::<
                     mailrs_core_api::method::message::MessageWire,
@@ -1278,7 +1281,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
         } else {
             let existing_mids: std::collections::HashSet<String> = state
                 .mailbox
-                .list_thread_messages(tid)
+                .thread_messages_for_maintenance(tid)
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(|payload| {
@@ -2308,12 +2311,12 @@ async fn get_unseen_count(
 /// view while the kevy data shape grows.
 async fn thread_messages(
     State(state): State<Arc<FastcoreState>>,
-    Path((_user, thread_id)): Path<(String, String)>,
+    Path((user, thread_id)): Path<(String, String)>,
 ) -> Json<mailrs_core_api::method::thread::ListThreadMessagesResponse> {
     use mailrs_core_api::method::message::MessageWire;
     let blobs = state
         .mailbox
-        .list_thread_messages(&thread_id)
+        .list_thread_messages(&user, &thread_id)
         .unwrap_or_default();
     let items = blobs
         .into_iter()
@@ -2345,7 +2348,10 @@ async fn list_sent_messages(
         let Ok(tid) = std::str::from_utf8(tid_b) else {
             continue;
         };
-        let blobs = state.mailbox.list_thread_messages(tid).unwrap_or_default();
+        let blobs = state
+            .mailbox
+            .list_thread_messages(&user, tid)
+            .unwrap_or_default();
         for b in blobs {
             let Ok(w) = serde_json::from_slice::<MessageWire>(&b) else {
                 continue;
@@ -2428,7 +2434,11 @@ async fn backfill_threading_route(
             let Ok(tid) = std::str::from_utf8(tid_b) else {
                 continue;
             };
-            for blob in state.mailbox.list_thread_messages(tid).unwrap_or_default() {
+            for blob in state
+                .mailbox
+                .thread_messages_for_maintenance(tid)
+                .unwrap_or_default()
+            {
                 if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) {
                     let list = senders_by_tid.entry(tid.to_string()).or_default();
                     let sender = w.sender.trim().to_string();

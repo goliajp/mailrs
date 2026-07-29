@@ -167,7 +167,7 @@ impl KevyMailboxStore {
                 row.unread_count = unread;
                 row.sent_count = sent;
                 // display fields follow the (new) latest message
-                if let Some(last) = self.list_thread_messages(&old_tid)?.last()
+                if let Some(last) = self.thread_messages_unscoped(&old_tid)?.last()
                     && let Ok(w) = serde_json::from_slice::<serde_json::Value>(last)
                 {
                     row.latest_date = w["internal_date"].as_i64().unwrap_or(row.latest_date);
@@ -210,7 +210,7 @@ impl KevyMailboxStore {
     /// the user didn't send; sent = messages the user sent. `None` when
     /// the thread has no messages to count (keep the hash values).
     fn recount_from_messages(&self, user: &str, tid: &str) -> io::Result<Option<(i64, i64, i64)>> {
-        let blobs = self.list_thread_messages(tid)?;
+        let blobs = self.thread_messages_unscoped(tid)?;
         if blobs.is_empty() {
             return Ok(None);
         }
@@ -343,7 +343,7 @@ mod tests {
         let row = s.get_thread("t-new").unwrap().expect("merged row");
         assert_eq!(row.count, 2);
         assert_eq!(row.unread_count, 2);
-        let msgs = s.list_thread_messages("t-new").unwrap();
+        let msgs = s.thread_messages_for_maintenance("t-new").unwrap();
         assert_eq!(msgs.len(), 2);
         // moved blob got its thread_id re-pointed
         let m1: serde_json::Value = serde_json::from_slice(&msgs[0]).unwrap();
