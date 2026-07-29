@@ -1155,6 +1155,62 @@ mod flag_axis_tests {
     /// This decides whether the flag axes can be served from a single
     /// index per flag (keyed on the flag, `FILTER user`, `SORT
     /// activity`) or whether each needs its own composite ORDERPATH.
+    /// Does a field the `TableSpec` never declared break the row?
+    ///
+    /// This decides the cost of moving per-user state onto this row
+    /// (RFC 20260730). If undeclared fields are simply carried, the
+    /// counters and display fields can land here as payload and the
+    /// spec never changes — no `table_drop`, no rebuilding 30,510 rows'
+    /// indexes at boot. If they are rejected or silently drop the row
+    /// out of its indexes, the migration needs a rehearsal against a
+    /// copy of the prod AOF first.
+    #[test]
+    fn undeclared_fields_ride_along_without_disturbing_the_indexes() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        for i in 1..=3 {
+            st.write_thread_user_if_changed(
+                "alice@x.com",
+                &flagged(&format!("t{i:02}"), 1000 + i, true),
+            )
+            .unwrap();
+        }
+
+        // Payload the spec knows nothing about, on one of the rows.
+        let key = keys::thread_user("alice@x.com", "t02");
+        st.store()
+            .hset(
+                key.as_bytes(),
+                &[
+                    (b"count" as &[u8], b"7" as &[u8]),
+                    (b"subject", "Undeclared".as_bytes()),
+                ],
+            )
+            .unwrap();
+
+        let got = st
+            .list_thread_ids_by_flag_via_table("alice@x.com", "starred", 10, 0, None)
+            .unwrap();
+        assert_eq!(
+            got,
+            vec!["t03", "t02", "t01"],
+            "an undeclared field must not drop the row out of its index"
+        );
+
+        let back = st.store().hget(key.as_bytes(), b"count").unwrap();
+        assert_eq!(
+            back.as_deref(),
+            Some(b"7" as &[u8]),
+            "and it must still be readable"
+        );
+
+        let verdict = st.store().table_verify(b"threaduser");
+        assert!(verdict.is_ok(), "TABLE.VERIFY must stay happy: {verdict:?}");
+    }
+
     /// If the sort were page-local, asking for 3 of 10 would return
     /// three arbitrary threads in descending order rather than the
     /// three newest — a paging bug that looks like correct output.
