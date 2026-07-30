@@ -193,12 +193,12 @@ export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResul
 
 export async function snoozeConversation(
   threadId: string,
-  until: string
+  snoozedUntil: number
 ): Promise<{ message?: string; success: boolean }> {
   // v2.1 §10.6 (2026-07-08): delegated to wire adapter.
   const { wireSnoozeConversation } = await import('@/wire/endpoints/mail')
   // 204 on success; wireFetch throws on anything else.
-  return (await wireSnoozeConversation(threadId, until)) ?? { success: true }
+  return (await wireSnoozeConversation(threadId, snoozedUntil)) ?? { success: true }
 }
 
 // --- snooze API ---

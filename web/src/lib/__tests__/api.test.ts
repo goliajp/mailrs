@@ -410,17 +410,29 @@ describe('snoozeConversation', () => {
     mockGetToken.mockReset()
   })
 
-  it('sends PUT with until param', async () => {
+  /**
+   * Asserts the body against the **backend struct**, named in the comment
+   * so the two can be compared by a reader:
+   * `SnoozeBody { snoozed_until: i64 }` in
+   * crates/webapi/src/handlers/conversations.rs.
+   *
+   * The previous version of this test asserted `{until: <ISO string>}` and
+   * passed, every run, while every snooze in production failed with a 422 —
+   * because it pinned what the frontend had decided to send rather than
+   * what anything accepted. A test written that way looks like a contract
+   * test and verifies one side against itself.
+   */
+  it('sends PUT with snoozed_until in epoch seconds', async () => {
     mockGetToken.mockReturnValue('tok')
     vi.stubGlobal('fetch', makeFetchMock(200, { success: true }))
-    const result = await snoozeConversation('thread-1', '2024-12-01T09:00:00Z')
+    const result = await snoozeConversation('thread-1', 1_764_579_600)
     expect(result).toEqual({ success: true })
     const call = vi.mocked(fetch).mock.calls[0]
     expect(call[0]).toBe('/api/conversations/thread-1/snooze')
     const opts = call[1] as RequestInit
     expect(opts.method).toBe('PUT')
     expect(JSON.parse(opts.body as string)).toEqual({
-      until: '2024-12-01T09:00:00Z',
+      snoozed_until: 1_764_579_600,
     })
   })
 })

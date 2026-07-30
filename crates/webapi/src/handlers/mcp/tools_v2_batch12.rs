@@ -81,9 +81,21 @@ impl MailrsMcpService {
     ) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
+        // The tool's parameters do not change — they are a contract with
+        // the agents calling it. `domain` is not one of them because the
+        // address already carries it, so it is taken from there;
+        // `description` has no parameter and stays empty rather than being
+        // invented.
+        let domain = params
+            .address
+            .rsplit_once('@')
+            .map(|(_, d)| d.to_string())
+            .unwrap_or_default();
         let req = crate::handlers::complete::CreateEmailGroupRequest {
             address: params.address.clone(),
+            domain,
             name: params.name,
+            description: String::new(),
             members: params.members,
         };
         let Json(group) = crate::handlers::complete::create_email_group(Json(req))

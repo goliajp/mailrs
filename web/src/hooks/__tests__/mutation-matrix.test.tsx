@@ -225,7 +225,7 @@ describe('mutation matrix — optimistic patch reaches every screen', () => {
     seedAllScreens('t-target')
     vi.mocked(snoozeConversation).mockResolvedValue(undefined as never)
     const { result } = renderHook(() => useSnoozeMutation(), { wrapper })
-    result.current.mutate({ threadId: 't-target', until: '2026-08-01T00:00:00Z' })
+    result.current.mutate({ snoozedUntil: 1_785_542_400, threadId: 't-target' })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     for (const key of SCREEN_KEYS) {
       expect(findRow(key, 't-target')).toBeUndefined()

@@ -13,10 +13,11 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
   const updatePassword = useAdminMutation({
     invalidateKey: adminKeys.accounts(),
     mutationFn: (newPassword: string) =>
+      // `domain` is not sent: `AddAccountRequest` does not name it and the
+      // address already carries it, so it was dropped on arrival.
       adminPost('/admin/accounts', {
         address: account.address,
         display_name: account.display_name,
-        domain: account.domain,
         password: newPassword,
       }),
     successMsg: () => `Password updated for "${account.address}"`,

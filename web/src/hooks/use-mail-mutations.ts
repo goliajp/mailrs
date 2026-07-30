@@ -325,8 +325,8 @@ export function usePinMutation() {
 }
 
 export function useSnoozeMutation() {
-  return useMutation<unknown, Error, { threadId: string; until: string }, Context>({
-    mutationFn: ({ threadId, until }) => snoozeApi(threadId, until),
+  return useMutation<unknown, Error, { snoozedUntil: number; threadId: string }, Context>({
+    mutationFn: ({ snoozedUntil, threadId }) => snoozeApi(threadId, snoozedUntil),
     onError: (_e, _vars, ctx) => {
       if (ctx) rollbackConversations(ctx.snapshots)
     },

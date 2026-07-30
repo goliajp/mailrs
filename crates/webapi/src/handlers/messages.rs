@@ -24,7 +24,7 @@ fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
 /// Look up a MessageWire by uid via the fastcore RPC surface. Uses the
 /// per-user uid index (`mailrs:user:<u>:msg_by_uid` hash) hydrated by
 /// the deliver path + backfill binary.
-async fn resolve_message(
+pub(crate) async fn resolve_message(
     state: &Arc<WebState>,
     user: &str,
     uid: u32,
