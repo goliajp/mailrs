@@ -24,6 +24,21 @@ type SentListItem = { label: string; type: 'divider' } | { msg: WireSentMessage;
 // showing the recipient. clicking opens the thread and focuses this exact
 // message. Renders the FilterBar so tab navigation stays available (like
 // DraftsList — it replaces ConversationList wholesale).
+//
+// Rows key on `message_id`, never on `uid`. `applyOptimisticSent` prepends
+// a placeholder with `uid: 0` by construction, so two sends in a row put
+// two rows with key=0 in the list and React cannot tell the stale
+// placeholder from the new one — it leaves the old node behind. Sending
+// two mails showed three rows until a refresh rebuilt the tree
+// (2026-07-30). `react-key-contract.md` forbids keying on a field the
+// backend commonly fills with 0, and the precedent it cites is the same
+// bug one layer over: MessageWire.id = 0 put 5+ copies of one message in
+// a thread.
+//
+// `message_id` is the identity `dedupeSentByMessageId` already picked, is
+// never 0, and is identical on the placeholder and the row that replaces
+// it. De-duping on one field while keying on another is what let the two
+// disagree.
 export function SentList() {
   const { data: messages = [], isLoading } = useSentMessagesQuery()
   const setSelectedThreadId = useSetAtom(selectedThreadIdAtom)
@@ -64,7 +79,7 @@ export function SentList() {
           if (item.type === 'divider') {
             return <DateDivider key={`d:${item.label}`} label={item.label} />
           }
-          return <SentRow key={item.msg.uid} msg={item.msg} onOpen={openMessage} />
+          return <SentRow key={item.msg.message_id} msg={item.msg} onOpen={openMessage} />
         })}
       </div>
     )
