@@ -1,0 +1,6 @@
+{
+  "event_type": "message.received",
+  "filter_sender": "alerts@example.com",
+  "filter_thread_id": null,
+  "url": "https://hooks.example.com/mailrs"
+}

@@ -1,0 +1,10 @@
+{
+  "bcc": [],
+  "body": "hello",
+  "cc": [],
+  "from": "lihao@golia.jp",
+  "html_body": "<p>hello</p>",
+  "scheduled_at": 1785542400,
+  "subject": "subject",
+  "to": ["someone@example.com"]
+}
