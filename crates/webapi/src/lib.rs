@@ -785,7 +785,17 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     {
         use tower_http::services::{ServeDir, ServeFile};
         let index = format!("{static_dir}/index.html");
-        app = app.fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)));
+        // `/assets/*` is served without the SPA fallback. Those filenames
+        // carry a content hash, so a miss means the file is genuinely gone —
+        // and answering it with index.html means a 200 whose body is HTML
+        // where the browser expected a JS module. It then fails to parse,
+        // which surfaces as a lazy-import rejection and the route error
+        // boundary: "Something went wrong", with nothing pointing at the
+        // real cause. A 404 says what happened (2026-07-30).
+        let assets = format!("{static_dir}/assets");
+        app = app
+            .nest_service("/assets", ServeDir::new(&assets))
+            .fallback_service(ServeDir::new(&static_dir).fallback(ServeFile::new(index)));
         tracing::info!(dir = %static_dir, "webapi serving static UI");
     } else {
         tracing::info!(
