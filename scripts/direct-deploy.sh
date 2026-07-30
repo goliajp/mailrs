@@ -187,7 +187,23 @@ if [ "${SKIP_WEB:-0}" != 1 ]; then
         WEB_VERSION="direct-$VERSION" bunx --bun tsc -b
         WEB_VERSION="direct-$VERSION" bunx --bun vite build
     )
-    rsync -az --delete -e ssh web/dist/ "$PROD:/apps/mailrs/web/"
+    # No `--delete`. Asset filenames carry a content hash, and a browser tab
+    # opened before a deploy still asks for the chunk names it was built
+    # against. Deleting them breaks every live tab on the first lazy import:
+    # `markdown-preview` is its own chunk, so pressing Preview in a reply
+    # after a deploy produced "Something went wrong" — four deploys in one
+    # hour on 2026-07-30, each one breaking the tab again.
+    #
+    # Old chunks are small and immutable; the prune below keeps the
+    # directory from growing without bound.
+    rsync -az -e ssh web/dist/ "$PROD:/apps/mailrs/web/"
+    # Keep index.html exact: it is the one unhashed file, and a stale copy
+    # would serve the previous build's chunk graph to new visitors.
+    rsync -az -e ssh web/dist/index.html "$PROD:/apps/mailrs/web/index.html"
+    # Retire assets untouched for 30 days. Long enough that no realistic tab
+    # is still holding one, short enough that the directory stays small.
+    ssh "$PROD" "find /apps/mailrs/web/assets -type f -mtime +30 -delete 2>/dev/null; \
+      echo \"    assets kept: \$(ls -1 /apps/mailrs/web/assets | wc -l | tr -d ' ')\""
 
     # Ask the container to serve the hash vite just emitted. A stale bind
     # mount or a wrong rsync path makes ServeDir fall through to the SPA
