@@ -2,30 +2,59 @@ import type { WireSentMessage } from '@/wire/schemas/mail'
 import type { WireSend, WireSendStatus } from '@/wire/schemas/sends'
 
 /**
- * Joining the two things the Send view is made of.
+ * The Send view is a **full outer join** of two sources. Neither is
+ * complete on its own.
  *
- * The message list comes from the sent axis, which holds every outbound
- * message ever. Delivery status comes from the Send projection, which
- * only holds sends made since it shipped (2026-07-30). Replacing the list
- * with the projection would have made the user's entire history vanish,
- * and backfilling the projection would have meant writing `delivered` on
- * mails whose outcome nobody recorded — some of which bounced.
+ * *The sent axis* (`mailrs:user:<u>:threads:sent`) holds every outbound
+ * message ever — but **nothing on the ingest path writes it**. Its only
+ * writer is fastcore's periodic maildir sweep, which scans for files whose
+ * `From:` is the mailbox owner. So a send is invisible here until the sweep
+ * next runs, and that sweep backs off exponentially while idle (the fix for
+ * the 2026-07-19 CPU incident), so the wait can be long. This is what the
+ * original "sent 里找不到, 1 分多钟后才出现" report was, and a reply to
+ * nagata@nagatax.tokyo.jp was still missing after several minutes on
+ * 2026-07-30 while the mail itself had been accepted with a 250.
  *
- * So status is an enrichment, and its absence is rendered as absence.
- * `null` is not `0`: a send with no row has an unknown outcome, and the
- * honest display of unknown is nothing at all
- * (`.claude/rules/common/coding-style.md` → Null vs Zero).
+ * *The Send projection* is written synchronously in the fallible step of
+ * the enqueue, so a send that returned 200 has a row immediately — but it
+ * only covers sends made since it shipped (2026-07-30). Backfilling it
+ * would have meant writing `delivered` on mail whose outcome nobody
+ * recorded, some of which bounced.
+ *
+ * Taking either as *the* list loses something real: the axis alone hides
+ * every recent send, and the projection alone hides all history. So both
+ * contribute rows, deduped on `message_id`:
+ *
+ * | in axis | in projection | shown | badge |
+ * |---|---|---|---|
+ * | yes | yes | yes | from the row |
+ * | yes | no | yes | none — outcome unrecorded |
+ * | no | yes | **yes** | from the row |
+ *
+ * The third line is the one that was missing. `null` is not `0`: a send
+ * with no row has an unknown outcome and the honest display of unknown is
+ * nothing at all (`.claude/rules/common/coding-style.md` → Null vs Zero).
  *
  * The join key is `message_id`. Both sides store it bare, without angle
- * brackets — verified against a prod capture of each on 2026-07-30. If
- * one side ever gains brackets the join fails silently and every row
- * loses its badge, which is why `joinKey` is one function and not two
- * inline expressions.
+ * brackets — verified against a prod capture of each on 2026-07-30. If one
+ * side ever gains brackets the join fails silently, which is why `joinKey`
+ * is one function and not two inline expressions.
  */
 export type SendRow = {
-  msg: WireSentMessage
+  /** The date the row sorts on, epoch seconds. */
+  date: number
+  /** Identity, and the React key. Never empty on either source. */
+  messageId: string
+  /** Absent for a send the sweep has not filed yet. */
+  msg: null | WireSentMessage
   /** Absent for every send that predates the projection. */
   send: null | WireSend
+  /** Subject and recipients, from whichever source has them. */
+  subject: string
+  threadId: string
+  to: string
+  /** The exact outbound message to focus when the thread opens, when known. */
+  uid: null | number
 }
 
 /**
@@ -72,10 +101,47 @@ export function joinSends(
   sends: readonly WireSend[]
 ): SendRow[] {
   const byMessage = indexSendsByMessage(sends)
-  return messages.map((msg) => ({
-    msg,
-    send: byMessage.get(joinKey(msg.message_id)) ?? null,
-  }))
+  const rows = new Map<string, SendRow>()
+
+  for (const msg of messages) {
+    const key = joinKey(msg.message_id)
+    if (!key) continue
+    const send = byMessage.get(key) ?? null
+    rows.set(key, {
+      date: msg.internal_date,
+      messageId: msg.message_id,
+      msg,
+      send,
+      subject: msg.subject,
+      threadId: msg.thread_id,
+      to: msg.to,
+      uid: msg.uid,
+    })
+  }
+
+  // Sends the sweep has not filed yet. Without this pass a send that
+  // succeeded — 250 from the remote, row written, mail in the maildir — is
+  // absent from the only screen that would show it.
+  for (const [key, send] of byMessage) {
+    if (rows.has(key)) continue
+    rows.set(key, {
+      date: send.created_at,
+      messageId: send.send_id,
+      msg: null,
+      send,
+      subject: send.subject,
+      threadId: send.thread_id,
+      // Header form, joined the same way the axis stores it, so both
+      // sources render through one code path.
+      to: send.to.join(', '),
+      // The uid belongs to the maildir copy the sweep has not indexed. Null
+      // rather than 0: 0 is a real uid shape and would make the thread view
+      // try to focus a message that is not there.
+      uid: null,
+    })
+  }
+
+  return [...rows.values()].sort((a, b) => b.date - a.date)
 }
 
 /**
