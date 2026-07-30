@@ -417,6 +417,75 @@ pub fn read_send(
     Ok(out)
 }
 
+/// The thread id a row should hold, or `None` when it already holds it.
+///
+/// `None` for "no change needed" rather than returning the current value:
+/// a write that stores what is already there costs a round trip and makes
+/// the reported count a lie about how much moved
+/// (`periodic-work-must-converge`).
+fn next_thread_id<'a>(
+    current: &str,
+    merged: &'a std::collections::HashMap<String, String>,
+) -> Option<&'a str> {
+    let canonical = merged.get(current)?;
+    if canonical == current {
+        return None;
+    }
+    Some(canonical.as_str())
+}
+
+/// Re-point Send rows whose conversation was merged away.
+///
+/// `merged` maps a thread id that no longer exists to the canonical thread
+/// that absorbed it. Returns the number of rows changed.
+///
+/// `SendRow.thread_id` is written once, at enqueue. Thread ids are not
+/// stable: the rethread pass merges conversations and the absorbed id stops
+/// existing. A row still holding one navigates to an empty thread — on
+/// 2026-07-30 a repaired reply showed "(no subject)" in Send for exactly
+/// this reason, because the Send list trusted the snapshot while
+/// `list_sent_messages` used the live tid.
+///
+/// Maintained rather than resolved on read: the merge knows precisely which
+/// ids died, so this runs once per merge instead of a lookup per row per
+/// list render (`kevy/every-writer-maintains-the-row`).
+pub fn repoint_threads(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    merged: &std::collections::HashMap<String, String>,
+) -> std::io::Result<u64> {
+    if merged.is_empty() {
+        return Ok(0);
+    }
+    let ids = conn
+        .zrange(index_key(user).as_bytes(), 0, -1)
+        .map_err(std::io::Error::other)?;
+    let mut changed = 0u64;
+    for raw in ids {
+        let Ok(send_id) = String::from_utf8(raw) else {
+            continue;
+        };
+        let key = send_key(user, &send_id);
+        let current = conn
+            .hget(key.as_bytes(), b"thread_id")
+            .map_err(std::io::Error::other)?
+            .and_then(|v| String::from_utf8(v).ok());
+        let Some(current) = current else {
+            continue;
+        };
+        let Some(canonical) = next_thread_id(&current, merged) else {
+            continue;
+        };
+        conn.hset(
+            key.as_bytes(),
+            &[(b"thread_id" as &[u8], canonical.as_bytes())],
+        )
+        .map_err(std::io::Error::other)?;
+        changed += 1;
+    }
+    Ok(changed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -572,5 +641,57 @@ mod tests {
             by_status_key("u@x.com", Status::Failed),
             "mailrs:send:u@x.com:by_status:failed"
         );
+    }
+}
+
+#[cfg(test)]
+mod repoint_tests {
+    use super::next_thread_id;
+    use std::collections::HashMap;
+
+    fn merged(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect()
+    }
+
+    /// The 2026-07-30 case: a reply's own thread was absorbed into the
+    /// conversation it belonged to, and its Send row still named the dead
+    /// one — so Send opened an empty thread and showed "(no subject)".
+    #[test]
+    fn a_row_naming_a_merged_away_thread_moves_to_the_canonical_one() {
+        let m = merged(&[(
+            "9d8549f828cd6aea@golia.jp",
+            "2d31fbc5-f7f1-4958-9e81-99819ab73d61@nagatax.tokyo.jp",
+        )]);
+        assert_eq!(
+            next_thread_id("9d8549f828cd6aea@golia.jp", &m),
+            Some("2d31fbc5-f7f1-4958-9e81-99819ab73d61@nagatax.tokyo.jp")
+        );
+    }
+
+    /// Untouched conversations must not be written. A sweep that rewrites
+    /// rows it did not need to touch reports work it did not do, which is
+    /// the reporting defect this whole phase exists to remove.
+    #[test]
+    fn a_row_whose_thread_was_not_merged_is_left_alone() {
+        let m = merged(&[("dead@x.com", "alive@x.com")]);
+        assert_eq!(next_thread_id("unrelated@x.com", &m), None);
+        assert_eq!(next_thread_id("", &m), None);
+    }
+
+    /// A thread mapped to itself is not a change. Guarded because a
+    /// self-mapping is exactly what a re-run of an idempotent merge could
+    /// produce, and rewriting on every run would make the count meaningless.
+    #[test]
+    fn a_thread_mapped_to_itself_is_not_a_change() {
+        let m = merged(&[("same@x.com", "same@x.com")]);
+        assert_eq!(next_thread_id("same@x.com", &m), None);
+    }
+
+    #[test]
+    fn an_empty_map_changes_nothing() {
+        assert_eq!(next_thread_id("any@x.com", &merged(&[])), None);
     }
 }

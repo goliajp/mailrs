@@ -2431,6 +2431,7 @@ async fn backfill_threading_route(
     let mut merged_threads = 0u64;
     let mut moved_messages = 0u64;
     let mut indexed = 0u64;
+    let mut sends_repointed = 0u64;
     for user in &users {
         // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
         //
@@ -2591,6 +2592,12 @@ async fn backfill_threading_route(
                 *best = (*date, tid.clone());
             }
         }
+        // Thread ids that stop existing, and what absorbed them. The Send
+        // projection stores a thread id per send, taken at enqueue, and a
+        // merge invalidates it — a row left holding a dead id navigates to
+        // an empty conversation.
+        let mut merged_away: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
         for (root, tids) in &comp_tids {
             let Some((_, canonical)) = comp_oldest.get(root) else {
                 continue;
@@ -2601,12 +2608,37 @@ async fn backfill_threading_route(
                         Ok(n) => {
                             merged_threads += 1;
                             moved_messages += n as u64;
+                            merged_away.insert(tid.clone(), canonical.clone());
                         }
                         Err(e) => {
                             tracing::warn!(err = %e, %user, %tid, %canonical, "merge_thread_into failed");
                         }
                     }
                 }
+            }
+        }
+        // The projection lives in network kevy, the threads in the embedded
+        // store, so this is a cross-store write — done here because the
+        // merge is the only moment that knows which ids died.
+        if !merged_away.is_empty() {
+            match state.net_conn() {
+                Some(mut conn) => {
+                    match mailrs_core_sidestate::families::send::repoint_threads(
+                        &mut conn,
+                        user,
+                        &merged_away,
+                    ) {
+                        Ok(n) => sends_repointed += n,
+                        Err(e) => tracing::warn!(
+                            err = %e, %user,
+                            "send rows not re-pointed — Send will open an empty thread for them"
+                        ),
+                    }
+                }
+                None => tracing::warn!(
+                    %user,
+                    "no network kevy connection — send rows not re-pointed"
+                ),
             }
         }
         // seed the msgid index for every message (merge already
@@ -2640,6 +2672,7 @@ async fn backfill_threading_route(
         "merged_threads": merged_threads,
         "moved_messages": moved_messages,
         "msgids_indexed": indexed,
+        "sends_repointed": sends_repointed,
     }))
     .into_response()
 }
