@@ -499,6 +499,9 @@ struct ComposeParts {
     /// uid of the message to forward, for the case where it has no
     /// Message-ID to look it up by.
     forward_attachments_from: Option<u32>,
+    /// Thread to resolve a parent Message-ID from when `in_reply_to` is
+    /// missing.
+    reply_to_thread_id: Option<String>,
     attachments: Vec<Attachment>,
     /// Unix epoch seconds to send at; None / past = send now (G13).
     scheduled_at: Option<i64>,
@@ -539,6 +542,22 @@ pub struct SendRequest {
     /// (`crates/server/src/web/mail/send/text.rs`).
     #[serde(default)]
     pub forward_attachments_from: Option<u32>,
+    /// The conversation this is a reply inside.
+    ///
+    /// A threading fallback, not a replacement for `in_reply_to`: when that
+    /// is absent this resolves the parent's Message-ID from the thread, so a
+    /// reply stays threaded even though the client did not name a parent
+    /// message.
+    ///
+    /// It exists because the client can drop `in_reply_to` and nothing
+    /// notices. A reply with an attachment arrived unthreaded on 2026-07-30
+    /// while two attachment-less replies the same day were fine; the draft
+    /// round-trip is one way to lose it (the stored draft keeps
+    /// `reply_to_thread_id` but the client's `ComposeDraftSource` never read
+    /// it back). Every surface that can reply knows which conversation it is
+    /// in, so keying the fallback on the thread covers all of them at once.
+    #[serde(default)]
+    pub reply_to_thread_id: Option<String>,
     #[serde(default)]
     pub scheduled_at: Option<i64>,
     /// The failed send this repairs. Its attachments are re-extracted
@@ -949,6 +968,68 @@ pub(crate) fn attachments_from_envelope(raw: &[u8]) -> Vec<Attachment> {
     out
 }
 
+/// The Message-ID a reply into this thread should reference.
+///
+/// The newest message, which is what replying to a conversation means. Only
+/// messages that have an id: one without a Message-ID cannot be referenced,
+/// and picking it would produce `In-Reply-To: <>` — a header that threads
+/// nothing and is worse than none, because it looks like an answer.
+fn newest_referencable(items: &[mailrs_core_api::method::message::MessageWire]) -> Option<String> {
+    items
+        .iter()
+        .filter(|w| !w.message_id.is_empty())
+        .max_by_key(|w| w.internal_date)
+        .map(|w| w.message_id.clone())
+}
+
+/// Fill in `in_reply_to` from the thread when the client did not send one.
+///
+/// Without a parent Message-ID there is no `In-Reply-To` header, so the
+/// recipient's client files the reply as a new conversation and our own
+/// mirror cannot find the thread either — it falls back to the new
+/// message's own id and the sent copy becomes a thread of one. That is what
+/// happened to a reply on 2026-07-30.
+///
+/// The newest message in the thread is the parent, which is what a reply
+/// means. Best-effort: a lookup failure leaves the send unthreaded rather
+/// than refusing it, because an unthreaded reply that arrives beats a reply
+/// that does not.
+async fn infer_in_reply_to(state: &Arc<WebState>, user: &str, parts: &mut ComposeParts) {
+    if parts.in_reply_to.as_deref().is_some_and(|s| !s.is_empty()) {
+        return;
+    }
+    let Some(tid) = parts
+        .reply_to_thread_id
+        .as_deref()
+        .filter(|s| !s.is_empty())
+    else {
+        return;
+    };
+    let resp = match state.core.list_thread_messages(user, tid).await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, thread_id = %tid, "reply threading: thread lookup failed");
+            return;
+        }
+    };
+    let parent = newest_referencable(&resp.items);
+    match parent {
+        Some(mid) => {
+            tracing::info!(
+                %user, thread_id = %tid, parent = %mid,
+                "reply threading: in_reply_to inferred from the thread"
+            );
+            parts.in_reply_to = Some(mid);
+        }
+        None => {
+            tracing::warn!(
+                %user, thread_id = %tid,
+                "reply threading: thread has no message with a Message-ID"
+            );
+        }
+    }
+}
+
 /// The message a forward is quoting, by Message-ID or by uid.
 ///
 /// Returns `None` after logging; the caller is best-effort by design.
@@ -1013,6 +1094,7 @@ pub(crate) fn send_system_mail(
         in_reply_to: None,
         forward_message_id: None,
         forward_attachments_from: None,
+        reply_to_thread_id: None,
         attachments: Vec::new(),
         scheduled_at: None,
     };
@@ -1465,6 +1547,7 @@ pub async fn send_message(
         scheduled_at: req.scheduled_at,
         forward_message_id: req.forward_message_id,
         forward_attachments_from: req.forward_attachments_from,
+        reply_to_thread_id: req.reply_to_thread_id,
         attachments: Vec::new(),
     };
     // If the compose is a forward, look up the original message and
@@ -1483,6 +1566,8 @@ pub async fn send_message(
         &mut parts,
     )
     .await?;
+    // Before `build_rfc5322`, which is what writes In-Reply-To/References.
+    infer_in_reply_to(&state, &user, &mut parts).await;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
@@ -1548,6 +1633,7 @@ pub async fn send_email_mcp(
         in_reply_to: in_reply_to.map(|s| s.to_string()),
         forward_message_id: None,
         forward_attachments_from: None,
+        reply_to_thread_id: None,
         attachments: Vec::new(),
         scheduled_at,
     };
@@ -1617,6 +1703,9 @@ pub async fn send_message_multipart(
                 parts.forward_attachments_from =
                     field.text().await.ok().and_then(|s| s.trim().parse().ok())
             }
+            "reply_to_thread_id" => {
+                parts.reply_to_thread_id = field.text().await.ok().filter(|s| !s.is_empty())
+            }
             "scheduled_at" => {
                 let raw = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
                 parts.scheduled_at =
@@ -1671,6 +1760,7 @@ pub async fn send_message_multipart(
         &mut parts,
     )
     .await?;
+    infer_in_reply_to(&state, &user, &mut parts).await;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
@@ -1720,6 +1810,7 @@ mod send_meta_tests {
             in_reply_to: in_reply_to.map(String::from),
             forward_message_id: None,
             forward_attachments_from: None,
+            reply_to_thread_id: None,
             attachments: Vec::new(),
             scheduled_at: None,
         }
@@ -1801,6 +1892,7 @@ mod build_rfc5322_tests {
             in_reply_to: None,
             forward_message_id: None,
             forward_attachments_from: None,
+            reply_to_thread_id: None,
             attachments: atts,
             scheduled_at: None,
         }
@@ -1995,5 +2087,62 @@ mod scheduled_at_tests {
     fn a_past_epoch_parses_and_is_left_to_the_enqueue_step() {
         assert_eq!(parse_scheduled_at("1"), Ok(Some(1)));
         assert_eq!(parse_scheduled_at("-1"), Ok(Some(-1)));
+    }
+}
+
+#[cfg(test)]
+mod reply_threading_tests {
+    use super::newest_referencable;
+    use mailrs_core_api::method::message::MessageWire;
+
+    fn msg(message_id: &str, internal_date: i64) -> MessageWire {
+        MessageWire {
+            id: 0,
+            mailbox_id: 0,
+            uid: 0,
+            blob_ref: String::new(),
+            sender: "a@x.com".into(),
+            recipients: String::new(),
+            subject: String::new(),
+            date: internal_date,
+            internal_date,
+            size: 0,
+            flags: 0,
+            message_id: message_id.into(),
+            in_reply_to: String::new(),
+            sender_trust: String::new(),
+            thread_id: "t".into(),
+            modseq: 0,
+            user_address: "me@x.com".into(),
+        }
+    }
+
+    /// Replying to a conversation means replying to its latest message, and
+    /// the thread's messages do not arrive in date order.
+    #[test]
+    fn the_newest_message_is_the_parent() {
+        let items = vec![
+            msg("old@x.com", 100),
+            msg("newest@x.com", 300),
+            msg("middle@x.com", 200),
+        ];
+        assert_eq!(newest_referencable(&items).as_deref(), Some("newest@x.com"));
+    }
+
+    /// A message with no Message-ID cannot be referenced. Choosing it would
+    /// emit `In-Reply-To: <>`, which threads nothing while looking like an
+    /// answer — so it is skipped even when it is the newest.
+    #[test]
+    fn a_message_without_an_id_is_never_the_parent() {
+        let items = vec![msg("has-id@x.com", 100), msg("", 999)];
+        assert_eq!(newest_referencable(&items).as_deref(), Some("has-id@x.com"));
+    }
+
+    /// Nothing to reference: the send goes out unthreaded rather than with a
+    /// header pointing at nothing.
+    #[test]
+    fn no_referencable_message_yields_none() {
+        assert_eq!(newest_referencable(&[]), None);
+        assert_eq!(newest_referencable(&[msg("", 1), msg("", 2)]), None);
     }
 }

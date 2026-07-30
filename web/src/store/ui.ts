@@ -108,6 +108,15 @@ export type ComposeDraftSource = {
   body: string
   cc: string
   id: number
+  /**
+   * The conversation this draft is a reply inside, if any.
+   *
+   * The server has always stored it (`SaveDraftRequest.reply_to_thread_id`)
+   * and this type did not read it back, so reopening a reply from the Draft
+   * tab produced a compose that still said `Re:` in its subject and had lost
+   * every trace of what it was replying to.
+   */
+  replyToThreadId: null | string
   subject: string
   to: string
 }

@@ -263,6 +263,10 @@ export function NewConversation() {
         inReplyTo: replySource?.messageId ?? redraftSource?.inReplyTo,
         redraftKeep: carriedSelection(redraftSource, keptCarried),
         redraftOf: redraftSource?.redraftOf,
+        // A reply reopened from the Draft tab has no `replySource`, so
+        // `inReplyTo` above is undefined and the thread is the only link
+        // left. The server resolves the parent message from it.
+        replyToThreadId: replySource?.threadId ?? draftSource?.replyToThreadId,
         scheduledAt: epochSecondsFromLocalInput(scheduledAt),
         subject,
         to: recipients,

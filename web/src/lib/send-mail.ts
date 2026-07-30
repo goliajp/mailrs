@@ -18,6 +18,17 @@ export type SendMailParams = {
   /** The send being repaired; its attachments are carried server-side. */
   redraftOf?: null | string
   /**
+   * The conversation this reply belongs to.
+   *
+   * A threading fallback the server uses when `inReplyTo` is missing: it
+   * resolves the parent's Message-ID from the thread. A reply with an
+   * attachment went out unthreaded on 2026-07-30 while attachment-less ones
+   * the same day were fine, and the draft round-trip drops the parent
+   * message id entirely — so every surface that can reply now sends the one
+   * thing it always knows, which conversation it is in.
+   */
+  replyToThreadId?: null | string
+  /**
    * Unix epoch **seconds**, the form the wire has always wanted
    * (`SendRequest.scheduled_at: Option<i64>`, and every MCP scheduling
    * tool documents "Unix epoch seconds").
@@ -89,6 +100,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     if (p.forwardMessageId) payload['forward_message_id'] = p.forwardMessageId
     if (p.forwardAttachmentsFrom) payload['forward_attachments_from'] = p.forwardAttachmentsFrom
     if (p.redraftOf) payload['redraft_of'] = p.redraftOf
+    if (p.replyToThreadId) payload['reply_to_thread_id'] = p.replyToThreadId
     // Absent keeps every carried attachment; present-and-empty keeps
     // none. A falsy check here would re-attach files the user removed.
     if (p.redraftKeep !== null && p.redraftKeep !== undefined) {
@@ -115,6 +127,7 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     fd.append('forward_attachments_from', String(p.forwardAttachmentsFrom))
   }
   if (p.redraftOf) fd.append('redraft_of', p.redraftOf)
+  if (p.replyToThreadId) fd.append('reply_to_thread_id', p.replyToThreadId)
   // One comma-separated field, not a repeated one: repeating it cannot
   // express "keep none", since zero occurrences and an empty selection
   // both arrive as no field at all and mean opposite things.
