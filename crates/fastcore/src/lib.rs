@@ -2641,16 +2641,27 @@ pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
         Some((s, n)) => (Some(s), n),
         None => (None, blob_ref),
     };
-    for leaf in ["cur", "new"] {
-        let path = match sub {
-            Some(s) => base.join(s).join(leaf).join(name),
-            None => base.join(leaf).join(name),
-        };
-        if let Ok(bytes) = std::fs::read(&path) {
-            return Some(bytes);
-        }
-    }
-    None
+    // Through the stone's read-by-id entry point, which the stone documents
+    // as the one place that knows about the `:2,FLAGS` cur suffix "so
+    // callers never reconstruct a filename by hand". This function did
+    // reconstruct it, with a plain `fs::read` of `<leaf>/<name>` — so it
+    // found a message only while the file was still unflagged. Marking one
+    // Seen renames it to `cur/<name>:2,S` and every read here returned
+    // None from then on.
+    //
+    // The visible consequence was in the threading backfill: its
+    // `maildir_references` edges come from this read, so for any message
+    // that had been read — which is every sent copy, `mirror_send` marks
+    // them Seen — the References chain was invisible and conversations that
+    // should have merged did not (found 2026-07-30 while repairing one).
+    let root = match sub {
+        Some(s) => base.join(s),
+        None => base,
+    };
+    mailrs_maildir::Maildir::open(&root)
+        .fetch(&mailrs_maildir::MessageId(name.to_string()))
+        .ok()
+        .flatten()
 }
 
 /// Remove the maildir file at `blob_ref` — the disk counterpart of
@@ -4605,6 +4616,41 @@ async fn delete_local_alias_route(
 
 #[cfg(test)]
 mod tests {
+
+    /// A message that has been read lives in `cur/` with a `:2,FLAGS`
+    /// suffix, and `read_maildir_file` used to reconstruct the filename by
+    /// hand and miss it. That made the threading backfill's References
+    /// edges invisible for every sent copy — `mirror_send` marks those Seen
+    /// — so conversations that should have merged did not (2026-07-30).
+    #[test]
+    fn read_maildir_file_finds_a_flagged_message() {
+        let tmp = std::env::temp_dir().join(format!("mailrs-rmf-{}", std::process::id()));
+        let box_dir = tmp.join("x.com").join("bob");
+        std::fs::create_dir_all(box_dir.join("cur")).unwrap();
+        std::fs::create_dir_all(box_dir.join("new")).unwrap();
+
+        // Unflagged, still in new/ — the case that already worked.
+        std::fs::write(box_dir.join("new").join("plain.id"), b"raw-new").unwrap();
+        // Read, so renamed into cur/ with a flag suffix.
+        std::fs::write(box_dir.join("cur").join("seen.id:2,S"), b"raw-seen").unwrap();
+
+        // SAFETY-adjacent: the env var is read inside the function under
+        // test, and this is the only test that sets it.
+        unsafe { std::env::set_var("MAILRS_MAILDIR", &tmp) };
+
+        assert_eq!(
+            read_maildir_file("bob@x.com", "plain.id").as_deref(),
+            Some(&b"raw-new"[..]),
+        );
+        assert_eq!(
+            read_maildir_file("bob@x.com", "seen.id").as_deref(),
+            Some(&b"raw-seen"[..]),
+            "a flagged file must be found by its base id"
+        );
+        assert!(read_maildir_file("bob@x.com", "absent.id").is_none());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
     use super::*;
     use axum::body::Body;
     use axum::http::{Method, Request};
