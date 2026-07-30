@@ -72,6 +72,55 @@ pub struct Maildir {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MessageId(pub String);
 
+/// Resolve a stored blob reference against a mailbox root.
+///
+/// Returns the [`Maildir`] to open and the [`MessageId`] to fetch, or
+/// `None` when `blob_ref` is empty.
+///
+/// **The convention, stated once because it was implemented twice
+/// differently.** A `/` in the reference introduces a Maildir++ subfolder
+/// only when the segment before it begins with `.` (`.Sent/1234.M5`), since
+/// that is what a Maildir++ subfolder is. Anything else is part of the
+/// message name — in particular `cur/1234.M5` names no subfolder, and
+/// [`Maildir::fetch`] already searches `new/` and `cur/` itself.
+///
+/// Before this existed, `webapi::blob_ref_location` applied the dot rule and
+/// `fastcore::read_maildir_file` split on `/` unconditionally *and* rebuilt
+/// the filename by hand, so the same reference resolved in one crate and
+/// not the other. The consequence was invisible: the threading backfill
+/// takes its `References` edges through the fastcore path, so for every
+/// message that had been marked Seen — which is every sent copy — the chain
+/// could not be read and conversations silently failed to merge.
+///
+/// ```
+/// use mailrs_maildir::{locate, MessageId};
+/// let (dir, id) = locate("/data/maildir/x.com/bob", "1234.M5.host").unwrap();
+/// assert_eq!(id, MessageId("1234.M5.host".into()));
+/// assert!(dir.path().ends_with("bob"));
+///
+/// // Maildir++ subfolder.
+/// let (dir, id) = locate("/data/maildir/x.com/bob", ".Sent/1234.M5").unwrap();
+/// assert!(dir.path().ends_with(".Sent"));
+/// assert_eq!(id, MessageId("1234.M5".into()));
+///
+/// // Not a subfolder: `fetch` looks in cur/ and new/ on its own.
+/// let (_, id) = locate("/data/maildir/x.com/bob", "cur/1234.M5").unwrap();
+/// assert_eq!(id, MessageId("cur/1234.M5".into()));
+/// ```
+pub fn locate(user_root: impl AsRef<Path>, blob_ref: &str) -> Option<(Maildir, MessageId)> {
+    let r = blob_ref.trim();
+    if r.is_empty() {
+        return None;
+    }
+    match r.split_once('/') {
+        Some((sub, name)) if sub.starts_with('.') && !name.is_empty() => Some((
+            Maildir::open(user_root.as_ref().join(sub)),
+            MessageId(name.to_string()),
+        )),
+        _ => Some((Maildir::open(user_root), MessageId(r.to_string()))),
+    }
+}
+
 /// Standard Maildir flag, as defined by the Maildir specification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Flag {
@@ -222,6 +271,11 @@ impl Maildir {
     /// the `create_dir_all` syscalls.
     pub fn invalidate_cache(path: impl AsRef<Path>) {
         ENSURED_PATHS.remove(path.as_ref());
+    }
+
+    /// The directory this handle points at.
+    pub fn path(&self) -> &Path {
+        &self.root
     }
 
     /// Open an existing Maildir. Does not check that the subdirectories

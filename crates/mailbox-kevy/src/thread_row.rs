@@ -11,18 +11,20 @@ use super::KevyMailboxStore;
 use super::keys;
 
 /// Sent-folder membership predicate — true when the thread's
-/// `senders_csv` contains the user's own address (case-insensitive).
-/// Used by `upsert_thread` (write path) and by
-/// `mailrs-fastcore-backfill-sent` (backfill path).
+/// `senders_csv` names the user's own address.
+///
+/// Used by `upsert_thread` (write path), by the backfill, and through
+/// `thread_user_pairs` it decides the declared `is_sender` column, which is
+/// the Sent axis itself.
+///
+/// Whole-address comparison, via the one stone that knows how to reduce an
+/// RFC 5322 mailbox to a comparison key. This matched by **substring**
+/// until 2026-07-30, so any address ending with the user's own put a
+/// foreign thread in their Sent folder — `a@b.com` matched `xa@b.com`.
+/// A ninth hand-rolled address extractor was the alternative; the stone
+/// exists so there is no tenth.
 pub fn senders_csv_contains_user(senders_csv: &str, user: &str) -> bool {
-    let user_lc = user.to_lowercase();
-    for token in senders_csv.split(',') {
-        let t = token.trim().to_lowercase();
-        if t.contains(&user_lc) {
-            return true;
-        }
-    }
-    false
+    mailrs_rfc5322::list_contains(senders_csv, user)
 }
 
 /// Aggregated thread state — one row in `mailrs:thread:<tid>`.
@@ -353,6 +355,31 @@ impl KevyMailboxStore {
 
 #[cfg(test)]
 mod tests {
+    /// `is_sender` is the Sent axis, and this predicate decides it. The
+    /// substring form it replaced put a foreign thread in an account's Sent
+    /// folder whenever some other address merely ended with the user's own.
+    #[test]
+    fn sent_membership_needs_the_whole_address() {
+        let u = "lihao@golia.jp";
+        assert!(senders_csv_contains_user("lihao@golia.jp", u));
+        // The form prod actually stores in `senders_csv`.
+        assert!(senders_csv_contains_user(
+            "GOLIA <lihao@golia.jp>, x@y.com",
+            u
+        ));
+        assert!(senders_csv_contains_user("LiHao@Golia.JP", u));
+
+        assert!(
+            !senders_csv_contains_user("notlihao@golia.jp", u),
+            "a longer local part is a different mailbox"
+        );
+        assert!(
+            !senders_csv_contains_user("lihao@golia.jp.evil.example", u),
+            "a longer domain is a different mailbox"
+        );
+        assert!(!senders_csv_contains_user("", u));
+    }
+
     use super::*;
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;

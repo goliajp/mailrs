@@ -3373,7 +3373,7 @@ dependencies = [
  "mail-parser",
  "mailrs-mime",
  "mailrs-rfc2047 1.1.2",
- "mailrs-rfc5322 1.0.1",
+ "mailrs-rfc5322 1.1.0",
  "memchr",
  "proptest",
  "reqwest 0.12.28",
@@ -3421,6 +3421,7 @@ dependencies = [
  "kevy-index",
  "mailrs-alias-store",
  "mailrs-mailbox",
+ "mailrs-rfc5322 1.1.0",
  "serde",
  "serde_json",
  "thiserror",
@@ -3429,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-maildir"
-version = "1.2.1"
+version = "1.3.0"
 dependencies = [
  "criterion 0.8.2",
  "dashmap",
@@ -3460,7 +3461,7 @@ dependencies = [
  "mail-parser",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc5322 1.0.1",
  "memchr",
  "proptest",
 ]
@@ -3507,7 +3508,7 @@ dependencies = [
  "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-dkim",
  "mailrs-mail-builder 1.0.0",
- "mailrs-rfc5322 1.0.1",
+ "mailrs-rfc5322 1.1.0",
  "mailrs-smtp-client",
  "metrics",
  "rcgen 0.14.8",
@@ -3604,7 +3605,7 @@ dependencies = [
  "mailrs-outbound-queue",
  "mailrs-rate-limit 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc5322 1.0.1",
  "mailrs-shield",
  "mailrs-sieve",
  "mailrs-smtp-codec 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3667,18 +3668,18 @@ dependencies = [
 [[package]]
 name = "mailrs-rfc5322"
 version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb740170b7e617d73a6f601e1587f0803afd87a6d98120e9a0b1a831a0591a03"
+
+[[package]]
+name = "mailrs-rfc5322"
+version = "1.1.0"
 dependencies = [
  "criterion 0.8.2",
  "mail-parser",
  "memchr",
  "proptest",
 ]
-
-[[package]]
-name = "mailrs-rfc5322"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb740170b7e617d73a6f601e1587f0803afd87a6d98120e9a0b1a831a0591a03"
 
 [[package]]
 name = "mailrs-sender"
@@ -3762,7 +3763,7 @@ dependencies = [
  "mailrs-receiver",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc5322 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc5322 1.0.1",
  "mailrs-shield",
  "mailrs-sieve",
  "mailrs-smtp-client",
@@ -3837,7 +3838,7 @@ name = "mailrs-sieve-core"
 version = "0.2.0"
 dependencies = [
  "criterion 0.8.2",
- "mailrs-rfc5322 1.0.1",
+ "mailrs-rfc5322 1.1.0",
  "memchr",
  "thiserror",
 ]

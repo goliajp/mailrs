@@ -7,8 +7,10 @@
 //! locates and caches the offset of the empty line that terminates the
 //! header section.
 
+mod address;
 mod header;
 mod message;
 
+pub use address::{addr_key, addr_spec, list_contains};
 pub use header::{Header, HeaderIter};
 pub use message::Message;

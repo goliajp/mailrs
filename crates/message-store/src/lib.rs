@@ -16,7 +16,7 @@ use std::io;
 use async_trait::async_trait;
 use mailrs_maildir::Maildir;
 
-pub use mailrs_maildir::{Entry, Flag, MessageId};
+pub use mailrs_maildir::{Entry, Flag, MessageId, locate};
 
 /// A pluggable backend for delivered-message storage. See the module docs.
 #[async_trait]

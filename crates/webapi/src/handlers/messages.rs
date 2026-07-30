@@ -50,15 +50,13 @@ pub(crate) fn blob_ref_location(
     blob_ref: &str,
 ) -> Option<(String, mailrs_message_store::MessageId)> {
     let (local, domain) = user.split_once('@')?;
-    let (subfolder, bare) = match blob_ref.split_once('/') {
-        Some((sf, name)) if sf.starts_with('.') => (Some(sf), name.to_string()),
-        _ => (None, blob_ref.to_string()),
-    };
-    let path = match subfolder {
-        Some(sf) => format!("{maildir_root}/{domain}/{local}/{sf}"),
-        None => format!("{maildir_root}/{domain}/{local}"),
-    };
-    Some((path, mailrs_message_store::MessageId(bare)))
+    let base = format!("{maildir_root}/{domain}/{local}");
+    // The reference convention lives in the maildir stone, which is also
+    // what fastcore's reader now uses. It was implemented here and again
+    // there, differently, so the same reference resolved in one crate and
+    // not the other.
+    let (dir, id) = mailrs_message_store::locate(&base, blob_ref)?;
+    Some((dir.path().to_string_lossy().into_owned(), id))
 }
 
 /// Read raw bytes for a MessageWire from maildir.
