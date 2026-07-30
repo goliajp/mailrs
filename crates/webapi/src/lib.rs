@@ -229,21 +229,28 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/mail/sends:shadow",
             post(handlers::sends::shadow_sends),
         )
+        // A path segment, not the `:verb` suffix the collection-level routes
+        // use. matchit rejects a parameter with a literal suffix in the same
+        // segment — `{send_id}:source` panics the router at construction
+        // with "Only one parameter is allowed per path segment", which took
+        // webapi-fc into a restart loop on 2.19.0. `sends:shadow` works
+        // because that segment is pure literal, with no parameter in it.
+        //
         // The stored RFC 5322 bytes — for download or inspection, and what
         // resend re-enqueues unchanged.
         .route(
-            "/api/mail/sends/{send_id}:source",
+            "/api/mail/sends/{send_id}/source",
             get(handlers::sends::send_source),
         )
         .route(
-            "/api/mail/sends/{send_id}:resend",
+            "/api/mail/sends/{send_id}/resend",
             post(handlers::sends::resend),
         )
         // Re-edit: compose fields plus attachment *metadata*. The bytes
         // stay server-side and the following send names the ones to keep
         // by index (RFC 20260730-send-status S4 addendum).
         .route(
-            "/api/mail/sends/{send_id}:redraft",
+            "/api/mail/sends/{send_id}/redraft",
             get(handlers::sends::send_redraft),
         )
         .route(
@@ -958,4 +965,44 @@ pub async fn run() {
 
     tracing::info!("mailrs-webapi shutting down");
     let _ = _shutdown_tx.send(true);
+}
+
+#[cfg(test)]
+mod router_tests {
+    use super::*;
+
+    /// Build the whole route table.
+    ///
+    /// `Router::route` panics on an invalid or conflicting path, and that
+    /// panic happens at construction — which is process start, in prod,
+    /// with nothing having gone wrong at compile time. On 2026-07-30 three
+    /// new routes of the form `/api/mail/sends/{send_id}:source` shipped as
+    /// 2.19.0 and took webapi-fc into a restart loop: matchit refuses a
+    /// parameter with a literal suffix in one segment ("Only one parameter
+    /// is allowed per path segment"). The REST API and the web UI were down
+    /// until the rollback.
+    ///
+    /// 4,483 workspace tests were green. Not one of them built the router,
+    /// so the entire class was invisible to the gate — including the perf
+    /// gates, which measure code that this crate never reaches if the
+    /// router cannot be constructed at all.
+    ///
+    /// This test does nothing but call the function. That is the point:
+    /// every route string is validated the moment anyone runs the suite.
+    #[test]
+    fn the_route_table_can_actually_be_built() {
+        let state = Arc::new(WebState {
+            core: Arc::new(mailrs_core_api::client::Client::new(
+                "http://127.0.0.1:1",
+                "test-secret",
+            )),
+            bind_addr: "127.0.0.1:0".into(),
+            event_bus: std::sync::OnceLock::new(),
+            started_at: std::time::Instant::now(),
+        });
+        // Constructed by hand rather than via `WebState::from_env()`, which
+        // reads MAILRS_CORE_API_SECRET and panics without it — and env
+        // mutation from a test races every other test in the binary.
+        let _router = build_router(state);
+    }
 }

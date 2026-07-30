@@ -21,7 +21,7 @@ import {
  */
 export function wireGetRedraft(sendId: string): Promise<WireRedraft> {
   return wireFetch(redraftSchema, {
-    path: `/mail/sends/${encodeURIComponent(sendId)}:redraft`,
+    path: `/mail/sends/${encodeURIComponent(sendId)}/redraft`,
   })
 }
 
@@ -41,6 +41,6 @@ export function wireListSends(status?: null | string): Promise<readonly WireSend
 export function wireResend(sendId: string): Promise<WireResendResult> {
   return wireFetch(resendResultSchema, {
     method: 'POST',
-    path: `/mail/sends/${encodeURIComponent(sendId)}:resend`,
+    path: `/mail/sends/${encodeURIComponent(sendId)}/resend`,
   })
 }
