@@ -223,6 +223,11 @@ export function ReplyBox({
         from: auth?.address ?? '',
         htmlBody,
         inReplyTo,
+        // Always sent, even when `inReplyTo` is set: the server prefers the
+        // message id and falls back to resolving the thread's newest message
+        // when it is absent. A reply must not depend on the client having
+        // remembered a parent message id.
+        replyToThreadId: currentMode === 'forward' ? undefined : threadId,
         subject: resolvedSubject,
         to,
         token: auth?.token ?? '',
