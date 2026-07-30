@@ -1,6 +1,6 @@
 import type { TemplateInfo } from './types'
 import type { StructuredComposeHandle } from '@/components/structured-compose'
-import type { ComposeDraftSource, ComposeReplySource } from '@/store/ui'
+import type { ComposeDraftSource, ComposeRedraftSource, ComposeReplySource } from '@/store/ui'
 
 import { toast } from '@goliapkg/gds'
 import { useQuery } from '@tanstack/react-query'
@@ -17,13 +17,20 @@ import { mailKeys } from '@/lib/query-keys'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
-import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import {
+  composeDraftSourceAtom,
+  composeRedraftSourceAtom,
+  composeReplySourceAtom,
+  composingNewAtom,
+} from '@/store/ui'
 import { adminListGet } from '@/wire/endpoints/admin'
 import { wireGenerateSubject, wirePolishText } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
 import { ActionBar } from './action-bar'
 import { AddressFields } from './address-fields'
+import { CarriedAttachments } from './carried-attachments'
+import { carriedSelection } from './carried-model'
 
 const StructuredCompose = lazy(() =>
   import('@/components/structured-compose').then((m) => ({ default: m.StructuredCompose }))
@@ -38,6 +45,8 @@ export function NewConversation() {
   const setReplySource = useSetAtom(composeReplySourceAtom)
   const draftSource = useAtomValue(composeDraftSourceAtom)
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
+  const redraftSource = useAtomValue(composeRedraftSourceAtom)
+  const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
   const isReply = replySource !== null
 
   // the server draft id for this compose session. starts from a reopened
@@ -49,11 +58,21 @@ export function NewConversation() {
   const saveDraftMut = useSaveDraftMutation()
   const deleteDraftMut = useDeleteDraftMutation()
 
-  const [to, setTo] = useState(() => initialTo(draftSource, replySource))
-  const [cc, setCc] = useState(() => draftSource?.cc ?? '')
-  const [bcc, setBcc] = useState(() => draftSource?.bcc ?? '')
-  const [showCcBcc, setShowCcBcc] = useState(() => Boolean(draftSource?.cc || draftSource?.bcc))
-  const [subject, setSubject] = useState(() => initialSubject(draftSource, replySource))
+  const [to, setTo] = useState(() => initialTo(draftSource, redraftSource, replySource))
+  const [cc, setCc] = useState(() => draftSource?.cc ?? redraftSource?.cc ?? '')
+  const [bcc, setBcc] = useState(() => draftSource?.bcc ?? redraftSource?.bcc ?? '')
+  const [showCcBcc, setShowCcBcc] = useState(() =>
+    Boolean(draftSource?.cc || draftSource?.bcc || redraftSource?.cc || redraftSource?.bcc)
+  )
+  const [subject, setSubject] = useState(() =>
+    initialSubject(draftSource, redraftSource, replySource)
+  )
+  // Which carried attachments survive this edit. Seeded to all of them —
+  // a re-edit that dropped the files by default would lose them exactly
+  // as going through the drafts table would have.
+  const [keptCarried, setKeptCarried] = useState<Set<number>>(
+    () => new Set((redraftSource?.attachments ?? []).map((a) => a.index))
+  )
   const [sending, setSending] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [generatingSubject, setGeneratingSubject] = useState(false)
@@ -115,11 +134,23 @@ export function NewConversation() {
     return () => clearTimeout(t)
   }, [draftSource])
 
+  // same for a re-edit of a failed send — its body comes from the stored
+  // envelope, parsed server-side.
+  useEffect(() => {
+    if (!redraftSource?.body) return
+    const t = setTimeout(() => composeRef.current?.setMarkdown(redraftSource.body), 250)
+    return () => clearTimeout(t)
+  }, [redraftSource])
+
   // this compose session's draft source is consumed on mount; clear it so
   // the next fresh compose doesn't reopen it.
   useEffect(() => {
     return () => setDraftSource(null)
   }, [setDraftSource])
+
+  useEffect(() => {
+    return () => setRedraftSource(null)
+  }, [setRedraftSource])
 
   // composer opens by flipping an atom, which doesn't push a history entry.
   // without this, browser Back leaves /mail entirely. push a sentinel on
@@ -229,7 +260,9 @@ export function NewConversation() {
         cc: parseAddressList(cc),
         from: auth?.address ?? '',
         htmlBody: content.fullHtml,
-        inReplyTo: replySource?.messageId,
+        inReplyTo: replySource?.messageId ?? redraftSource?.inReplyTo,
+        redraftKeep: carriedSelection(redraftSource, keptCarried),
+        redraftOf: redraftSource?.redraftOf,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
         subject,
         to: recipients,
@@ -330,6 +363,12 @@ export function NewConversation() {
         to={to}
       />
 
+      <CarriedAttachments
+        items={redraftSource?.attachments ?? []}
+        kept={keptCarried}
+        onToggle={(index) => setKeptCarried(toggleIndex(keptCarried, index))}
+      />
+
       {/* block-based composer */}
       <div className="min-h-0 flex-1">
         <Suspense fallback={<ComposerSkeleton />}>
@@ -397,17 +436,37 @@ function extractReplyAddress(sender: string): string {
 
 function initialSubject(
   draft: ComposeDraftSource | null,
+  redraft: ComposeRedraftSource | null,
   reply: ComposeReplySource | null
 ): string {
   if (draft) return draft.subject
+  // No `Re:` prefix: a re-edit is the same message being fixed, not a
+  // reply to it.
+  if (redraft) return redraft.subject
   if (reply) return withReplyPrefix(reply.subject)
   return ''
 }
 
-function initialTo(draft: ComposeDraftSource | null, reply: ComposeReplySource | null): string {
+function initialTo(
+  draft: ComposeDraftSource | null,
+  redraft: ComposeRedraftSource | null,
+  reply: ComposeReplySource | null
+): string {
   if (draft) return draft.to
+  if (redraft) return redraft.to
   if (reply) return extractReplyAddress(reply.sender)
   return ''
+}
+
+/** Immutable set toggle — the codebase creates, it does not mutate. */
+function toggleIndex(current: ReadonlySet<number>, index: number): Set<number> {
+  const next = new Set(current)
+  if (next.has(index)) {
+    next.delete(index)
+    return next
+  }
+  next.add(index)
+  return next
 }
 
 function withReplyPrefix(subject: string): string {

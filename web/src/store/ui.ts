@@ -113,6 +113,28 @@ export type ComposeDraftSource = {
 }
 export const composeDraftSourceAtom = atom<ComposeDraftSource | null>(null)
 
+// when non-null, the composer opens pre-filled from a send that failed
+// (set by the Send tab's "Edit and send again", alongside
+// composingNewAtom=true). cleared when the composer closes.
+//
+// `attachments` are descriptions, not files: the bytes never left the
+// server. On send, the kept ones are named back by `index` and the server
+// re-extracts them from the original envelope — which is the only way a
+// 15 MB re-edit costs no transfer and cannot lose its files (RFC
+// 20260730-send-status S4 addendum).
+export type ComposeRedraftSource = {
+  attachments: { content_type: string; filename: string; index: number; size: number }[]
+  bcc: string
+  body: string
+  cc: string
+  inReplyTo: null | string
+  /** The send this repairs. Sent back so the server knows what to carry. */
+  redraftOf: string
+  subject: string
+  to: string
+}
+export const composeRedraftSourceAtom = atom<ComposeRedraftSource | null>(null)
+
 // when set, the open thread should scroll to + highlight the message with
 // this uid (set by clicking a Sent-view row so its exact outbound message
 // is focused). synced to the `?msg=` URL param. cleared once consumed.

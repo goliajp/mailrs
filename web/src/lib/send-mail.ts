@@ -11,6 +11,12 @@ export type SendMailParams = {
   from: string
   htmlBody: string
   inReplyTo?: null | string
+  /** Which carried attachments to keep, as indices into the original
+   *  envelope. `null` keeps all; `[]` keeps none — the two are different
+   *  and the wire preserves the difference. */
+  redraftKeep?: null | number[]
+  /** The send being repaired; its attachments are carried server-side. */
+  redraftOf?: null | string
   scheduledAt?: string // ISO
   subject: string
   to: string[]
@@ -46,6 +52,12 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
     if (p.scheduledAt) payload['scheduled_at'] = p.scheduledAt
     if (p.forwardMessageId) payload['forward_message_id'] = p.forwardMessageId
     if (p.forwardAttachmentsFrom) payload['forward_attachments_from'] = p.forwardAttachmentsFrom
+    if (p.redraftOf) payload['redraft_of'] = p.redraftOf
+    // Absent keeps every carried attachment; present-and-empty keeps
+    // none. A falsy check here would re-attach files the user removed.
+    if (p.redraftKeep !== null && p.redraftKeep !== undefined) {
+      payload['redraft_keep'] = p.redraftKeep
+    }
     return wireSendMailJson(payload)
   }
 
@@ -63,6 +75,13 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
   if (p.forwardMessageId) fd.append('forward_message_id', p.forwardMessageId)
   if (p.forwardAttachmentsFrom) {
     fd.append('forward_attachments_from', String(p.forwardAttachmentsFrom))
+  }
+  if (p.redraftOf) fd.append('redraft_of', p.redraftOf)
+  // One comma-separated field, not a repeated one: repeating it cannot
+  // express "keep none", since zero occurrences and an empty selection
+  // both arrive as no field at all and mean opposite things.
+  if (p.redraftKeep !== null && p.redraftKeep !== undefined) {
+    fd.append('redraft_keep', p.redraftKeep.join(','))
   }
 
   try {

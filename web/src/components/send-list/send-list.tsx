@@ -13,7 +13,14 @@ import { useResendMutation, useSendsQuery } from '@/hooks/use-sends'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
-import { focusedMessageUidAtom, mobileViewAtom, selectedThreadIdAtom } from '@/store/ui'
+import {
+  composeRedraftSourceAtom,
+  composingNewAtom,
+  focusedMessageUidAtom,
+  mobileViewAtom,
+  selectedThreadIdAtom,
+} from '@/store/ui'
+import { wireGetRedraft } from '@/wire/endpoints/sends'
 
 import { FailureDetail } from './failure-detail'
 import { filterByStatus, joinSends, needsAttention } from './send-model'
@@ -45,6 +52,8 @@ export function SendList() {
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<null | WireSendStatus>(null)
   const [expanded, setExpanded] = useState<null | string>(null)
+  const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
+  const setComposingNew = useSetAtom(composingNewAtom)
   const resend = useResendMutation()
 
   const rows = useMemo(() => joinSends(messages ?? [], sends ?? []), [messages, sends])
@@ -64,6 +73,33 @@ export function SendList() {
     setSelectedThreadId(row.msg.thread_id)
     setFocusedMsgUid(row.msg.uid)
     setMobileView('thread')
+  }
+
+  /**
+   * Open the composer on a failed send.
+   *
+   * Fetched here rather than through a query hook because it happens once,
+   * on a click, and the composer needs the fields before it mounts. The
+   * attachments arrive as descriptions — the bytes stayed on the server
+   * and go back out by index.
+   */
+  const handleRedraft = async (sendId: string) => {
+    try {
+      const draft = await wireGetRedraft(sendId)
+      setRedraftSource({
+        attachments: draft.attachments,
+        bcc: draft.bcc.join(', '),
+        body: draft.body,
+        cc: draft.cc.join(', '),
+        inReplyTo: draft.in_reply_to ?? null,
+        redraftOf: draft.redraft_of,
+        subject: draft.subject,
+        to: draft.to.join(', '),
+      })
+      setComposingNew(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not open this send for editing')
+    }
   }
 
   const handleResend = (sendId: string) => {
@@ -93,7 +129,7 @@ export function SendList() {
               expanded={expanded === id}
               key={id}
               onOpen={openMessage}
-              onRedraft={() => openRedraft(item.row)}
+              onRedraft={() => void handleRedraft(item.row.send?.send_id ?? '')}
               onResend={handleResend}
               onToggle={() => setExpanded(toggle(expanded, id))}
               resending={resend.isPending}
@@ -118,18 +154,6 @@ export function SendList() {
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>
   )
-}
-
-/**
- * Open the composer on a failed send.
- *
- * Not wired yet: the composer takes its fields from atoms, and prefilling
- * it from `:redraft` including the carried-attachment chips is its own
- * change. Until then this says so rather than opening an empty composer
- * and dropping the attachments the endpoint went to some trouble to keep.
- */
-function openRedraft(row: SendRow) {
-  toast.error(`Re-editing is not wired to the composer yet (${row.msg.subject})`)
 }
 
 const SendRowView = memo(function SendRowView({
