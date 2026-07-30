@@ -1866,6 +1866,10 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:sent-axis-shadow",
                 post(sent_axis_shadow_route),
             )
+            .route(
+                "/v1/admin/maintenance:legacy-zset-census",
+                post(legacy_zset_census_route),
+            )
             // Engine-side reconciliation for the declared table: drift
             // recheck per compiled index plus a column-type spot check.
             .route(
@@ -2355,13 +2359,18 @@ async fn thread_messages(
 /// "The Sent axis has the same shape: key on the flag, filter to the user,
 /// sort by recency."
 ///
-/// `user_threads_sent` is unioned in for one release. That zset is legacy —
-/// it is in `all_user_thread_zsets`, the list `drop-legacy-zsets` deletes —
-/// and reading it alone is why a delivered reply was missing from Send on
+/// `user_threads_sent` is gone. That zset was legacy — it is in
+/// `all_user_thread_zsets`, the list `drop-legacy-zsets` deletes — and
+/// reading it was why a delivered reply was missing from Send on
 /// 2026-07-30: nothing on the ingest path writes it, and its only refiller
-/// is the periodic maildir sweep, which backs off exponentially while idle.
-/// The two sets were built by different means, so it stays in the union
-/// until a shadow report shows neither holds a thread the other lacks.
+/// was the periodic maildir sweep, which backs off exponentially while
+/// idle.
+///
+/// It was unioned in for one release while the two sets were compared.
+/// `maintenance:sent-axis-shadow` across all 13 accounts on 2026-07-31
+/// reported `only_in_zset_live: 0` — the only divergence was three thread
+/// ids the zset still named after a merge had emptied them, which hold no
+/// messages and therefore contribute nothing to this list.
 ///
 /// Paged rather than capped. A silent limit here would drop the oldest
 /// sent threads out of the list with nothing to say it had happened.
@@ -2397,23 +2406,6 @@ fn sent_thread_ids(state: &Arc<FastcoreState>, user: &str) -> Vec<String> {
         offset += PAGE;
     }
 
-    let legacy = state
-        .mailbox
-        .store_ref()
-        .zrevrange(
-            mailrs_mailbox_kevy::keys::user_threads_sent(user).as_bytes(),
-            0,
-            -1,
-        )
-        .unwrap_or_default();
-    for (tid_b, _score) in legacy {
-        let Ok(tid) = String::from_utf8(tid_b) else {
-            continue;
-        };
-        if seen.insert(tid.clone()) {
-            out.push(tid);
-        }
-    }
     out
 }
 
@@ -4412,6 +4404,61 @@ async fn table_verify_route(
 ///
 /// `done` is true when the page came back short, meaning the caller has
 /// reached the end of this user's threads.
+/// `POST /v1/admin/maintenance:legacy-zset-census`
+///
+/// Cardinality of every zset in `keys::all_user_thread_zsets` — the list
+/// `drop-legacy-zsets` deletes — per account.
+///
+/// Read-only, and it exists because "is this reader looking at an empty
+/// set?" was being answered by reasoning. `backfill-threading` enumerated
+/// `user_threads_by_activity` and saw 9 messages against 30,562 declared
+/// rows; `list_sent_messages` read `user_threads_sent`, which still holds
+/// hundreds because the maildir sweep refills that one and nothing refills
+/// the others. Those two facts together say the legacy zsets are alive to
+/// different degrees, and several readers remain — in `importance.rs`,
+/// `bayes_train.rs`, `backfill_decode.rs`. This turns that into numbers
+/// before anything is concluded about them.
+async fn legacy_zset_census_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let users = match q.get("user") {
+        Some(u) => vec![u.clone()],
+        None => state.mailbox.list_account_addresses().unwrap_or_default(),
+    };
+    let store = state.mailbox.store_ref();
+
+    // key suffix -> total across accounts, so an all-zero row names a set
+    // nothing writes any more.
+    let mut totals: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut per_user = Vec::new();
+    for user in &users {
+        let mut row = serde_json::Map::new();
+        let mut any = 0u64;
+        for key in mailrs_mailbox_kevy::keys::all_user_thread_zsets(user) {
+            let n = store.zcard(key.as_bytes()).unwrap_or(0) as u64;
+            let label = key
+                .rsplit_once(":threads:")
+                .map(|(_, t)| t.to_string())
+                .unwrap_or_else(|| key.clone());
+            *totals.entry(label.clone()).or_default() += n;
+            any += n;
+            row.insert(label, serde_json::json!(n));
+        }
+        if any > 0 {
+            row.insert("user".into(), serde_json::json!(user));
+            per_user.push(serde_json::Value::Object(row));
+        }
+    }
+
+    Json(serde_json::json!({
+        "users_checked": users.len(),
+        "totals": totals,
+        "users_with_any": per_user,
+    }))
+    .into_response()
+}
+
 /// `POST /v1/admin/maintenance:sent-axis-shadow?user=`
 ///
 /// Compares the declared `is_sender` axis against the legacy
