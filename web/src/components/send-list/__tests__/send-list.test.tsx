@@ -148,6 +148,24 @@ describe('SendList status', () => {
     expect(screen.queryByText(/needs? attention/)).toBeNull()
   })
 
+  /// The reported bug (2026-07-30): a delivered reply with a Send row but
+  /// no sent-axis entry rendered nowhere, because the list was built by
+  /// mapping over the axis. Nothing on the ingest path writes that axis.
+  it('renders a send that only the projection knows about', () => {
+    stub.sends = [
+      send({
+        send_id: '9d8549f828cd6aea@golia.jp',
+        status: 'delivered',
+        subject: 'Re: 決算について',
+        to: ['nagata@nagatax.tokyo.jp'],
+      }),
+    ]
+    renderList()
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('Re: 決算について')).toBeTruthy()
+    expect(badgesInRow()).toEqual(['Delivered'])
+  })
+
   /// A delivered send needs no counter — the badge already says it landed.
   it('does not count a delivered send as needing attention', () => {
     stub.messages = [msg({ message_id: 'a@golia.jp' })]

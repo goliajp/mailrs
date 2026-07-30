@@ -63,15 +63,18 @@ export function SendList() {
     const q = query.trim().toLowerCase()
     if (!q) return byStatus
     return byStatus.filter(
-      (r) => r.msg.to.toLowerCase().includes(q) || r.msg.subject.toLowerCase().includes(q)
+      (r) => r.to.toLowerCase().includes(q) || r.subject.toLowerCase().includes(q)
     )
   }, [rows, status, query])
 
   const attention = useMemo(() => rows.filter(needsAttention).length, [rows])
 
   const openMessage = (row: SendRow) => {
-    setSelectedThreadId(row.msg.thread_id)
-    setFocusedMsgUid(row.msg.uid)
+    setSelectedThreadId(row.threadId)
+    // Null when the sweep has not indexed the maildir copy yet. Focusing
+    // nothing opens the thread without scrolling to a specific message,
+    // which is the same degradation an optimistic row has.
+    setFocusedMsgUid(row.uid)
     setMobileView('thread')
   }
 
@@ -123,7 +126,7 @@ export function SendList() {
           if (item.type === 'divider') {
             return <DateDivider key={`d:${item.label}`} label={item.label} />
           }
-          const id = item.row.msg.message_id
+          const id = item.row.messageId
           return (
             <SendRowView
               expanded={expanded === id}
@@ -182,19 +185,17 @@ const SendRowView = memo(function SendRowView({
         onClick={() => rowAction(flagged, onToggle, () => onOpen(row))}
         type="button"
       >
-        <SenderAvatar className="shrink-0" sender={firstRecipient(row.msg.to)} size={36} />
+        <SenderAvatar className="shrink-0" sender={firstRecipient(row.to)} size={36} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-fg-secondary truncate text-sm font-medium">
-              {recipientLabel(row.msg.to)}
+              {recipientLabel(row.to)}
             </span>
-            <span className="text-fg-muted text-tiny shrink-0">
-              {formatFullDate(row.msg.internal_date)}
-            </span>
+            <span className="text-fg-muted text-tiny shrink-0">{formatFullDate(row.date)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-fg-muted min-w-0 flex-1 truncate text-sm">
-              {subjectLabel(row.msg.subject)}
+              {subjectLabel(row.subject)}
             </span>
             <StatusBadge status={row.send?.status ?? null} />
           </div>
@@ -221,7 +222,7 @@ function groupByDate(rows: readonly SendRow[]): Item[] {
   const out: Item[] = []
   let prev = ''
   for (const row of rows) {
-    const label = dateGroupLabel(row.msg.internal_date)
+    const label = dateGroupLabel(row.date)
     if (label !== prev) {
       out.push({ label, type: 'divider' })
       prev = label

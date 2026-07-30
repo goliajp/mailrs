@@ -99,17 +99,21 @@ describe('indexSendsByMessage', () => {
 })
 
 describe('needsAttention', () => {
+  /// Built through `joinSends` rather than from a hand-written row: a
+  /// literal would keep compiling after the row shape changes and stop
+  /// describing anything real.
+  function rowFor(status: null | WireSend['status']) {
+    const sends = status === null ? [] : [send({ send_id: 'a@golia.jp', status })]
+    return joinSends([msg({ message_id: 'a@golia.jp' })], sends)[0]
+  }
+
   it('flags failed and partial, and nothing else', () => {
-    expect(needsAttention({ msg: msg({ message_id: 'a' }), send: null })).toBe(false)
+    expect(needsAttention(rowFor(null))).toBe(false)
     for (const status of ['scheduled', 'sending', 'delivered'] as const) {
-      expect(
-        needsAttention({ msg: msg({ message_id: 'a' }), send: send({ send_id: 'a', status }) })
-      ).toBe(false)
+      expect(needsAttention(rowFor(status)), status).toBe(false)
     }
     for (const status of ['failed', 'partial'] as const) {
-      expect(
-        needsAttention({ msg: msg({ message_id: 'a' }), send: send({ send_id: 'a', status }) })
-      ).toBe(true)
+      expect(needsAttention(rowFor(status)), status).toBe(true)
     }
   })
 })
@@ -151,5 +155,97 @@ describe('filterByStatus', () => {
     expect(filterByStatus(rows, null)).toHaveLength(2)
     expect(filterByStatus(rows, 'delivered')).toHaveLength(1)
     expect(filterByStatus(rows, 'failed')).toHaveLength(0)
+  })
+})
+
+describe('joinSends as a full outer join', () => {
+  /**
+   * The reported bug (2026-07-30): a reply to nagata@nagatax.tokyo.jp was
+   * accepted with a 250, had a Send row, and had its maildir copy — and did
+   * not appear in Send, because nothing on the ingest path writes the sent
+   * axis. Its only writer is fastcore's periodic maildir sweep, which backs
+   * off exponentially while idle.
+   */
+  it('shows a send the sweep has not filed yet', () => {
+    const rows = joinSends(
+      [],
+      [
+        send({
+          created_at: 1785388821,
+          send_id: '9d8549f828cd6aea@golia.jp',
+          status: 'delivered',
+          subject: 'Re: 決算について',
+          to: ['nagata@nagatax.tokyo.jp'],
+        }),
+      ]
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].subject).toBe('Re: 決算について')
+    expect(rows[0].to).toBe('nagata@nagatax.tokyo.jp')
+    expect(rows[0].send?.status).toBe('delivered')
+    expect(rows[0].msg).toBeNull()
+    // Null, not 0: the maildir copy is not indexed, and 0 is a real uid
+    // shape that would make the thread view chase a message that is not
+    // there.
+    expect(rows[0].uid).toBeNull()
+  })
+
+  it('does not duplicate a send that both sources know about', () => {
+    const rows = joinSends(
+      [msg({ message_id: 'a@golia.jp', subject: 'once' })],
+      [send({ send_id: 'a@golia.jp', subject: 'once' })]
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].msg).not.toBeNull()
+    expect(rows[0].send).not.toBeNull()
+  })
+
+  /// History has no Send row and must still be listed, which is why the
+  /// projection cannot simply replace the axis.
+  it('keeps axis-only history alongside projection-only sends', () => {
+    const rows = joinSends(
+      [msg({ internal_date: 100, message_id: 'ancient@golia.jp' })],
+      [send({ created_at: 200, send_id: 'fresh@golia.jp' })]
+    )
+    expect(rows.map((r) => r.messageId)).toEqual(['fresh@golia.jp', 'ancient@golia.jp'])
+    expect(rows[1].send).toBeNull()
+  })
+
+  it('sorts newest first across both sources', () => {
+    const rows = joinSends(
+      [
+        msg({ internal_date: 300, message_id: 'b@golia.jp' }),
+        msg({ internal_date: 100, message_id: 'd@golia.jp' }),
+      ],
+      [
+        send({ created_at: 400, send_id: 'a@golia.jp' }),
+        send({ created_at: 200, send_id: 'c@golia.jp' }),
+      ]
+    )
+    expect(rows.map((r) => r.messageId)).toEqual([
+      'a@golia.jp',
+      'b@golia.jp',
+      'c@golia.jp',
+      'd@golia.jp',
+    ])
+  })
+
+  /// A resend files under the message it repeats, so it must not add a
+  /// second row for the same mail.
+  it('does not add a row for a resend of a listed message', () => {
+    const rows = joinSends(
+      [msg({ message_id: 'a@golia.jp' })],
+      [
+        send({ created_at: 100, send_id: 'a@golia.jp', status: 'failed' }),
+        send({
+          created_at: 200,
+          resent_from: 'a@golia.jp',
+          send_id: 'a@golia.jp#r1',
+          status: 'delivered',
+        }),
+      ]
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0].send?.status).toBe('delivered')
   })
 })
