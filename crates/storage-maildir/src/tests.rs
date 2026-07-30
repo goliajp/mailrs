@@ -839,3 +839,44 @@ fn create_cached_invalidate_then_recreate() {
     md.deliver(b"From: a@b\r\n\r\nok\r\n").unwrap();
     assert!(path.join("tmp").is_dir());
 }
+
+/// `locate` is the one resolver `webapi::blob_ref_location` and
+/// `fastcore::read_maildir_file` both go through, so a reference that
+/// resolves for one resolves for the other by construction. This asserts
+/// the property that used to differ between them: a message whose file
+/// carries a `:2,FLAGS` suffix is found by its base id.
+#[test]
+fn locate_then_fetch_finds_a_message_in_either_leaf() {
+    let tmp = std::env::temp_dir().join(format!("mailrs-locate-{}", std::process::id()));
+    let user_root = tmp.join("x.com").join("bob");
+    std::fs::create_dir_all(user_root.join("cur")).unwrap();
+    std::fs::create_dir_all(user_root.join("new")).unwrap();
+    std::fs::create_dir_all(user_root.join(".Sent").join("cur")).unwrap();
+
+    std::fs::write(user_root.join("new").join("unread.id"), b"in-new").unwrap();
+    // Marked Seen: renamed into cur/ with a flag suffix. The form every sent
+    // copy takes, and the one a hand-built filename cannot open.
+    std::fs::write(user_root.join("cur").join("seen.id:2,S"), b"in-cur-flagged").unwrap();
+    std::fs::write(
+        user_root.join(".Sent").join("cur").join("sub.id:2,S"),
+        b"in-subfolder",
+    )
+    .unwrap();
+
+    let read = |blob_ref: &str| {
+        let (dir, id) = super::locate(&user_root, blob_ref).expect("locate");
+        dir.fetch(&id).expect("fetch")
+    };
+
+    assert_eq!(read("unread.id").as_deref(), Some(&b"in-new"[..]));
+    assert_eq!(
+        read("seen.id").as_deref(),
+        Some(&b"in-cur-flagged"[..]),
+        "a flagged file must be found by its base id"
+    );
+    assert_eq!(read(".Sent/sub.id").as_deref(), Some(&b"in-subfolder"[..]));
+    assert_eq!(read("absent.id"), None);
+    assert!(super::locate(&user_root, "").is_none());
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}

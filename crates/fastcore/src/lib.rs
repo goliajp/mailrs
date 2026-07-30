@@ -2650,37 +2650,16 @@ async fn backfill_threading_route(
 /// between them as flags change. `None` when the ref is empty or the
 /// file is gone.
 pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
-    if blob_ref.is_empty() {
-        return None;
-    }
     let (local, domain) = user.split_once('@')?;
     let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let base = std::path::PathBuf::from(root).join(domain).join(local);
-    let (sub, name) = match blob_ref.split_once('/') {
-        Some((s, n)) => (Some(s), n),
-        None => (None, blob_ref),
-    };
-    // Through the stone's read-by-id entry point, which the stone documents
-    // as the one place that knows about the `:2,FLAGS` cur suffix "so
-    // callers never reconstruct a filename by hand". This function did
-    // reconstruct it, with a plain `fs::read` of `<leaf>/<name>` — so it
-    // found a message only while the file was still unflagged. Marking one
-    // Seen renames it to `cur/<name>:2,S` and every read here returned
-    // None from then on.
-    //
-    // The visible consequence was in the threading backfill: its
-    // `maildir_references` edges come from this read, so for any message
-    // that had been read — which is every sent copy, `mirror_send` marks
-    // them Seen — the References chain was invisible and conversations that
-    // should have merged did not (found 2026-07-30 while repairing one).
-    let root = match sub {
-        Some(s) => base.join(s),
-        None => base,
-    };
-    mailrs_maildir::Maildir::open(&root)
-        .fetch(&mailrs_maildir::MessageId(name.to_string()))
-        .ok()
-        .flatten()
+    // Both the reference convention and the `:2,FLAGS` matching live in the
+    // stone. This function held its own version of each: it split on `/`
+    // unconditionally and rebuilt the filename by hand, so a message that
+    // had been marked Seen was unreadable and the threading backfill lost
+    // every `References` edge belonging to a sent copy.
+    let (dir, id) = mailrs_maildir::locate(&base, blob_ref)?;
+    dir.fetch(&id).ok().flatten()
 }
 
 /// Remove the maildir file at `blob_ref` — the disk counterpart of
