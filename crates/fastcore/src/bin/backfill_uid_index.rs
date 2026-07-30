@@ -49,18 +49,16 @@ fn main() {
     // both parties are local, and uid spaces are strictly per-user.
     let mut by_owner: HashMap<String, HashMap<String, WireRef>> = HashMap::new();
     for user in &users {
-        let activity_key = keys::user_threads_by_activity(user);
-        let n = store.zcard(activity_key.as_bytes()).unwrap_or(0);
-        if n == 0 {
+        // Declared rows. This read `user_threads_by_activity`, which is
+        // legacy and unwritten, and skipped the account when it was empty —
+        // so the whole tool had become a no-op that printed nothing.
+        let entries = mailbox.all_thread_ids_for_user(user).unwrap_or_default();
+        if entries.is_empty() {
             continue;
         }
-        let entries = store
-            .zrevrange(activity_key.as_bytes(), 0, (n as i64) - 1)
-            .expect("zrevrange activity");
-        for (tid_bytes, _score) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &entries {
+            let tid = tid.as_str();
+            {};
             for payload in mailbox
                 .thread_messages_for_maintenance(tid)
                 .unwrap_or_default()

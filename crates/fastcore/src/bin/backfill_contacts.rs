@@ -51,21 +51,17 @@ fn main() {
         .expect("list_account_addresses");
     let mut total_added = 0u64;
     for user in &users {
-        let activity_key = keys::user_threads_by_activity(user);
-        let n = store.zcard(activity_key.as_bytes()).unwrap_or(0);
-        if n == 0 {
+        // Declared rows; the legacy activity zset is unwritten, so this
+        // printed `threads=0` and did nothing for every account.
+        let entries = mailbox.all_thread_ids_for_user(user).unwrap_or_default();
+        if entries.is_empty() {
             continue;
         }
-        eprintln!("user={user} threads={n}");
-        let entries = store
-            .zrevrange(activity_key.as_bytes(), 0, (n as i64) - 1)
-            .expect("zrevrange");
+        eprintln!("user={user} threads={}", entries.len());
         let contacts_key = format!("mailrs:user:{user}:contacts");
         let mut pending: Vec<(String, String)> = Vec::new();
-        for (tid_bytes, _score) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &entries {
+            let tid = tid.as_str();
             let hkey = keys::thread(tid);
             let raw = match store.hget(hkey.as_bytes(), b"senders_csv") {
                 Ok(Some(bytes)) => String::from_utf8_lossy(&bytes).to_string(),

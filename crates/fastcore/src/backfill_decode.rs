@@ -33,20 +33,18 @@ pub(crate) async fn backfill_decode_headers_route(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let store = state.mailbox.store_ref();
     let mut rows_decoded = 0u64;
     let mut blobs_added = 0u64;
     let mut bodies_indexed = 0u64;
     let mut trust_stamped = 0u64;
     for user in &users {
-        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let tids = store
-            .zrevrange(activity.as_bytes(), 0, -1)
+        // Declared rows; `user_threads_by_activity` is legacy and unwritten.
+        let tids = state
+            .mailbox
+            .all_thread_ids_for_user(user)
             .unwrap_or_default();
-        for (tid_b, _) in &tids {
-            let Ok(tid) = std::str::from_utf8(tid_b) else {
-                continue;
-            };
+        for tid in &tids {
+            let tid = tid.as_str();
             let Ok(Some(mut row)) = state.mailbox.get_thread(tid) else {
                 continue;
             };

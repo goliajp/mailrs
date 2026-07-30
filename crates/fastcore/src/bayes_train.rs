@@ -22,6 +22,14 @@ use crate::FastcoreState;
 const K_SPAM: &[u8] = b"bayes:tokens:spam";
 const K_HAM: &[u8] = b"bayes:tokens:ham";
 const K_META: &[u8] = b"bayes:meta";
+
+/// "Every row", for the declared queries that take a limit.
+///
+/// Named rather than a bare number so a reader can see it is not a page
+/// size: these are one-shot maintenance passes over a whole mailbox, and a
+/// silent cap here would seed the corpus from an arbitrary slice while
+/// reporting the count it happened to reach.
+const ALL: usize = usize::MAX;
 const TRAINED_TTL_SECS: i64 = 90 * 24 * 3600;
 
 // v2.8.1 spam-corpus reservoir: permanent per-thread membership sets,
@@ -176,18 +184,18 @@ pub fn corpus_populated(state: &Arc<FastcoreState>) -> bool {
 /// No per-account guard — the caller gates on [`corpus_populated`]
 /// once. Returns `(spam_trained, ham_trained)`.
 pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
-    let store = state.mailbox.store_ref();
-
     // Spam roster: union of the spam + scam category zsets.
+    // Declared category axis. The `by_category:*` zsets are legacy and
+    // measured empty on every account (census, 2026-07-31), so this roster
+    // came back empty and the whole bootstrap collected nothing while
+    // reporting success.
     let mut spam_ids: Vec<String> = Vec::new();
     for cat in ["spam", "scam"] {
-        let key = mailrs_mailbox_kevy::keys::user_threads_by_category(user, cat);
         spam_ids.extend(
-            store
-                .zrevrange(key.as_bytes(), 0, -1)
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|(m, _)| String::from_utf8(m).ok()),
+            state
+                .mailbox
+                .list_thread_ids_by_category_via_table(user, cat, ALL)
+                .unwrap_or_default(),
         );
     }
     spam_ids.sort();
@@ -195,14 +203,14 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
 
     // Ham sample: same count, most-recent inbox threads.
     let want_ham = spam_ids.len() as i64;
-    let inbox_key = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
+    // Inbox is the declared bucket minus threads the user only ever sent —
+    // the same definition the mail list uses, so the ham sample is drawn
+    // from what the user actually sees as Inbox.
     let ham_ids: Vec<String> = if want_ham > 0 {
-        store
-            .zrevrange(inbox_key.as_bytes(), 0, want_ham - 1)
+        state
+            .mailbox
+            .list_thread_ids_by_bucket_unsent_via_table(user, "inbox", want_ham as usize)
             .unwrap_or_default()
-            .into_iter()
-            .filter_map(|(m, _)| String::from_utf8(m).ok())
-            .collect()
     } else {
         Vec::new()
     };
@@ -252,14 +260,10 @@ fn heuristic_triage_label(raw: &[u8]) -> &'static str {
 /// `set_bucket` is a move.
 pub fn backfill_triage(state: &Arc<FastcoreState>, user: &str) -> (u64, u64, u64) {
     use mailrs_mailbox_kevy::keys::Bucket;
-    let store = state.mailbox.store_ref();
-    let inbox_key = mailrs_mailbox_kevy::keys::user_threads_inbox(user);
-    let tids: Vec<String> = store
-        .zrevrange(inbox_key.as_bytes(), 0, -1)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|(m, _)| String::from_utf8(m).ok())
-        .collect();
+    let tids: Vec<String> = state
+        .mailbox
+        .list_thread_ids_by_bucket_unsent_via_table(user, "inbox", ALL)
+        .unwrap_or_default();
 
     let (mut n_inbox, mut n_notif, mut n_promo) = (0u64, 0u64, 0u64);
     for tid in &tids {

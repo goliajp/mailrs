@@ -624,6 +624,34 @@ impl KevyMailboxStore {
     }
 
     /// Same, keyed on the message category rather than the folder.
+    /// Every thread this user has a membership row for.
+    ///
+    /// The declared replacement for enumerating `user_threads_by_activity`,
+    /// which is legacy: it is in [`keys::all_user_thread_zsets`], the set
+    /// `drop-legacy-zsets` deletes, and nothing writes it any more. Measured
+    /// on prod 2026-07-31 it held 168 rows across 13 accounts against 30,562
+    /// declared ones, so every sweep that enumerated it had quietly stopped
+    /// seeing the mailbox.
+    ///
+    /// A keyspace scan over the row prefix, which is what the census does
+    /// over the same rows. That is acceptable for the callers this has —
+    /// maintenance sweeps whose whole job is to visit every thread once —
+    /// and it is not for a request path. There is no ORDERPATH that spans
+    /// buckets, so the alternative would be a union over every bucket, which
+    /// costs the same and can miss a bucket nobody remembered to list.
+    pub fn all_thread_ids_for_user(&self, user: &str) -> io::Result<Vec<String>> {
+        let prefix = format!("mailrs:threaduser:{user}:");
+        Ok(self
+            .store()
+            .keys(Some(format!("{prefix}*").as_bytes()), None)
+            .into_iter()
+            .filter_map(|k| {
+                let k = String::from_utf8(k).ok()?;
+                k.strip_prefix(&prefix).map(str::to_string)
+            })
+            .collect())
+    }
+
     pub fn list_thread_ids_by_category_via_table(
         &self,
         user: &str,
