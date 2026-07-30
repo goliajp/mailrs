@@ -493,11 +493,11 @@ struct ComposeParts {
     scheduled_at: Option<i64>,
 }
 
-#[derive(Debug)]
-struct Attachment {
-    filename: String,
-    content_type: String,
-    bytes: Vec<u8>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Attachment {
+    pub(crate) filename: String,
+    pub(crate) content_type: String,
+    pub(crate) bytes: Vec<u8>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -522,6 +522,17 @@ pub struct SendRequest {
     pub forward_message_id: Option<String>,
     #[serde(default)]
     pub scheduled_at: Option<i64>,
+    /// The failed send this repairs. Its attachments are re-extracted
+    /// here; they never travelled to the browser.
+    #[serde(default)]
+    pub redraft_of: Option<String>,
+    /// Which carried attachments to keep, as indices into the original
+    /// envelope's attachment list. Absent keeps all.
+    ///
+    /// Indices, not filenames: two parts can both be `image.png`, and the
+    /// wrong one would be dropped with no way to tell.
+    #[serde(default)]
+    pub redraft_keep: Option<Vec<usize>>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -756,31 +767,7 @@ async fn inline_forward_content(state: &Arc<WebState>, user: &str, parts: &mut C
     // does not have `Content-Disposition: attachment` (inline is a
     // body; attachment-disposition text is treated as a file). Same
     // rule the retired monolith send/text.rs used.
-    let parsed = mailrs_mime::parse(&raw);
-    for part in parsed.walk() {
-        if part.content_type.is_multipart() {
-            continue;
-        }
-        let mt = part.content_type.mime_type();
-        let is_body_part = (mt == "text/plain" || mt == "text/html")
-            && part
-                .disposition
-                .as_ref()
-                .map(|d| !d.is_attachment())
-                .unwrap_or(true);
-        if is_body_part {
-            continue;
-        }
-        let filename = part
-            .attachment_filename()
-            .map(String::from)
-            .unwrap_or_else(|| "attachment".to_string());
-        parts.attachments.push(Attachment {
-            filename,
-            content_type: mt,
-            bytes: part.body.to_vec(),
-        });
-    }
+    parts.attachments.extend(attachments_from_envelope(&raw));
 
     let user_text = std::mem::take(&mut parts.body);
     parts.body = match orig_text.as_deref() {
@@ -812,6 +799,109 @@ async fn inline_forward_content(state: &Arc<WebState>, user: &str, parts: &mut C
     } else {
         user_html
     };
+}
+
+/// Carry the attachments of the send being repaired onto this compose.
+///
+/// **Fails the send rather than degrading it.** The forward path is
+/// best-effort on purpose — a lookup failure there means the recipient
+/// sees less quoted text, and the mail is still the message the user
+/// wrote. Here a failure means a mail the user believes carries five
+/// images arrives with none, which is the exact silent loss this design
+/// exists to prevent.
+///
+/// `keep` names indices into `attachments_from_envelope`'s output. Out-of
+/// -range indices are rejected: it means the caller and the server
+/// disagree about what the parts are, and guessing which was meant is how
+/// the wrong file gets attached.
+async fn inline_redraft_attachments(
+    user: &str,
+    redraft_of: Option<&str>,
+    keep: Option<&[usize]>,
+    parts: &mut ComposeParts,
+) -> Result<(), StatusCode> {
+    let Some(send_id) = redraft_of.filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    let raw = super::sends::envelope_bytes(user, send_id).await?;
+    let carried = attachments_from_envelope(&raw);
+    let have = carried.len();
+    let selected = select_carried(carried, keep).map_err(|i| {
+        tracing::warn!(
+            %user, %send_id, index = i, have,
+            "redraft_keep names an attachment the envelope does not have"
+        );
+        StatusCode::BAD_REQUEST
+    })?;
+    // Ahead of anything newly uploaded, so the order the user saw in the
+    // composer is the order that goes out.
+    let fresh = std::mem::take(&mut parts.attachments);
+    parts.attachments = selected;
+    parts.attachments.extend(fresh);
+    Ok(())
+}
+
+/// Pick the carried attachments the caller asked to keep.
+///
+/// `None` keeps all; `Some(&[])` keeps none — the caller removed every
+/// one. Returns the offending index when a selection names a part that is
+/// not there, because the alternative is attaching a different file than
+/// the user saw.
+fn select_carried(
+    carried: Vec<Attachment>,
+    keep: Option<&[usize]>,
+) -> Result<Vec<Attachment>, usize> {
+    let Some(idx) = keep else {
+        return Ok(carried);
+    };
+    let mut picked = Vec::with_capacity(idx.len());
+    for &i in idx {
+        picked.push(carried.get(i).ok_or(i)?.clone());
+    }
+    Ok(picked)
+}
+
+/// Every part of `raw` that is a file rather than a body, ready to hand
+/// back to `build_rfc5322`.
+///
+/// Shared by forward (quote an existing message) and redraft (repair a
+/// send that failed), which are the two paths that rebuild an outgoing
+/// message from a stored one. It was inline in the forward path until
+/// redraft needed it; copying it would have put two answers to "which
+/// parts are body, which are files" in the tree, and the copies drift
+/// (`.claude/rules/feedback-two-impls-need-a-contract-test`).
+///
+/// A part is a body part when it is text/plain or text/html **and** is
+/// not `Content-Disposition: attachment` — an attachment-disposition
+/// text part is a file someone attached, not the message body. Same
+/// rule the retired monolith's send/text.rs used.
+pub(crate) fn attachments_from_envelope(raw: &[u8]) -> Vec<Attachment> {
+    let parsed = mailrs_mime::parse(raw);
+    let mut out = Vec::new();
+    for part in parsed.walk() {
+        if part.content_type.is_multipart() {
+            continue;
+        }
+        let mt = part.content_type.mime_type();
+        let is_body_part = (mt == "text/plain" || mt == "text/html")
+            && part
+                .disposition
+                .as_ref()
+                .map(|d| !d.is_attachment())
+                .unwrap_or(true);
+        if is_body_part {
+            continue;
+        }
+        out.push(Attachment {
+            filename: part
+                .attachment_filename()
+                .map(String::from)
+                .unwrap_or_else(|| "attachment".to_string()),
+            content_type: mt,
+            bytes: part.body.to_vec(),
+        });
+    }
+    out
 }
 
 /// Enqueue outbound. When `scheduled_at` is a future epoch, the id
@@ -897,6 +987,43 @@ fn enqueue_outbound_at(
         with_kevy(move |c| sendfam::write_send(c, &user, &row, &rcpts))?;
     }
     Ok(())
+}
+
+/// Re-enqueue an already-composed envelope under a new send id.
+///
+/// Used by resend. The bytes go out unchanged — same Message-ID, same
+/// attachments — because a resend after failure is the same message to
+/// someone who never got it. `envelope_ref` carries over so the new row
+/// can itself be resent or re-edited without re-reading the old one.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn enqueue_resend(
+    user: &str,
+    recipients: &[String],
+    envelope: &[u8],
+    send_id: &str,
+    thread_id: &str,
+    subject: &str,
+    resent_from: &str,
+) -> Result<(), StatusCode> {
+    let to: Vec<String> = recipients.to_vec();
+    let empty: Vec<String> = Vec::new();
+    enqueue_outbound_at(
+        user,
+        recipients,
+        envelope,
+        None,
+        Some(SendMeta {
+            message_id: send_id,
+            thread_id,
+            subject,
+            to: &to,
+            cc: &empty,
+            // The original's maildir file holds these same bytes, so the
+            // resend points at it rather than writing a second copy.
+            envelope_ref: "",
+            resent_from: Some(resent_from),
+        }),
+    )
 }
 
 /// What the Send view renders, handed to [`enqueue_outbound_at`] so the
@@ -1229,6 +1356,16 @@ pub async fn send_message(
     // every forward sent only the user's leading text — the recipient
     // saw "FYI." with none of the forwarded content.
     inline_forward_content(&state, &user, &mut parts).await;
+    // A redraft carries the failed send's attachments. Unlike the forward
+    // step above it can fail the request: losing them silently is the
+    // whole point of not going through the drafts table.
+    inline_redraft_attachments(
+        &user,
+        req.redraft_of.as_deref(),
+        req.redraft_keep.as_deref(),
+        &mut parts,
+    )
+    .await?;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
@@ -1237,6 +1374,10 @@ pub async fn send_message(
     // implies it exists. `thread_id` mirrors what
     // `mirror_send_to_sender_view` derives for a fresh send: its own
     // Message-ID when the mail starts a conversation.
+    //
+    // A redraft gets a **new** Message-ID, unlike a resend: the user
+    // edited the content, and a Message-ID names a particular message.
+    // `resent_from` keeps the chain back to what it repairs.
     let send_meta = SendMeta {
         message_id: &message_id,
         thread_id: parts.in_reply_to.as_deref().unwrap_or(&message_id),
@@ -1244,7 +1385,7 @@ pub async fn send_message(
         to: &parts.to,
         cc: &parts.cc,
         envelope_ref: "",
-        resent_from: None,
+        resent_from: req.redraft_of.as_deref(),
     };
     enqueue_outbound_at(
         &user,
@@ -1331,6 +1472,11 @@ pub async fn send_message_multipart(
         from: user.clone(),
         ..Default::default()
     };
+    let mut redraft_of: Option<String> = None;
+    // Absent and empty are different: absent keeps every carried
+    // attachment, an empty list keeps none. A form that dropped the
+    // distinction would silently re-attach files the user removed.
+    let mut redraft_keep: Option<Vec<usize>> = None;
     while let Some(field) = multipart
         .next_field()
         .await
@@ -1351,6 +1497,23 @@ pub async fn send_message_multipart(
             }
             "scheduled_at" => {
                 parts.scheduled_at = field.text().await.ok().and_then(|s| s.trim().parse().ok())
+            }
+            "redraft_of" => redraft_of = field.text().await.ok().filter(|s| !s.is_empty()),
+            // One comma-separated field, not a repeated one. Repeating it
+            // cannot express "keep none": zero occurrences and an empty
+            // selection would both arrive as no field at all, and the two
+            // mean opposite things. Present-but-empty says none; absent
+            // says all.
+            "redraft_keep" => {
+                redraft_keep = Some(
+                    field
+                        .text()
+                        .await
+                        .unwrap_or_default()
+                        .split(',')
+                        .filter_map(|s| s.trim().parse::<usize>().ok())
+                        .collect(),
+                )
             }
             "attachments" => {
                 let filename = field.file_name().unwrap_or("attachment").to_string();
@@ -1377,6 +1540,13 @@ pub async fn send_message_multipart(
     // Same fix as the JSON handler: prepend the forwarded original
     // when the request carries forward_message_id.
     inline_forward_content(&state, &user, &mut parts).await;
+    inline_redraft_attachments(
+        &user,
+        redraft_of.as_deref(),
+        redraft_keep.as_deref(),
+        &mut parts,
+    )
+    .await?;
     let mut recipients = parts.to.clone();
     recipients.extend(parts.cc.clone());
     recipients.extend(parts.bcc.clone());
@@ -1393,7 +1563,7 @@ pub async fn send_message_multipart(
         to: &parts.to,
         cc: &parts.cc,
         envelope_ref: "",
-        resent_from: None,
+        resent_from: redraft_of.as_deref(),
     };
     enqueue_outbound_at(
         &user,
@@ -1564,5 +1734,72 @@ mod build_rfc5322_tests {
         let s = std::str::from_utf8(&bytes).unwrap();
         assert!(s.contains("multipart/mixed"));
         assert!(s.contains("multipart/alternative"));
+    }
+}
+
+#[cfg(test)]
+mod carried_attachment_tests {
+    use super::{Attachment, attachments_from_envelope, select_carried};
+
+    fn att(filename: &str) -> Attachment {
+        Attachment {
+            filename: filename.into(),
+            content_type: "application/octet-stream".into(),
+            bytes: vec![1, 2, 3],
+        }
+    }
+
+    /// Absent and empty mean opposite things: nothing removed versus
+    /// everything removed. Collapsing them re-attaches files the user
+    /// deleted, which they would only find out about after sending.
+    #[test]
+    fn keeping_nothing_is_not_the_same_as_saying_nothing() {
+        let carried = vec![att("a.png"), att("b.pdf")];
+        assert_eq!(select_carried(carried.clone(), None).unwrap().len(), 2);
+        assert!(select_carried(carried, Some(&[])).unwrap().is_empty());
+    }
+
+    /// Indices, not filenames — two parts can both be `image.png`, and a
+    /// name-keyed selection would silently pick whichever came first.
+    #[test]
+    fn identically_named_parts_are_still_told_apart() {
+        let carried = vec![att("image.png"), att("image.png"), att("notes.txt")];
+        let picked = select_carried(carried, Some(&[1, 2])).unwrap();
+        assert_eq!(picked.len(), 2);
+        assert_eq!(picked[1].filename, "notes.txt");
+    }
+
+    /// An out-of-range index means the caller and the server disagree
+    /// about what the parts are. Guessing which was meant is how the wrong
+    /// file gets attached.
+    #[test]
+    fn an_index_the_envelope_does_not_have_is_refused() {
+        assert_eq!(select_carried(vec![att("a.png")], Some(&[0, 4])), Err(4));
+    }
+
+    /// The rule forward and redraft now share. A text part with
+    /// `Content-Disposition: attachment` is a file someone attached, not
+    /// the message body — treating it as body would drop it from the mail.
+    #[test]
+    fn a_text_part_marked_as_an_attachment_is_a_file_not_the_body() {
+        let raw = concat!(
+            "From: me@x.com\r\n",
+            "Subject: t\r\n",
+            "Content-Type: multipart/mixed; boundary=b\r\n",
+            "\r\n",
+            "--b\r\n",
+            "Content-Type: text/plain\r\n",
+            "\r\n",
+            "the body\r\n",
+            "--b\r\n",
+            "Content-Type: text/plain\r\n",
+            "Content-Disposition: attachment; filename=\"notes.txt\"\r\n",
+            "\r\n",
+            "attached text\r\n",
+            "--b--\r\n",
+        );
+        let found = attachments_from_envelope(raw.as_bytes());
+        assert_eq!(found.len(), 1, "the body part must not be carried");
+        assert_eq!(found[0].filename, "notes.txt");
     }
 }

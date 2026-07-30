@@ -34,6 +34,11 @@ pub struct SendListItem {
     pub thread_id: String,
     pub subject: String,
     pub to_csv: String,
+    /// Cc as sent. Kept apart from `to_csv` because redraft has to put
+    /// each address back in the field it came from, and because Bcc is
+    /// recoverable only as `recipients - to - cc` — a Bcc header is not
+    /// in the envelope, or it would not be blind.
+    pub cc_csv: String,
     pub created_at: i64,
     pub status: Status,
     /// Empty when the maildir write failed and the bytes are not on disk.
@@ -120,6 +125,7 @@ pub fn read_one(
         thread_id: get("thread_id"),
         subject: get("subject"),
         to_csv: get("to_csv"),
+        cc_csv: get("cc_csv"),
         created_at: get("created_at").parse().unwrap_or(0),
         // The stored status is what the writers maintain; deriving here
         // instead would disagree with `by_status` and put a send in one
@@ -213,6 +219,7 @@ mod tests {
             thread_id: "t1".into(),
             subject: "s".into(),
             to_csv: "a@x.com".into(),
+            cc_csv: String::new(),
             created_at: 100,
             status: Status::Delivered,
             envelope_ref: envelope_ref.into(),
