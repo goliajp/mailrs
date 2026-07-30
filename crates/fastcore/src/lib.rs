@@ -2433,10 +2433,29 @@ async fn backfill_threading_route(
     let mut indexed = 0u64;
     for user in &users {
         // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
-        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let tids = store
-            .zrevrange(activity.as_bytes(), 0, -1)
-            .unwrap_or_default();
+        //
+        // Enumerated from the declared `threaduser` rows, not from
+        // `user_threads_by_activity`. That zset is legacy — it is in
+        // `all_user_thread_zsets`, which `drop-legacy-zsets` deletes — so
+        // once it had been dropped this loop saw almost nothing and the
+        // backfill became a no-op that still answered 200. Measured on prod
+        // 2026-07-30: the zset yielded 9 messages while the table held
+        // 30,562 thread-user rows, so every References edge and every merge
+        // this exists to perform had silently stopped happening.
+        //
+        // A keyspace scan, which is what the census does for the same rows.
+        // Acceptable here and nowhere near a request path: this is a
+        // one-shot admin sweep over the whole mailbox by definition.
+        let prefix = format!("mailrs:threaduser:{user}:");
+        let tids: Vec<Vec<u8>> = store
+            .keys(Some(format!("{prefix}*").as_bytes()), None)
+            .into_iter()
+            .filter_map(|k| {
+                let k = String::from_utf8(k).ok()?;
+                k.strip_prefix(&prefix).map(|tid| tid.as_bytes().to_vec())
+            })
+            .collect();
+        let tids: Vec<(Vec<u8>, f64)> = tids.into_iter().map(|t| (t, 0.0)).collect();
         let mut msgs: Vec<(String, String, i64, String, String, String)> = Vec::new();
         let mut senders_by_tid: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
