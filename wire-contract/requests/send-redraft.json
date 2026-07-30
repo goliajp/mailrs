@@ -1,0 +1,11 @@
+{
+  "bcc": [],
+  "body": "fixed",
+  "cc": [],
+  "from": "lihao@golia.jp",
+  "html_body": "<p>fixed</p>",
+  "redraft_keep": [0, 2],
+  "redraft_of": "abc123@golia.jp",
+  "subject": "subject",
+  "to": ["someone@example.com"]
+}
