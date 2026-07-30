@@ -17,13 +17,44 @@ export type SendMailParams = {
   redraftKeep?: null | number[]
   /** The send being repaired; its attachments are carried server-side. */
   redraftOf?: null | string
-  scheduledAt?: string // ISO
+  /**
+   * Unix epoch **seconds**, the form the wire has always wanted
+   * (`SendRequest.scheduled_at: Option<i64>`, and every MCP scheduling
+   * tool documents "Unix epoch seconds").
+   *
+   * This was typed `string // ISO` and sent as one, which no layer
+   * rejected in a useful way: the JSON path 422'd the whole request, and
+   * the multipart path parsed the ISO string as an i64, failed, dropped it
+   * to `None` and **sent the mail immediately** — so a mail scheduled for
+   * tomorrow morning went out at once, with nothing said. A number cannot
+   * be mis-serialized into an i64 field, which is why the type changed
+   * rather than a conversion being added on top.
+   */
+  scheduledAt?: null | number
   subject: string
   to: string[]
   token: string
 }
 
 export type SendResult = { message?: string; message_id?: string; success: boolean }
+
+/**
+ * A `<input type="datetime-local">` value → Unix epoch seconds.
+ *
+ * The input carries no zone, so `new Date(v)` reads it as local time,
+ * which is what someone picking "09:00" means.
+ *
+ * Returns `null` for empty or unparseable input. Not `NaN`: `NaN` survives
+ * as far as `JSON.stringify`, which turns it into `null`, which the
+ * backend reads as "not scheduled" and sends at once — the same silent
+ * failure by another route.
+ */
+export function epochSecondsFromLocalInput(value: string): null | number {
+  if (!value.trim()) return null
+  const ms = new Date(value).getTime()
+  if (!Number.isFinite(ms)) return null
+  return Math.floor(ms / 1000)
+}
 
 // Comma/semicolon-separated address list → trimmed non-empty entries.
 export function parseAddressList(input: string): string[] {
@@ -49,7 +80,12 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
       to: p.to,
     }
     if (p.inReplyTo) payload['in_reply_to'] = p.inReplyTo
-    if (p.scheduledAt) payload['scheduled_at'] = p.scheduledAt
+    // Guarded on null, not falsiness: epoch 0 is a real instant, and
+    // although nobody schedules mail for 1970 the check should not be the
+    // reason it works.
+    if (p.scheduledAt !== null && p.scheduledAt !== undefined) {
+      payload['scheduled_at'] = p.scheduledAt
+    }
     if (p.forwardMessageId) payload['forward_message_id'] = p.forwardMessageId
     if (p.forwardAttachmentsFrom) payload['forward_attachments_from'] = p.forwardAttachmentsFrom
     if (p.redraftOf) payload['redraft_of'] = p.redraftOf
@@ -71,7 +107,9 @@ export async function sendMail(p: SendMailParams): Promise<SendResult> {
   for (const r of p.bcc ?? []) fd.append('bcc', r)
   for (const f of attachments) fd.append('attachments', f)
   if (p.inReplyTo) fd.append('in_reply_to', p.inReplyTo)
-  if (p.scheduledAt) fd.append('scheduled_at', p.scheduledAt)
+  if (p.scheduledAt !== null && p.scheduledAt !== undefined) {
+    fd.append('scheduled_at', String(p.scheduledAt))
+  }
   if (p.forwardMessageId) fd.append('forward_message_id', p.forwardMessageId)
   if (p.forwardAttachmentsFrom) {
     fd.append('forward_attachments_from', String(p.forwardAttachmentsFrom))
