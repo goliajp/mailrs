@@ -121,19 +121,43 @@ ssh "$PROD" "cd /apps/mailrs \
 
 echo "==> [4/6] verify prod"
 for i in $(seq 1 90); do
-    # any 2xx-4xx means the router is up; only connection failures loop
-    CODE=$(ssh "$PROD" "docker exec mailrs-fastcore curl -s -m3 -o /dev/null -w '%{http_code}' http://localhost:3301/healthz" 2>/dev/null || true)
-    if printf '%s' "$CODE" | grep -qE '^[0-9]+$' && [ "$CODE" != "000" ]; then
-        echo "    fastcore :3301 up (healthz=$CODE, attempt $i/90)"
+    # `/v1/healthz`, and 200 specifically. This probed `/healthz` — which
+    # does not exist and answers 404 — and then accepted any non-000 code
+    # as success, so what it really tested was "something is listening".
+    # That is enough to catch a crash-looping process, but it reports a
+    # broken core as healthy, and it printed `healthz=404` on every deploy
+    # for long enough that the number stopped being read.
+    CODE=$(ssh "$PROD" "docker exec mailrs-fastcore curl -s -m3 -o /dev/null -w '%{http_code}' http://localhost:3301/v1/healthz" 2>/dev/null || true)
+    if [ "$CODE" = 200 ]; then
+        echo "    fastcore :3301 healthy (attempt $i/90)"
         break
     fi
     if [ "$i" = 90 ]; then
-        echo "!! fastcore :3301 never came up after 90 attempts — investigate"
+        echo "!! fastcore /v1/healthz never returned 200 after 90 attempts (last: '$CODE') — investigate"
     fi
     sleep 2
 done
-GOT_VERSION=$(ssh "$PROD" "curl -s -m5 localhost:3103/api/health" | grep -o '"version":"[^"]*"' || true)
-echo "    health: $GOT_VERSION (want $VERSION)"
+# webapi-fc's own router is built at process start, so a bad route takes
+# it into a restart loop while every fastcore check above still passes —
+# that is exactly what 2.19.0 did. Retry, then fail: this used to print
+# the version and continue regardless, so a deploy that left the REST API
+# and the web UI down still ended with "done". The web step happened to
+# catch it, which means `SKIP_WEB=1` would not have.
+GOT_VERSION=""
+for i in $(seq 1 45); do
+    GOT_VERSION=$(ssh "$PROD" "curl -s -m5 localhost:3103/api/health" 2>/dev/null | grep -o "\"version\":\"$VERSION\"" || true)
+    if [ -n "$GOT_VERSION" ]; then
+        echo "    webapi-fc healthy on $VERSION (attempt $i/45)"
+        break
+    fi
+    sleep 2
+done
+if [ -z "$GOT_VERSION" ]; then
+    echo "!! webapi-fc never reported $VERSION on :3103 — it may be restart-looping"
+    echo "!! docker logs mailrs-webapi-fc | tail -30   (a route-table panic prints here)"
+    ssh "$PROD" "docker ps --format '{{.Names}}\t{{.Status}}' | grep webapi" || true
+    exit 1
+fi
 REPLAY=$(ssh "$PROD" "docker logs mailrs-fastcore 2>&1 | grep -iE 'kevy: AOF .* replayed' | tail -1" || true)
 echo "    replay: $REPLAY"
 case "$REPLAY" in
