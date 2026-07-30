@@ -63,9 +63,21 @@ impl MailrsMcpService {
                 None,
             ));
         }
+        // The tool's parameter names are a contract with the agents that
+        // call it and do not change; they map onto the stored shape here.
+        // `kind` has no parameter — it is what `address_or_domain` already
+        // says, so it is derived: an '@' makes it an address, otherwise a
+        // domain. Same rule the admin UI's radio button offers.
+        let kind = if params.address_or_domain.contains('@') {
+            "address"
+        } else {
+            "domain"
+        };
         let req = crate::handlers::complete::CreateGreylistRequest {
-            address_or_domain: params.address_or_domain.clone(),
-            list_type: params.list_type.clone(),
+            kind: kind.to_string(),
+            list: params.list_type.clone(),
+            value: params.address_or_domain.clone(),
+            note: None,
         };
         let Json(entry) = crate::handlers::complete::create_greylist_entry(Json(req))
             .await

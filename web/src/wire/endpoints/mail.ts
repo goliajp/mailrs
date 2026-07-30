@@ -63,13 +63,25 @@ export const wireSendMailMultipart = (fd: FormData): Promise<WireSendResult> =>
  * required, and the schema stays optional so a monolith-style
  * `{success, message}` envelope still parses.
  */
+/**
+ * Backend: `SnoozeBody { snoozed_until: i64 }` in
+ * crates/webapi/src/handlers/conversations.rs — Unix epoch **seconds**.
+ *
+ * This sent `{until: <ISO string>}`, which is neither the field name nor
+ * the type, so every snooze failed deserialization with a 422 and no
+ * thread was ever snoozed on the fastcore lane. The name and the unit both
+ * now match the handler, and the monolith's `SnoozeRequest` was changed to
+ * agree rather than being left accepting a third form.
+ *
+ * Seconds, matching `scheduled_at`, so the API has one time format.
+ */
 export const wireSnoozeConversation = (
   threadId: string,
-  until: string
+  snoozedUntil: number
 ): Promise<undefined | WireSnoozeResult> =>
   wireFetch(snoozeResultSchema.optional(), {
     allowEmpty: true,
-    body: { until },
+    body: { snoozed_until: snoozedUntil },
     method: 'PUT',
     path: `/conversations/${encodeURIComponent(threadId)}/snooze`,
   })

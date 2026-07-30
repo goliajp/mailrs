@@ -626,7 +626,9 @@ export function ConversationList({
           tomorrow.setDate(tomorrow.getDate() + 1)
           tomorrow.setHours(9, 0, 0, 0)
           snoozeMutation.mutate(
-            { threadId, until: tomorrow.toISOString() },
+            // Epoch seconds, not an ISO string: the handler takes
+            // `snoozed_until: i64` and the ISO form 422'd every time.
+            { snoozedUntil: Math.floor(tomorrow.getTime() / 1000), threadId },
             { onError, onSuccess: () => toast.success('Snoozed until tomorrow 9:00') }
           )
           break

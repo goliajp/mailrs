@@ -394,12 +394,15 @@ pub(crate) async fn snooze_thread(
         });
     };
 
-    let until = match req.until.parse::<chrono::DateTime<chrono::Utc>>() {
-        Ok(dt) => dt,
-        Err(_) => {
+    // Epoch seconds in, `DateTime<Utc>` out — the store's signature. The
+    // wire form used to be an ISO string parsed here; it is now an integer
+    // so both lanes take the same body (see `SnoozeRequest`).
+    let until = match chrono::DateTime::from_timestamp(req.snoozed_until, 0) {
+        Some(dt) => dt,
+        None => {
             return Json(ApiResult {
                 success: false,
-                message: Some("invalid datetime format".into()),
+                message: Some("snoozed_until is out of range".into()),
             });
         }
     };

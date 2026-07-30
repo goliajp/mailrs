@@ -288,7 +288,15 @@ pub async fn delete_template(
 
 #[derive(Debug, serde::Deserialize)]
 pub struct FeedbackRequest {
-    pub sender: String,
+    /// The address the feedback is about.
+    ///
+    /// Named `sender_email`, not `sender`, because that is what the client
+    /// sends and what the monolith's `FeedbackRequest` has always taken
+    /// (`crates/server/src/web/conversations/mod.rs`). This handler was
+    /// written with `sender`, so every feedback submission failed
+    /// deserialization with a missing-field 422 and no sender reputation
+    /// was ever recorded on the fastcore lane.
+    pub sender_email: String,
     pub action: String,
 }
 
@@ -299,7 +307,7 @@ pub async fn submit_feedback(
     Extension(AuthedUser(_user)): Extension<AuthedUser>,
     Json(req): Json<FeedbackRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("sender_feedback:{}", req.sender);
+    let key = format!("sender_feedback:{}", req.sender_email);
     let action = req.action;
     let ts = now_secs().to_string();
     with_kevy(move |c| {
@@ -488,6 +496,9 @@ struct ComposeParts {
     html_body: String,
     in_reply_to: Option<String>,
     forward_message_id: Option<String>,
+    /// uid of the message to forward, for the case where it has no
+    /// Message-ID to look it up by.
+    forward_attachments_from: Option<u32>,
     attachments: Vec<Attachment>,
     /// Unix epoch seconds to send at; None / past = send now (G13).
     scheduled_at: Option<i64>,
@@ -520,6 +531,14 @@ pub struct SendRequest {
     pub in_reply_to: Option<String>,
     #[serde(default)]
     pub forward_message_id: Option<String>,
+    /// uid of the message being forwarded. The client sends this alongside
+    /// `forward_message_id`, and it is the **only** identifier when the
+    /// original has no Message-ID header — a forward of one of those used
+    /// to arrive as the typed line alone, because this handler did not name
+    /// the field and the monolith's did
+    /// (`crates/server/src/web/mail/send/text.rs`).
+    #[serde(default)]
+    pub forward_attachments_from: Option<u32>,
     #[serde(default)]
     pub scheduled_at: Option<i64>,
     /// The failed send this repairs. Its attachments are re-extracted
@@ -734,15 +753,21 @@ fn build_rfc5322(parts: &ComposeParts, from: &str) -> (String, Vec<u8>) {
 /// through unmodified rather than fail — the compose already exists
 /// on the caller's side and the operator can retry manually.
 async fn inline_forward_content(state: &Arc<WebState>, user: &str, parts: &mut ComposeParts) {
-    let Some(mid) = parts.forward_message_id.as_ref().filter(|s| !s.is_empty()) else {
+    let mid = parts
+        .forward_message_id
+        .as_deref()
+        .filter(|s| !s.is_empty());
+    let uid = parts.forward_attachments_from;
+    if mid.is_none() && uid.is_none() {
         return;
-    };
-    let wire = match state.core.find_by_message_id_for_user(user, mid).await {
-        Ok(w) => w,
-        Err(e) => {
-            tracing::warn!(error = %e, %user, message_id = %mid, "forward inline: message lookup failed");
-            return;
-        }
+    }
+    // Message-ID first, uid as the fallback. Not the other way round: the
+    // Message-ID identifies the mail across mailboxes, while the uid is
+    // per-mailbox. But a message with no Message-ID header has only a uid,
+    // and that case is exactly why the client sends both.
+    let wire = match resolve_forward_source(state, user, mid, uid).await {
+        Some(w) => w,
+        None => return,
     };
     let raw = match super::messages::read_maildir_bytes_pub(user, &wire.blob_ref).await {
         Ok(r) => r,
@@ -922,6 +947,77 @@ pub(crate) fn attachments_from_envelope(raw: &[u8]) -> Vec<Attachment> {
         });
     }
     out
+}
+
+/// The message a forward is quoting, by Message-ID or by uid.
+///
+/// Returns `None` after logging; the caller is best-effort by design.
+async fn resolve_forward_source(
+    state: &Arc<WebState>,
+    user: &str,
+    mid: Option<&str>,
+    uid: Option<u32>,
+) -> Option<mailrs_core_api::method::message::MessageWire> {
+    if let Some(mid) = mid {
+        match state.core.find_by_message_id_for_user(user, mid).await {
+            Ok(w) => return Some(w),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e, %user, message_id = %mid,
+                    "forward inline: message-id lookup failed, trying uid"
+                );
+            }
+        }
+    }
+    let uid = uid?;
+    match super::messages::resolve_message(state, user, uid).await {
+        Ok(w) => Some(w),
+        Err(status) => {
+            tracing::warn!(?status, %user, uid, "forward inline: uid lookup failed");
+            None
+        }
+    }
+}
+
+/// Send mail from the system itself — no user compose, no Send row.
+///
+/// `noreply@{MAILRS_HOSTNAME}`, matching the monolith and the per-domain
+/// DKIM override prod configures for exactly this sender.
+///
+/// `send_meta` is `None` on purpose: the Send view lists what a user sent,
+/// and a password-reset notice is not that. Giving it a row would put mail
+/// nobody composed into somebody's outbox.
+pub(crate) fn send_system_mail(
+    to: &str,
+    subject: &str,
+    text_body: &str,
+    html_body: &str,
+) -> Result<(), StatusCode> {
+    let hostname = std::env::var("MAILRS_HOSTNAME").unwrap_or_default();
+    if hostname.is_empty() {
+        // No fallback. A guessed hostname produces a From nobody can reply
+        // to and a link nobody can open, which is worse than a loud refusal
+        // the operator can see in the logs.
+        tracing::error!("MAILRS_HOSTNAME unset — refusing to send system mail");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+    let from = format!("noreply@{hostname}");
+    let parts = ComposeParts {
+        from: from.clone(),
+        to: vec![to.to_string()],
+        cc: Vec::new(),
+        bcc: Vec::new(),
+        subject: subject.to_string(),
+        body: text_body.to_string(),
+        html_body: html_body.to_string(),
+        in_reply_to: None,
+        forward_message_id: None,
+        forward_attachments_from: None,
+        attachments: Vec::new(),
+        scheduled_at: None,
+    };
+    let (_message_id, envelope) = build_rfc5322(&parts, &from);
+    enqueue_outbound_at(&from, &[to.to_string()], &envelope, None, None)
 }
 
 /// Enqueue outbound. When `scheduled_at` is a future epoch, the id
@@ -1368,6 +1464,7 @@ pub async fn send_message(
         in_reply_to: req.in_reply_to,
         scheduled_at: req.scheduled_at,
         forward_message_id: req.forward_message_id,
+        forward_attachments_from: req.forward_attachments_from,
         attachments: Vec::new(),
     };
     // If the compose is a forward, look up the original message and
@@ -1450,6 +1547,7 @@ pub async fn send_email_mcp(
         html_body: String::new(),
         in_reply_to: in_reply_to.map(|s| s.to_string()),
         forward_message_id: None,
+        forward_attachments_from: None,
         attachments: Vec::new(),
         scheduled_at,
     };
@@ -1514,6 +1612,10 @@ pub async fn send_message_multipart(
             "in_reply_to" => parts.in_reply_to = Some(field.text().await.unwrap_or_default()),
             "forward_message_id" => {
                 parts.forward_message_id = Some(field.text().await.unwrap_or_default())
+            }
+            "forward_attachments_from" => {
+                parts.forward_attachments_from =
+                    field.text().await.ok().and_then(|s| s.trim().parse().ok())
             }
             "scheduled_at" => {
                 let raw = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -1617,6 +1719,7 @@ mod send_meta_tests {
             html_body: String::new(),
             in_reply_to: in_reply_to.map(String::from),
             forward_message_id: None,
+            forward_attachments_from: None,
             attachments: Vec::new(),
             scheduled_at: None,
         }
@@ -1697,6 +1800,7 @@ mod build_rfc5322_tests {
             html_body: String::new(),
             in_reply_to: None,
             forward_message_id: None,
+            forward_attachments_from: None,
             attachments: atts,
             scheduled_at: None,
         }

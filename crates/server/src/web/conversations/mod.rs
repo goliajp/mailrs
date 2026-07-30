@@ -194,7 +194,12 @@ pub(crate) fn convos_to_response(
 
 #[derive(Deserialize)]
 pub(crate) struct SnoozeRequest {
-    pub until: String,
+    /// Unix epoch **seconds**, matching the fastcore lane's `SnoozeBody`
+    /// and `scheduled_at`. This took an ISO 8601 string until 2026-07-30,
+    /// which meant the two lanes accepted different bodies for the same
+    /// route — and the client, written against this one, 422'd against the
+    /// other on every snooze.
+    pub snoozed_until: i64,
 }
 
 // ---- feedback API ----

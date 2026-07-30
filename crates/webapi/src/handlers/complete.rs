@@ -127,14 +127,34 @@ pub async fn oidc_config() -> Json<serde_json::Value> {
 #[derive(Debug, serde::Deserialize)]
 pub struct ForgotPasswordRequest {
     pub address: String,
+    /// The recovery address the caller claims. Verified against the
+    /// account; a mismatch is answered 204 with nothing sent, so the
+    /// endpoint cannot be used to discover either the account or its
+    /// recovery address.
+    #[serde(default)]
+    pub recovery_email: String,
 }
 
-/// POST /api/auth/forgot-password — accept the request, drop a reset
-/// token in kevy with a 1-hour TTL. Actual "send an email with the
-/// token" step is deferred until we wire an admin notifier. The UI
-/// shows a generic "check your inbox" toast regardless, so a 204 is
-/// enough to unblock the flow.
+/// POST /api/auth/forgot-password — verify the claimed recovery address,
+/// issue a reset token with a 1-hour TTL, and mail the link to that
+/// address.
+///
+/// Two things were missing until 2026-07-30, and together they made the
+/// feature inert:
+///
+/// * **The recovery address was not checked.** The client sends it and the
+///   monolith verifies it against the account
+///   (`crates/server/src/web/auth/password.rs`); this handler did not name
+///   the field, so it was dropped and a token was issued for any address
+///   on request.
+/// * **The token was never delivered.** It was written to kevy and left
+///   there, so the UI said "check your inbox" and no mail ever arrived.
+///
+/// Every path answers 204. Whether the account exists, and whether the
+/// recovery address matched, must not be observable — otherwise this
+/// becomes an oracle for both.
 pub async fn forgot_password(
+    State(state): State<Arc<WebState>>,
     Json(req): Json<ForgotPasswordRequest>,
 ) -> Result<StatusCode, StatusCode> {
     // Rate-limit — one reset per address per 5 minutes. Without this
@@ -152,10 +172,32 @@ pub async fn forgot_password(
         // client can't tell whether we actually issued a token.
         return Ok(StatusCode::NO_CONTENT);
     }
+    // The claimed recovery address must match the one on the account.
+    // Ported from the monolith, including the case-insensitive compare and
+    // the "empty stored value never matches" rule — an account with no
+    // recovery address cannot be reset this way.
+    if req.recovery_email.trim().is_empty() {
+        return Ok(StatusCode::NO_CONTENT);
+    }
+    let stored = account_recovery_email(&state, &req.address).await;
+    let matches = stored
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .is_some_and(|s| s.eq_ignore_ascii_case(req.recovery_email.trim()));
+    if !matches {
+        tracing::debug!(address = %req.address, "forgot-password: recovery address mismatch");
+        return Ok(StatusCode::NO_CONTENT);
+    }
+    let recovery_email = req.recovery_email.trim().to_string();
+
     let token = random_hex(24);
+    // The kevy closure takes ownership of `token`; the link needs it after.
+    let token_for_link = token.clone();
     let key = format!("pwreset:{token}");
     let addr = req.address;
     let addr_c = addr.clone();
+    // Needed for the mail body after the closure consumes `addr`.
+    let addr_for_mail = addr.clone();
     with_kevy(move |c| {
         c.hset(
             key.as_bytes(),
@@ -184,7 +226,49 @@ pub async fn forgot_password(
         .map_err(std::io::Error::other)?;
         Ok(())
     })?;
+
+    // The link has to point at this deployment. `MAILRS_HOSTNAME` is what
+    // prod sets and what the monolith hardcoded to the same value.
+    let hostname = std::env::var("MAILRS_HOSTNAME").unwrap_or_default();
+    let reset_link = format!("https://{hostname}/reset-password?token={token_for_link}");
+    let addr = addr_for_mail;
+    let text_body = format!(
+        "You requested a password reset for {addr}.\n\n\
+         Open the link below to choose a new password:\n\
+         {reset_link}\n\n\
+         The link expires in 1 hour.\n\n\
+         If you did not request this, you can ignore this email."
+    );
+    let html_body = format!(
+        "<p>You requested a password reset for <strong>{addr}</strong>.</p>\
+         <p><a href=\"{reset_link}\">Choose a new password</a></p>\
+         <p>The link expires in 1 hour.</p>\
+         <p>If you did not request this, you can ignore this email.</p>"
+    );
+    // A send failure is logged, not surfaced: the response must look the
+    // same whether or not mail went out.
+    if let Err(status) = super::prefs::send_system_mail(
+        &recovery_email,
+        "Password reset request",
+        &text_body,
+        &html_body,
+    ) {
+        tracing::error!(?status, address = %addr, "forgot-password: reset mail not enqueued");
+    }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The recovery address stored on an account, or `None`.
+///
+/// Read out of the account JSON rather than a typed field, the same way
+/// `get_recovery_email` does — it is flattened into `AccountWithHashWire`
+/// and reading it by name survives wire changes.
+async fn account_recovery_email(state: &Arc<WebState>, address: &str) -> Option<String> {
+    let acct = state.core.get_account_with_hash(address).await.ok()?;
+    let raw = serde_json::to_value(&acct).ok()?;
+    raw.get("recovery_email")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -1173,8 +1257,21 @@ pub async fn list_email_groups() -> Result<Json<serde_json::Value>, StatusCode> 
 pub struct CreateEmailGroupRequest {
     #[serde(default)]
     pub address: String,
+    /// The domain the group belongs to. Sent by the UI and stored by the
+    /// monolith (`crates/server/src/web/admin/email_groups.rs`); this
+    /// handler did not name it, so — every field here being defaulted, no
+    /// 422 was raised — the value was dropped and the group was created
+    /// without it.
+    #[serde(default)]
+    pub domain: String,
     #[serde(default)]
     pub name: String,
+    /// Same as `domain`: sent, previously dropped.
+    #[serde(default)]
+    pub description: String,
+    /// Initial membership. The UI creates groups empty and adds members
+    /// through `POST /admin/email-groups/{id}/members`, so this stays
+    /// defaulted rather than becoming required.
     #[serde(default)]
     pub members: Vec<String>,
 }
@@ -1186,7 +1283,9 @@ pub async fn create_email_group(
     let g = serde_json::json!({
         "id": id,
         "address": req.address,
+        "domain": req.domain,
         "name": req.name,
+        "description": req.description,
         "members": req.members,
         "created_at": now_secs(),
     });
@@ -1225,10 +1324,26 @@ pub async fn list_greylist_local() -> Result<Json<serde_json::Value>, StatusCode
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
+/// A local greylist entry as the client sends it.
+///
+/// These four fields are the contract the admin UI was built against and
+/// the one the monolith implements
+/// (`crates/server/src/web/admin/greylist_local.rs`, backed by the
+/// `greylist_local_lists` table). This handler was written with
+/// `{address_or_domain, list_type}` — invented, overlapping neither — so
+/// every create failed with a missing-field 422 and the read side returned
+/// records the UI could not display either.
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateGreylistRequest {
-    pub address_or_domain: String,
-    pub list_type: String, // "whitelist" | "blacklist"
+    /// `domain` or `address` — what `value` is.
+    pub kind: String,
+    /// `whitelist` or `blacklist`.
+    pub list: String,
+    pub value: String,
+    /// Free-text reason. `null` and `""` both mean none; the UI sends
+    /// `null` for an untouched field.
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 pub async fn create_greylist_entry(
@@ -1237,8 +1352,10 @@ pub async fn create_greylist_entry(
     let id = with_kevy(|c| next_id(c, GL_CTR))?;
     let g = serde_json::json!({
         "id": id,
-        "address_or_domain": req.address_or_domain,
-        "list_type": req.list_type,
+        "kind": req.kind,
+        "list": req.list,
+        "value": req.value,
+        "note": req.note,
         "created_at": now_secs(),
     });
     let payload = serde_json::to_vec(&g).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -1495,6 +1612,17 @@ pub struct CreateAgentWebhookRequest {
     pub url: String,
     #[serde(default)]
     pub event_type: String,
+    /// Only fire for mail from this address. Sent by the UI and stored by
+    /// both the monolith (`crates/server/src/web/webhook.rs`) and the kevy
+    /// family (`core-sidestate::families::admin_state`); this handler did
+    /// not name it, so the value was dropped and the subscription was
+    /// created unfiltered — a webhook the user scoped to one sender was
+    /// stored as one that matches everything.
+    #[serde(default)]
+    pub filter_sender: Option<String>,
+    /// Only fire for this conversation. Same history as `filter_sender`.
+    #[serde(default)]
+    pub filter_thread_id: Option<String>,
 }
 
 pub async fn create_agent_webhook(
@@ -1508,6 +1636,8 @@ pub async fn create_agent_webhook(
         "id": id,
         "url": req.url,
         "event_type": req.event_type,
+        "filter_sender": req.filter_sender,
+        "filter_thread_id": req.filter_thread_id,
         "signing_secret": &signing_secret,
         "created_at": now_secs(),
         "active": true,

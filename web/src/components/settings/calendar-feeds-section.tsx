@@ -20,8 +20,6 @@ export function CalendarFeedsSection() {
   const loading = feedsQuery.isFetching
   const [url, setUrl] = useState('')
   const [name, setName] = useState('')
-  const [authUser, setAuthUser] = useState('')
-  const [authPass, setAuthPass] = useState('')
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
 
@@ -42,15 +40,11 @@ export function CalendarFeedsSection() {
     setCreating(true)
     try {
       await wireCreateCalendarFeed({
-        basic_auth_pass: authPass.trim() || null,
-        basic_auth_user: authUser.trim() || null,
         name: name.trim(),
         url: url.trim(),
       })
       setUrl('')
       setName('')
-      setAuthUser('')
-      setAuthPass('')
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed')
@@ -97,26 +91,13 @@ export function CalendarFeedsSection() {
           type="text"
           value={name}
         />
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            aria-label="Basic auth user"
-            autoComplete="off"
-            className={inputClass + ' flex-1'}
-            onChange={(e) => setAuthUser(e.target.value)}
-            placeholder="Basic auth user (optional)"
-            type="text"
-            value={authUser}
-          />
-          <input
-            aria-label="Basic auth password"
-            autoComplete="new-password"
-            className={inputClass + ' flex-1'}
-            onChange={(e) => setAuthPass(e.target.value)}
-            placeholder="Basic auth password"
-            type="password"
-            value={authPass}
-          />
-        </div>
+        {/* Basic-auth inputs removed 2026-07-30. The prod lane has no feed
+            fetcher — `spawn_feed_worker` exists only in the monolith — so
+            nothing ever used these credentials, and the request field they
+            filled was not one the handler accepted, so the password was
+            discarded on arrival. Storing it instead would have put a secret
+            at rest with no consumer. They come back with the fetcher that
+            needs them. */}
         {error && <div className="text-danger text-xs">{error}</div>}
         <button
           className={btnPrimary}
