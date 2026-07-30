@@ -30,8 +30,8 @@ export function splitEmail(textBody: null | string, htmlBody: null | string): Sp
   let result: SplitResult
   try {
     result = htmlBody
-      ? { isHtml: true, parts: splitHtmlEmail(htmlBody) }
-      : { isHtml: false, parts: splitTextEmail(textBody ?? '') }
+      ? unsplitIfEmpty({ isHtml: true, parts: splitHtmlEmail(htmlBody) }, htmlBody)
+      : unsplitIfEmpty({ isHtml: false, parts: splitTextEmail(textBody ?? '') }, textBody ?? '')
   } catch {
     // fallback: return as-is
     result = {
@@ -255,5 +255,47 @@ function cachePut(key: string, value: SplitResult): void {
     const oldest = splitCache.keys().next().value
     if (oldest === undefined) break
     splitCache.delete(oldest)
+  }
+}
+
+/**
+ * Whether a split body has anything left to look at.
+ *
+ * Text content alone is not the test: a body of one inline image has no text
+ * and is not empty. `<br>` and `&nbsp;` are, which is exactly what a Gmail
+ * forward leaves behind.
+ */
+function isVisuallyEmpty(body: string, isHtml: boolean): boolean {
+  if (!isHtml) return body.trim() === ''
+  try {
+    const doc = new DOMParser().parseFromString(body, 'text/html')
+    if (doc.body.querySelector('img, video, audio, table, iframe')) return false
+    return doc.body.textContent?.replace(/\u00a0/g, ' ').trim() === ''
+  } catch {
+    return body.trim() === ''
+  }
+}
+
+/**
+ * Splitting must never leave nothing to read.
+ *
+ * A **forward** puts the entire message inside the quote block — Gmail emits
+ * `<div dir="ltr"><br><br><div class="gmail_quote gmail_quote_container">…`
+ * with everything in that inner div. Extracting it left a body of two
+ * `<br>`s, and since MessageBubble renders only `parts.body` and never
+ * `parts.quoted`, the content was not collapsed but discarded: a forwarded
+ * mail showed a blank band the height of two line breaks (2026-07-30).
+ *
+ * Decided by what is left rather than by looking for "Forwarded message" —
+ * that string is localized, and the message that surfaced this carried a mix
+ * of English and Chinese in one header block.
+ */
+function unsplitIfEmpty(result: SplitResult, original: string): SplitResult {
+  const extracted = result.parts.quoted !== null || result.parts.signature !== null
+  if (!extracted) return result
+  if (!isVisuallyEmpty(result.parts.body, result.isHtml)) return result
+  return {
+    isHtml: result.isHtml,
+    parts: { body: original, quoted: null, signature: null },
   }
 }
