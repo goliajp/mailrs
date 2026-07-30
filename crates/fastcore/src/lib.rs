@@ -4471,10 +4471,26 @@ async fn sent_axis_shadow_route(
         only_in_zset.sort();
         only_in_axis.sort();
 
-        if !only_in_zset.is_empty() {
+        // A thread id in the zset that no longer holds any message is not
+        // history the axis is missing — it is a dead reference the zset kept
+        // after a merge emptied the thread. Counting it as divergence would
+        // block the cutover forever on entries whose loss costs nothing,
+        // and eyeballing which is which is exactly the judgment call this
+        // gate exists to remove.
+        let live = |tid: &str| {
+            !state
+                .mailbox
+                .list_thread_messages(user, tid)
+                .unwrap_or_default()
+                .is_empty()
+        };
+        let (only_in_zset_live, only_in_zset_dead): (Vec<&String>, Vec<&String>) =
+            only_in_zset.iter().partition(|t| live(t.as_str()));
+
+        if !only_in_zset_live.is_empty() {
             tracing::warn!(
-                %user, count = only_in_zset.len(),
-                "threads the legacy sent zset holds and the declared axis does not — \
+                %user, count = only_in_zset_live.len(),
+                "live threads the legacy sent zset holds and the declared axis does not — \
                  dropping the union now would lose them"
             );
         }
@@ -4483,9 +4499,15 @@ async fn sent_axis_shadow_route(
             "user": user,
             "axis_threads": axis.len(),
             "zset_threads": zset.len(),
-            "only_in_zset": only_in_zset.len(),
+            // The gate: threads that still hold messages and are absent from
+            // the axis. Must be zero before the union is dropped.
+            "only_in_zset_live": only_in_zset_live.len(),
+            // Dead references the zset kept. Not a blocker; they disappear
+            // with the zset.
+            "only_in_zset_dead": only_in_zset_dead.len(),
             "only_in_axis": only_in_axis.len(),
-            "only_in_zset_samples": only_in_zset.iter().take(8).collect::<Vec<_>>(),
+            "only_in_zset_live_samples": only_in_zset_live.iter().take(8).collect::<Vec<_>>(),
+            "only_in_zset_dead_samples": only_in_zset_dead.iter().take(8).collect::<Vec<_>>(),
             "only_in_axis_samples": only_in_axis.iter().take(8).collect::<Vec<_>>(),
         }));
     }
