@@ -841,6 +841,26 @@ async fn inline_redraft_attachments(
     Ok(())
 }
 
+/// A `scheduled_at` form field → epoch seconds, or a rejection.
+///
+/// Empty means "not scheduling" — an untouched form field arrives as an
+/// empty string, and that is not an error.
+///
+/// Anything else that is not an integer **is** an error. This used to be
+/// `.parse().ok()`, which turned an unparseable value into `None`, and
+/// `None` means send now: the web composer sent an ISO 8601 string here
+/// for as long as scheduling existed, so every scheduled send went out
+/// immediately and nothing anywhere said so. Silently doing the one thing
+/// the user was trying to avoid is the worst available outcome, so a value
+/// that cannot be read is a 400.
+fn parse_scheduled_at(raw: &str) -> Result<Option<i64>, ()> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return Ok(None);
+    }
+    s.parse::<i64>().map(Some).map_err(|_| ())
+}
+
 /// Pick the carried attachments the caller asked to keep.
 ///
 /// `None` keeps all; `Some(&[])` keeps none — the caller removed every
@@ -1496,7 +1516,9 @@ pub async fn send_message_multipart(
                 parts.forward_message_id = Some(field.text().await.unwrap_or_default())
             }
             "scheduled_at" => {
-                parts.scheduled_at = field.text().await.ok().and_then(|s| s.trim().parse().ok())
+                let raw = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                parts.scheduled_at =
+                    parse_scheduled_at(&raw).map_err(|_| StatusCode::BAD_REQUEST)?;
             }
             "redraft_of" => redraft_of = field.text().await.ok().filter(|s| !s.is_empty()),
             // One comma-separated field, not a repeated one. Repeating it
@@ -1801,5 +1823,73 @@ mod carried_attachment_tests {
         let found = attachments_from_envelope(raw.as_bytes());
         assert_eq!(found.len(), 1, "the body part must not be carried");
         assert_eq!(found[0].filename, "notes.txt");
+    }
+}
+
+#[cfg(test)]
+mod scheduled_at_tests {
+    use super::parse_scheduled_at;
+
+    /// An untouched form field is an empty string, and that means "send
+    /// now" — not a client error.
+    #[test]
+    fn an_empty_field_is_not_scheduling_and_not_an_error() {
+        assert_eq!(parse_scheduled_at(""), Ok(None));
+        assert_eq!(parse_scheduled_at("   "), Ok(None));
+    }
+
+    #[test]
+    fn epoch_seconds_parse() {
+        assert_eq!(parse_scheduled_at("1785369273"), Ok(Some(1785369273)));
+        assert_eq!(parse_scheduled_at(" 1785369273 "), Ok(Some(1785369273)));
+    }
+
+    /// The exact value the web composer sent. `.parse().ok()` turned this
+    /// into `None`, and `None` means send now — so a mail scheduled for
+    /// tomorrow went out at once, silently. It must be refused instead.
+    #[test]
+    fn the_iso_string_the_composer_used_to_send_is_refused_not_ignored() {
+        assert_eq!(parse_scheduled_at("2026-07-30T10:00:00.000Z"), Err(()));
+        assert_eq!(parse_scheduled_at("2026-07-30T10:00"), Err(()));
+    }
+
+    /// Any unreadable value is a rejection, for the same reason: dropping
+    /// it means doing the one thing the caller was trying to avoid.
+    #[test]
+    fn a_value_that_cannot_be_read_is_refused() {
+        assert_eq!(parse_scheduled_at("soon"), Err(()));
+        assert_eq!(parse_scheduled_at("1785369273.5"), Err(()));
+        assert_eq!(parse_scheduled_at("1e9"), Err(()));
+    }
+
+    /// The JSON path never had the silent-drop problem — serde refuses a
+    /// string for an `i64` and axum answers 422 — but nothing recorded
+    /// that, so a lenient custom deserializer added later would reintroduce
+    /// the silence with every test still green.
+    #[test]
+    fn the_json_body_takes_an_integer_and_only_an_integer() {
+        let ok: super::SendRequest =
+            serde_json::from_str(r#"{"scheduled_at":1785369273}"#).expect("epoch seconds");
+        assert_eq!(ok.scheduled_at, Some(1785369273));
+
+        let absent: super::SendRequest = serde_json::from_str("{}").expect("absent is fine");
+        assert_eq!(absent.scheduled_at, None);
+
+        assert!(
+            serde_json::from_str::<super::SendRequest>(
+                r#"{"scheduled_at":"2026-07-30T10:00:00Z"}"#
+            )
+            .is_err(),
+            "an ISO string must be refused, not coerced or dropped"
+        );
+    }
+
+    /// A past epoch is legal at this layer: `enqueue_outbound_at` filters
+    /// it with `> created` and sends immediately, which is the documented
+    /// behaviour. Rejecting it here would be a second, disagreeing rule.
+    #[test]
+    fn a_past_epoch_parses_and_is_left_to_the_enqueue_step() {
+        assert_eq!(parse_scheduled_at("1"), Ok(Some(1)));
+        assert_eq!(parse_scheduled_at("-1"), Ok(Some(-1)));
     }
 }

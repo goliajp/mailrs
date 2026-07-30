@@ -14,7 +14,7 @@ import { formatFullDate } from '@/lib/format'
 import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
-import { parseAddressList, sendMail } from '@/lib/send-mail'
+import { epochSecondsFromLocalInput, parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
 import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import {
@@ -263,7 +263,7 @@ export function NewConversation() {
         inReplyTo: replySource?.messageId ?? redraftSource?.inReplyTo,
         redraftKeep: carriedSelection(redraftSource, keptCarried),
         redraftOf: redraftSource?.redraftOf,
-        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        scheduledAt: epochSecondsFromLocalInput(scheduledAt),
         subject,
         to: recipients,
         token: getToken() ?? '',
