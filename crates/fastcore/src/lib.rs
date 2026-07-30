@@ -1862,6 +1862,10 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:shadow-counts",
                 post(shadow_counts_route),
             )
+            .route(
+                "/v1/admin/maintenance:sent-axis-shadow",
+                post(sent_axis_shadow_route),
+            )
             // Engine-side reconciliation for the declared table: drift
             // recheck per compiled index plus a column-type spot check.
             .route(
@@ -2344,6 +2348,75 @@ async fn thread_messages(
 /// thread's messages, keeps only the ones this user actually sent, and
 /// returns them newest-first with the recipient (To). Reuses the existing
 /// per-thread message store — no dedicated sent-message index.
+/// Every thread the user has written in, newest first.
+///
+/// The declared `is_sender` axis is the authority: it is maintained at
+/// ingest through the membership row, and its own declaration says so —
+/// "The Sent axis has the same shape: key on the flag, filter to the user,
+/// sort by recency."
+///
+/// `user_threads_sent` is unioned in for one release. That zset is legacy —
+/// it is in `all_user_thread_zsets`, the list `drop-legacy-zsets` deletes —
+/// and reading it alone is why a delivered reply was missing from Send on
+/// 2026-07-30: nothing on the ingest path writes it, and its only refiller
+/// is the periodic maildir sweep, which backs off exponentially while idle.
+/// The two sets were built by different means, so it stays in the union
+/// until a shadow report shows neither holds a thread the other lacks.
+///
+/// Paged rather than capped. A silent limit here would drop the oldest
+/// sent threads out of the list with nothing to say it had happened.
+fn sent_thread_ids(state: &Arc<FastcoreState>, user: &str) -> Vec<String> {
+    const PAGE: usize = 1000;
+    let mut out: Vec<String> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let mut offset = 0usize;
+    loop {
+        let page = match state.mailbox.list_thread_ids_by_flag_via_table(
+            user,
+            "is_sender",
+            PAGE,
+            offset,
+            None,
+        ) {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(err = %e, %user, offset, "sent axis page failed");
+                break;
+            }
+        };
+        let short = page.len() < PAGE;
+        for tid in page {
+            if seen.insert(tid.clone()) {
+                out.push(tid);
+            }
+        }
+        if short {
+            break;
+        }
+        offset += PAGE;
+    }
+
+    let legacy = state
+        .mailbox
+        .store_ref()
+        .zrevrange(
+            mailrs_mailbox_kevy::keys::user_threads_sent(user).as_bytes(),
+            0,
+            -1,
+        )
+        .unwrap_or_default();
+    for (tid_b, _score) in legacy {
+        let Ok(tid) = String::from_utf8(tid_b) else {
+            continue;
+        };
+        if seen.insert(tid.clone()) {
+            out.push(tid);
+        }
+    }
+    out
+}
+
 async fn list_sent_messages(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
@@ -2351,17 +2424,11 @@ async fn list_sent_messages(
     use mailrs_core_api::method::message::MessageWire;
     use mailrs_core_api::method::thread::{SentMessageSummary, SentMessagesResponse};
 
-    let store = state.mailbox.store_ref();
-    let sent_zset = mailrs_mailbox_kevy::keys::user_threads_sent(&user);
-    let tids = store
-        .zrevrange(sent_zset.as_bytes(), 0, -1)
-        .unwrap_or_default();
+    let tids = sent_thread_ids(&state, &user);
 
     let mut items: Vec<SentMessageSummary> = Vec::new();
-    for (tid_b, _score) in &tids {
-        let Ok(tid) = std::str::from_utf8(tid_b) else {
-            continue;
-        };
+    for tid in &tids {
+        let tid = tid.as_str();
         let blobs = state
             .mailbox
             .list_thread_messages(&user, tid)
@@ -4345,6 +4412,87 @@ async fn table_verify_route(
 ///
 /// `done` is true when the page came back short, meaning the caller has
 /// reached the end of this user's threads.
+/// `POST /v1/admin/maintenance:sent-axis-shadow?user=`
+///
+/// Compares the declared `is_sender` axis against the legacy
+/// `user_threads_sent` zset, before the read path stops unioning them.
+///
+/// Both directions are reported separately because they mean opposite
+/// things. `only_in_zset` is history the declared axis would lose if the
+/// union were dropped now — it must be zero before that happens.
+/// `only_in_axis` is the defect being fixed showing up as intended: the
+/// zset has no ingest writer, so a send made since the last sweep is
+/// expected to appear here.
+///
+/// Totals are reported alongside, so a pair of zeros cannot be confused
+/// with having looked at nothing — the failure that made
+/// `backfill-threading` answer `msgids_indexed: 9` and look fine.
+async fn sent_axis_shadow_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let users = match q.get("user") {
+        Some(u) => vec![u.clone()],
+        None => state.mailbox.list_account_addresses().unwrap_or_default(),
+    };
+
+    let mut report = Vec::new();
+    for user in &users {
+        let mut axis: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut offset = 0usize;
+        loop {
+            let page = state
+                .mailbox
+                .list_thread_ids_by_flag_via_table(user, "is_sender", 1000, offset, None)
+                .unwrap_or_default();
+            let short = page.len() < 1000;
+            axis.extend(page);
+            if short {
+                break;
+            }
+            offset += 1000;
+        }
+
+        let zset: std::collections::HashSet<String> = state
+            .mailbox
+            .store_ref()
+            .zrevrange(
+                mailrs_mailbox_kevy::keys::user_threads_sent(user).as_bytes(),
+                0,
+                -1,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(b, _)| String::from_utf8(b).ok())
+            .collect();
+
+        let mut only_in_zset: Vec<&String> = zset.difference(&axis).collect();
+        let mut only_in_axis: Vec<&String> = axis.difference(&zset).collect();
+        only_in_zset.sort();
+        only_in_axis.sort();
+
+        if !only_in_zset.is_empty() {
+            tracing::warn!(
+                %user, count = only_in_zset.len(),
+                "threads the legacy sent zset holds and the declared axis does not — \
+                 dropping the union now would lose them"
+            );
+        }
+
+        report.push(serde_json::json!({
+            "user": user,
+            "axis_threads": axis.len(),
+            "zset_threads": zset.len(),
+            "only_in_zset": only_in_zset.len(),
+            "only_in_axis": only_in_axis.len(),
+            "only_in_zset_samples": only_in_zset.iter().take(8).collect::<Vec<_>>(),
+            "only_in_axis_samples": only_in_axis.iter().take(8).collect::<Vec<_>>(),
+        }));
+    }
+
+    Json(serde_json::json!({ "users_checked": users.len(), "report": report })).into_response()
+}
+
 /// `POST /v1/admin/maintenance:shadow-counts?user=&offset=&limit=`
 ///
 /// Compares the shared thread row's counters against this user's own
