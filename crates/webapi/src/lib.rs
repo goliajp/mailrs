@@ -229,6 +229,23 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             "/api/mail/sends:shadow",
             post(handlers::sends::shadow_sends),
         )
+        // The stored RFC 5322 bytes — for download or inspection, and what
+        // resend re-enqueues unchanged.
+        .route(
+            "/api/mail/sends/{send_id}:source",
+            get(handlers::sends::send_source),
+        )
+        .route(
+            "/api/mail/sends/{send_id}:resend",
+            post(handlers::sends::resend),
+        )
+        // Re-edit: compose fields plus attachment *metadata*. The bytes
+        // stay server-side and the following send names the ones to keep
+        // by index (RFC 20260730-send-status S4 addendum).
+        .route(
+            "/api/mail/sends/{send_id}:redraft",
+            get(handlers::sends::send_redraft),
+        )
         .route(
             "/api/mail/drafts",
             get(handlers::prefs::list_drafts).post(handlers::prefs::save_draft),
