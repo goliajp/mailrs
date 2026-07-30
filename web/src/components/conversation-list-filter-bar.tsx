@@ -34,7 +34,11 @@ const TAB_ROWS: { label: string; value: string }[][] = [
     { label: 'Junk', value: 'junk' },
   ],
   [
-    { label: 'Sent', value: 'sent' },
+    // "Send", not "Sent": the view holds sends that failed and sends
+    // still going out, so a heading claiming they were sent would be
+    // wrong about the rows it is showing. The `sent` value and the
+    // `'Sent'` folder key are internal identifiers and unchanged.
+    { label: 'Send', value: 'sent' },
     { label: 'Draft', value: 'draft' },
     { label: 'Archived', value: 'archived' },
   ],

@@ -453,21 +453,37 @@ pub async fn send_redraft(
 /// re-edit. Getting it wrong moves someone from Bcc into a visible
 /// header, which is a disclosure, not a display bug.
 ///
-/// Matching is on the whole address, lowercased. Not `contains`: `a@b.com`
+/// Matching is on the bare address, lowercased. Not `contains`: `a@b.com`
 /// is a substring of `xa@b.com`, and the codebase already carries one live
 /// bug of exactly that shape in `senders_csv_contains_user`.
+///
+/// Both sides today store the header form — a captured prod row holds
+/// `GOLIA <goliaaccess@gmail.com>` in `to_csv` and in the recipient list
+/// alike, because both come from the same compose field. Comparing whole
+/// strings would work on that data and break the moment one side is
+/// normalised to a bare address, and it would break by classifying every
+/// recipient as Bcc. Matching the address itself is indifferent to which
+/// form each side happens to carry.
 fn bcc_from(recipients: &[String], to: &[String], cc: &[String]) -> Vec<String> {
-    let addressed: std::collections::HashSet<String> = to
-        .iter()
-        .chain(cc.iter())
-        .map(|s| s.trim().to_lowercase())
-        .collect();
+    let addressed: std::collections::HashSet<String> =
+        to.iter().chain(cc.iter()).map(|s| addr_key(s)).collect();
     recipients
         .iter()
-        .filter(|r| !addressed.contains(&r.trim().to_lowercase()))
+        .filter(|r| !addressed.contains(&addr_key(r)))
         .map(|r| r.trim().to_string())
         .filter(|r| !r.is_empty())
         .collect()
+}
+
+/// The comparable identity of an address: what is inside the angle
+/// brackets when there are any, the whole trimmed string otherwise,
+/// lowercased.
+fn addr_key(raw: &str) -> String {
+    let s = raw.trim();
+    match (s.rfind('<'), s.rfind('>')) {
+        (Some(open), Some(close)) if close > open + 1 => s[open + 1..close].trim().to_lowercase(),
+        _ => s.to_lowercase(),
+    }
 }
 
 /// Split a stored `to_csv` / `cc_csv` back into addresses.
@@ -519,6 +535,45 @@ mod redraft_tests {
         let to = vec!["a@b.com".to_string()];
         let all = vec!["a@b.com".to_string(), "xa@b.com".to_string()];
         assert_eq!(bcc_from(&all, &to, &[]), vec!["xa@b.com".to_string()]);
+    }
+
+    /// The shape prod actually stores, captured from `GET /api/mail/sends`
+    /// on 2.18.14 (2026-07-30): both `to_csv` and the recipient list hold
+    /// `GOLIA <goliaaccess@gmail.com>`, display name included.
+    #[test]
+    fn the_header_form_prod_stores_is_matched_not_reported_as_bcc() {
+        let to = vec!["GOLIA <goliaaccess@gmail.com>".to_string()];
+        let all = vec!["GOLIA <goliaaccess@gmail.com>".to_string()];
+        assert!(bcc_from(&all, &to, &[]).is_empty());
+    }
+
+    /// The drift this guards against: one side normalised to a bare
+    /// address, the other still carrying the display name. Comparing whole
+    /// strings would call this a Bcc and expose the recipient.
+    #[test]
+    fn a_display_name_on_one_side_only_is_still_the_same_recipient() {
+        let to = vec!["GOLIA <goliaaccess@gmail.com>".to_string()];
+        let all = vec!["goliaaccess@gmail.com".to_string()];
+        assert!(
+            bcc_from(&all, &to, &[]).is_empty(),
+            "the same address is the same recipient whichever form it is written in"
+        );
+    }
+
+    /// A genuine Bcc alongside a display-name To must survive the
+    /// normalisation above — the point is to match forms, not to match
+    /// everything.
+    #[test]
+    fn normalising_forms_does_not_swallow_a_real_bcc() {
+        let to = vec!["GOLIA <goliaaccess@gmail.com>".to_string()];
+        let all = vec![
+            "goliaaccess@gmail.com".to_string(),
+            "Blind One <blind@x.com>".to_string(),
+        ];
+        assert_eq!(
+            bcc_from(&all, &to, &[]),
+            vec!["Blind One <blind@x.com>".to_string()]
+        );
     }
 
     #[test]

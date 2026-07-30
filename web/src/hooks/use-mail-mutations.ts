@@ -217,7 +217,7 @@ export function applyOptimisticSent(msg: {
     message_id: msg.message_id,
     subject: msg.subject,
     // uid=0 is temporary. Real rows have a real uid; the invalidate
-    // below refetches server truth and swaps this out. SentList's
+    // below refetches server truth and swaps this out. SendList's
     // openMessage sets focusedMessageUid to msg.uid; a click on the
     // placeholder before refetch lands opens the thread but doesn't
     // scroll to a specific message — acceptable degradation for a
@@ -474,7 +474,7 @@ function invalidateMail() {
   queryClient.invalidateQueries({ queryKey: mailKeys.conversations() }).catch(() => {})
   queryClient.invalidateQueries({ queryKey: mailKeys.categories([]) }).catch(() => {})
   // Deleting/archiving a thread that has sent mail in it also removes
-  // rows from the per-message Sent view — refetch so SentList doesn't
+  // rows from the per-message Send view — refetch so SendList doesn't
   // stale-display messages whose thread has already gone.
   queryClient.invalidateQueries({ queryKey: mailKeys.sent() }).catch(() => {})
   // v2.1 phase-3 — after the mail list migrated onto

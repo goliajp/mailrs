@@ -46,6 +46,9 @@ export const mailKeys = {
   drafts: () => [...mailKeys.all(), 'drafts'] as const,
   search: (q: string, filters?: MailListFilters) =>
     [...mailKeys.all(), 'search', q, filters ? normalizeFilters(filters) : {}] as const,
+  /** A re-edit's compose fields, keyed on the send it repairs. */
+  redraft: (sendId: string) => [...mailKeys.all(), 'redraft', sendId] as const,
+  sends: (status?: null | string) => [...mailKeys.all(), 'sends', status ?? ''] as const,
   sent: () => [...mailKeys.all(), 'sent'] as const,
   templates: () => [...mailKeys.all(), 'templates'] as const,
   thread: (threadId: null | string) => [...mailKeys.all(), 'thread', threadId ?? ''] as const,
