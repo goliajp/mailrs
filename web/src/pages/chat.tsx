@@ -10,7 +10,7 @@ import { DraftsList } from '@/components/drafts-list'
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
-import { SentList } from '@/components/sent-list'
+import { SendList } from '@/components/send-list/send-list'
 import { ThreadView } from '@/components/thread-view'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMailEvents } from '@/hooks/use-mail-events'
@@ -229,11 +229,13 @@ export function Chat() {
     }
   }, [firstThreadId, selectedThreadId, composingNew, setSelectedThreadId])
 
-  // the list pane shows drafts / sent-messages on their tabs, otherwise
-  // the thread list.
+  // the list pane shows drafts / sends on their tabs, otherwise the
+  // thread list. The `'Sent'` folder key is internal and stays; the tab
+  // is labelled Send because the view now holds sends that failed and
+  // sends still going out, not only ones that completed.
   const renderList = () => {
     if (folder === 'Drafts') return <DraftsList />
-    if (folder === 'Sent') return <SentList />
+    if (folder === 'Sent') return <SendList />
     return (
       <ConversationList
         onLoadMore={loadMore}
