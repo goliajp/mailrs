@@ -215,19 +215,18 @@ pub(crate) fn backfill_relationships(state: &Arc<FastcoreState>) -> (u64, u64, u
     use std::collections::HashMap;
 
     let users = state.mailbox.list_account_addresses().unwrap_or_default();
-    let store = state.mailbox.store_ref();
     let (mut n_users, mut n_addrs, mut n_msgs) = (0u64, 0u64, 0u64);
 
     for user in &users {
         let mut tally: HashMap<String, Tally> = HashMap::new();
-        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let Ok(entries) = store.zrevrange(activity.as_bytes(), 0, -1) else {
+        // Declared rows, not `user_threads_by_activity`: that zset is legacy
+        // and nothing writes it, so this walked 168 threads across the whole
+        // install instead of 30,562 (census, 2026-07-31).
+        let Ok(tids) = state.mailbox.all_thread_ids_for_user(user) else {
             continue;
         };
-        for (tid_bytes, _) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &tids {
+            let tid = tid.as_str();
             let Ok(wires) = state.mailbox.thread_messages_for_maintenance(tid) else {
                 continue;
             };
@@ -360,18 +359,14 @@ pub(crate) fn backfill_thread_importance(
     only_missing: bool,
 ) -> (u64, u64) {
     let users = state.mailbox.list_account_addresses().unwrap_or_default();
-    let store = state.mailbox.store_ref();
     let (mut scored, mut skipped) = (0u64, 0u64);
 
     for user in &users {
-        let activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-        let Ok(entries) = store.zrevrange(activity.as_bytes(), 0, -1) else {
+        let Ok(tids) = state.mailbox.all_thread_ids_for_user(user) else {
             continue;
         };
-        for (tid_bytes, _) in entries {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &tids {
+            let tid = tid.as_str();
             if only_missing {
                 let has = matches!(state.mailbox.get_thread(tid), Ok(Some(r)) if !r.importance_level.is_empty());
                 if has {

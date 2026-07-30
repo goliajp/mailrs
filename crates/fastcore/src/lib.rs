@@ -1180,17 +1180,15 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
         .flatten()
         .is_none();
     if need_uid_backfill {
-        let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        // Declared rows; `user_threads_by_activity` is legacy and unwritten,
+        // so this healed 168 threads install-wide instead of 30,562.
         let all_tids = state
             .mailbox
-            .store_ref()
-            .zrevrange(by_activity.as_bytes(), 0, -1)
+            .all_thread_ids_for_user(user)
             .unwrap_or_default();
         let mut uid_healed = 0u32;
-        for (tid_bytes, _score) in all_tids {
-            let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-                continue;
-            };
+        for tid in &all_tids {
+            let tid = tid.as_str();
             let msgs = state
                 .mailbox
                 .thread_messages_for_maintenance(tid)
@@ -1236,20 +1234,20 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
     //     mid-tick" case: the file's on disk but the wire never got
     //     written, so the message is invisible to the API. Diffing by
     //     message-id closes that gap without touching the fast path.
-    let activity_key = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
-    let tids = state
+    // Declared rows. The zset this replaced was legacy and unwritten; the
+    // 0..999 slice it took is kept as an explicit bound because this runs
+    // on a timer, and the count below reports what was actually walked.
+    let mut tids = state
         .mailbox
-        .store_ref()
-        .zrevrange(activity_key.as_bytes(), 0, 999)
+        .all_thread_ids_for_user(user)
         .unwrap_or_default();
+    tids.truncate(1000);
     let mut healed_threads = 0u32;
     let mut healed_msgs = 0u32;
     let mut diff_healed_threads = 0u32;
     let mut diff_healed_msgs = 0u32;
-    for (tid_bytes, _score) in tids {
-        let Ok(tid) = std::str::from_utf8(&tid_bytes) else {
-            continue;
-        };
+    for tid in &tids {
+        let tid = tid.as_str();
         let msg_zset = mailrs_mailbox_kevy::keys::thread_messages(tid);
         let existing_count = state
             .mailbox
