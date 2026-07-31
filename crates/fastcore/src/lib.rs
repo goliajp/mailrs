@@ -2532,6 +2532,15 @@ async fn backfill_threading_route(
     let mut rejected_unreadable = 0u64;
     let mut no_references = 0u64;
     let mut unreadable_samples: Vec<String> = Vec::new();
+    // The blast radius of the shared message blob. `mailrs:msg:{mid}` holds
+    // six per-user fields — uid, blob_ref, flags, modseq, mailbox_id and
+    // user_address itself — while a thread can have several owners, so on a
+    // multi-owner thread each of them is whoever wrote last. `keys::thread_user`
+    // states the rule that breaks: every per-user fact belongs on a row of
+    // its own. It was applied to threads and never to messages.
+    let mut distinct_tids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut foreign_user_address = 0u64;
+    let mut messages_with_user_address = 0u64;
     for user in &users {
         // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
         //
@@ -2569,12 +2578,20 @@ async fn backfill_threading_route(
             let Ok(tid) = std::str::from_utf8(tid_b) else {
                 continue;
             };
+            distinct_tids.insert(tid.to_string());
             for blob in state
                 .mailbox
                 .thread_messages_for_maintenance(tid)
                 .unwrap_or_default()
             {
                 if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) {
+                    let ua = w.user_address.as_str();
+                    if !ua.is_empty() {
+                        messages_with_user_address += 1;
+                        if !ua.eq_ignore_ascii_case(user) {
+                            foreign_user_address += 1;
+                        }
+                    }
                     let list = senders_by_tid.entry(tid.to_string()).or_default();
                     let sender = w.sender.trim().to_string();
                     if !sender.is_empty() && !list.iter().any(|s| s.eq_ignore_ascii_case(&sender)) {
@@ -2808,6 +2825,14 @@ async fn backfill_threading_route(
         // here means the enumeration is blind, which is a different fault
         // from having nothing to do.
         "threads_enumerated": threads_enumerated,
+        // Rows minus distinct threads = threads with more than one owner,
+        // which is where every per-user field on the shared message blob is
+        // whoever wrote last.
+        "distinct_threads": distinct_tids.len(),
+        "messages_with_user_address": messages_with_user_address,
+        // Read by a user the blob does not name. Each is a message whose
+        // uid, flags, modseq and blob_ref belong to someone else.
+        "foreign_user_address": foreign_user_address,
         "messages_seen": messages_seen,
         // Which ancestry edges were found, and what was turned down.
         "in_reply_to_edges": in_reply_to_edges,
