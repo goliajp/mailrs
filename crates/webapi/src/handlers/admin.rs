@@ -40,20 +40,6 @@ where
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-fn now_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
-/// Next id from a `<hash>:counter` string.
-fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Result<i64> {
-    // v2 Stage B.2: single-op INCR — kevy-side atomic, no race.
-    c.incr(counter_key.as_bytes())
-        .map_err(std::io::Error::other)
-}
-
 fn hgetall_values(c: &mut kevy_client::Connection, key: &str) -> std::io::Result<Vec<Vec<u8>>> {
     let flat = c.hgetall(key.as_bytes()).map_err(std::io::Error::other)?;
     Ok(flat
@@ -328,48 +314,30 @@ pub async fn remove_domain(
 
 // ── webhooks (network kevy) ────────────────────────────────────────
 
-const WEBHOOK_KEY_PREFIX: &str = "admin:webhooks:";
-const WEBHOOK_CTR: &str = "admin:webhooks:counter";
-
 /// POST /api/admin/webhook-subscriptions
 pub async fn create_webhook(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Json(req): Json<wire::CreateWebhookRequest>,
 ) -> Result<Json<wire::CreateWebhookResponse>, StatusCode> {
-    use base64::Engine as _;
-    let id = with_kevy(|c| next_id(c, WEBHOOK_CTR))?;
-    let mut secret_bytes = [0u8; 32];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut secret_bytes);
-    let signing_secret = base64::engine::general_purpose::STANDARD.encode(secret_bytes);
-    let w = wire::WebhookSubWire {
-        id,
-        account_address: req.account_address.clone(),
-        url: req.url,
-        event_type: req.event_type,
-        filter_sender: req.filter_sender,
-        filter_thread_id: req.filter_thread_id,
-        signing_secret: signing_secret.clone(),
-        active: true,
-        created_at: now_secs(),
-    };
-    let json = serde_json::to_vec(&w).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = format!("{WEBHOOK_KEY_PREFIX}{}", req.account_address);
-    with_kevy(move |c| {
-        c.hset(
-            key.as_bytes(),
-            &[(id.to_string().as_bytes(), json.as_slice())],
+    let address = req.account_address.clone();
+    let w = with_kevy(move |c| {
+        mailrs_core_sidestate::families::webhooks::create(
+            c,
+            mailrs_core_sidestate::families::webhooks::NewWebhook {
+                account_address: req.account_address,
+                url: req.url,
+                event_type: req.event_type,
+                filter_sender: req.filter_sender,
+                filter_thread_id: req.filter_thread_id,
+            },
         )
-        .map_err(std::io::Error::other)?;
-        Ok(())
     })?;
-    super::audit::record(
-        &actor,
-        "webhook.create",
-        &req.account_address,
-        &format!("id={id}"),
-    );
-    Ok(Json(wire::CreateWebhookResponse { id, signing_secret }))
+    super::audit::record(&actor, "webhook.create", &address, &format!("id={}", w.id));
+    Ok(Json(wire::CreateWebhookResponse {
+        id: w.id,
+        signing_secret: w.signing_secret,
+    }))
 }
 
 /// GET /api/admin/accounts/{address}/webhook-subscriptions
@@ -378,12 +346,7 @@ pub async fn list_webhooks(
     Extension(_user): Extension<AuthedUser>,
     axum::extract::Path(address): axum::extract::Path<String>,
 ) -> Result<Json<wire::WebhookListResponse>, StatusCode> {
-    let key = format!("{WEBHOOK_KEY_PREFIX}{address}");
-    let vals = with_kevy(move |c| hgetall_values(c, &key))?;
-    let items: Vec<wire::WebhookSubWire> = vals
-        .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
-        .collect();
+    let items = with_kevy(move |c| mailrs_core_sidestate::families::webhooks::list(c, &address))?;
     Ok(Json(wire::WebhookListResponse { items }))
 }
 
@@ -393,25 +356,15 @@ pub async fn delete_webhook(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     axum::extract::Path(id): axum::extract::Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    // Webhook is keyed by account — scan by iterating known keys.
-    // Cheap: single-user or few-user deployments dominate. If it grows,
-    // we can index (id -> account) separately.
+    let removed = with_kevy(move |c| mailrs_core_sidestate::families::webhooks::delete(c, id))?;
     let id_str = id.to_string();
-    let id_str_c = id_str.clone();
-    with_kevy(move |c| {
-        // simple scan — try all known accounts (SMEMBERS)
-        let addrs = c.smembers(b"mailrs:accounts:index").unwrap_or_default();
-        for addr_bytes in addrs {
-            if let Ok(addr) = String::from_utf8(addr_bytes) {
-                let key = format!("{WEBHOOK_KEY_PREFIX}{addr}");
-                c.hdel(key.as_bytes(), &[id_str_c.as_bytes()])
-                    .map_err(std::io::Error::other)?;
-            }
-        }
-        Ok(())
-    })?;
     super::audit::record(&actor, "webhook.delete", &id_str, "");
-    Ok(StatusCode::NO_CONTENT)
+    match removed {
+        true => Ok(StatusCode::NO_CONTENT),
+        // Previously 204 regardless — and since the account list it searched
+        // came from a swept key, always without deleting anything.
+        false => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 // ── audit log (network kevy list) ──────────────────────────────────
@@ -960,15 +913,21 @@ pub async fn get_reputation(
 /// across all users. `spam_feedback:<user>` → { message_id -> label }.
 /// Sum labels into { spam, ham, per_user }.
 pub async fn get_spam_feedback_stats(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // We don't have SCAN in our kevy wrapper. Fall back to reading the
-    // account index and iterating.
-    let accounts = with_kevy(|c| {
-        c.smembers(b"mailrs:accounts:index")
-            .map_err(std::io::Error::other)
-    })?;
+    // Same swept key as `delete_webhook` used: this returned an empty
+    // `per_user` and zero totals on every call, which reads as "no feedback
+    // yet" rather than "did not look".
+    let accounts: Vec<Vec<u8>> = state
+        .core
+        .list_accounts()
+        .await
+        .map_err(map_err)?
+        .items
+        .into_iter()
+        .map(|a| a.address.into_bytes())
+        .collect();
     let mut spam_total = 0u64;
     let mut ham_total = 0u64;
     let mut per_user = serde_json::Map::new();

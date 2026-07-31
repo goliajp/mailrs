@@ -1825,6 +1825,18 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:sweep-legacy-admin-keys",
                 post(sweep_legacy_admin_keys_route),
             )
+            // Ops endpoint — give pre-existing webhook subscriptions the
+            // owner entry their delete path now needs. Idempotent.
+            .route(
+                "/v1/admin/maintenance:backfill-webhook-owners",
+                post(backfill_webhook_owners_route),
+            )
+            // Ops endpoint — fold the retired `agent:webhooks:{user}`
+            // namespace into the one both surfaces now read. Idempotent.
+            .route(
+                "/v1/admin/maintenance:migrate-agent-webhooks",
+                post(migrate_agent_webhooks_route),
+            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -4767,6 +4779,80 @@ async fn backfill_thread_user_route(
         }
         Err(e) => {
             tracing::error!(err = %e, %user, "threaduser backfill failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// `POST /v1/admin/maintenance:migrate-agent-webhooks` — one namespace.
+///
+/// The settings page wrote `agent:webhooks:{user}` and the admin surface
+/// wrote `admin:webhooks:{account}`, so a subscription created in one was
+/// invisible to the other. Both now read the latter; this moves what is left
+/// behind, preserving each row's signing secret so existing subscribers keep
+/// verifying.
+async fn migrate_agent_webhooks_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let addresses = match state.mailbox.list_account_addresses() {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let Some(mut conn) = state.net_conn() else {
+        return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    match mailrs_core_sidestate::families::webhooks::migrate_agent_namespace(&mut conn, &addresses)
+    {
+        Ok((moved, accounts)) => Json(serde_json::json!({
+            "rows_moved": moved,
+            "accounts_examined": accounts,
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, "agent webhook migration failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// `POST /v1/admin/maintenance:backfill-webhook-owners` — record who owns
+/// each existing webhook subscription.
+///
+/// Deleting a subscription used to enumerate `mailrs:accounts:index`, a set
+/// v2.6.2 stopped writing and the legacy sweep has since deleted, so the
+/// loop ran zero times and answered 204: every admin webhook delete has
+/// reported success without removing anything. Delete is now an exact
+/// lookup through `admin:webhooks:owner`, which only rows created after that
+/// change have an entry in. This fills it for the rest.
+///
+/// fastcore is the only process that can: the accounts live in its embedded
+/// kevy and the subscriptions in the shared network one.
+async fn backfill_webhook_owners_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let addresses = match state.mailbox.list_account_addresses() {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let Some(mut conn) = state.net_conn() else {
+        return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    match mailrs_core_sidestate::families::webhooks::backfill_owner_index(&mut conn, &addresses) {
+        Ok((added, accounts)) => Json(serde_json::json!({
+            "owners_added": added,
+            // Both, so a zero above is legible: no accounts is a different
+            // fact from every row already having an owner.
+            "accounts_examined": accounts,
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(err = %e, "webhook owner backfill failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }

@@ -15,7 +15,7 @@ use axum::http::StatusCode;
 use mailrs_core_api::method::admin::{
     AuditListResponse, AuditRowWire, CreateWebhookRequest, CreateWebhookResponse, ListAuditQuery,
     LogAuditRequest, ReactionAggregateRow, ReactionsResponse, ToggleReactionRequest,
-    WebhookListResponse, WebhookSubWire,
+    WebhookListResponse,
 };
 
 use crate::NetKevy;
@@ -123,32 +123,22 @@ pub async fn create_webhook<S: NetKevy>(
     State(state): State<Arc<S>>,
     Json(req): Json<CreateWebhookRequest>,
 ) -> Result<Json<CreateWebhookResponse>, StatusCode> {
-    use base64::Engine as _;
     let mut conn = state.net_conn().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
-    let id = conn
-        .incr(b"admin:webhooks:counter")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let mut secret_bytes = [0u8; 32];
-    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut secret_bytes);
-    let signing_secret = base64::engine::general_purpose::STANDARD.encode(secret_bytes);
-    let w = WebhookSubWire {
-        id,
-        account_address: req.account_address.clone(),
-        url: req.url,
-        event_type: req.event_type,
-        filter_sender: req.filter_sender,
-        filter_thread_id: req.filter_thread_id,
-        signing_secret: signing_secret.clone(),
-        active: true,
-        created_at: now_secs(),
-    };
-    let json = serde_json::to_vec(&w).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    conn.hset(
-        format!("admin:webhooks:{}", req.account_address).as_bytes(),
-        &[(id.to_string().as_bytes(), json.as_slice())],
+    let w = crate::families::webhooks::create(
+        &mut conn,
+        crate::families::webhooks::NewWebhook {
+            account_address: req.account_address,
+            url: req.url,
+            event_type: req.event_type,
+            filter_sender: req.filter_sender,
+            filter_thread_id: req.filter_thread_id,
+        },
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(CreateWebhookResponse { id, signing_secret }))
+    Ok(Json(CreateWebhookResponse {
+        id: w.id,
+        signing_secret: w.signing_secret,
+    }))
 }
 
 pub async fn list_webhooks<S: NetKevy>(
@@ -158,15 +148,7 @@ pub async fn list_webhooks<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return Json(WebhookListResponse { items: Vec::new() });
     };
-    let flat = conn
-        .hgetall(format!("admin:webhooks:{address}").as_bytes())
-        .unwrap_or_default();
-    let items = flat
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, v)| if i % 2 == 1 { Some(v) } else { None })
-        .filter_map(|v| serde_json::from_slice::<WebhookSubWire>(&v).ok())
-        .collect();
+    let items = crate::families::webhooks::list(&mut conn, &address).unwrap_or_default();
     Json(WebhookListResponse { items })
 }
 
@@ -177,18 +159,13 @@ pub async fn delete_webhook<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    // webhooks are keyed by account; scan the account index (same as webapi)
-    let id_str = id.to_string();
-    let addrs = conn.smembers(b"mailrs:accounts:index").unwrap_or_default();
-    for addr_bytes in addrs {
-        if let Ok(addr) = String::from_utf8(addr_bytes) {
-            let _ = conn.hdel(
-                format!("admin:webhooks:{addr}").as_bytes(),
-                &[id_str.as_bytes()],
-            );
-        }
+    match crate::families::webhooks::delete(&mut conn, id) {
+        Ok(true) => StatusCode::NO_CONTENT,
+        // Nothing of that id. Previously this answered 204 either way, and
+        // since it searched a swept index it always took this branch.
+        Ok(false) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
-    StatusCode::NO_CONTENT
 }
 
 // ── audit log ───────────────────────────────────────────────────────
