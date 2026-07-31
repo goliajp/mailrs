@@ -13,6 +13,7 @@
 
 import { z } from 'zod'
 
+import { redirectToLogin } from '@/lib/api'
 import { getToken } from '@/store/auth'
 
 import { type WireError, WireErrorException } from './errors'
@@ -84,7 +85,14 @@ async function handleResponse<T>(
   res: Response,
   allowEmpty: boolean
 ): Promise<T> {
-  if (res.status === 401) throw new WireErrorException({ kind: 'auth' })
+  if (res.status === 401) {
+    // Send them to log in rather than letting an uncaught exception render
+    // as an empty mailbox. The throw stays so any caller that does handle
+    // `kind: 'auth'` still sees it, and so the in-flight query rejects
+    // instead of resolving with nothing.
+    redirectToLogin()
+    throw new WireErrorException({ kind: 'auth' })
+  }
   if (res.status === 403) throw new WireErrorException({ kind: 'forbidden' })
   if (res.status === 404) throw new WireErrorException({ kind: 'not-found' })
 
