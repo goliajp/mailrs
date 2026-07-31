@@ -1,0 +1,3 @@
+{
+  "script": "require [\"fileinto\"];\nif header :contains \"subject\" \"[devops]\" {\n  fileinto \"Notifications\";\n}\n"
+}
