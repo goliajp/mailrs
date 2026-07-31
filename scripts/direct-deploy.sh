@@ -165,6 +165,11 @@ if [ -z "$GOT_VERSION" ]; then
     ssh "$PROD" "docker ps --format '{{.Names}}\t{{.Status}}' | grep webapi" || true
     exit 1
 fi
+# The version gate answers "is the new binary running" and cannot answer
+# "does it still serve the endpoints". Three AI routes and three admin verbs
+# were missing in production while every check above read green.
+./scripts/post-deploy-probe.sh
+
 REPLAY=$(ssh "$PROD" "docker logs mailrs-fastcore 2>&1 | grep -iE 'kevy: AOF .* replayed' | tail -1" || true)
 echo "    replay: $REPLAY"
 case "$REPLAY" in
@@ -209,8 +214,26 @@ if [ "${SKIP_WEB:-0}" != 1 ]; then
     rsync -az -e ssh web/dist/index.html "$PROD:/apps/mailrs/web/index.html"
     # Retire assets untouched for 30 days. Long enough that no realistic tab
     # is still holding one, short enough that the directory stays small.
-    ssh "$PROD" "find /apps/mailrs/web/assets -type f -mtime +30 -delete 2>/dev/null; \
-      echo \"    assets kept: \$(ls -1 /apps/mailrs/web/assets | wc -l | tr -d ' ')\""
+    #
+    # The count is compared, not just printed. A `--delete` creeping back
+    # into the rsync above, or a prune that suddenly matches everything,
+    # breaks every tab opened before the deploy on its first lazy import —
+    # `markdown-preview` is its own chunk, so pressing Preview in a reply
+    # produced "Something went wrong" four times in one hour on 2026-07-30.
+    # A printed number nobody compares would not have said so.
+    BEFORE_ASSETS=$(ssh -n "$PROD" "ls -1 /apps/mailrs/web/assets 2>/dev/null | wc -l | tr -d ' '" || echo 0)
+    ssh -n "$PROD" "find /apps/mailrs/web/assets -type f -mtime +30 -delete 2>/dev/null; true"
+    AFTER_ASSETS=$(ssh -n "$PROD" "ls -1 /apps/mailrs/web/assets | wc -l | tr -d ' '" || echo 0)
+    echo "    assets kept: $AFTER_ASSETS (was $BEFORE_ASSETS before the prune)"
+    if [ "$AFTER_ASSETS" -lt "$BEFORE_ASSETS" ]; then
+        DROPPED=$((BEFORE_ASSETS - AFTER_ASSETS))
+        echo "!! $DROPPED asset(s) disappeared. The 30-day prune retires files"
+        echo "!! that old, so a drop right after a deploy that just added"
+        echo "!! chunks means something deleted live ones — check for"
+        echo "!! --delete on the rsync. Tabs open before this deploy will"
+        echo "!! break on their next lazy import."
+        exit 1
+    fi
 
     # Ask the container to serve the hash vite just emitted. A stale bind
     # mount or a wrong rsync path makes ServeDir fall through to the SPA
