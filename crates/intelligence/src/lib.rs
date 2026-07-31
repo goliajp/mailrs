@@ -57,6 +57,7 @@
 //! Disable both default features if you're plugging in your own backends.
 
 pub mod analyze;
+pub mod assist;
 pub mod importance;
 /// Pluggable LLM provider trait (currently Claude / Ollama implementations).
 pub mod provider;

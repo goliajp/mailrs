@@ -100,23 +100,32 @@ impl AssistUnavailable {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+/// A request to rewrite the composer's current text.
 pub struct PolishRequest {
+    /// The draft to polish.
     pub text: String,
+    /// One of the allowed tones; anything else falls back to professional.
     #[serde(default = "default_tone")]
     pub tone: String,
+    /// Optional BCP-47-shaped hint for the reply language.
     #[serde(default)]
     pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+/// The polish response, as the web client parses it.
 pub struct PolishResult {
+    /// Whether `polished` holds a rewrite.
     pub success: bool,
+    /// The rewritten draft.
     pub polished: Option<String>,
+    /// Why there is no rewrite.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 
 impl PolishResult {
+    /// A response carrying only the reason.
     pub fn failed(why: AssistUnavailable) -> Self {
         Self {
             success: false,
@@ -127,28 +136,42 @@ impl PolishResult {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+/// A request for replies to a received message.
+///
+/// The three `original_*` fields are required. Defaulting them would turn a
+/// client that names them wrongly into empty prompts and plausible-looking
+/// suggestions about nothing — which is what the web client's `sender` and
+/// `subject` were producing until 2026-07-31, except that the missing
+/// `original_sender` made it a 422 and the button simply never worked.
 pub struct ReplySuggestRequest {
-    #[serde(default)]
+    /// The body being replied to.
     pub original_body: String,
-    #[serde(default)]
+    /// Who sent it.
     pub original_sender: String,
-    #[serde(default)]
+    /// Its subject.
     pub original_subject: String,
+    /// One of the allowed tones.
     #[serde(default = "default_tone")]
     pub tone: String,
+    /// Earlier messages in the conversation, if the client sent any.
     #[serde(default)]
     pub thread_context: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+/// The reply-suggestion response.
 pub struct ReplySuggestResult {
+    /// Whether `suggestions` came from the model.
     pub success: bool,
+    /// The proposed replies.
     pub suggestions: Vec<String>,
+    /// Why there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 
 impl ReplySuggestResult {
+    /// A response carrying only the reason.
     pub fn failed(why: AssistUnavailable) -> Self {
         Self {
             success: false,
@@ -159,21 +182,29 @@ impl ReplySuggestResult {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+/// A request to name a subject for a draft.
 pub struct SubjectGenerateRequest {
+    /// The draft body.
     pub body: String,
+    /// An optional hint about what the mail is for.
     #[serde(default)]
     pub context: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+/// The subject-line response.
 pub struct SubjectGenerateResult {
+    /// Whether `subject` came from the model.
     pub success: bool,
+    /// The proposed subject.
     pub subject: Option<String>,
+    /// Why there is none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 
 impl SubjectGenerateResult {
+    /// A response carrying only the reason.
     pub fn failed(why: AssistUnavailable) -> Self {
         Self {
             success: false,
@@ -365,7 +396,12 @@ mod tests {
             tone: "casual".into(),
             language: Some("ja-JP".into()),
         };
-        assert!(polish_prompt(&with).unwrap().0.contains("Respond in ja-JP."));
+        assert!(
+            polish_prompt(&with)
+                .unwrap()
+                .0
+                .contains("Respond in ja-JP.")
+        );
 
         let without = PolishRequest {
             text: "hi".into(),

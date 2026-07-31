@@ -19,6 +19,11 @@ mailrs-core-api = { path = "../core-api", features = ["client"] }
 # (v2 job hash + pending-idx); the primitives live in core-sidestate
 # so the stone's RPC handler and webapi write via the same routine.
 mailrs-core-sidestate = { path = "../core-sidestate" }
+# Phase 3 §14-16 — the writing-assistance prompts and sanitising, shared
+# with the monolith lane so the two cannot drift. The provider is
+# constructed here only when MAILRS_AI_ANALYSIS_ENABLED is set; otherwise
+# the routes answer honestly instead of 405.
+mailrs-intelligence = { path = "../intelligence", version = "3" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws", "multipart"] }
 futures-util = "0.3"
@@ -60,3 +65,8 @@ url = "2"
 quick-xml = { version = "0.37", features = ["serialize"] }
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 metrics = "0.24"
+
+[dev-dependencies]
+# Router exercising: `oneshot` on the built router, so the assist routes
+# are asserted to exist rather than assumed.
+tower = { version = "0.5", features = ["util"] }

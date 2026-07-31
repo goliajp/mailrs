@@ -146,6 +146,42 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('batch-mutation'))
   })
 
+  /**
+   * The reason the AI fixtures exist: this call sent `sender` and `subject`,
+   * the handler reads `original_sender` and `original_subject`, and serde
+   * dropped the two it did not recognise — leaving a required field missing
+   * and every Suggest a 422.
+   */
+  it('ai reply suggest', async () => {
+    const { wireReplySuggest } = await import('../endpoints/ai')
+    const body = await bodyOf(() =>
+      wireReplySuggest({
+        original_body: 'Are you free on Thursday?',
+        original_sender: 'nagata@nagatax.tokyo.jp',
+        original_subject: 'Meeting',
+        thread_context: 'From: nagata@nagatax.tokyo.jp\nearlier message',
+      })
+    )
+    expect(body).toEqual(fixture('ai-reply-suggest'))
+  })
+
+  it('ai polish', async () => {
+    const { wirePolishText } = await import('../endpoints/ai')
+    const body = await bodyOf(() => wirePolishText('please make this better', 'professional'))
+    expect(body).toEqual(fixture('ai-polish'))
+  })
+
+  it('ai generate subject', async () => {
+    const { wireGenerateSubject } = await import('../endpoints/ai')
+    const body = await bodyOf(() =>
+      wireGenerateSubject({
+        body: 'Confirming Thursday at 3pm.',
+        context: 'To: nagata@nagatax.tokyo.jp',
+      })
+    )
+    expect(body).toEqual(fixture('ai-generate-subject'))
+  })
+
   it('forgot password', async () => {
     const { wireForgotPassword } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))

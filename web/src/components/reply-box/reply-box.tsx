@@ -337,8 +337,8 @@ export function ReplyBox({
           : undefined
       const result = await wireReplySuggest({
         original_body: originalBody,
-        sender: originalFrom,
-        subject,
+        original_sender: originalFrom,
+        original_subject: subject,
         thread_context: threadContext,
       })
       if (result.success && result.suggestions.length > 0) {
