@@ -10,4 +10,5 @@ pub mod prefs;
 pub mod send;
 pub mod send_read;
 pub mod suppression;
+pub mod webhook_outbox;
 pub mod webhooks;
