@@ -228,6 +228,42 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('alias-create'))
   })
 
+  /**
+   * Account provisioning. `password` is hashed server-side, so a dropped
+   * field stores an account with no usable credential rather than failing.
+   */
+  it('account create', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/accounts', {
+        address: 'qa@golia.jp',
+        display_name: 'QA',
+        password: 'not-a-real-password',
+      })
+    )
+    expect(body).toEqual(fixture('account-create'))
+  })
+
+  it('domain create', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() => adminPost('/admin/domains', { name: 'golia.jp' }))
+    expect(body).toEqual(fixture('domain-create'))
+  })
+
+  /**
+   * A 405 in production until 2026-07-31 — the lane registered POST while
+   * this page sends PUT — so the body had never reached the handler.
+   */
+  it('group permissions set', async () => {
+    const { adminPut } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPut('/admin/groups/1/permissions', {
+        permissions: ['admin.accounts', 'admin.aliases'],
+      })
+    )
+    expect(body).toEqual(fixture('group-permissions-set'))
+  })
+
   it('forgot password', async () => {
     const { wireForgotPassword } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))

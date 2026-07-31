@@ -65,7 +65,7 @@ function adminWrites(): string[] {
         for (const m of src.matchAll(/admin(?:Post|Put|Patch)\(\s*[`']([^`']+)[`']/g)) {
           // Strip template holes so `/admin/accounts/${x}/sieve` and a
           // literal path collapse to one entry.
-          out.add(m[1].replace(/\$\{[^}]*\}/g, '{}'))
+          out.add(normalisePath(m[1]))
         }
       }
     }
@@ -105,9 +105,20 @@ function coveredAdminPaths(): Set<string> {
   const src = readFileSync(join(import.meta.dirname, 'request-contract.test.ts'), 'utf8')
   const out = new Set<string>()
   for (const m of src.matchAll(/admin(?:Post|Put|Patch)\(\s*[`']([^`']+)[`']/g)) {
-    out.add(m[1].replace(/\$\{[^}]*\}/g, '{}'))
+    out.add(normalisePath(m[1]))
   }
   return out
+}
+
+/**
+ * One spelling for a path with an id in it.
+ *
+ * A page writes `/admin/groups/${group.id}/permissions` and a test writes
+ * `/admin/groups/1/permissions`; both name the same route, and comparing
+ * them literally made a covered path read as uncovered.
+ */
+function normalisePath(p: string): string {
+  return p.replace(/\$\{[^}]*\}/g, '{}').replace(/\/\d+(?=\/|$)/g, '/{}')
 }
 
 /**
@@ -117,16 +128,13 @@ function coveredAdminPaths(): Set<string> {
  * say what it is waiting on.
  */
 const ADMIN_UNCOVERED: Record<string, string> = {
-  '/admin/accounts': 'provisioning body; needs a fixture with a fake password',
   '/admin/accounts/{}': 'account update; overlaps the provisioning shape',
   '/admin/accounts/{}/sieve': 'sieve script upload, not yet enumerated',
-  '/admin/domains': 'single-field body {name}',
   '/admin/email-groups': 'group create, not yet enumerated',
   '/admin/email-groups/{}/members': 'membership add, not yet enumerated',
   '/admin/greylist/local-lists': 'covered by greylist-local-add.json on the Rust side only',
   '/admin/groups': 'group create, not yet enumerated',
   '/admin/groups/{}/members': 'membership add, not yet enumerated',
-  '/admin/groups/{}/permissions': 'permission set, not yet enumerated',
   '/admin/system-config/{}': 'covered by the Rust side via SetSystemConfigRequest',
   '/conversations/{}/read{}': 'mark-read; sends no body, the state is the path',
   '/conversations/{}/star': 'star toggle; sends no body, the state is the path',
