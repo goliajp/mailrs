@@ -1594,15 +1594,20 @@ pub async fn migrate_legacy_agent_key_indexes(
     ))
 }
 
+/// The settings page's webhook surface, scoped to the signed-in user.
+///
+/// Same rows as the admin surface: a user's address *is* their account
+/// address, so both now read and write `admin:webhooks:{address}` through
+/// `core_sidestate::families::webhooks`. Until 2026-07-31 this wrote a
+/// second namespace, `agent:webhooks:{user}`, which meant a subscription
+/// created in Settings was invisible to the admin list and vice versa, and
+/// the two CRUD implementations had drifted — this one had no
+/// `filter_sender` until a fortnight ago and still allocated ids from its
+/// own counter, so the two namespaces could hand out the same id.
 pub async fn list_agent_webhooks(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("agent:webhooks:{user}");
-    let vals = with_kevy(move |c| hgetall_values(c, &key))?;
-    let items: Vec<serde_json::Value> = vals
-        .into_iter()
-        .filter_map(|v| serde_json::from_slice(&v).ok())
-        .collect();
+    let items = with_kevy(move |c| mailrs_core_sidestate::families::webhooks::list(c, &user))?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
@@ -1614,10 +1619,9 @@ pub struct CreateAgentWebhookRequest {
     pub event_type: String,
     /// Only fire for mail from this address. Sent by the UI and stored by
     /// both the monolith (`crates/server/src/web/webhook.rs`) and the kevy
-    /// family (`core-sidestate::families::admin_state`); this handler did
-    /// not name it, so the value was dropped and the subscription was
-    /// created unfiltered — a webhook the user scoped to one sender was
-    /// stored as one that matches everything.
+    /// family; this handler did not name it, so the value was dropped and
+    /// the subscription was created unfiltered — a webhook the user scoped
+    /// to one sender was stored as one that matches everything.
     #[serde(default)]
     pub filter_sender: Option<String>,
     /// Only fire for this conversation. Same history as `filter_sender`.
@@ -1629,41 +1633,28 @@ pub async fn create_agent_webhook(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateAgentWebhookRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let counter = format!("agent:webhooks:counter:{user}");
-    let id = with_kevy(move |c| next_id(c, &counter))?;
-    let signing_secret = random_hex(24);
-    let record = serde_json::json!({
-        "id": id,
-        "url": req.url,
-        "event_type": req.event_type,
-        "filter_sender": req.filter_sender,
-        "filter_thread_id": req.filter_thread_id,
-        "signing_secret": &signing_secret,
-        "created_at": now_secs(),
-        "active": true,
-    });
-    let hkey = format!("agent:webhooks:{user}");
-    let payload = serde_json::to_vec(&record).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    with_kevy(move |c| {
-        c.hset(
-            hkey.as_bytes(),
-            &[(id.to_string().as_bytes(), payload.as_slice())],
+    let w = with_kevy(move |c| {
+        mailrs_core_sidestate::families::webhooks::create(
+            c,
+            mailrs_core_sidestate::families::webhooks::NewWebhook {
+                account_address: user,
+                url: req.url,
+                event_type: req.event_type,
+                filter_sender: req.filter_sender,
+                filter_thread_id: req.filter_thread_id,
+            },
         )
-        .map_err(std::io::Error::other)?;
-        Ok(())
     })?;
-    Ok(Json(record))
+    Ok(Json(serde_json::to_value(w).unwrap_or_default()))
 }
 
 pub async fn delete_agent_webhook(
-    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Extension(AuthedUser(_user)): Extension<AuthedUser>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("agent:webhooks:{user}");
-    with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
-            .map_err(std::io::Error::other)?;
-        Ok(())
-    })?;
-    Ok(StatusCode::NO_CONTENT)
+    let removed = with_kevy(move |c| mailrs_core_sidestate::families::webhooks::delete(c, id))?;
+    match removed {
+        true => Ok(StatusCode::NO_CONTENT),
+        false => Err(StatusCode::NOT_FOUND),
+    }
 }
