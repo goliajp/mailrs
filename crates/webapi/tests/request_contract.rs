@@ -235,6 +235,108 @@ fn group_permissions_body_matches() {
     assert_eq!(v.permissions, vec!["admin.accounts", "admin.aliases"]);
 }
 
+/// The credential bodies. A fixture with a fake password is worth having:
+/// these are the paths where a dropped field means nobody can log in, and
+/// "it sends a secret" is a reason to write the fixture carefully, not a
+/// reason to leave the shape unchecked.
+#[test]
+fn credential_bodies_match() {
+    let login: handlers::auth::LoginRequest = parse("login");
+    assert_eq!(login.address, "lihao@golia.jp");
+    assert_eq!(login.password, "not-a-real-password");
+    // Absent unless the account has TOTP; present-and-absent must both parse.
+    assert_eq!(login.totp_code, None);
+
+    let change: handlers::auth::ChangePasswordRequest = parse("change-password");
+    assert_eq!(change.current_password, "not-a-real-old-password");
+    assert_eq!(change.new_password, "not-a-real-new-password");
+
+    let reset: handlers::complete::ResetPasswordRequest = parse("reset-password");
+    assert_eq!(reset.token, "0197f3c2-4a1b-7d31-9e55-2c8a1f0b6d44");
+    assert_eq!(reset.new_password, "not-a-real-password");
+}
+
+/// Recovery email — one of the nine wrong on 2026-07-30, where a new
+/// account's setting threw.
+#[test]
+fn recovery_email_body_matches() {
+    let v: handlers::complete::SetRecoveryEmailRequest = parse("recovery-email-set");
+    assert_eq!(v.recovery_email.as_deref(), Some("backup@example.com"));
+}
+
+/// An agent key's scopes decide what a machine caller may do. Dropping the
+/// list would create a key with none, or with whatever the handler defaults
+/// to — neither is what the operator asked for.
+#[test]
+fn agent_key_create_body_matches() {
+    let v: handlers::complete::CreateAgentKeyRequest = parse("agent-key-create");
+    assert_eq!(v.name, "ci-bot");
+    assert_eq!(v.scopes, vec!["mail.read", "mail.send"]);
+}
+
+/// Reactions are keyed by the emoji itself, so it has to survive the round
+/// trip as typed — a multi-byte character that arrives mangled is a
+/// reaction nobody can remove, because removing it sends the same string.
+#[test]
+fn reaction_toggle_body_matches() {
+    let v: mailrs_core_api::method::admin::ToggleReactionRequest = parse("reaction-toggle");
+    assert_eq!(v.emoji, "\u{1f44d}");
+}
+
+/// The remaining admin writes. Each is small, and each drops silently:
+/// serde ignores what it does not name, so a renamed field leaves the
+/// operator looking at a form that said it saved.
+#[test]
+fn remaining_admin_bodies_match() {
+    let account: handlers::admin::UpdateAccountRequest = parse("account-update");
+    assert_eq!(account.display_name.as_deref(), Some("QA Team"));
+
+    let group: handlers::complete::CreateGroupRequest = parse("group-create");
+    assert_eq!(group.name, "admins");
+    assert_eq!(group.description, "Full administrative access");
+
+    let member: handlers::complete::AddGroupMemberRequest = parse("group-members-add");
+    assert_eq!(member.address, "qa@golia.jp");
+
+    // The email-group membership body has the same one field and its own
+    // handler, so it gets its own fixture rather than sharing one — two
+    // paths that happen to agree today are not one contract.
+    let eg_member: handlers::complete::AddGroupMemberRequest = parse("email-group-members-add");
+    assert_eq!(eg_member.address, "qa@golia.jp");
+}
+
+/// TOTP enable and disable send the same one-field body to two handlers.
+///
+/// One fixture, because it is one shape — but both call sites are asserted
+/// on the client side, since two paths agreeing today is not one contract.
+#[test]
+fn totp_code_body_matches() {
+    let v: handlers::complete::TotpCodeRequest = parse("totp-code");
+    assert_eq!(v.code, "123456");
+}
+
+/// A sieve script is submitted whole and whitespace is significant — the
+/// rules are line-oriented, so a body that arrives reflowed is a filter
+/// that no longer parses.
+#[test]
+fn account_sieve_body_matches() {
+    let v: handlers::admin::SetSieveRequest = parse("account-sieve-set");
+    assert!(v.script.starts_with("require [\"fileinto\"];\n"));
+    assert!(v.script.contains("fileinto \"Notifications\";"));
+    assert!(v.script.ends_with('\n'), "the trailing newline survives");
+}
+
+/// `{value}`, not a bare string. The handler took a `serde_json::Value` and
+/// stored `body.as_str()` with the whole document's JSON text as its
+/// fallback, so every setting would have been stored as the literal
+/// `{"value":"..."}` — never seen because the route took POST while the page
+/// sends PUT and the request was a 405.
+#[test]
+fn system_config_body_matches() {
+    let v: handlers::complete::SetSystemConfigRequest = parse("system-config-set");
+    assert_eq!(v.value, "mailrs");
+}
+
 /// An unknown field is refused, by name.
 ///
 /// The point of `deny_unknown_fields` is that the failure says which field.
@@ -274,23 +376,36 @@ fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "ai-generate-subject",
         "account-create",
+        "account-sieve-set",
+        "account-update",
+        "agent-key-create",
         "alias-create",
         "domain-create",
         "group-permissions-set",
         "ai-polish",
         "ai-reply-suggest",
         "batch-mutation",
+        "change-password",
         "calendar-feed-create",
         "draft-save",
         "email-group-create",
+        "email-group-members-add",
         "feedback",
         "forgot-password",
         "greylist-local-add",
+        "group-create",
+        "group-members-add",
+        "login",
         "key-upload",
+        "reaction-toggle",
+        "recovery-email-set",
+        "reset-password",
         "send",
         "send-redraft",
         "signature-save",
         "snooze",
+        "system-config-set",
+        "totp-code",
         "webhook-create",
     ];
     let dir = format!(

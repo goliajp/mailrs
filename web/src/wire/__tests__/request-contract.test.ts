@@ -264,6 +264,169 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('group-permissions-set'))
   })
 
+  it('login', async () => {
+    const { wireLogin } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireLogin('lihao@golia.jp', 'not-a-real-password'))
+    expect(body).toEqual(fixture('login'))
+  })
+
+  it('change password', async () => {
+    const { wireChangePassword } = await import('../endpoints/auth')
+    const body = await bodyOf(() =>
+      wireChangePassword('not-a-real-old-password', 'not-a-real-new-password')
+    )
+    expect(body).toEqual(fixture('change-password'))
+  })
+
+  it('reset password', async () => {
+    const { wireResetPassword } = await import('../endpoints/auth')
+    const body = await bodyOf(() =>
+      wireResetPassword('0197f3c2-4a1b-7d31-9e55-2c8a1f0b6d44', 'not-a-real-password')
+    )
+    expect(body).toEqual(fixture('reset-password'))
+  })
+
+  /** One of the nine wrong on 2026-07-30: setting it on a new account threw. */
+  it('recovery email set', async () => {
+    const { wireSetRecoveryEmail } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireSetRecoveryEmail('backup@example.com'))
+    expect(body).toEqual(fixture('recovery-email-set'))
+  })
+
+  it('agent key create', async () => {
+    const { wireCreateAgentKey } = await import('../endpoints/settings')
+    const body = await bodyOf(() =>
+      wireCreateAgentKey({ name: 'ci-bot', scopes: ['mail.read', 'mail.send'] })
+    )
+    expect(body).toEqual(fixture('agent-key-create'))
+  })
+
+  /**
+   * The emoji is the key. One that arrives mangled is a reaction nobody can
+   * remove, because removing it sends the same string back.
+   */
+  it('reaction toggle', async () => {
+    const { wireToggleReaction } = await import('../endpoints/mail')
+    const body = await bodyOf(() => wireToggleReaction('t1', 42, '\u{1F44D}'))
+    expect(body).toEqual(fixture('reaction-toggle'))
+  })
+
+  it('account update', async () => {
+    const { adminPut } = await import('../endpoints/admin')
+    const address = encodeURIComponent('qa@golia.jp')
+    const body = await bodyOf(() =>
+      // Template form, so the coverage gate normalises this to the same
+      // `/admin/accounts/{}` the page writes. A literal address would read
+      // as a different route, and an interpolation containing a quote
+      // breaks the scan that reads these paths.
+      adminPut(`/admin/accounts/${address}`, { display_name: 'QA Team' })
+    )
+    expect(body).toEqual(fixture('account-update'))
+  })
+
+  it('group create', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/groups', {
+        description: 'Full administrative access',
+        name: 'admins',
+      })
+    )
+    expect(body).toEqual(fixture('group-create'))
+  })
+
+  it('group members add', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/groups/1/members', { address: 'qa@golia.jp' })
+    )
+    expect(body).toEqual(fixture('group-members-add'))
+  })
+
+  it('email group members add', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/email-groups/1/members', { address: 'qa@golia.jp' })
+    )
+    expect(body).toEqual(fixture('email-group-members-add'))
+  })
+
+  /**
+   * Enable and disable send the same one-field body to two handlers. Both
+   * are asserted: two paths agreeing today is not one contract.
+   */
+  it('totp enable', async () => {
+    const { wireTotpEnable } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireTotpEnable('123456'))
+    expect(body).toEqual(fixture('totp-code'))
+  })
+
+  it('totp disable', async () => {
+    const { wireTotpDisable } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireTotpDisable('123456'))
+    expect(body).toEqual(fixture('totp-code'))
+  })
+
+  /**
+   * A sieve script is line-oriented, so whitespace is part of it — a body
+   * that arrives reflowed is a filter that no longer parses.
+   */
+  it('account sieve set', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const address = encodeURIComponent('qa@golia.jp')
+    const script =
+      'require ["fileinto"];\nif header :contains "subject" "[devops]" {\n  fileinto "Notifications";\n}\n'
+    const body = await bodyOf(() => adminPost(`/admin/accounts/${address}/sieve`, { script }))
+    expect(body).toEqual(fixture('account-sieve-set'))
+  })
+
+  it('email group create', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/email-groups', {
+        address: 'team@golia.jp',
+        description: 'engineering',
+        domain: 'golia.jp',
+        name: 'Team',
+      })
+    )
+    expect(body).toEqual(fixture('email-group-create'))
+  })
+
+  /** `note` is null rather than absent — the handler distinguishes them. */
+  it('greylist local list add', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/greylist/local-lists', {
+        kind: 'domain',
+        list: 'blacklist',
+        note: null,
+        value: 'spam.example.com',
+      })
+    )
+    expect(body).toEqual(fixture('greylist-local-add'))
+  })
+
+  /**
+   * `{value}`, not a bare string. The handler read `body.as_str()` with the
+   * whole document's JSON text as its fallback until 2026-07-31, so every
+   * setting would have been stored as the literal `{"value":"..."}` — never
+   * seen because the route took POST while this sends PUT and the request
+   * was a 405.
+   */
+  it('system config set', async () => {
+    const { adminPut } = await import('../endpoints/admin')
+    const key = encodeURIComponent('smtp.banner')
+    const body = await bodyOf(() => adminPut(`/admin/system-config/${key}`, { value: 'mailrs' }))
+    expect(body).toEqual(fixture('system-config-set'))
+  })
+
+  it('totp setup', async () => {
+    const { wireTotpSetup } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireTotpSetup())
+    expect(body).toEqual({})
+  })
+
   it('forgot password', async () => {
     const { wireForgotPassword } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))

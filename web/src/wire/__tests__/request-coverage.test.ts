@@ -30,20 +30,16 @@ const FIXTURES = join(import.meta.dirname, '..', '..', '..', '..', 'wire-contrac
  * A name here is a debt, not an exemption — the reason has to say what makes
  * it hard or why it does not apply, so the list can be worked down rather
  * than grown. Anything not listed and not covered fails the test below.
+ *
+ * It has been worked down. What is left is not "not yet": two send an empty
+ * object and one is the multipart send path, which needs a different fixture
+ * shape than a JSON body. A fixture for a body with no fields would pin
+ * nothing.
  */
 const UNCOVERED: Record<string, string> = {
-  wireChangePassword: 'sends a live credential; needs a fixture with a fake one',
-  wireCreateAgentKey: 'admin surface, not yet enumerated',
-  wireLogin: 'sends a live credential; needs a fixture with a fake one',
   wireLogout: 'sends an empty object; nothing to get wrong',
   wireMarkAllRead: 'sends an empty object; nothing to get wrong',
-  wireResetPassword: 'sends a live credential; needs a fixture with a fake one',
   wireSendMailJson: 'covered by send.json; the multipart path is not',
-  wireSetRecoveryEmail: 'admin surface, not yet enumerated',
-  wireToggleReaction: 'admin surface, not yet enumerated',
-  wireTotpDisable: 'TOTP flow, not yet enumerated',
-  wireTotpEnable: 'TOTP flow, not yet enumerated',
-  wireTotpSetup: 'TOTP flow, not yet enumerated',
 }
 
 /**
@@ -125,17 +121,10 @@ function normalisePath(p: string): string {
  * Admin paths whose body nothing checks, with why.
  *
  * Same contract as UNCOVERED: a name here is debt, and the reason has to
- * say what it is waiting on.
+ * say what it is waiting on. All four remaining send no body at all — the
+ * state is in the path — so there is no shape to pin.
  */
 const ADMIN_UNCOVERED: Record<string, string> = {
-  '/admin/accounts/{}': 'account update; overlaps the provisioning shape',
-  '/admin/accounts/{}/sieve': 'sieve script upload, not yet enumerated',
-  '/admin/email-groups': 'group create, not yet enumerated',
-  '/admin/email-groups/{}/members': 'membership add, not yet enumerated',
-  '/admin/greylist/local-lists': 'covered by greylist-local-add.json on the Rust side only',
-  '/admin/groups': 'group create, not yet enumerated',
-  '/admin/groups/{}/members': 'membership add, not yet enumerated',
-  '/admin/system-config/{}': 'covered by the Rust side via SetSystemConfigRequest',
   '/conversations/{}/read{}': 'mark-read; sends no body, the state is the path',
   '/conversations/{}/star': 'star toggle; sends no body, the state is the path',
   '/conversations/{}/unread{}': 'mark-unread; sends no body, the state is the path',
