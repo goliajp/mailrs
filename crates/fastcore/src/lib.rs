@@ -1940,6 +1940,11 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:usermsg-shadow",
                 post(usermsg_shadow_route),
             )
+            // Ops endpoint — remove thread rows that open onto nothing.
+            .route(
+                "/v1/admin/maintenance:drop-empty-threads",
+                post(drop_empty_threads_route),
+            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -5088,6 +5093,88 @@ fn user_files_by_message_id(
         out.entry(message_id).or_insert(blob_ref);
     }
     out
+}
+
+/// `POST /v1/admin/maintenance:drop-empty-threads` — remove thread rows a
+/// user has no readable message in.
+///
+/// A thread whose messages are all gone from the user's maildir shows as a
+/// row that opens onto nothing. 35 of these exist on production, all
+/// `dmarc@golia.jp` mailflow probes: synthetic monitoring mail that is
+/// delivered, indexed, then deleted from disk by the monitor, leaving the
+/// rows behind.
+///
+/// Gated on the per-user index rather than on the files: a thread is empty
+/// for this user when their own message index holds nothing for it, which
+/// is the same question the read path asks. Threads another owner still has
+/// messages in keep their row for that owner — this deletes one user's
+/// membership, not the conversation.
+///
+/// `dry_run=1` reports without deleting, which is how it should be run
+/// first.
+async fn drop_empty_threads_route(
+    State(state): State<Arc<FastcoreState>>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let dry_run = q.get("dry_run").map(|v| v == "1").unwrap_or(false);
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let mut threads_examined = 0u64;
+    let mut empty = 0u64;
+    let mut deleted = 0u64;
+    let mut by_user: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut samples: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+
+    for user in &users {
+        for tid in state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default()
+        {
+            threads_examined += 1;
+            let mine = state
+                .mailbox
+                .user_thread_message_ids(user, &tid)
+                .unwrap_or_default();
+            if !mine.is_empty() {
+                continue;
+            }
+            empty += 1;
+            *by_user.entry(user.clone()).or_insert(0) += 1;
+            let per_user = samples.entry(user.clone()).or_default();
+            if per_user.len() < 4 {
+                per_user.push(tid.clone());
+            }
+            if dry_run {
+                continue;
+            }
+            match state.mailbox.delete_thread(user, &tid) {
+                Ok((existed, _)) if existed => deleted += 1,
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, %tid, "drop-empty-threads: delete failed")
+                }
+            }
+        }
+    }
+
+    Json(serde_json::json!({
+        "dry_run": dry_run,
+        // What it looked at, so a zero below is legible.
+        "threads_examined": threads_examined,
+        "empty": empty,
+        "deleted": deleted,
+        "empty_by_user": by_user,
+        "empty_samples": samples,
+    }))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:usermsg-shadow` — stage 3 of the per-user
