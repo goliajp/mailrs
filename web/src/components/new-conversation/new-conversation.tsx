@@ -8,6 +8,8 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
+import { AutosaveWarning } from '@/components/autosave-warning'
+import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { formatFullDate } from '@/lib/format'
@@ -94,6 +96,7 @@ export function NewConversation() {
   // unchanged tick is a no-op. the first save allocates an id; later
   // saves reuse it via draftIdRef.
   const lastSavedRef = useRef('')
+  const autosave = useAutosaveStatus()
   const saveNow = useCallback(async () => {
     if (sentRef.current) return
     const body = composeRef.current?.getMarkdown() ?? ''
@@ -101,7 +104,9 @@ export function NewConversation() {
     if (!to.trim() && !subject.trim() && !body.trim()) return
     const snapshot = JSON.stringify({ bcc, body, cc, subject, to })
     if (snapshot === lastSavedRef.current) return
-    try {
+    // A failure retries on the next tick, and says so once retrying has
+    // stopped being an explanation — see use-autosave-status.
+    await autosave.record(async () => {
       const res = await saveDraftMut.mutateAsync({
         bcc,
         body,
@@ -113,10 +118,8 @@ export function NewConversation() {
       })
       if (res.id !== undefined) draftIdRef.current = Number(res.id)
       lastSavedRef.current = snapshot
-    } catch {
-      // transient — the next interval tick retries
-    }
-  }, [replySource, saveDraftMut])
+    })
+  }, [autosave, replySource, saveDraftMut])
 
   // bind the interval once; read the latest saveNow through a ref.
   const saveNowRef = useRef(saveNow)
@@ -400,6 +403,8 @@ export function NewConversation() {
           />
         </Suspense>
       </div>
+
+      <AutosaveWarning error={autosave.lastError} show={autosave.shouldWarn} />
 
       <ActionBar
         onCancel={closeComposer}

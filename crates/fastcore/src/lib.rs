@@ -2489,6 +2489,17 @@ async fn backfill_threading_route(
     let mut moved_messages = 0u64;
     let mut indexed = 0u64;
     let mut sends_repointed = 0u64;
+    // What the pass actually looked at. Without these a zero result is
+    // ambiguous between "nothing to merge" and "saw nothing" — the reading
+    // that cost two failed repair attempts on 2026-07-30, when
+    // `msgids_indexed: 9` was the only clue that the enumeration was blind.
+    let mut threads_enumerated = 0u64;
+    let mut messages_seen = 0u64;
+    let mut in_reply_to_edges = 0u64;
+    let mut reference_edges = 0u64;
+    let mut rejected_subject = 0u64;
+    let mut rejected_unreadable = 0u64;
+    let mut no_references = 0u64;
     for user in &users {
         // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
         //
@@ -2514,6 +2525,7 @@ async fn backfill_threading_route(
             })
             .collect();
         let tids: Vec<(Vec<u8>, f64)> = tids.into_iter().map(|t| (t, 0.0)).collect();
+        threads_enumerated += tids.len() as u64;
         let mut msgs: Vec<(String, String, i64, String, String, String)> = Vec::new();
         let mut senders_by_tid: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
@@ -2602,6 +2614,7 @@ async fn backfill_threading_route(
         // (read from the maildir file — the kevy wire doesn't store the
         // chain). Reply chains stitch fragments together while
         // already-grouped threads never split.
+        messages_seen += msgs.len() as u64;
         let mut uf = UnionFind::default();
         // subject lookup so ancestry edges respect the Gmail rule: a
         // reply that changed topic must NOT glue two conversations.
@@ -2624,12 +2637,26 @@ async fn backfill_threading_route(
             };
         for (mid, irt, _, tid, blob_ref, _) in &msgs {
             uf.union(&format!("m:{mid}"), &format!("t:{tid}"));
-            if !irt.is_empty() && subjects_agree(mid, irt, &subj_by_mid) {
-                uf.union(&format!("m:{mid}"), &format!("m:{irt}"));
+            if !irt.is_empty() {
+                if subjects_agree(mid, irt, &subj_by_mid) {
+                    uf.union(&format!("m:{mid}"), &format!("m:{irt}"));
+                    in_reply_to_edges += 1;
+                } else {
+                    rejected_subject += 1;
+                }
             }
-            for r in maildir_references(user, blob_ref) {
-                if subjects_agree(mid, &r, &subj_by_mid) {
-                    uf.union(&format!("m:{mid}"), &format!("m:{r}"));
+            match maildir_references(user, blob_ref) {
+                None => rejected_unreadable += 1,
+                Some(refs) if refs.is_empty() => no_references += 1,
+                Some(refs) => {
+                    for r in refs {
+                        if subjects_agree(mid, &r, &subj_by_mid) {
+                            uf.union(&format!("m:{mid}"), &format!("m:{r}"));
+                            reference_edges += 1;
+                        } else {
+                            rejected_subject += 1;
+                        }
+                    }
                 }
             }
         }
@@ -2726,10 +2753,30 @@ async fn backfill_threading_route(
         "backfill-threading complete"
     );
     Json(serde_json::json!({
+        // What changed.
         "merged_threads": merged_threads,
         "moved_messages": moved_messages,
         "msgids_indexed": indexed,
         "sends_repointed": sends_repointed,
+        // What was looked at, so a row of zeros above is legible. All zero
+        // here means the enumeration is blind, which is a different fault
+        // from having nothing to do.
+        "threads_enumerated": threads_enumerated,
+        "messages_seen": messages_seen,
+        // Which ancestry edges were found, and what was turned down.
+        "in_reply_to_edges": in_reply_to_edges,
+        "reference_edges": reference_edges,
+        "edges_rejected": {
+            // A reply that changed topic: the Gmail rule declining to glue
+            // two conversations. Expected to be non-zero.
+            "subject_mismatch": rejected_subject,
+            // The maildir file could not be opened. Any number here is a
+            // defect — it means References were unreadable, not absent.
+            "file_unreadable": rejected_unreadable,
+        },
+        // Read fine, names no ancestor. Not a rejection: most mail is not a
+        // reply.
+        "messages_without_references": no_references,
     }))
     .into_response()
 }
@@ -2800,13 +2847,16 @@ pub(crate) fn unlink_maildir_file(user: &str, blob_ref: &str) -> bool {
 /// Read the full References chain of a message from its maildir file
 /// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
 /// is empty or the file is gone — the caller just gets fewer edges.
-fn maildir_references(user: &str, blob_ref: &str) -> Vec<String> {
-    let Some(bytes) = read_maildir_file(user, blob_ref) else {
-        return Vec::new();
-    };
+fn maildir_references(user: &str, blob_ref: &str) -> Option<Vec<String>> {
+    // `None` means the file could not be opened; `Some(vec![])` means it was
+    // read and names no ancestor. Returning an empty vec for both hid the
+    // 2026-07-30 defect for as long as it lasted: every sent copy was
+    // unreadable through a hand-built filename, and the caller could not tell
+    // that from "this mail is not a reply".
+    let bytes = read_maildir_file(user, blob_ref)?;
     let head = &bytes[..bytes.len().min(16 * 1024)];
     let (_, _, references, ..) = extract_headers(head);
-    references
+    Some(references)
 }
 
 /// `POST /v1/admin/threads:split-message` `{user, message_id}` — move a
@@ -3724,6 +3774,10 @@ async fn bayes_bootstrap_route(
     Json(serde_json::json!({
         "spam_trained": total_spam,
         "ham_trained": total_ham,
+        // Zero and zero is the shape this route returned while its rosters
+        // came from zsets nothing writes — it collected nothing and answered
+        // 200. `accounts` says whether there was anything to walk at all.
+        "accounts": users.len(),
     }))
     .into_response()
 }
@@ -3752,9 +3806,16 @@ async fn backfill_triage_route(
         promo += p;
     }
     Json(serde_json::json!({
+        // What it filed.
         "inbox": inbox,
         "notification": notif,
         "promotion": promo,
+        // What it looked at. Three zeros above with `threads_seen` also zero
+        // is a blind enumeration, not a mailbox that needed no triage — the
+        // distinction this route could not make until 2026-07-31, while it
+        // was reading a zset nothing writes.
+        "accounts": users.len(),
+        "threads_seen": inbox + notif + promo,
     }))
     .into_response()
 }
@@ -3774,7 +3835,15 @@ async fn backfill_thread_importance_route(
         only_missing,
         "thread importance backfill done"
     );
-    axum::Json(serde_json::json!({ "scored": scored, "skipped": skipped })).into_response()
+    axum::Json(serde_json::json!({
+        "scored": scored,
+        "skipped": skipped,
+        // Every enumerated thread is one or the other, so this is the input
+        // size: zero here means the walk saw nothing, which is a different
+        // fault from a mailbox that is already fully scored.
+        "threads_enumerated": scored + skipped,
+    }))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:backfill-contact-relationships` —
@@ -4711,6 +4780,7 @@ async fn sweep_legacy_admin_keys_route(
     let mut domains = 0u32;
 
     let (_, alias_keys) = store.scan(0, Some(b"mailrs:alias:*"), usize::MAX);
+    let alias_keys_scanned = alias_keys.len() as u64;
     for key in alias_keys {
         if key.starts_with(b"mailrs:alias:v2:") {
             continue;
@@ -4721,6 +4791,7 @@ async fn sweep_legacy_admin_keys_route(
     }
 
     let (_, domain_keys) = store.scan(0, Some(b"mailrs:domain:*"), usize::MAX);
+    let domain_keys_scanned = domain_keys.len() as u64;
     for key in domain_keys {
         if key.starts_with(b"mailrs:domain:v2:") {
             continue;
@@ -4745,9 +4816,14 @@ async fn sweep_legacy_admin_keys_route(
         "legacy admin keyspace sweep complete"
     );
     Json(serde_json::json!({
+        // What it removed.
         "legacy_alias_strings": aliases,
         "legacy_domain_strings": domains,
         "legacy_index_sets": indexes,
+        // What it scanned. Zeros above with these also zero means the scan
+        // matched nothing — a different fact from "no legacy keys remain".
+        "alias_keys_scanned": alias_keys_scanned,
+        "domain_keys_scanned": domain_keys_scanned,
     }))
     .into_response()
 }
@@ -4904,7 +4980,7 @@ mod tests {
     use mailrs_mailbox_kevy::MessageArrival;
     use tower::ServiceExt;
 
-    fn fresh_state() -> Arc<FastcoreState> {
+    pub(super) fn fresh_state() -> Arc<FastcoreState> {
         let store = Arc::new(
             kevy_embedded::Store::open(kevy_embedded::Config::default()).expect("in-memory kevy"),
         );
@@ -4912,7 +4988,7 @@ mod tests {
         Arc::new(FastcoreState::new(mailbox))
     }
 
-    fn arr<'a>(tid: &'a str, user: &'a str, unread: bool) -> MessageArrival<'a> {
+    pub(super) fn arr<'a>(tid: &'a str, user: &'a str, unread: bool) -> MessageArrival<'a> {
         MessageArrival {
             thread_id: tid,
             user,
@@ -5242,6 +5318,107 @@ mod tests {
                 p.allowed
             );
             assert_ne!(code, 404, "router did not match: {} {}", p.method, p.uri);
+        }
+    }
+}
+
+#[cfg(test)]
+mod input_reporting_tests {
+    //! A maintenance route must not answer the same thing to "nothing to do"
+    //! and "nothing seen".
+    //!
+    //! `backfill-threading` answered
+    //! `{"merged_threads":0,"moved_messages":0,"msgids_indexed":9}` while it
+    //! was enumerating a zset nothing writes. Every number was true and the
+    //! response was unreadable: the `9` was the only sign the walk was blind,
+    //! and it took two failed repair attempts to notice. The counters that
+    //! say what was *looked at* are what make a row of zeros legible, and a
+    //! comment cannot enforce that they stay.
+    use super::tests::{arr, fresh_state};
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Method, Request};
+    use tower::ServiceExt;
+
+    async fn post_json(state: &Arc<FastcoreState>, uri: &str) -> serde_json::Value {
+        let resp = build_router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(uri)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+            .await
+            .expect("body");
+        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
+    }
+
+    fn state_with_a_mailbox() -> Arc<FastcoreState> {
+        let state = fresh_state();
+        // Every maintenance route starts from `list_account_addresses`, so a
+        // store with threads and no account is one where they all report
+        // zero — which is itself the ambiguity under test, and the reason
+        // `accounts` is now in the response.
+        state
+            .mailbox
+            .upsert_account(
+                "u@x.com",
+                r#"{"address":"u@x.com","active":true,"created_at":0}"#,
+            )
+            .expect("account");
+        for tid in ["t1", "t2", "t3"] {
+            state
+                .mailbox
+                .record_message_arrival(&arr(tid, "u@x.com", true))
+                .expect("record");
+        }
+        state
+    }
+
+    /// The route the lesson came from. Its zeros must be readable.
+    #[tokio::test]
+    async fn backfill_threading_says_what_it_enumerated() {
+        let empty = post_json(&fresh_state(), "/v1/admin/backfill-threading").await;
+        let full = post_json(&state_with_a_mailbox(), "/v1/admin/backfill-threading").await;
+
+        assert_eq!(
+            empty["threads_enumerated"], 0,
+            "an empty store enumerates nothing"
+        );
+        assert_ne!(
+            full["threads_enumerated"],
+            serde_json::json!(0),
+            "a populated store must report the threads it walked — this is \
+             the field whose absence made `merged_threads: 0` ambiguous"
+        );
+        assert_ne!(
+            empty, full,
+            "the two runs must be distinguishable from the response alone"
+        );
+    }
+
+    /// Same property, stated once per route so a new one cannot quietly
+    /// skip it. Each entry is a route whose result fields are all counts of
+    /// *work done*, which are zero in both situations.
+    #[tokio::test]
+    async fn every_work_route_distinguishes_no_input_from_no_work() {
+        let routes = [
+            "/v1/admin/backfill-threading",
+            "/v1/admin/maintenance:backfill-thread-importance",
+            "/v1/admin/maintenance:backfill-triage",
+        ];
+        for uri in routes {
+            let empty = post_json(&fresh_state(), uri).await;
+            let full = post_json(&state_with_a_mailbox(), uri).await;
+            assert_ne!(
+                empty, full,
+                "{uri} answers identically whether or not there is anything \
+                 to look at, so a zero from it cannot be interpreted"
+            );
         }
     }
 }
