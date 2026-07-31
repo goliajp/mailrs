@@ -5244,7 +5244,10 @@ async fn backfill_user_messages_route(
     let mut rows_written = 0u64;
     let mut not_this_users = 0u64;
     let mut no_message_id = 0u64;
-    let mut samples: Vec<String> = Vec::new();
+    // Per user, capped per user: a global cap fills from whichever account
+    // the walk reaches first and then describes only that one.
+    let mut samples: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
 
     for user in &users {
         let by_mid = user_files_by_message_id(&root, user);
@@ -5267,12 +5270,36 @@ async fn backfill_user_messages_route(
                     no_message_id += 1;
                     continue;
                 }
-                let Some(blob_ref) = by_mid.get(&w.message_id) else {
-                    // Not in this user's maildir: they never received it,
+                // Two ways a message can be this user's, in order of
+                // directness.
+                //
+                // 1. The stored `blob_ref` resolves inside this user's own
+                //    maildir. Then it *is* their copy and nothing else needs
+                //    checking — this is the case for every message on a
+                //    single-owner thread, and it does not depend on the
+                //    Message-ID at all.
+                // 2. It does not, so look for their own copy under a
+                //    different filename, by Message-ID.
+                //
+                // The first version had only step 2, and skipped any file
+                // whose `Message-ID` header is absent — mail whose stored id
+                // was synthesised as `{maildir_id}@mailrs.local` by the
+                // pg-lane reconcile. 113 of `lihao@golia.jp`'s threads read
+                // as "user has no copy" with the file sitting in their
+                // maildir, and a cutover on that reading would have blanked
+                // every one of them. Readability is the question; a name
+                // matching is only one way of answering it.
+                let own = match read_maildir_file(user, &w.blob_ref).is_some() {
+                    true => Some(w.blob_ref.clone()),
+                    false => by_mid.get(&w.message_id).cloned(),
+                };
+                let Some(blob_ref) = own else {
+                    // Neither resolves: they have no copy of this message,
                     // and the shared index was showing it to them anyway.
                     not_this_users += 1;
-                    if samples.len() < 8 {
-                        samples.push(format!("{user} {}", w.message_id));
+                    let per_user = samples.entry(user.clone()).or_default();
+                    if per_user.len() < 4 {
+                        per_user.push(w.message_id.clone());
                     }
                     continue;
                 };
@@ -5289,7 +5316,7 @@ async fn backfill_user_messages_route(
                     w.internal_date,
                     &blob,
                     &mailrs_mailbox_kevy::UserMessageFacts {
-                        blob_ref,
+                        blob_ref: &blob_ref,
                         uid,
                         flags: w.flags,
                         modseq: w.modseq,
