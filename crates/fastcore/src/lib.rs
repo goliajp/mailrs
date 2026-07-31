@@ -2500,6 +2500,7 @@ async fn backfill_threading_route(
     let mut rejected_subject = 0u64;
     let mut rejected_unreadable = 0u64;
     let mut no_references = 0u64;
+    let mut unreadable_samples: Vec<String> = Vec::new();
     for user in &users {
         // collect every (message_id, in_reply_to, internal_date, tid, blob_ref)
         //
@@ -2646,7 +2647,17 @@ async fn backfill_threading_route(
                 }
             }
             match maildir_references(user, blob_ref) {
-                None => rejected_unreadable += 1,
+                None => {
+                    rejected_unreadable += 1;
+                    // A count with no example is one step better than silence
+                    // and still not actionable: prod's first legible run
+                    // reported 109 unreadable against 31,566 files on disk,
+                    // so nothing was missing and the cause had to be the
+                    // reference itself.
+                    if unreadable_samples.len() < 8 {
+                        unreadable_samples.push(blob_ref.to_string());
+                    }
+                }
                 Some(refs) if refs.is_empty() => no_references += 1,
                 Some(refs) => {
                     for r in refs {
@@ -2773,6 +2784,7 @@ async fn backfill_threading_route(
             // The maildir file could not be opened. Any number here is a
             // defect — it means References were unreadable, not absent.
             "file_unreadable": rejected_unreadable,
+            "file_unreadable_samples": unreadable_samples,
         },
         // Read fine, names no ancestor. Not a rejection: most mail is not a
         // reply.
