@@ -1877,6 +1877,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:backfill-user-messages",
                 post(backfill_user_messages_route),
             )
+            // One-shot: the per-user message index's first key spelling sat
+            // inside the prefix `all_thread_ids_for_user` enumerates.
+            .route(
+                "/v1/admin/maintenance:drop-stray-usermsg-keys",
+                post(drop_stray_usermsg_keys_route),
+            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -4994,7 +5000,43 @@ fn user_files_by_message_id(
     out
 }
 
-/// `POST /v1/admin/maintenance:backfill-user-messages` — stage 2 of the
+/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the
+/// per-user message index keys written under the wrong prefix.
+///
+/// The index was first spelled `mailrs:threaduser:{user}:{tid}:messages`,
+/// which sits inside the namespace `all_thread_ids_for_user` enumerates
+/// with a `mailrs:threaduser:{user}:*` wildcard — so every one of them came
+/// back as a thread whose id ends `:messages`. The multi-owner count went
+/// from 74 to 148 the moment the backfill wrote them. The key moved to
+/// `mailrs:usermsgs:{user}:{tid}`; this deletes what the first spelling
+/// left behind.
+///
+/// Idempotent, and it reports what it scanned so a zero is legible.
+async fn drop_stray_usermsg_keys_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let store = state.mailbox.store_ref();
+    let (_, keys) = store.scan(0, Some(b"mailrs:threaduser:*:messages"), usize::MAX);
+    let scanned = keys.len() as u64;
+    let mut deleted = 0u64;
+    for key in keys {
+        // Belt and braces: only keys that really end with the suffix, in
+        // case the glob ever matches more than intended.
+        if !key.ends_with(b":messages") {
+            continue;
+        }
+        if store.del(&[key.as_slice()]).is_ok() {
+            deleted += 1;
+        }
+    }
+    Json(serde_json::json!({
+        "keys_scanned": scanned,
+        "deleted": deleted,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:backfill-user-messages` — stage 2 of the/// `POST /v1/admin/maintenance:backfill-user-messages` — stage 2 of the
 /// per-user message projection.
 ///
 /// For every (user, thread) row, decide for each message in the shared

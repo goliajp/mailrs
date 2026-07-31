@@ -314,8 +314,18 @@ pub fn user_message(user: &str, message_id: &str) -> String {
 /// [`thread_messages`] is shared, so every owner of a thread is served every
 /// message in it whoever it was delivered to. A mailbox contains the mail
 /// its owner received; this is that set.
+///
+/// **Not** under `mailrs:threaduser:{user}:` — [`all_thread_ids_for_user`]
+/// enumerates a user's threads with a `mailrs:threaduser:{user}:*` wildcard
+/// and strips the prefix, so a key of the form
+/// `mailrs:threaduser:{user}:{tid}:messages` is returned as a thread whose
+/// id is `{tid}:messages`. That first spelling doubled the multi-owner
+/// count from 74 to 148 the moment the backfill wrote its rows, which is
+/// how it was caught.
+///
+/// [`all_thread_ids_for_user`]: crate::KevyMailboxStore::all_thread_ids_for_user
 pub fn thread_user_messages(user: &str, thread_id: &str) -> String {
-    format!("mailrs:threaduser:{user}:{thread_id}:messages")
+    format!("mailrs:usermsgs:{user}:{thread_id}")
 }
 
 /// Per-message JSON blob — value is a serialized MessageWire.
@@ -496,5 +506,39 @@ mod tests {
             "mailrs:message:by-message-id:u@x.com:abc@def.com"
         );
         assert_eq!(OUTBOUND_PENDING, "mailrs:outbound:pending");
+    }
+}
+
+#[cfg(test)]
+mod prefix_tests {
+    use super::*;
+
+    /// `all_thread_ids_for_user` enumerates with a
+    /// `mailrs:threaduser:{user}:*` wildcard and strips that prefix, so any
+    /// other key under it is returned as a thread id.
+    ///
+    /// The per-user message index was first spelled
+    /// `mailrs:threaduser:{user}:{tid}:messages` and the enumeration began
+    /// reporting `{tid}:messages` as a thread — the multi-owner count went
+    /// from 74 to 148 the moment the backfill wrote its rows. A prefix is a
+    /// namespace, and putting something else inside it is a collision even
+    /// when the strings differ.
+    #[test]
+    fn the_per_user_message_index_is_not_under_the_threaduser_prefix() {
+        let enumerated = format!("mailrs:threaduser:{}:", "u@x.com");
+        assert!(
+            !thread_user_messages("u@x.com", "t1").starts_with(&enumerated),
+            "this key would be enumerated as a thread id"
+        );
+        // The membership row itself is, by design — that is what the
+        // wildcard is for.
+        assert!(thread_user("u@x.com", "t1").starts_with(&enumerated));
+    }
+
+    /// Same reasoning for the per-user message row.
+    #[test]
+    fn the_per_user_message_row_is_not_under_a_scanned_prefix() {
+        let enumerated = format!("mailrs:threaduser:{}:", "u@x.com");
+        assert!(!user_message("u@x.com", "<m@x>").starts_with(&enumerated));
     }
 }
