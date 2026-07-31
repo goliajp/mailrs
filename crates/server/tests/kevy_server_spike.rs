@@ -173,6 +173,24 @@ fn greylist_first_seen_and_ttl_survive_restart() {
     // (kevy AOF replay with absolute PEXPIREAT), or every sender gets
     // re-deferred on every redeploy. This is the durability half of the
     // kevy-server contract.
+    //
+    // This can fail with a remainder LARGER than the TTL it was given, and
+    // when it does it is reporting on the host, not the engine. kevy
+    // persists an absolute deadline in wall time and converts it back on
+    // replay, so the read-back remainder moves by whatever the wall clock
+    // did in between: an NTP step backwards inside the write→reopen window
+    // inflates it by exactly the step. Measured once at +1912 ms during a
+    // ten-minute fully-parallel run, never in isolation — the traced
+    // explanation is in `.claude/notes/kevy-ttl-inflated-on-reload-*.md`
+    // and kevy's reply.
+    //
+    // Do not widen the tolerance to make that go away. The assertion is
+    // true of the engine and the flake rate is the NTP step frequency on
+    // this box; loosening it would also stop catching a genuinely
+    // re-anchored TTL, which is what a relative PEXPIRE in the log looks
+    // like — kevy found and fixed exactly that on `getex` in 4.1.1 while
+    // auditing this report. If the flake budget ever matters, the honest
+    // change is a stated clock-discipline allowance, not a bigger number.
     let dir = tempfile::tempdir().unwrap();
     let key = b"gl:203.0.113.5|s@ext.example|alice@example.com".as_slice();
     let ttl = Duration::from_secs(36 * 24 * 3600);
