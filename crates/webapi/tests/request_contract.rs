@@ -194,6 +194,21 @@ fn draft_save_body_matches() {
     );
 }
 
+/// Alias creation — the admin write with the worst failure mode.
+///
+/// Every non-account address on these domains resolves through an alias, so
+/// a dropped field here is mail that goes nowhere. All four are required on
+/// the handler; the admin page sends exactly these and nothing checked that
+/// until now.
+#[test]
+fn alias_create_body_matches() {
+    let v: mailrs_core_api::method::admin::AddAliasRequest = parse("alias-create");
+    assert_eq!(v.source_address, "devops@golia.jp");
+    assert_eq!(v.target_address, "lihao@golia.jp");
+    assert_eq!(v.domain, "golia.jp");
+    assert_eq!(v.alias_type, "forward");
+}
+
 /// An unknown field is refused, by name.
 ///
 /// The point of `deny_unknown_fields` is that the failure says which field.
@@ -232,6 +247,7 @@ fn an_unknown_field_is_named_rather_than_dropped() {
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "ai-generate-subject",
+        "alias-create",
         "ai-polish",
         "ai-reply-suggest",
         "batch-mutation",

@@ -9,6 +9,14 @@
  * boundary. Downstream keeps the `Record<string, unknown>` shape and
  * casts to its local resource type on read; when a shape drifts, the
  * downstream cast fails visibly rather than silently corrupting data.
+ *
+ * That last sentence holds for the **read** direction only, and was taken
+ * for the whole boundary until 2026-07-31. A cast on read says nothing
+ * about a request body: `adminPost(path, {...})` takes an untyped object,
+ * so a misspelled field compiles, serde drops it, and the write succeeds
+ * having ignored it. Thirteen admin writes were unchecked on that basis.
+ * `request-coverage.test.ts` now enumerates them and each is either pinned
+ * by a fixture or listed as debt with a reason.
  */
 
 import { wireFetch } from '../client'

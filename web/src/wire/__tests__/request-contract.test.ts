@@ -205,6 +205,29 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('draft-save'))
   })
 
+  /**
+   * Alias creation, the admin write with the worst failure mode: every
+   * non-account address on these domains resolves through an alias, so a
+   * dropped field is mail that goes nowhere.
+   *
+   * Admin writes bypass the wire layer's typed functions — the pages call
+   * `adminPost` with an inline object — so nothing checked any of the
+   * thirteen of them until 2026-07-31. The body here is the one
+   * `admin-aliases.tsx` builds.
+   */
+  it('alias create', async () => {
+    const { adminPost } = await import('../endpoints/admin')
+    const body = await bodyOf(() =>
+      adminPost('/admin/aliases', {
+        alias_type: 'forward',
+        domain: 'golia.jp',
+        source_address: 'devops@golia.jp',
+        target_address: 'lihao@golia.jp',
+      })
+    )
+    expect(body).toEqual(fixture('alias-create'))
+  })
+
   it('forgot password', async () => {
     const { wireForgotPassword } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))

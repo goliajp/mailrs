@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest'
  */
 
 const ENDPOINTS = join(import.meta.dirname, '..', 'endpoints')
+const SRC = join(import.meta.dirname, '..', '..')
 const FIXTURES = join(import.meta.dirname, '..', '..', '..', '..', 'wire-contract', 'requests')
 
 /**
@@ -43,6 +44,34 @@ const UNCOVERED: Record<string, string> = {
   wireTotpDisable: 'TOTP flow, not yet enumerated',
   wireTotpEnable: 'TOTP flow, not yet enumerated',
   wireTotpSetup: 'TOTP flow, not yet enumerated',
+}
+
+/**
+ * Admin writes do not go through the wire layer at all — the admin pages
+ * call `adminPost` / `adminPut` from `lib/api.ts`, whose body parameter is
+ * untyped. Until this scanned for them the coverage gate reported every
+ * body covered while thirteen went unchecked, which is the same
+ * "looks like coverage" problem one level up.
+ */
+function adminWrites(): string[] {
+  const out = new Set<string>()
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name)
+      if (e.isDirectory()) {
+        if (e.name !== '__tests__') walk(p)
+      } else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) {
+        const src = readFileSync(p, 'utf8')
+        for (const m of src.matchAll(/admin(?:Post|Put|Patch)\(\s*[`']([^`']+)[`']/g)) {
+          // Strip template holes so `/admin/accounts/${x}/sieve` and a
+          // literal path collapse to one entry.
+          out.add(m[1].replace(/\$\{[^}]*\}/g, '{}'))
+        }
+      }
+    }
+  }
+  walk(SRC)
+  return [...out].sort()
 }
 
 /** Wire functions whose implementation contains a `body:`. */
@@ -69,6 +98,40 @@ function covered(): Set<string> {
     names.add(m[1])
   }
   return names
+}
+
+/** Admin paths named by a case in the contract test. */
+function coveredAdminPaths(): Set<string> {
+  const src = readFileSync(join(import.meta.dirname, 'request-contract.test.ts'), 'utf8')
+  const out = new Set<string>()
+  for (const m of src.matchAll(/admin(?:Post|Put|Patch)\(\s*[`']([^`']+)[`']/g)) {
+    out.add(m[1].replace(/\$\{[^}]*\}/g, '{}'))
+  }
+  return out
+}
+
+/**
+ * Admin paths whose body nothing checks, with why.
+ *
+ * Same contract as UNCOVERED: a name here is debt, and the reason has to
+ * say what it is waiting on.
+ */
+const ADMIN_UNCOVERED: Record<string, string> = {
+  '/admin/accounts': 'provisioning body; needs a fixture with a fake password',
+  '/admin/accounts/{}': 'account update; overlaps the provisioning shape',
+  '/admin/accounts/{}/sieve': 'sieve script upload, not yet enumerated',
+  '/admin/domains': 'single-field body {name}',
+  '/admin/email-groups': 'group create, not yet enumerated',
+  '/admin/email-groups/{}/members': 'membership add, not yet enumerated',
+  '/admin/greylist/local-lists': 'covered by greylist-local-add.json on the Rust side only',
+  '/admin/groups': 'group create, not yet enumerated',
+  '/admin/groups/{}/members': 'membership add, not yet enumerated',
+  '/admin/groups/{}/permissions': 'permission set, not yet enumerated',
+  '/admin/system-config/{}': 'covered by the Rust side via SetSystemConfigRequest',
+  '/conversations/{}/read{}': 'mark-read; sends no body, the state is the path',
+  '/conversations/{}/star': 'star toggle; sends no body, the state is the path',
+  '/conversations/{}/unread{}': 'mark-unread; sends no body, the state is the path',
+  '/queue/{}/retry': 'retry a queued send; sends no body, the id is the path',
 }
 
 describe('request coverage', () => {
@@ -102,8 +165,33 @@ describe('request coverage', () => {
     expect(gone, 'these are in UNCOVERED but no longer send a body — remove them').toEqual([])
   })
 
+  it('every admin write is listed with a reason', () => {
+    const checked = coveredAdminPaths()
+    const unlisted = adminWrites().filter(
+      (p) => !checked.has(p) && ADMIN_UNCOVERED[p] === undefined
+    )
+    expect(
+      unlisted,
+      'these admin pages send a body that nothing checks against the ' +
+        'handler struct — add a fixture and a case on both sides, or list ' +
+        'the path in ADMIN_UNCOVERED with a reason'
+    ).toEqual([])
+  })
+
+  it('nothing is listed as an admin write that no longer exists', () => {
+    const present = new Set(adminWrites())
+    const gone = Object.keys(ADMIN_UNCOVERED).filter((p) => !present.has(p))
+    expect(gone, 'these are in ADMIN_UNCOVERED but no page sends them').toEqual([])
+  })
+
+  it('nothing is listed as an admin write that a contract case does check', () => {
+    const checked = coveredAdminPaths()
+    const stale = Object.keys(ADMIN_UNCOVERED).filter((p) => checked.has(p))
+    expect(stale, 'these are in ADMIN_UNCOVERED but are pinned by a fixture').toEqual([])
+  })
+
   it('every reason says something', () => {
-    for (const [fn, why] of Object.entries(UNCOVERED)) {
+    for (const [fn, why] of Object.entries({ ...ADMIN_UNCOVERED, ...UNCOVERED })) {
       expect(why.trim().length, `${fn} has no reason`).toBeGreaterThan(10)
     }
   })
