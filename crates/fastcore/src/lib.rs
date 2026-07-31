@@ -4472,26 +4472,54 @@ async fn table_verify_route(
     Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
     let name = q.get("table").map(String::as_str).unwrap_or("threaduser");
-    match state.mailbox.store_ref().table_verify(name.as_bytes()) {
-        Ok((per_index, spot)) => {
-            let indexes: Vec<serde_json::Value> = per_index
+    // `table_verify_report`, not the positional `table_verify` it
+    // supersedes: that one returned `[u64; 6]` and every field was read by
+    // index here, so swapping `duplicates` and `drift` would have been
+    // invisible. kevy 4.1 also split the counter that misled us — its
+    // `coerce_failures` was a lifetime tally that counted absent columns
+    // too, which is how a healthy migration read as 30,152 live failures.
+    // `absent` is now its own number and not a fault.
+    match state
+        .mailbox
+        .store_ref()
+        .table_verify_report(name.as_bytes())
+    {
+        Ok(report) => {
+            let indexes: Vec<serde_json::Value> = report
+                .per_index
                 .into_iter()
-                .map(|(n, c)| {
+                .map(|i| {
                     serde_json::json!({
-                        "index": String::from_utf8_lossy(&n),
-                        "entries": c[0],
-                        "bytes": c[1],
-                        "coerce_failures": c[2],
-                        "duplicates": c[3],
-                        "drift": c[4],
-                        "checked": c[5],
+                        "index": String::from_utf8_lossy(&i.name),
+                        "entries": i.entries,
+                        "bytes": i.approx_bytes,
+                        "rows_walked": i.rows,
+                        // A row that derives a value and has no entry: the
+                        // "a writer forgot this path" class, which the
+                        // drift walk structurally cannot see because it
+                        // iterates entries and a missing one is not there
+                        // to iterate. This is the counter that would have
+                        // caught `record_message_arrival` not writing the
+                        // membership row.
+                        "missing": i.missing,
+                        "drift": i.drift,
+                        "duplicates": i.duplicates,
+                        "coerce_failures": i.coerce_failures,
+                        // Excluded by design (NULL semantics) — not a fault.
+                        "absent": i.absent,
+                        // Dropped for exceeding MAX_STR_COMPONENT; two
+                        // Message-IDs did exactly this once.
+                        "excluded": i.excluded,
                     })
                 })
                 .collect();
             Json(serde_json::json!({
                 "table": name,
                 "indexes": indexes,
-                "spot_check": { "rows": spot[0], "type_mismatches": spot[1] },
+                "spot_check": {
+                    "rows": report.spot_rows,
+                    "type_mismatches": report.spot_type_mismatches,
+                },
             }))
             .into_response()
         }

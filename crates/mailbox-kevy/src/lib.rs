@@ -1236,7 +1236,7 @@ mod flag_axis_tests {
             "and it must still be readable"
         );
 
-        let verdict = st.store().table_verify(b"threaduser");
+        let verdict = st.store().table_verify_report(b"threaduser");
         assert!(verdict.is_ok(), "TABLE.VERIFY must stay happy: {verdict:?}");
     }
 
