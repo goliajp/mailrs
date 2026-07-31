@@ -2,8 +2,8 @@ import type { SendRow } from './send-model'
 import type { WireSendStatus } from '@/wire/schemas/sends'
 
 import { toast } from '@goliapkg/gds'
-import { useSetAtom } from 'jotai'
-import { memo, useMemo, useState } from 'react'
+import { useAtom, useSetAtom } from 'jotai'
+import { memo, useEffect, useMemo, useState } from 'react'
 
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
@@ -13,6 +13,7 @@ import { useResendMutation, useSendsQuery } from '@/hooks/use-sends'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
+import { mailRowClass } from '@/lib/list-row-class'
 import {
   composeRedraftSourceAtom,
   composingNewAtom,
@@ -46,7 +47,7 @@ type Item = { label: string; type: 'divider' } | { row: SendRow; type: 'row' }
 export function SendList() {
   const { data: messages, isLoading } = useSentMessagesQuery()
   const { data: sends } = useSendsQuery()
-  const setSelectedThreadId = useSetAtom(selectedThreadIdAtom)
+  const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
   const setFocusedMsgUid = useSetAtom(focusedMessageUidAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
   const [query, setQuery] = useState('')
@@ -68,6 +69,28 @@ export function SendList() {
   }, [rows, status, query])
 
   const attention = useMemo(() => rows.filter(needsAttention).length, [rows])
+
+  // Arriving at Send selects its first row.
+  //
+  // The selection is a global atom and this list only ever wrote it, so
+  // switching here from the Inbox left the reading pane showing a thread
+  // from the list you had left. Same rule as the conversation list, and it
+  // sets the atom directly rather than going through `openMessage`, which
+  // also switches the mobile view to the thread — that would drag a phone
+  // user into a message they did not open.
+  useEffect(() => {
+    if (selectedThreadId !== null) return
+    const first = visible[0]
+    if (!first) return
+    setSelectedThreadId(first.threadId)
+    setFocusedMsgUid(first.uid)
+  }, [visible, selectedThreadId, setSelectedThreadId, setFocusedMsgUid])
+
+  // Leaving clears it, so the list taken to next chooses its own first row
+  // rather than inheriting a thread that is not in it.
+  useEffect(() => {
+    return () => setSelectedThreadId(null)
+  }, [setSelectedThreadId])
 
   const openMessage = (row: SendRow) => {
     setSelectedThreadId(row.threadId)
@@ -137,6 +160,7 @@ export function SendList() {
               onToggle={() => setExpanded(toggle(expanded, id))}
               resending={resend.isPending}
               row={item.row}
+              selected={selectedThreadId === item.row.threadId}
             />
           )
         })}
@@ -167,6 +191,7 @@ const SendRowView = memo(function SendRowView({
   onToggle,
   resending,
   row,
+  selected,
 }: {
   expanded: boolean
   onOpen: (row: SendRow) => void
@@ -175,13 +200,14 @@ const SendRowView = memo(function SendRowView({
   onToggle: () => void
   resending: boolean
   row: SendRow
+  selected: boolean
 }) {
   const flagged = needsAttention(row)
 
   return (
     <div role="listitem">
       <button
-        className={rowClass(flagged)}
+        className={rowClass(flagged, selected)}
         onClick={() => rowAction(flagged, onToggle, () => onOpen(row))}
         type="button"
       >
@@ -259,11 +285,11 @@ function rowAction(flagged: boolean, onToggle: () => void, onOpen: () => void) {
   onOpen()
 }
 
-function rowClass(flagged: boolean): string {
-  const base =
-    'flex h-16 w-full items-start gap-3 border-l-[3px] px-4 py-2 text-left transition-colors hover:bg-bg-secondary'
-  if (flagged) return `${base} border-l-danger/60`
-  return `${base} border-l-transparent`
+function rowClass(flagged: boolean, selected: boolean): string {
+  // The same definition the conversation list uses. This had its own copy
+  // with no selected state at all, so nothing on the Send list showed which
+  // message the reading pane was displaying.
+  return mailRowClass({ flagged, selected })
 }
 
 function subjectLabel(subject: string): string {
