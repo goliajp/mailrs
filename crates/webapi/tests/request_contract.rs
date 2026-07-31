@@ -194,6 +194,34 @@ fn draft_save_body_matches() {
     );
 }
 
+/// An unknown field is refused, by name.
+///
+/// The point of `deny_unknown_fields` is that the failure says which field.
+/// Without it serde drops what it does not recognise and the request
+/// succeeds having ignored part of what the user asked for — nine bodies
+/// were doing exactly that on 2026-07-30, five of them silently.
+#[test]
+fn an_unknown_field_is_named_rather_than_dropped() {
+    let mut body: serde_json::Value =
+        serde_json::from_str(&fixture("draft-save")).expect("fixture parses");
+    body["replyToThreadId"] = serde_json::json!("camelCased by mistake");
+
+    let err = serde_json::from_value::<mailrs_core_api::method::admin::SaveDraftRequest>(body)
+        .expect_err("an unknown field must not deserialize");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("replyToThreadId"),
+        "the error must name the field so it can be fixed; got: {msg}"
+    );
+
+    // And the correct spelling still works, so this is a gate and not a wall.
+    let ok: mailrs_core_api::method::admin::SaveDraftRequest = parse("draft-save");
+    assert_eq!(
+        ok.reply_to_thread_id.as_deref(),
+        Some("a48529b44b1b190f@golia.jp")
+    );
+}
+
 /// Every fixture is checked by a test above.
 ///
 /// Without this, adding a fixture and forgetting the case leaves the file
