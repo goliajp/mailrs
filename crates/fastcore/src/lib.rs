@@ -1228,7 +1228,17 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                 >(&payload) else {
                     continue;
                 };
-                if wire.uid != 0 {
+                // This user's uid, not the shared blob's — that one belongs
+                // to whichever owner wrote last, so testing it would skip
+                // the second owner of a thread and leave them without one.
+                let existing = state
+                    .mailbox
+                    .user_message_facts(user, &wire.message_id)
+                    .ok()
+                    .flatten()
+                    .map(|f| f.uid)
+                    .unwrap_or(wire.uid);
+                if existing != 0 {
                     continue;
                 }
                 let uid = state
