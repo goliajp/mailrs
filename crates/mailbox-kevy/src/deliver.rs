@@ -36,9 +36,17 @@ impl KevyMailboxStore {
         arrival: &MessageArrival<'_>,
         message_id: &str,
         payload: &[u8],
+        per_user: &crate::UserMessageFacts<'_>,
     ) -> io::Result<()> {
         self.record_message_arrival(arrival)?;
-        self.upsert_message(arrival.thread_id, message_id, arrival.latest_date, payload)?;
+        self.upsert_user_message(
+            arrival.user,
+            arrival.thread_id,
+            message_id,
+            arrival.latest_date,
+            payload,
+            per_user,
+        )?;
         Ok(())
     }
 }
@@ -46,6 +54,17 @@ impl KevyMailboxStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::UserMessageFacts;
+
+    /// One user's copy, for tests that only care about the shared half.
+    fn test_facts() -> UserMessageFacts<'static> {
+        UserMessageFacts {
+            blob_ref: "1785000000.M1P1.host",
+            uid: 1,
+            flags: 0,
+            modseq: 1,
+        }
+    }
     use crate::keys;
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;
@@ -77,7 +96,7 @@ mod tests {
     #[test]
     fn deliver_writes_thread_row_and_message_blob() {
         let s = store();
-        s.deliver_message(&arr("t1", "u@x.com", 100), "m1", b"blob-1")
+        s.deliver_message(&arr("t1", "u@x.com", 100), "m1", b"blob-1", &test_facts())
             .unwrap();
 
         // thread row exists
@@ -100,9 +119,9 @@ mod tests {
     #[test]
     fn two_deliveries_to_same_thread_chain_properly() {
         let s = store();
-        s.deliver_message(&arr("t1", "u@x.com", 100), "m1", b"first")
+        s.deliver_message(&arr("t1", "u@x.com", 100), "m1", b"first", &test_facts())
             .unwrap();
-        s.deliver_message(&arr("t1", "u@x.com", 200), "m2", b"second")
+        s.deliver_message(&arr("t1", "u@x.com", 200), "m2", b"second", &test_facts())
             .unwrap();
 
         // thread aggregate bumped

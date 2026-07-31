@@ -110,11 +110,18 @@ pub(crate) async fn backfill_decode_headers_route(
                     if !trust.is_empty() {
                         w.sender_trust = trust;
                         if let Ok(payload) = serde_json::to_vec(&w) {
-                            let _ = state.mailbox.upsert_message(
+                            let _ = state.mailbox.upsert_user_message(
+                                user,
                                 tid,
                                 &w.message_id,
                                 w.internal_date,
                                 &payload,
+                                &mailrs_mailbox_kevy::UserMessageFacts {
+                                    blob_ref: &w.blob_ref,
+                                    uid: w.uid,
+                                    flags: w.flags,
+                                    modseq: w.modseq,
+                                },
                             );
                             trust_stamped += 1;
                         }

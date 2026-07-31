@@ -635,11 +635,18 @@ async fn run_ingest_once(
                             Ok(p) => p,
                             Err(_) => continue,
                         };
-                        let _ = state.mailbox.upsert_message(
+                        let _ = state.mailbox.upsert_user_message(
+                            user,
                             &s.thread_id,
                             &w.message_id,
                             w.internal_date,
                             &payload,
+                            &mailrs_mailbox_kevy::UserMessageFacts {
+                                blob_ref: &w.blob_ref,
+                                uid: w.uid,
+                                flags: w.flags,
+                                modseq: w.modseq,
+                            },
                         );
                         let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
                     }
@@ -677,11 +684,18 @@ async fn run_ingest_once(
                         Ok(p) => p,
                         Err(_) => continue,
                     };
-                    let _ = state.mailbox.upsert_message(
+                    let _ = state.mailbox.upsert_user_message(
+                        user,
                         &s.thread_id,
                         &w.message_id,
                         w.internal_date,
                         &payload,
+                        &mailrs_mailbox_kevy::UserMessageFacts {
+                            blob_ref: &w.blob_ref,
+                            uid: w.uid,
+                            flags: w.flags,
+                            modseq: w.modseq,
+                        },
                     );
                     let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
                 }
@@ -1226,11 +1240,18 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                 }
                 wire.uid = uid;
                 if let Ok(new_payload) = serde_json::to_vec(&wire) {
-                    let _ = state.mailbox.upsert_message(
+                    let _ = state.mailbox.upsert_user_message(
+                        user,
                         &wire.thread_id,
                         &wire.message_id,
                         wire.internal_date,
                         &new_payload,
+                        &mailrs_mailbox_kevy::UserMessageFacts {
+                            blob_ref: &wire.blob_ref,
+                            uid: wire.uid,
+                            flags: wire.flags,
+                            modseq: wire.modseq,
+                        },
                     );
                 }
                 uid_healed += 1;
@@ -1350,9 +1371,19 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                 Ok(p) => p,
                 Err(_) => continue,
             };
-            let _ = state
-                .mailbox
-                .upsert_message(tid, &wire.message_id, m.date, &payload);
+            let _ = state.mailbox.upsert_user_message(
+                user,
+                tid,
+                &wire.message_id,
+                m.date,
+                &payload,
+                &mailrs_mailbox_kevy::UserMessageFacts {
+                    blob_ref: &wire.blob_ref,
+                    uid: wire.uid,
+                    flags: wire.flags,
+                    modseq: wire.modseq,
+                },
+            );
             let _ = state
                 .mailbox
                 .set_thread_for_message_id(user, &wire.message_id, tid);
@@ -1462,9 +1493,19 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                     user_address: user.to_string(),
                 };
                 if let Ok(payload) = serde_json::to_vec(&wire) {
-                    let _ = state
-                        .mailbox
-                        .upsert_message(root, &m.message_id, m.date, &payload);
+                    let _ = state.mailbox.upsert_user_message(
+                        user,
+                        root,
+                        &m.message_id,
+                        m.date,
+                        &payload,
+                        &mailrs_mailbox_kevy::UserMessageFacts {
+                            blob_ref: &wire.blob_ref,
+                            uid: wire.uid,
+                            flags: wire.flags,
+                            modseq: wire.modseq,
+                        },
+                    );
                 }
                 let _ = state
                     .mailbox
@@ -3594,13 +3635,34 @@ async fn deliver_message(
         }
         _ => req.payload_wire_json.clone(),
     };
-    if let Err(e) = state.mailbox.upsert_message(
+    // The sent copy is this user's own: its maildir file is in their
+    // mailbox and its uid is theirs. Parsed back out of the payload so the
+    // per-user row records what was actually written.
+    let sent_wire: Option<mailrs_core_api::method::message::MessageWire> =
+        serde_json::from_str(&payload).ok();
+    let sent_facts = sent_wire
+        .as_ref()
+        .map(|w| mailrs_mailbox_kevy::UserMessageFacts {
+            blob_ref: &w.blob_ref,
+            uid: w.uid,
+            flags: w.flags,
+            modseq: w.modseq,
+        });
+    let fallback = mailrs_mailbox_kevy::UserMessageFacts {
+        blob_ref: "",
+        uid: 0,
+        flags: 0,
+        modseq: 0,
+    };
+    if let Err(e) = state.mailbox.upsert_user_message(
+        user.as_str(),
         &thread_id,
         &req.message_id,
         req.latest_date,
         payload.as_bytes(),
+        sent_facts.as_ref().unwrap_or(&fallback),
     ) {
-        tracing::error!(err = %e, %user, %thread_id, "upsert_message failed");
+        tracing::error!(err = %e, %user, %thread_id, "upsert_user_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     // register the (sent-copy) message id → thread so a remote reply
@@ -5517,11 +5579,19 @@ async fn set_message_flags_route(
         Ok(v) => v,
         Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
-    if let Err(e) =
-        state
-            .mailbox
-            .upsert_message(&wire.thread_id, &wire.message_id, wire.date, &json)
-    {
+    if let Err(e) = state.mailbox.upsert_user_message(
+        user.as_str(),
+        &wire.thread_id,
+        &wire.message_id,
+        wire.date,
+        &json,
+        &mailrs_mailbox_kevy::UserMessageFacts {
+            blob_ref: &wire.blob_ref,
+            uid: wire.uid,
+            flags: wire.flags,
+            modseq: wire.modseq,
+        },
+    ) {
         tracing::error!(err = %e, %user, %uid, "upsert_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
@@ -5868,7 +5938,17 @@ mod tests {
         // target to flip / read.
         state
             .mailbox
-            .deliver_message(&arr("t1", "u@x.com", true), "m1", b"{}")
+            .deliver_message(
+                &arr("t1", "u@x.com", true),
+                "m1",
+                b"{}",
+                &mailrs_mailbox_kevy::UserMessageFacts {
+                    blob_ref: "1785000000.M1P1.host",
+                    uid: 1,
+                    flags: 0,
+                    modseq: 1,
+                },
+            )
             .unwrap();
 
         struct Probe {

@@ -155,8 +155,19 @@ fn main() {
             let Ok(new_payload) = serde_json::to_vec(&wire) else {
                 continue;
             };
-            let _ =
-                mailbox.upsert_message(&w.thread_id, &w.message_id, w.internal_date, &new_payload);
+            let _ = mailbox.upsert_user_message(
+                owner,
+                &w.thread_id,
+                &w.message_id,
+                w.internal_date,
+                &new_payload,
+                &mailrs_mailbox_kevy::UserMessageFacts {
+                    blob_ref: &wire.blob_ref,
+                    uid: wire.uid,
+                    flags: wire.flags,
+                    modseq: wire.modseq,
+                },
+            );
             total_reallocated += 1;
         }
         if !losers.is_empty() {
