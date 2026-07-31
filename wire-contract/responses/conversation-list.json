@@ -1,0 +1,20 @@
+[
+  {
+    "archived": false,
+    "category": "inbox",
+    "flagged": false,
+    "importance_level": "normal",
+    "importance_score": 0.4,
+    "last_date": 1785371752,
+    "message_count": 2,
+    "participants": ["nagata@nagatax.tokyo.jp", "lihao@golia.jp"],
+    "pinned": false,
+    "received_count": 1,
+    "requires_action": false,
+    "sent_count": 1,
+    "snippet": "Confirming Thursday at 3pm.",
+    "subject": "Re: Meeting",
+    "thread_id": "a48529b44b1b190f@golia.jp",
+    "unread_count": 0
+  }
+]

@@ -1,0 +1,21 @@
+[
+  {
+    "can_resend": true,
+    "created_at": 1785371752,
+    "recipients": [
+      {
+        "code": 250,
+        "delivered": true,
+        "message": "queued as ABC123",
+        "pending": false,
+        "recipient": "nagata@nagatax.tokyo.jp"
+      }
+    ],
+    "resent_from": null,
+    "send_id": "0197f3c2-4a1b-7d31-9e55-2c8a1f0b6d44",
+    "status": "delivered",
+    "subject": "Re: Meeting",
+    "thread_id": "a48529b44b1b190f@golia.jp",
+    "to": ["nagata@nagatax.tokyo.jp"]
+  }
+]
