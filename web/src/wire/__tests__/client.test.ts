@@ -52,6 +52,38 @@ describe('wireFetch', () => {
     )
   })
 
+  /**
+   * Throwing was not enough. Almost nothing catches `kind: 'auth'`, so React
+   * Query turned it into `data: undefined` and the mailbox rendered empty.
+   * On 2026-07-31 a session expired and the app polled `/api/conversations`,
+   * `/api/mail/drafts` and `/api/events` for fifteen minutes — 166 requests,
+   * every one a 401 — while telling the user nothing.
+   */
+  it('sends the user to log in on 401, not just an exception nobody catches', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 401 }))
+    )
+    const href = vi.fn()
+    vi.stubGlobal('location', {
+      hash: '',
+      href: '',
+      pathname: '/chat',
+      search: '',
+      set href(v: string) {
+        href(v)
+      },
+      get href() {
+        return ''
+      },
+    } as unknown as Location)
+
+    await expect(wireFetch(SCHEMA, { path: '/hi' })).rejects.toThrow()
+    expect(href).toHaveBeenCalledWith(expect.stringContaining('/login'))
+    // The page the user was on comes back after logging in.
+    expect(href).toHaveBeenCalledWith(expect.stringContaining('return_to'))
+  })
+
   it('maps 403 to WireError.kind=forbidden', async () => {
     vi.stubGlobal(
       'fetch',

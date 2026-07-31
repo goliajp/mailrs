@@ -185,11 +185,39 @@ export async function recordFeedback(
 
 import type { ReactionSummary } from '@/lib/types'
 
+// Drop the stale token and bounce to /login, but preserve the current
+// URL via ?return_to= so the user lands back on the same view after
+// re-authenticating. The login page already honours return_to.
+/**
+ * Clear the stored session and send the user to the login page.
+ *
+ * Exported so the wire layer funnels 401s through the same path. It used to
+ * be private here, so `wire/client.ts` only threw `{kind: 'auth'}` — an
+ * exception almost nothing catches, which React Query turns into
+ * `data: undefined` and the UI renders as an empty mailbox. On 2026-07-31 a
+ * session expired and the app spent fifteen minutes polling
+ * `/api/conversations`, `/api/mail/drafts` and `/api/events` — 166 requests,
+ * every one a 401 — while showing the user nothing at all.
+ */
+export function redirectToLogin(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem('mailrs_auth')
+  const here = window.location.pathname + window.location.search + window.location.hash
+  // Don't loop if we're already on /login (avoid replacing return_to of
+  // an in-flight login attempt with itself).
+  if (window.location.pathname === '/login') {
+    return
+  }
+  window.location.href = `/login?return_to=${encodeURIComponent(here)}`
+}
+
 export async function saveDraft(draft: SaveDraftRequest): Promise<SaveDraftResult> {
   // v2.1 §9 batch 3 (2026-07-08): delegated to wire adapter.
   const { wireSaveDraft } = await import('@/wire/endpoints/mail')
   return wireSaveDraft(draft as unknown as Record<string, unknown>)
 }
+
+// --- snooze API ---
 
 export async function snoozeConversation(
   threadId: string,
@@ -200,8 +228,6 @@ export async function snoozeConversation(
   // 204 on success; wireFetch throws on anything else.
   return (await wireSnoozeConversation(threadId, snoozedUntil)) ?? { success: true }
 }
-
-// --- snooze API ---
 
 export async function toggleReaction(
   threadId: string,
@@ -214,6 +240,8 @@ export async function toggleReaction(
   return [...items] as ReactionSummary[]
 }
 
+// --- sender feedback API ---
+
 export async function unsnoozeConversation(
   threadId: string
 ): Promise<{ message?: string; success: boolean }> {
@@ -221,8 +249,6 @@ export async function unsnoozeConversation(
   const { wireUnsnoozeConversation } = await import('@/wire/endpoints/mail')
   return (await wireUnsnoozeConversation(threadId)) ?? { success: true }
 }
-
-// --- sender feedback API ---
 
 /**
  * Public for testing. Extracts a `T[]` from whatever shape a list
@@ -280,19 +306,4 @@ async function handleResponse<T>(res: Response): Promise<T> {
     return undefined as T
   }
   return res.json()
-}
-
-// Drop the stale token and bounce to /login, but preserve the current
-// URL via ?return_to= so the user lands back on the same view after
-// re-authenticating. The login page already honours return_to.
-function redirectToLogin(): void {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem('mailrs_auth')
-  const here = window.location.pathname + window.location.search + window.location.hash
-  // Don't loop if we're already on /login (avoid replacing return_to of
-  // an in-flight login attempt with itself).
-  if (window.location.pathname === '/login') {
-    return
-  }
-  window.location.href = `/login?return_to=${encodeURIComponent(here)}`
 }
