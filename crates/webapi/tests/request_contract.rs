@@ -102,6 +102,11 @@ fn calendar_feed_create_body_matches() {
     let v: handlers::calendar::CreateFeedRequest = parse("calendar-feed-create");
     assert_eq!(v.name, "Team calendar");
     assert_eq!(v.url, "https://cal.example.com/team.ics");
+    // Removed from the form on 2026-07-30 because no fetcher consumed them,
+    // restored with the one that does. The handler dropping either again
+    // means a feed behind basic auth silently 401s forever.
+    assert_eq!(v.basic_auth_user.as_deref(), Some("team"));
+    assert_eq!(v.basic_auth_pass.as_deref(), Some("hunter2"));
 }
 
 #[test]

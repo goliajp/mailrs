@@ -14,17 +14,9 @@ pub(crate) fn caldatetime_to_utc(
     dt: &CalDateTime,
     vtimezones: &[VTimezone],
 ) -> Option<DateTime<Utc>> {
-    match dt {
-        CalDateTime::Utc(d) => Some(*d),
-        CalDateTime::Floating(n) => Some(n.and_utc()),
-        CalDateTime::Zoned { tz_name, local } => {
-            let resolved = resolve(tz_name, vtimezones)?;
-            let off = local_to_utc_offset_seconds(&resolved, *local)?;
-            let utc = local.checked_sub_signed(chrono::Duration::seconds(off as i64))?;
-            Some(utc.and_utc())
-        }
-        CalDateTime::Date(d) => Some(naive_date_to_utc_midnight(*d)),
-    }
+    // The stone's, so the feed sync on the other lane reads an event's start
+    // the same way this one does.
+    mailrs_ical::vtimezone::caldatetime_to_utc(dt, vtimezones)
 }
 
 pub(super) fn naive_date_to_utc_midnight(d: NaiveDate) -> DateTime<Utc> {

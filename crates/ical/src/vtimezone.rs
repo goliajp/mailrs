@@ -597,3 +597,95 @@ mod vtimezone_tests {
         }
     }
 }
+
+/// The instant a [`CalDateTime`](crate::CalDateTime) names, in UTC.
+///
+/// Every one of the four forms has to be handled and three of them need a
+/// decision, so this belongs next to the timezone table rather than in each
+/// consumer: a floating time is read as UTC (RFC 5545 §3.3.5 leaves it to
+/// the reader, and the alternative is dropping the event), a `DATE` is read
+/// as midnight, and a zoned time is resolved through `inline_blocks` and the
+/// IANA table. `None` means a TZID that resolves to nothing — an event whose
+/// start cannot be placed, which must not be filed at an invented time.
+///
+/// `crates/server/src/calendar/event/convert.rs` had this privately; the
+/// feed sync on the other lane needs the same reading, and two versions of
+/// "what time is this event" is how two calendars stop agreeing.
+pub fn caldatetime_to_utc(
+    dt: &crate::CalDateTime,
+    inline_blocks: &[crate::VTimezone],
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    use crate::CalDateTime;
+    match dt {
+        CalDateTime::Utc(d) => Some(*d),
+        CalDateTime::Floating(n) => Some(n.and_utc()),
+        CalDateTime::Zoned { tz_name, local } => {
+            let resolved = resolve(tz_name, inline_blocks)?;
+            let off = local_to_utc_offset_seconds(&resolved, *local)?;
+            let utc = local.checked_sub_signed(chrono::Duration::seconds(off as i64))?;
+            Some(utc.and_utc())
+        }
+        CalDateTime::Date(d) => {
+            let midnight = chrono::NaiveTime::from_hms_opt(0, 0, 0)?;
+            Some(chrono::NaiveDateTime::new(*d, midnight).and_utc())
+        }
+    }
+}
+
+#[cfg(test)]
+mod to_utc_tests {
+    use super::caldatetime_to_utc;
+    use crate::CalDateTime;
+
+    #[test]
+    fn utc_passes_through_and_a_date_becomes_midnight() {
+        let d = chrono::DateTime::from_timestamp(1_785_542_400, 0).expect("valid");
+        assert_eq!(caldatetime_to_utc(&CalDateTime::Utc(d), &[]), Some(d));
+
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 7, 31).expect("valid");
+        let got = caldatetime_to_utc(&CalDateTime::Date(date), &[]).expect("some");
+        assert_eq!(got.to_rfc3339(), "2026-07-31T00:00:00+00:00");
+    }
+
+    /// Floating time is read as UTC rather than dropped: the alternative
+    /// loses the event entirely, which is worse than placing it in the
+    /// reader's frame.
+    #[test]
+    fn floating_is_read_as_utc() {
+        let n = chrono::NaiveDate::from_ymd_opt(2026, 7, 31)
+            .expect("valid")
+            .and_hms_opt(9, 30, 0)
+            .expect("valid");
+        let got = caldatetime_to_utc(&CalDateTime::Floating(n), &[]).expect("some");
+        assert_eq!(got.to_rfc3339(), "2026-07-31T09:30:00+00:00");
+    }
+
+    #[test]
+    fn a_zoned_time_shifts_by_its_offset() {
+        let local = chrono::NaiveDate::from_ymd_opt(2026, 7, 31)
+            .expect("valid")
+            .and_hms_opt(9, 0, 0)
+            .expect("valid");
+        let dt = CalDateTime::Zoned {
+            tz_name: "Asia/Tokyo".into(),
+            local,
+        };
+        let got = caldatetime_to_utc(&dt, &[]).expect("Asia/Tokyo resolves");
+        // JST is UTC+9 year round.
+        assert_eq!(got.to_rfc3339(), "2026-07-31T00:00:00+00:00");
+    }
+
+    /// An unresolvable zone yields nothing rather than an invented instant.
+    #[test]
+    fn an_unknown_zone_is_not_guessed() {
+        let local = chrono::NaiveDate::from_ymd_opt(2026, 7, 31)
+            .expect("valid")
+            .and_hms_opt(9, 0, 0)
+            .expect("valid");
+        let dt = CalDateTime::Zoned {
+            tz_name: "Nowhere/Imaginary".into(),
+            local,
+        };
+        assert_eq!(caldatetime_to_utc(&dt, &[]), None);
+    }
+}

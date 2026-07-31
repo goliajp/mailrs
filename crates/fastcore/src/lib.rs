@@ -23,6 +23,7 @@ pub mod arc_seal;
 mod backfill_decode;
 mod bayes_train;
 pub mod bounce;
+mod calendar_sync;
 pub mod dmarc_ingest;
 pub mod fbl;
 mod imap;
@@ -399,6 +400,12 @@ pub async fn run() {
     let webhook_state = state.clone();
     tokio::spawn(async move {
         webhook_delivery::spawn(webhook_state).await;
+    });
+    // Calendar feed sync — subscribing to an .ics URL stored a row that
+    // nothing read, so no event ever appeared.
+    let calendar_state = state.clone();
+    tokio::spawn(async move {
+        calendar_sync::spawn(calendar_state).await;
     });
     // ManageSieve (RFC 5804) — sieve script CRUD on :4190 (G5).
     let sieve_state = state.clone();

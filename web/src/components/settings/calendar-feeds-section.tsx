@@ -20,6 +20,8 @@ export function CalendarFeedsSection() {
   const loading = feedsQuery.isFetching
   const [url, setUrl] = useState('')
   const [name, setName] = useState('')
+  const [authUser, setAuthUser] = useState('')
+  const [authPass, setAuthPass] = useState('')
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
 
@@ -40,11 +42,15 @@ export function CalendarFeedsSection() {
     setCreating(true)
     try {
       await wireCreateCalendarFeed({
+        basicAuthPass: authPass || undefined,
+        basicAuthUser: authUser.trim() || undefined,
         name: name.trim(),
         url: url.trim(),
       })
       setUrl('')
       setName('')
+      setAuthUser('')
+      setAuthPass('')
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed')
@@ -91,13 +97,28 @@ export function CalendarFeedsSection() {
           type="text"
           value={name}
         />
-        {/* Basic-auth inputs removed 2026-07-30. The prod lane has no feed
-            fetcher — `spawn_feed_worker` exists only in the monolith — so
-            nothing ever used these credentials, and the request field they
-            filled was not one the handler accepted, so the password was
-            discarded on arrival. Storing it instead would have put a secret
-            at rest with no consumer. They come back with the fetcher that
-            needs them. */}
+        {/* Restored 2026-07-31 with the fetcher that consumes them. They
+            were removed the day before because the prod lane had no feed
+            worker at all, so the password was discarded on arrival and
+            storing it would have put a secret at rest with no consumer. */}
+        <input
+          aria-label="Basic-auth username"
+          autoComplete="off"
+          className={inputClass}
+          onChange={(e) => setAuthUser(e.target.value)}
+          placeholder="Username (only if the feed requires one)"
+          type="text"
+          value={authUser}
+        />
+        <input
+          aria-label="Basic-auth password"
+          autoComplete="new-password"
+          className={inputClass}
+          onChange={(e) => setAuthPass(e.target.value)}
+          placeholder="Password"
+          type="password"
+          value={authPass}
+        />
         {error && <div className="text-danger text-xs">{error}</div>}
         <button
           className={btnPrimary}
@@ -126,16 +147,20 @@ export function CalendarFeedsSection() {
                   <div className="text-fg-muted truncate text-xs">{f.url}</div>
                   <div className="text-fg-muted mt-1 text-xs">
                     Refresh every {Math.round(f.refresh_interval_secs / 60)}m
-                    {f.last_synced_at && (
+                    {f.last_synced_at === null ? (
+                      ' · never synced'
+                    ) : (
                       <>
                         {' · last synced '}
-                        {new Date(f.last_synced_at).toLocaleString(undefined, {
+                        {/* Epoch seconds from the backend; Date takes ms. */}
+                        {new Date(f.last_synced_at * 1000).toLocaleString(undefined, {
                           dateStyle: 'short',
                           timeStyle: 'short',
                         })}
+                        {` · ${f.lastEventCount} events`}
                       </>
                     )}
-                    {!f.enabled && ' · disabled'}
+                    {f.hasBasicAuth && ' · authenticated'}
                   </div>
                   {f.last_error && <div className="text-danger mt-1 text-xs">⚠ {f.last_error}</div>}
                 </div>

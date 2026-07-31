@@ -1,4 +1,6 @@
 {
+  "basic_auth_pass": "hunter2",
+  "basic_auth_user": "team",
   "name": "Team calendar",
   "url": "https://cal.example.com/team.ics"
 }
