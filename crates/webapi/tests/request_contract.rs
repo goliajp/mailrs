@@ -140,6 +140,34 @@ fn batch_mutation_body_matches() {
     assert_eq!(v.thread_ids.len(), 2);
 }
 
+/// The three writing-assistance bodies.
+///
+/// `reply-suggest` is the reason these exist. Its three `original_*` fields
+/// are required, and the client sent `sender` and `subject` instead — serde
+/// dropped both, `original_sender` was then missing, and every call was a
+/// 422. The button had never worked on the lane that had the route, and the
+/// lane production runs had no route at all.
+#[test]
+fn ai_bodies_match() {
+    let polish: mailrs_intelligence::assist::PolishRequest = parse("ai-polish");
+    assert_eq!(polish.text, "please make this better");
+    assert_eq!(polish.tone, "professional");
+
+    let suggest: mailrs_intelligence::assist::ReplySuggestRequest = parse("ai-reply-suggest");
+    assert_eq!(suggest.original_sender, "nagata@nagatax.tokyo.jp");
+    assert_eq!(suggest.original_subject, "Meeting");
+    assert_eq!(suggest.original_body, "Are you free on Thursday?");
+    // Not sent by the client; the default is what the handler uses.
+    assert_eq!(suggest.tone, "professional");
+
+    let subject: mailrs_intelligence::assist::SubjectGenerateRequest = parse("ai-generate-subject");
+    assert_eq!(subject.body, "Confirming Thursday at 3pm.");
+    assert_eq!(
+        subject.context.as_deref(),
+        Some("To: nagata@nagatax.tokyo.jp")
+    );
+}
+
 /// Every fixture is checked by a test above.
 ///
 /// Without this, adding a fixture and forgetting the case leaves the file
@@ -149,6 +177,9 @@ fn batch_mutation_body_matches() {
 #[test]
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
+        "ai-generate-subject",
+        "ai-polish",
+        "ai-reply-suggest",
         "batch-mutation",
         "calendar-feed-create",
         "email-group-create",

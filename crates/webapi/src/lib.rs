@@ -55,6 +55,16 @@ pub struct WebState {
     /// live uptime badge; before it existed both endpoints returned
     /// no uptime field and the frontend rendered `NaN`.
     pub started_at: std::time::Instant,
+    /// The writing-assistance model, when one is configured.
+    ///
+    /// `None` is the normal production state: `MAILRS_AI_ANALYSIS_ENABLED`
+    /// is off and the API key empty, so the three assist routes answer
+    /// `{"success":false,"message":"AI not configured"}`. Before this field
+    /// existed they were not registered at all and answered 405, which the
+    /// client rendered as a generic failure — the same news, told in a way
+    /// nobody could act on. Enabling the model is an ops decision with quota
+    /// consequences and is not made here.
+    pub llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>>,
 }
 
 impl WebState {
@@ -66,11 +76,39 @@ impl WebState {
             .expect("MAILRS_CORE_API_SECRET required for webapi");
         let core = Arc::new(mailrs_core_api::client::Client::new(base, secret));
         let bind_addr = std::env::var("MAILRS_WEB_BIND").unwrap_or_else(|_| "0.0.0.0:3100".into());
+        // Constructed exactly as the monolith does it, from the same env
+        // vars, so the two lanes answer from the same provider or from
+        // neither.
+        let ai_enabled = std::env::var("MAILRS_AI_ANALYSIS_ENABLED")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+        let llm_config: Option<Arc<dyn mailrs_intelligence::provider::LlmProvider>> =
+            match ai_enabled {
+                false => None,
+                true => {
+                    let url = std::env::var("MAILRS_LLM_URL")
+                        // Same default as `Config::default().llm_url` in the
+                        // monolith — a different one here would mean the two
+                        // lanes reach different models on the same env.
+                        .unwrap_or_else(|_| "https://devops.golia.jp/api/llm/complete".into());
+                    let api_key = std::env::var("MAILRS_LLM_API_KEY")
+                        .ok()
+                        .filter(|k| !k.is_empty());
+                    let model_id = format!(
+                        "qwen3.5-9b/{}",
+                        mailrs_intelligence::analyze::PROMPT_VERSION
+                    );
+                    Some(Arc::new(
+                        mailrs_intelligence::OpenAiCompatibleProvider::new(url, api_key, model_id),
+                    ))
+                }
+            };
         Self {
             core,
             bind_addr,
             event_bus: std::sync::OnceLock::new(),
             started_at: std::time::Instant::now(),
+            llm_config,
         }
     }
 }
@@ -158,6 +196,18 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     use axum::routing::delete;
     let mail = axum::Router::new()
         .route("/api/mail/folders", get(handlers::mail::get_folders))
+        // Writing assistance. Registered whether or not a model is
+        // configured: an unconfigured route that says so beats a missing one
+        // that answers 405.
+        .route("/api/mail/ai/polish", post(handlers::ai::ai_polish))
+        .route(
+            "/api/mail/ai/reply-suggest",
+            post(handlers::ai::ai_reply_suggest),
+        )
+        .route(
+            "/api/mail/ai/generate-subject",
+            post(handlers::ai::ai_generate_subject),
+        )
         .route(
             "/api/mail/messages/{uid}/raw",
             get(handlers::messages::get_message_raw),
@@ -1009,10 +1059,67 @@ mod router_tests {
             bind_addr: "127.0.0.1:0".into(),
             event_bus: std::sync::OnceLock::new(),
             started_at: std::time::Instant::now(),
+            llm_config: None,
         });
         // Constructed by hand rather than via `WebState::from_env()`, which
         // reads MAILRS_CORE_API_SECRET and panics without it — and env
         // mutation from a test races every other test in the binary.
         let _router = build_router(state);
+    }
+
+    /// The writing-assistance routes exist whether or not a model does.
+    ///
+    /// Production runs this lane with `MAILRS_AI_ANALYSIS_ENABLED` unset, and
+    /// until now the three routes were not registered at all: Polish, Suggest
+    /// and Generate subject answered 405, which the client rendered as a
+    /// generic failure. A route that says "AI not configured" is the same
+    /// news told in a form the user can act on — and it is the shape the
+    /// client already parses.
+    #[tokio::test]
+    async fn the_assist_routes_answer_without_a_model() {
+        use axum::body::Body;
+        use axum::http::{Method, Request};
+        use tower::ServiceExt;
+
+        let state = Arc::new(WebState {
+            core: Arc::new(mailrs_core_api::client::Client::new(
+                "http://127.0.0.1:1",
+                "test-secret",
+            )),
+            bind_addr: "127.0.0.1:0".into(),
+            event_bus: std::sync::OnceLock::new(),
+            started_at: std::time::Instant::now(),
+            llm_config: None,
+        });
+
+        for (path, body) in [
+            ("/api/mail/ai/polish", r#"{"text":"hello"}"#),
+            ("/api/mail/ai/reply-suggest", r#"{"original_body":"hi"}"#),
+            ("/api/mail/ai/generate-subject", r#"{"body":"hi"}"#),
+        ] {
+            let resp = build_router(state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri(path)
+                        .header("content-type", "application/json")
+                        .body(Body::from(body))
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            // Unauthenticated, so 401 — but never 405, which is what a
+            // missing route gives and what production returned.
+            assert_ne!(
+                resp.status(),
+                axum::http::StatusCode::METHOD_NOT_ALLOWED,
+                "{path} is not registered"
+            );
+            assert_ne!(
+                resp.status(),
+                axum::http::StatusCode::NOT_FOUND,
+                "{path} is not registered"
+            );
+        }
     }
 }

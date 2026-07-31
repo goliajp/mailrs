@@ -1,26 +1,28 @@
-//! The three writing-assistance routes, as an adapter.
+//! The three writing-assistance routes.
 //!
-//! The request shapes, sanitising and prompts moved to
-//! `mailrs_intelligence::assist` when the fastcore lane needed them too.
-//! Copying the file across would have left two implementations of one
-//! contract with nothing to notice them drifting — the failure class this
-//! tree keeps paying for. What stays here is the extractor and the response
-//! type; everything a test would want to assert lives in the stone.
+//! Adapters only: the request shapes, sanitising and prompts live in
+//! `mailrs_intelligence::assist`, shared with the monolith lane. Before this
+//! module existed the fastcore lane — the one production runs — had no route
+//! for any of them, so Polish, Suggest and Generate subject answered 405 and
+//! the client showed a generic failure. With no model configured they now
+//! answer that, in words.
 
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
 use mailrs_intelligence::assist::{
     self, AssistUnavailable, PolishRequest, PolishResult, ReplySuggestRequest, ReplySuggestResult,
     SubjectGenerateRequest, SubjectGenerateResult,
 };
 
-use super::{AuthUser, WebState};
+use crate::WebState;
+use crate::handlers::conversations::AuthedUser;
 
-pub(super) async fn ai_polish(
-    AuthUser { .. }: AuthUser,
+/// `POST /api/mail/ai/polish`
+pub async fn ai_polish(
+    Extension(AuthedUser(_user)): Extension<AuthedUser>,
     State(state): State<Arc<WebState>>,
     Json(req): Json<PolishRequest>,
 ) -> impl IntoResponse {
@@ -30,8 +32,9 @@ pub(super) async fn ai_polish(
     Json(assist::polish(provider.as_ref(), &req).await)
 }
 
-pub(super) async fn ai_reply_suggest(
-    AuthUser { .. }: AuthUser,
+/// `POST /api/mail/ai/reply-suggest`
+pub async fn ai_reply_suggest(
+    Extension(AuthedUser(_user)): Extension<AuthedUser>,
     State(state): State<Arc<WebState>>,
     Json(req): Json<ReplySuggestRequest>,
 ) -> impl IntoResponse {
@@ -41,8 +44,9 @@ pub(super) async fn ai_reply_suggest(
     Json(assist::reply_suggest(provider.as_ref(), &req).await)
 }
 
-pub(super) async fn ai_generate_subject(
-    AuthUser { .. }: AuthUser,
+/// `POST /api/mail/ai/generate-subject`
+pub async fn ai_generate_subject(
+    Extension(AuthedUser(_user)): Extension<AuthedUser>,
     State(state): State<Arc<WebState>>,
     Json(req): Json<SubjectGenerateRequest>,
 ) -> impl IntoResponse {
