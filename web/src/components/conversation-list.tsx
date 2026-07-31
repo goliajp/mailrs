@@ -34,6 +34,7 @@ import {
 } from '@/hooks/use-mail-mutations'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
+import { listIdentity } from '@/lib/list-identity'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import { authAtom } from '@/store/auth'
@@ -375,17 +376,17 @@ type VirtualListItem =
   | { type: 'end' }
   | { type: 'sentinel' }
 
-// module-level: survives component unmount/remount on mobile view switching.
-// also persisted to sessionStorage so it survives a full page refresh.
-const SCROLL_STORAGE_KEY = 'chat:list-scroll'
-let savedScrollTop = (() => {
-  try {
-    const raw = sessionStorage.getItem(SCROLL_STORAGE_KEY)
-    return raw ? Number(raw) || 0 : 0
-  } catch {
-    return 0
-  }
-})()
+// Scroll position, per list.
+//
+// Survives the component unmounting on a mobile view switch (module scope)
+// and a full page refresh (sessionStorage). Keyed by which list is showing,
+// because it used to be one variable and one fixed key for all of them:
+// scrolling the Inbox and then opening Sent left Sent at the Inbox's offset,
+// showing the middle of a list the user had never scrolled.
+const SCROLL_STORAGE_PREFIX = 'chat:list-scroll:'
+
+const savedScrollTops = new Map<string, number>()
+
 export function ConversationList({
   onLoadMore,
   onRefresh,
@@ -425,8 +426,12 @@ export function ConversationList({
   const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // keep savedScrollTop / sessionStorage in sync with actual scroll position
-  // so a page refresh can put us back where we were.
+  // Which list is showing. Scroll and selection both reset off this.
+  const identity = useMemo(() => listIdentity(filters), [filters])
+  const identityRef = useRef(identity)
+
+  // keep the saved scroll in sync with the actual position so a page
+  // refresh puts us back where we were — under this list's own key.
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -435,7 +440,7 @@ export function ConversationList({
       if (rAFid != null) return
       rAFid = requestAnimationFrame(() => {
         rAFid = null
-        persistScroll(el.scrollTop)
+        persistScroll(identityRef.current, el.scrollTop)
       })
     }
     el.addEventListener('scroll', onScroll, { passive: true })
@@ -445,27 +450,56 @@ export function ConversationList({
     }
   }, [])
 
+  // Switching lists starts at the top with the first message selected.
+  //
+  // The component does not remount when the folder changes, so without this
+  // the container keeps the offset it had: scrolling the Inbox and then
+  // opening Sent showed the middle of Sent. The selection carried over the
+  // same way — a thread from the Inbox stayed open above the Sent list.
+  //
+  // `setSelectedId` and not the click handler: the handler also switches the
+  // mobile view to the thread, which would drag a phone user into a message
+  // they did not open.
+  const scrollRestoredRef = useRef(false)
+  useEffect(() => {
+    if (identityRef.current === identity) return
+    identityRef.current = identity
+    scrollRestoredRef.current = true
+    const el = scrollContainerRef.current
+    if (el) el.scrollTop = 0
+    persistScroll(identity, 0)
+    setSelectedId(null)
+  }, [identity, setSelectedId])
+
+  // With the list changed and the selection cleared, take the first row of
+  // whatever arrived. Separate from the reset above because the rows are
+  // not there yet when the identity changes.
+  useEffect(() => {
+    if (selectedId !== null) return
+    const first = conversations[0]
+    if (first) setSelectedId(first.thread_id)
+  }, [conversations, selectedId, setSelectedId])
+
   // scroll restore: wait until conversations actually populate before
   // applying the saved scrollTop — otherwise the scroll container has
   // no content height yet and the assignment clamps to 0.
-  const scrollRestoredRef = useRef(false)
   useEffect(() => {
     if (scrollRestoredRef.current) return
     if (conversations.length === 0) return
     const el = scrollContainerRef.current
     if (!el) return
-    if (savedScrollTop <= 0) {
+    const saved = readSavedScroll(identity)
+    if (saved <= 0) {
       scrollRestoredRef.current = true
       return
     }
     // give the virtualizer a frame to compute its total height
-    const target = savedScrollTop
     requestAnimationFrame(() => {
       const node = scrollContainerRef.current
-      if (node) node.scrollTop = target
+      if (node) node.scrollTop = saved
       scrollRestoredRef.current = true
     })
-  }, [conversations.length])
+  }, [conversations.length, identity])
 
   // callback ref: called when sentinel mounts/unmounts
   const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
@@ -758,7 +792,7 @@ export function ConversationList({
       // save scroll position before navigating to thread (also persists to
       // sessionStorage so a refresh from the thread view restores list scroll)
       if (scrollContainerRef.current) {
-        persistScroll(scrollContainerRef.current.scrollTop)
+        persistScroll(identityRef.current, scrollContainerRef.current.scrollTop)
       }
       setSelectedId(threadId)
       setComposingNew(false)
@@ -890,7 +924,6 @@ export function ConversationList({
     </div>
   )
 }
-
 // shared with the Sent / Drafts list views so every list groups rows
 // under the same Today / Yesterday / weekday pills.
 export function DateDivider({ label }: { label: string }) {
@@ -903,13 +936,27 @@ export function DateDivider({ label }: { label: string }) {
   )
 }
 
-function persistScroll(value: number) {
-  savedScrollTop = value
+function persistScroll(identity: string, value: number) {
+  savedScrollTops.set(identity, value)
   try {
-    if (value > 0) sessionStorage.setItem(SCROLL_STORAGE_KEY, String(value))
-    else sessionStorage.removeItem(SCROLL_STORAGE_KEY)
+    const key = SCROLL_STORAGE_PREFIX + identity
+    if (value > 0) sessionStorage.setItem(key, String(value))
+    else sessionStorage.removeItem(key)
   } catch {
     // ignore quota / privacy mode
+  }
+}
+
+function readSavedScroll(identity: string): number {
+  const cached = savedScrollTops.get(identity)
+  if (cached !== undefined) return cached
+  try {
+    const raw = sessionStorage.getItem(SCROLL_STORAGE_PREFIX + identity)
+    const value = raw ? Number(raw) || 0 : 0
+    savedScrollTops.set(identity, value)
+    return value
+  } catch {
+    return 0
   }
 }
 

@@ -43,8 +43,12 @@ vi.mock('@/hooks/use-mail-queries', () => ({
     isPending: false,
   }),
 }))
+// Mutable, because switching lists is a change of this value and the
+// component does not remount when it happens — which is exactly what the
+// scroll and selection bugs were.
+const filtersStub: { current: Record<string, unknown> } = { current: {} }
 vi.mock('@/hooks/use-current-mail-filters', () => ({
-  useCurrentMailFilters: () => ({}),
+  useCurrentMailFilters: () => filtersStub.current,
 }))
 vi.mock('@/hooks/use-flat-conversations', () => ({
   useFlatConversations: () => flatStub,
@@ -519,5 +523,72 @@ describe('ConversationItem rendering', () => {
     )
 
     expect(screen.queryByText('General')).toBeNull()
+  })
+})
+
+describe('switching lists', () => {
+  let store: ReturnType<typeof createStore>
+
+  beforeEach(() => {
+    store = makeStore()
+    filtersStub.current = { folder: 'Inbox' }
+    sessionStorage.clear()
+  })
+
+  /**
+   * The component does not remount when the folder changes, so scroll and
+   * selection both carried over: scrolling the Inbox and opening Sent showed
+   * the middle of Sent, and a thread selected in the Inbox stayed open above
+   * the Sent list.
+   */
+  it('selects the first message of the list it switched to', async () => {
+    const { selectedThreadIdAtom } = await import('@/store/ui')
+    flatStub.conversations = [makeConversation({ thread_id: 'inbox-1' })]
+
+    const view = render(
+      <Wrapper store={store}>
+        <ConversationList onLoadMore={vi.fn()} />
+      </Wrapper>
+    )
+    expect(store.get(selectedThreadIdAtom)).toBe('inbox-1')
+
+    // Switch lists: different filters, different rows.
+    filtersStub.current = { folder: 'Sent' }
+    flatStub.conversations = [makeConversation({ thread_id: 'sent-1' })]
+    view.rerender(
+      <Wrapper store={store}>
+        <ConversationList onLoadMore={vi.fn()} />
+      </Wrapper>
+    )
+
+    expect(store.get(selectedThreadIdAtom)).toBe('sent-1')
+  })
+
+  /**
+   * The saved scroll position used to be one module variable and one fixed
+   * sessionStorage key for every list. Each list keeps its own now, and
+   * arriving at one puts it at the top.
+   */
+  it('keeps each list its own scroll position', async () => {
+    const { listIdentity } = await import('@/lib/list-identity')
+    const inbox = listIdentity({ folder: 'Inbox' } as never)
+    const sent = listIdentity({ folder: 'Sent' } as never)
+
+    expect(inbox).not.toBe(sent)
+
+    // A position saved against the Inbox must not be readable as Sent's.
+    sessionStorage.setItem(`chat:list-scroll:${inbox}`, '420')
+    expect(sessionStorage.getItem(`chat:list-scroll:${sent}`)).toBeNull()
+  })
+
+  /** The same filters are the same list, however the object was built. */
+  it('gives one list one identity', async () => {
+    const { listIdentity } = await import('@/lib/list-identity')
+    expect(listIdentity({ folder: 'Inbox', unread: true } as never)).toBe(
+      listIdentity({ folder: 'Inbox', unread: true } as never)
+    )
+    expect(listIdentity({ folder: 'Inbox', unread: true } as never)).not.toBe(
+      listIdentity({ folder: 'Inbox', unread: false } as never)
+    )
   })
 })
