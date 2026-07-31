@@ -5049,6 +5049,12 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
     let mut only_shared_samples: Vec<String> = Vec::new();
     let mut differs_samples: Vec<String> = Vec::new();
     let mut only_per_user_samples: Vec<String> = Vec::new();
+    // A thread the user participates in whose per-user index is empty would
+    // show nothing after the cutover where it shows something now. Correct
+    // by the tenancy argument and still a visible regression, so it is
+    // counted before the switch rather than discovered after it.
+    let mut threads_empty_after = 0u64;
+    let mut threads_empty_samples: Vec<String> = Vec::new();
 
     for user in &users {
         for tid in state
@@ -5113,6 +5119,12 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
                     }
                 }
             }
+            if mine.is_empty() && !shared.is_empty() {
+                threads_empty_after += 1;
+                if threads_empty_samples.len() < 8 {
+                    threads_empty_samples.push(format!("{user} {tid} shared={}", shared.len()));
+                }
+            }
             for mid in &mine {
                 if !shared.contains_key(mid) {
                     only_in_per_user += 1;
@@ -5142,6 +5154,9 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
         "shared_resolves": shared_resolves,
         "per_user_resolves": per_user_resolves,
         "blob_ref_differs_samples": differs_samples,
+        // Threads that would render empty after the read cutover.
+        "threads_empty_after_cutover": threads_empty_after,
+        "threads_empty_after_cutover_samples": threads_empty_samples,
     }))
     .into_response()
 }
