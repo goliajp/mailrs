@@ -209,6 +209,32 @@ fn alias_create_body_matches() {
     assert_eq!(v.alias_type, "forward");
 }
 
+/// Account provisioning. A dropped field here is an account that cannot
+/// log in — `password` is hashed server-side, so losing it stores an
+/// account with no usable credential rather than failing.
+#[test]
+fn account_create_body_matches() {
+    let v: mailrs_core_api::method::admin::AddAccountRequest = parse("account-create");
+    assert_eq!(v.address.as_str(), "qa@golia.jp");
+    assert_eq!(v.display_name, "QA");
+    assert_eq!(v.password, "not-a-real-password");
+}
+
+#[test]
+fn domain_create_body_matches() {
+    let v: mailrs_core_api::method::admin::AddDomainRequest = parse("domain-create");
+    assert_eq!(v.name, "golia.jp");
+}
+
+/// Saving a group's permissions. This was a 405 in production until
+/// 2026-07-31 because the lane registered POST while the page sends PUT,
+/// so the body had never reached the handler to be checked.
+#[test]
+fn group_permissions_body_matches() {
+    let v: handlers::complete::SetGroupPermissionsRequest = parse("group-permissions-set");
+    assert_eq!(v.permissions, vec!["admin.accounts", "admin.aliases"]);
+}
+
 /// An unknown field is refused, by name.
 ///
 /// The point of `deny_unknown_fields` is that the failure says which field.
@@ -247,7 +273,10 @@ fn an_unknown_field_is_named_rather_than_dropped() {
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
         "ai-generate-subject",
+        "account-create",
         "alias-create",
+        "domain-create",
+        "group-permissions-set",
         "ai-polish",
         "ai-reply-suggest",
         "batch-mutation",
