@@ -28,14 +28,25 @@ export type MailRowState = {
   readonly selected?: boolean
 }
 
+/** Layout plus state, for a row that is itself the clickable element. */
+export function mailRowClass(state: MailRowState): string {
+  return `${MAIL_ROW_BASE} ${mailRowStateClass(state)}`
+}
+
 /**
- * The classes for one row.
+ * Just the state part — border, background, dimming.
+ *
+ * Separate from the layout so a row with its own internal structure can
+ * share how a state *looks* without inheriting a flex box it does not want.
+ * The drafts row is a wrapper with its own button inside; making it take
+ * the full base meant overriding half of it back with `!important`, which
+ * is worse than not sharing at all.
  *
  * `flagged` wins the left border: a send that failed is worth more of the
  * user's attention than which row happens to be open, and the two never
  * need to be distinguished at once.
  */
-export function mailRowClass(state: MailRowState): string {
+export function mailRowStateClass(state: MailRowState): string {
   const isSelected = Boolean(state.selected) && !state.batchMode
   const border = state.flagged
     ? 'border-l-danger/60'
@@ -44,5 +55,5 @@ export function mailRowClass(state: MailRowState): string {
       : 'border-l-transparent'
   const bg = isSelected || state.checked ? 'bg-accent/10' : 'hover:bg-bg-secondary'
   const dim = state.muted && !isSelected && !state.checked ? 'opacity-70 hover:opacity-100' : ''
-  return `${MAIL_ROW_BASE} ${border} ${bg} ${dim}`
+  return `${border} ${bg} ${dim}`
 }

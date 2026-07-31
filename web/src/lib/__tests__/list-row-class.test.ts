@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { mailRowClass } from '../list-row-class'
+import { mailRowClass, mailRowStateClass } from '../list-row-class'
 
 /**
  * The Inbox and the Send view are separate components and each had its own
@@ -46,6 +46,35 @@ describe('mailRowClass', () => {
     expect(mailRowClass({ muted: true })).toContain('opacity-70')
     expect(mailRowClass({ muted: true, selected: true })).not.toContain('opacity-70')
     expect(mailRowClass({ checked: true, muted: true })).not.toContain('opacity-70')
+  })
+
+  /**
+   * A row with its own internal structure — the drafts row is a wrapper with
+   * a button inside — takes only the state half. It has to say the same
+   * thing about a state as the full version, or the two lists disagree
+   * about what "selected" looks like, which is the drift being removed.
+   */
+  it('the state half says the same thing as the whole', () => {
+    for (const state of [
+      {},
+      { selected: true },
+      { flagged: true },
+      { muted: true },
+      { batchMode: true, selected: true },
+      { checked: true },
+    ]) {
+      const whole = mailRowClass(state)
+      for (const token of mailRowStateClass(state).split(' ').filter(Boolean)) {
+        expect(whole).toContain(token)
+      }
+    }
+  })
+
+  it('the state half carries no layout', () => {
+    // Layout belongs to the caller when the row is not itself the button.
+    for (const token of ['flex', 'px-4', 'py-2', 'h-16']) {
+      expect(mailRowStateClass({ selected: true })).not.toContain(token)
+    }
   })
 
   it('every row is the same height, whatever its state', () => {
