@@ -4,7 +4,7 @@ import type { Draft } from '@/lib/api'
 import { toast } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { DateDivider } from '@/components/conversation-list'
@@ -12,7 +12,13 @@ import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { useDeleteDraftMutation, useDraftsQuery } from '@/hooks/use-drafts'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
-import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
+import { mailRowStateClass } from '@/lib/list-row-class'
+import {
+  composeDraftSourceAtom,
+  composeReplySourceAtom,
+  composingNewAtom,
+  selectedThreadIdAtom,
+} from '@/store/ui'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
 // grouping the inbox list uses (drafts group on updated_at).
@@ -25,6 +31,18 @@ export function DraftsList() {
   const { data: drafts = [], isLoading } = useDraftsQuery()
   const deleteDraftMut = useDeleteDraftMutation()
   const setComposingNew = useSetAtom(composingNewAtom)
+  const setSelectedThreadId = useSetAtom(selectedThreadIdAtom)
+
+  // Arriving at Drafts clears the selection but selects nothing.
+  //
+  // The reading pane renders a thread whichever list is showing, so coming
+  // here from the Inbox left it displaying a thread that is not in this
+  // list. Unlike the Inbox and Send, there is no first row to take: opening
+  // a draft opens the composer, so auto-selecting one would pop it open the
+  // moment you arrived.
+  useEffect(() => {
+    setSelectedThreadId(null)
+  }, [setSelectedThreadId])
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
   const [query, setQuery] = useState('')
@@ -137,7 +155,7 @@ const DraftRow = memo(function DraftRow({
 
   return (
     <div
-      className="hover:bg-bg-secondary group relative h-16 border-l-[3px] border-l-transparent"
+      className={`group relative h-16 border-l-[3px] ${mailRowStateClass({})}`}
       onTouchEnd={ctx.onTouchEnd}
       onTouchMove={ctx.onTouchMove}
       onTouchStart={ctx.onTouchStart}
