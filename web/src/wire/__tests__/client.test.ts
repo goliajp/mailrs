@@ -64,24 +64,13 @@ describe('wireFetch', () => {
       'fetch',
       vi.fn(async () => new Response('{}', { status: 401 }))
     )
-    const href = vi.fn()
-    vi.stubGlobal('location', {
-      hash: '',
-      href: '',
-      pathname: '/chat',
-      search: '',
-      set href(v: string) {
-        href(v)
-      },
-      get href() {
-        return ''
-      },
-    } as unknown as Location)
+    const loc = { hash: '', href: '', pathname: '/chat', search: '' }
+    vi.stubGlobal('location', loc as unknown as Location)
 
     await expect(wireFetch(SCHEMA, { path: '/hi' })).rejects.toThrow()
-    expect(href).toHaveBeenCalledWith(expect.stringContaining('/login'))
+    expect(loc.href).toContain('/login')
     // The page the user was on comes back after logging in.
-    expect(href).toHaveBeenCalledWith(expect.stringContaining('return_to'))
+    expect(loc.href).toContain('return_to=%2Fchat')
   })
 
   it('maps 403 to WireError.kind=forbidden', async () => {
