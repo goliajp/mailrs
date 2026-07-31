@@ -5,7 +5,9 @@ import { toast } from '@goliapkg/gds'
 import { useAtomValue } from 'jotai'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
+import { AutosaveWarning } from '@/components/autosave-warning'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
+import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
 import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
@@ -99,6 +101,7 @@ export function ReplyBox({
   const restoredRef = useRef(false)
   const lastSavedRef = useRef('')
   const saveDraftMut = useSaveDraftMutation()
+  const autosave = useAutosaveStatus()
   const deleteDraftMut = useDeleteDraftMutation()
   const { data: serverDrafts = [] } = useDraftsQuery()
 
@@ -123,7 +126,8 @@ export function ReplyBox({
     if (!body.trim()) return
     const snapshot = body
     if (snapshot === lastSavedRef.current) return
-    try {
+    // Same contract as the full-screen composer: retry quietly, then say so.
+    await autosave.record(async () => {
       const res = await saveDraftMut.mutateAsync({
         body,
         id: draftIdRef.current ?? undefined,
@@ -133,10 +137,8 @@ export function ReplyBox({
       })
       if (res.id !== undefined) draftIdRef.current = Number(res.id)
       lastSavedRef.current = snapshot
-    } catch {
-      // transient — next tick retries
-    }
-  }, [saveDraftMut, threadId, subject, currentTo])
+    })
+  }, [autosave, saveDraftMut, threadId, subject, currentTo])
 
   // restore this thread's reply draft once the server list arrives
   useEffect(() => {
@@ -432,6 +434,8 @@ export function ReplyBox({
           />
         </Suspense>
       </div>
+
+      <AutosaveWarning error={autosave.lastError} show={autosave.shouldWarn} />
 
       <ActionBar
         mode={mode}
