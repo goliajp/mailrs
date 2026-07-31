@@ -2679,12 +2679,24 @@ async fn backfill_threading_route(
                             *entry = (w.internal_date, w.subject.clone());
                         }
                     }
+                    // This user's own filename, not the shared blob's —
+                    // which names whichever owner wrote last and, for 74
+                    // messages on production, a file in another mailbox.
+                    // Reading References through it is why
+                    // `file_unreadable` sat at 109.
+                    let blob_ref = state
+                        .mailbox
+                        .user_message_facts(user, &w.message_id)
+                        .ok()
+                        .flatten()
+                        .map(|f| f.blob_ref)
+                        .unwrap_or(w.blob_ref);
                     msgs.push((
                         w.message_id,
                         w.in_reply_to,
                         w.internal_date,
                         tid.to_string(),
-                        w.blob_ref,
+                        blob_ref,
                         w.subject,
                     ));
                 }
