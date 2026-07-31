@@ -173,6 +173,27 @@ fn ai_bodies_match() {
     );
 }
 
+/// The draft autosave, which runs every three seconds while composing.
+///
+/// The client sent an untyped `Record<string, unknown>` here, so a renamed
+/// field compiled and serde dropped it. `id` is the field that matters
+/// most: absent allocates a new draft, present upserts the same one, so
+/// losing it turns one draft into one per tick.
+#[test]
+fn draft_save_body_matches() {
+    let v: mailrs_core_api::method::admin::SaveDraftRequest = parse("draft-save");
+    assert_eq!(v.id, Some(42));
+    assert_eq!(v.to, "nagata@nagatax.tokyo.jp");
+    assert_eq!(v.cc, "someone@example.com");
+    assert_eq!(v.subject, "Re: Meeting");
+    assert_eq!(v.body, "Confirming Thursday at 3pm.");
+    // Reopening a reply from the Draft tab lost this until 2026-07-30.
+    assert_eq!(
+        v.reply_to_thread_id.as_deref(),
+        Some("a48529b44b1b190f@golia.jp")
+    );
+}
+
 /// Every fixture is checked by a test above.
 ///
 /// Without this, adding a fixture and forgetting the case leaves the file
@@ -187,6 +208,7 @@ fn every_fixture_has_a_test() {
         "ai-reply-suggest",
         "batch-mutation",
         "calendar-feed-create",
+        "draft-save",
         "email-group-create",
         "feedback",
         "forgot-password",
