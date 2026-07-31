@@ -292,6 +292,32 @@ pub fn thread_messages(thread_id: &str) -> String {
     format!("mailrs:thread:{thread_id}:messages")
 }
 
+/// Per-user facts about one message — `blob_ref`, `uid`, `flags`, `modseq`.
+///
+/// The message equivalent of [`thread_user`], and for the same reason it
+/// gives: a thread is multi-owner, so anything true of one owner and not
+/// another belongs on a row of its own. Six such fields sat on the shared
+/// `mailrs:msg:{mid}` blob until 2026-07-31, and on a multi-owner thread
+/// each was whoever wrote last — measured, 74 messages served to a user the
+/// row did not name. `blob_ref` was the only one that announced itself, by
+/// naming a maildir file in somebody else's mailbox, so the body came back
+/// empty. The other five were simply wrong.
+///
+/// See `.claude/rfcs/20260731-per-user-message-projection.md`.
+pub fn user_message(user: &str, message_id: &str) -> String {
+    format!("mailrs:usermsg:{user}:{message_id}")
+}
+
+/// The messages one user has in one thread — zset, score = internal_date,
+/// member = message_id (RFC string).
+///
+/// [`thread_messages`] is shared, so every owner of a thread is served every
+/// message in it whoever it was delivered to. A mailbox contains the mail
+/// its owner received; this is that set.
+pub fn thread_user_messages(user: &str, thread_id: &str) -> String {
+    format!("mailrs:threaduser:{user}:{thread_id}:messages")
+}
+
 /// Per-message JSON blob — value is a serialized MessageWire.
 /// HGET on the `wire` field returns the message; HSET on it overwrites.
 pub fn message_blob(message_id: &str) -> String {
