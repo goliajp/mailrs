@@ -1724,11 +1724,26 @@ pub(crate) fn ingest_delivered_file(
     };
     match serde_json::to_vec(&wire) {
         Ok(payload) => {
-            if let Err(e) = state
-                .mailbox
-                .upsert_message(&root, &message_id, date, &payload)
-            {
-                tracing::warn!(error = %e, %addr, %root, "drain ingest: upsert_message failed");
+            // The shared blob plus this user's own row: their maildir
+            // filename, their uid, their flags. A thread can have several
+            // owners and each has a different file on disk, so a single
+            // `blob_ref` on the shared blob is one owner's — 74 messages on
+            // production were served to a user the row did not name. See
+            // `.claude/rfcs/20260731-per-user-message-projection.md`.
+            if let Err(e) = state.mailbox.upsert_user_message(
+                addr,
+                &root,
+                &message_id,
+                date,
+                &payload,
+                &mailrs_mailbox_kevy::UserMessageFacts {
+                    blob_ref,
+                    uid: wire.uid,
+                    flags: wire.flags,
+                    modseq: wire.modseq,
+                },
+            ) {
+                tracing::warn!(error = %e, %addr, %root, "drain ingest: upsert_user_message failed");
             }
         }
         Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),

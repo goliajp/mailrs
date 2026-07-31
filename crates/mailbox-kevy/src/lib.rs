@@ -84,6 +84,7 @@ mod thread_row;
 pub use list_threads::ListThreadsFilter;
 pub use mailrs_mailbox::threading::normalize_subject;
 pub use message_arrival::MessageArrival;
+pub use messages::{OwnedUserMessageFacts, UserMessageFacts};
 pub use thread_row::{ThreadRow, senders_csv_contains_user};
 
 /// Experimental kevy-backed implementation of `MailboxStore`.

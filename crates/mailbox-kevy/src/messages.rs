@@ -16,6 +16,32 @@ use std::io;
 use super::KevyMailboxStore;
 use super::keys;
 
+/// What is true of one user's copy of a message, borrowed for the write.
+#[derive(Debug, Clone, Copy)]
+pub struct UserMessageFacts<'a> {
+    /// The maildir filename **in this user's mailbox**.
+    pub blob_ref: &'a str,
+    /// This user's IMAP UID for it.
+    pub uid: u32,
+    /// This user's flags.
+    pub flags: u32,
+    /// This user's mod-sequence.
+    pub modseq: u64,
+}
+
+/// The same, owned, as read back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnedUserMessageFacts {
+    /// The maildir filename in this user's mailbox.
+    pub blob_ref: String,
+    /// This user's IMAP UID.
+    pub uid: u32,
+    /// This user's flags.
+    pub flags: u32,
+    /// This user's mod-sequence.
+    pub modseq: u64,
+}
+
 impl KevyMailboxStore {
     /// Write `payload` bytes to the message-blob key + zadd to the
     /// thread's message index with score = `internal_date`. `payload`
@@ -39,6 +65,115 @@ impl KevyMailboxStore {
                 Ok(())
             })
             .map_err(std::io::Error::other)
+    }
+
+    /// Write a message *as one user's copy of it*.
+    ///
+    /// The shared blob and index as before, plus the per-user row and the
+    /// per-user thread index. Those two are what make a mailbox a mailbox:
+    /// a maildir filename, a uid and a set of flags are true of one owner
+    /// and not another, and a thread can have several. Six such fields sat
+    /// on the shared blob until 2026-07-31, and on a multi-owner thread each
+    /// was whoever wrote last — 74 messages on production were served to a
+    /// user the row did not name, their `blob_ref` pointing into somebody
+    /// else's maildir.
+    ///
+    /// Stage 1 of `.claude/rfcs/20260731-per-user-message-projection.md`:
+    /// written and not yet read, so a backfill and a shadow comparison can
+    /// run before anything depends on it.
+    pub fn upsert_user_message(
+        &self,
+        user: &str,
+        thread_id: &str,
+        message_id: &str,
+        internal_date: i64,
+        payload: &[u8],
+        per_user: &UserMessageFacts<'_>,
+    ) -> io::Result<()> {
+        let blob_key = keys::message_blob(message_id);
+        let zset = keys::thread_messages(thread_id);
+        let user_key = keys::user_message(user, message_id);
+        let user_zset = keys::thread_user_messages(user, thread_id);
+        let uid = per_user.uid.to_string();
+        let flags = per_user.flags.to_string();
+        let modseq = per_user.modseq.to_string();
+        self.store()
+            .atomic(|ctx| {
+                ctx.set(blob_key.as_bytes(), payload);
+                ctx.zadd(
+                    zset.as_bytes(),
+                    &[(internal_date as f64, message_id.as_bytes())],
+                )?;
+                ctx.hset(
+                    user_key.as_bytes(),
+                    &[
+                        (b"blob_ref".as_slice(), per_user.blob_ref.as_bytes()),
+                        (b"uid".as_slice(), uid.as_bytes()),
+                        (b"flags".as_slice(), flags.as_bytes()),
+                        (b"modseq".as_slice(), modseq.as_bytes()),
+                    ],
+                )?;
+                ctx.zadd(
+                    user_zset.as_bytes(),
+                    &[(internal_date as f64, message_id.as_bytes())],
+                )?;
+                Ok(())
+            })
+            .map_err(std::io::Error::other)
+    }
+
+    /// One user's facts about one message, or `None` if they have no copy.
+    pub fn user_message_facts(
+        &self,
+        user: &str,
+        message_id: &str,
+    ) -> io::Result<Option<OwnedUserMessageFacts>> {
+        let key = keys::user_message(user, message_id);
+        let flat = self
+            .store()
+            .hgetall(key.as_bytes())
+            .map_err(std::io::Error::other)?;
+        if flat.is_empty() {
+            return Ok(None);
+        }
+        let mut blob_ref = None;
+        let mut uid = 0u32;
+        let mut flags = 0u32;
+        let mut modseq = 0u64;
+        // The embedded store returns pairs, not the network client's flat
+        // alternating list.
+        for (field, value) in &flat {
+            let v = String::from_utf8_lossy(value).to_string();
+            match std::str::from_utf8(field).unwrap_or("") {
+                "blob_ref" => blob_ref = Some(v),
+                "uid" => uid = v.parse().unwrap_or(0),
+                "flags" => flags = v.parse().unwrap_or(0),
+                "modseq" => modseq = v.parse().unwrap_or(0),
+                _ => {}
+            }
+        }
+        // A row without a blob_ref is not a copy — returning one would put
+        // the caller back to building a path from the requesting user,
+        // which is the defect this replaces.
+        Ok(blob_ref.map(|blob_ref| OwnedUserMessageFacts {
+            blob_ref,
+            uid,
+            flags,
+            modseq,
+        }))
+    }
+
+    /// The message ids one user has in one thread, oldest first.
+    pub fn user_thread_message_ids(&self, user: &str, thread_id: &str) -> io::Result<Vec<String>> {
+        let key = keys::thread_user_messages(user, thread_id);
+        let members = self
+            .store()
+            .zrange(key.as_bytes(), 0, -1)
+            .map_err(std::io::Error::other)?;
+        Ok(members
+            .into_iter()
+            .filter_map(|(m, _)| String::from_utf8(m).ok())
+            .collect())
     }
 
     /// Read message bytes for `message_id`. Returns `None` if the key
@@ -421,5 +556,173 @@ mod tests {
         // zset member dedup'd by member name — still 1 entry
         let zset = keys::thread_messages("t1");
         assert_eq!(s.store().zcard(zset.as_bytes()).unwrap(), 1);
+    }
+}
+
+#[cfg(test)]
+mod user_message_tests {
+    use std::sync::Arc;
+
+    use kevy_embedded::{Config, Store};
+
+    use super::*;
+
+    fn store() -> KevyMailboxStore {
+        KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("in-memory kevy"),
+        ))
+    }
+
+    fn facts<'a>(blob_ref: &'a str, uid: u32) -> UserMessageFacts<'a> {
+        UserMessageFacts {
+            blob_ref,
+            uid,
+            flags: 0,
+            modseq: 1,
+        }
+    }
+
+    /// The case that produced this: one message delivered to two accounts.
+    ///
+    /// Each has its own file on disk, its own uid and its own flags. Sharing
+    /// one `blob_ref` between them meant one of the two read a filename in
+    /// the other's maildir — 74 messages on production, and the reason
+    /// `devops@golia.jp` saw an empty body on a message it had received.
+    ///
+    /// No test covered two owners before this one, which is how six per-user
+    /// fields sat on a shared row without anything noticing.
+    #[test]
+    fn two_recipients_of_one_message_each_read_their_own_copy() {
+        let s = store();
+        let mid = "<m1@example.com>";
+        let payload = br#"{"subject":"Meeting"}"#;
+
+        s.upsert_user_message(
+            "lihao@golia.jp",
+            "t1",
+            mid,
+            100,
+            payload,
+            &facts("1785371752.M825462P1Q12.host", 7),
+        )
+        .expect("lihao copy");
+        s.upsert_user_message(
+            "devops@golia.jp",
+            "t1",
+            mid,
+            100,
+            payload,
+            &facts("1785371752.M746980P1Q2.other", 3),
+        )
+        .expect("devops copy");
+
+        let lihao = s
+            .user_message_facts("lihao@golia.jp", mid)
+            .expect("read")
+            .expect("lihao has a copy");
+        let devops = s
+            .user_message_facts("devops@golia.jp", mid)
+            .expect("read")
+            .expect("devops has a copy");
+
+        assert_ne!(
+            lihao.blob_ref, devops.blob_ref,
+            "each owner's blob_ref names a file in their own maildir"
+        );
+        assert_eq!(lihao.blob_ref, "1785371752.M825462P1Q12.host");
+        assert_eq!(devops.blob_ref, "1785371752.M746980P1Q2.other");
+        // uids are allocated per user and must not be shared either.
+        assert_eq!(lihao.uid, 7);
+        assert_eq!(devops.uid, 3);
+
+        // One shared blob underneath, holding what is genuinely shared.
+        assert_eq!(
+            s.get_message(mid).expect("get").as_deref(),
+            Some(&payload[..])
+        );
+    }
+
+    /// A mailbox contains the mail its owner received.
+    ///
+    /// The shared `thread:{tid}:messages` index gives every owner every
+    /// message in the thread whoever it was delivered to. A message sent to
+    /// one owner only must not appear in the other's thread.
+    #[test]
+    fn a_message_one_owner_never_received_is_not_in_their_thread() {
+        let s = store();
+        s.upsert_user_message(
+            "lihao@golia.jp",
+            "t1",
+            "<shared@example.com>",
+            100,
+            b"{}",
+            &facts("a.host", 1),
+        )
+        .expect("shared");
+        s.upsert_user_message(
+            "devops@golia.jp",
+            "t1",
+            "<shared@example.com>",
+            100,
+            b"{}",
+            &facts("b.host", 1),
+        )
+        .expect("shared");
+        // A later message in the same thread, delivered to lihao only.
+        s.upsert_user_message(
+            "lihao@golia.jp",
+            "t1",
+            "<lihao-only@example.com>",
+            200,
+            b"{}",
+            &facts("c.host", 2),
+        )
+        .expect("lihao only");
+
+        let lihao = s
+            .user_thread_message_ids("lihao@golia.jp", "t1")
+            .expect("read");
+        let devops = s
+            .user_thread_message_ids("devops@golia.jp", "t1")
+            .expect("read");
+
+        assert_eq!(lihao.len(), 2);
+        assert_eq!(
+            devops,
+            vec!["<shared@example.com>".to_string()],
+            "devops received one of the two and must see one"
+        );
+        assert!(
+            s.user_message_facts("devops@golia.jp", "<lihao-only@example.com>")
+                .expect("read")
+                .is_none()
+        );
+    }
+
+    /// Ordering is by internal_date, oldest first — the timeline order.
+    #[test]
+    fn a_users_thread_is_in_arrival_order() {
+        let s = store();
+        for (mid, date) in [("<c@x>", 300), ("<a@x>", 100), ("<b@x>", 200)] {
+            s.upsert_user_message("u@x.com", "t1", mid, date, b"{}", &facts("f.host", 1))
+                .expect("write");
+        }
+        assert_eq!(
+            s.user_thread_message_ids("u@x.com", "t1").expect("read"),
+            vec!["<a@x>", "<b@x>", "<c@x>"]
+        );
+    }
+
+    /// No row means no copy, and the caller must be able to tell that from
+    /// a row that exists — otherwise it falls back to building a path from
+    /// the requesting user, which is the defect being replaced.
+    #[test]
+    fn a_user_without_a_copy_reads_none() {
+        let s = store();
+        assert!(
+            s.user_message_facts("nobody@x.com", "<m@x>")
+                .expect("read")
+                .is_none()
+        );
     }
 }
