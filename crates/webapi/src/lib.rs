@@ -234,10 +234,6 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::misc::get_keys).post(handlers::misc::save_key),
         )
         .route(
-            "/api/mail/check-deliverability",
-            get(handlers::misc::check_deliverability),
-        )
-        .route(
             "/api/mail/spam-feedback",
             post(handlers::misc::spam_feedback),
         )

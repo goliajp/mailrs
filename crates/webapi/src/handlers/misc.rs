@@ -80,56 +80,6 @@ pub async fn save_key(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ── Deliverability check ─────────────────────────────────────────
-
-#[derive(Debug, serde::Deserialize)]
-pub struct DeliverabilityQuery {
-    pub domain: String,
-}
-
-/// GET /api/mail/check-deliverability?domain=example.com —
-/// look up SPF, DKIM (default._domainkey), and DMARC TXT records for
-/// the target domain and return a summary. External DNS only.
-pub async fn check_deliverability(
-    Query(q): Query<DeliverabilityQuery>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let resolver = hickory_resolver::TokioResolver::builder_tokio()
-        .and_then(|b| b.build())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    async fn txt_join(resolver: &hickory_resolver::TokioResolver, name: &str) -> Option<String> {
-        let l = resolver.txt_lookup(name).await.ok()?;
-        // hickory 0.26 dropped `Lookup::iter()` / `TXT::txt_data()`; walk the
-        // answer records instead. `TXT`'s Display concatenates the 255-byte
-        // character-strings with no separator, which is what a long SPF or
-        // DKIM record needs.
-        let joined: Vec<String> = l
-            .answers()
-            .iter()
-            .filter_map(|record| match &record.data {
-                hickory_resolver::proto::rr::RData::TXT(txt) => Some(txt.to_string()),
-                _ => None,
-            })
-            .collect();
-        if joined.is_empty() {
-            None
-        } else {
-            Some(joined.join("\n"))
-        }
-    }
-
-    let spf = txt_join(&resolver, &q.domain).await;
-    let dkim = txt_join(&resolver, &format!("default._domainkey.{}", q.domain)).await;
-    let dmarc = txt_join(&resolver, &format!("_dmarc.{}", q.domain)).await;
-
-    Ok(Json(serde_json::json!({
-        "domain": q.domain,
-        "spf": spf,
-        "dkim": dkim,
-        "dmarc": dmarc,
-    })))
-}
-
 // ── Spam feedback (network kevy hash) ─────────────────────────────
 
 #[derive(Debug, serde::Deserialize)]
