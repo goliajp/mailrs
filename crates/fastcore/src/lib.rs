@@ -5055,6 +5055,11 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
     // counted before the switch rather than discovered after it.
     let mut threads_empty_after = 0u64;
     let mut threads_empty_samples: Vec<String> = Vec::new();
+    // Per user, because eight samples taken in iteration order say nothing
+    // about the other 143. Whether these are one account's monitoring
+    // artefacts or somebody's mail is the whole decision.
+    let mut empty_by_user: std::collections::BTreeMap<String, u64> =
+        std::collections::BTreeMap::new();
 
     for user in &users {
         for tid in state
@@ -5121,6 +5126,7 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
             }
             if mine.is_empty() && !shared.is_empty() {
                 threads_empty_after += 1;
+                *empty_by_user.entry(user.clone()).or_insert(0) += 1;
                 if threads_empty_samples.len() < 8 {
                     threads_empty_samples.push(format!("{user} {tid} shared={}", shared.len()));
                 }
@@ -5157,6 +5163,7 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
         // Threads that would render empty after the read cutover.
         "threads_empty_after_cutover": threads_empty_after,
         "threads_empty_after_cutover_samples": threads_empty_samples,
+        "threads_empty_after_cutover_by_user": empty_by_user,
     }))
     .into_response()
 }
