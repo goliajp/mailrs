@@ -184,6 +184,27 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('ai-generate-subject'))
   })
 
+  /**
+   * The autosave, every three seconds while composing. Its payload was
+   * `Record<string, unknown>` until 2026-07-31, so a renamed field compiled
+   * and serde dropped it on arrival.
+   */
+  it('draft save', async () => {
+    const { wireSaveDraft } = await import('../endpoints/mail')
+    const body = await bodyOf(() =>
+      wireSaveDraft({
+        bcc: '',
+        body: 'Confirming Thursday at 3pm.',
+        cc: 'someone@example.com',
+        id: 42,
+        reply_to_thread_id: 'a48529b44b1b190f@golia.jp',
+        subject: 'Re: Meeting',
+        to: 'nagata@nagatax.tokyo.jp',
+      })
+    )
+    expect(body).toEqual(fixture('draft-save'))
+  })
+
   it('forgot password', async () => {
     const { wireForgotPassword } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))

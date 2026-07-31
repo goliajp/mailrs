@@ -107,6 +107,31 @@ export const wireUploadInlineImage = (file: File): Promise<WireInlineUploadResul
 
 // ── /mail/pending (undo send) ─────────────────────────────────────
 
+/**
+ * Backend: crates/webapi/src/handlers/prefs.rs — `save_draft`, taking
+ * `mailrs_core_api::method::admin::SaveDraftRequest`.
+ *
+ * The payload used to be `Record<string, unknown>`, so a misspelled or
+ * renamed field compiled and serde dropped it on arrival. The autosave that
+ * runs every three seconds is this call; when it fails it fails identically
+ * forever, and until 2026-07-31 it did so behind an empty catch.
+ *
+ * `id` absent allocates a draft, `id` present upserts that one — which is
+ * what keeps a compose session updating a single draft instead of spawning
+ * one per tick.
+ */
+export type WireSaveDraftRequest = {
+  bcc?: string
+  body?: string
+  cc?: string
+  id?: number
+  reply_to_thread_id?: string
+  subject?: string
+  to?: string
+}
+
+// ── /mail/drafts ──────────────────────────────────────────────────
+
 export async function wireDeletePendingSend(messageId: string): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
@@ -114,8 +139,6 @@ export async function wireDeletePendingSend(messageId: string): Promise<void> {
     path: `/mail/pending/${encodeURIComponent(messageId)}`,
   })
 }
-
-// ── /mail/drafts ──────────────────────────────────────────────────
 
 export async function wireListDrafts(): Promise<readonly WireDraft[]> {
   const raw = await wireFetch(draftListSchema, { path: '/mail/drafts' })
@@ -126,7 +149,7 @@ export function wireListSentMessages(): Promise<readonly WireSentMessage[]> {
   return wireFetch(sentMessagesSchema, { path: '/mail/sent' })
 }
 
-export const wireSaveDraft = (payload: Record<string, unknown>): Promise<WireSaveDraftResult> =>
+export const wireSaveDraft = (payload: WireSaveDraftRequest): Promise<WireSaveDraftResult> =>
   wireFetch(saveDraftResultSchema, {
     body: payload,
     method: 'POST',
