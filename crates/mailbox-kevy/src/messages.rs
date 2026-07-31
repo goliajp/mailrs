@@ -46,7 +46,16 @@ impl KevyMailboxStore {
     /// Write `payload` bytes to the message-blob key + zadd to the
     /// thread's message index with score = `internal_date`. `payload`
     /// is opaque — callers usually pass a serde-json'd MessageWire.
-    pub fn upsert_message(
+    ///
+    /// **Crate-private on purpose.** It writes the shared half and not the
+    /// per-user row, so a caller outside this crate using it leaves the
+    /// message invisible to the per-user read path — the
+    /// `every-writer-maintains-the-row` failure this projection exists to
+    /// prevent, and the one `record_message_arrival` already caused once by
+    /// not writing the membership row. [`upsert_user_message`] is the entry
+    /// point; omitting the per-user facts is a compile error rather than a
+    /// message nobody can see.
+    pub(crate) fn upsert_message(
         &self,
         thread_id: &str,
         message_id: &str,

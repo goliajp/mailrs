@@ -48,9 +48,24 @@ fn write_flags(
     wire.flags = new_flags;
     wire.modseq = new_modseq;
     let json = serde_json::to_vec(&wire).ok()?;
+    // Flags are a per-user fact — two owners of one thread read the same
+    // mail with independent \Seen state — so the write goes through the
+    // per-user entry point.
     state
         .mailbox
-        .upsert_message(&wire.thread_id, &wire.message_id, wire.internal_date, &json)
+        .upsert_user_message(
+            user,
+            &wire.thread_id,
+            &wire.message_id,
+            wire.internal_date,
+            &json,
+            &mailrs_mailbox_kevy::UserMessageFacts {
+                blob_ref: &wire.blob_ref,
+                uid: wire.uid,
+                flags: wire.flags,
+                modseq: wire.modseq,
+            },
+        )
         .ok()?;
     Some(new_modseq)
 }
