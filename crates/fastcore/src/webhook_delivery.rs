@@ -47,6 +47,10 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         }
     };
 
+    // Said once at boot, because the loop is otherwise silent while the
+    // queue is empty — indistinguishable from one that never started, which
+    // is the shape of silence this whole pass is about.
+    tracing::info!("webhook delivery started");
     let mut idle_rounds = 0u32;
     loop {
         let delivered = drain_once(&state, &client).await;

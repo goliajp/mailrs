@@ -153,16 +153,50 @@ pub async fn get_conflicts(
 
 // ── Feeds (subscriptions to external ICS URLs) ─────────────────────
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeedWire {
+/// The stored row, shared with the worker that syncs it.
+///
+/// Was a local type holding only what the form collected; the sync state the
+/// worker records (`last_synced_at`, `last_error`, the validators) now comes
+/// back with the feed, so a subscription that has been failing says so on
+/// the page where it was added.
+pub type FeedWire = mailrs_core_sidestate::families::calendar_feeds::FeedRow;
+
+/// A feed as the client sees it.
+///
+/// Separate from the stored row because the row holds the basic-auth
+/// password the user typed. Serving the stored row directly would send that
+/// password back to the browser on every list — and `FeedRow` has to keep it
+/// serializable, since that is how the worker reads it.
+#[derive(Debug, Serialize)]
+pub struct FeedView {
     pub id: String,
     pub name: String,
     pub url: String,
-    #[serde(default)]
     pub color: Option<String>,
-    #[serde(default)]
     pub sync_interval_secs: i64,
     pub created_at: i64,
+    pub last_synced_at: i64,
+    pub last_error: Option<String>,
+    pub last_event_count: i64,
+    /// Whether credentials are stored, without saying what they are.
+    pub has_basic_auth: bool,
+}
+
+impl From<FeedWire> for FeedView {
+    fn from(f: FeedWire) -> Self {
+        Self {
+            id: f.id,
+            name: f.name,
+            url: f.url,
+            color: f.color,
+            sync_interval_secs: f.sync_interval_secs,
+            created_at: f.created_at,
+            last_synced_at: f.last_synced_at,
+            last_error: f.last_error,
+            last_event_count: f.last_event_count,
+            has_basic_auth: f.basic_auth_user.is_some(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,6 +207,15 @@ pub struct CreateFeedRequest {
     pub color: Option<String>,
     #[serde(default = "default_sync_interval")]
     pub sync_interval_secs: i64,
+    /// Username for a feed behind HTTP basic auth.
+    ///
+    /// The inputs were removed on 2026-07-30 because nothing consumed them.
+    /// The fetcher that does now exists.
+    #[serde(default)]
+    pub basic_auth_user: Option<String>,
+    /// Password for a feed behind HTTP basic auth.
+    #[serde(default)]
+    pub basic_auth_pass: Option<String>,
 }
 
 fn default_sync_interval() -> i64 {
@@ -192,11 +235,11 @@ pub async fn list_feeds(
     let key = format!("calendar_feeds:{user}");
     let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
         .unwrap_or_default();
-    let mut items = Vec::new();
+    let mut items: Vec<FeedView> = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {
         if let Ok(f) = serde_json::from_slice::<FeedWire>(&flat[i + 1]) {
-            items.push(f);
+            items.push(f.into());
         }
         i += 2;
     }
@@ -207,7 +250,7 @@ pub async fn list_feeds(
 pub async fn create_feed(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Json(req): Json<CreateFeedRequest>,
-) -> Result<Json<FeedWire>, StatusCode> {
+) -> Result<Json<FeedView>, StatusCode> {
     let feed = FeedWire {
         id: random_id(),
         name: req.name,
@@ -215,6 +258,15 @@ pub async fn create_feed(
         color: req.color,
         sync_interval_secs: req.sync_interval_secs,
         created_at: now_secs(),
+        // Never synced, so the worker picks it up on its next tick rather
+        // than an interval from now.
+        last_synced_at: 0,
+        last_error: None,
+        last_event_count: 0,
+        etag: None,
+        last_modified: None,
+        basic_auth_user: req.basic_auth_user,
+        basic_auth_pass: req.basic_auth_pass,
     };
     let key = format!("calendar_feeds:{user}");
     let id_c = feed.id.clone();
@@ -224,7 +276,7 @@ pub async fn create_feed(
             .map_err(std::io::Error::other)?;
         Ok(())
     })?;
-    Ok(Json(feed))
+    Ok(Json(feed.into()))
 }
 
 /// DELETE /api/calendar/feeds/{feed_id} — unsubscribe.

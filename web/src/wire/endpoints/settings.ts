@@ -58,7 +58,16 @@ export async function wireCreateAgentKey(payload: {
  * named them, so they were dropped on arrival, and the prod lane has no
  * feed fetcher to use them (`spawn_feed_worker` is monolith-only).
  */
+/**
+ * Backend: crates/webapi/src/handlers/calendar.rs — `create_feed`, taking
+ * `CreateFeedRequest`.
+ *
+ * The basic-auth pair is sent again now that a fetcher consumes it; the
+ * inputs were removed on 2026-07-30 precisely because nothing did.
+ */
 export async function wireCreateCalendarFeed(payload: {
+  basicAuthPass?: string
+  basicAuthUser?: string
   color?: null | string
   name: string
   refreshIntervalSecs?: number
@@ -69,6 +78,8 @@ export async function wireCreateCalendarFeed(payload: {
   if (payload.refreshIntervalSecs !== undefined) {
     body['sync_interval_secs'] = payload.refreshIntervalSecs
   }
+  if (payload.basicAuthUser) body['basic_auth_user'] = payload.basicAuthUser
+  if (payload.basicAuthPass) body['basic_auth_pass'] = payload.basicAuthPass
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
     body,

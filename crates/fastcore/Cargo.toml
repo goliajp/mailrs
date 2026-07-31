@@ -88,6 +88,9 @@ mailrs-arc = { version = "3.0.0", path = "../arc" }
 mailrs-dkim = { version = "3.0.0", path = "../dkim" }
 psl = "2.1.222"
 
+# Calendar feed parsing — the same stone the monolith's feed worker uses,
+# including the VEVENT splitter.
+mailrs-ical = { path = "../ical", version = "2" }
 # Webhook delivery signing (HMAC-SHA256), same stone the monolith uses.
 mailrs-webhook-signature = "1"
 

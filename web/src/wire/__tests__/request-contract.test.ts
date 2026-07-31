@@ -133,6 +133,8 @@ describe('request bodies match the shared contract', () => {
     const { wireCreateCalendarFeed } = await import('../endpoints/settings')
     const body = await bodyOf(() =>
       wireCreateCalendarFeed({
+        basicAuthPass: 'hunter2',
+        basicAuthUser: 'team',
         name: 'Team calendar',
         url: 'https://cal.example.com/team.ics',
       })
