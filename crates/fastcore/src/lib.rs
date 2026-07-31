@@ -5046,7 +5046,8 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
     let mut blob_ref_differs = 0u64;
     let mut shared_resolves = 0u64;
     let mut per_user_resolves = 0u64;
-    let mut only_shared_samples: Vec<String> = Vec::new();
+    let mut only_shared_samples: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     let mut differs_samples: Vec<String> = Vec::new();
     let mut only_per_user_samples: Vec<String> = Vec::new();
     // A thread the user participates in whose per-user index is empty would
@@ -5054,7 +5055,13 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
     // by the tenancy argument and still a visible regression, so it is
     // counted before the switch rather than discovered after it.
     let mut threads_empty_after = 0u64;
-    let mut threads_empty_samples: Vec<String> = Vec::new();
+    // Per user, capped per user. A global cap of eight fills from whichever
+    // account the iteration reaches first — every sample came back
+    // `dmarc@golia.jp` while 113 of the 151 belonged to `lihao@golia.jp`,
+    // so the samples described the smaller half and said nothing about the
+    // larger one.
+    let mut threads_empty_samples: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     // Per user, because eight samples taken in iteration order say nothing
     // about the other 143. Whether these are one account's monitoring
     // artefacts or somebody's mail is the whole decision.
@@ -5092,8 +5099,9 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
                 match mine.contains(mid) {
                     false => {
                         only_in_shared += 1;
-                        if only_shared_samples.len() < 8 {
-                            only_shared_samples.push(format!("{user} {mid}"));
+                        let per_user = only_shared_samples.entry(user.clone()).or_default();
+                        if per_user.len() < 4 {
+                            per_user.push(mid.clone());
                         }
                     }
                     true => {
@@ -5127,8 +5135,9 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
             if mine.is_empty() && !shared.is_empty() {
                 threads_empty_after += 1;
                 *empty_by_user.entry(user.clone()).or_insert(0) += 1;
-                if threads_empty_samples.len() < 8 {
-                    threads_empty_samples.push(format!("{user} {tid} shared={}", shared.len()));
+                let per_user = threads_empty_samples.entry(user.clone()).or_default();
+                if per_user.len() < 4 {
+                    per_user.push(format!("{tid} shared={}", shared.len()));
                 }
             }
             for mid in &mine {
