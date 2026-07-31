@@ -169,7 +169,9 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         crate::handlers::complete::set_system_config_key(
             Path(params.key.clone()),
-            Json(serde_json::Value::String(params.value.clone())),
+            Json(crate::handlers::complete::SetSystemConfigRequest {
+                value: params.value.clone(),
+            }),
         )
         .await
         .map_err(|c| map_status(c, "set_system_config"))?;
