@@ -35,6 +35,7 @@ import {
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
+import { mailRowClass } from '@/lib/list-row-class'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import { authAtom } from '@/store/auth'
@@ -936,6 +937,48 @@ export function DateDivider({ label }: { label: string }) {
   )
 }
 
+// row outer class — pulled out so the JSX above stops being a 9-line
+// ternary salad; the four input bools map to the same 5-token output every
+// render, so a pure function is the clean place for it.
+// compact two-line rows (2026-07-17): h-16, no snippet line, matching
+// the Sent view's density. Height MUST stay in sync with the
+// virtualizer's estimateSize (fixed-size mode — see the note there), which
+// is why the base lives in `lib/list-row-class.ts` alongside the states —
+// the Send view has the same row and had drifted from it.
+function getRowClass({
+  batchMode,
+  checked,
+  hasUnread,
+  selected,
+}: {
+  batchMode: boolean
+  checked: boolean
+  hasUnread: boolean
+  selected: boolean
+}): string {
+  return mailRowClass({ batchMode, checked, muted: !hasUnread, selected })
+}
+
+function getSenderClass({ hasUnread, isOwn }: { hasUnread: boolean; isOwn: boolean }): string {
+  // hasUnread wins over isOwn — same effective cascade as the previous
+  // double-ternary (`text-accent text-fg ...` resolves to the last token).
+  const color = hasUnread ? 'text-fg font-semibold' : isOwn ? 'text-accent' : 'text-fg-secondary'
+  return `truncate text-sm ${color}`
+}
+
+function getStarClass({
+  density,
+  isFlagged,
+}: {
+  density: 'desktop' | 'mobile'
+  isFlagged: boolean
+}): string {
+  const base =
+    density === 'mobile' ? 'touch-target rounded p-1' : 'hover:bg-bg-secondary rounded p-0.5'
+  const color = isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'
+  return `${base} ${color}`
+}
+
 function persistScroll(identity: string, value: number) {
   savedScrollTops.set(identity, value)
   try {
@@ -1245,51 +1288,4 @@ function VirtualConversationList({
       </div>
     </div>
   )
-}
-
-// row outer class — pulled out so the JSX above stops being a 9-line
-// ternary salad; the four input bools map to the same 5-token output every
-// render, so a pure function is the clean place for it.
-// compact two-line rows (2026-07-17): h-16, no snippet line, matching
-// the Sent view's density. Height MUST stay in sync with the
-// virtualizer's estimateSize (fixed-size mode — see the note there).
-const ROW_BASE =
-  'focus-visible:ring-accent/50 relative flex h-16 w-full items-start gap-3 overflow-hidden border-l-[3px] px-4 py-2 text-left transition-all duration-150 focus-visible:ring-2 focus-visible:outline-none'
-
-function getRowClass({
-  batchMode,
-  checked,
-  hasUnread,
-  selected,
-}: {
-  batchMode: boolean
-  checked: boolean
-  hasUnread: boolean
-  selected: boolean
-}): string {
-  const isSelected = selected && !batchMode
-  const border = isSelected ? 'border-l-accent' : 'border-l-transparent'
-  const bg = isSelected || checked ? 'bg-accent/10' : 'hover:bg-bg-secondary'
-  const dim = !hasUnread && !selected && !checked ? 'opacity-70 hover:opacity-100' : ''
-  return `${ROW_BASE} ${border} ${bg} ${dim}`
-}
-
-function getSenderClass({ hasUnread, isOwn }: { hasUnread: boolean; isOwn: boolean }): string {
-  // hasUnread wins over isOwn — same effective cascade as the previous
-  // double-ternary (`text-accent text-fg ...` resolves to the last token).
-  const color = hasUnread ? 'text-fg font-semibold' : isOwn ? 'text-accent' : 'text-fg-secondary'
-  return `truncate text-sm ${color}`
-}
-
-function getStarClass({
-  density,
-  isFlagged,
-}: {
-  density: 'desktop' | 'mobile'
-  isFlagged: boolean
-}): string {
-  const base =
-    density === 'mobile' ? 'touch-target rounded p-1' : 'hover:bg-bg-secondary rounded p-0.5'
-  const color = isFlagged ? 'text-warning' : 'text-fg-muted hover:text-fg-secondary'
-  return `${base} ${color}`
 }
