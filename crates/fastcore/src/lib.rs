@@ -1883,6 +1883,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:drop-stray-usermsg-keys",
                 post(drop_stray_usermsg_keys_route),
             )
+            // Stage 3: compare the shared index against the per-user one
+            // before anything reads the latter.
+            .route(
+                "/v1/admin/maintenance:usermsg-shadow",
+                post(usermsg_shadow_route),
+            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -5000,7 +5006,147 @@ fn user_files_by_message_id(
     out
 }
 
-/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the
+/// `POST /v1/admin/maintenance:usermsg-shadow` — stage 3 of the per-user
+/// message projection.
+///
+/// Compares, per user, what the shared thread index serves against what the
+/// per-user index holds, and — for the messages in both — whether the two
+/// `blob_ref`s agree and which of them actually resolves on disk.
+///
+/// The membership difference and the blob_ref difference answer different
+/// questions, and the cutover needs both:
+///
+/// - `only_in_shared` is a message the shared index shows a user who has no
+///   copy of it. Expected to equal the backfill's `not_this_users`.
+/// - `only_in_per_user` must be zero. Anything here is the per-user index
+///   inventing a message, which would be worse than the defect.
+/// - `blob_ref_differs` is the fix's size: a message whose body the user
+///   will read from their own file after the cutover instead of somebody
+///   else's. `shared_resolves` / `per_user_resolves` say whether that is an
+///   improvement or a regression, measured against the disk rather than
+///   assumed.
+///
+/// Read-only. See `.claude/rfcs/20260731-per-user-message-projection.md`.
+async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
+    use mailrs_core_api::method::message::MessageWire;
+
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let mut threads = 0u64;
+    let mut in_both = 0u64;
+    let mut only_in_shared = 0u64;
+    let mut only_in_per_user = 0u64;
+    let mut blob_ref_same = 0u64;
+    let mut blob_ref_differs = 0u64;
+    let mut shared_resolves = 0u64;
+    let mut per_user_resolves = 0u64;
+    let mut only_shared_samples: Vec<String> = Vec::new();
+    let mut differs_samples: Vec<String> = Vec::new();
+    let mut only_per_user_samples: Vec<String> = Vec::new();
+
+    for user in &users {
+        for tid in state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default()
+        {
+            threads += 1;
+            let mut shared: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
+            for blob in state
+                .mailbox
+                .thread_messages_for_maintenance(&tid)
+                .unwrap_or_default()
+            {
+                if let Ok(w) = serde_json::from_slice::<MessageWire>(&blob)
+                    && !w.message_id.is_empty()
+                {
+                    shared.insert(w.message_id, w.blob_ref);
+                }
+            }
+            let mine: std::collections::HashSet<String> = state
+                .mailbox
+                .user_thread_message_ids(user, &tid)
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+
+            for (mid, shared_ref) in &shared {
+                match mine.contains(mid) {
+                    false => {
+                        only_in_shared += 1;
+                        if only_shared_samples.len() < 8 {
+                            only_shared_samples.push(format!("{user} {mid}"));
+                        }
+                    }
+                    true => {
+                        in_both += 1;
+                        let Ok(Some(facts)) = state.mailbox.user_message_facts(user, mid) else {
+                            continue;
+                        };
+                        if &facts.blob_ref == shared_ref {
+                            blob_ref_same += 1;
+                            continue;
+                        }
+                        blob_ref_differs += 1;
+                        // Against the disk, not against each other: the
+                        // point of the cutover is that the user's own file
+                        // is there and the shared one is not.
+                        if read_maildir_file(user, shared_ref).is_some() {
+                            shared_resolves += 1;
+                        }
+                        if read_maildir_file(user, &facts.blob_ref).is_some() {
+                            per_user_resolves += 1;
+                        }
+                        if differs_samples.len() < 8 {
+                            differs_samples.push(format!(
+                                "{user} {mid} shared={shared_ref} mine={}",
+                                facts.blob_ref
+                            ));
+                        }
+                    }
+                }
+            }
+            for mid in &mine {
+                if !shared.contains_key(mid) {
+                    only_in_per_user += 1;
+                    if only_per_user_samples.len() < 8 {
+                        only_per_user_samples.push(format!("{user} {mid}"));
+                    }
+                }
+            }
+        }
+    }
+
+    Json(serde_json::json!({
+        "accounts": users.len(),
+        "threads_compared": threads,
+        "in_both": in_both,
+        // Expected to match the backfill's `not_this_users`.
+        "only_in_shared": only_in_shared,
+        "only_in_shared_samples": only_shared_samples,
+        // Must be zero — the per-user index inventing a message would be
+        // worse than the defect it replaces.
+        "only_in_per_user": only_in_per_user,
+        "only_in_per_user_samples": only_per_user_samples,
+        "blob_ref_same": blob_ref_same,
+        // The size of the fix.
+        "blob_ref_differs": blob_ref_differs,
+        // Of those, measured against the disk.
+        "shared_resolves": shared_resolves,
+        "per_user_resolves": per_user_resolves,
+        "blob_ref_differs_samples": differs_samples,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the
 /// per-user message index keys written under the wrong prefix.
 ///
 /// The index was first spelled `mailrs:threaduser:{user}:{tid}:messages`,
