@@ -98,7 +98,17 @@ pub(crate) async fn backfill_decode_headers_route(
                 if w.message_id.is_empty() {
                     continue;
                 }
-                let Some(raw) = crate::read_maildir_file(user, &w.blob_ref) else {
+                // This user's own filename. The shared blob's names
+                // whichever owner wrote last, and reading through it looks
+                // in the wrong maildir for anyone else on the thread.
+                let blob_ref = state
+                    .mailbox
+                    .user_message_facts(user, &w.message_id)
+                    .ok()
+                    .flatten()
+                    .map(|f| f.blob_ref)
+                    .unwrap_or_else(|| w.blob_ref.clone());
+                let Some(raw) = crate::read_maildir_file(user, &blob_ref) else {
                     continue;
                 };
                 // Stamp the sender-auth verdict on rows ingested before
