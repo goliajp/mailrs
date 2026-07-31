@@ -42,6 +42,29 @@ pub struct OwnedUserMessageFacts {
     pub modseq: u64,
 }
 
+/// Blank the per-user fields on a serialized `MessageWire` before it is
+/// stored where several users read it.
+///
+/// Zeroed rather than removed: `MessageWire` does not default them, so a
+/// reader on an older binary would fail to deserialize a row without them
+/// and the message would vanish. A zero is the honest value for a field
+/// whose true value depends on who is asking.
+fn strip_per_user_fields(payload: &[u8]) -> Vec<u8> {
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(payload) else {
+        return payload.to_vec();
+    };
+    let Some(obj) = v.as_object_mut() else {
+        return payload.to_vec();
+    };
+    obj.insert("blob_ref".into(), "".into());
+    obj.insert("uid".into(), 0.into());
+    obj.insert("flags".into(), 0.into());
+    obj.insert("modseq".into(), 0.into());
+    obj.insert("mailbox_id".into(), 0.into());
+    obj.insert("user_address".into(), "".into());
+    serde_json::to_vec(&v).unwrap_or_else(|_| payload.to_vec())
+}
+
 /// Replace the per-user fields on a serialized `MessageWire` with this
 /// user's own.
 ///
@@ -128,9 +151,18 @@ impl KevyMailboxStore {
         let uid = per_user.uid.to_string();
         let flags = per_user.flags.to_string();
         let modseq = per_user.modseq.to_string();
+        // Stage 5: the shared blob stops carrying the per-user fields.
+        //
+        // They are cleared rather than left at the caller's values, because a
+        // shared row naming one owner is what served 74 messages on
+        // production a `blob_ref` in somebody else's mailbox. Old rows keep
+        // theirs — every reader falls back to them for anything the backfill
+        // has not reached — but nothing new records a per-user fact in a
+        // place several users read.
+        let shared_payload = strip_per_user_fields(payload);
         self.store()
             .atomic(|ctx| {
-                ctx.set(blob_key.as_bytes(), payload);
+                ctx.set(blob_key.as_bytes(), &shared_payload);
                 ctx.zadd(
                     zset.as_bytes(),
                     &[(internal_date as f64, message_id.as_bytes())],
@@ -229,7 +261,18 @@ impl KevyMailboxStore {
             return Ok(None);
         };
         let mid = String::from_utf8_lossy(&mid_bytes).to_string();
-        self.get_message(&mid)
+        let Some(shared) = self.get_message(&mid)? else {
+            return Ok(None);
+        };
+        // Overlaid, like `list_thread_messages`. The uid that found this
+        // message is the caller's own, so serving them the shared blob's
+        // `blob_ref` — whichever owner wrote last — would open a file in
+        // another mailbox, which is what IMAP FETCH and the attachment
+        // download would have done for the second owner of a thread.
+        Ok(Some(match self.user_message_facts(user, &mid)? {
+            Some(facts) => overlay_user_facts(&shared, &facts),
+            None => shared,
+        }))
     }
 
     /// Populate the per-user uid → message_id index for a single message.
@@ -724,11 +767,17 @@ mod user_message_tests {
         assert_eq!(lihao.uid, 7);
         assert_eq!(devops.uid, 3);
 
-        // One shared blob underneath, holding what is genuinely shared.
-        assert_eq!(
-            s.get_message(mid).expect("get").as_deref(),
-            Some(&payload[..])
-        );
+        // One shared blob underneath, holding what is genuinely shared and
+        // nothing that depends on who is asking. Stage 5 blanks the
+        // per-user fields on the way in, so the row cannot name one owner
+        // while several read it.
+        let shared: serde_json::Value =
+            serde_json::from_slice(&s.get_message(mid).expect("get").expect("present"))
+                .expect("json");
+        assert_eq!(shared["subject"], "Meeting");
+        assert_eq!(shared["blob_ref"], "");
+        assert_eq!(shared["uid"], 0);
+        assert_eq!(shared["user_address"], "");
     }
 
     /// A mailbox contains the mail its owner received.
