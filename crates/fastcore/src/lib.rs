@@ -1871,6 +1871,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 "/v1/admin/maintenance:migrate-agent-webhooks",
                 post(migrate_agent_webhooks_route),
             )
+            // Stage 2 of the per-user message projection: give every user
+            // their own row for the messages they actually have.
+            .route(
+                "/v1/admin/maintenance:backfill-user-messages",
+                post(backfill_user_messages_route),
+            )
             // Ops endpoint — seed the Bayesian corpus from existing
             // junk (spam) + inbox (ham) folders. One-shot; refuses if
             // the corpus is already non-empty.
@@ -4914,6 +4920,182 @@ fn enqueue_webhooks_for_arrival(
             Err(e) => tracing::warn!(err = %e, subscription = sub.id, "webhook: enqueue failed"),
         }
     }
+}
+
+/// Every maildir file a user has, indexed by `Message-ID`.
+///
+/// One pass, 16 KB of each file. Used by the per-user message backfill to
+/// answer "does this user have their own copy of this message, and under
+/// what filename" — which is the question the shared message blob could
+/// not answer, because it holds one owner's filename for all of them.
+fn user_files_by_message_id(
+    maildir_root: &str,
+    user: &str,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    let Some((local, domain)) = user.split_once('@') else {
+        return out;
+    };
+    let base = std::path::PathBuf::from(maildir_root)
+        .join(domain)
+        .join(local);
+    let mut files: Vec<(String, std::path::PathBuf)> = Vec::new();
+    for sub in ["cur", "new"] {
+        if let Ok(iter) = std::fs::read_dir(base.join(sub)) {
+            for e in iter.flatten() {
+                if e.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                    files.push((String::new(), e.path()));
+                }
+            }
+        }
+    }
+    if let Ok(iter) = std::fs::read_dir(&base) {
+        for entry in iter.flatten() {
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !name.starts_with('.') {
+                continue;
+            }
+            for sub in ["cur", "new"] {
+                if let Ok(iter) = std::fs::read_dir(entry.path().join(sub)) {
+                    for e in iter.flatten() {
+                        if e.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                            files.push((name.clone(), e.path()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (subfolder, path) in files {
+        let bare = path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let blob_ref = match subfolder.is_empty() {
+            true => bare,
+            false => format!("{subfolder}/{bare}"),
+        };
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        let head = &bytes[..bytes.len().min(16 * 1024)];
+        let (message_id, ..) = extract_headers(head);
+        if message_id.is_empty() {
+            continue;
+        }
+        // First wins. A duplicate Message-ID inside one mailbox is the same
+        // mail delivered twice; either filename is that user's own copy,
+        // which is all this index has to be right about.
+        out.entry(message_id).or_insert(blob_ref);
+    }
+    out
+}
+
+/// `POST /v1/admin/maintenance:backfill-user-messages` — stage 2 of the
+/// per-user message projection.
+///
+/// For every (user, thread) row, decide for each message in the shared
+/// thread index whether that user has their own copy, and record their
+/// filename if so. A message the user never received gets no row, which is
+/// the correction: `thread:{tid}:messages` is shared, so today every owner
+/// of a thread is served every message in it whoever it was delivered to.
+///
+/// Idempotent — rerunning re-derives the same rows from the same files.
+///
+/// See `.claude/rfcs/20260731-per-user-message-projection.md`.
+async fn backfill_user_messages_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    use mailrs_core_api::method::message::MessageWire;
+
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+
+    let mut threads_seen = 0u64;
+    let mut messages_seen = 0u64;
+    let mut rows_written = 0u64;
+    let mut not_this_users = 0u64;
+    let mut no_message_id = 0u64;
+    let mut samples: Vec<String> = Vec::new();
+
+    for user in &users {
+        let by_mid = user_files_by_message_id(&root, user);
+        let tids = state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default();
+        for tid in tids {
+            threads_seen += 1;
+            for blob in state
+                .mailbox
+                .thread_messages_for_maintenance(&tid)
+                .unwrap_or_default()
+            {
+                let Ok(w) = serde_json::from_slice::<MessageWire>(&blob) else {
+                    continue;
+                };
+                messages_seen += 1;
+                if w.message_id.is_empty() {
+                    no_message_id += 1;
+                    continue;
+                }
+                let Some(blob_ref) = by_mid.get(&w.message_id) else {
+                    // Not in this user's maildir: they never received it,
+                    // and the shared index was showing it to them anyway.
+                    not_this_users += 1;
+                    if samples.len() < 8 {
+                        samples.push(format!("{user} {}", w.message_id));
+                    }
+                    continue;
+                };
+                // Their uid, not the shared blob's — which belongs to
+                // whichever owner wrote it last.
+                let uid = state
+                    .mailbox
+                    .allocate_uid(user, &w.message_id)
+                    .unwrap_or(w.uid);
+                if let Err(e) = state.mailbox.upsert_user_message(
+                    user,
+                    &tid,
+                    &w.message_id,
+                    w.internal_date,
+                    &blob,
+                    &mailrs_mailbox_kevy::UserMessageFacts {
+                        blob_ref,
+                        uid,
+                        flags: w.flags,
+                        modseq: w.modseq,
+                    },
+                ) {
+                    tracing::warn!(err = %e, %user, "backfill-user-messages: write failed");
+                    continue;
+                }
+                rows_written += 1;
+            }
+        }
+    }
+
+    Json(serde_json::json!({
+        "accounts": users.len(),
+        "threads_seen": threads_seen,
+        "messages_seen": messages_seen,
+        "rows_written": rows_written,
+        // Messages the shared index served to a user who never received
+        // them. Non-zero is the tenancy exposure being closed, not an error.
+        "not_this_users": not_this_users,
+        "not_this_users_samples": samples,
+        "messages_without_message_id": no_message_id,
+    }))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:migrate-agent-webhooks` — one namespace.
