@@ -472,8 +472,13 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             get(handlers::complete::get_system_config),
         )
         .route(
+            // PUT and DELETE are what the admin page sends and what the
+            // monolith serves. This lane had POST only, so editing or
+            // resetting a setting answered 405.
             "/api/admin/system-config/{key}",
-            post(handlers::complete::set_system_config_key),
+            put(handlers::complete::set_system_config_key)
+                .post(handlers::complete::set_system_config_key)
+                .delete(handlers::complete::delete_system_config_key),
         )
         .route(
             "/api/admin/groups",
@@ -484,8 +489,11 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
             delete(handlers::complete::delete_group),
         )
         .route(
+            // Same story: the page saves with PUT, this lane took POST
+            // only, so a group's permissions could never be saved.
             "/api/admin/groups/{id}/permissions",
             get(handlers::complete::get_group_permissions)
+                .put(handlers::complete::set_group_permissions)
                 .post(handlers::complete::set_group_permissions),
         )
         .route(
@@ -763,6 +771,15 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         )
         .route(
             "/.well-known/autoconfig/mail/config-v1.1.xml",
+            get(handlers::autodiscover::autoconfig_mozilla),
+        )
+        .route(
+            // The second path Thunderbird probes, at
+            // `autoconfig.<domain>/mail/config-v1.1.xml`. The monolith
+            // served both; this lane served only the well-known one, so
+            // auto-setup failed for anyone whose client tried the
+            // subdomain first.
+            "/mail/config-v1.1.xml",
             get(handlers::autodiscover::autoconfig_mozilla),
         )
         .route(

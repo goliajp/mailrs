@@ -1077,16 +1077,43 @@ pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> 
     })))
 }
 
+/// The body the admin page sends, and the monolith's `UpdateConfigRequest`.
+///
+/// This handler used to take a bare `serde_json::Value` and store
+/// `body.as_str()` — falling back to the whole document's JSON text when it
+/// was not a string. The client sends `{"value": "..."}`, so the fallback
+/// was always the branch taken and every setting was stored as the literal
+/// `{"value":"..."}`. It never came up because the route was registered for
+/// POST while the client sends PUT, so the request was a 405 and never
+/// reached here.
+#[derive(Debug, serde::Deserialize)]
+pub struct SetSystemConfigRequest {
+    /// The value to store.
+    pub value: String,
+}
+
 pub async fn set_system_config_key(
     Path(k): Path<String>,
-    Json(body): Json<serde_json::Value>,
+    Json(req): Json<SetSystemConfigRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let v = body
-        .as_str()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| body.to_string());
     with_kevy(move |c| {
-        c.hset(b"admin:system-config", &[(k.as_bytes(), v.as_bytes())])
+        c.hset(
+            b"admin:system-config",
+            &[(k.as_bytes(), req.value.as_bytes())],
+        )
+        .map_err(std::io::Error::other)?;
+        Ok(())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `DELETE /api/admin/system-config/{key}` — back to the built-in default.
+///
+/// The client has a reset button; the fastcore lane had no route for it, so
+/// the button answered 405.
+pub async fn delete_system_config_key(Path(k): Path<String>) -> Result<StatusCode, StatusCode> {
+    with_kevy(move |c| {
+        c.hdel(b"admin:system-config", &[k.as_bytes()])
             .map_err(std::io::Error::other)?;
         Ok(())
     })?;

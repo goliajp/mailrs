@@ -52,7 +52,14 @@ HEAD_AT_START="$(git rev-parse HEAD)"
 assert_clean_tree
 
 if [ "${SKIP_GATE:-0}" != 1 ]; then
-    echo "==> [0/6] gate: fmt + clippy + test + perf"
+    echo "==> [0/6] gate: parity + fmt + clippy + test + perf"
+
+    # Two lanes serve one client, so a route or MCP tool on one and not the
+    # other is a feature that works or 405s depending on which is deployed.
+    # Neither check compiles anything, so both run first — a parity break is
+    # cheaper to learn about before a ten-minute test run than after.
+    ./scripts/check-mcp-parity.sh
+    ./scripts/check-rest-parity.sh
 
     # testcontainers goes through bollard, which does not pick up the
     # credentials the Docker CLI has, so a cold pull fails with
