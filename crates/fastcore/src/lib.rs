@@ -2655,7 +2655,11 @@ async fn backfill_threading_route(
                     // so nothing was missing and the cause had to be the
                     // reference itself.
                     if unreadable_samples.len() < 8 {
-                        unreadable_samples.push(blob_ref.to_string());
+                        // With the user: the file for every sample was
+                        // present on disk under one account, so which
+                        // account the row is filed under is the whole
+                        // question.
+                        unreadable_samples.push(format!("{user} {blob_ref}"));
                     }
                 }
                 Some(refs) if refs.is_empty() => no_references += 1,
