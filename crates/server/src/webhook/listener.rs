@@ -5,10 +5,16 @@ use tracing;
 use super::{Subscription, WebhookData, WebhookPayload, store};
 use crate::event_bus::{EventBus, SmtpEvent};
 
-/// check whether a subscription's filters match the given sender and thread_id
+/// Whether a subscription's filters admit this message.
+///
+/// Addresses are compared by [`mailrs_rfc5322::addr_key`], as the fastcore
+/// lane does. This used `!=` on the raw values, so a filter stored as
+/// `a@b.com` never matched a sender header written `Name <a@b.com>` — the
+/// form most mail arrives in — and a sender-filtered subscription fired for
+/// nobody.
 pub(crate) fn matches_subscription(sub: &Subscription, sender: &str, thread_id: &str) -> bool {
     if let Some(ref f) = sub.filter_sender
-        && f != sender
+        && mailrs_rfc5322::addr_key(f) != mailrs_rfc5322::addr_key(sender)
     {
         return false;
     }

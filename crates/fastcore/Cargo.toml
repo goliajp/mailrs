@@ -88,6 +88,9 @@ mailrs-arc = { version = "3.0.0", path = "../arc" }
 mailrs-dkim = { version = "3.0.0", path = "../dkim" }
 psl = "2.1.222"
 
+# Webhook delivery signing (HMAC-SHA256), same stone the monolith uses.
+mailrs-webhook-signature = "1"
+
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"

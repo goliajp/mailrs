@@ -243,6 +243,68 @@ pub fn migrate_agent_namespace(
     Ok((moved, addresses.len()))
 }
 
+/// Whether a subscription's filters admit this message.
+///
+/// Addresses are compared by [`mailrs_rfc5322::addr_key`], not by string
+/// equality. The monolith's matcher used `!=` on the raw values, so a filter
+/// stored as `a@b.com` never matched a sender header written
+/// `Name <a@b.com>` — the form most mail actually arrives in, which made a
+/// sender-filtered subscription silently fire for nobody.
+pub fn matches(sub: &WebhookSubWire, sender: &str, thread_id: &str) -> bool {
+    if !sub.active {
+        return false;
+    }
+    if let Some(ref f) = sub.filter_sender
+        && mailrs_rfc5322::addr_key(f) != mailrs_rfc5322::addr_key(sender)
+    {
+        return false;
+    }
+    if let Some(ref f) = sub.filter_thread_id
+        && f != thread_id
+    {
+        return false;
+    }
+    true
+}
+
+/// The body POSTed for a newly arrived message.
+///
+/// `timestamp` is passed in rather than read from the clock so the payload
+/// is assertable.
+pub fn new_message_payload(
+    user: &str,
+    thread_id: &str,
+    sender: &str,
+    subject: &str,
+    snippet: &str,
+    timestamp: &str,
+) -> serde_json::Value {
+    serde_json::json!({
+        "event": "new_message",
+        "timestamp": timestamp,
+        "data": {
+            "user": user,
+            "thread_id": thread_id,
+            "sender": sender,
+            "subject": subject,
+            "snippet": snippet,
+        }
+    })
+}
+
+/// The subscriptions of `address` that admit this message.
+pub fn matching(
+    conn: &mut Connection,
+    address: &str,
+    sender: &str,
+    thread_id: &str,
+) -> std::io::Result<Vec<WebhookSubWire>> {
+    Ok(list(conn, address)?
+        .into_iter()
+        .filter(|s| s.event_type == "new_message" && matches(s, sender, thread_id))
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +338,57 @@ mod tests {
         // id may already belong to something else here.
         assert_eq!(w.id, 91);
         assert_eq!(w.account_address, "lihao@golia.jp");
+    }
+
+    fn sub(filter_sender: Option<&str>, filter_thread_id: Option<&str>) -> WebhookSubWire {
+        WebhookSubWire {
+            id: 1,
+            account_address: "lihao@golia.jp".into(),
+            url: "https://example.com/hook".into(),
+            event_type: "new_message".into(),
+            filter_sender: filter_sender.map(str::to_string),
+            filter_thread_id: filter_thread_id.map(str::to_string),
+            signing_secret: "s".into(),
+            active: true,
+            created_at: 0,
+        }
+    }
+
+    /// The defect the shared matcher replaces: the monolith compared the
+    /// stored filter to the sender header with `!=`, and mail arrives as
+    /// `Name <a@b.com>`. A subscription scoped to one sender fired for
+    /// nobody, which looks exactly like a quiet mailbox.
+    #[test]
+    fn a_sender_filter_matches_either_mailbox_form() {
+        let s = sub(Some("nagata@nagatax.tokyo.jp"), None);
+        assert!(matches(&s, "nagata@nagatax.tokyo.jp", "t1"));
+        assert!(matches(&s, "Nagata <Nagata@NagataX.Tokyo.JP>", "t1"));
+        // Still not a substring match.
+        assert!(!matches(&s, "notnagata@nagatax.tokyo.jp", "t1"));
+    }
+
+    #[test]
+    fn no_filter_admits_everything_and_a_thread_filter_binds() {
+        assert!(matches(&sub(None, None), "anyone@x.com", "any"));
+        let t = sub(None, Some("t1"));
+        assert!(matches(&t, "anyone@x.com", "t1"));
+        assert!(!matches(&t, "anyone@x.com", "t2"));
+    }
+
+    #[test]
+    fn an_inactive_subscription_never_matches() {
+        let mut s = sub(None, None);
+        s.active = false;
+        assert!(!matches(&s, "anyone@x.com", "t1"));
+    }
+
+    #[test]
+    fn the_payload_names_the_event_the_worker_reads() {
+        let p = new_message_payload("u@x", "t1", "a@b", "Subj", "snip", "2026-07-31T00:00:00Z");
+        // The worker reads `event` for the X-Mailrs-Event header.
+        assert_eq!(p["event"], "new_message");
+        assert_eq!(p["data"]["thread_id"], "t1");
+        assert_eq!(p["data"]["subject"], "Subj");
     }
 
     /// A row missing its secret gets a fresh one rather than an empty

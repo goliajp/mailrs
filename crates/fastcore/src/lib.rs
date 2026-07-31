@@ -37,6 +37,7 @@ mod sieve_apply;
 mod spool_drain;
 pub mod tlsrpt;
 pub mod tlsrpt_ingest;
+mod webhook_delivery;
 
 use std::sync::Arc;
 
@@ -391,6 +392,13 @@ pub async fn run() {
     let pop3s_state = state.clone();
     tokio::spawn(async move {
         pop3::spawn_tls(pop3s_state).await;
+    });
+    // Webhook delivery — drains the kevy outbox. Until 2026-07-31 a
+    // subscription could be created and nothing would ever fire on this
+    // lane; there was no queue and no worker.
+    let webhook_state = state.clone();
+    tokio::spawn(async move {
+        webhook_delivery::spawn(webhook_state).await;
     });
     // ManageSieve (RFC 5804) — sieve script CRUD on :4190 (G5).
     let sieve_state = state.clone();
@@ -1677,6 +1685,10 @@ pub(crate) fn ingest_delivered_file(
     if !is_own {
         crate::importance::score_inbound(state, addr, &root, &from, head, body);
     }
+    // Webhook subscriptions filtered to this sender / conversation. The
+    // monolith enqueued here off its event bus; this lane had no
+    // subscriber, so a user's webhook never fired at all.
+    enqueue_webhooks_for_arrival(state, addr, &root, &from, &subject);
     crate::live_sync::upsert_contacts(addr, &from);
     crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
     let m = crate::imap::backend::bump_modseq(state, addr);
@@ -4780,6 +4792,51 @@ async fn backfill_thread_user_route(
         Err(e) => {
             tracing::error!(err = %e, %user, "threaduser backfill failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Queue a delivery for every subscription that admits this message.
+///
+/// Best-effort by design: a webhook that cannot be queued must not fail the
+/// delivery of the mail itself. Failures are logged rather than swallowed,
+/// which is the difference between this and the class of silence the
+/// 2026-07-30 audit was about.
+fn enqueue_webhooks_for_arrival(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+    sender: &str,
+    subject: &str,
+) {
+    use mailrs_core_sidestate::families::{webhook_outbox, webhooks};
+
+    let Some(mut conn) = state.net_conn() else {
+        return;
+    };
+    let subs = match webhooks::matching(&mut conn, user, sender, thread_id) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(err = %e, %user, "webhook: could not read subscriptions");
+            return;
+        }
+    };
+    if subs.is_empty() {
+        return;
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let timestamp = chrono::DateTime::from_timestamp(now, 0)
+        .map(|t| t.to_rfc3339())
+        .unwrap_or_default();
+    let payload =
+        webhooks::new_message_payload(user, thread_id, sender, subject, "", &timestamp).to_string();
+    for sub in subs {
+        match webhook_outbox::enqueue(&mut conn, sub.id, user, &payload, now) {
+            Ok(id) => tracing::info!(entry = id, subscription = sub.id, "webhook queued"),
+            Err(e) => tracing::warn!(err = %e, subscription = sub.id, "webhook: enqueue failed"),
         }
     }
 }
