@@ -42,6 +42,28 @@ pub struct OwnedUserMessageFacts {
     pub modseq: u64,
 }
 
+/// Replace the per-user fields on a serialized `MessageWire` with this
+/// user's own.
+///
+/// Field-level rather than typed, so this crate does not have to depend on
+/// the wire type: the shared blob is opaque here by design (`upsert_message`
+/// takes bytes). A blob that is not an object is returned unchanged — it is
+/// not this function's place to decide the payload is malformed.
+fn overlay_user_facts(shared: &[u8], facts: &OwnedUserMessageFacts) -> Vec<u8> {
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(shared) else {
+        return shared.to_vec();
+    };
+    let Some(obj) = v.as_object_mut() else {
+        return shared.to_vec();
+    };
+    obj.insert("blob_ref".into(), facts.blob_ref.clone().into());
+    obj.insert("uid".into(), facts.uid.into());
+    obj.insert("flags".into(), facts.flags.into());
+    obj.insert("modseq".into(), facts.modseq.into());
+    // The blob names one user; served to another it was simply wrong.
+    serde_json::to_vec(&v).unwrap_or_else(|_| shared.to_vec())
+}
+
 impl KevyMailboxStore {
     /// Write `payload` bytes to the message-blob key + zadd to the
     /// thread's message index with score = `internal_date`. `payload`
@@ -332,11 +354,38 @@ impl KevyMailboxStore {
     /// Membership is the per-user row: present for every thread a user
     /// has a copy of, and 30,510 of 30,510 on prod at the time of
     /// writing (`threaduser-census`).
+    /// **Stage 4**: the messages come from this user's own index, and the
+    /// per-user facts are overlaid on the shared blob.
+    ///
+    /// Before this the messages came from `thread:{tid}:messages`, which is
+    /// shared, so every owner of a thread was served every message in it
+    /// whoever it was delivered to — and each was served one owner's
+    /// `blob_ref`, `uid` and `flags`. On production that meant 74 messages
+    /// whose maildir file sat in somebody else's mailbox: measured, none of
+    /// those 74 resolved for the user reading them and all 74 resolve from
+    /// the per-user row.
+    ///
+    /// A message the user has no copy of is not in their index and so not in
+    /// their thread, which is what a mailbox means.
     pub fn list_thread_messages(&self, user: &str, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
         if !self.is_thread_participant(user, thread_id)? {
             return Ok(Vec::new());
         }
-        self.thread_messages_unscoped(thread_id)
+        let mids = self.user_thread_message_ids(user, thread_id)?;
+        let mut out = Vec::with_capacity(mids.len());
+        for mid in &mids {
+            let Some(shared) = self.get_message(mid)? else {
+                continue;
+            };
+            match self.user_message_facts(user, mid)? {
+                Some(facts) => out.push(overlay_user_facts(&shared, &facts)),
+                // The index named it and the row is gone. Serving the shared
+                // blob here would put back the defect — its blob_ref may be
+                // another mailbox's file. Skipping is the honest answer.
+                None => continue,
+            }
+        }
+        Ok(out)
     }
 
     /// Whether `user` holds a copy of `thread_id`.
@@ -423,7 +472,20 @@ mod tests {
         // Message-ID, which every correspondent already has.
         let s = store();
         deliver(&s, "owner@x.com", "t1");
-        s.upsert_message("t1", "msg-1", 100, b"private").unwrap();
+        s.upsert_user_message(
+            "owner@x.com",
+            "t1",
+            "msg-1",
+            100,
+            b"private",
+            &UserMessageFacts {
+                blob_ref: "owner-copy.host",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
 
         assert!(
             s.list_thread_messages("stranger@x.com", "t1")
@@ -443,7 +505,25 @@ mod tests {
         let s = store();
         deliver(&s, "a@x.com", "t1");
         deliver(&s, "b@x.com", "t1");
-        s.upsert_message("t1", "msg-1", 100, b"shared").unwrap();
+        // Both received it, which is what two local accounts on one thread
+        // means: two deliveries, two files, two per-user rows over one
+        // shared blob.
+        for (u, blob_ref) in [("a@x.com", "a-copy.host"), ("b@x.com", "b-copy.host")] {
+            s.upsert_user_message(
+                u,
+                "t1",
+                "msg-1",
+                100,
+                b"shared",
+                &UserMessageFacts {
+                    blob_ref,
+                    uid: 1,
+                    flags: 0,
+                    modseq: 1,
+                },
+            )
+            .unwrap();
+        }
 
         assert_eq!(s.list_thread_messages("a@x.com", "t1").unwrap().len(), 1);
         assert_eq!(s.list_thread_messages("b@x.com", "t1").unwrap().len(), 1);
@@ -719,6 +799,134 @@ mod user_message_tests {
         assert_eq!(
             s.user_thread_message_ids("u@x.com", "t1").expect("read"),
             vec!["<a@x>", "<b@x>", "<c@x>"]
+        );
+    }
+
+    /// The behaviour the whole projection exists for.
+    ///
+    /// Two owners of one thread read the same mail and each gets their own
+    /// `blob_ref`, `uid` and `flags` — the fields that decide which file is
+    /// opened, what IMAP calls it, and whether it shows as read. Before the
+    /// cutover both were served one owner's, and on production that left 74
+    /// messages naming a file in somebody else's mailbox, none of which
+    /// resolved for the user reading them.
+    #[test]
+    fn each_owner_reads_the_thread_with_their_own_facts() {
+        let s = store();
+        let mid = "<m1@example.com>";
+        // Both own the thread — membership is what `list_thread_messages`
+        // gates on.
+        for u in ["lihao@golia.jp", "devops@golia.jp"] {
+            s.record_message_arrival(&crate::MessageArrival {
+                thread_id: "t1",
+                user: u,
+                subject: "Meeting",
+                senders_csv: "someone@x.com",
+                latest_date: 100,
+                latest_preview: "",
+                category: "inbox",
+                unread: true,
+                is_own: false,
+            })
+            .expect("membership");
+        }
+        s.upsert_user_message(
+            "lihao@golia.jp",
+            "t1",
+            mid,
+            100,
+            br#"{"subject":"Meeting","blob_ref":"shared.host","uid":1,"flags":0,"modseq":0}"#,
+            &UserMessageFacts {
+                blob_ref: "lihao-copy.host",
+                uid: 7,
+                flags: 1,
+                modseq: 9,
+            },
+        )
+        .expect("lihao");
+        s.upsert_user_message(
+            "devops@golia.jp",
+            "t1",
+            mid,
+            100,
+            br#"{"subject":"Meeting","blob_ref":"shared.host","uid":1,"flags":0,"modseq":0}"#,
+            &UserMessageFacts {
+                blob_ref: "devops-copy.host",
+                uid: 3,
+                flags: 0,
+                modseq: 4,
+            },
+        )
+        .expect("devops");
+
+        let read = |u: &str| -> serde_json::Value {
+            let msgs = s.list_thread_messages(u, "t1").expect("read");
+            assert_eq!(msgs.len(), 1, "{u} sees one message");
+            serde_json::from_slice(&msgs[0]).expect("json")
+        };
+
+        let lihao = read("lihao@golia.jp");
+        let devops = read("devops@golia.jp");
+
+        // The shared content is the same for both.
+        assert_eq!(lihao["subject"], "Meeting");
+        assert_eq!(devops["subject"], "Meeting");
+        // The per-user facts are not, and neither is the shared blob's.
+        assert_eq!(lihao["blob_ref"], "lihao-copy.host");
+        assert_eq!(devops["blob_ref"], "devops-copy.host");
+        assert_eq!(lihao["uid"], 7);
+        assert_eq!(devops["uid"], 3);
+        // Read state is per user: maildir encodes \Seen in the filename, so
+        // sharing this would share one owner's read state with the other.
+        assert_eq!(lihao["flags"], 1);
+        assert_eq!(devops["flags"], 0);
+    }
+
+    /// A message one owner never received is not in the other's thread,
+    /// through the real read path.
+    #[test]
+    fn the_read_path_does_not_serve_a_message_the_user_has_no_copy_of() {
+        let s = store();
+        for u in ["lihao@golia.jp", "devops@golia.jp"] {
+            s.record_message_arrival(&crate::MessageArrival {
+                thread_id: "t1",
+                user: u,
+                subject: "Meeting",
+                senders_csv: "someone@x.com",
+                latest_date: 100,
+                latest_preview: "",
+                category: "inbox",
+                unread: true,
+                is_own: false,
+            })
+            .expect("membership");
+        }
+        s.upsert_user_message(
+            "lihao@golia.jp",
+            "t1",
+            "<only-lihao@x>",
+            200,
+            b"{}",
+            &UserMessageFacts {
+                blob_ref: "a.host",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .expect("write");
+
+        assert_eq!(
+            s.list_thread_messages("lihao@golia.jp", "t1")
+                .expect("read")
+                .len(),
+            1
+        );
+        assert!(
+            s.list_thread_messages("devops@golia.jp", "t1")
+                .expect("read")
+                .is_empty(),
+            "devops never received it and must not be served it"
         );
     }
 
