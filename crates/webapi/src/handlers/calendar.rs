@@ -200,6 +200,10 @@ impl From<FeedWire> for FeedView {
 }
 
 #[derive(Debug, Deserialize)]
+/// `deny_unknown_fields`: the basic-auth pair was dropped here once
+/// already, silently, because the handler did not name it. Pinned by
+/// `wire-contract/requests/calendar-feed-create.json`.
+#[serde(deny_unknown_fields)]
 pub struct CreateFeedRequest {
     pub name: String,
     pub url: String,

@@ -138,6 +138,15 @@ pub struct DraftWire {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// The compose autosave's body, and the Draft tab's save.
+///
+/// `deny_unknown_fields`: this runs every three seconds while someone is
+/// typing, and a field the struct does not name was silently dropped —
+/// which is how a reply reopened from the Draft tab lost the conversation
+/// it belonged to. A 400 naming the field is the difference between a bug
+/// found in a minute and one found in a week. The shape is pinned by
+/// `wire-contract/requests/draft-save.json`, checked on both sides.
+#[serde(deny_unknown_fields)]
 pub struct SaveDraftRequest {
     /// When present, upsert that draft in place (keeps its id) instead of
     /// allocating a new one — so a compose session's periodic autosave
