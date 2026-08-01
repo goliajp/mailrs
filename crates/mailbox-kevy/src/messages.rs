@@ -156,9 +156,10 @@ impl KevyMailboxStore {
         // They are cleared rather than left at the caller's values, because a
         // shared row naming one owner is what served 74 messages on
         // production a `blob_ref` in somebody else's mailbox. Old rows keep
-        // theirs — every reader falls back to them for anything the backfill
-        // has not reached — but nothing new records a per-user fact in a
-        // place several users read.
+        // theirs, but nothing new records a per-user fact in a place several
+        // users read — and since 2026-08-01 nothing reads those leftovers
+        // either: `user_message_view` is the one decision, and it answers
+        // "no copy" rather than handing back another owner's.
         let shared_payload = strip_per_user_fields(payload);
         self.store()
             .atomic(|ctx| {
@@ -226,6 +227,42 @@ impl KevyMailboxStore {
         }))
     }
 
+    /// One user's view of one message, or `None` if they have no copy.
+    ///
+    /// **The** place that decides what a missing per-user row means, because
+    /// the two readers that decided it separately disagreed: the thread
+    /// listing dropped the message and the uid fetch served the shared row.
+    /// One of them had to be wrong, and a reader that answers a question
+    /// about ownership differently from its neighbour is the shape that put
+    /// somebody else's `blob_ref` in front of 74 messages to begin with.
+    ///
+    /// The answer is `None`. Since stage 5 the shared row does not carry
+    /// per-user fields at all, so falling back to it yields either a blank
+    /// `blob_ref` (new rows, stripped) or whichever owner wrote last (old
+    /// rows) — neither is this user's copy, and both are worse than saying
+    /// there isn't one.
+    ///
+    /// Every message on production resolves (`only_in_shared: 0`,
+    /// `maintenance:usermsg-shadow`, 2026-08-01), so this returning `None`
+    /// means an invariant broke rather than a backfill lagging — hence the
+    /// warning, which is the only way anyone would find out.
+    pub fn user_message_view(&self, user: &str, message_id: &str) -> io::Result<Option<Vec<u8>>> {
+        let Some(shared) = self.get_message(message_id)? else {
+            return Ok(None);
+        };
+        match self.user_message_facts(user, message_id)? {
+            Some(facts) => Ok(Some(overlay_user_facts(&shared, &facts))),
+            None => {
+                tracing::warn!(
+                    %user,
+                    %message_id,
+                    "message has no per-user row; not served (run maintenance:backfill-user-messages)"
+                );
+                Ok(None)
+            }
+        }
+    }
+
     /// The message ids one user has in one thread, oldest first.
     pub fn user_thread_message_ids(&self, user: &str, thread_id: &str) -> io::Result<Vec<String>> {
         let key = keys::thread_user_messages(user, thread_id);
@@ -261,18 +298,12 @@ impl KevyMailboxStore {
             return Ok(None);
         };
         let mid = String::from_utf8_lossy(&mid_bytes).to_string();
-        let Some(shared) = self.get_message(&mid)? else {
-            return Ok(None);
-        };
-        // Overlaid, like `list_thread_messages`. The uid that found this
-        // message is the caller's own, so serving them the shared blob's
-        // `blob_ref` — whichever owner wrote last — would open a file in
-        // another mailbox, which is what IMAP FETCH and the attachment
+        // Through the same decision as the thread listing. The uid that
+        // found this message is the caller's own, so serving them the shared
+        // blob's `blob_ref` — whichever owner wrote last — would open a file
+        // in another mailbox, which is what IMAP FETCH and the attachment
         // download would have done for the second owner of a thread.
-        Ok(Some(match self.user_message_facts(user, &mid)? {
-            Some(facts) => overlay_user_facts(&shared, &facts),
-            None => shared,
-        }))
+        self.user_message_view(user, &mid)
     }
 
     /// Populate the per-user uid → message_id index for a single message.
@@ -417,14 +448,11 @@ impl KevyMailboxStore {
         let mids = self.user_thread_message_ids(user, thread_id)?;
         let mut out = Vec::with_capacity(mids.len());
         for mid in &mids {
-            let Some(shared) = self.get_message(mid)? else {
-                continue;
-            };
-            match self.user_message_facts(user, mid)? {
-                Some(facts) => out.push(overlay_user_facts(&shared, &facts)),
-                // The index named it and the row is gone. Serving the shared
-                // blob here would put back the defect — its blob_ref may be
-                // another mailbox's file. Skipping is the honest answer.
+            // Through the same decision as the uid fetch: serving the shared
+            // blob would put back the defect, since its blob_ref may be
+            // another mailbox's file.
+            match self.user_message_view(user, mid)? {
+                Some(view) => out.push(view),
                 None => continue,
             }
         }
@@ -539,6 +567,59 @@ mod tests {
             s.list_thread_messages("owner@x.com", "t1").unwrap().len(),
             1
         );
+    }
+
+    /// The uid fetch and the thread listing must answer the missing-copy
+    /// question the same way.
+    ///
+    /// They did not: the listing dropped the message, the uid fetch served
+    /// the shared row. Both are reachable from the same click — open a
+    /// conversation, then download the attachment — so the two answers were
+    /// visible side by side, one of them naming another owner's file. This
+    /// pins them to one answer rather than to today's answer.
+    #[test]
+    fn the_two_readers_agree_when_a_user_has_no_copy() {
+        let s = store();
+        deliver(&s, "owner@x.com", "t1");
+        s.upsert_user_message(
+            "owner@x.com",
+            "t1",
+            "msg-1",
+            100,
+            b"{\"blob_ref\":\"owner-copy.host\"}",
+            &UserMessageFacts {
+                blob_ref: "owner-copy.host",
+                uid: 7,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        s.register_uid("owner@x.com", 7, "msg-1").unwrap();
+        // A second account on the thread that never received a copy: the
+        // thread membership exists and the uid is indexed, the per-user
+        // message row does not exist. The uid index is what makes the fetch
+        // reachable at all, so without it this would pass for the wrong
+        // reason.
+        deliver(&s, "other@x.com", "t1");
+        s.register_uid("other@x.com", 7, "msg-1").unwrap();
+
+        assert_eq!(
+            s.list_thread_messages("other@x.com", "t1").unwrap().len(),
+            0,
+            "the listing must not serve a copy this user does not have"
+        );
+        assert!(
+            s.get_message_by_uid("other@x.com", 7).unwrap().is_none(),
+            "the uid fetch must reach the same conclusion, not fall back \
+             to the shared row's blob_ref"
+        );
+        // And the owner is unaffected by either rule.
+        assert_eq!(
+            s.list_thread_messages("owner@x.com", "t1").unwrap().len(),
+            1
+        );
+        assert!(s.get_message_by_uid("owner@x.com", 7).unwrap().is_some());
     }
 
     #[test]
