@@ -174,6 +174,70 @@ impl ThreadRow {
     }
 }
 
+impl ThreadRow {
+    /// Build a row from a **membership row**'s fields — this user's copy
+    /// of the conversation, rather than the shared aggregate.
+    ///
+    /// The two hashes name the same facts differently in two places:
+    /// `activity` is the membership row's `latest_date`, and the flags
+    /// are stored as the declared `1`/`0` columns the indexes read. The
+    /// counters are per-user and maintained by `hincrby` on the arrival
+    /// path, so they are read straight off this row.
+    ///
+    /// Returns `None` when the row is absent — the user has no copy —
+    /// which is the same answer `user_message_view` gives for a message.
+    pub fn from_user_pairs(thread_id: String, pairs: &[(Vec<u8>, Vec<u8>)]) -> Option<Self> {
+        if pairs.is_empty() {
+            return None;
+        }
+        let mut row = Self {
+            thread_id,
+            subject: String::new(),
+            senders_csv: String::new(),
+            count: 0,
+            unread_count: 0,
+            latest_date: 0,
+            latest_preview: String::new(),
+            category: String::new(),
+            importance_level: String::new(),
+            importance_score: 0.0,
+            requires_action: false,
+            pinned: false,
+            archived: false,
+            has_action: false,
+            sent_count: 0,
+            starred: false,
+        };
+        for (k, v) in pairs {
+            let (Ok(kk), Ok(vv)) = (std::str::from_utf8(k), std::str::from_utf8(v)) else {
+                continue;
+            };
+            match kk {
+                "subject" => row.subject = vv.into(),
+                "senders_csv" => row.senders_csv = vv.into(),
+                "count" => row.count = vv.parse().unwrap_or(0),
+                "unread_count" => row.unread_count = vv.parse().unwrap_or(0),
+                "sent_count" => row.sent_count = vv.parse().unwrap_or(0),
+                // The membership row calls it `activity`: it is the
+                // column every ORDERPATH sorts on, so the name says what
+                // it is for rather than where it came from.
+                "activity" => row.latest_date = vv.parse().unwrap_or(0),
+                "latest_preview" => row.latest_preview = vv.into(),
+                "category" => row.category = vv.into(),
+                "importance_level" => row.importance_level = vv.into(),
+                "importance_score" => row.importance_score = vv.parse().unwrap_or(0.0),
+                "requires_action" => row.requires_action = vv == "1",
+                "pinned" => row.pinned = vv == "1",
+                "archived" => row.archived = vv == "1",
+                "has_action" => row.has_action = vv == "1",
+                "starred" => row.starred = vv == "1",
+                _ => {}
+            }
+        }
+        Some(row)
+    }
+}
+
 /// `1` / `0` as the stored bytes for a boolean column. i64-typed in the
 /// declaration so `FILTER flag EQ 1` coerces cleanly.
 fn flag(v: bool) -> &'static [u8] {
@@ -350,6 +414,25 @@ impl KevyMailboxStore {
             .hgetall(key.as_bytes())
             .map_err(std::io::Error::other)?;
         Ok(ThreadRow::from_pairs(thread_id.to_string(), &pairs))
+    }
+
+    /// One user's copy of a conversation, read from their membership row.
+    ///
+    /// Distinct from [`Self::get_thread`], which reads the shared
+    /// aggregate: on a thread two accounts both received, the shared one
+    /// holds whichever owner wrote last. `None` means this user has no
+    /// row for it, which is what not having the conversation means.
+    pub fn get_thread_for_user(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> io::Result<Option<ThreadRow>> {
+        let key = keys::thread_user(user, thread_id);
+        let pairs = self
+            .store()
+            .hgetall(key.as_bytes())
+            .map_err(std::io::Error::other)?;
+        Ok(ThreadRow::from_user_pairs(thread_id.to_string(), &pairs))
     }
 }
 

@@ -1932,6 +1932,10 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             // Stage 3: compare the shared index against the per-user one
             // before anything reads the latter.
             .route(
+                "/v1/admin/maintenance:threadrow-shadow",
+                post(threadrow_shadow_route),
+            )
+            .route(
                 "/v1/admin/maintenance:strip-shared-per-user-fields",
                 post(strip_shared_per_user_fields_route),
             )
@@ -5336,6 +5340,170 @@ async fn spoof_landing_route(State(state): State<Arc<FastcoreState>>) -> axum::r
         "by_domain": by_domain,
         "by_user": by_user,
         "not_filed_as_junk_samples": inbox_samples,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:threadrow-shadow` — what the conversation
+/// list would show if it were served from each user's own membership row
+/// rather than the shared thread hash.
+///
+/// `mailrs:thread:{tid}` has no user segment, and eleven of its fields
+/// describe one person's copy: the three counters, `starred`, `archived`,
+/// `pinned`, `has_action`, `category`, the preview and the two importance
+/// fields. Every local recipient's arrival lands on the same row, and
+/// `hydrate_page` reads it — so on a thread two accounts both received,
+/// what both of them see is whatever the last writer put there.
+///
+/// The membership row already carries all of it (RFC 20260730 S1 added the
+/// display payload; the counters are maintained per user with `hincrby`).
+/// This measures the disagreement before the read moves, per field, so the
+/// cutover is a decision about a number rather than about an argument.
+///
+/// Read-only. Multi-owner threads are counted separately because they are
+/// the only ones that *can* disagree — 74 of 30,586 on 2026-07-31, so a
+/// difference concentrated there is the defect and a difference spread
+/// across the rest is a backfill gap.
+async fn threadrow_shadow_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    // Owners per thread, so "does this even have two readers" is answered
+    // from data rather than assumed.
+    let mut owners: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut per_user_threads: Vec<(String, Vec<String>)> = Vec::new();
+    for user in &users {
+        let tids = state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default();
+        for tid in &tids {
+            *owners.entry(tid.clone()).or_insert(0) += 1;
+        }
+        per_user_threads.push((user.clone(), tids));
+    }
+
+    let mut pairs_compared = 0u64;
+    let mut row_missing = 0u64;
+    let mut shared_missing = 0u64;
+    let mut agree = 0u64;
+    let mut differ = 0u64;
+    let mut differ_multi_owner = 0u64;
+    let mut by_field: std::collections::BTreeMap<&'static str, u64> =
+        std::collections::BTreeMap::new();
+    let mut samples: Vec<String> = Vec::new();
+
+    for (user, tids) in &per_user_threads {
+        for tid in tids {
+            pairs_compared += 1;
+            let mine = state
+                .mailbox
+                .get_thread_for_user(user, tid)
+                .unwrap_or_default();
+            let shared = state.mailbox.get_thread(tid).unwrap_or_default();
+            let (mine, shared) = match (mine, shared) {
+                (Some(m), Some(s)) => (m, s),
+                // Counted apart because they mean opposite things: no
+                // membership row is a thread the cutover would stop
+                // showing, and no shared hash is one it would start
+                // showing correctly.
+                (None, _) => {
+                    row_missing += 1;
+                    continue;
+                }
+                (Some(_), None) => {
+                    shared_missing += 1;
+                    continue;
+                }
+            };
+            let mut fields: Vec<&'static str> = Vec::new();
+            if mine.subject != shared.subject {
+                fields.push("subject");
+            }
+            if mine.senders_csv != shared.senders_csv {
+                fields.push("senders_csv");
+            }
+            if mine.count != shared.count {
+                fields.push("count");
+            }
+            if mine.unread_count != shared.unread_count {
+                fields.push("unread_count");
+            }
+            if mine.sent_count != shared.sent_count {
+                fields.push("sent_count");
+            }
+            if mine.latest_date != shared.latest_date {
+                fields.push("latest_date");
+            }
+            if mine.latest_preview != shared.latest_preview {
+                fields.push("latest_preview");
+            }
+            if mine.category != shared.category {
+                fields.push("category");
+            }
+            if mine.starred != shared.starred {
+                fields.push("starred");
+            }
+            if mine.archived != shared.archived {
+                fields.push("archived");
+            }
+            if mine.pinned != shared.pinned {
+                fields.push("pinned");
+            }
+            if mine.has_action != shared.has_action {
+                fields.push("has_action");
+            }
+            if mine.requires_action != shared.requires_action {
+                fields.push("requires_action");
+            }
+            if mine.importance_level != shared.importance_level {
+                fields.push("importance_level");
+            }
+            if fields.is_empty() {
+                agree += 1;
+                continue;
+            }
+            differ += 1;
+            let multi = owners.get(tid).copied().unwrap_or(1) > 1;
+            if multi {
+                differ_multi_owner += 1;
+            }
+            for f in &fields {
+                *by_field.entry(f).or_insert(0) += 1;
+            }
+            if samples.len() < 12 {
+                samples.push(format!(
+                    "{user} {tid} owners={} fields={}",
+                    owners.get(tid).copied().unwrap_or(1),
+                    fields.join(",")
+                ));
+            }
+        }
+    }
+
+    Json(serde_json::json!({
+        "accounts": users.len(),
+        "distinct_threads": owners.len(),
+        "multi_owner_threads": owners.values().filter(|n| **n > 1).count(),
+        // What it walked, so the three counts below are legible as a
+        // fraction rather than as a bare number.
+        "pairs_compared": pairs_compared,
+        "agree": agree,
+        "differ": differ,
+        "differ_multi_owner": differ_multi_owner,
+        "row_missing": row_missing,
+        "shared_missing": shared_missing,
+        "differ_by_field": by_field,
+        "samples": samples,
     }))
     .into_response()
 }
