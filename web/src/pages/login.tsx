@@ -10,13 +10,52 @@ import { AuthCard } from '@/components/auth/auth-card'
 import { AuthField } from '@/components/auth/auth-field'
 import { BrandHeader } from '@/components/auth/brand-header'
 import { authAtom } from '@/store/auth'
-import { wireForgotPassword, wireGetMe, wireGetOidcConfig, wireLogin } from '@/wire/endpoints/auth'
+import {
+  wireExternalProviders,
+  wireForgotPassword,
+  wireGetMe,
+  wireGetOidcConfig,
+  wireLogin,
+} from '@/wire/endpoints/auth'
 import { WireErrorException } from '@/wire/errors'
 
 type OidcClientConfig = {
   enabled: boolean
   login_url?: string
   provider_name?: string
+}
+
+/** Display names for the provider keys the backend reports. */
+const PROVIDER_LABELS: Record<string, string> = {
+  apple: 'Apple',
+  github: 'GitHub',
+  google: 'Google',
+  microsoft: 'Microsoft',
+  portal: 'GOLIA Portal',
+}
+
+/**
+ * What to say when the browser comes back from a provider.
+ *
+ * `link` is not an error and must not read like one: the identity
+ * authenticated fine, it just does not belong to a mailbox yet, and the
+ * password below is what attaches it. Every other value is a genuine
+ * failure and says which.
+ */
+const EXTERNAL_MESSAGES: Record<string, { text: string; tone: 'error' | 'info' }> = {
+  denied: { text: 'Sign-in was cancelled.', tone: 'info' },
+  expired: { text: 'That sign-in took too long. Try again.', tone: 'error' },
+  failed: { text: 'That sign-in could not be completed.', tone: 'error' },
+  incomplete: { text: 'That sign-in came back incomplete.', tone: 'error' },
+  link: {
+    text: 'Almost there — sign in once with your mailrs password to link that account.',
+    tone: 'info',
+  },
+  'no-account': {
+    text: 'That account is linked to a mailbox that no longer exists.',
+    tone: 'error',
+  },
+  unavailable: { text: 'That sign-in method is not available.', tone: 'error' },
 }
 
 export function Login() {
@@ -28,6 +67,7 @@ export function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [oidcConfig, setOidcConfig] = useState<null | OidcClientConfig>(null)
+  const [externalProviders, setExternalProviders] = useState<string[]>([])
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('mailrs_saved_email'))
   const [totpRequired, setTotpRequired] = useState(false)
   const [totpCode, setTotpCode] = useState('')
@@ -43,6 +83,19 @@ export function Login() {
       .then((cfg) => setOidcConfig(cfg as unknown as OidcClientConfig))
       .catch(() => {})
   }, [])
+
+  // Which third-party sign-ins this deployment actually has credentials for.
+  // An unconfigured provider is absent rather than a button leading nowhere.
+  useEffect(() => {
+    wireExternalProviders()
+      .then((keys) => setExternalProviders([...keys]))
+      .catch(() => {})
+  }, [])
+
+  // What the callback sent us back with. `link` is the one that matters:
+  // the identity authenticated but belongs to no mailbox yet, so the
+  // password below is what will attach it.
+  const externalResult = searchParams.get('external')
 
   // handle OIDC callback redirect
   useEffect(() => {
@@ -289,20 +342,41 @@ export function Login() {
         </button>
       </div>
 
-      {oidcConfig?.enabled && (
+      {externalResult && EXTERNAL_MESSAGES[externalResult] && (
+        <Alert
+          role="status"
+          variant={EXTERNAL_MESSAGES[externalResult].tone === 'info' ? 'info' : 'danger'}
+        >
+          {EXTERNAL_MESSAGES[externalResult].text}
+        </Alert>
+      )}
+
+      {(oidcConfig?.enabled || externalProviders.length > 0) && (
         <>
           <div className="flex items-center gap-3">
             <div className="bg-border h-px flex-1" />
             <span className="text-fg-muted text-xs">or</span>
             <div className="bg-border h-px flex-1" />
           </div>
-          <a
-            className="border-border bg-bg-secondary text-fg hover:bg-bg-secondary flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
-            href={oidcConfig.login_url}
-          >
-            <ExternalLink className="h-4 w-4" />
-            Sign in with {oidcConfig.provider_name ?? 'SSO'}
-          </a>
+          {oidcConfig?.enabled && (
+            <a
+              className="border-border bg-bg-secondary text-fg hover:bg-bg-secondary flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
+              href={oidcConfig.login_url}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Sign in with {oidcConfig.provider_name ?? 'SSO'}
+            </a>
+          )}
+          {externalProviders.map((key) => (
+            <a
+              className="border-border bg-bg-secondary text-fg hover:bg-bg-secondary flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
+              href={`/api/auth/external/${encodeURIComponent(key)}`}
+              key={key}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Sign in with {PROVIDER_LABELS[key] ?? key}
+            </a>
+          ))}
         </>
       )}
     </AuthCard>

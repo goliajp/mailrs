@@ -427,6 +427,12 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual({})
   })
 
+  it('identity unlink', async () => {
+    const { wireUnlinkIdentity } = await import('../endpoints/auth')
+    const body = await bodyOf(() => wireUnlinkIdentity('https://accounts.google.com', '1029384756'))
+    expect(body).toEqual(fixture('identity-unlink'))
+  })
+
   it('forgot password', async () => {
     const { wireForgotPassword } = await import('../endpoints/auth')
     const body = await bodyOf(() => wireForgotPassword('lihao@golia.jp', 'backup@example.com'))

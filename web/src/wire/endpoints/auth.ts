@@ -11,12 +11,15 @@ import { wireFetch } from '../client'
 import {
   authMeSchema,
   emptyResponseSchema,
+  externalProvidersSchema,
+  linkedIdentityListSchema,
   loginResponseSchema,
   oidcConfigSchema,
   recoveryEmailSchema,
   totpSetupSchema,
   totpStatusSchema,
   type WireAuthMe,
+  type WireLinkedIdentity,
   type WireLoginResponse,
   type WireOidcConfig,
   type WireRecoveryEmail,
@@ -132,6 +135,29 @@ export const wireGetTotpStatus = (): Promise<WireTotpStatus> =>
 export const wireTotpSetup = (): Promise<WireTotpSetup> =>
   wireFetch(totpSetupSchema, { body: {}, method: 'POST', path: '/auth/totp/setup' })
 
+/**
+ * Backend: crates/webapi/src/handlers/external_login.rs — `list_providers`.
+ *
+ * Which third-party sign-in methods this deployment has credentials for. A
+ * provider with no client id configured is absent, so the login page offers
+ * what actually works rather than buttons that lead to a 404.
+ *
+ * Unauthenticated: it is read before anybody has signed in and returns only
+ * the keys, never a secret.
+ */
+export async function wireExternalProviders(): Promise<readonly string[]> {
+  const raw = await wireFetch(externalProvidersSchema, { path: '/auth/external-providers' })
+  return raw.providers
+}
+
+/**
+ * Backend: `list_identities`. The sign-in methods linked to this account.
+ */
+export async function wireLinkedIdentities(): Promise<readonly WireLinkedIdentity[]> {
+  const raw = await wireFetch(linkedIdentityListSchema, { path: '/auth/identities' })
+  return raw.items
+}
+
 export async function wireTotpDisable(code: string): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
@@ -147,5 +173,17 @@ export async function wireTotpEnable(code: string): Promise<void> {
     body: { code },
     method: 'POST',
     path: '/auth/totp/enable',
+  })
+}
+
+/**
+ * Backend: `unlink_identity`. The account is the session's, never the body's.
+ */
+export async function wireUnlinkIdentity(issuer: string, subject: string): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    body: { issuer, subject },
+    method: 'POST',
+    path: '/auth/identities:unlink',
   })
 }

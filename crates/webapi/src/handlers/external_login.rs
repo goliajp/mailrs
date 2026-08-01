@@ -202,6 +202,7 @@ fn login_redirect(reason: &str) -> axum::response::Response {
 /// `GET /api/auth/oidc/callback` — finish it.
 pub async fn callback(
     State(state): State<Arc<WebState>>,
+    headers: axum::http::HeaderMap,
     Query(q): Query<CallbackQuery>,
 ) -> axum::response::Response {
     if q.error.is_some() {
@@ -259,9 +260,40 @@ pub async fn callback(
             // only safe answer — the alternative is inventing one.
             Err(_) => login_redirect("no-account"),
         },
-        // Not linked: park it and ask for a password once. Parking rather
-        // than passing it back means the browser cannot edit whose identity
-        // this is.
+        // Not linked, but already signed in — this is the "add a sign-in
+        // method" button in settings. The session is the proof that would
+        // otherwise be asked for, so there is nothing to park: link it and
+        // say so. The callback is a top-level GET, so the SameSite=Lax
+        // session cookie arrives with it.
+        None if crate::session::resolve_user_from_headers(&headers)
+            .await
+            .is_some() =>
+        {
+            let Some(address) = crate::session::resolve_user_from_headers(&headers).await else {
+                return login_redirect("failed");
+            };
+            let (iss, sub) = (identity.issuer.clone(), identity.subject.clone());
+            let addr = address.clone();
+            let outcome = with_kevy(move |c| {
+                mailrs_core_sidestate::families::identity_link::link(c, &iss, &sub, &addr)
+            });
+            use mailrs_core_sidestate::families::identity_link::LinkOutcome;
+            match outcome {
+                Ok(LinkOutcome::Linked) | Ok(LinkOutcome::AlreadyLinked) => {
+                    crate::handlers::audit::record(&address, "auth.identity.link", &key, "");
+                    Redirect::to("/settings?linked=1").into_response()
+                }
+                // Held by somebody else. Never moved silently — that is one
+                // person taking over another's sign-in.
+                Ok(LinkOutcome::TakenByAnotherAccount) => {
+                    Redirect::to("/settings?linked=taken").into_response()
+                }
+                Err(_) => Redirect::to("/settings?linked=failed").into_response(),
+            }
+        }
+        // Not linked and not signed in: park it and ask for a password once.
+        // Parking rather than passing it back means the browser cannot edit
+        // whose identity this is.
         None => {
             let handle = random_hex(16);
             let json = serde_json::to_string(&identity).unwrap_or_default();
@@ -364,4 +396,65 @@ pub async fn list_providers() -> axum::Json<serde_json::Value> {
         .map(|(p, _)| p.key)
         .collect();
     axum::Json(serde_json::json!({ "providers": keys }))
+}
+
+/// `GET /api/auth/identities` — the sign-in methods on this account.
+pub async fn list_identities(
+    axum::extract::Extension(crate::handlers::conversations::AuthedUser(user)): axum::extract::Extension<
+        crate::handlers::conversations::AuthedUser,
+    >,
+) -> Result<axum::Json<serde_json::Value>, StatusCode> {
+    let links =
+        with_kevy(move |c| mailrs_core_sidestate::families::identity_link::links_for(c, &user))
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    // The provider key is derived from the issuer so the UI can show a name
+    // and an icon; the issuer is what is actually stored.
+    let items: Vec<serde_json::Value> = links
+        .into_iter()
+        .map(|(issuer, subject)| {
+            let key = configured_providers()
+                .into_iter()
+                .find(|(p, _)| p.issuer == issuer)
+                .map(|(p, _)| p.key);
+            serde_json::json!({ "issuer": issuer, "subject": subject, "provider": key })
+        })
+        .collect();
+    Ok(axum::Json(serde_json::json!({ "items": items })))
+}
+
+/// What to unlink.
+#[derive(Debug, Deserialize)]
+pub struct UnlinkRequest {
+    /// The issuer half of the link.
+    pub issuer: String,
+    /// The provider's identifier for the person.
+    pub subject: String,
+}
+
+/// `POST /api/auth/identities:unlink` — remove one sign-in method.
+///
+/// The account is the session's, never the body's: naming somebody else's
+/// identity must not remove it. `unlink` enforces that too — this is the
+/// same rule stated at both ends on purpose, because it is the one that
+/// keeps a link from being detached by whoever can guess it.
+pub async fn unlink_identity(
+    axum::extract::Extension(crate::handlers::conversations::AuthedUser(user)): axum::extract::Extension<
+        crate::handlers::conversations::AuthedUser,
+    >,
+    axum::Json(req): axum::Json<UnlinkRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let addr = user.clone();
+    let removed = with_kevy(move |c| {
+        mailrs_core_sidestate::families::identity_link::unlink(c, &req.issuer, &req.subject, &addr)
+    })
+    .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    match removed {
+        true => {
+            crate::handlers::audit::record(&user, "auth.identity.unlink", &user, "");
+            Ok(StatusCode::NO_CONTENT)
+        }
+        // Not yours, or not there. One answer for both: telling them apart
+        // would say whether an identity exists on another account.
+        false => Err(StatusCode::NOT_FOUND),
+    }
 }
