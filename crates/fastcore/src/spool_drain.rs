@@ -50,6 +50,19 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         interval_secs,
         "fastcore spool drain started"
     );
+    // No idle backoff here, deliberately — unlike `calendar_sync` and
+    // `webhook_delivery`, which both use `idle_backoff`.
+    //
+    // This interval is not polling overhead, it is the delivery latency
+    // budget: mail sits in the spool until a tick picks it up, so doubling
+    // the wait doubles how long a quiet mailbox takes to show new mail, and
+    // a mailbox is quiet precisely when someone is waiting for the first
+    // message. An empty tick costs two readdirs on two empty directories.
+    //
+    // Checked against periodic-work-must-converge on 2026-08-01: the rule
+    // is about loops whose resting state is expensive, and this one's is
+    // not. Written down because this loop looks like the violation
+    // `calendar_sync` actually was.
     loop {
         let (delivered_new, seen_new) = drain_once(&incoming_new, &maildir_root, &state);
         let (delivered_cur, seen_cur) = drain_once(&incoming_cur, &maildir_root, &state);
