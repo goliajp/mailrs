@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-58 tools auto-discovered via MCP, grouped by category:
+82 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
