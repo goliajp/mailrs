@@ -1,19 +1,25 @@
 name: test
 
-# Run cargo test + bun test on every push to a git-flow branch. We don't
-# use PRs (see .claude/rules/common/git-workflow.md) — branch start/finish
-# is the merge path, so push triggers cover every code change.
+# cargo test + bun test on the prod-bound branches only — the three named
+# below. We don't use PRs (see .claude/rules/common/git-workflow.md); a
+# git-flow branch finish is the merge path.
 #
-# develop/master: integration + production tips
-# feature/**:   in-progress feature work (off develop)
-# bugfix/**:    in-progress bug fixes (off develop)
+# master:       production tip
 # release/**:   release candidates (off develop, into master)
 # hotfix/**:    urgent prod fixes (off master, into master + develop)
-
-# Dev-loop is CI-free since 2026-07-04: daily verification happens on
-# staging via scripts/staging-build-deploy.sh (local build + deploy).
-# CI runs only on the prod-bound paths — release/hotfix branches,
-# master, and the v* tag gate inside release.yml.
+#
+# **develop, feature/** and bugfix/** deliberately have no CI.** The daily
+# loop has been CI-free since 2026-07-04 and goes straight to production
+# since 2026-07-21, when staging left the release path (it shares t01 with
+# other projects, and a busy neighbour was failing releases on noise). So
+# the gate for everyday work is local and lives in scripts/direct-deploy.sh:
+# mcp + rest parity, cargo fmt --check, clippy -D warnings, the full test
+# suite --no-fail-fast, and perf-gates.sh. Nothing else stands behind it —
+# skipping it means shipping unbuilt work to prod.
+#
+# This block used to say the workflow ran on every git-flow branch and
+# listed develop/feature/bugfix among them. It never did, after the
+# triggers were narrowed; corrected 2026-08-01.
 on:
   push:
     branches:
