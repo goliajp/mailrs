@@ -1,0 +1,434 @@
+//! Taking mail from the ingest source into the store, and the header
+//! parsing every path through here shares.
+//!
+//! Split out of `lib.rs` on 2026-08-02. `extract_headers` and
+//! `resolve_thread_by_ancestry` are the two the maildir sweep also calls —
+//! a second copy of either would thread the sweep's repairs differently
+//! from the arrivals they repair, which is the kind of divergence that
+//! only shows up as "these two messages should be one conversation".
+
+use std::sync::Arc;
+
+use crate::headers::{
+    body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch,
+    resolve_thread_by_ancestry,
+};
+use crate::maildir_scan::healed_from_maildir;
+use crate::{FastcoreState, enqueue_webhooks_for_arrival, now_secs};
+
+/// Periodic sync loop. Two jobs on the same tick:
+///
+/// 1. OPTIONAL ingest: when `MAILRS_CORE_RPC_BASE` + the shared secret
+///    are set, poll that core-api server for threads newer than the
+///    per-user cursor and mirror them in (the monolith-era cutover
+///    path).
+/// 2. MANDATORY maildir self-heal: thread/message/uid repair straight
+///    from disk. This must run regardless of the ingest config —
+///    returning early when MAILRS_CORE_RPC_BASE was unset silently
+///    killed self-heal on the first monolith-free deploy and new
+///    inbound mail stopped appearing in the UI (2026-07-04, 99-message
+///    backlog on prod before the stopgap).
+pub(crate) async fn ingest_sync_loop(state: Arc<FastcoreState>) {
+    let client = match (
+        std::env::var("MAILRS_CORE_RPC_BASE"),
+        std::env::var(mailrs_core_api::AUTH_SECRET_ENV),
+    ) {
+        (Ok(base), Ok(secret)) => Some(mailrs_core_api::client::Client::new(base, secret)),
+        _ => {
+            tracing::info!("no ingest source configured — running maildir self-heal only");
+            None
+        }
+    };
+    let interval = std::time::Duration::from_secs(
+        std::env::var("MAILRS_FASTCORE_SYNC_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(30),
+    );
+    // Self-heal pacing. Every writer of a maildir file now indexes it
+    // write-through (spool_drain, bounce, IMAP APPEND/COPY, REST
+    // copy/move), so the only gap left for this sweep is a process that
+    // died between the file landing and the index write. Those files are
+    // necessarily recent, so the routine pass only inspects names newer
+    // than INCREMENTAL_WINDOW and costs a readdir instead of ~48k header
+    // reads (staging 2026-07-19).
+    //
+    // A full pass still runs at boot and once a day, to catch anything a
+    // clock skew or an out-of-band file drop put outside the window.
+    // Backoff on top: each idle round doubles the wait, any repair
+    // resets it to the base interval.
+    const MAX_IDLE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(900);
+    const FULL_SWEEP_EVERY: std::time::Duration = std::time::Duration::from_secs(24 * 3600);
+    // Generous relative to the crash window it covers; the cost of a
+    // wider window is only extra header reads on files we then skip.
+    const INCREMENTAL_WINDOW_SECS: i64 = 6 * 3600;
+    let mut idle_rounds: u32 = 0;
+    let mut last_full_sweep: Option<std::time::Instant> = None;
+    loop {
+        let mut wait = interval;
+        match &client {
+            Some(c) => {
+                if let Err(e) = run_ingest_once(&state, c).await {
+                    tracing::warn!(error = %e, "ingest sync tick failed");
+                }
+            }
+            None => {
+                let full = last_full_sweep.is_none_or(|t| t.elapsed() >= FULL_SWEEP_EVERY);
+                let since = match full {
+                    true => 0,
+                    false => now_secs().saturating_sub(INCREMENTAL_WINDOW_SECS),
+                };
+                let addrs = state.mailbox.list_account_addresses().unwrap_or_default();
+                let mut repaired = false;
+                for user in &addrs {
+                    repaired |= healed_from_maildir(&state, user, since).await;
+                }
+                if full {
+                    last_full_sweep = Some(std::time::Instant::now());
+                }
+                if repaired {
+                    idle_rounds = 0;
+                } else {
+                    idle_rounds = idle_rounds.saturating_add(1);
+                }
+                let backoff = interval
+                    .saturating_mul(1u32 << idle_rounds.min(6))
+                    .min(MAX_IDLE_INTERVAL);
+                wait = backoff;
+            }
+        }
+        tokio::time::sleep(wait).await;
+    }
+}
+
+pub(crate) async fn run_ingest_once(
+    state: &Arc<FastcoreState>,
+    client: &mailrs_core_api::client::Client,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use mailrs_core_api::method::conversation::ListConversationsRequest;
+    use mailrs_core_api::types::ConversationFilter;
+
+    let addrs = state.mailbox.list_account_addresses()?;
+    for user in &addrs {
+        let cursor_key = format!("mailrs:sync:cursor:{user}");
+        let prev = state
+            .mailbox
+            .store_ref()
+            .get(cursor_key.as_bytes())?
+            .and_then(|b| String::from_utf8_lossy(&b).parse::<i64>().ok())
+            .unwrap_or(0);
+        let req = ListConversationsRequest {
+            filter: ConversationFilter {
+                limit: 200,
+                before_ts: None,
+                category: None,
+                domains: None,
+                archived: false,
+                folder: None,
+                unread: None,
+                starred: None,
+                section: None,
+            },
+        };
+        // Try monolith. If it's down, skip the ingest step but STILL
+        // run the maildir-based self-heal at the bottom of the loop —
+        // fastcore's whole point is to work without monolith.
+        let resp_opt = match client.list_conversations(user, &req).await {
+            Ok(r) => Some(r),
+            Err(e) => {
+                tracing::warn!(error = %e, %user, "monolith list_conversations failed (continuing to self-heal from maildir)");
+                None
+            }
+        };
+        let resp = match resp_opt {
+            Some(r) => r,
+            None => {
+                // core RPC unavailable — full sweep, this path is rare
+                healed_from_maildir(state, user, 0).await;
+                continue;
+            }
+        };
+        let mut max_seen = prev;
+        let mut newly = 0;
+        for s in &resp.items {
+            if s.last_date <= prev {
+                continue;
+            }
+            // If the thread already exists in kevy, don't clobber the
+            // aggregate (fastcore-side mark_read / pin / archive stay
+            // sticky) — but DO diff messages, because a thread with a
+            // new reply gets its `last_date` bumped and needs the new
+            // message body ingested. Prior version skipped the whole
+            // packet, so new replies never appeared until the user
+            // re-imported.
+            let already_exists = matches!(state.mailbox.get_thread(&s.thread_id), Ok(Some(_)));
+            if already_exists {
+                if let Ok(msgs) = client.list_thread_messages(user, &s.thread_id).await {
+                    for w in &msgs.items {
+                        // Only write if we don't already have this
+                        // message id (prevents duplicate writes on
+                        // every sync tick).
+                        if state
+                            .mailbox
+                            .get_message(&w.message_id)
+                            .ok()
+                            .flatten()
+                            .is_some()
+                        {
+                            continue;
+                        }
+                        let payload = match serde_json::to_vec(w) {
+                            Ok(p) => p,
+                            Err(_) => continue,
+                        };
+                        let _ = state.mailbox.upsert_user_message(
+                            user,
+                            &s.thread_id,
+                            &w.message_id,
+                            w.internal_date,
+                            &payload,
+                            &mailrs_mailbox_kevy::UserMessageFacts {
+                                blob_ref: &w.blob_ref,
+                                uid: w.uid,
+                                flags: w.flags,
+                                modseq: w.modseq,
+                            },
+                        );
+                        let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
+                    }
+                }
+                max_seen = max_seen.max(s.last_date);
+                continue;
+            }
+            let row = mailrs_mailbox_kevy::ThreadRow {
+                thread_id: s.thread_id.clone(),
+                subject: s.subject.clone(),
+                senders_csv: s.participants.clone(),
+                count: s.message_count as i64,
+                unread_count: s.unread_count as i64,
+                latest_date: s.last_date,
+                latest_preview: s.snippet.clone(),
+                category: s.category.clone(),
+                importance_level: s.importance_level.clone(),
+                importance_score: s.importance_score as f64,
+                requires_action: s.requires_action,
+                pinned: s.pinned,
+                archived: s.archived,
+                has_action: s.requires_action,
+                sent_count: s.sent_count as i64,
+                starred: s.flagged,
+            };
+            if let Err(e) = state.mailbox.upsert_thread(user, &row) {
+                tracing::warn!(error = %e, %user, tid = %s.thread_id, "upsert_thread failed");
+                continue;
+            }
+            // Pull the thread's messages and mirror them so `get_thread_messages`
+            // returns the fresh content on the next click.
+            if let Ok(msgs) = client.list_thread_messages(user, &s.thread_id).await {
+                for w in &msgs.items {
+                    let payload = match serde_json::to_vec(w) {
+                        Ok(p) => p,
+                        Err(_) => continue,
+                    };
+                    let _ = state.mailbox.upsert_user_message(
+                        user,
+                        &s.thread_id,
+                        &w.message_id,
+                        w.internal_date,
+                        &payload,
+                        &mailrs_mailbox_kevy::UserMessageFacts {
+                            blob_ref: &w.blob_ref,
+                            uid: w.uid,
+                            flags: w.flags,
+                            modseq: w.modseq,
+                        },
+                    );
+                    let _ = state.mailbox.index_uid(user, w.uid, &w.message_id);
+                }
+            }
+            max_seen = max_seen.max(s.last_date);
+            newly += 1;
+        }
+        if newly > 0 {
+            state
+                .mailbox
+                .store_ref()
+                .set(cursor_key.as_bytes(), max_seen.to_string().as_bytes())?;
+            tracing::info!(%user, newly, cursor = max_seen, "ingest sync applied");
+        }
+
+        // Self-heal pass — reads maildir directly, no monolith call.
+        //
+        // Fastcore's whole reason for existing is to be spg-independent.
+        // If we heal by calling monolith, then a spg outage takes
+        // fastcore down with it — defeats the point. Instead, walk the
+        // user's maildir(s), parse each file's headers, and upsert any
+        // messages whose thread_id already exists in fastcore but has
+        // an empty messages zset.
+        healed_from_maildir(state, user, 0).await;
+    }
+    Ok(())
+}
+
+/// Write-through ingest for a file the spool drain just delivered to
+/// maildir: thread aggregate + message wire + uid + side sinks, all at
+/// delivery time.
+///
+/// Before this existed the drain wrote ONLY maildir and relied on the
+/// periodic self-heal to surface the message — but self-heal handles
+/// just two shapes (thread hash missing / messages zset empty), so a
+/// reply landing in an EXISTING thread never became visible (G14).
+/// Self-heal remains the crash-recovery backstop; this is the primary
+/// path.
+pub(crate) fn ingest_delivered_file(
+    state: &Arc<FastcoreState>,
+    addr: &str,
+    blob_ref: &str,
+    body: &[u8],
+    target_folder: &str,
+) {
+    let head = &body[..body.len().min(16 * 1024)];
+    let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
+    if message_id.is_empty() {
+        // no Message-ID header — leave it to self-heal's filename-based
+        // fallbacks rather than fabricating an id here
+        return;
+    }
+    let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
+    let date = if date > 0 {
+        date
+    } else {
+        maildir_filename_epoch(bare).unwrap_or(0)
+    };
+    // v2.9.5 threading fix — prefer the thread an ancestor actually
+    // landed in (msgid index) over deriving one from raw headers.
+    // References[0] is NOT a stable conversation root (each hop can
+    // rewrite it), which is how conversations fragmented.
+    let root = match resolve_thread_by_ancestry(
+        state,
+        addr,
+        &message_id,
+        &in_reply_to,
+        &references,
+        &subject,
+    ) {
+        Some(tid) => tid,
+        None => {
+            if let Some(first) = references.first() {
+                first.clone()
+            } else if !in_reply_to.is_empty() {
+                in_reply_to.clone()
+            } else {
+                message_id.clone()
+            }
+        }
+    };
+    let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
+    let unread = !is_own;
+    // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
+    // decision (from `crates/receiver/src/smtp_session/events/data/antispam.rs`
+    // where DeliveryDecision::Junk yields target_folder="Junk") into the
+    // per-thread category. mailbox-kevy's `upsert_thread` reads
+    // `category ∈ {"spam", "scam"}` as the Junk-zset trigger, so
+    // stamping "spam" here makes the antispam verdict actually route
+    // to the Junk folder on the read side. Any sieve fileinto target
+    // that maps to "Junk" is treated the same. Everything else
+    // (INBOX / custom sieve folders) keeps category="inbox".
+    // v2.9 triage — non-junk mail is further sorted into
+    // inbox/notification/promotion by the multi-class Bayes classifier
+    // (`bucket_of` then routes it to the matching folder zset).
+    // Cold-start / low-confidence → "inbox".
+    let category = if target_folder.eq_ignore_ascii_case("junk") {
+        "spam"
+    } else {
+        crate::bayes_train::classify_triage(state, body).unwrap_or("inbox")
+    };
+    let arrival = mailrs_mailbox_kevy::MessageArrival {
+        thread_id: &root,
+        user: addr,
+        subject: &subject,
+        senders_csv: &from,
+        latest_date: date,
+        latest_preview: "",
+        category,
+        unread,
+        is_own,
+    };
+    if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
+        tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
+    }
+    // Importance follows the latest INBOUND message, like the thread's
+    // display fields — the user's own reply must not restate it.
+    if !is_own {
+        crate::importance::score_inbound(state, addr, &root, &from, head, body);
+    }
+    // Webhook subscriptions filtered to this sender / conversation. The
+    // monolith enqueued here off its event bus; this lane had no
+    // subscriber, so a user's webhook never fired at all.
+    enqueue_webhooks_for_arrival(state, addr, &root, &from, &subject);
+    crate::live_sync::upsert_contacts(addr, &from);
+    crate::live_sync::adjust_usage_bytes(addr, body.len() as i64);
+    let m = crate::imap::backend::bump_modseq(state, addr);
+    crate::imap::backend::set_file_modseq(state, addr, bare, m);
+    let _ = state.notify.send(addr.to_string());
+    crate::live_sync::publish_new_mail(addr, &root, &from, &subject, "");
+    let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
+    let wire = mailrs_core_api::method::message::MessageWire {
+        id: 0,
+        mailbox_id: 0,
+        uid,
+        blob_ref: blob_ref.to_string(),
+        sender: from,
+        recipients: to,
+        subject,
+        date,
+        internal_date: date,
+        size: body.len() as u32,
+        flags: if unread { 0 } else { 1 },
+        message_id: message_id.clone(),
+        in_reply_to,
+        sender_trust: extract_sender_trust(body),
+        thread_id: root.clone(),
+        modseq: 0,
+        user_address: addr.to_string(),
+    };
+    match serde_json::to_vec(&wire) {
+        Ok(payload) => {
+            // The shared blob plus this user's own row: their maildir
+            // filename, their uid, their flags. A thread can have several
+            // owners and each has a different file on disk, so a single
+            // `blob_ref` on the shared blob is one owner's — 74 messages on
+            // production were served to a user the row did not name. See
+            // `.claude/rfcs/20260731-per-user-message-projection.md`.
+            if let Err(e) = state.mailbox.upsert_user_message(
+                addr,
+                &root,
+                &message_id,
+                date,
+                &payload,
+                &mailrs_mailbox_kevy::UserMessageFacts {
+                    blob_ref,
+                    uid: wire.uid,
+                    flags: wire.flags,
+                    modseq: wire.modseq,
+                },
+            ) {
+                tracing::warn!(error = %e, %addr, %root, "drain ingest: upsert_user_message failed");
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),
+    }
+    // register this message's id → thread so future replies that cite it
+    // (In-Reply-To / References) resolve into the same conversation.
+    let _ = state
+        .mailbox
+        .set_thread_for_message_id(addr, &message_id, &root);
+    // Index the body for full-text search. Costs one MIME parse on a
+    // path that already has the bytes in hand, and it is what makes
+    // search cover message contents rather than just headers.
+    if let Some(text) = body_text_for_search(body)
+        && let Err(e) = state.mailbox.index_message_text(&message_id, &root, &text)
+    {
+        tracing::warn!(error = %e, %addr, %message_id, "index_message_text failed");
+    }
+}

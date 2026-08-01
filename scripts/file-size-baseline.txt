@@ -1,4 +1,3 @@
-3183 crates/fastcore/src/lib.rs
 2450 crates/server/src/mcp/mod.rs
 2148 crates/webapi/src/handlers/prefs.rs
 1687 crates/webapi/src/handlers/complete.rs
