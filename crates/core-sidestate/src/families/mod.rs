@@ -6,6 +6,7 @@ pub mod analysis;
 pub mod calendar_feeds;
 pub mod contacts;
 pub mod groups_admin;
+pub mod identity_link;
 pub mod outbound;
 pub mod prefs;
 pub mod send;
