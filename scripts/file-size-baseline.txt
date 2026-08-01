@@ -1,6 +1,5 @@
 2450 crates/server/src/mcp/mod.rs
 1326 crates/smtp-proto/src/session/tests.rs
-1325 crates/fastcore/src/bin/sender.rs
 1291 web/src/components/conversation-list.tsx
 1254 crates/server/src/core_rpc/mod.rs
 1172 crates/webapi/src/lib.rs
