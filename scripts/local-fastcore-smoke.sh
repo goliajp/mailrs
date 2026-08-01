@@ -8,6 +8,12 @@
 # Output: status code + body summary per probe, then per-probe
 # PASS / FAIL line, exit 0 if all pass.
 #
+# It was red from 3b30e0b4 (2026-06, "remove action-count / dismiss-action")
+# until 2026-08-02 and nobody saw it: it kept probing both removed routes,
+# expected 204 from seven handlers that answer 200 with a body, and its
+# `FAIL` was a flag printed as a count — so any number of failures reported
+# "1 FAILURES". A gate nobody runs is worth less than a flaky one.
+#
 # Usage:
 #   ./scripts/local-fastcore-smoke.sh
 
@@ -28,7 +34,7 @@ cleanup() {
 trap cleanup EXIT
 
 pass() { printf "  \033[32mPASS\033[0m %s\n" "$1"; }
-fail() { printf "  \033[31mFAIL\033[0m %s\n" "$1"; FAIL=1; }
+fail() { printf "  \033[31mFAIL\033[0m %s\n" "$1"; FAIL=$((FAIL + 1)); }
 step() { printf "\n\033[1m%s\033[0m\n" "$1"; }
 
 step "[1/4] cargo build --release fastcore + migrate"
@@ -50,7 +56,7 @@ MAILRS_KEVY_DATA_DIR="$KEVY_DIR" MAILRS_FASTCORE_BIND="127.0.0.1:$PORT" \
 SVR_PID=$!
 sleep 1.5
 
-step "[4/4] probing 16 routes"
+step "[4/4] probing 14 routes"
 FAIL=0
 BASE="http://127.0.0.1:$PORT"
 probe() {
@@ -72,22 +78,20 @@ probe GET    /v1/healthz                                                    200
 probe GET    /v1/readyz                                                     200
 probe POST   /v1/users/$USER_ADDR/conversations:list                        200 '{"limit":50}'
 probe GET    /v1/users/$USER_ADDR/conversations/categories                  200
-probe GET    /v1/users/$USER_ADDR/conversations/action-count                200
 probe GET    /v1/users/$USER_ADDR/conversations/unseen-count                200
 probe GET    /v1/users/$USER_ADDR/threads/t1/messages                       200
-probe POST   /v1/users/$USER_ADDR/threads/t1/read                           204
-probe POST   /v1/users/$USER_ADDR/threads/t1/pin                            204
-probe POST   /v1/users/$USER_ADDR/threads/t1/unpin                          204
-probe POST   /v1/users/$USER_ADDR/threads/t1/star                           204
-probe POST   /v1/users/$USER_ADDR/threads/t1/unstar                         204
-probe POST   /v1/users/$USER_ADDR/threads/t1/archive                        204
-probe POST   /v1/users/$USER_ADDR/threads/t1/unarchive                      204
-probe POST   /v1/users/$USER_ADDR/threads/t1/dismiss-action                 204
-probe DELETE /v1/users/$USER_ADDR/threads/t1                                204
+probe POST   /v1/users/$USER_ADDR/threads/t1/read                           200
+probe POST   /v1/users/$USER_ADDR/threads/t1/pin                            200
+probe POST   /v1/users/$USER_ADDR/threads/t1/unpin                          200
+probe POST   /v1/users/$USER_ADDR/threads/t1/star                           200
+probe POST   /v1/users/$USER_ADDR/threads/t1/unstar                         200
+probe POST   /v1/users/$USER_ADDR/threads/t1/archive                        200
+probe POST   /v1/users/$USER_ADDR/threads/t1/unarchive                      200
+probe DELETE /v1/users/$USER_ADDR/threads/t1                                200
 
 echo
 if (( FAIL == 0 )); then
-    printf "\033[1;32mALL 16 PROBES PASSED\033[0m\n"
+    printf "\033[1;32mALL 14 PROBES PASSED\033[0m\n"
     exit 0
 else
     printf "\033[1;31m%d FAILURES\033[0m\n" "$FAIL"
