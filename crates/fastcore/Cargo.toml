@@ -31,7 +31,7 @@ path = "src/bin/backfill_usage.rs"
 
 [[bin]]
 name = "mailrs-fastcore-sender"
-path = "src/bin/sender.rs"
+path = "src/bin/sender/main.rs"
 
 [dependencies]
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
