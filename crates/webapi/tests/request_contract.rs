@@ -288,7 +288,7 @@ fn reaction_toggle_body_matches() {
 /// operator looking at a form that said it saved.
 #[test]
 fn remaining_admin_bodies_match() {
-    let account: handlers::admin::UpdateAccountRequest = parse("account-update");
+    let account: handlers::admin_directory::UpdateAccountRequest = parse("account-update");
     assert_eq!(account.display_name.as_deref(), Some("QA Team"));
 
     let group: handlers::groups::CreateGroupRequest = parse("group-create");
@@ -320,7 +320,7 @@ fn totp_code_body_matches() {
 /// that no longer parses.
 #[test]
 fn account_sieve_body_matches() {
-    let v: handlers::admin::SetSieveRequest = parse("account-sieve-set");
+    let v: handlers::admin_ops::SetSieveRequest = parse("account-sieve-set");
     assert!(v.script.starts_with("require [\"fileinto\"];\n"));
     assert!(v.script.contains("fileinto \"Notifications\";"));
     assert!(v.script.ends_with('\n'), "the trailing newline survives");

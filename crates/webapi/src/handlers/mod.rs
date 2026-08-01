@@ -2,6 +2,9 @@
 //! delegates to `state.core_client.X()` RPC calls.
 
 pub mod admin;
+pub mod admin_audit;
+pub mod admin_directory;
+pub mod admin_ops;
 pub mod ai;
 pub mod apps_keys;
 pub mod audit;
