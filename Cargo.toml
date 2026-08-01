@@ -33,6 +33,7 @@ members = [
     "crates/auth-guard",
     "crates/srs",
     "crates/rfc2231",
+    "crates/oauth-client",
     "crates/webhook-signature",
     "crates/dnsbl",
     "crates/clamav",
