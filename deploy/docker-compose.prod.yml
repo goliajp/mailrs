@@ -82,14 +82,6 @@ services:
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore
-      # Which side serves the bucket/category axes: the declared kevy
-      # table (default) or the legacy hand-maintained zsets. Both are
-      # still written, so flipping this needs only a container
-      # recreate — no rebuild, no backfill. It has to live here rather
-      # than in a hand edit on the host: direct-deploy.sh overwrites
-      # the host compose on every deploy, which silently removed this
-      # switch once mid-migration.
-      MAILRS_JUNK_READ: ${MAILRS_JUNK_READ:-table}
       # Transparent tiering budget in MB, or `auto` for 70% of the
       # cgroup limit. Unset = off (everything stays in RAM). Cold
       # values move to a vlog on disk and read back transparently.
