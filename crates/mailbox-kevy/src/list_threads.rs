@@ -302,11 +302,9 @@ mod tests {
         // the flag axes are served from the declared table
         s.ensure_thread_table();
         let u = "u@x.com";
-        let mut p = row("p1", 100, "inbox");
-        p.pinned = true;
-        let np = row("p2", 200, "inbox");
-        s.upsert_thread(u, &p).unwrap();
-        s.upsert_thread(u, &np).unwrap();
+        s.upsert_thread(u, &row("p1", 100, "inbox")).unwrap();
+        s.upsert_thread(u, &row("p2", 200, "inbox")).unwrap();
+        s.set_pinned(u, "p1", true).unwrap();
         let f = ListThreadsFilter {
             pinned: true,
             ..Default::default()
@@ -326,15 +324,15 @@ mod tests {
     fn two_flags_at_once_intersect() {
         let s = store();
         let u = "u@x.com";
-        let mut both = row("both", 300, "inbox");
-        both.starred = true;
-        both.unread_count = 1;
-        let mut only_starred = row("star", 200, "inbox");
-        only_starred.starred = true;
-        let mut only_unread = row("unread", 100, "inbox");
-        only_unread.unread_count = 1;
-        for r in [&both, &only_starred, &only_unread] {
-            s.upsert_thread(u, r).unwrap();
+        for (tid, when) in [("both", 300), ("star", 200), ("unread", 100)] {
+            s.upsert_thread(u, &row(tid, when, "inbox")).unwrap();
+        }
+        // Through the mutators, which is where per-user state is set.
+        for tid in ["both", "star"] {
+            s.set_starred(u, tid, true).unwrap();
+        }
+        for tid in ["both", "unread"] {
+            s.mark_unread(u, tid).unwrap();
         }
 
         let f = ListThreadsFilter {
@@ -353,14 +351,12 @@ mod tests {
     fn two_flags_within_a_folder_stay_inside_it() {
         let s = store();
         let u = "u@x.com";
-        let mut inbox_hit = row("in", 300, "inbox");
-        inbox_hit.starred = true;
-        inbox_hit.unread_count = 1;
-        let mut junk_hit = row("junk", 400, "spam");
-        junk_hit.starred = true;
-        junk_hit.unread_count = 1;
-        s.upsert_thread(u, &inbox_hit).unwrap();
-        s.upsert_thread(u, &junk_hit).unwrap();
+        s.upsert_thread(u, &row("in", 300, "inbox")).unwrap();
+        s.upsert_thread(u, &row("junk", 400, "spam")).unwrap();
+        for tid in ["in", "junk"] {
+            s.set_starred(u, tid, true).unwrap();
+            s.mark_unread(u, tid).unwrap();
+        }
 
         let f = ListThreadsFilter {
             folder: Some("inbox"),
@@ -418,15 +414,16 @@ mod tests {
     fn np_with_a_flag_merges_both_buckets() {
         let s = store();
         let u = "u@x.com";
-        let mut n = row("n1", 100, "notification");
-        n.starred = true;
-        let mut p = row("p1", 300, "promotion");
-        p.starred = true;
-        let plain_p = row("p2", 400, "promotion");
-        let mut inbox = row("i1", 500, "inbox");
-        inbox.starred = true;
-        for r in [&n, &p, &plain_p, &inbox] {
-            s.upsert_thread(u, r).unwrap();
+        for (tid, when, cat) in [
+            ("n1", 100, "notification"),
+            ("p1", 300, "promotion"),
+            ("p2", 400, "promotion"),
+            ("i1", 500, "inbox"),
+        ] {
+            s.upsert_thread(u, &row(tid, when, cat)).unwrap();
+        }
+        for tid in ["n1", "p1", "i1"] {
+            s.set_starred(u, tid, true).unwrap();
         }
 
         let f = ListThreadsFilter {
@@ -447,11 +444,11 @@ mod tests {
         let u = "u@x.com";
         let mut sent_unread = row("s1", 300, "inbox");
         sent_unread.senders_csv = u.into();
-        sent_unread.unread_count = 1;
         let mut sent_read = row("s2", 200, "inbox");
         sent_read.senders_csv = u.into();
         s.upsert_thread(u, &sent_unread).unwrap();
         s.upsert_thread(u, &sent_read).unwrap();
+        s.mark_unread(u, "s1").unwrap();
 
         let f = ListThreadsFilter {
             folder: Some("sent"),
@@ -580,7 +577,7 @@ impl KevyMailboxStore {
                 page
             }
         };
-        self.hydrate_page(&tids, total)
+        self.hydrate_page(user, &tids, total)
     }
 
     /// The merged Notifications + Promotions view.
@@ -612,7 +609,7 @@ impl KevyMailboxStore {
                 }
                 None => self.list_thread_ids_by_bucket_via_table(user, bucket, want)?,
             };
-            let (rows, _) = self.hydrate_page(&tids, 0)?;
+            let (rows, _) = self.hydrate_page(user, &tids, 0)?;
             merged.extend(rows);
         }
         merged.sort_by(|a, b| {
@@ -661,7 +658,7 @@ impl KevyMailboxStore {
                 }
                 None => self.list_thread_ids_by_flag_filtered(user, flag, &refs, want, 0, None)?,
             };
-            let (rows, _) = self.hydrate_page(&tids, 0)?;
+            let (rows, _) = self.hydrate_page(user, &tids, 0)?;
             merged.extend(rows);
         }
         if limit == 0 {
@@ -711,7 +708,7 @@ impl KevyMailboxStore {
                 self.list_thread_ids_by_flag_filtered(user, flag, &extra, limit, offset, None)?
             }
         };
-        self.hydrate_page(&tids, total)
+        self.hydrate_page(user, &tids, total)
     }
 
     /// Serve one boolean-predicate page off that flag's index.
@@ -738,7 +735,7 @@ impl KevyMailboxStore {
                 self.list_thread_ids_by_flag_via_table(user, flag, limit, offset, None)?
             }
         };
-        self.hydrate_page(&tids, total)
+        self.hydrate_page(user, &tids, total)
     }
 
     /// Serve a category page off the second declared ORDERPATH.
@@ -768,7 +765,7 @@ impl KevyMailboxStore {
                 page
             }
         };
-        self.hydrate_page(&tids, total)
+        self.hydrate_page(user, &tids, total)
     }
 
     /// Serve the Junk page off the declared ORDERPATH.
@@ -819,19 +816,39 @@ impl KevyMailboxStore {
             }
         };
 
-        self.hydrate_page(&tids, total)
+        self.hydrate_page(user, &tids, total)
     }
 
     /// Read the page's thread hashes under one shard lock, the same
     /// way the zset path does — no interleaving writer may shift a
     /// row's counters between two hgetalls within one page.
-    fn hydrate_page(&self, tids: &[String], total: usize) -> io::Result<(Vec<ThreadRow>, usize)> {
+    /// Turn a page of thread ids into rows, from **each user's own**
+    /// membership row.
+    ///
+    /// It read the shared `mailrs:thread:{tid}` hash until 2026-08-01.
+    /// That hash has no user segment, so on a thread two accounts both
+    /// received — 74 of 30,586 on production — the counters, the flags,
+    /// the category and the preview were whichever owner wrote last, and
+    /// both of them saw it. The membership row carries the same payload
+    /// per user, which is what the index already keys on, so this reads
+    /// one hash per row exactly as before.
+    ///
+    /// A tid whose row is missing is skipped rather than filled from the
+    /// shared hash: the index that produced this page is built from those
+    /// rows, so a gap here means something wrote an index entry without a
+    /// row, and serving somebody else's copy is how that stays invisible.
+    fn hydrate_page(
+        &self,
+        user: &str,
+        tids: &[String],
+        total: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
         self.store()
             .atomic(|ctx| {
                 let mut out = Vec::with_capacity(tids.len());
                 for tid in tids {
-                    let pairs = ctx.hgetall(keys::thread(tid).as_bytes())?;
-                    if let Some(row) = ThreadRow::from_pairs(tid.clone(), &pairs) {
+                    let pairs = ctx.hgetall(keys::thread_user(user, tid).as_bytes())?;
+                    if let Some(row) = ThreadRow::from_user_pairs(tid.clone(), &pairs) {
                         out.push(row);
                     }
                 }
@@ -1135,16 +1152,14 @@ mod bucket_axis_tests {
         st.ensure_thread_table();
         let u = "alice@x.com";
 
-        let mut archived_inbox = row("ai", 300, "inbox");
-        archived_inbox.archived = true;
-        st.upsert_thread(u, &archived_inbox).unwrap();
-
-        let mut archived_junk = row("aj", 200, "spam");
-        archived_junk.archived = true;
-        st.upsert_thread(u, &archived_junk).unwrap();
-
+        st.upsert_thread(u, &row("ai", 300, "inbox")).unwrap();
+        st.upsert_thread(u, &row("aj", 200, "spam")).unwrap();
         // Live inbox thread, not archived.
         st.upsert_thread(u, &row("live", 100, "inbox")).unwrap();
+        // Archiving is a per-user act, so it goes through the mutator.
+        for tid in ["ai", "aj"] {
+            st.set_archived(u, tid, true).unwrap();
+        }
 
         let archived_in = |folder: &'static str| {
             let f = ListThreadsFilter {
@@ -1184,15 +1199,11 @@ mod bucket_axis_tests {
         st.ensure_thread_table();
         let u = "alice@x.com";
 
-        let mut unread = row("u1", 300, "inbox");
-        unread.unread_count = 2;
-        st.upsert_thread(u, &unread).unwrap();
-
-        let mut starred = row("s1", 200, "inbox");
-        starred.starred = true;
-        st.upsert_thread(u, &starred).unwrap();
-
+        st.upsert_thread(u, &row("u1", 300, "inbox")).unwrap();
+        st.upsert_thread(u, &row("s1", 200, "inbox")).unwrap();
         st.upsert_thread(u, &row("plain", 100, "inbox")).unwrap();
+        st.mark_unread(u, "u1").unwrap();
+        st.set_starred(u, "s1", true).unwrap();
 
         let ids = |f: ListThreadsFilter<'_>| {
             st.list_threads_by_activity(u, &f, 0, 50)

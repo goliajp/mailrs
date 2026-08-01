@@ -622,11 +622,20 @@ mod table_spec_tests {
             sent_count: 0,
             starred: false,
         };
-        let written: std::collections::BTreeSet<Vec<u8>> =
+        // The union of the two writers: the derived fields, plus the
+        // per-user flags a fresh row is planted with. They are apart on
+        // purpose — deriving the second group from the shared hash is
+        // what let one owner's star reach another's row.
+        let mut written: std::collections::BTreeSet<Vec<u8>> =
             thread_row::thread_user_pairs("u@x.com", &row)
                 .into_iter()
                 .map(|(k, _)| k)
                 .collect();
+        written.extend(
+            thread_row::PER_USER_FLAGS
+                .iter()
+                .map(|f| f.as_bytes().to_vec()),
+        );
         for (col, _) in &thread_user_spec().columns {
             assert!(
                 written.contains(col),
@@ -1189,6 +1198,19 @@ mod flag_axis_tests {
     use super::*;
     use kevy_embedded::{Config, Store};
 
+    /// Seed a starred thread the way the product does: write the
+    /// aggregate, then flip the flag through the mutator that owns it.
+    ///
+    /// `starred` on a `ThreadRow` no longer reaches the membership row
+    /// on its own — it is one user's state and `thread_user_pairs`
+    /// stopped deriving it from the shared hash, which is the fix these
+    /// tests sit downstream of.
+    fn seed_starred(st: &KevyMailboxStore, user: &str, tid: &str, activity: i64) {
+        st.upsert_thread(user, &flagged(tid, activity, true))
+            .unwrap();
+        st.set_starred(user, tid, true).unwrap();
+    }
+
     fn flagged(tid: &str, activity: i64, starred: bool) -> thread_row::ThreadRow {
         thread_row::ThreadRow {
             thread_id: tid.into(),
@@ -1233,11 +1255,7 @@ mod flag_axis_tests {
         st.ensure_thread_table();
 
         for i in 1..=3 {
-            st.write_thread_user_if_changed(
-                "alice@x.com",
-                &flagged(&format!("t{i:02}"), 1000 + i, true),
-            )
-            .unwrap();
+            seed_starred(&st, "alice@x.com", &format!("t{i:02}"), 1000 + i);
         }
 
         // Payload the spec knows nothing about, on one of the rows.
@@ -1285,15 +1303,10 @@ mod flag_axis_tests {
         // Insert oldest-first so a page-local sort would surface the
         // oldest three rather than the newest.
         for i in 1..=10 {
-            st.write_thread_user_if_changed(
-                "alice@x.com",
-                &flagged(&format!("t{i:02}"), 1000 + i, true),
-            )
-            .unwrap();
+            seed_starred(&st, "alice@x.com", &format!("t{i:02}"), 1000 + i);
         }
         // A second user's starred threads must not appear.
-        st.write_thread_user_if_changed("bob@y.com", &flagged("bobs", 9999, true))
-            .unwrap();
+        seed_starred(&st, "bob@y.com", "bobs", 9999);
 
         let got = st
             .list_thread_ids_by_flag_via_table("alice@x.com", "starred", 3, 0, None)

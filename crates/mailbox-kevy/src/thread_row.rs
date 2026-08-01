@@ -104,11 +104,16 @@ impl ThreadRow {
             kv!("importance_level", self.importance_level.clone()),
             kv!("importance_score", self.importance_score.to_string()),
             kv!("requires_action", (self.requires_action as u8).to_string()),
-            kv!("pinned", (self.pinned as u8).to_string()),
-            kv!("archived", (self.archived as u8).to_string()),
-            kv!("has_action", (self.has_action as u8).to_string()),
             kv!("sent_count", self.sent_count.to_string()),
-            kv!("starred", (self.starred as u8).to_string()),
+            // `pinned`, `archived`, `has_action` and `starred` are not
+            // written here any more: they are one user's state and they
+            // live on that user's membership row. What the shared hash
+            // still holds is what a conversation is — who wrote in it,
+            // when, what it says, how it was classified.
+            //
+            // They stay in `field_names()`, which is the delete list, so
+            // `delete_thread` still clears the values written before
+            // this.
         ]
     }
 
@@ -238,6 +243,14 @@ impl ThreadRow {
     }
 }
 
+/// The declared columns that are one user's state rather than the
+/// conversation's, and so are never derived from the shared thread hash.
+///
+/// Each is written by its own mutator against the membership row.
+/// `thread_user_pairs` leaves them alone; a fresh row gets them at zero.
+pub(crate) const PER_USER_FLAGS: [&str; 5] =
+    ["starred", "archived", "pinned", "unread", "has_action"];
+
 /// `1` / `0` as the stored bytes for a boolean column. i64-typed in the
 /// declaration so `FILTER flag EQ 1` coerces cleanly.
 fn flag(v: bool) -> &'static [u8] {
@@ -295,11 +308,23 @@ pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Ve
         ),
         (b"sent_only".to_vec(), flag(sent_only).to_vec()),
         (b"is_sender".to_vec(), flag(is_sender).to_vec()),
-        (b"starred".to_vec(), flag(row.starred).to_vec()),
-        (b"archived".to_vec(), flag(row.archived).to_vec()),
-        (b"pinned".to_vec(), flag(row.pinned).to_vec()),
-        (b"unread".to_vec(), flag(row.unread_count > 0).to_vec()),
-        (b"has_action".to_vec(), flag(row.has_action).to_vec()),
+        // `starred`, `archived`, `pinned`, `has_action` and `unread` are
+        // **not** here, and that is the point of the row.
+        //
+        // They are one person's state, and this function derives from the
+        // shared thread hash, which has no user segment. Emitting them
+        // meant every arrival rewrote each owner's flags with whatever the
+        // last owner had set: A stars a conversation, mail arrives for B,
+        // and B's row is now starred too — silently, with nothing to
+        // compare against. `keys.rs` states the rule this broke: "every
+        // per-user fact belongs on a row of its own".
+        //
+        // Each has a writer that already targets the membership row —
+        // `toggle_flag`, `mark_seen`, `mark_unread`,
+        // `record_message_arrival` for `unread` — so leaving them out
+        // removes a write rather than losing one.
+        // [`KevyMailboxStore::plant_thread_user_defaults`] gives a row its
+        // first zeros so the declared columns exist from the start.
         // Display payload, so a list page can be served from this row
         // alone instead of joining back to the shared thread hash
         // (RFC 20260730 S1). Undeclared by the TableSpec — nothing
@@ -353,7 +378,8 @@ impl KevyMailboxStore {
             .map_err(std::io::Error::other)?
             .into_iter()
             .collect();
-        if want.iter().all(|(k, v)| have.get(k) == Some(v)) {
+        let fresh = have.is_empty();
+        if !fresh && want.iter().all(|(k, v)| have.get(k) == Some(v)) {
             return Ok(false);
         }
         let refs: Vec<(&[u8], &[u8])> = want
@@ -363,7 +389,31 @@ impl KevyMailboxStore {
         self.store()
             .hset(key.as_bytes(), &refs)
             .map_err(std::io::Error::other)?;
+        if fresh {
+            self.plant_thread_user_defaults(&key)?;
+        }
         Ok(true)
+    }
+
+    /// Give a brand-new membership row its per-user flags, all off.
+    ///
+    /// A conversation you have just received is not starred, archived or
+    /// pinned **by you**, whatever the shared hash says about whoever else
+    /// has it. Seeding from there is the leak this migration closes, so
+    /// the seed is zero.
+    ///
+    /// The columns have to exist rather than be absent: they are declared,
+    /// and `written_fields_cover_declared_columns` holds the write path to
+    /// producing every one of them.
+    fn plant_thread_user_defaults(&self, key: &str) -> io::Result<()> {
+        let zeros: Vec<(&[u8], &[u8])> = PER_USER_FLAGS
+            .iter()
+            .map(|f| (f.as_bytes(), b"0".as_slice()))
+            .collect();
+        self.store()
+            .hset(key.as_bytes(), &zeros)
+            .map_err(std::io::Error::other)?;
+        Ok(())
     }
 
     /// Write the thread aggregate hash + bump it to head of every index
@@ -398,7 +448,19 @@ impl KevyMailboxStore {
                 // key names is a column here, maintained by the engine.
                 // `bucket` is stored rather than derived because the
                 // engine cannot call `bucket_of`.
+                //
+                // A row that did not exist gets its per-user flags at
+                // zero, in the same closure, so no reader can catch it
+                // between the two writes with the columns missing.
+                let fresh = !ctx.hexists(tu_key.as_bytes(), b"tid")?;
                 ctx.hset(tu_key.as_bytes(), &tu_refs)?;
+                if fresh {
+                    let zeros: Vec<(&[u8], &[u8])> = PER_USER_FLAGS
+                        .iter()
+                        .map(|f| (f.as_bytes(), b"0".as_slice()))
+                        .collect();
+                    ctx.hset(tu_key.as_bytes(), &zeros)?;
+                }
 
                 Ok(())
             })
@@ -507,17 +569,42 @@ mod tests {
     #[test]
     fn field_names_match_to_pairs() {
         // The delete path deletes `field_names()`; the write path writes
-        // `to_pairs()`. Any drift between them leaves a partially
-        // deleted row behind, so pin them together.
+        // `to_pairs()`. A field written and not deleted leaves a
+        // partially deleted row behind, so the delete list has to cover
+        // the write list.
+        //
+        // The reverse does not hold, and deliberately: the four
+        // user-curated flags moved to the membership row and are no
+        // longer written here, but rows written before that still carry
+        // them and a delete has to take them with it.
         let written: std::collections::BTreeSet<Vec<u8>> =
             sample("t").to_pairs().into_iter().map(|(k, _)| k).collect();
         let declared: std::collections::BTreeSet<Vec<u8>> = ThreadRow::field_names()
             .iter()
             .map(|f| f.to_vec())
             .collect();
+        let unlisted: Vec<String> = written
+            .difference(&declared)
+            .map(|f| String::from_utf8_lossy(f).into_owned())
+            .collect();
+        assert!(
+            unlisted.is_empty(),
+            "to_pairs() writes fields delete_thread never clears: {unlisted:?}"
+        );
+        let legacy: Vec<String> = declared
+            .difference(&written)
+            .map(|f| String::from_utf8_lossy(f).into_owned())
+            .collect();
         assert_eq!(
-            written, declared,
-            "ThreadRow::field_names() must list exactly what to_pairs() writes"
+            legacy,
+            vec![
+                "archived".to_string(),
+                "has_action".to_string(),
+                "pinned".to_string(),
+                "starred".to_string()
+            ],
+            "the only unwritten entries are the flags that moved to the \
+             membership row; anything else is drift"
         );
     }
 
@@ -548,7 +635,37 @@ mod tests {
         let row = sample("t1");
         s.upsert_thread("u@x.com", &row).unwrap();
         let back = s.get_thread("t1").unwrap().unwrap();
-        assert_eq!(back, row);
+        // Everything the shared hash is still the authority for. The
+        // four user-curated flags are not among them — they answer
+        // "whose?", which this hash cannot — so they come back off.
+        assert_eq!(
+            back,
+            ThreadRow {
+                pinned: false,
+                archived: false,
+                has_action: false,
+                starred: false,
+                ..row
+            }
+        );
+    }
+
+    /// And they round-trip through the row that *can* answer "whose".
+    #[test]
+    fn the_users_own_row_round_trips_the_flags() {
+        let s = store();
+        s.upsert_thread("u@x.com", &sample("t1")).unwrap();
+        s.set_starred("u@x.com", "t1", true).unwrap();
+        s.set_pinned("u@x.com", "t1", true).unwrap();
+
+        let mine = s
+            .get_thread_for_user("u@x.com", "t1")
+            .unwrap()
+            .expect("membership row");
+        assert!(mine.starred);
+        assert!(mine.pinned);
+        assert!(!mine.archived);
+        assert_eq!(mine.subject, sample("t1").subject);
     }
 
     #[test]
@@ -570,19 +687,67 @@ mod tests {
                 .unwrap_or_default()
         };
 
+        // A fresh row starts with every per-user flag off, whatever the
+        // aggregate says — a conversation you have just received is not
+        // archived *by you*.
         let mut row = sample("t2");
         row.archived = true;
-        row.pinned = false;
-        s.upsert_thread("u@x.com", &row).unwrap();
-        assert_eq!(field("t2", "archived"), "1");
-        assert_eq!(field("t2", "pinned"), "0");
-
-        // flip both
-        row.archived = false;
         row.pinned = true;
         s.upsert_thread("u@x.com", &row).unwrap();
         assert_eq!(field("t2", "archived"), "0");
+        assert_eq!(field("t2", "pinned"), "0");
+
+        // The mutators own them.
+        s.set_archived("u@x.com", "t2", true).unwrap();
+        s.set_pinned("u@x.com", "t2", true).unwrap();
+        assert_eq!(field("t2", "archived"), "1");
         assert_eq!(field("t2", "pinned"), "1");
+
+        // And a later arrival does not undo the user's own decision,
+        // which is what deriving these from the shared hash did.
+        row.archived = false;
+        row.pinned = false;
+        s.upsert_thread("u@x.com", &row).unwrap();
+        assert_eq!(field("t2", "archived"), "1");
+        assert_eq!(field("t2", "pinned"), "1");
+    }
+
+    /// The defect this migration exists for: two accounts on one thread,
+    /// one of them stars it, mail arrives — and the other's row is
+    /// untouched.
+    ///
+    /// 74 threads on production have two owners. Before this, the shared
+    /// hash carried `starred`, `thread_user_pairs` copied it onto every
+    /// owner's row on every arrival, and nothing could tell you it had
+    /// happened.
+    #[test]
+    fn one_owners_star_does_not_reach_the_others_row() {
+        let s = store();
+        let row = sample("shared-tid");
+        s.upsert_thread("a@x.com", &row).unwrap();
+        s.upsert_thread("b@x.com", &row).unwrap();
+
+        s.set_starred("a@x.com", "shared-tid", true).unwrap();
+
+        // A new message in the conversation, delivered to both.
+        for u in ["a@x.com", "b@x.com"] {
+            s.upsert_thread(u, &row).unwrap();
+        }
+
+        assert!(
+            s.get_thread_for_user("a@x.com", "shared-tid")
+                .unwrap()
+                .expect("a's row")
+                .starred,
+            "the owner who starred it keeps it"
+        );
+        assert!(
+            !s.get_thread_for_user("b@x.com", "shared-tid")
+                .unwrap()
+                .expect("b's row")
+                .starred,
+            "the other owner never starred anything"
+        );
     }
 
     #[test]

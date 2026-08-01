@@ -117,8 +117,17 @@ impl KevyMailboxStore {
             .map_err(std::io::Error::other)
     }
 
-    /// Common path: hset the boolean field on the shared hash and on this
-    /// user's membership row, which is where the declared indexes read it.
+    /// Common path: hset the boolean field on **this user's** membership
+    /// row, which is where the declared indexes read it.
+    ///
+    /// The shared hash no longer receives it. It has no user segment, so
+    /// a flag on it is one owner's answer offered to everybody — and it
+    /// was: `thread_user_pairs` read it back out on every arrival and
+    /// wrote it onto each owner's row.
+    ///
+    /// The existence check stays on the shared hash: it is what says the
+    /// conversation exists at all, and starring something that is not
+    /// there should still answer `false`.
     fn toggle_flag(
         &self,
         user: &str,
@@ -133,9 +142,6 @@ impl KevyMailboxStore {
                 if !ctx.hexists(thread_key.as_bytes(), b"count")? {
                     return Ok(false);
                 }
-                ctx.hset(thread_key.as_bytes(), &[(field.as_bytes(), val)])?;
-                // The membership row names these flags identically and
-                // the table's indexes read them from there.
                 ctx.hset(
                     keys::thread_user(user, thread_id).as_bytes(),
                     &[(field.as_bytes(), val)],
@@ -367,7 +373,9 @@ mod tests {
         s.record_message_arrival(&arr("t1", u)).unwrap();
 
         assert!(s.set_archived(u, "t1", true).unwrap());
-        assert!(s.get_thread("t1").unwrap().unwrap().archived);
+        // Read back from the row that owns the fact, not the shared
+        // aggregate — which has no user segment and no longer carries it.
+        assert!(s.get_thread_for_user(u, "t1").unwrap().unwrap().archived);
         let archived = |s: &KevyMailboxStore| {
             axis_count(
                 s,
@@ -474,7 +482,7 @@ mod tests {
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u)).unwrap();
         s.set_archived(u, "t1", true).unwrap();
-        assert!(s.get_thread("t1").unwrap().unwrap().archived);
+        assert!(s.get_thread_for_user(u, "t1").unwrap().unwrap().archived);
 
         let archived_count = |s: &KevyMailboxStore| {
             axis_count(
