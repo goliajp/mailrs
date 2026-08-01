@@ -31,6 +31,19 @@ BASE="${1:-localhost:3103}"
 # a second copy of the router; check-rest-parity.sh is what compares the full
 # tables. Every entry below is a route that has broken, or the reads the
 # mailbox cannot work without.
+#
+# The last four are the login page's dependencies, and they are here with
+# their *unconfigured* statuses rather than 401 on purpose. For everything
+# above, 401 proves the path is served. For a route that runs before anyone
+# has signed in, 401 is the failure — and it is what all three sign-in
+# starts answered from the fastcore cutover until 2026-08-01, because they
+# were registered in the authenticated router. Nothing noticed: the probe
+# only knew how to expect 401, and the login page's `.catch` turned the
+# empty 401 body into "no providers configured".
+#
+# So: 200 where the page needs data, and 404 / 501 where an unconfigured
+# provider is the honest answer. Any of them turning 401 means a sign-in
+# route has been moved behind auth again.
 PROBES=$(cat <<'TABLE'
 GET  /api/health                                200
 GET  /.well-known/autoconfig/mail/config-v1.1.xml 200
@@ -55,6 +68,10 @@ GET  /api/admin/system-config                   401
 PUT  /api/admin/system-config/probe             401
 DELETE /api/admin/system-config/probe           401
 PUT  /api/admin/groups/1/permissions            401
+GET  /api/auth/oidc/config                      200
+GET  /api/auth/external-providers               200
+GET  /api/auth/external/probe-not-a-provider    404
+GET  /api/auth/oidc/login                       501
 TABLE
 )
 
