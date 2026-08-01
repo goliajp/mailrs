@@ -37,6 +37,18 @@ pub mod types;
 
 #[cfg(feature = "client")]
 pub mod client;
+// Split out of `client.rs` on 2026-08-02 by subject. Each carries a
+// second `impl CoreClient` block, so the methods stay on the one type.
+#[cfg(feature = "client")]
+mod client_accounts;
+#[cfg(feature = "client")]
+mod client_messages;
+#[cfg(feature = "client")]
+mod client_outbound;
+#[cfg(feature = "client")]
+mod client_sidestate;
+#[cfg(feature = "client")]
+mod client_threads;
 
 #[cfg(feature = "server")]
 pub mod server;
