@@ -32,6 +32,7 @@ import { MessageBubble } from '@/components/message-bubble'
 import { MobileModal } from '@/components/mobile-modal'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, HdrBtn, SmBtn, ThreadTimelineItem } from '@/components/thread-view-bubble'
 import { bubbleDateLabel, formatRecipients } from '@/components/thread-view-helpers'
@@ -51,6 +52,7 @@ import { formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
+import { isOwnMessage, isSpoofSuspected } from '@/lib/sender-identity'
 import { getToken } from '@/store/auth'
 import { authAtom } from '@/store/auth'
 import {
@@ -440,7 +442,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     return visible.map((msg, visIdx) => {
       const idx = offset + visIdx
       const senderEmail = extractEmail(msg.sender)
-      const isOwn = senderEmail === myEmailForTimeline
+      // Not `senderEmail === myEmailForTimeline`: a forged From carrying your
+      // own address rendered as "Me" and, because the badge is drawn only for
+      // messages that are not yours, suppressed the one thing that would have
+      // given it away.
+      const isOwn = isOwnMessage(senderEmail, myEmailForTimeline, msg.sender_trust)
       const msgDateGroup = new Date(msg.internal_date * 1000).toDateString()
       const showDivider = msgDateGroup !== prevDateGroup
       prevDateGroup = msgDateGroup
@@ -634,16 +640,41 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
                     padding can't add vertical space beyond the row's box. */}
                 <div className="border-border shrink-0 border-b px-4 py-2">
                   <div className="flex items-start gap-2.5">
-                    <SenderAvatar className="mt-0.5" sender={selectedMsg.sender} size={28} />
+                    {/* A spoof wearing your address would otherwise be
+                        drawn with your own avatar, which is the most
+                        convincing part of it. */}
+                    <SenderAvatar
+                      className="mt-0.5"
+                      sender={isSpoofSuspected(selectedMsg.sender_trust) ? '' : selectedMsg.sender}
+                      size={28}
+                    />
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <div className="flex h-5 items-center justify-between gap-2">
                         <p
-                          className={`flex h-5 items-center text-sm font-medium select-text ${extractEmail(selectedMsg.sender) === myEmail ? 'text-accent' : 'text-fg'}`}
+                          className={`flex h-5 items-center text-sm font-medium select-text ${
+                            isOwnMessage(
+                              extractEmail(selectedMsg.sender),
+                              myEmail,
+                              selectedMsg.sender_trust
+                            )
+                              ? 'text-accent'
+                              : 'text-fg'
+                          }`}
                         >
                           <span className="truncate">
-                            {extractEmail(selectedMsg.sender) === myEmail
+                            {isOwnMessage(
+                              extractEmail(selectedMsg.sender),
+                              myEmail,
+                              selectedMsg.sender_trust
+                            )
                               ? 'Me'
                               : extractName(selectedMsg.sender)}
+                          </span>
+                          {/* The reading pane is where a message is actually
+                              read, and it showed no verdict at all — the
+                              badge existed only in the timeline bubbles. */}
+                          <span className="ml-1.5 shrink-0">
+                            <SenderTrustBadge trust={selectedMsg.sender_trust} />
                           </span>
                           {selectedMsg.bimi_logo_url && (
                             <img
