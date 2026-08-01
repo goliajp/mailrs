@@ -60,12 +60,7 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         };
         // Doubling from the busy interval, capped. A queue that just went
         // quiet is still polled promptly; one quiet for an hour is not.
-        let wait = match idle_rounds {
-            0 => BUSY_INTERVAL,
-            n => BUSY_INTERVAL
-                .saturating_mul(1u32 << n.min(5))
-                .min(IDLE_INTERVAL),
-        };
+        let wait = crate::idle_backoff::idle_backoff(BUSY_INTERVAL, IDLE_INTERVAL, idle_rounds);
         tokio::time::sleep(wait).await;
     }
 }

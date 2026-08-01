@@ -16,9 +16,17 @@ use mailrs_core_sidestate::families::calendar_feeds::{self, FeedRow};
 
 use crate::FastcoreState;
 
-/// How often the loop looks for due feeds. Each feed's own interval decides
-/// whether it is actually fetched.
-const TICK: Duration = Duration::from_secs(60);
+/// How often the loop looks for due feeds when it last found one. Each
+/// feed's own interval decides whether it is actually fetched.
+const BUSY_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Longest interval when nothing has been due for a while.
+///
+/// Under half of [`calendar_feeds::MIN_INTERVAL_SECS`], the shortest period a
+/// feed may ask to be polled at, so backing off can never make a due feed
+/// late by more than a fraction of its own interval. Same number as
+/// `webhook_delivery`, which is the other loop of this shape.
+const IDLE_INTERVAL: Duration = Duration::from_secs(120);
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
@@ -40,21 +48,35 @@ pub async fn spawn(state: Arc<FastcoreState>) {
         }
     };
     tracing::info!("calendar feed sync started");
+    let mut idle_rounds = 0u32;
     loop {
-        tick(&state, &client).await;
-        tokio::time::sleep(TICK).await;
+        // With no feed subscribed anywhere this used to enumerate every
+        // account and read every feed key once a minute, forever, and find
+        // nothing — 1440 rounds a day of work that could not accomplish
+        // anything. A loop with no cheap resting state is the shape that
+        // burned a shared host on 2026-07-19.
+        let synced = tick(&state, &client).await;
+        idle_rounds = match synced {
+            0 => idle_rounds.saturating_add(1),
+            _ => 0,
+        };
+        let wait = crate::idle_backoff::idle_backoff(BUSY_INTERVAL, IDLE_INTERVAL, idle_rounds);
+        tokio::time::sleep(wait).await;
     }
 }
 
-async fn tick(state: &Arc<FastcoreState>, client: &reqwest::Client) {
+/// One pass. Returns how many feeds were fetched, which is what tells the
+/// loop whether this round accomplished anything.
+async fn tick(state: &Arc<FastcoreState>, client: &reqwest::Client) -> usize {
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
             tracing::warn!(err = %e, "calendar sync: cannot list accounts");
-            return;
+            return 0;
         }
     };
     let now = now_secs();
+    let mut synced = 0usize;
     for user in users {
         let feeds = match read_feeds(state, &user) {
             Some(f) => f,
@@ -79,8 +101,10 @@ async fn tick(state: &Arc<FastcoreState>, client: &reqwest::Client) {
                 ),
             }
             write_feed(state, &user, &updated);
+            synced += 1;
         }
     }
+    synced
 }
 
 fn feeds_key(user: &str) -> String {
