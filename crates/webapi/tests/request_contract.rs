@@ -46,7 +46,7 @@ fn snooze_body_matches() {
 
 #[test]
 fn feedback_body_matches() {
-    let v: handlers::prefs::FeedbackRequest = parse("feedback");
+    let v: handlers::prefs_misc::FeedbackRequest = parse("feedback");
     assert_eq!(v.sender_email, "someone@example.com");
     assert_eq!(v.action, "block");
 }
@@ -111,7 +111,7 @@ fn calendar_feed_create_body_matches() {
 
 #[test]
 fn send_body_matches() {
-    let v: handlers::prefs::SendRequest = parse("send");
+    let v: handlers::compose::SendRequest = parse("send");
     assert_eq!(v.to, vec!["someone@example.com".to_string()]);
     // Epoch seconds. An ISO string here fails this test, which is what the
     // client sent until 2.19.2 — 422 on this path, and on the multipart
@@ -121,7 +121,7 @@ fn send_body_matches() {
 
 #[test]
 fn send_redraft_body_matches() {
-    let v: handlers::prefs::SendRequest = parse("send-redraft");
+    let v: handlers::compose::SendRequest = parse("send-redraft");
     assert_eq!(v.redraft_of.as_deref(), Some("abc123@golia.jp"));
     // `Some(vec![...])`, not a flattened list: absent keeps every carried
     // attachment and present-and-empty keeps none, so the Option must
