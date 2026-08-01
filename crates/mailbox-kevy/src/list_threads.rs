@@ -1,13 +1,22 @@
-//! `list_threads_by_activity` — Rock 1 cascade-killer's real exit.
+//! `list_threads_by_activity` — every conversation-list page.
 //!
-//! Replaces the SQL aggregate (`string_agg DISTINCT` + 3 correlated
-//! subqueries + BOOL_OR + COUNT DISTINCT CASE) with one ZREVRANGE on the
-//! per-user activity zset followed by N × HGETALL on each thread hash.
-//! Total cost: O(log n + N) instead of O(rows × messages).
+//! One dispatcher over the declared `threaduser` table. A filter names a
+//! scope (a folder, a category, or neither) and any number of boolean
+//! flags; this picks the axis to key on and hands the rest to the engine
+//! as value filters.
 //!
-//! Filtering by category / archived / pinned / has_unread / has_action
-//! uses the matching secondary zset (same shape, intersected with
-//! activity score range).
+//! It is deliberately **total**. The previous shape enumerated the
+//! combinations it knew — one bare flag, one flag plus one scope — and let
+//! everything else fall through to the hand-maintained zsets. Once those
+//! were dropped that fall-through returned an empty page: two flags at once
+//! ("starred" plus "unread only"), or a folder and a category together,
+//! answered `[]` with a 200 and no way to tell it from an empty mailbox.
+//! Measured 2026-08-01: all fifteen legacy zsets held 0 rows across all 13
+//! prod accounts, so every one of those combinations was already blank.
+//!
+//! The one shape that genuinely has no rows — a folder and a category that
+//! disagree, say Junk ∩ `promotion` — returns empty because it *is* empty,
+//! and says so in one place rather than by falling off the end.
 
 use std::io;
 
@@ -19,141 +28,114 @@ use super::thread_row::ThreadRow;
 /// required; default is "all threads sorted by recency, latest first."
 #[derive(Debug, Clone, Default)]
 pub struct ListThreadsFilter<'a> {
-    /// Restrict to a single category (`inbox`, `social`, etc.). When
-    /// set, the activity zset is replaced with the per-category index.
+    /// Restrict to a single category (`inbox`, `social`, `spam`, …) —
+    /// the `category` column on the membership row.
     pub category: Option<&'a str>,
-    /// Match monolith's `folder` query. `Some("Sent")` (case-insensitive)
-    /// flips the source index to the sent zset. Anything else falls
-    /// through to the default axis.
+    /// Match monolith's `folder` query: `inbox`, `junk`, `notifications`,
+    /// `promotions`, `np` (the merged notifications+promotions view) or
+    /// `sent`, case-insensitively. Anything else is no scope at all.
     pub folder: Option<&'a str>,
-    /// Only threads with `pinned = true`. Implemented as ZREVRANGE on
-    /// the pinned index.
+    /// Only threads with `pinned = true`.
     pub pinned: bool,
-    /// Only threads with `archived = true`. Likewise — archived index.
+    /// Only threads with `archived = true`.
     pub archived: bool,
-    /// Only threads with `unread_count > 0`. Uses the has_unread index.
+    /// Only threads with `unread_count > 0`.
     pub has_unread: bool,
-    /// Only threads with `has_action = true`. Uses the has_action index.
+    /// Only threads with `has_action = true`.
     pub has_action: bool,
-    /// Only threads with `starred = true`. Uses the starred index.
+    /// Only threads with `starred = true`.
     pub starred: bool,
     /// Cursor for pagination: only return threads with `latest_date <
-    /// before_ts`. Enables O(log n) load-more via ZREVRANGEBYSCORE.
-    /// When `None`, the caller controls window via `(offset, limit)`.
+    /// before_ts`. `activity` is the component right after the equality
+    /// columns in every declared composite, which is the one position a
+    /// range may constrain — so this is the shape the ORDERPATHs were
+    /// designed for. When `None`, the caller windows with
+    /// `(offset, limit)`.
     pub before_ts: Option<i64>,
 }
 
-impl<'a> ListThreadsFilter<'a> {
-    /// Enumerate the index keys the current filter requires. When only
-    /// one predicate is set, the returned Vec has a single entry and
-    /// callers can use it directly. When ≥ 2 are set (e.g. inbox ∩
-    /// has_unread), callers must ZINTERSTORE the collected keys and
-    /// read the intersection.
+/// What the filter's `folder` / `category` pair scopes the page to,
+/// after the two have been reconciled.
+#[derive(Debug, Clone, PartialEq)]
+enum Scope {
+    /// No folder and no category — every thread the user has.
+    All,
+    /// One folder bucket: `inbox`, `junk`, `notifications`, `promotions`.
+    Bucket(&'static str),
+    /// The merged notifications+promotions view, which is two ranges.
+    Np,
+    /// One category, which implies its bucket and is narrower than it.
+    Category(String),
+    /// A folder and a category that cannot both hold — `junk` with
+    /// `promotion`, say. No thread satisfies it, and that is an answer.
+    Contradiction,
+}
+
+impl ListThreadsFilter<'_> {
+    /// Every boolean flag the filter has switched on, as the column
+    /// names the membership row stores them under, **first one first**.
     ///
-    /// `folder = Sent | Junk | Inbox` is treated as an axis switch, not
-    /// a predicate stacked on top of the others — matches the monolith's
-    /// semantics. Sent + Junk + Inbox each resolve to their dedicated
-    /// zset (v2.4.0 roadmap Phase 2, RFC-A).
-    fn predicate_index_keys(&self, user: &str) -> Vec<String> {
-        if let Some(f) = self.folder {
-            if f.eq_ignore_ascii_case("sent") {
-                return vec![keys::user_threads_sent(user)];
+    /// `sent` is a folder to the caller and a flag here: `is_sender` is
+    /// a declared column like the other five, so treating it as one
+    /// means "Sent, unread only" needs no special case.
+    ///
+    /// It is first on purpose. Each flag index stores the other columns
+    /// beside it so a second predicate can be a FILTER rather than an
+    /// intersection — and `is_sender` is the one column that list omits
+    /// (`thread_user_spec`, asserted by `is_sender_is_the_only_flag_that_must_be_the_key`).
+    /// So it can be keyed on but not filtered on, and the caller keys on
+    /// whichever flag comes back first.
+    fn flags_on(&self) -> Vec<&'static str> {
+        let mut out = Vec::with_capacity(6);
+        for (name, on) in [
+            (
+                "is_sender",
+                self.folder.is_some_and(|f| f.eq_ignore_ascii_case("sent")),
+            ),
+            ("starred", self.starred),
+            ("archived", self.archived),
+            ("pinned", self.pinned),
+            ("unread", self.has_unread),
+            ("has_action", self.has_action),
+        ] {
+            if on {
+                out.push(name);
             }
-            if f.eq_ignore_ascii_case("junk") {
-                // v2.4.0 Phase 2 (RFC-A) — Junk folder read path.
-                // Dedicated `user_threads_junk` zset is authoritative.
-                // Every new arrival with category=="spam" fires an
-                // upsert_thread that ZADDs both this zset and (for
-                // legacy compat) `by_category:spam` in a single atomic
-                // closure — so post-cutover the two are always in
-                // sync. Pre-cutover threads only exist in
-                // `by_category:spam`; the deploy runbook runs a
-                // one-shot `scripts/backfill-junk-index.sh` to copy
-                // them into `user_threads_junk`.
-                return vec![keys::user_threads_junk(user)];
-            }
-            if f.eq_ignore_ascii_case("notifications") {
-                // v2.9 triage — Notifications bucket, pure axis switch.
-                return vec![keys::user_threads_notifications(user)];
-            }
-            if f.eq_ignore_ascii_case("promotions") {
-                // v2.9 triage — Promotions bucket, pure axis switch.
-                return vec![keys::user_threads_promotions(user)];
-            }
-            // "np" (the merged N & P view) is the UNION of the two
-            // bucket zsets — handled specially in
-            // `list_threads_by_activity` via ZUNIONSTORE, not here (this
-            // function's multi-key return is ZINTERSTORE'd). See
-            // `np_union_keys`.
-            if f.eq_ignore_ascii_case("inbox") {
-                // Inbox axis + additional predicates below stack via
-                // ZINTERSTORE — same shape as any other multi-index
-                // path. Push the Inbox zset first and fall through.
-                let mut out: Vec<String> = Vec::with_capacity(4);
-                out.push(keys::user_threads_inbox(user));
-                if let Some(cat) = self.category {
-                    out.push(keys::user_threads_by_category(user, cat));
-                }
-                if self.pinned {
-                    out.push(keys::user_threads_pinned(user));
-                }
-                if self.archived {
-                    out.push(keys::user_threads_archived(user));
-                }
-                if self.has_unread {
-                    out.push(keys::user_threads_has_unread(user));
-                }
-                if self.has_action {
-                    out.push(keys::user_threads_has_action(user));
-                }
-                if self.starred {
-                    out.push(keys::user_threads_starred(user));
-                }
-                return out;
-            }
-        }
-        let mut out: Vec<String> = Vec::with_capacity(4);
-        if let Some(cat) = self.category {
-            out.push(keys::user_threads_by_category(user, cat));
-        }
-        if self.pinned {
-            out.push(keys::user_threads_pinned(user));
-        }
-        if self.archived {
-            out.push(keys::user_threads_archived(user));
-        }
-        if self.has_unread {
-            out.push(keys::user_threads_has_unread(user));
-        }
-        if self.has_action {
-            out.push(keys::user_threads_has_action(user));
-        }
-        if self.starred {
-            out.push(keys::user_threads_starred(user));
-        }
-        if out.is_empty() {
-            out.push(keys::user_threads_by_activity(user));
         }
         out
     }
 
-    fn pick_index_key(&self, user: &str) -> String {
-        // Kept for callers that only need a single index key (e.g. the
-        // score-range zrevrange path). Multi-predicate callers should
-        // use predicate_index_keys() + ZINTERSTORE.
-        self.predicate_index_keys(user).remove(0)
-    }
-
-    /// The merged "N & P" view — `Some([notifications, promotions])`
-    /// when `folder == "np"`, else `None`. These are ZUNIONSTORE'd (a
-    /// union, not the intersection `predicate_index_keys` produces).
-    fn np_union_keys(&self, user: &str) -> Option<Vec<String>> {
-        match self.folder {
-            Some(f) if f.eq_ignore_ascii_case("np") => Some(vec![
-                keys::user_threads_notifications(user),
-                keys::user_threads_promotions(user),
-            ]),
+    /// Reconcile `folder` and `category` into the one scope the page is
+    /// keyed on.
+    ///
+    /// A category implies its bucket — `bucket_of` maps every category
+    /// onto exactly one — so naming both is either redundant (and the
+    /// category is the narrower of the two) or impossible. Saying which
+    /// here is what keeps the dispatcher total.
+    fn scope(&self) -> Scope {
+        let folder_bucket = self.folder.and_then(|f| match f {
+            f if f.eq_ignore_ascii_case("inbox") => Some(keys::Bucket::Inbox),
+            f if f.eq_ignore_ascii_case("junk") => Some(keys::Bucket::Junk),
+            f if f.eq_ignore_ascii_case("notifications") => Some(keys::Bucket::Notifications),
+            f if f.eq_ignore_ascii_case("promotions") => Some(keys::Bucket::Promotions),
             _ => None,
+        });
+        let is_np = self.folder.is_some_and(|f| f.eq_ignore_ascii_case("np"));
+
+        match (self.category, folder_bucket, is_np) {
+            (Some(cat), Some(b), _) if keys::bucket_of(cat) != b => Scope::Contradiction,
+            (Some(cat), _, true)
+                if !matches!(
+                    keys::bucket_of(cat),
+                    keys::Bucket::Notifications | keys::Bucket::Promotions
+                ) =>
+            {
+                Scope::Contradiction
+            }
+            (Some(cat), _, _) => Scope::Category(cat.to_string()),
+            (None, Some(b), _) => Scope::Bucket(b.name()),
+            (None, None, true) => Scope::Np,
+            (None, None, false) => Scope::All,
         }
     }
 }
@@ -173,191 +155,55 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        // Junk read cutover (kevy v4 TABLE migration). The declared
-        // ORDERPATH replaces `user_threads_junk` for this axis.
-        //
-        // A shadow read over all 12 accounts showed the zset holding a
-        // fraction of what the rows say — one account at 166 of 1456,
-        // four others empty against non-empty rows — because
-        // maintaining it by hand meant a write path could forget an
-        // axis with nothing to catch it. Serving the table also fixes
-        // that, so this changes what users see: threads already judged
-        // spam start appearing in Junk.
-        //
-        // Set MAILRS_JUNK_READ=zset to serve the old axis again; no
-        // rebuild is needed since both are still maintained on write.
-        if let Some(bucket) = filter.bare_bucket()
-            && bucket_reads_table()
-        {
-            return self.list_bucket_via_table(user, bucket, filter, offset, limit);
+        // One dispatcher, total over the filter space. Every branch ends
+        // in a declared index; nothing falls through, because what it
+        // used to fall through to — the hand-maintained zsets — is gone,
+        // and answered every combination it covered with an empty page.
+        let scope = filter.scope();
+        if scope == Scope::Contradiction {
+            return Ok((Vec::new(), 0));
         }
+        let flags = filter.flags_on();
 
-        // The category axis has the opposite drift from the bucket
-        // axes: its zsets accumulate. Nothing removes a thread from
-        // `by_category:inbox` when it is reclassified, so on prod that
-        // key held 28598 entries against 6787 live rows — 76% of it
-        // was threads that had moved elsewhere. The rows carry the
-        // current verdict, so this both cuts over and corrects.
-        if let Some(cat) = filter.bare_category()
-            && bucket_reads_table()
-        {
-            return self.list_category_via_table(user, cat, filter, offset, limit);
-        }
-
-        // The boolean predicates. Each keys on its own flag index and
-        // reaches user + recency through the values stored beside it,
-        // which is why five predicates cost five small indexes rather
-        // than five more composites.
-        if let Some(flag) = filter.bare_flag()
-            && bucket_reads_table()
-        {
-            return self.list_flag_via_table(user, flag, filter, offset, limit);
-        }
-
-        // A folder or category with a flag stacked on it. The zsets
-        // answered this with ZINTERSTORE; one index answers it now,
-        // because every column the other predicate needs is stored
-        // beside the flag. Without this the whole class — "archived
-        // within Inbox", "unread within Inbox" — falls through to a
-        // path that no longer has any index to read.
-        if bucket_reads_table()
-            && let Some((flag, scope)) = filter.stacked_predicate()
-        {
-            return self.list_stacked_via_table(user, flag, scope, filter, offset, limit);
-        }
-
-        // Sent is the sent_only flag; np is the union of two bucket
-        // axes, merged here because an ORDERPATH answers one range and
-        // a union is two.
-        if bucket_reads_table() {
-            // Sent was held back for a round: one account's zset held
-            // 58 threads where the rows said 9. The cause was not the
-            // predicate but the backfill's source — those threads had
-            // no membership row at all, because the backfill walked
-            // by_activity and that zset was missing them. Walking the
-            // union of every legacy zset wrote the 49, and the axis
-            // now agrees exactly.
-            if filter.is_bare_sent() {
-                return self.list_flag_via_table(user, "is_sender", filter, offset, limit);
-            }
-            if filter.is_bare_np() {
-                return self.list_np_via_table(user, filter, offset, limit);
-            }
-            if filter.is_bare_default() {
-                return self.list_default_via_table(user, filter, offset, limit);
-            }
-        }
-
-        // v2 Stage B.4/B.6: kevy 3.17 ships ZINTERSTORE — when the
-        // caller stacks ≥ 2 predicates (e.g. inbox ∩ has_unread),
-        // materialize the intersection into a per-request temp zset
-        // scored by the max latest_date. Prior implementation walked
-        // the highest-priority single index and let the UI show
-        // over-count badges. The temp key is TTL-tagged so an orphan
-        // (e.g. panic mid-request) auto-cleans.
-        // v2.9 — the merged "N & P" view is a ZUNIONSTORE of the two
-        // bucket zsets into a per-request temp key (mirrors the
-        // ZINTERSTORE temp-key pattern below; TTL-tagged so an orphan
-        // auto-cleans). Handled before the intersection path because a
-        // union has different algebra.
-        let index_keys: Vec<String>;
-        let owned_temp: Option<String>;
-        if let Some(union_keys) = filter.np_union_keys(user) {
-            let ts_nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0);
-            let temp = format!("mailrs:tmp:zunion:{user}:{ts_nanos}");
-            let refs: Vec<&[u8]> = union_keys.iter().map(|k| k.as_bytes()).collect();
-            self.store()
-                .zunionstore(temp.as_bytes(), &refs, None, kevy_embedded::ZAggregate::Max)
-                .map_err(std::io::Error::other)?;
-            self.store()
-                .expire(temp.as_bytes(), std::time::Duration::from_secs(60))
-                .map_err(std::io::Error::other)?;
-            index_keys = vec![temp.clone()];
-            owned_temp = Some(temp);
-        } else {
-            index_keys = filter.predicate_index_keys(user);
-            owned_temp = if index_keys.len() > 1 {
-                let ts_nanos = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0);
-                let temp = format!("mailrs:tmp:zinter:{user}:{ts_nanos}");
-                let refs: Vec<&[u8]> = index_keys.iter().map(|k| k.as_bytes()).collect();
-                self.store()
-                    .zinterstore(temp.as_bytes(), &refs, None, kevy_embedded::ZAggregate::Max)
-                    .map_err(std::io::Error::other)?;
-                self.store()
-                    .expire(temp.as_bytes(), std::time::Duration::from_secs(60))
-                    .map_err(std::io::Error::other)?;
-                Some(temp)
-            } else {
-                None
+        // No flag set: the scope's own ORDERPATH answers it directly,
+        // and its total is an index count rather than a walk.
+        let Some((key_flag, rest)) = flags.split_first() else {
+            return match scope {
+                Scope::All => self.list_default_via_table(user, filter, offset, limit),
+                Scope::Bucket(b) => self.list_bucket_via_table(user, b, filter, offset, limit),
+                Scope::Np => self.list_np_via_table(user, filter, offset, limit),
+                Scope::Category(cat) => {
+                    self.list_category_via_table(user, &cat, filter, offset, limit)
+                }
+                Scope::Contradiction => unreachable!("returned above"),
             };
-        }
-        let key: &str = owned_temp
-            .as_deref()
-            .unwrap_or_else(|| index_keys[0].as_str());
-        let total = self
-            .store()
-            .zcard(key.as_bytes())
-            .map_err(std::io::Error::other)?;
-        if limit == 0 {
-            return Ok((Vec::new(), total));
-        }
-
-        // Cursor branch — used by "load more". `before_ts` is the
-        // `last_date` of the previous page's tail; return threads with
-        // strictly smaller latest_date, ordered by score descending.
-        // kevy's `zrev_range_by_score` doesn't take a LIMIT, so we
-        // slice manually. For an in-memory-backed store this is fine
-        // up to ~100k entries; a future kevy release with LIMIT can
-        // replace the take().
-        let entries = if let Some(ts) = filter.before_ts {
-            let max = (ts - 1) as f64;
-            let raw = self
-                .store()
-                .zrev_range_by_score(key.as_bytes(), max, f64::NEG_INFINITY)
-                .map_err(std::io::Error::other)?;
-            raw.into_iter().take(limit).collect()
-        } else {
-            if offset >= total {
-                return Ok((Vec::new(), total));
-            }
-            let stop_exclusive = offset + limit;
-            let stop_inclusive_idx = (stop_exclusive.min(total) as i64) - 1;
-            self.store()
-                .zrevrange(key.as_bytes(), offset as i64, stop_inclusive_idx)
-                .map_err(std::io::Error::other)?
         };
-        // v2 Stage B.3: fetch the N thread hashes inside one atomic
-        // closure so the whole page assembles under a single shard
-        // write lock — no interleaving writer can shift a row's
-        // flags/counters between hgetalls. The initial zcard +
-        // zrevrange stay outside the closure because AtomicCtx has
-        // no zset reads in kevy 3.17.
-        let result = self.store().atomic(|ctx| {
-            let mut out = Vec::with_capacity(entries.len());
-            for (tid_bytes, _score) in &entries {
-                let Ok(tid) = std::str::from_utf8(tid_bytes) else {
-                    continue;
-                };
-                let hkey = keys::thread(tid);
-                let pairs = ctx.hgetall(hkey.as_bytes())?;
-                if let Some(row) = ThreadRow::from_pairs(tid.to_string(), &pairs) {
-                    out.push(row);
+
+        // At least one flag: key on the first, and hand the engine every
+        // other predicate as a value filter. Each flag index stores user
+        // and activity beside the flag, so any one of them can be the
+        // key and the rest cost a comparison — which is why "starred and
+        // unread, within Inbox" needs no index of its own.
+        let mut extra: Vec<(&str, String)> = rest.iter().map(|f| (*f, "1".to_string())).collect();
+        match scope {
+            Scope::All => {}
+            Scope::Bucket(b) => {
+                extra.push(("bucket", b.to_string()));
+                if b == "inbox" {
+                    // Inbox excludes threads that are nothing but the
+                    // user's own messages — the same exclusion the
+                    // bucket ORDERPATH carries in its sort prefix.
+                    extra.push(("sent_only", "0".to_string()));
                 }
             }
-            Ok((out, total))
-        });
-        // Reclaim the intersection temp promptly; TTL is a fallback
-        // for a mid-request panic, not the primary GC path.
-        if let Some(temp) = owned_temp {
-            let _ = self.store().del(&[temp.as_bytes()]);
+            Scope::Category(cat) => extra.push(("category", cat)),
+            Scope::Np => {
+                return self
+                    .list_np_flagged_via_table(user, key_flag, &extra, filter, offset, limit);
+            }
+            Scope::Contradiction => unreachable!("returned above"),
         }
-        result.map_err(std::io::Error::other)
+        self.list_stacked_via_table(user, key_flag, &extra, filter, offset, limit)
     }
 }
 
@@ -470,6 +316,153 @@ mod tests {
         assert_eq!(got[0].thread_id, "p1");
     }
 
+    /// Two flags at once is an intersection, not an empty page.
+    ///
+    /// This is the shape that had no declared path: `bare_flag` returned
+    /// `None` for two, `stacked_predicate` returned `None` for two, and
+    /// what caught it was the zset intersection — over zsets that hold 0
+    /// rows on every prod account. The tab answered `[]` with a 200.
+    #[test]
+    fn two_flags_at_once_intersect() {
+        let s = store();
+        let u = "u@x.com";
+        let mut both = row("both", 300, "inbox");
+        both.starred = true;
+        both.unread_count = 1;
+        let mut only_starred = row("star", 200, "inbox");
+        only_starred.starred = true;
+        let mut only_unread = row("unread", 100, "inbox");
+        only_unread.unread_count = 1;
+        for r in [&both, &only_starred, &only_unread] {
+            s.upsert_thread(u, r).unwrap();
+        }
+
+        let f = ListThreadsFilter {
+            starred: true,
+            has_unread: true,
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1, "starred ∩ unread is one thread, not none");
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].thread_id, "both");
+    }
+
+    /// Two flags *and* a folder — the same shape with a scope on top.
+    #[test]
+    fn two_flags_within_a_folder_stay_inside_it() {
+        let s = store();
+        let u = "u@x.com";
+        let mut inbox_hit = row("in", 300, "inbox");
+        inbox_hit.starred = true;
+        inbox_hit.unread_count = 1;
+        let mut junk_hit = row("junk", 400, "spam");
+        junk_hit.starred = true;
+        junk_hit.unread_count = 1;
+        s.upsert_thread(u, &inbox_hit).unwrap();
+        s.upsert_thread(u, &junk_hit).unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("inbox"),
+            starred: true,
+            has_unread: true,
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(got[0].thread_id, "in");
+    }
+
+    /// A folder and a category name the same axis twice. The category is
+    /// the narrower of the two, and the page is its page — not empty,
+    /// which is what having no path for the pair used to produce.
+    #[test]
+    fn a_folder_and_an_agreeing_category_use_the_narrower_one() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("social", 300, "social")).unwrap();
+        s.upsert_thread(u, &row("plain", 200, "inbox")).unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("inbox"),
+            category: Some("social"),
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1, "`social` sits in the inbox bucket");
+        assert_eq!(got[0].thread_id, "social");
+    }
+
+    /// A folder and a category that cannot both hold is genuinely empty,
+    /// and says so in one place rather than by falling off the end.
+    #[test]
+    fn a_folder_and_a_disagreeing_category_are_empty() {
+        let s = store();
+        let u = "u@x.com";
+        s.upsert_thread(u, &row("promo", 300, "promotion")).unwrap();
+        s.upsert_thread(u, &row("spam", 200, "spam")).unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("junk"),
+            category: Some("promotion"),
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 0);
+        assert!(got.is_empty());
+    }
+
+    /// The merged Notifications+Promotions view with a flag on it: two
+    /// ranges, keyed on the flag, merged by recency.
+    #[test]
+    fn np_with_a_flag_merges_both_buckets() {
+        let s = store();
+        let u = "u@x.com";
+        let mut n = row("n1", 100, "notification");
+        n.starred = true;
+        let mut p = row("p1", 300, "promotion");
+        p.starred = true;
+        let plain_p = row("p2", 400, "promotion");
+        let mut inbox = row("i1", 500, "inbox");
+        inbox.starred = true;
+        for r in [&n, &p, &plain_p, &inbox] {
+            s.upsert_thread(u, r).unwrap();
+        }
+
+        let f = ListThreadsFilter {
+            folder: Some("np"),
+            starred: true,
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 2, "starred within notifications ∪ promotions");
+        let tids: Vec<&str> = got.iter().map(|r| r.thread_id.as_str()).collect();
+        assert_eq!(tids, vec!["p1", "n1"], "merged newest-first");
+    }
+
+    /// Sent is a flag, so a predicate stacks on it like any other.
+    #[test]
+    fn sent_takes_a_stacked_flag() {
+        let s = store();
+        let u = "u@x.com";
+        let mut sent_unread = row("s1", 300, "inbox");
+        sent_unread.senders_csv = u.into();
+        sent_unread.unread_count = 1;
+        let mut sent_read = row("s2", 200, "inbox");
+        sent_read.senders_csv = u.into();
+        s.upsert_thread(u, &sent_unread).unwrap();
+        s.upsert_thread(u, &sent_read).unwrap();
+
+        let f = ListThreadsFilter {
+            folder: Some("sent"),
+            has_unread: true,
+            ..Default::default()
+        };
+        let (got, total) = s.list_threads_by_activity(u, &f, 0, 10).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(got[0].thread_id, "s1");
+    }
+
     #[test]
     fn cursor_paginates_by_date() {
         let s = store();
@@ -562,146 +555,6 @@ mod tests {
     }
 }
 
-/// Whether the Junk axis is served from the declared table.
-///
-/// Read per call rather than cached: the revert must take effect on a
-/// container restart with an env change, not on a redeploy.
-fn bucket_reads_table() -> bool {
-    std::env::var("MAILRS_JUNK_READ").as_deref() != Ok("zset")
-}
-
-impl ListThreadsFilter<'_> {
-    /// The Junk axis with nothing stacked on it.
-    ///
-    /// The ORDERPATH answers `(user, bucket, activity DESC)`; any extra
-    /// predicate would need an intersection this path does not do, so
-    /// those keep going through the zset route until their own axis is
-    /// cut over.
-    /// The category axis with nothing stacked on it.
-    ///
-    /// Separate from `bare_bucket`: a caller passes `category` without
-    /// a folder, and the vocabularies differ (`spam` here is `junk`
-    /// there).
-    fn bare_category(&self) -> Option<&str> {
-        let cat = self.category?;
-        let bare = self.folder.is_none()
-            && !self.pinned
-            && !self.archived
-            && !self.has_unread
-            && !self.has_action
-            && !self.starred;
-        bare.then_some(cat)
-    }
-
-    /// Exactly one boolean predicate, with no folder or category.
-    ///
-    /// Two stacked flags would need an intersection this path does not
-    /// do, so they keep going through the ZINTERSTORE route.
-    fn bare_flag(&self) -> Option<&'static str> {
-        if self.folder.is_some() || self.category.is_some() {
-            return None;
-        }
-        let set: Vec<&'static str> = [
-            ("starred", self.starred),
-            ("archived", self.archived),
-            ("pinned", self.pinned),
-            ("unread", self.has_unread),
-            ("has_action", self.has_action),
-        ]
-        .iter()
-        .filter(|(_, on)| *on)
-        .map(|(n, _)| *n)
-        .collect();
-        match set.as_slice() {
-            [only] => Some(only),
-            _ => None,
-        }
-    }
-
-    /// The Sent axis with nothing stacked on it.
-    fn is_bare_sent(&self) -> bool {
-        self.folder.is_some_and(|f| f.eq_ignore_ascii_case("sent")) && self.no_predicates()
-    }
-
-    /// The merged Notifications + Promotions view.
-    fn is_bare_np(&self) -> bool {
-        self.folder.is_some_and(|f| f.eq_ignore_ascii_case("np")) && self.no_predicates()
-    }
-
-    /// No folder, no category, no flag — the default recency axis.
-    fn is_bare_default(&self) -> bool {
-        self.folder.is_none() && self.category.is_none() && self.no_predicates()
-    }
-
-    fn no_predicates(&self) -> bool {
-        self.category.is_none()
-            && !self.pinned
-            && !self.archived
-            && !self.has_unread
-            && !self.has_action
-            && !self.starred
-    }
-
-    /// One flag plus one scope (a folder's bucket, or a category).
-    ///
-    /// Returns the flag's index name and the `(column, value)` the
-    /// engine should filter on. `None` when the shape is not one flag
-    /// and one scope — those are handled by the bare paths, or by
-    /// nothing yet.
-    fn stacked_predicate(&self) -> Option<(&'static str, (&'static str, String))> {
-        let flags: Vec<&'static str> = [
-            ("starred", self.starred),
-            ("archived", self.archived),
-            ("pinned", self.pinned),
-            ("unread", self.has_unread),
-            ("has_action", self.has_action),
-        ]
-        .iter()
-        .filter(|(_, on)| *on)
-        .map(|(n, _)| *n)
-        .collect();
-        let [flag] = flags.as_slice() else {
-            return None;
-        };
-
-        // A folder scopes by bucket; a category scopes by category.
-        // Both cannot apply at once here.
-        match (self.folder, self.category) {
-            (Some(f), None) => {
-                let bucket = match f {
-                    f if f.eq_ignore_ascii_case("inbox") => "inbox",
-                    f if f.eq_ignore_ascii_case("junk") => "junk",
-                    f if f.eq_ignore_ascii_case("notifications") => "notifications",
-                    f if f.eq_ignore_ascii_case("promotions") => "promotions",
-                    _ => return None,
-                };
-                Some((flag, ("bucket", bucket.to_string())))
-            }
-            (None, Some(cat)) => Some((flag, ("category", cat.to_string()))),
-            _ => None,
-        }
-    }
-
-    fn bare_bucket(&self) -> Option<&'static str> {
-        let bucket = match self.folder? {
-            f if f.eq_ignore_ascii_case("junk") => "junk",
-            f if f.eq_ignore_ascii_case("inbox") => "inbox",
-            f if f.eq_ignore_ascii_case("notifications") => "notifications",
-            f if f.eq_ignore_ascii_case("promotions") => "promotions",
-            // "np" is the union of the two and needs a different shape;
-            // it keeps going through the zset route.
-            _ => return None,
-        };
-        let bare = self.category.is_none()
-            && !self.pinned
-            && !self.archived
-            && !self.has_unread
-            && !self.has_action
-            && !self.starred;
-        bare.then_some(bucket)
-    }
-}
-
 impl KevyMailboxStore {
     /// The default axis, off the pure-recency ORDERPATH.
     fn list_default_via_table(
@@ -775,17 +628,74 @@ impl KevyMailboxStore {
         Ok((merged, total))
     }
 
-    /// Serve a flag page scoped to a folder or category.
-    fn list_stacked_via_table(
+    /// The merged Notifications + Promotions view with flags stacked on
+    /// it.
+    ///
+    /// Still two ranges, so still a two-way merge — but keyed on the
+    /// flag index rather than the bucket ORDERPATH, because that is the
+    /// one that can carry the other predicates as value filters. The
+    /// bucket becomes one of those filters.
+    fn list_np_flagged_via_table(
         &self,
         user: &str,
         flag: &str,
-        scope: (&str, String),
+        extra: &[(&str, String)],
         filter: &ListThreadsFilter<'_>,
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let extra = [(scope.0, scope.1.as_str())];
+        let want = offset + limit;
+        let mut total = 0usize;
+        let mut merged: Vec<ThreadRow> = Vec::new();
+        for bucket in ["notifications", "promotions"] {
+            let mut scoped: Vec<(&str, String)> = extra.to_vec();
+            scoped.push(("bucket", bucket.to_string()));
+            let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
+            total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
+            if limit == 0 {
+                continue;
+            }
+            let tids = match filter.before_ts {
+                Some(ts) => {
+                    self.list_thread_ids_by_flag_filtered(user, flag, &refs, want, 0, Some(ts - 1))?
+                }
+                None => self.list_thread_ids_by_flag_filtered(user, flag, &refs, want, 0, None)?,
+            };
+            let (rows, _) = self.hydrate_page(&tids, 0)?;
+            merged.extend(rows);
+        }
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
+        merged.sort_by(|a, b| {
+            b.latest_date
+                .cmp(&a.latest_date)
+                .then_with(|| a.thread_id.cmp(&b.thread_id))
+        });
+        if offset >= merged.len() {
+            return Ok((Vec::new(), total));
+        }
+        merged.drain(..offset);
+        merged.truncate(limit);
+        Ok((merged, total))
+    }
+
+    /// Serve a page keyed on one flag index, with every other predicate
+    /// applied as a value filter.
+    ///
+    /// `extra` carries the remaining flags and the scope, already in the
+    /// membership row's own column vocabulary — the caller decides which
+    /// flag is the key, this does not care how many follow it.
+    fn list_stacked_via_table(
+        &self,
+        user: &str,
+        flag: &str,
+        extra: &[(&str, String)],
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let extra: Vec<(&str, &str)> = extra.iter().map(|(c, v)| (*c, v.as_str())).collect();
         let total = self.count_thread_ids_by_flag_filtered(user, flag, &extra)?;
         if limit == 0 {
             return Ok((Vec::new(), total));
