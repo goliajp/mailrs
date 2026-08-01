@@ -117,8 +117,8 @@ impl KevyMailboxStore {
             .map_err(std::io::Error::other)
     }
 
-    /// Common path: read latest_date (for the zadd score), hset the
-    /// boolean field, and add or remove from the matching index zset.
+    /// Common path: hset the boolean field on the shared hash and on this
+    /// user's membership row, which is where the declared indexes read it.
     fn toggle_flag(
         &self,
         user: &str,
@@ -140,10 +140,6 @@ impl KevyMailboxStore {
                     keys::thread_user(user, thread_id).as_bytes(),
                     &[(field.as_bytes(), val)],
                 )?;
-                if on {
-                    // Need a score — use the row's latest_date so the index
-                    // stays sortable by recency.
-                }
                 Ok(true)
             })
             .map_err(std::io::Error::other)
