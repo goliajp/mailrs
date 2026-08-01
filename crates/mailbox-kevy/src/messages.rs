@@ -186,6 +186,45 @@ impl KevyMailboxStore {
             .map_err(std::io::Error::other)
     }
 
+    /// Clear the per-user fields off the shared blobs of one thread —
+    /// stage 6 of the per-user message projection.
+    ///
+    /// Stage 5 stopped *writing* them; rows written before it keep one
+    /// owner's `blob_ref`, `uid`, `flags` and `modseq` on a row several
+    /// users read. Nothing serves those any more — `user_message_view` is
+    /// the single decision and it answers "no copy" — so this is not a
+    /// repair. It is removing the thing a future fallback could reach for:
+    /// on production 326 shared rows still name a file, and none of those
+    /// files resolve for the user asking (`maintenance:usermsg-shadow`,
+    /// `shared_resolves: 0`).
+    ///
+    /// Returns `(messages_seen, rewritten)`. The write is conditional on the
+    /// blob actually changing, so a second pass over a stripped thread does
+    /// no writes and reports none — a sweep that redoes its work every cycle
+    /// is a busy-wait, not a sweep.
+    pub fn strip_shared_per_user_fields(&self, thread_id: &str) -> io::Result<(u64, u64)> {
+        let mut seen = 0u64;
+        let mut rewritten = 0u64;
+        for blob in self.thread_messages_for_maintenance(thread_id)? {
+            seen += 1;
+            let Ok(v) = serde_json::from_slice::<serde_json::Value>(&blob) else {
+                continue;
+            };
+            let Some(mid) = v.get("message_id").and_then(|m| m.as_str()) else {
+                continue;
+            };
+            let stripped = strip_per_user_fields(&blob);
+            if stripped == blob {
+                continue;
+            }
+            self.store()
+                .set(keys::message_blob(mid).as_bytes(), &stripped)
+                .map_err(io::Error::other)?;
+            rewritten += 1;
+        }
+        Ok((seen, rewritten))
+    }
+
     /// One user's facts about one message, or `None` if they have no copy.
     pub fn user_message_facts(
         &self,
@@ -533,6 +572,30 @@ mod tests {
             is_own: false,
         })
         .unwrap();
+    }
+
+    /// Stage 6: a pre-stage-5 row loses the owner it names, once.
+    #[test]
+    fn stripping_a_shared_row_is_idempotent() {
+        let s = store();
+        deliver(&s, "owner@x.com", "t1");
+        // A row of the shape stage 5 stopped writing: per-user facts on
+        // the blob every owner reads.
+        let legacy = br#"{"message_id":"msg-1","blob_ref":"owner-copy.host:2,S","uid":7,"flags":1,"modseq":3,"mailbox_id":2,"user_address":"owner@x.com","subject":"Subj"}"#;
+        s.upsert_message("t1", "msg-1", 100, legacy).unwrap();
+
+        let (seen, rewritten) = s.strip_shared_per_user_fields("t1").unwrap();
+        assert_eq!((seen, rewritten), (1, 1));
+        let blob = s.thread_messages_for_maintenance("t1").unwrap().remove(0);
+        let v: serde_json::Value = serde_json::from_slice(&blob).unwrap();
+        assert_eq!(v["blob_ref"], "");
+        assert_eq!(v["uid"], 0);
+        assert_eq!(v["user_address"], "");
+        assert_eq!(v["subject"], "Subj", "shared facts are left alone");
+
+        // Second pass: nothing to do, and it says so rather than
+        // rewriting the same bytes every cycle.
+        assert_eq!(s.strip_shared_per_user_fields("t1").unwrap(), (1, 0));
     }
 
     #[test]
