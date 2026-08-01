@@ -195,6 +195,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
     // fastcore-native (kevy + maildir + external HTTP). Zero spg touch.
     use axum::routing::delete;
     let mail = axum::Router::new()
+        .route(
+            "/api/auth/identities",
+            get(handlers::external_login::list_identities),
+        )
+        .route(
+            "/api/auth/identities:unlink",
+            post(handlers::external_login::unlink_identity),
+        )
         .route("/api/mail/folders", get(handlers::mail::get_folders))
         // Writing assistance. Registered whether or not a model is
         // configured: an unconfigured route that says so beats a missing one

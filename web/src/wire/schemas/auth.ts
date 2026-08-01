@@ -100,3 +100,27 @@ export type WireRecoveryEmail = z.infer<typeof recoveryEmailSchema>
 // forgot-password / totp enable / totp disable / recovery-email set /
 // recovery-email delete)
 export { emptyResponseSchema }
+
+/**
+ * Backend: crates/webapi/src/handlers/external_login.rs.
+ *
+ * `provider` is derived from the issuer for display and may be null when a
+ * link outlives the configuration that created it — the issuer is what is
+ * stored, and an unconfigured one is still a real link the user should be
+ * able to see and remove.
+ */
+export const externalProvidersSchema = z.object({
+  providers: z.array(z.string()).default([]),
+})
+
+export const linkedIdentitySchema = z.object({
+  issuer: z.string(),
+  provider: z.string().nullish(),
+  subject: z.string(),
+})
+
+export type WireLinkedIdentity = z.infer<typeof linkedIdentitySchema>
+
+export const linkedIdentityListSchema = z.object({
+  items: z.array(linkedIdentitySchema).default([]),
+})

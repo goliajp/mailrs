@@ -337,6 +337,20 @@ fn system_config_body_matches() {
     assert_eq!(v.value, "mailrs");
 }
 
+/// Removing a sign-in method.
+///
+/// The body names the identity; the account comes from the session and never
+/// from here. Both ends state that rule — the handler takes the address from
+/// `AuthedUser` and `unlink` refuses when the link belongs to someone else —
+/// because it is the one that keeps a link from being detached by whoever
+/// can guess it.
+#[test]
+fn identity_unlink_body_matches() {
+    let v: handlers::external_login::UnlinkRequest = parse("identity-unlink");
+    assert_eq!(v.issuer, "https://accounts.google.com");
+    assert_eq!(v.subject, "1029384756");
+}
+
 /// An unknown field is refused, by name.
 ///
 /// The point of `deny_unknown_fields` is that the failure says which field.
@@ -393,6 +407,7 @@ fn every_fixture_has_a_test() {
         "feedback",
         "forgot-password",
         "greylist-local-add",
+        "identity-unlink",
         "group-create",
         "group-members-add",
         "login",
