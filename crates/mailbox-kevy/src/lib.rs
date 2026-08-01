@@ -568,6 +568,37 @@ mod table_spec_tests {
         }
     }
 
+    /// A flag index can be keyed on; it can only be *filtered* on when
+    /// the other flag indexes store it beside their own key.
+    ///
+    /// `is_sender` is the one that they do not, which is why
+    /// `ListThreadsFilter::flags_on` returns it first and the dispatcher
+    /// keys on whatever comes back first. A second such column would
+    /// break that — two of them could be asked for at once and only one
+    /// can be the key — so this fails when one appears, rather than at
+    /// runtime with "FILTER names field 'x', which this index does not
+    /// store".
+    #[test]
+    fn is_sender_is_the_only_flag_that_must_be_the_key() {
+        let spec = thread_user_spec();
+        let mut key_only: Vec<String> = Vec::new();
+        for ix in &spec.indexes {
+            let stored_everywhere = spec
+                .indexes
+                .iter()
+                .all(|other| other.column == ix.column || other.values.contains(&ix.column));
+            if !stored_everywhere {
+                key_only.push(String::from_utf8_lossy(&ix.column).into_owned());
+            }
+        }
+        assert_eq!(
+            key_only,
+            vec!["is_sender".to_string()],
+            "exactly one flag may be key-only; add it to every index's \
+             `values`, or teach `flags_on` which of the two to key on"
+        );
+    }
+
     /// The membership rows the write path produces must carry every
     /// declared column — a column present in the spec and absent from
     /// the row is a row the composite indexes silently exclude.
