@@ -5613,11 +5613,13 @@ async fn strip_shared_per_user_fields_route(
 ///   copy of it. Expected to equal the backfill's `not_this_users`.
 /// - `only_in_per_user` must be zero. Anything here is the per-user index
 ///   inventing a message, which would be worse than the defect.
-/// - `blob_ref_differs` is the fix's size: a message whose body the user
-///   will read from their own file after the cutover instead of somebody
-///   else's. `shared_resolves` / `per_user_resolves` say whether that is an
-///   improvement or a regression, measured against the disk rather than
-///   assumed.
+/// - `per_user_resolves` / `per_user_unresolved` measure the read that
+///   actually happens now, against the disk rather than against the other
+///   row.
+/// - `shared_still_names_a_file` must be zero once stage 6 has run. It
+///   replaced a `blob_ref_differs` that compared the two filenames — which
+///   became true for every row the moment the shared one was blanked, and
+///   a check that always fires reports nothing.
 ///
 /// Read-only. See `.claude/rfcs/20260731-per-user-message-projection.md`.
 async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
@@ -5635,13 +5637,13 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
     let mut in_both = 0u64;
     let mut only_in_shared = 0u64;
     let mut only_in_per_user = 0u64;
-    let mut blob_ref_same = 0u64;
-    let mut blob_ref_differs = 0u64;
-    let mut shared_resolves = 0u64;
+    let mut shared_still_names_a_file = 0u64;
     let mut per_user_resolves = 0u64;
+    let mut per_user_unresolved = 0u64;
     let mut only_shared_samples: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
-    let mut differs_samples: Vec<String> = Vec::new();
+    let mut named_samples: Vec<String> = Vec::new();
+    let mut unresolved_samples: Vec<String> = Vec::new();
     let mut only_per_user_samples: Vec<String> = Vec::new();
     // A thread the user participates in whose per-user index is empty would
     // show nothing after the cutover where it shows something now. Correct
@@ -5702,25 +5704,30 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
                         let Ok(Some(facts)) = state.mailbox.user_message_facts(user, mid) else {
                             continue;
                         };
-                        if &facts.blob_ref == shared_ref {
-                            blob_ref_same += 1;
-                            continue;
-                        }
-                        blob_ref_differs += 1;
-                        // Against the disk, not against each other: the
-                        // point of the cutover is that the user's own file
-                        // is there and the shared one is not.
-                        if read_maildir_file(user, shared_ref).is_some() {
-                            shared_resolves += 1;
-                        }
+                        // Against the disk, and only about this user's own
+                        // row: is their file there.
                         if read_maildir_file(user, &facts.blob_ref).is_some() {
                             per_user_resolves += 1;
+                        } else {
+                            per_user_unresolved += 1;
+                            if unresolved_samples.len() < 8 {
+                                unresolved_samples
+                                    .push(format!("{user} {mid} mine={}", facts.blob_ref));
+                            }
                         }
-                        if differs_samples.len() < 8 {
-                            differs_samples.push(format!(
-                                "{user} {mid} shared={shared_ref} mine={}",
-                                facts.blob_ref
-                            ));
+                        // Comparing the two `blob_ref`s stopped meaning
+                        // anything when stage 6 blanked the shared one:
+                        // every row "differs" now, and a check that always
+                        // fires reports nothing. What is worth counting is
+                        // whether a shared row still names a file at all.
+                        if !shared_ref.is_empty() {
+                            shared_still_names_a_file += 1;
+                            if named_samples.len() < 8 {
+                                named_samples.push(format!(
+                                    "{user} {mid} shared={shared_ref} mine={}",
+                                    facts.blob_ref
+                                ));
+                            }
                         }
                     }
                 }
@@ -5755,13 +5762,15 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
         // worse than the defect it replaces.
         "only_in_per_user": only_in_per_user,
         "only_in_per_user_samples": only_per_user_samples,
-        "blob_ref_same": blob_ref_same,
-        // The size of the fix.
-        "blob_ref_differs": blob_ref_differs,
-        // Of those, measured against the disk.
-        "shared_resolves": shared_resolves,
+        // Must be zero after `maintenance:strip-shared-per-user-fields`:
+        // a shared row that still names a file is one a future fallback
+        // could reach for.
+        "shared_still_names_a_file": shared_still_names_a_file,
+        "shared_still_names_a_file_samples": named_samples,
+        // Measured against the disk, per owner.
         "per_user_resolves": per_user_resolves,
-        "blob_ref_differs_samples": differs_samples,
+        "per_user_unresolved": per_user_unresolved,
+        "per_user_unresolved_samples": unresolved_samples,
         // Threads that would render empty after the read cutover.
         "threads_empty_after_cutover": threads_empty_after,
         "threads_empty_after_cutover_samples": threads_empty_samples,
@@ -5770,7 +5779,7 @@ async fn usermsg_shadow_route(State(state): State<Arc<FastcoreState>>) -> axum::
     .into_response()
 }
 
-/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the
+/// `POST /v1/admin/maintenance:drop-stray-usermsg-keys` — remove the
 /// per-user message index keys written under the wrong prefix.
 ///
 /// The index was first spelled `mailrs:threaduser:{user}:{tid}:messages`,
