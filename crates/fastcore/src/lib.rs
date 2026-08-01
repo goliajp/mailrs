@@ -1932,6 +1932,10 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             // Stage 3: compare the shared index against the per-user one
             // before anything reads the latter.
             .route(
+                "/v1/admin/maintenance:strip-shared-per-user-fields",
+                post(strip_shared_per_user_fields_route),
+            )
+            .route(
                 "/v1/admin/maintenance:usermsg-shadow",
                 post(usermsg_shadow_route),
             )
@@ -5332,6 +5336,78 @@ async fn spoof_landing_route(State(state): State<Arc<FastcoreState>>) -> axum::r
         "by_domain": by_domain,
         "by_user": by_user,
         "not_filed_as_junk_samples": inbox_samples,
+    }))
+    .into_response()
+}
+
+/// `POST /v1/admin/maintenance:strip-shared-per-user-fields` — stage 6 of
+/// the per-user message projection.
+///
+/// Stage 5 stopped writing `blob_ref` / `uid` / `flags` / `modseq` /
+/// `mailbox_id` / `user_address` onto the blob every owner of a thread
+/// reads. Rows written before it keep one owner's values, and this removes
+/// them.
+///
+/// It is not a repair — nothing serves those fields since
+/// `user_message_view` became the single decision, and on production none
+/// of the 326 differing ones resolve for the user asking anyway
+/// (`maintenance:usermsg-shadow`, `shared_resolves: 0`). It removes what a
+/// future fallback could reach for, which is how the defect happened the
+/// first time.
+///
+/// Threads are visited once even when several accounts own them: the blob
+/// is shared, so stripping it per owner would rewrite the same bytes twice
+/// and report double.
+async fn strip_shared_per_user_fields_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let mut seen_threads: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut messages_seen = 0u64;
+    let mut rewritten = 0u64;
+    let mut failed = 0u64;
+
+    for user in &users {
+        for tid in state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default()
+        {
+            if !seen_threads.insert(tid.clone()) {
+                continue;
+            }
+            match state.mailbox.strip_shared_per_user_fields(&tid) {
+                Ok((seen, done)) => {
+                    messages_seen += seen;
+                    rewritten += done;
+                }
+                Err(e) => {
+                    failed += 1;
+                    tracing::warn!(err = %e, %tid, "strip-shared-per-user-fields failed");
+                }
+            }
+        }
+    }
+
+    Json(serde_json::json!({
+        // Accounts and threads first: `rewritten: 0` means "all clean"
+        // only when the two above it are not also zero. Answering
+        // `msgids_indexed: 9` against a 30,562-row table and looking
+        // healthy is what made that distinction worth reporting.
+        "accounts": users.len(),
+        "threads_visited": seen_threads.len(),
+        "messages_seen": messages_seen,
+        "rewritten": rewritten,
+        "threads_failed": failed,
     }))
     .into_response()
 }
