@@ -28,7 +28,22 @@
 set -euo pipefail
 
 DAYS="${1:-14}"
-CEILING_GB="${CEILING_GB:-60}"
+
+# Above the working set, not above the fresh-build figure.
+#
+# Measured 2026-08-01: target/ was 89 GB (debug 86, release 2.8) and
+# `cargo sweep --dry-run` reclaimed **nothing** at 14, 7, 3 and 1 day —
+# only 443 of 251,998 files were older than three days. That tree is not
+# 96% dead weight the way 2026-07-29's 425 GB was; it is what a debug
+# `--all-targets` build of 61 crates plus their test binaries costs, and
+# the 60 GB ceiling sat underneath it.
+#
+# A ceiling below the working set fires on every deploy with nothing the
+# reader can do about it, which is how people learn to scroll past
+# warnings. Re-measure this number rather than raising it by reflex: if
+# sweep starts reclaiming again, the growth is dead weight and the
+# ceiling is doing its job.
+CEILING_GB="${CEILING_GB:-120}"
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
@@ -67,8 +82,14 @@ echo "==> target/ after:  $(gb "$after") GB  (reclaimed $(gb "$((before - after)
 #    keeping up — say so rather than silently deleting the working set.
 if [ "$after_gb" -gt "$CEILING_GB" ]; then
     echo "!! still ${after_gb} GB, above the ${CEILING_GB} GB ceiling."
-    echo "!! age-based pruning did not keep up. Either lower DAYS, or"
-    echo "!! run: cargo sweep --maxsize ${CEILING_GB}GB $ROOT"
-    echo "!! (that one deletes by age until it fits, so it will cut into"
-    echo "!!  the current working set and force a full rebuild.)"
+    echo "!! First check whether there is anything to reclaim at all:"
+    echo "!!   cargo sweep --dry-run --time 3 $ROOT"
+    echo "!! If that says 'nothing', the tree IS the working set and"
+    echo "!! lowering DAYS cannot help — raise CEILING_GB to match, and"
+    echo "!! record what you measured (see the note beside its default)."
+    echo "!! If it says a figure, the age policy is not keeping up:"
+    echo "!!   ./scripts/prune-target.sh 3"
+    echo "!! Last resort, deletes by age until it fits and so cuts into"
+    echo "!! the working set and forces a full rebuild:"
+    echo "!!   cargo sweep --maxsize ${CEILING_GB}GB $ROOT"
 fi
