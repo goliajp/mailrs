@@ -1,6 +1,16 @@
-# mailrs performance audit
+# mailrs performance audit — **dormant since 2026-06**
 
-Living workspace for production performance work. Not shipped, not user-facing — only used to record measurements and drive fixes.
+> Not a living workspace. Last touched 2026-06-03, and it predates the
+> whole fastcore/kevy cutover: the topics below measure the PG-backed
+> monolith, which is no longer built into the image. Several also cite
+> `data/2026-04-20/*.txt` capture files that are no longer in the tree.
+>
+> Kept as the record of how those investigations were run — the method
+> (`TREE.md`'s page → assets → APIs → numbers walk) is still the method.
+> For current perf work see `PERFORMANCE.md`, the criterion benches, and
+> `.claude/rules/perf-decomposition-vs-polish.md`.
+
+Workspace for production performance work. Not shipped, not user-facing — only used to record measurements and drive fixes.
 
 ## Layout
 
