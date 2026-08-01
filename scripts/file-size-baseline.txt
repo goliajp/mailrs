@@ -1,5 +1,4 @@
 2450 crates/server/src/mcp/mod.rs
-1687 crates/webapi/src/handlers/complete.rs
 1330 crates/mailbox-kevy/src/lib.rs
 1326 crates/smtp-proto/src/session/tests.rs
 1325 crates/fastcore/src/bin/sender.rs

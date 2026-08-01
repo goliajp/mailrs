@@ -62,7 +62,7 @@ fn greylist_add_body_matches() {
 
 #[test]
 fn email_group_create_body_matches() {
-    let v: handlers::complete::CreateEmailGroupRequest = parse("email-group-create");
+    let v: handlers::groups::CreateEmailGroupRequest = parse("email-group-create");
     assert_eq!(v.address, "team@golia.jp");
     // The two that were silently dropped until 2026-07-30.
     assert_eq!(v.domain, "golia.jp");
@@ -89,7 +89,7 @@ fn key_upload_body_matches() {
 
 #[test]
 fn webhook_create_body_matches() {
-    let v: handlers::complete::CreateAgentWebhookRequest = parse("webhook-create");
+    let v: handlers::apps_keys::CreateAgentWebhookRequest = parse("webhook-create");
     assert_eq!(v.url, "https://hooks.example.com/mailrs");
     // Dropped until 2026-07-30, which stored a webhook scoped to one
     // sender as one matching everything.
@@ -131,7 +131,7 @@ fn send_redraft_body_matches() {
 
 #[test]
 fn forgot_password_body_matches() {
-    let v: handlers::complete::ForgotPasswordRequest = parse("forgot-password");
+    let v: handlers::auth_recovery::ForgotPasswordRequest = parse("forgot-password");
     assert_eq!(v.address, "lihao@golia.jp");
     // Dropped until 2026-07-30, which meant the claimed recovery address
     // was never verified.
@@ -231,7 +231,7 @@ fn domain_create_body_matches() {
 /// so the body had never reached the handler to be checked.
 #[test]
 fn group_permissions_body_matches() {
-    let v: handlers::complete::SetGroupPermissionsRequest = parse("group-permissions-set");
+    let v: handlers::groups::SetGroupPermissionsRequest = parse("group-permissions-set");
     assert_eq!(v.permissions, vec!["admin.accounts", "admin.aliases"]);
 }
 
@@ -251,7 +251,7 @@ fn credential_bodies_match() {
     assert_eq!(change.current_password, "not-a-real-old-password");
     assert_eq!(change.new_password, "not-a-real-new-password");
 
-    let reset: handlers::complete::ResetPasswordRequest = parse("reset-password");
+    let reset: handlers::auth_recovery::ResetPasswordRequest = parse("reset-password");
     assert_eq!(reset.token, "0197f3c2-4a1b-7d31-9e55-2c8a1f0b6d44");
     assert_eq!(reset.new_password, "not-a-real-password");
 }
@@ -260,7 +260,7 @@ fn credential_bodies_match() {
 /// account's setting threw.
 #[test]
 fn recovery_email_body_matches() {
-    let v: handlers::complete::SetRecoveryEmailRequest = parse("recovery-email-set");
+    let v: handlers::auth_recovery::SetRecoveryEmailRequest = parse("recovery-email-set");
     assert_eq!(v.recovery_email.as_deref(), Some("backup@example.com"));
 }
 
@@ -269,7 +269,7 @@ fn recovery_email_body_matches() {
 /// to — neither is what the operator asked for.
 #[test]
 fn agent_key_create_body_matches() {
-    let v: handlers::complete::CreateAgentKeyRequest = parse("agent-key-create");
+    let v: handlers::apps_keys::CreateAgentKeyRequest = parse("agent-key-create");
     assert_eq!(v.name, "ci-bot");
     assert_eq!(v.scopes, vec!["mail.read", "mail.send"]);
 }
@@ -291,17 +291,17 @@ fn remaining_admin_bodies_match() {
     let account: handlers::admin::UpdateAccountRequest = parse("account-update");
     assert_eq!(account.display_name.as_deref(), Some("QA Team"));
 
-    let group: handlers::complete::CreateGroupRequest = parse("group-create");
+    let group: handlers::groups::CreateGroupRequest = parse("group-create");
     assert_eq!(group.name, "admins");
     assert_eq!(group.description, "Full administrative access");
 
-    let member: handlers::complete::AddGroupMemberRequest = parse("group-members-add");
+    let member: handlers::groups::AddGroupMemberRequest = parse("group-members-add");
     assert_eq!(member.address, "qa@golia.jp");
 
     // The email-group membership body has the same one field and its own
     // handler, so it gets its own fixture rather than sharing one — two
     // paths that happen to agree today are not one contract.
-    let eg_member: handlers::complete::AddGroupMemberRequest = parse("email-group-members-add");
+    let eg_member: handlers::groups::AddGroupMemberRequest = parse("email-group-members-add");
     assert_eq!(eg_member.address, "qa@golia.jp");
 }
 
@@ -311,7 +311,7 @@ fn remaining_admin_bodies_match() {
 /// on the client side, since two paths agreeing today is not one contract.
 #[test]
 fn totp_code_body_matches() {
-    let v: handlers::complete::TotpCodeRequest = parse("totp-code");
+    let v: handlers::auth_recovery::TotpCodeRequest = parse("totp-code");
     assert_eq!(v.code, "123456");
 }
 
@@ -333,7 +333,7 @@ fn account_sieve_body_matches() {
 /// sends PUT and the request was a 405.
 #[test]
 fn system_config_body_matches() {
-    let v: handlers::complete::SetSystemConfigRequest = parse("system-config-set");
+    let v: handlers::system_config::SetSystemConfigRequest = parse("system-config-set");
     assert_eq!(v.value, "mailrs");
 }
 
