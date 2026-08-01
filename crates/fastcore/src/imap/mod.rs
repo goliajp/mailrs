@@ -3,8 +3,11 @@
 //! backend, and [`spawn`] / [`spawn_tls`] for the listener wiring.
 
 pub mod backend;
+pub mod fetch;
+mod mailbox;
+mod query;
 pub mod search_eval;
-pub mod session;
+mod session;
 
 use std::path::Path;
 use std::sync::Arc;
