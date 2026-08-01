@@ -61,6 +61,13 @@ if [ "${SKIP_GATE:-0}" != 1 ]; then
     ./scripts/check-mcp-parity.sh
     ./scripts/check-rest-parity.sh
 
+    # The 500-line limit, as a ratchet: a new file over it fails, and a
+    # file already on the baseline may only shrink. 51 files were over it
+    # with no gate at all, because the copy of `file-size.md` this repo
+    # carried until 2026-08-02 listed *torajs*'s debt table — so mailrs's
+    # own overruns had never been written down.
+    ./scripts/check-file-size.sh
+
     # testcontainers goes through bollard, which does not pick up the
     # credentials the Docker CLI has, so a cold pull fails with
     # "401 authentication required" and reads like an auth bug rather
