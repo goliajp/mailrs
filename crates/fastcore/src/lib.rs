@@ -26,6 +26,7 @@ pub mod bounce;
 mod calendar_sync;
 pub mod dmarc_ingest;
 pub mod fbl;
+mod idle_backoff;
 mod imap;
 mod importance;
 mod junk_ttl;
@@ -291,8 +292,12 @@ pub async fn run() {
     // v2.6.0 §P6: register the admin-CRUD range indexes idempotently.
     mailbox.ensure_admin_indexes();
     // v4 TABLE layer: declare the access paths the engine maintains.
-    // Nothing reads them yet — the per-user zsets stay authoritative
-    // until the shadow-read window says the two agree.
+    // These ARE the read path — `*_via_table` is what every list and count
+    // goes through. The per-user zsets they replaced are legacy: nothing
+    // writes them, `tests/legacy_zset_readers.rs` fails if anything reads
+    // one, and `maintenance:drop-legacy-zsets` removes what is left of them.
+    // (Until 2026-08-01 this comment still said the zsets were authoritative
+    // and nothing read the table, which had been false since the cutover.)
     mailbox.ensure_thread_table();
 
     // Alias-store backend selector — RFC 20260705 Step 2.
@@ -1939,6 +1944,12 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(
                 "/v1/admin/maintenance:usermsg-shadow",
                 post(usermsg_shadow_route),
+            )
+            // Ops endpoint — where mail forging one of our own domains
+            // actually ended up.
+            .route(
+                "/v1/admin/maintenance:spoof-landing",
+                post(spoof_landing_route),
             )
             // Ops endpoint — remove thread rows that open onto nothing.
             .route(
@@ -5177,6 +5188,157 @@ async fn drop_empty_threads_route(
     .into_response()
 }
 
+/// Every domain named by a `From:` header value, lowercased.
+///
+/// **All** of them, not the first or the last. The question this serves is
+/// "does this header claim to be one of ours", and a header naming two
+/// addresses claims both — picking one turns the answer into a guess about
+/// which the reader's client will display. It also removes the choice that
+/// was wrong twice in one sitting: taking the first `@` reads the domain
+/// out of `"billing@paypal.com" <attacker@evil.example>`, and taking the
+/// last one reads `other.com` out of `a@golia.jp, b@other.com`.
+///
+/// Reduction to an addr-spec goes through `mailrs_rfc5322`, which already
+/// owns the name-addr rules eight other sites used to re-derive.
+fn from_header_domains(from_line: &str) -> Vec<String> {
+    let value = from_line
+        .split_once(':')
+        .map(|(_, v)| v)
+        .unwrap_or(from_line);
+    value
+        .split(',')
+        .filter_map(|mailbox| {
+            let spec = mailrs_rfc5322::addr_spec(mailbox);
+            let domain = spec.rsplit_once('@')?.1;
+            let d = domain
+                .trim()
+                .trim_end_matches(['>', '.'])
+                .to_ascii_lowercase();
+            match d.is_empty() {
+                true => None,
+                false => Some(d),
+            }
+        })
+        .collect()
+}
+
+/// `POST /v1/admin/maintenance:spoof-landing` — of the messages that
+/// failed DMARC while claiming one of our own domains, how many reached
+/// the inbox rather than Junk.
+///
+/// There was no way to ask this. The verdict is a per-thread `category` in
+/// this process's embedded kevy, and the evidence is an
+/// `Authentication-Results` header in a maildir file; nothing outside the
+/// process can join the two, and the maildir path does not distinguish Junk
+/// (delivery is always to INBOX, and `target_folder` only ever reaches
+/// `category`). So "40 of the last 55 DMARC failures forged our own
+/// domains" was measurable from the filesystem on 2026-08-01 and "where
+/// did they land" was not.
+///
+/// Counting is deliberately per user and per domain: a single total would
+/// hide one account absorbing all of it, which is what the global sample
+/// cap did to the per-user-message shadow report.
+async fn spoof_landing_route(State(state): State<Arc<FastcoreState>>) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    // Derived, not hard-coded: a domain added tomorrow is covered without
+    // anyone remembering this route exists.
+    let hosted: std::collections::HashSet<String> = state
+        .mailbox
+        .list_domains()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(d, _)| d.to_ascii_lowercase())
+        .collect();
+
+    let mut messages_scanned = 0u64;
+    let mut file_unreadable = 0u64;
+    let mut dmarc_fail = 0u64;
+    let mut forged_hosted = 0u64;
+    // The answer, split by where it landed.
+    let mut landed: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut by_domain: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut by_user: std::collections::BTreeMap<String, u64> = std::collections::BTreeMap::new();
+    let mut inbox_samples: Vec<String> = Vec::new();
+
+    for user in &users {
+        for tid in state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default()
+        {
+            let category = match state.mailbox.get_thread(&tid) {
+                Ok(Some(row)) => row.category,
+                _ => continue,
+            };
+            for mid in state
+                .mailbox
+                .user_thread_message_ids(user, &tid)
+                .unwrap_or_default()
+            {
+                let Ok(Some(facts)) = state.mailbox.user_message_facts(user, &mid) else {
+                    continue;
+                };
+                messages_scanned += 1;
+                let Some(raw) = read_maildir_file(user, &facts.blob_ref) else {
+                    file_unreadable += 1;
+                    continue;
+                };
+                // Headers only. Reading whole bodies over 30k messages to
+                // find two header lines would make this unrunnable.
+                let head_len = raw.len().min(8192);
+                let head = String::from_utf8_lossy(&raw[..head_len]);
+                if !head.to_ascii_lowercase().contains("dmarc=fail") {
+                    continue;
+                }
+                dmarc_fail += 1;
+                let Some(from_line) = head
+                    .lines()
+                    .find(|l| l.to_ascii_lowercase().starts_with("from:"))
+                else {
+                    continue;
+                };
+                let Some(domain) = from_header_domains(from_line)
+                    .into_iter()
+                    .find(|d| hosted.contains(d))
+                else {
+                    continue;
+                };
+                forged_hosted += 1;
+                *by_domain.entry(domain).or_default() += 1;
+                *by_user.entry(user.clone()).or_default() += 1;
+                *landed.entry(category.clone()).or_default() += 1;
+                // Anything not filed as junk is a forgery of our own users
+                // sitting in somebody's inbox, so name those specifically.
+                if category != "spam" && category != "scam" && inbox_samples.len() < 20 {
+                    inbox_samples.push(format!("{user} {tid} {mid} category={category}"));
+                }
+            }
+        }
+    }
+
+    axum::Json(serde_json::json!({
+        "accounts": users.len(),
+        "hosted_domains": hosted.len(),
+        "messages_scanned": messages_scanned,
+        "file_unreadable": file_unreadable,
+        "dmarc_fail": dmarc_fail,
+        "forged_hosted_domain": forged_hosted,
+        "landed_by_category": landed,
+        "by_domain": by_domain,
+        "by_user": by_user,
+        "not_filed_as_junk_samples": inbox_samples,
+    }))
+    .into_response()
+}
+
 /// `POST /v1/admin/maintenance:usermsg-shadow` — stage 3 of the per-user
 /// message projection.
 ///
@@ -5774,6 +5936,66 @@ async fn delete_local_alias_route(
             tracing::error!(err = %e, %source, "delete_alias failed");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
+    }
+}
+
+#[cfg(test)]
+mod spoof_landing_tests {
+    use super::from_header_domains;
+
+    /// The domain decides whether a DMARC failure is somebody forging one
+    /// of our users or just a stranger with a broken setup, so reading it
+    /// off a `From:` line is the whole judgement this route makes.
+    #[test]
+    fn it_reads_the_domain_out_of_the_ordinary_forms() {
+        assert_eq!(
+            from_header_domains("From: Netflix <takagi@golia.jp>"),
+            ["golia.jp"]
+        );
+        assert_eq!(from_header_domains("From: takagi@golia.jp"), ["golia.jp"]);
+        assert_eq!(from_header_domains("from: A B <x@GOLIA.JP>"), ["golia.jp"]);
+    }
+
+    /// A display name may itself contain an `@`, which is exactly what a
+    /// sender trying to look like one of ours would put there. Reading the
+    /// first `@` takes the domain from the quoted part and concludes the
+    /// message forged nothing.
+    #[test]
+    fn a_display_name_containing_an_at_does_not_win() {
+        assert_eq!(
+            from_header_domains("From: \"billing@paypal.com\" <attacker@evil.example>"),
+            ["evil.example"]
+        );
+    }
+
+    /// The case that caught the first version: it read the *last* `@` and
+    /// answered `other.com`, so a header claiming one of ours alongside a
+    /// stranger counted as not ours at all. Both are claimed, so both are
+    /// returned and the caller checks for any hosted one.
+    #[test]
+    fn every_address_in_the_header_is_returned() {
+        assert_eq!(
+            from_header_domains("From: a@golia.jp, b@other.com"),
+            ["golia.jp", "other.com"]
+        );
+        assert_eq!(
+            from_header_domains("From: A <a@other.com>, B <b@golia.jp>"),
+            ["other.com", "golia.jp"]
+        );
+    }
+
+    /// A trailing dot is the same domain (RFC 1034 root form).
+    #[test]
+    fn it_drops_the_root_dot_and_trailing_noise() {
+        assert_eq!(from_header_domains("From: <a@golia.jp.>"), ["golia.jp"]);
+        assert_eq!(from_header_domains("From: a@golia.jp\r"), ["golia.jp"]);
+    }
+
+    #[test]
+    fn a_header_with_no_usable_domain_yields_nothing() {
+        assert!(from_header_domains("From: not-an-address").is_empty());
+        assert!(from_header_domains("From: a@").is_empty());
+        assert!(from_header_domains("From:").is_empty());
     }
 }
 
