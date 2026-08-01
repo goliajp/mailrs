@@ -180,9 +180,10 @@ fn store_verdict(
     let signals = importance::signals_for_inbound(facts, contact, is_reply_to_my_email);
     let (level, score) = importance::calculate_importance(&signals);
 
-    if let Err(e) = state
-        .mailbox
-        .set_thread_importance(thread_id, level.as_str(), score as f64)
+    if let Err(e) =
+        state
+            .mailbox
+            .set_thread_importance(user, thread_id, level.as_str(), score as f64)
     {
         tracing::warn!(error = %e, %user, %thread_id, "importance: store failed");
     }

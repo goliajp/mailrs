@@ -171,6 +171,20 @@ impl KevyMailboxStore {
                     b"unread_count",
                     i64::from(m.unread && !m.is_own),
                 )?;
+                // The declared `unread` flag alongside the counter it
+                // describes, because this is the writer of that fact.
+                // It used to be derived from the shared hash's
+                // `unread_count` by `thread_user_pairs` — which counts
+                // every local recipient's delivery, so one owner reading
+                // their copy could not clear it while another had not,
+                // and an arrival for one relit it for the other.
+                //
+                // Only ever set: `mark_seen` is what clears it, and an
+                // arrival that is the user's own send has no bearing on
+                // whether they have read the thread.
+                if m.unread && !m.is_own {
+                    ctx.hset(tu_key.as_bytes(), &[(b"unread" as &[u8], b"1" as &[u8])])?;
+                }
 
                 Ok(())
             })

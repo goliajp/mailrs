@@ -2391,9 +2391,18 @@ async fn search_conversations(
             }
         }
     }
+    // The searcher's own copy of each hit. The shared hash has no user
+    // segment, so reading it here handed one owner's counters, flags and
+    // category to the other — the same defect the list had.
     let items = tids
         .into_iter()
-        .filter_map(|tid| state.mailbox.get_thread(&tid).ok().flatten())
+        .filter_map(|tid| {
+            state
+                .mailbox
+                .get_thread_for_user(&user, &tid)
+                .ok()
+                .flatten()
+        })
         .filter(|row| match &req.category {
             Some(c) => &row.category == c,
             None => true,
@@ -3295,7 +3304,7 @@ async fn mark_read(
     // number that measures UI chatter rather than attention.
     let was_unread = state
         .mailbox
-        .get_thread(&thread_id)
+        .get_thread_for_user(&user, &thread_id)
         .ok()
         .flatten()
         .is_some_and(|r| r.unread_count > 0);
@@ -3386,7 +3395,7 @@ async fn archive_thread(
     // there is. Read the unread state before the archive write.
     let dismissed_unread = state
         .mailbox
-        .get_thread(&thread_id)
+        .get_thread_for_user(&user, &thread_id)
         .ok()
         .flatten()
         .is_some_and(|r| r.unread_count > 0);
@@ -3557,14 +3566,16 @@ async fn conversations_by_thread_ids(
     Path(user): Path<String>,
     Json(req): Json<conv::ConversationsByIdsRequest>,
 ) -> Json<conv::ConversationsByIdsResponse> {
-    let _ = user;
+    // Each caller's own copy. Reading the shared hash here served one
+    // owner's counters and flags to the other, and this is the endpoint
+    // the client uses to refresh a conversation it already has open.
     let items = req
         .thread_ids
         .iter()
         .filter_map(|tid| {
             state
                 .mailbox
-                .get_thread(tid)
+                .get_thread_for_user(&user, tid)
                 .ok()
                 .flatten()
                 .map(row_to_wire)
@@ -5279,7 +5290,9 @@ async fn spoof_landing_route(State(state): State<Arc<FastcoreState>>) -> axum::r
             .all_thread_ids_for_user(user)
             .unwrap_or_default()
         {
-            let category = match state.mailbox.get_thread(&tid) {
+            // This user's verdict: category is per-user state, and the
+            // question here is where the mail landed *for them*.
+            let category = match state.mailbox.get_thread_for_user(user, &tid) {
                 Ok(Some(row)) => row.category,
                 _ => continue,
             };
@@ -5364,6 +5377,20 @@ async fn spoof_landing_route(State(state): State<Arc<FastcoreState>>) -> axum::r
 /// the only ones that *can* disagree — 74 of 30,586 on 2026-07-31, so a
 /// difference concentrated there is the defect and a difference spread
 /// across the rest is a backfill gap.
+///
+/// It was both. The first run reported 19,779 of 30,716 differing, on
+/// `subject`, `senders_csv` and `importance_level` — membership rows that
+/// predated the display payload, plus `set_thread_importance` writing only
+/// the shared hash. `maintenance:backfill-thread-user` converged 19,778 of
+/// them; what remained was 74 differences, 71 of them on the 74
+/// multi-owner threads, all three per-user counters. That is the defect
+/// and nothing else, which is what made the read safe to move.
+///
+/// Kept afterwards as a drift detector for the fields that still exist on
+/// both sides. The counters are *expected* to differ on a multi-owner
+/// thread — the shared hash sums every recipient's delivery — so a
+/// difference there is only news when `differ` exceeds
+/// `differ_multi_owner`.
 async fn threadrow_shadow_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
@@ -5450,18 +5477,10 @@ async fn threadrow_shadow_route(
             if mine.category != shared.category {
                 fields.push("category");
             }
-            if mine.starred != shared.starred {
-                fields.push("starred");
-            }
-            if mine.archived != shared.archived {
-                fields.push("archived");
-            }
-            if mine.pinned != shared.pinned {
-                fields.push("pinned");
-            }
-            if mine.has_action != shared.has_action {
-                fields.push("has_action");
-            }
+            // `starred` / `archived` / `pinned` / `has_action` are not
+            // compared: the shared hash stopped carrying them when they
+            // moved to the membership row, so every difference would be
+            // one, and a check that always fires reports nothing.
             if mine.requires_action != shared.requires_action {
                 fields.push("requires_action");
             }
