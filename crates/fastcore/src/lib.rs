@@ -1443,8 +1443,7 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
     // fastcore tid to `mailrs:user:<u>:threads:sent` scored by the
     // latest sent message's date. Idempotent: zadd overwrites the
     // score for a tid that's already there.
-    let sent_key = mailrs_mailbox_kevy::keys::user_threads_sent(user);
-    let mut sent_added = 0u32;
+    let mut rows_healed = 0u32;
     let mut created = 0u32;
     for (root, bucket) in &by_root {
         let sent_here: Vec<&&MailFile> = bucket
@@ -1530,40 +1529,26 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
         }
         if !is_sender_thread {
             // Inbound-only thread — created (or already existed), but
-            // the user isn't a sender so it doesn't belong in the sent
-            // zset. Skip the sent-index maintenance below.
+            // the user isn't a sender, so the Sent axis below does not
+            // apply to it.
             continue;
         }
-        // Score the sent zset by the aggregate's own latest_date —
-        // that's what the UI displays as the row's date pill, so this
-        // guarantees the list is sorted identically to what the pill
-        // shows. Prior versions scored by our own local bucket-max,
-        // which drifted from the aggregate whenever record_message_arrival
-        // was called separately (e.g. via mirror_send during a live
-        // send) and left the two in disagreement → apparent random order.
+        // Heal the aggregate's own latest_date when the stored one is
+        // stale or zero (a hash written back when parse_rfc5322_date
+        // fed 0), so the row stops sinking to the bottom of the list.
         //
-        // If the stored aggregate latest_date is stale/zero (e.g. the
-        // hash was created back when parse_rfc5322_date was broken and
-        // fed 0), prefer the bucket's true max date and heal the hash
-        // + by_activity index so the row stops sinking to the bottom.
-        // v2 Stage B.1: 6 sequential RMW ops (hget latest_date / hset
-        // latest_date / zadd by_activity / zadd sent_key / hget
-        // senders_csv / hset senders_csv) collapsed into a single
-        // AtomicCtx closure. Two concurrent self-heal or ingest calls
-        // on the same thread now serialize on the shard write lock —
-        // no interleaving read-then-stale-write against the aggregate.
         // Display-date semantics (2026-07-18): the row follows the last
-        // INBOUND message, so the "stale hash" heal must not treat the
-        // user's own sent copy as newer truth — that exact write undid
-        // the backfill repair every 30 s. Sent-only threads keep the
-        // plain max.
+        // INBOUND message, so the heal must not treat the user's own
+        // sent copy as newer truth — that exact write undid the
+        // backfill repair every 30 s. Sent-only threads keep the plain
+        // max.
         let bucket_max = bucket
             .iter()
             .filter(|m| !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user))
             .map(|m| m.date)
             .max()
             .unwrap_or_else(|| bucket.iter().map(|m| m.date).max().unwrap_or(0));
-        let by_activity = mailrs_mailbox_kevy::keys::user_threads_by_activity(user);
+        let tu_key = mailrs_mailbox_kevy::keys::thread_user(user, root);
         // Every write below is conditional, and the closure reports
         // whether it actually changed anything. A self-heal that
         // re-does its work every cycle is a busy-wait, not a heal: this
@@ -1586,15 +1571,14 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                         thread_key.as_bytes(),
                         &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
                     )?;
-                    ctx.zadd(
-                        by_activity.as_bytes(),
-                        &[(agg_latest as f64, root.as_bytes())],
+                    // The membership row carries the same fact as
+                    // `activity`, and every axis sorts on that one — so
+                    // healing the hash alone would move the date pill
+                    // and leave the order it is supposed to explain.
+                    ctx.hset(
+                        tu_key.as_bytes(),
+                        &[(b"activity" as &[u8], agg_latest.to_string().as_bytes())],
                     )?;
-                    changed = true;
-                }
-                let want = agg_latest as f64;
-                if ctx.zscore(sent_key.as_bytes(), root.as_bytes())? != Some(want) {
-                    ctx.zadd(sent_key.as_bytes(), &[(want, root.as_bytes())])?;
                     changed = true;
                 }
                 // Merge user into the thread's senders_csv so future
@@ -1614,22 +1598,28 @@ async fn healed_from_maildir(state: &Arc<FastcoreState>, user: &str, since: i64)
                         thread_key.as_bytes(),
                         &[(b"senders_csv" as &[u8], new_csv.as_bytes())],
                     )?;
+                    // `is_sender` is derived from senders_csv, and the
+                    // Sent axis keys on it. Writing the CSV without the
+                    // flag is how a thread stayed out of Sent while the
+                    // hash said the user had written in it — the defect
+                    // the zadd here used to paper over.
+                    ctx.hset(tu_key.as_bytes(), &[(b"is_sender" as &[u8], b"1" as &[u8])])?;
                     changed = true;
                 }
                 Ok(changed)
             })
             .unwrap_or(false);
         if changed {
-            sent_added += 1;
+            rows_healed += 1;
         }
     }
-    if sent_added > 0 || created > 0 {
+    if rows_healed > 0 || created > 0 {
         tracing::info!(
-            %user, sent_added, created,
-            "self-heal (maildir): sent-index backfill"
+            %user, rows_healed, created,
+            "self-heal (maildir): membership rows"
         );
     }
-    healed_threads > 0 || diff_healed_threads > 0 || sent_added > 0 || created > 0
+    healed_threads > 0 || diff_healed_threads > 0 || rows_healed > 0 || created > 0
 }
 
 /// Extract the searchable text of a message: the `text/plain` part if
@@ -2339,10 +2329,17 @@ async fn list_conversations(
         before_ts: f.before_ts,
     };
     let limit = if f.limit == 0 { 50 } else { f.limit as usize };
+    // An error here reads as an empty mailbox, which is the one answer
+    // the caller cannot tell from a real one — so say it happened. The
+    // dispatcher returns Err when a query names a column its index does
+    // not store, and that is a wiring mistake, not an empty page.
     let (rows, _total) = state
         .mailbox
         .list_threads_by_activity(&user, &filter, 0, limit)
-        .unwrap_or_else(|_| (Vec::new(), 0));
+        .unwrap_or_else(|e| {
+            tracing::warn!(%user, error = %e, "conversation list failed; serving empty");
+            (Vec::new(), 0)
+        });
 
     let items = rows.into_iter().map(row_to_wire).collect();
     Json(conv::ListConversationsResponse { items })

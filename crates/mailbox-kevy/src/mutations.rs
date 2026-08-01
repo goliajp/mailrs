@@ -451,20 +451,22 @@ mod tests {
         // messages-and-files test would seed upsert_message first.
         assert!(blob_refs.is_empty());
         assert!(s.get_thread("t1").unwrap().is_none());
-        for idx in [
-            keys::user_threads_by_activity(u),
-            keys::user_threads_by_category(u, "inbox"),
-            keys::user_threads_pinned(u),
-            keys::user_threads_archived(u),
-            keys::user_threads_has_unread(u),
-            keys::user_threads_has_action(u),
-            // v2.8.2 — delete must also clear the folder zsets.
-            keys::user_threads_inbox(u),
-            keys::user_threads_junk(u),
-            keys::user_threads_sent(u),
-        ] {
-            assert_eq!(s.store().zcard(idx.as_bytes()).unwrap(), 0, "idx {idx}");
-        }
+
+        // Every axis again, this time through the same queries as
+        // above. This used to assert `zcard == 0` over the nine legacy
+        // zsets, which passes for a thread that was never on them —
+        // and since nothing writes those keys any more, it passed for
+        // every thread, deleted or not.
+        assert_eq!(on_axes(&s), vec![0, 0, 0, 0, 0]);
+        // The membership row is what carries all five, so its absence
+        // is the fact the axes are derived from.
+        assert!(
+            s.store()
+                .hgetall(keys::thread_user(u, "t1").as_bytes())
+                .unwrap()
+                .is_empty(),
+            "the membership row outlived the thread"
+        );
     }
 
     /// Filing an archived thread has to take it out of Archived —
