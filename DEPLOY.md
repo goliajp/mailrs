@@ -1,14 +1,32 @@
-# Deploy + Rollback (v2.0)
+# Deploy + Rollback
 
-Prod is the 4-process fastcore stack on `t02.golia.jp`. Deploy is
-CI-only: pushing a `v<X.Y.Z>` tag triggers `.github/workflows/
-release.yml`, which gates on tests, builds a multi-arch image,
-verifies staging soak, and rolls the stack. There is **no
-`scripts/deploy.sh` local runner** — the previous v0.7 script and
-its health-gate logic have been folded into release.yml.
+Prod is the 4-process fastcore stack on `t02.golia.jp`.
 
-Web-only releases go through the parallel `web-v*` lane
-(`release-web.yml`, rsync into a bind mount, no container restart).
+**The default deploy is local, not CI:**
+
+```bash
+./scripts/direct-deploy.sh <X.Y.Z>
+```
+
+It runs the whole gate (mcp + rest parity, `cargo fmt --check`, `clippy
+-D warnings`, the full suite `--no-fail-fast`, `perf-gates.sh`), builds
+arm64, ships the image and the compose file to t02, rolls the four roles,
+then verifies: `/v1/healthz` 200, the version on `:3103`, a 27-route probe,
+and the kevy AOF replay line reading `(clean)`. Finally it builds and
+rsyncs the web bundle.
+
+Nothing on the develop path runs in CI, so that gate is the only thing
+between a change and production. `SKIP_GATE=1` means shipping unverified
+code, and the script says so.
+
+**CI release** — for a multi-arch image and a GitHub Release:
+`./scripts/release-tag.sh v<X.Y.Z>`. Same binary, built more formally on
+self-hosted runners. It has **no staging gate**; that was removed on
+2026-07-21.
+
+**Web-only releases** go through the parallel `web-v*` lane
+(`release-web.yml`, rsync into a bind mount, no container restart) —
+`direct-deploy.sh` already ships web, so this is for the tagged path.
 
 ## Prod topology (since 2026-07-03)
 
@@ -54,27 +72,18 @@ gh run watch $(gh run list --workflow release.yml --limit 1 --json databaseId --
 Prod is healthy when all four fastcore roles report the new tag
 and `curl https://mail.golia.ai/api/health` returns 200.
 
-## Staging soak gate
+## Staging (retired from the release path, 2026-07-21)
 
-release.yml refuses to deploy prod unless staging has soaked green
-on the same tag's commit within the last hour. The rules:
+There is no soak gate. release.yml had one — sha match against
+`/etc/staging-deploy-sha` on t01, `.pass == true` in
+`/var/run/staging-gate.json`, verdict younger than an hour — and it was
+removed because t01 is shared with other projects: a busy neighbour
+starved staging's accept loop into 16–80 second requests and the gate
+failed releases on that noise while `slow_pct` sat at ~0%.
 
-- Sha match: `/etc/staging-deploy-sha` on t01 must equal the tag's
-  commit sha.
-- Verdict: `/var/run/staging-gate.json`'s `.pass == true`.
-- Age: `now - .gate_ts < 3600` seconds.
-
-If soak hasn't fired for the tag's commit, or the verdict is older
-than an hour, run:
-
-```bash
-SKIP_BUILD=1 ./scripts/staging-build-deploy.sh
-```
-
-`SKIP_BUILD=1` reuses the image already loaded on t01, only
-re-stamps the sha and re-kicks the 30-min soak. Full staging deploy
-without `SKIP_BUILD=1` re-builds locally (arm64 buildx) and
-save|ssh-load's the new image.
+`scripts/staging-build-deploy.sh` still works for ad-hoc use and the
+soak units on t01 are stopped and disabled. Nothing in the release path
+consults either.
 
 ## Rollback runbook
 
@@ -141,17 +150,18 @@ rsync-in takes effect immediately. No downtime.
   aof_bytes. A full AOF rewrite is auto-triggered at 100 % growth /
   64 MiB (kevy default); an unattended one can be forced with
   `docker exec mailrs-kevy kevy-cli rewrite_aof`.
-- **Staging soak stuck in `activating` past 30 min.** systemd
-  timeout on `staging-soak-gate.service` is 60 min; check
-  `journalctl -u staging-soak-gate --since=-1h` on t01. If the gate
-  crashed, restart via
-  `systemctl restart staging-soak-gate.service`.
 
 ## What's monitored
 
-Prod has no external synthetic monitor — the deployment host
-(t01/t02) memory watchdog is the only alarm surface. If prod goes
-unresponsive, first check `curl https://mail.golia.ai/api/health`;
-if that hangs, `ssh t02 docker ps` to see whether the containers
-are up. The v1.6 era `deploy.sh` health gate was rolled into
-release.yml's post-deploy step.
+Prod has no external synthetic monitor — the t02 memory watchdog is the
+only alarm surface. If prod goes unresponsive, first check
+`curl https://mail.golia.ai/api/health`; if that hangs, `ssh t02 docker
+ps` to see whether the containers are up.
+
+The post-deploy checks live in `direct-deploy.sh` (and, for the tagged
+path, in release.yml): `/v1/healthz`, the version on `:3103`,
+`scripts/post-deploy-probe.sh`'s 27-route table, and the AOF replay
+line. Each of those exists because a deploy once passed without it —
+the version probe printed and continued while the REST API was down,
+and the fastcore probe asked for a `/healthz` that answers 404 and
+accepted any non-000 code.

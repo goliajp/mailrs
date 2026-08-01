@@ -1,18 +1,20 @@
 # Architecture
 
-mailrs is a Cargo workspace of **61 crates** — the reusable library crates
+mailrs is a Cargo workspace of **62 crates** — 55 reusable library crates
 (most of them published on [crates.io](https://crates.io/users/golia-jp))
-plus five binary crates that wire them into a deployable mail server:
-`mailrs-server` (legacy monolith, retained for staging as the spg-dogfood
-lane), `mailrs-fastcore` (kevy-backed core RPC + IMAP/POP3), `mailrs-webapi`
-(REST + web UI), `mailrs-receiver` (SMTP inbound → spool), and
-`mailrs-sender` / `mailrs-fastcore-sender` (outbound queue + DKIM).
+plus seven binary crates: `mailrs-fastcore` (kevy-backed core RPC +
+IMAP/POP3), `mailrs-webapi` (REST + web UI), `mailrs-receiver` (SMTP
+inbound → spool), `mailrs-sender` (outbound queue + DKIM),
+`mailrs-server` (the dormant pg/spg monolith), and two tools —
+`mailrs-core-sync` and `mailrs-pg-dump`.
 
-Since v1.8.x prod runs the 4-process fastcore stack (`receiver` +
-`fastcore` + `webapi-fc` + `fastcore-sender`) with a shared kevy container.
-The monolith stays on staging as the pg-core dogfood partner in the
-v2 dual-mode design; either lane can serve, switchable via
-`MAILRS_CORE_RPC_BASE`.
+Prod runs the 4-process fastcore stack (`receiver` + `fastcore` +
+`webapi-fc` + `fastcore-sender`) against a `kevy-server` container, and
+that is the only topology that ships: the monolith has not been built into
+the image since `.claude/rfcs/20260722-monolith-out-of-image.md`, and
+staging left the release path on 2026-07-21. Its code stays in the tree as
+the dormant pg/spg lane of the v2 dual-mode design — `MAILRS_CORE_RPC_BASE`
+still names the switch, but nothing is running behind it.
 
 The split is deliberate: anything that implements an RFC or a self-contained
 concept lives in its own library crate — independently versioned, tested,

@@ -1,4 +1,29 @@
-# CI/CD setup (v5 GitHub Actions migration)
+# CI/CD setup (v5 GitHub Actions migration) — **HISTORICAL**
+
+> **Superseded. Do not follow this document.** It records the v5 cutover
+> from a local release script to GitHub Actions (mailrs ≥ v1.7.31,
+> mid-2026), and the world it describes has changed twice since:
+>
+> - The **default release path is local again** —
+>   `./scripts/direct-deploy.sh <X.Y.Z>` — with CI reserved for multi-arch
+>   images and GitHub Releases (`./scripts/release-tag.sh`).
+> - **`develop` has no CI.** test.yml triggers only on `master`,
+>   `release/**` and `hotfix/**`, not "every PR + push" as below.
+> - **Staging left the release path** on 2026-07-21, and
+>   `deploy-staging.yml` was deleted.
+> - Of the files in the Surface table below, **`scripts/release.sh`,
+>   `scripts/deploy-from-ghcr.sh` and the root `docker-compose.yml` no
+>   longer exist**; the prod compose moved to
+>   `deploy/docker-compose.prod.yml`.
+> - The v5.3 deploy secrets were never adopted under those names; the
+>   repo uses `SSH_KEY` / `SSH_HOST` / `SSH_USER`.
+>
+> For what is true today: [`DEPLOY.md`](DEPLOY.md) and
+> `.claude/rules/dev-deploy-workflow.md`.
+>
+> Kept because the cutover checkpoints below record *why* each step was
+> taken, which the current docs do not. Everything after this banner is a
+> 2026-06 snapshot.
 
 This document captures the GitHub Actions + GHCR + docker-compose
 deployment path introduced in v5 (mailrs ≥ v1.7.31). Old local
