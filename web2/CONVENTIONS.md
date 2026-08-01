@@ -1,5 +1,13 @@
 # web2 — conventions
 
+> **`web2/` has no code.** This directory contains these two documents and
+> nothing else — the rewrite they describe was never started, so every
+> `src/…` and `scripts/…` path below refers to files that do not exist.
+> The shipping frontend is `web/`, and its conventions are in
+> `.claude/rules/frontend-css.md` and `.claude/rules/frontend/*.md`.
+>
+> Kept as a design record. Delete it if the rewrite is off the table.
+
 > Sibling to `PERFORMANCE.md`. Where PERFORMANCE.md says **why** and
 > **how much**, this doc says **how we write code**.
 

@@ -1,5 +1,13 @@
 # web2 — performance charter
 
+> **`web2/` has no code.** This directory contains these two documents and
+> nothing else — the rewrite they describe was never started, so every
+> `src/…` and `scripts/…` path below refers to files that do not exist.
+> The shipping frontend is `web/`, and its conventions are in
+> `.claude/rules/frontend-css.md` and `.claude/rules/frontend/*.md`.
+>
+> Kept as a design record. Delete it if the rewrite is off the table.
+
 > **Performance is P0.** mailrs CRUD endpoints return in sub-millisecond
 > (server-side `/api/health duration_ms=0` on v1.7.97 prod). Any
 > perceptible UI slowness is engineering failure, not "expected".
