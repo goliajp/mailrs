@@ -543,17 +543,14 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         )
         .route("/api/auth/verify", post(handlers::auth::verify_credentials))
         .route("/api/auth/verify-totp", post(handlers::auth::verify_totp))
-        // OIDC provider auth-required endpoints.
-        .route("/oauth/authorize", get(handlers::oidc::authorize))
-        .route("/api/auth/oidc/login", get(handlers::oidc::oidc_login))
-        .route(
-            "/api/auth/external/{provider}",
-            get(handlers::external_login::start),
-        )
-        .route(
-            "/api/auth/external-providers",
-            get(handlers::external_login::list_providers),
-        );
+        // OIDC provider consent screen. Auth-required and correctly so:
+        // `authorize` takes an `AuthedUser`, because consenting on behalf
+        // of an account requires being signed in to it.
+        //
+        // The three sign-*in* starts that used to sit here do not, and are
+        // now next to the callback in the unauthenticated router — see the
+        // note there.
+        .route("/oauth/authorize", get(handlers::oidc::authorize));
 
     // JMAP endpoints (authenticated).
     let jmap_routes = axum::Router::new()
@@ -810,7 +807,26 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/.well-known/jwks.json", get(handlers::oidc::jwks))
         .route("/oauth/token", post(handlers::oidc::token))
         .route("/oauth/userinfo", get(handlers::oidc::userinfo))
-        // External IdP callback (kicks off session via redirect).
+        // External IdP sign-in. Every step is unauthenticated, because
+        // signing in is what happens before there is a session.
+        //
+        // Until 2026-08-01 the first three sat in `auth_routes` and
+        // answered 401, so the flow could not begin: the login page asks
+        // `external-providers` which buttons to draw and got 401, whose
+        // empty body the page's `.catch` made indistinguishable from "no
+        // provider is configured" — so no button was ever drawn, and the
+        // callback below, correctly public all along, was unreachable.
+        // `list_providers` even documents itself as "unauthenticated on
+        // purpose"; the wiring simply disagreed with it.
+        .route(
+            "/api/auth/external-providers",
+            get(handlers::external_login::list_providers),
+        )
+        .route(
+            "/api/auth/external/{provider}",
+            get(handlers::external_login::start),
+        )
+        .route("/api/auth/oidc/login", get(handlers::oidc::oidc_login))
         .route(
             // The relying-party callback. Was a stub that rendered the
             // authorization code into an HTML page and stopped.
