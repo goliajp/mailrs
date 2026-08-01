@@ -59,7 +59,11 @@ pub struct LoginResponse {
 /// - Write `session:<token>` to kevy with the SessionInfoWire shape the
 ///   monolith uses, so either binary can read it
 /// - Return 200 with `Set-Cookie: mailrs_session=<token>; HttpOnly; ...`
-pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequest>) -> Response {
+pub async fn login(
+    State(state): State<Arc<WebState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<LoginRequest>,
+) -> Response {
     // Fastcore-only: kevy-backed account store is the source of truth.
     let acct = match state.core.get_account_with_hash(&req.address).await {
         Ok(a) => a,
@@ -165,8 +169,95 @@ pub async fn login(State(state): State<Arc<WebState>>, Json(req): Json<LoginRequ
         }
     }
 
+    // A third-party identity waiting to be linked, if this login was
+    // started from one. Claimed here — after the password and any TOTP have
+    // been checked, and never before — because the whole point of the
+    // prompt is that a password proves the mailbox is yours.
+    //
+    // The account comes from `acct`, which is what just authenticated. It is
+    // never read from the request body: a caller naming somebody else's
+    // address must not be able to attach their own Google account to it.
+    claim_pending_link(&headers, &acct.public.address).await;
+    issue_session(&state, &acct).await
+}
+
+/// Link the identity parked by an external login, if one is waiting.
+///
+/// Best-effort by design: failing to link must not fail the login. The user
+/// typed a correct password and is entitled to their mail whether or not the
+/// convenience of a linked Google account survived the round trip. A failure
+/// is logged and the identity simply stays unlinked, which the next attempt
+/// can redo.
+async fn claim_pending_link(headers: &axum::http::HeaderMap, address: &str) {
+    let Some(handle) = cookie_value(headers, "mailrs_pending_link") else {
+        return;
+    };
+    let addr = address.to_string();
+    let outcome = tokio::task::spawn_blocking(move || -> std::io::Result<Option<String>> {
+        let url = std::env::var("MAILRS_KEVY_URL").map_err(std::io::Error::other)?;
+        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
+        use mailrs_core_sidestate::families::identity_link as link;
+        // Single-use: claimed and deleted together, so a captured handle
+        // cannot be replayed later against a second account.
+        let Some(json) = link::claim_pending(&mut c, &handle)? else {
+            return Ok(None);
+        };
+        let identity: serde_json::Value =
+            serde_json::from_str(&json).map_err(std::io::Error::other)?;
+        let issuer = identity["issuer"].as_str().unwrap_or_default().to_string();
+        let subject = identity["subject"].as_str().unwrap_or_default().to_string();
+        if issuer.is_empty() || subject.is_empty() {
+            return Ok(None);
+        }
+        let outcome = link::link(&mut c, &issuer, &subject, &addr)?;
+        Ok(Some(format!("{outcome:?} {issuer} {subject}")))
+    })
+    .await;
+
+    match outcome {
+        Ok(Ok(Some(detail))) => {
+            tracing::info!(%address, %detail, "external identity linked by password login");
+            crate::handlers::audit::record(address, "auth.identity.link", &detail, "");
+        }
+        Ok(Ok(None)) => {}
+        Ok(Err(e)) => tracing::warn!(%address, err = %e, "pending link could not be claimed"),
+        Err(e) => tracing::warn!(%address, err = %e, "pending link task failed"),
+    }
+}
+
+/// One cookie's value out of the header.
+fn cookie_value(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    let raw = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+    for cookie in raw.split(';') {
+        let cookie = cookie.trim();
+        if let Some(rest) = cookie.strip_prefix(name)
+            && let Some(v) = rest.strip_prefix('=')
+            && !v.is_empty()
+        {
+            return Some(v.to_string());
+        }
+    }
+    None
+}
+
+/// Mint a session for an account that has just proved it owns itself.
+///
+/// Shared because there is now more than one way to prove it. A second copy
+/// of this would be a second definition of what a session is — the token
+/// shape, the blob the auth middleware reads, the per-user index that makes
+/// "revoke everything" possible, and the cookie flags. Those drifting apart
+/// is not a cosmetic problem: the middleware reads one shape, and a login
+/// that writes a different one produces a session that authenticates nobody.
+pub(crate) async fn issue_session(
+    state: &Arc<WebState>,
+    acct: &mailrs_core_api::method::admin::AccountWithHashWire,
+) -> axum::response::Response {
     // Permissions for the login response — fastcore-only.
-    let perms = state.core.effective_permissions(&req.address).await.ok();
+    let perms = state
+        .core
+        .effective_permissions(&acct.public.address)
+        .await
+        .ok();
 
     // Generate token + write to kevy in the same shape as the monolith.
     let mut bytes = [0u8; 32];
@@ -587,4 +678,47 @@ pub async fn auth_me(
         accessible_domains: Vec::new(),
         send_as: perms.send_as,
     }))
+}
+
+#[cfg(test)]
+mod pending_link_tests {
+    use super::cookie_value;
+    use axum::http::{HeaderMap, HeaderValue, header::COOKIE};
+
+    fn headers(raw: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert(COOKIE, HeaderValue::from_str(raw).expect("header"));
+        h
+    }
+
+    #[test]
+    fn finds_the_named_cookie_among_others() {
+        let h = headers("mailrs_session=abc; mailrs_pending_link=xyz; other=1");
+        assert_eq!(
+            cookie_value(&h, "mailrs_pending_link").as_deref(),
+            Some("xyz")
+        );
+        assert_eq!(cookie_value(&h, "mailrs_session").as_deref(), Some("abc"));
+    }
+
+    /// `strip_prefix` on a name alone would match any cookie that merely
+    /// starts with it, so a `mailrs_pending_link_decoy` set by anything able
+    /// to write a cookie would be read as the handle. The `=` is what makes
+    /// it the whole name.
+    #[test]
+    fn a_cookie_that_merely_starts_with_the_name_is_not_it() {
+        let h = headers("mailrs_pending_link_decoy=evil");
+        assert_eq!(cookie_value(&h, "mailrs_pending_link"), None);
+    }
+
+    #[test]
+    fn an_empty_value_is_not_a_handle() {
+        let h = headers("mailrs_pending_link=");
+        assert_eq!(cookie_value(&h, "mailrs_pending_link"), None);
+    }
+
+    #[test]
+    fn no_cookie_header_is_no_handle() {
+        assert_eq!(cookie_value(&HeaderMap::new(), "mailrs_pending_link"), None);
+    }
 }

@@ -12,6 +12,7 @@ pub mod conversations;
 pub mod dav;
 pub mod dmarc;
 pub mod events;
+pub mod external_login;
 pub mod icon;
 pub mod inline;
 pub mod invites;
