@@ -537,7 +537,15 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/api/auth/verify-totp", post(handlers::auth::verify_totp))
         // OIDC provider auth-required endpoints.
         .route("/oauth/authorize", get(handlers::oidc::authorize))
-        .route("/api/auth/oidc/login", get(handlers::oidc::oidc_login));
+        .route("/api/auth/oidc/login", get(handlers::oidc::oidc_login))
+        .route(
+            "/api/auth/external/{provider}",
+            get(handlers::external_login::start),
+        )
+        .route(
+            "/api/auth/external-providers",
+            get(handlers::external_login::list_providers),
+        );
 
     // JMAP endpoints (authenticated).
     let jmap_routes = axum::Router::new()
@@ -796,8 +804,10 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .route("/oauth/userinfo", get(handlers::oidc::userinfo))
         // External IdP callback (kicks off session via redirect).
         .route(
+            // The relying-party callback. Was a stub that rendered the
+            // authorization code into an HTML page and stopped.
             "/api/auth/oidc/callback",
-            get(handlers::oidc::oidc_callback),
+            get(handlers::external_login::callback),
         )
         // DAV well-known redirects (unauth — DAV spec allows anonymous discovery).
         .route("/.well-known/caldav", get(handlers::dav::well_known_caldav))

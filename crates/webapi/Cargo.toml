@@ -24,6 +24,9 @@ mailrs-core-sidestate = { path = "../core-sidestate" }
 # constructed here only when MAILRS_AI_ANALYSIS_ENABLED is set; otherwise
 # the routes answer honestly instead of 405.
 mailrs-intelligence = { path = "../intelligence", version = "3" }
+# External login: PKCE, token exchange, and the per-provider rules about
+# which parts of an identity can be believed.
+mailrs-oauth-client = { path = "../oauth-client", version = "0.1" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws", "multipart"] }
 futures-util = "0.3"

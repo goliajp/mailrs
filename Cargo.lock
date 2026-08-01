@@ -4036,6 +4036,7 @@ dependencies = [
  "mailrs-jmap 1.1.2",
  "mailrs-message-store",
  "mailrs-mime",
+ "mailrs-oauth-client",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailrs-rfc2231 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "metrics",
