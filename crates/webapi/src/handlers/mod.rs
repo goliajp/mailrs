@@ -3,8 +3,11 @@
 
 pub mod admin;
 pub mod ai;
+pub mod apps_keys;
 pub mod audit;
+pub mod audit_read;
 pub mod auth;
+pub mod auth_recovery;
 pub mod autodiscover;
 pub mod calendar;
 pub mod complete;
@@ -16,6 +19,7 @@ pub mod dav;
 pub mod dmarc;
 pub mod events;
 pub mod external_login;
+pub mod groups;
 pub mod icon;
 pub mod inline;
 pub mod invites;
@@ -35,4 +39,5 @@ pub mod send;
 pub mod send_queue;
 pub mod sends;
 pub mod spam_lists;
+pub mod system_config;
 pub mod totp_util;
