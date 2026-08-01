@@ -3228,6 +3228,7 @@ dependencies = [
  "mailrs-mta-sts 1.0.0",
  "mailrs-outbound-queue",
  "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc5322 1.1.0",
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
