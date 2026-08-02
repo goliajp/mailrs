@@ -24,6 +24,7 @@ import { conversationKeys } from '@/store/query-keys-v21'
 import {
   composeReplySourceAtom,
   composingNewAtom,
+  folderAtom,
   quickFilterAtom,
   searchQueryAtom,
   selectedThreadIdAtom,
@@ -55,6 +56,7 @@ export function Dashboard() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setSearchQuery = useSetAtom(searchQueryAtom)
+  const setFolder = useSetAtom(folderAtom)
   const setQuickFilter = useSetAtom(quickFilterAtom)
   const [searchInput, setSearchInput] = useState('')
 
@@ -130,9 +132,13 @@ export function Dashboard() {
   }, [navigate])
 
   const handleOpenUnreadInbox = useCallback(() => {
+    // Same scope the badge counts. Without the folder reset this lands
+    // on whatever folder was last viewed — in practice Inbox, which is
+    // where two unread promotions went missing.
+    setFolder('NonJunk')
     setQuickFilter('unread')
     navigate('/mail')
-  }, [navigate, setQuickFilter])
+  }, [navigate, setFolder, setQuickFilter])
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {

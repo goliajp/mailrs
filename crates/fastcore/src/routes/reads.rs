@@ -122,28 +122,21 @@ pub(crate) async fn get_categories(
     State(state): State<Arc<FastcoreState>>,
     Path(_user): Path<String>,
 ) -> Json<conv::ConversationCategoriesResponse> {
-    // Expanded set — covers monolith's known category vocabulary.
-    // Any per-category zset that ZCARD > 0 is returned. UI tabs only
-    // render the categories that exist so overshooting is safe.
+    // The vocabulary is `mailrs_triage::CLASSES` and nothing else —
+    // the ingest path stamps whatever `classify_triage` returns, and
+    // that is the same constant. Reading it here is what stops the two
+    // drifting: this list used to be hand-written and said
+    // `promotions` / `notifications` (the *bucket* names, plural)
+    // where the stored `category` is singular, so every count but
+    // `inbox` came back 0 and the dashboard read "Inbox 100%" against
+    // a mailbox that was three-quarters notifications and promotions.
     //
     // `spam` / `scam` deliberately absent (user directive 2026-07-13
     // "我希望只有 junk"): those threads live in the Junk FOLDER — the
     // sidebar's Junk entry is their one and only surface. Exposing
     // them as Inbox category tabs double-listed junk mail inside the
     // Inbox view.
-    let candidates = [
-        "inbox",
-        "personal",
-        "bulk",
-        "promotions",
-        "updates",
-        "forums",
-        "work",
-        "notifications",
-        "receipts",
-        "newsletter",
-    ];
-    let categories: Vec<conv::CategoryCount> = candidates
+    let categories: Vec<conv::CategoryCount> = mailrs_triage::CLASSES
         .into_iter()
         .map(|cat| conv::CategoryCount {
             category: cat.to_string(),
@@ -163,9 +156,15 @@ pub(crate) async fn get_unseen_count(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
 ) -> Json<conv::UnseenCountResponse> {
+    // Counted over the same buckets the Unread view lists, and for the
+    // same reason: a badge the user cannot click through to is worse
+    // than no badge. It read every bucket including Junk until
+    // 2026-08-03, while every view it linked to was Inbox-scoped — two
+    // unread promotions showed as "2 Unread" on the dashboard and as
+    // an empty list everywhere that number led.
     let count = state
         .mailbox
-        .count_thread_ids_by_flag_via_table(&user, "unread")
+        .count_flag_non_junk(&user, "unread")
         .unwrap_or(0) as i64;
     Json(conv::UnseenCountResponse { count })
 }

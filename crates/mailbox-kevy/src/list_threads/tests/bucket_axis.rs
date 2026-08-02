@@ -336,3 +336,81 @@ fn bucket_axes_partition_the_threads() {
         assert_eq!(total, 1, "{folder} count must exclude the other buckets");
     }
 }
+
+/// The unread badge and the unread view must describe the same set.
+///
+/// They did not. `unseen_count` counted the unread flag across every
+/// bucket while the Unread tab asked for `folder=Inbox`, so a mailbox
+/// whose only unread mail was promotions showed "2 Unread" on the
+/// dashboard and an empty list everywhere that number led. The scope
+/// exists so the two can be stated once; this pins that they agree.
+#[test]
+fn the_non_junk_scope_is_exactly_what_the_unread_badge_counts() {
+    let st = KevyMailboxStore::new(Arc::new(
+        Store::open(Config::default()).expect("open in-memory kevy"),
+    ));
+    st.ensure_thread_table();
+    let u = "alice@x.com";
+    for (tid, when, cat) in [
+        ("i1", 100, "inbox"),
+        ("p1", 200, "promotion"),
+        ("n1", 300, "notification"),
+        ("j1", 400, "spam"),
+    ] {
+        st.upsert_thread(u, &row(tid, when, cat)).unwrap();
+        // `unread` is a per-user column, and only its own mutator
+        // writes it — setting `unread_count` on the thread would leave
+        // the membership row the flag index reads at zero.
+        st.mark_unread(u, tid).unwrap();
+    }
+
+    let f = ListThreadsFilter {
+        folder: Some("nonjunk"),
+        has_unread: true,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &f, 0, 10).unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|r| r.thread_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["n1", "p1", "i1"],
+        "three buckets merged by recency, and junk is not one of them"
+    );
+    assert_eq!(total, 3);
+
+    // The number `unseen_count` serves, from the function it calls.
+    let badge = st.count_flag_non_junk(u, "unread").unwrap();
+    assert_eq!(badge, total, "the badge must count what the view lists");
+}
+
+/// A thread the user only ever sent into is not in their Inbox, and the
+/// merged scope must not be the side door that puts it back.
+#[test]
+fn the_non_junk_scope_excludes_sent_only_threads_from_its_inbox_side() {
+    let st = KevyMailboxStore::new(Arc::new(
+        Store::open(Config::default()).expect("open in-memory kevy"),
+    ));
+    st.ensure_thread_table();
+    let u = "alice@x.com";
+    let mut sent = row("s1", 100, "inbox");
+    sent.count = 1;
+    sent.sent_count = 1;
+    st.upsert_thread(u, &sent).unwrap();
+    let received = row("r1", 200, "inbox");
+    st.upsert_thread(u, &received).unwrap();
+
+    let f = ListThreadsFilter {
+        folder: Some("nonjunk"),
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &f, 0, 10).unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|r| r.thread_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["r1"],
+        "sent-only threads stay out, exactly as folder=Inbox has them"
+    );
+    assert_eq!(total, 1);
+}

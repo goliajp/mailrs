@@ -37,7 +37,12 @@ export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 // v2.9 triage — 'NP' is the merged Notifications & Promotions view
 // (backend reads the union of the notifications + promotions folder
 // zsets). Notifications and Promotions are distinct buckets underneath.
-export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'NP' | 'Sent' | 'Trash' | null
+// `NonJunk` is not a folder anyone can navigate to — it is the scope
+// the Unread and Starred views ask the backend for. Those are
+// attributes of a thread, not places it lives, so scoping them to one
+// folder answers a question nobody asked; scoping them to everything
+// would drag Junk back out of the one surface it is allowed to have.
+export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'NonJunk' | 'NP' | 'Sent' | 'Trash' | null
 export const folderAtom = atom<MailFolder>('Inbox')
 
 // archived view toggle

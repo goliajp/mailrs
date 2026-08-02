@@ -32,7 +32,8 @@ pub struct ListThreadsFilter<'a> {
     /// the `category` column on the membership row.
     pub category: Option<&'a str>,
     /// Match monolith's `folder` query: `inbox`, `junk`, `notifications`,
-    /// `promotions`, `np` (the merged notifications+promotions view) or
+    /// `promotions`, `np` (the merged notifications+promotions view),
+    /// `nonjunk` (every bucket but Junk — see [`Scope::NotJunk`]) or
     /// `sent`, case-insensitively. Anything else is no scope at all.
     pub folder: Option<&'a str>,
     /// Only threads with `pinned = true`.
@@ -60,6 +61,15 @@ pub struct ListThreadsFilter<'a> {
 enum Scope {
     /// No folder and no category — every thread the user has.
     All,
+    /// Every bucket a user files real mail into — `inbox`,
+    /// `notifications`, `promotions` — and not `junk`.
+    ///
+    /// This is the scope of the cross-cutting views: Unread and
+    /// Starred are attributes of a thread, not locations, so asking
+    /// for them inside one folder answers a question nobody asked.
+    /// Junk stays out per the standing direction that junk mail has
+    /// exactly one surface.
+    NotJunk,
     /// One folder bucket: `inbox`, `junk`, `notifications`, `promotions`.
     Bucket(&'static str),
     /// The merged notifications+promotions view, which is two ranges.
@@ -121,6 +131,19 @@ impl ListThreadsFilter<'_> {
             _ => None,
         });
         let is_np = self.folder.is_some_and(|f| f.eq_ignore_ascii_case("np"));
+        // `nonjunk` is not a folder the user can see — it is the scope
+        // the Unread and Starred views ask for, named so the request
+        // says what it means.
+        if self
+            .folder
+            .is_some_and(|f| f.eq_ignore_ascii_case("nonjunk"))
+        {
+            return match self.category {
+                Some(cat) if keys::bucket_of(cat) == keys::Bucket::Junk => Scope::Contradiction,
+                Some(cat) => Scope::Category(cat.to_string()),
+                None => Scope::NotJunk,
+            };
+        }
 
         match (self.category, folder_bucket, is_np) {
             (Some(cat), Some(b), _) if keys::bucket_of(cat) != b => Scope::Contradiction,
@@ -139,6 +162,56 @@ impl ListThreadsFilter<'_> {
         }
     }
 }
+
+/// The flag a merged page keys on, plus the predicates stacked on top
+/// of it. They travel together everywhere; naming the pair keeps the
+/// merge signature down to the arguments a reader can hold.
+pub(super) struct FlagKey<'a> {
+    pub(super) flag: &'a str,
+    pub(super) extra: &'a [(&'a str, String)],
+}
+
+/// The predicates that scope a flag index to one bucket.
+///
+/// One function, because two callers need the identical answer and the
+/// last time they each spelled it out the badge counted a set the view
+/// did not list. The Inbox arm carries the sent-only exclusion for the
+/// same reason `Scope::Bucket` does: a thread the user only ever sent
+/// into is not in their Inbox on any axis.
+pub(super) fn bucket_predicates<'a>(
+    bucket: &'a str,
+    extra: &[(&'a str, String)],
+) -> Vec<(&'a str, String)> {
+    let mut out = extra.to_vec();
+    out.push(("bucket", bucket.to_string()));
+    if bucket == "inbox" {
+        out.push(("sent_only", "0".to_string()));
+    }
+    out
+}
+
+/// How many threads carry `flag` across every non-Junk bucket.
+///
+/// This is the unread badge. It lives beside the scope that lists those
+/// threads, and builds its filters with the same function, so the two
+/// cannot answer differently.
+impl KevyMailboxStore {
+    pub fn count_flag_non_junk(&self, user: &str, flag: &str) -> io::Result<usize> {
+        let mut total = 0usize;
+        for bucket in NON_JUNK_BUCKETS {
+            let scoped = bucket_predicates(bucket, &[]);
+            let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
+            total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
+        }
+        Ok(total)
+    }
+}
+
+/// The two buckets the "N & P" tab merges.
+const NP_BUCKETS: [&str; 2] = ["notifications", "promotions"];
+
+/// Every bucket except Junk — see [`Scope::NotJunk`].
+pub const NON_JUNK_BUCKETS: [&str; 3] = ["inbox", "notifications", "promotions"];
 
 impl KevyMailboxStore {
     /// List threads for `user` in reverse-activity order, with optional
@@ -171,7 +244,10 @@ impl KevyMailboxStore {
             return match scope {
                 Scope::All => self.list_default_via_table(user, filter, offset, limit),
                 Scope::Bucket(b) => self.list_bucket_via_table(user, b, filter, offset, limit),
-                Scope::Np => self.list_np_via_table(user, filter, offset, limit),
+                Scope::Np => self.list_buckets_via_table(user, &NP_BUCKETS, filter, offset, limit),
+                Scope::NotJunk => {
+                    self.list_buckets_via_table(user, &NON_JUNK_BUCKETS, filter, offset, limit)
+                }
                 Scope::Category(cat) => {
                     self.list_category_via_table(user, &cat, filter, offset, limit)
                 }
@@ -198,8 +274,32 @@ impl KevyMailboxStore {
             }
             Scope::Category(cat) => extra.push(("category", cat)),
             Scope::Np => {
-                return self
-                    .list_np_flagged_via_table(user, key_flag, &extra, filter, offset, limit);
+                let key = FlagKey {
+                    flag: key_flag,
+                    extra: &extra,
+                };
+                return self.list_buckets_flagged_via_table(
+                    user,
+                    &NP_BUCKETS,
+                    key,
+                    filter,
+                    offset,
+                    limit,
+                );
+            }
+            Scope::NotJunk => {
+                let key = FlagKey {
+                    flag: key_flag,
+                    extra: &extra,
+                };
+                return self.list_buckets_flagged_via_table(
+                    user,
+                    &NON_JUNK_BUCKETS,
+                    key,
+                    filter,
+                    offset,
+                    limit,
+                );
             }
             Scope::Contradiction => unreachable!("returned above"),
         }
