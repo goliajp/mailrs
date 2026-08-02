@@ -1,4 +1,3 @@
-990 crates/core-api/src/method/admin.rs
 983 web/src/components/thread-view.tsx
 963 crates/webapi/src/handlers/conversations.rs
 882 crates/storage-maildir/src/tests.rs
