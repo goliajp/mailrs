@@ -7,8 +7,6 @@ use async_trait::async_trait;
 use crate::store::{AddressBookStore, StoreError};
 use crate::types::{AddressBook, Contact, PutResult};
 
-/// Convenience example user used by the constructors in this module. The
-
 // =====================================================================
 // AddressBook store
 // =====================================================================

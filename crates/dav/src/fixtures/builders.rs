@@ -3,8 +3,6 @@
 use crate::types::{AddressBook, Calendar, Contact, Event};
 use crate::xml::etag_of;
 
-/// Convenience example user used by the constructors in this module. The
-
 // =====================================================================
 // Convenience constructors
 // =====================================================================
