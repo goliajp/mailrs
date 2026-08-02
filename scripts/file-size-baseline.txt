@@ -1,5 +1,4 @@
 796 crates/mailrs-mmalloc/src/core.rs
-778 crates/server/src/lib.rs
 719 crates/mail-builder/tests/corpus.rs
 691 crates/outbound-queue/tests/worker_delivery_integration.rs
 691 crates/ical/src/vtimezone.rs
@@ -16,6 +15,7 @@
 540 crates/core-sidestate/src/families/send.rs
 539 crates/fastcore/src/spool_drain.rs
 532 web/src/components/invite-card.tsx
+528 crates/server/src/lib.rs
 528 crates/outbound-queue/src/queue.rs
 528 crates/fastcore/src/imap/backend.rs
 528 crates/core-sidestate/src/families/outbound.rs
