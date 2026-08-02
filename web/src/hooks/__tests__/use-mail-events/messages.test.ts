@@ -76,7 +76,6 @@ let mockWs: null | {
   url: string
 } = null
 
-let wsConstructCount = 0
 const wsUrls: string[] = []
 
 type DocListenerMap = Record<string, ((ev?: unknown) => void)[]>
@@ -101,18 +100,16 @@ class MockWebSocket {
     this.url = url
     wsUrls.push(url)
     mockWs = this as unknown as typeof mockWs
-    wsConstructCount++
   }
 }
 
 let docListeners: DocListenerMap
 let windowListeners: WindowListenerMap
 
-describe('useMailEvents', () => {
+describe('useMailEvents — messages', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mockWs = null
-    wsConstructCount = 0
     wsUrls.length = 0
     docListeners = {}
     windowListeners = {}
@@ -151,124 +148,19 @@ describe('useMailEvents', () => {
   })
 
   async function renderMailEvents(user: string) {
-    const { useMailEvents } = await import('../use-mail-events')
+    const { useMailEvents } = await import('../../use-mail-events')
     return renderHook(() => useMailEvents(user))
-  }
-
-  function fireWindow(evt: string) {
-    for (const fn of windowListeners[evt] ?? []) act(() => fn())
   }
 
   function fireDoc(evt: string) {
     for (const fn of docListeners[evt] ?? []) act(() => fn())
   }
 
-  it('creates WebSocket connection when user is provided', async () => {
-    await renderMailEvents('test@example.com')
-
-    expect(mockWs).not.toBeNull()
-    expect(wsConstructCount).toBe(1)
-  })
-
-  it('does not connect when user is empty', async () => {
-    await renderMailEvents('')
-
-    expect(mockWs).toBeNull()
-    expect(wsConstructCount).toBe(0)
-  })
-
   it('cleans up on unmount', async () => {
     const { unmount } = await renderMailEvents('test@example.com')
 
     const ws = mockWs!
     unmount()
-
-    expect(ws.close).toHaveBeenCalled()
-  })
-
-  it('sends periodic pings', async () => {
-    await renderMailEvents('test@example.com')
-
-    const ws = mockWs!
-    ws.readyState = MockWebSocket.OPEN
-
-    act(() => {
-      ws.onopen?.()
-    })
-
-    act(() => {
-      vi.advanceTimersByTime(30_000)
-    })
-
-    expect(ws.send).toHaveBeenCalledWith('ping')
-  })
-
-  it('skips ping when socket is not open', async () => {
-    await renderMailEvents('test@example.com')
-
-    const ws = mockWs!
-    act(() => {
-      ws.onopen?.()
-    })
-    ws.readyState = MockWebSocket.CLOSED
-
-    act(() => {
-      vi.advanceTimersByTime(30_000)
-    })
-
-    expect(ws.send).not.toHaveBeenCalled()
-  })
-
-  it('reconnects after close', async () => {
-    await renderMailEvents('test@example.com')
-
-    const firstCount = wsConstructCount
-    act(() => {
-      mockWs?.onclose?.()
-    })
-
-    act(() => {
-      vi.advanceTimersByTime(3000)
-    })
-
-    expect(wsConstructCount).toBe(firstCount + 1)
-  })
-
-  it('reports connection status on open', async () => {
-    await renderMailEvents('test@example.com')
-
-    act(() => {
-      mockWs?.onopen?.()
-    })
-
-    expect(mockSetConnectionStatus).toHaveBeenCalledWith('connected')
-  })
-
-  it('reports connecting status on close while online', async () => {
-    await renderMailEvents('test@example.com')
-
-    act(() => {
-      mockWs?.onclose?.()
-    })
-
-    expect(mockSetConnectionStatus).toHaveBeenCalledWith('connecting')
-  })
-
-  it('skips initial connect when offline', async () => {
-    vi.stubGlobal('navigator', { onLine: false })
-
-    await renderMailEvents('test@example.com')
-
-    expect(mockWs).toBeNull()
-  })
-
-  it('closes socket on error', async () => {
-    await renderMailEvents('test@example.com')
-    const ws = mockWs!
-
-    act(() => {
-      ws.onerror?.()
-    })
 
     expect(ws.close).toHaveBeenCalled()
   })
@@ -346,30 +238,6 @@ describe('useMailEvents', () => {
     ).not.toThrow()
   })
 
-  it('uses wss protocol when on https', async () => {
-    vi.stubGlobal('location', { host: 'mail.example.com', protocol: 'https:' })
-
-    await renderMailEvents('alice@example.com')
-
-    expect(wsUrls[0]).toMatch(/^wss:/)
-  })
-
-  it('uses ws protocol when on http', async () => {
-    vi.stubGlobal('location', { host: 'localhost:3200', protocol: 'http:' })
-
-    await renderMailEvents('alice@example.com')
-
-    expect(wsUrls[0]).toMatch(/^ws:/)
-  })
-
-  it('omits token param when localStorage has no token', async () => {
-    vi.stubGlobal('localStorage', { getItem: vi.fn().mockReturnValue(null) })
-
-    await renderMailEvents('alice@example.com')
-
-    expect(wsUrls[0]).not.toContain('?token=')
-  })
-
   it('invalidates data on visibility change to visible', async () => {
     await renderMailEvents('alice@example.com')
     mockInvalidateQueries.mockClear()
@@ -389,25 +257,6 @@ describe('useMailEvents', () => {
     // visibilitychange fires, but onVisibilityChange short-circuits because
     // document.visibilityState !== 'visible'.
     expect(mockInvalidateQueries).not.toHaveBeenCalled()
-  })
-
-  it('reconnects on online event when socket is dead', async () => {
-    await renderMailEvents('alice@example.com')
-    const before = wsConstructCount
-    mockWs!.readyState = MockWebSocket.CLOSED
-
-    fireWindow('online')
-
-    expect(wsConstructCount).toBeGreaterThan(before)
-  })
-
-  it('marks connection offline on offline event', async () => {
-    await renderMailEvents('alice@example.com')
-    mockSetConnectionStatus.mockClear()
-
-    fireWindow('offline')
-
-    expect(mockSetConnectionStatus).toHaveBeenCalledWith('offline')
   })
 
   it('shows desktop notification when granted and tab hidden', async () => {
@@ -498,115 +347,5 @@ describe('useMailEvents', () => {
     })
 
     expect(mockFetchJson).not.toHaveBeenCalled()
-  })
-
-  it('reconnects on visibility change when socket is dead', async () => {
-    await renderMailEvents('alice@example.com')
-    const before = wsConstructCount
-    mockWs!.readyState = MockWebSocket.CLOSED
-
-    fireDoc('visibilitychange')
-
-    expect(wsConstructCount).toBeGreaterThan(before)
-  })
-
-  it('does not reconnect on visibility change when socket is open', async () => {
-    await renderMailEvents('alice@example.com')
-    act(() => {
-      mockWs!.onopen?.()
-    })
-    const before = wsConstructCount
-    mockWs!.readyState = MockWebSocket.OPEN
-
-    fireDoc('visibilitychange')
-
-    expect(wsConstructCount).toBe(before)
-  })
-
-  describe('shallowEqualConvo', () => {
-    type Convo = {
-      archived: boolean
-      category: string
-      flagged: boolean
-      importance_level: string
-      importance_score: number
-      last_date: number
-      message_count: number
-      participants: string[]
-      pinned: boolean
-      received_count: number
-      requires_action: boolean
-      sent_count: number
-      snippet: string
-      subject: string
-      thread_id: string
-      unread_count: number
-    }
-    const baseline: Convo = {
-      archived: false,
-      category: 'inbox',
-      flagged: false,
-      importance_level: 'normal',
-      importance_score: 0,
-      last_date: 100,
-      message_count: 2,
-      participants: ['a@x.com', 'b@x.com'],
-      pinned: false,
-      received_count: 1,
-      requires_action: false,
-      sent_count: 1,
-      snippet: 's',
-      subject: 't',
-      thread_id: 'id-1',
-      unread_count: 0,
-    }
-
-    it('returns true for same reference', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      expect(shallowEqualConvo(baseline, baseline)).toBe(true)
-    })
-
-    it('returns true for shallowly equal objects with different references', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      const clone = { ...baseline, participants: [...baseline.participants] }
-      expect(shallowEqualConvo(baseline, clone)).toBe(true)
-    })
-
-    it('detects subject / snippet changes', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      expect(shallowEqualConvo(baseline, { ...baseline, subject: 'new' })).toBe(false)
-      expect(shallowEqualConvo(baseline, { ...baseline, snippet: 'new' })).toBe(false)
-    })
-
-    it('detects flagged / pinned / archived flips', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      expect(shallowEqualConvo(baseline, { ...baseline, flagged: true })).toBe(false)
-      expect(shallowEqualConvo(baseline, { ...baseline, pinned: true })).toBe(false)
-      expect(shallowEqualConvo(baseline, { ...baseline, archived: true })).toBe(false)
-    })
-
-    it('detects unread / message count and last_date changes', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      expect(shallowEqualConvo(baseline, { ...baseline, unread_count: 1 })).toBe(false)
-      expect(shallowEqualConvo(baseline, { ...baseline, message_count: 3 })).toBe(false)
-      expect(shallowEqualConvo(baseline, { ...baseline, last_date: 200 })).toBe(false)
-    })
-
-    it('detects participants change by length', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      const more = { ...baseline, participants: [...baseline.participants, 'c@x.com'] }
-      expect(shallowEqualConvo(baseline, more)).toBe(false)
-    })
-
-    it('detects participants change at same length', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      const swapped = { ...baseline, participants: ['z@x.com', baseline.participants[1]] }
-      expect(shallowEqualConvo(baseline, swapped)).toBe(false)
-    })
-
-    it('detects thread_id change', async () => {
-      const { shallowEqualConvo } = await import('../use-mail-events')
-      expect(shallowEqualConvo(baseline, { ...baseline, thread_id: 'id-2' })).toBe(false)
-    })
   })
 })

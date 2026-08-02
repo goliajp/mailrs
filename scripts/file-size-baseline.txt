@@ -1,12 +1,4 @@
-612 web/src/hooks/__tests__/use-mail-events.test.ts
-594 web/src/components/__tests__/conversation-list.test.tsx
 586 crates/server/benches/smtp_load.rs
-545 web/src/hooks/use-mail-mutations.ts
-542 crates/server/src/web/mail/common.rs
-532 web/src/components/invite-card.tsx
 528 crates/server/src/lib.rs
-528 crates/fastcore/src/imap/backend.rs
-517 crates/server/src/core_rpc/handlers/admin.rs
 515 crates/server/src/mcp/tools.rs
 514 crates/mailbox/src/fixtures.rs
-504 crates/smtp-proto/src/session/mod.rs
