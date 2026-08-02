@@ -1,7 +1,4 @@
-719 crates/mail-builder/tests/corpus.rs
-691 crates/outbound-queue/tests/worker_delivery_integration.rs
 691 crates/ical/src/vtimezone.rs
-660 crates/dav/src/fixtures.rs
 639 crates/mailbox/tests/trait_contract.rs
 612 web/src/hooks/__tests__/use-mail-events.test.ts
 607 crates/server/src/web/mod.rs
