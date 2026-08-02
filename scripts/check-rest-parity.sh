@@ -82,8 +82,16 @@ for line in sorted(out):
 PYEOF
 }
 
-FC=$(extract crates/webapi/src/lib.rs)
-MONO=$(extract crates/server/src/web/router/routes.rs crates/server/src/web/router/mod.rs)
+# Found, not named. Naming the router files by path meant that splitting
+# one of them — `crates/webapi/src/lib.rs` into `router/{mail,rest}.rs` on
+# 2026-08-02 — silently emptied this side of the comparison: 48 accounted
+# differences became 223, every one of them a route the script could no
+# longer see rather than a route that had gone missing. A gate that reads
+# a hard-coded path reports on where the code used to be.
+lane() { grep -rl --include='*.rs' '\.route(' "$1" 2>/dev/null | sort; }
+
+FC=$(extract $(lane crates/webapi/src))
+MONO=$(extract $(lane crates/server/src/web))
 
 allowed() {
     [ -f "$ALLOW" ] || return 1
