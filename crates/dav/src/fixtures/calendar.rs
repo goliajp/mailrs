@@ -7,8 +7,6 @@ use async_trait::async_trait;
 use crate::store::{CalendarStore, StoreError};
 use crate::types::{Calendar, Event, PutResult};
 
-/// Convenience example user used by the constructors in this module. The
-
 // =====================================================================
 // Calendar store
 // =====================================================================
