@@ -40,8 +40,14 @@ print('\n'.join(sorted(set(names))))
 PY
 }
 
-MONO=$(extract crates/server/src/mcp/*.rs)
-FC=$(extract crates/webapi/src/handlers/mcp/*.rs)
+# Found, not named — for the reason recorded in check-rest-parity.sh: a
+# `*.rs` glob stops at the directory it names, so the first tool moved into
+# a subdirectory would leave this comparing against a lane it can no longer
+# fully see, and report parity.
+lane() { grep -rl --include='*.rs' '#\[tool' "$1" 2>/dev/null | sort; }
+
+MONO=$(extract $(lane crates/server/src/mcp))
+FC=$(extract $(lane crates/webapi/src/handlers/mcp))
 
 only_mono=$(comm -23 <(printf '%s\n' "$MONO") <(printf '%s\n' "$FC"))
 only_fc=$(comm -13 <(printf '%s\n' "$MONO") <(printf '%s\n' "$FC"))
