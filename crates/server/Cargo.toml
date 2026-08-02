@@ -157,8 +157,8 @@ kevy-embedded = { workspace = true }
 # "+10-20% throughput" claim from commit 9f21e0b (perf-first release
 # profile). Custom harness because the bench drives real TCP sessions
 # over localhost; criterion's iter model doesn't fit. See
-# benches/smtp_load.rs for full rationale.
+# benches/smtp_load/main.rs for full rationale.
 [[bench]]
 name = "smtp_load"
 harness = false
-path = "benches/smtp_load.rs"
+path = "benches/smtp_load/main.rs"
