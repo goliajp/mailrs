@@ -11,7 +11,7 @@ use crate::KevyMailboxStore;
 use crate::keys;
 use crate::thread_row::ThreadRow;
 
-use super::ListThreadsFilter;
+use super::{FlagKey, ListThreadsFilter};
 
 impl KevyMailboxStore {
     /// The default axis, off the pure-recency ORDERPATH.
@@ -41,34 +41,55 @@ impl KevyMailboxStore {
         self.hydrate_page(user, &tids, total)
     }
 
-    /// The merged Notifications + Promotions view.
+    /// Several buckets merged into one recency-ordered view.
     ///
-    /// An ORDERPATH answers one contiguous range, and this is two, so
-    /// the merge happens here: take a full page from each side, then
-    /// interleave by recency. Both sides are already sorted, so this
-    /// is a two-way merge rather than a sort — and taking `offset +
-    /// limit` from each guarantees the merged prefix is correct no
-    /// matter how the two interleave.
-    pub(super) fn list_np_via_table(
+    /// An ORDERPATH answers one contiguous range, and this is N, so the
+    /// merge happens here: take a full page from each side, then
+    /// interleave by recency. Each side is already sorted, so this is a
+    /// merge rather than a sort — and taking `offset + limit` from each
+    /// guarantees the merged prefix is correct no matter how they
+    /// interleave.
+    ///
+    /// The `inbox` bucket reads off the sent-aware axis, the same one
+    /// [`Self::list_bucket_via_table`] uses for it: a thread the user
+    /// only ever sent into is not in their Inbox, and must not arrive
+    /// here by the side door.
+    pub(super) fn list_buckets_via_table(
         &self,
         user: &str,
+        buckets: &[&str],
         filter: &ListThreadsFilter<'_>,
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let total = self.count_thread_ids_by_bucket_via_table(user, "notifications")?
-            + self.count_thread_ids_by_bucket_via_table(user, "promotions")?;
+        let mut total = 0usize;
+        for b in buckets {
+            total += if *b == "inbox" {
+                self.count_thread_ids_by_bucket_unsent_via_table(user, b)?
+            } else {
+                self.count_thread_ids_by_bucket_via_table(user, b)?
+            };
+        }
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
         let want = offset + limit;
         let mut merged: Vec<ThreadRow> = Vec::new();
-        for bucket in ["notifications", "promotions"] {
-            let tids = match filter.before_ts {
-                Some(ts) => {
+        for bucket in buckets.iter().copied() {
+            let tids = match (bucket, filter.before_ts) {
+                ("inbox", Some(ts)) => self.list_thread_ids_by_bucket_unsent_before_via_table(
+                    user,
+                    bucket,
+                    ts - 1,
+                    want,
+                )?,
+                ("inbox", None) => {
+                    self.list_thread_ids_by_bucket_unsent_via_table(user, bucket, want)?
+                }
+                (_, Some(ts)) => {
                     self.list_thread_ids_by_bucket_before_via_table(user, bucket, ts - 1, want)?
                 }
-                None => self.list_thread_ids_by_bucket_via_table(user, bucket, want)?,
+                (_, None) => self.list_thread_ids_by_bucket_via_table(user, bucket, want)?,
             };
             let (rows, _) = self.hydrate_page(user, &tids, 0)?;
             merged.extend(rows);
@@ -86,28 +107,28 @@ impl KevyMailboxStore {
         Ok((merged, total))
     }
 
-    /// The merged Notifications + Promotions view with flags stacked on
-    /// it.
+    /// The same merge with flags stacked on it.
     ///
-    /// Still two ranges, so still a two-way merge — but keyed on the
-    /// flag index rather than the bucket ORDERPATH, because that is the
-    /// one that can carry the other predicates as value filters. The
-    /// bucket becomes one of those filters.
-    pub(super) fn list_np_flagged_via_table(
+    /// Still N ranges, so still a merge — but keyed on the flag index
+    /// rather than the bucket ORDERPATH, because that is the one that
+    /// can carry the other predicates as value filters. The bucket
+    /// becomes one of those filters, and for `inbox` so does the
+    /// sent-only exclusion.
+    pub(super) fn list_buckets_flagged_via_table(
         &self,
         user: &str,
-        flag: &str,
-        extra: &[(&str, String)],
+        buckets: &[&str],
+        key: FlagKey<'_>,
         filter: &ListThreadsFilter<'_>,
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let FlagKey { flag, extra } = key;
         let want = offset + limit;
         let mut total = 0usize;
         let mut merged: Vec<ThreadRow> = Vec::new();
-        for bucket in ["notifications", "promotions"] {
-            let mut scoped: Vec<(&str, String)> = extra.to_vec();
-            scoped.push(("bucket", bucket.to_string()));
+        for bucket in buckets.iter().copied() {
+            let scoped = super::bucket_predicates(bucket, extra);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
             total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
             if limit == 0 {

@@ -94,7 +94,21 @@ pub async fn get_mail_stats(
         .await
         .map_err(map_core_err)?;
     let unseen = state.core.unseen_count(&user).await.map_err(map_core_err)?;
-    let total: i64 = cats.categories.iter().map(|c| c.count).sum();
+    // NOT the sum of `categories`. That sum is structurally an
+    // undercount: the histogram omits junk on purpose, so adding it up
+    // reports a mailbox smaller than the one `/api/mail/folders` shows
+    // one panel lower on the same screen. Take the total from the same
+    // place that panel does.
+    let total: i64 = state
+        .core
+        .list_mailboxes(&user)
+        .await
+        .map_err(map_core_err)?
+        .items
+        .iter()
+        .find(|m| m.name.eq_ignore_ascii_case("INBOX"))
+        .map(|m| i64::from(m.uidnext.saturating_sub(1)))
+        .unwrap_or(0);
     Ok(Json(serde_json::json!({
         "categories": cats.categories,
         "storage_bytes": 0,

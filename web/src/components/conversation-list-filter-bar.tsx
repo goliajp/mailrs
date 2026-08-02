@@ -141,9 +141,15 @@ export const FilterBar = memo(function FilterBar() {
         setFolder('Sent')
         break
       case 'starred':
+        // Cross-folder: a starred promotion is still starred.
+        setFolder('NonJunk')
         setQuickFilter('starred')
         break
       case 'unread':
+        // Cross-folder, and it has to be — the unread badge counts the
+        // same buckets, so an Inbox-scoped view here made a non-zero
+        // count lead to an empty page.
+        setFolder('NonJunk')
         setQuickFilter('unread')
         break
       default:
