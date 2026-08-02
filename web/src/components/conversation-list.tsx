@@ -233,12 +233,25 @@ export function ConversationList({
 
   const handleContextAction = useConversationActions()
 
-  const sortOrder = useAtomValue(sortOrderAtom)
+  const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
   const showArchived = useAtomValue(showArchivedAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
   const folder = useAtomValue(folderAtom)
   const [stickyUnread, setStickyUnread] = useAtom(stickyUnreadIdsAtom)
+
+  // Starting a search switches the order to relevance, and clearing it
+  // switches back. Ranking a search by date discards the ranking, and
+  // leaving the default at `newest` while the server ranked by score
+  // was the state that made search order look arbitrary. Keyed on the
+  // *transition* so an explicit choice during a search still sticks.
+  const searching = searchQuery.trim().length > 0
+  const wasSearching = useRef(searching)
+  useEffect(() => {
+    if (searching === wasSearching.current) return
+    wasSearching.current = searching
+    setSortOrder(searching ? 'relevance' : 'newest')
+  }, [searching, setSortOrder])
 
   // Reset the "keep visible until next visit" set whenever the user
   // navigates AWAY from the unread filter — the set was scoped to the
@@ -286,10 +299,19 @@ export function ConversationList({
       )
     }
 
-    if (sortOrder === 'newest') return visible
+    // `relevance` means "leave the server's order alone". For a plain
+    // list that order is already newest-first, so the two agree; for a
+    // search it is the ranking, and sorting it by date would discard
+    // the ranking. Everything else genuinely sorts — `newest` used to
+    // return early here on the assumption the server had already done
+    // it, which was true of the list and false of search, so the one
+    // option named after a date was the only one that never applied one.
+    if (sortOrder === 'relevance') return visible
     const pinned = visible.filter((c) => c.pinned)
     const unpinned = visible.filter((c) => !c.pinned)
-    if (sortOrder === 'oldest') {
+    if (sortOrder === 'newest') {
+      unpinned.sort((a, b) => b.last_date - a.last_date)
+    } else if (sortOrder === 'oldest') {
       unpinned.sort((a, b) => a.last_date - b.last_date)
     } else if (sortOrder === 'unread') {
       unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)

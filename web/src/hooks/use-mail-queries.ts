@@ -123,11 +123,19 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
 // chat.tsx `buildPath` but pure — no React state.
 function listPath(filters: MailListFilters, before?: number): string {
   if (filters.query) {
+    // Search carries the same axes the list does. It used to carry only
+    // `q`, so searching from Inbox returned Junk and Sent threads that
+    // tab would never show — a result you cannot reach from where you
+    // are standing.
     let p = `/conversations/search?q=${encodeURIComponent(filters.query)}&limit=${PAGE_SIZE}`
     if (filters.category) p += `&category=${encodeURIComponent(filters.category)}`
     if (filters.domains && filters.domains.length > 0) {
       p += `&domains=${encodeURIComponent(filters.domains.join(','))}`
     }
+    if (filters.folder) p += `&folder=${encodeURIComponent(filters.folder)}`
+    if (filters.unread) p += '&unread=true'
+    if (filters.starred) p += '&starred=true'
+    if (filters.archived) p += '&archived=true'
     return p
   }
   let p = `/conversations?limit=${PAGE_SIZE}`

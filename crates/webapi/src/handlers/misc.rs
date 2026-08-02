@@ -236,6 +236,14 @@ pub struct SearchQuery {
     pub q: String,
     #[serde(default = "default_search_limit")]
     pub limit: u32,
+    /// The tab the search was issued from. Absent = every folder,
+    /// which is what this endpoint used to do unconditionally.
+    pub folder: Option<String>,
+    pub category: Option<String>,
+    pub unread: Option<bool>,
+    pub starred: Option<bool>,
+    #[serde(default)]
+    pub archived: bool,
 }
 
 fn default_search_limit() -> u32 {
@@ -258,8 +266,12 @@ pub async fn search_conversations(
 ) -> Result<Json<Vec<crate::handlers::conversations::ConversationResponse>>, StatusCode> {
     let req = mailrs_core_api::method::conversation::SearchConversationsRequest {
         query: q.q,
-        category: None,
+        category: q.category,
         limit: q.limit,
+        folder: q.folder,
+        unread: q.unread,
+        starred: q.starred,
+        archived: q.archived,
     };
     let hits = state
         .core

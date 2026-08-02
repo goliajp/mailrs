@@ -10,6 +10,7 @@ import {
   importanceSectionAtom,
   type MailFolder,
   quickFilterAtom,
+  searchQueryAtom,
   selectedDomainsAtom,
   showArchivedAtom,
   type SortOrder,
@@ -50,9 +51,6 @@ function panelChipClass(isActive: boolean, extra: string): string {
   return `${base} text-fg-secondary hover:bg-bg-secondary`
 }
 
-// which tab is highlighted, derived from the several independent atoms
-// that together describe the current view. explicit if-returns — no
-// nested ternaries.
 function resolveActiveTab(state: {
   activeCategory: null | string
   folder: MailFolder
@@ -77,7 +75,19 @@ function sectionLabel(s: ImportanceSection): string {
 
 function sortLabel(s: SortOrder): string {
   if (s === 'unread') return 'Unread first'
+  if (s === 'relevance') return 'Best match'
   return s
+}
+
+// which tab is highlighted, derived from the several independent atoms
+// that together describe the current view. explicit if-returns — no
+// nested ternaries.
+// `relevance` is only offered while a search is running — for a plain
+// list it means the same thing as `newest`, and a chip that changes
+// nothing is worse than one that is absent.
+function sortOptions(query: string): SortOrder[] {
+  if (query.trim().length > 0) return ['relevance', 'newest', 'oldest', 'unread']
+  return ['newest', 'oldest', 'unread']
 }
 
 function tabButtonClass(isActive: boolean): string {
@@ -94,6 +104,7 @@ export const FilterBar = memo(function FilterBar() {
   const [folder, setFolder] = useAtom(folderAtom)
   const [section, setSection] = useAtom(importanceSectionAtom)
   const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
+  const searchQuery = useAtomValue(searchQueryAtom)
   const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
   const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
@@ -205,7 +216,7 @@ export const FilterBar = memo(function FilterBar() {
             <div className="mb-3">
               <label className="text-fg-muted mb-1 block font-medium">Sort</label>
               <div className="flex gap-1">
-                {(['newest', 'oldest', 'unread'] as SortOrder[]).map((s) => (
+                {sortOptions(searchQuery).map((s) => (
                   <button
                     className={panelChipClass(sortOrder === s, 'capitalize')}
                     key={s}

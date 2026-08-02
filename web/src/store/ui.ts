@@ -22,7 +22,11 @@ export const selectedDomainsAtom = atom<string[]>([])
 export type MobileView = 'conversation' | 'list' | 'reply' | 'thread'
 export const mobileViewAtom = atom<MobileView>('list')
 
-export type SortOrder = 'newest' | 'oldest' | 'unread'
+// `relevance` is the order the server returned — exact matches, then
+// matches inside a message, then substring hits. It is only meaningful
+// while a search is active, and it is the default there: ranking a
+// search by date throws away the one thing the ranking knew.
+export type SortOrder = 'newest' | 'oldest' | 'relevance' | 'unread'
 export const sortOrderAtom = atom<SortOrder>('newest')
 
 // batch selection mode

@@ -387,6 +387,68 @@ impl KevyMailboxStore {
     }
 }
 
+impl KevyMailboxStore {
+    /// Substring search over the caller's own rows — what a user means
+    /// by "just find the ones containing this".
+    ///
+    /// The token index cannot answer it. `kevy_text::tokenize` splits
+    /// latin text on word boundaries and CJK into bigrams, so `qualcomm`
+    /// is one token and `ualcom` is none of it; the query grammar offers
+    /// `word*` but has no infix form. This walks the membership rows
+    /// instead and asks each for `contains`.
+    ///
+    /// The haystack is the row's own `subject`, `senders_csv` and
+    /// `latest_preview` — **not** message bodies. Bodies are capped at
+    /// 8 KiB each and there are tens of thousands of them; scanning that
+    /// per keystroke is not a search, it is a table scan wearing one.
+    /// Bodies stay on the token index, which is where BM25 earns its
+    /// keep anyway.
+    ///
+    /// Walks newest-first and stops at `limit` hits, so a common
+    /// substring costs a short walk and a rare one costs the whole
+    /// index — bounded either way by the user's own thread count.
+    /// `skip` holds the thread ids an earlier stage already returned:
+    /// every token match is also a substring match, so without it the
+    /// entire first stage would repeat here.
+    pub fn like_threads(
+        &self,
+        user: &str,
+        query: &str,
+        skip: &std::collections::HashSet<String>,
+        limit: usize,
+    ) -> io::Result<Vec<String>> {
+        let needle = query.trim().to_lowercase();
+        // Two characters is the floor the tokenizer itself uses
+        // (`flush_word` drops shorter words), so anything below it would
+        // be a substring scan for something the index would never have
+        // indexed — and, on a mailbox this size, a match on nearly
+        // everything.
+        if needle.chars().count() < 2 || limit == 0 {
+            return Ok(Vec::new());
+        }
+        let tids = self.list_thread_ids_by_activity_via_table(user, usize::MAX, None)?;
+        let mut out = Vec::with_capacity(limit);
+        for tid in tids {
+            if skip.contains(&tid) {
+                continue;
+            }
+            let Some(row) = self.get_thread_for_user(user, &tid)? else {
+                continue;
+            };
+            let hit = row.subject.to_lowercase().contains(&needle)
+                || row.senders_csv.to_lowercase().contains(&needle)
+                || row.latest_preview.to_lowercase().contains(&needle);
+            if hit {
+                out.push(tid);
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+        Ok(out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +563,116 @@ mod tests {
         assert_eq!(again, 0);
         let row = s.get_thread("t-new").unwrap().unwrap();
         assert_eq!(row.count, 2);
+    }
+
+    /// A token match is a substring match too. If the LIKE stage did not
+    /// skip what the token stage already returned, every exact hit would
+    /// appear twice — once ranked, once again at the bottom.
+    #[test]
+    fn like_skips_what_the_token_stage_already_returned() {
+        let s = store();
+        let u = "alice@x.com";
+        arrive(&s, "t1", u, "Qualcomm invoice", 300);
+        arrive(&s, "t2", u, "about qualcomm systems", 200);
+
+        let matched: Vec<String> = s
+            .search_threads(u, "qualcomm", 10)
+            .unwrap()
+            .into_iter()
+            .map(|(tid, _)| tid)
+            .collect();
+        assert!(!matched.is_empty(), "the token index must find these");
+
+        let seen: std::collections::HashSet<String> = matched.iter().cloned().collect();
+        let liked = s.like_threads(u, "qualcomm", &seen, 10).unwrap();
+        assert!(
+            liked.is_empty(),
+            "every token hit is also a substring hit; the skip set is what stops the repeat"
+        );
+    }
+
+    /// The reason LIKE exists: a fragment that is not a token.
+    #[test]
+    fn like_finds_a_fragment_the_token_index_cannot() {
+        let s = store();
+        let u = "alice@x.com";
+        arrive(&s, "t1", u, "Qualcomm invoice", 300);
+
+        let empty = std::collections::HashSet::new();
+        assert!(
+            s.search_threads(u, "ualcom", 10).unwrap().is_empty(),
+            "a mid-word fragment is not a token, so BM25 cannot see it"
+        );
+        assert_eq!(
+            s.like_threads(u, "ualcom", &empty, 10).unwrap(),
+            vec!["t1".to_string()],
+            "which is exactly what the substring stage is for"
+        );
+    }
+
+    /// Newest first, so a common fragment returns the recent threads
+    /// rather than whichever ones the walk reached first.
+    #[test]
+    fn like_returns_newest_first() {
+        let s = store();
+        let u = "alice@x.com";
+        arrive(&s, "old", u, "invoice alpha", 100);
+        arrive(&s, "mid", u, "invoice beta", 200);
+        arrive(&s, "new", u, "invoice gamma", 300);
+
+        let empty = std::collections::HashSet::new();
+        assert_eq!(
+            s.like_threads(u, "nvoic", &empty, 10).unwrap(),
+            vec!["new".to_string(), "mid".to_string(), "old".to_string()]
+        );
+    }
+
+    /// One character is below the tokenizer's own floor, and on a real
+    /// mailbox it matches nearly everything. Refusing it is the answer,
+    /// not returning half the index.
+    #[test]
+    fn like_needs_two_characters() {
+        let s = store();
+        let u = "alice@x.com";
+        arrive(&s, "t1", u, "Qualcomm invoice", 300);
+
+        let empty = std::collections::HashSet::new();
+        assert!(s.like_threads(u, "q", &empty, 10).unwrap().is_empty());
+        assert!(s.like_threads(u, " q ", &empty, 10).unwrap().is_empty());
+        assert_eq!(s.like_threads(u, "qu", &empty, 10).unwrap().len(), 1);
+    }
+
+    /// The haystack is the row's own subject, senders and preview — and
+    /// the row is per-user, so one owner's search cannot reach another's
+    /// threads.
+    #[test]
+    fn like_searches_senders_and_preview_and_only_the_callers_rows() {
+        let s = store();
+        s.record_message_arrival(&MessageArrival {
+            thread_id: "t1",
+            user: "alice@x.com",
+            subject: "nothing useful",
+            senders_csv: "billing@qualcomm.com",
+            latest_date: 100,
+            latest_preview: "",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        })
+        .unwrap();
+
+        let empty = std::collections::HashSet::new();
+        assert_eq!(
+            s.like_threads("alice@x.com", "ualcomm.co", &empty, 10)
+                .unwrap(),
+            vec!["t1".to_string()],
+            "senders are part of the haystack"
+        );
+        assert!(
+            s.like_threads("bob@x.com", "ualcomm.co", &empty, 10)
+                .unwrap()
+                .is_empty(),
+            "bob has no row for this thread"
+        );
     }
 }

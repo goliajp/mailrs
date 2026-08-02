@@ -73,6 +73,11 @@ pub async fn semantic_search(
         query: q.q.clone(),
         category: None,
         limit,
+        // Semantic search is a "find it anywhere" surface, not a tab.
+        folder: None,
+        unread: None,
+        starred: None,
+        archived: false,
     };
     match state.core.search_conversations(&user, &search_req).await {
         // The index is maintained with the writes, so an empty result is
