@@ -1,7 +1,5 @@
 796 crates/mailrs-mmalloc/src/core.rs
 778 crates/server/src/lib.rs
-724 crates/webapi/src/handlers/oidc.rs
-724 crates/webapi/src/handlers/auth.rs
 719 crates/mail-builder/tests/corpus.rs
 691 crates/outbound-queue/tests/worker_delivery_integration.rs
 691 crates/ical/src/vtimezone.rs
