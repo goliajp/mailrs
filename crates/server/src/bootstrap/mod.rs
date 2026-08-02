@@ -6,10 +6,13 @@
 
 mod auth_guard;
 mod cache;
+pub(crate) mod connections;
 mod inbound;
 mod listeners;
 mod outbound;
 mod runtime_tasks;
+pub(crate) mod shield;
+pub(crate) mod stores;
 mod system_config;
 mod tls;
 mod web_state;
