@@ -1,4 +1,3 @@
-1326 crates/smtp-proto/src/session/tests.rs
 1291 web/src/components/conversation-list.tsx
 1254 crates/server/src/core_rpc/mod.rs
 1021 crates/mailbox-kevy/src/list_threads.rs
