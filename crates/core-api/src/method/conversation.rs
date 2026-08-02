@@ -62,9 +62,8 @@ pub struct ConversationsByIdsResponse {
 
 /// Request body for `GET /v1/users/{user}/conversations:search?q=...`.
 ///
-/// Meili is the primary backend; this RPC is the PG FTS fallback.
-/// `fastcore` returns `BackendUnsupported` for this endpoint (webapi must
-/// degrade gracefully by relying solely on meili).
+/// Served by the kevy text index since 2026-07-20; the Meili sentence
+/// this used to carry described a service that no longer exists.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchConversationsRequest {
     /// Free-text query string.
@@ -75,6 +74,25 @@ pub struct SearchConversationsRequest {
     /// Max items to return.
     #[serde(default = "default_search_limit")]
     pub limit: u32,
+    /// The tab the user is looking at, in the same vocabulary
+    /// [`ConversationFilter::folder`] uses.
+    ///
+    /// Search used to ignore it, so searching from Inbox returned Junk
+    /// and Sent threads the Inbox itself would never show. A result you
+    /// cannot reach from where you are standing is the same defect as
+    /// an unread count with no view behind it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    /// Restrict to unread threads, as the Unread tab does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unread: Option<bool>,
+    /// Restrict to starred threads, as the Starred tab does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starred: Option<bool>,
+    /// `true` searches archived threads instead of hiding them, the
+    /// same way the Archived tab reads the list.
+    #[serde(default)]
+    pub archived: bool,
 }
 
 fn default_search_limit() -> u32 {
