@@ -1,7 +1,5 @@
-839 crates/ical/src/tests.rs
 796 crates/mailrs-mmalloc/src/core.rs
 778 crates/server/src/lib.rs
-774 crates/smtp-proto/src/parse/tests.rs
 724 crates/webapi/src/handlers/oidc.rs
 724 crates/webapi/src/handlers/auth.rs
 719 crates/mail-builder/tests/corpus.rs
