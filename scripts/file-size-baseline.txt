@@ -1,4 +1,3 @@
-796 crates/mailrs-mmalloc/src/core.rs
 719 crates/mail-builder/tests/corpus.rs
 691 crates/outbound-queue/tests/worker_delivery_integration.rs
 691 crates/ical/src/vtimezone.rs
