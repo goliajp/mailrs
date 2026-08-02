@@ -17,6 +17,8 @@ pub mod complete;
 pub mod compose;
 pub mod compose_attach;
 mod compose_tests;
+pub mod conversation_body;
+pub mod conversation_verbs;
 pub mod conversations;
 pub mod dav;
 pub mod dmarc;
