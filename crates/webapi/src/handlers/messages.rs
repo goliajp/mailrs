@@ -132,10 +132,12 @@ pub async fn get_attachment(
     let mut r = axum::response::Response::builder()
         .status(StatusCode::OK)
         .header("content-type", ct)
-        .header(
-            "content-disposition",
-            format!(r#"inline; filename="{filename}""#),
-        )
+        // RFC 6266. A header value must be ASCII, and this filename has
+        // just been decoded — the message that prompted the decode was
+        // Japanese, so interpolating it raw would make `body()` return
+        // Err and the download answer 500. The ASCII `filename=` stays
+        // for readers that ignore the extended form.
+        .header("content-disposition", content_disposition(&filename))
         .body(axum::body::Body::from(body))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     r.headers_mut().insert(
@@ -468,9 +470,37 @@ pub async fn reschedule_scheduled(
     }
 }
 
+/// `inline; filename="…"; filename*=UTF-8''…` per RFC 6266 §4.1.
+///
+/// The extended parameter comes from `mailrs_rfc2231::encode_param`,
+/// which is the encoding RFC 6266 borrows and was already in the tree
+/// for the *sending* side — a second copy here would be a second thing
+/// to get wrong. The ASCII `filename=` is the fallback for readers that
+/// ignore the extended form; every byte a header cannot carry, and the
+/// quote that would end the parameter early, becomes `_`.
+fn content_disposition(filename: &str) -> String {
+    let ascii: String = filename
+        .chars()
+        .map(|c| {
+            if (c.is_ascii_graphic() && c != '"' && c != '\\') || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let encoded = mailrs_rfc2231::encode_param("filename", filename);
+    if filename.is_ascii() {
+        // `encode_param` already produced the quoted, escaped form.
+        return format!("inline; {encoded}");
+    }
+    format!("inline; filename=\"{ascii}\"; {encoded}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::blob_ref_location;
+    use super::content_disposition;
 
     #[test]
     fn bare_filename_maps_to_inbox() {
@@ -501,5 +531,32 @@ mod tests {
     #[test]
     fn malformed_user_is_none() {
         assert!(blob_ref_location("/data/maildir", "no-at-sign", "x").is_none());
+    }
+
+    /// The filename from the 2026-08-03 message. Interpolated raw it
+    /// makes an invalid header value, and the attachment 500s.
+    #[test]
+    fn a_japanese_filename_survives_as_an_extended_parameter() {
+        let h = content_disposition("源泉徴収票(2025年分。ZHANG FAN様).pdf");
+        assert!(
+            h.contains("filename*=UTF-8''%E6%BA%90%E6%B3%89"),
+            "percent-encoded UTF-8 carries the real name: {h}"
+        );
+        assert!(h.is_ascii(), "a header value has to be ascii: {h}");
+        assert!(
+            h.contains(r#"filename="_____(2025___ZHANG FAN_).pdf""#),
+            "and the fallback stays readable: {h}"
+        );
+    }
+
+    /// A quote in a filename would otherwise end the quoted-string and
+    /// let the rest of the name be read as further header parameters.
+    #[test]
+    fn a_quote_cannot_escape_the_fallback_parameter() {
+        let h = content_disposition(r#"a"; evil="x.pdf"#);
+        assert_eq!(
+            h, r#"inline; filename="a\"; evil=\"x.pdf""#,
+            "the quotes are escaped, so there is still exactly one parameter"
+        );
     }
 }
