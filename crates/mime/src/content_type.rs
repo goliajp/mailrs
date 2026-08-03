@@ -170,6 +170,18 @@ fn lower_compact(s: &str) -> CompactString {
 /// (`name*=UTF-8''pct-encoded`) forms via [`mailrs-rfc2231`].
 fn parse_params(input: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
+    // RFC 2231 §3 continuations: `filename*0*=…; filename*1*=…`. Each
+    // segment arrives as its own parameter and only the **first**
+    // carries the `charset''` prefix, so a segment decoded on its own
+    // is either wrong or unrecognisable. They are collected here and
+    // joined in index order before a single decode.
+    //
+    // Without this every segment landed under its own key — `filename*0`
+    // after the trailing `*` was stripped — and `filename()`, which asks
+    // for `filename`, found nothing at all. A real message from a
+    // Japanese sender then fell back to the `name=` parameter and showed
+    // its raw encoded-words as the attachment's name.
+    let mut segments: HashMap<String, Vec<(u32, String)>> = HashMap::new();
     // Naive split on `;`. Values may legitimately contain `;` inside
     // quoted strings — RFC-strict parsing would tokenize MIME-style.
     // We accept the simple split; if a quoted value contains `;` we'd
@@ -189,15 +201,53 @@ fn parse_params(input: &str) -> HashMap<String, String> {
         if let Some(base) = name.strip_suffix('*') {
             name = base.to_string();
         }
+        // What is left of a continuation is `filename*0`, `filename*1`.
+        if let Some((base, idx)) = name.rsplit_once('*')
+            && let Ok(idx) = idx.parse::<u32>()
+        {
+            segments
+                .entry(base.to_string())
+                .or_default()
+                .push((idx, value.trim().to_string()));
+            continue;
+        }
         let value_decoded = mailrs_rfc2231::decode_param_value(value.trim())
             .map(|c| c.into_owned())
             .unwrap_or_else(|| value.trim().to_string());
         // Trim quotes if the value came back quoted but decode didn't
         // strip them (fallback path).
         let value_clean = value_decoded.trim().trim_matches('"').to_string();
-        out.insert(name, value_clean);
+        out.insert(name, decode_encoded_words(&value_clean));
+    }
+    for (base, mut parts) in segments {
+        parts.sort_by_key(|(idx, _)| *idx);
+        let joined: String = parts.into_iter().map(|(_, v)| v).collect();
+        let decoded = mailrs_rfc2231::decode_param_value(&joined)
+            .map(|c| c.into_owned())
+            .unwrap_or(joined);
+        // A continuation is the more specific spelling, so it wins over
+        // any single-segment value of the same name.
+        out.insert(base, decode_encoded_words(decoded.trim().trim_matches('"')));
     }
     out
+}
+
+/// Decode RFC 2047 encoded-words appearing inside a parameter value.
+///
+/// RFC 2047 §5 forbids this — parameters are supposed to use RFC 2231 —
+/// and a conforming reader would show the raw `=?UTF-8?B?…?=`. Senders
+/// emit it anyway, in the same breath as the correct form: the message
+/// that prompted this carried an RFC 2231 `filename*0*` **and** a
+/// `name=` holding two adjacent encoded-words, one B- and one Q-encoded,
+/// spelling the same Japanese filename.
+///
+/// Decoding is only attempted when the value actually looks like one, so
+/// a filename that happens to contain `=?` is left alone.
+fn decode_encoded_words(value: &str) -> String {
+    if !value.contains("=?") {
+        return value.to_string();
+    }
+    mailrs_rfc2047::decode(value.as_bytes()).into_owned()
 }
 
 #[cfg(test)]
@@ -297,5 +347,49 @@ mod tests {
         assert_eq!(ct.charset(), "utf-8");
         assert_eq!(ct.params.get("format").map(String::as_str), Some("flowed"));
         assert_eq!(ct.params.get("delsp").map(String::as_str), Some("yes"));
+    }
+
+    /// The real headers of a 2026-08-03 message from a Japanese tax
+    /// accountant, which showed both attachments' names as raw
+    /// encoded-words in the UI.
+    ///
+    /// The sender emitted the filename twice: correctly, as an RFC 2231
+    /// continuation on Content-Disposition, and again as a `name=` full
+    /// of encoded-words on Content-Type. Every segment used to land
+    /// under its own key, so `filename()` found nothing and the display
+    /// fell through to the undecoded `name=`.
+    #[test]
+    fn rfc2231_continuation_segments_are_joined_before_decoding() {
+        let cd = Disposition::parse(
+            "attachment; \
+             filename*0*=UTF-8''%E6%BA%90%E6%B3%89%E5%BE%B4%E5%8F%8E%E7%A5%A8%28%32%30; \
+             filename*1*=%32%35%E5%B9%B4%E5%88%86%E3%80%82%5A%48%41%4E%47%20%46%41%4E; \
+             filename*2*=%E6%A7%98%29%2E%70%64%66",
+        );
+        assert_eq!(
+            cd.filename(),
+            Some("源泉徴収票(2025年分。ZHANG FAN様).pdf"),
+            "three continuation segments, one filename"
+        );
+    }
+
+    /// RFC 2047 in a parameter is illegal and universal. Two adjacent
+    /// encoded-words, one B- and one Q-encoded, spelling one name.
+    #[test]
+    fn encoded_words_in_a_name_parameter_are_decoded() {
+        let ct = ContentType::parse(
+            "application/pdf; \
+             name=\"=?UTF-8?B?5rqQ5rOJ5b605Y+O56WoKDIwMjXlubTliIbjgIJaSEFORyBGQU7mp5gp?= \
+             =?UTF-8?Q?=2Epdf?=\"",
+        );
+        assert_eq!(ct.name(), Some("源泉徴収票(2025年分。ZHANG FAN様).pdf"));
+    }
+
+    /// A filename that merely contains `=?` is not an encoded-word and
+    /// must survive untouched.
+    #[test]
+    fn a_literal_question_mark_filename_is_left_alone() {
+        let cd = Disposition::parse(r#"attachment; filename="what=?.txt""#);
+        assert_eq!(cd.filename(), Some("what=?.txt"));
     }
 }

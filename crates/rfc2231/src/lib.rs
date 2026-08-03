@@ -31,11 +31,21 @@ use std::borrow::Cow;
 /// ```
 pub fn encode_param(name: &str, value: &str) -> String {
     if value.is_ascii() {
-        // Legacy form. Length: name + 3 ('="' + closing '"') + value.
+        // Legacy quoted form. `"` and `\` are escaped as RFC 5322
+        // quoted-pairs: unescaped, a filename of `a"; evil="x` would
+        // close the parameter and let the rest of the name be read as
+        // further parameters — the value is a filename, and on the
+        // sending side that filename came from whoever composed the
+        // message.
         let mut out = String::with_capacity(name.len() + 3 + value.len());
         out.push_str(name);
         out.push_str("=\"");
-        out.push_str(value);
+        for c in value.chars() {
+            if c == '"' || c == '\\' {
+                out.push('\\');
+            }
+            out.push(c);
+        }
         out.push('"');
         return out;
     }
@@ -368,5 +378,35 @@ mod tests {
         // Quoted form takes precedence — apostrophes inside don't matter.
         let r = decode_param_value("\"can't.pdf\"");
         assert_eq!(r.as_deref(), Some("can't.pdf"));
+    }
+}
+
+#[cfg(test)]
+mod quoting_tests {
+    use super::{decode_param_value, encode_param};
+
+    /// A quote in the value must not be able to end the parameter.
+    ///
+    /// The legacy branch interpolated the value between two quotes with
+    /// no escaping, so a filename could carry its own `"; name2="` and
+    /// have it read as a second parameter by the receiving MUA.
+    #[test]
+    fn a_quote_in_an_ascii_value_is_escaped() {
+        let out = encode_param("filename", r#"a"; evil="x.pdf"#);
+        assert_eq!(out, r#"filename="a\"; evil=\"x.pdf""#);
+        // And it round-trips: the decoder unescapes quoted-pairs.
+        let value = out.strip_prefix("filename=").unwrap();
+        assert_eq!(
+            decode_param_value(value).as_deref(),
+            Some(r#"a"; evil="x.pdf"#)
+        );
+    }
+
+    #[test]
+    fn a_backslash_is_escaped_too() {
+        assert_eq!(
+            encode_param("filename", r"a\b.txt"),
+            r#"filename="a\\b.txt""#
+        );
     }
 }

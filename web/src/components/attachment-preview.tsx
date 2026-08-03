@@ -1,9 +1,9 @@
 import type { AttachmentInfo } from '@/lib/types'
 
-import { File, FileText, X } from 'lucide-react'
+import { Download, File, FileText, X } from 'lucide-react'
 import { useState } from 'react'
 
-import { Copyable } from '@/components/copy-button'
+import { Copyable, CopyButton } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { formatSize } from '@/lib/format'
 import { getToken } from '@/store/auth'
@@ -71,13 +71,12 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
   const url = attachmentUrl(uid, index)
   const isPdf = isPdfAttachment(att)
 
+  // The row is a <div>, not an <a>. `Copyable` renders a <button>, and a
+  // <button> inside an <a> is invalid HTML — the parser hoists it out,
+  // which took the anchor apart and left the whole row unclickable. The
+  // link and the copy button are now siblings.
   return (
-    <a
-      className="border-border hover:bg-bg-secondary flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
-      href={url}
-      rel="noopener noreferrer"
-      target="_blank"
-    >
+    <div className="border-border hover:bg-bg-secondary flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors">
       {isPdf ? (
         <PdfIcon className="text-danger h-5 w-5 shrink-0" />
       ) : (
@@ -85,13 +84,25 @@ function FileRow({ att, index, uid }: { att: AttachmentInfo; index: number; uid:
       )}
       <div className="min-w-0 flex-1">
         <p className="text-fg-secondary truncate">
-          <Copyable value={att.filename}>{att.filename}</Copyable>
+          <a className="hover:underline" href={url} rel="noopener noreferrer" target="_blank">
+            {att.filename}
+          </a>
         </p>
         <p className="text-fg-muted text-xs">
           {att.content_type} · {formatSize(att.size)}
         </p>
       </div>
-    </a>
+      <CopyButton value={att.filename} />
+      <a
+        aria-label={`Download ${att.filename}`}
+        className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary shrink-0 rounded-md p-1"
+        download={att.filename}
+        href={url}
+        title="Download"
+      >
+        <Download className="h-4 w-4" />
+      </a>
+    </div>
   )
 }
 
