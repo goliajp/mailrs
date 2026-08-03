@@ -118,3 +118,55 @@ describe('onConversationRead', () => {
     }
   })
 })
+
+describe('onNewMessage — the user replying to a thread', () => {
+  /**
+   * `mirror_send` publishes a NewMessage whose sender is the user's own
+   * address. The server's `record_message_arrival` takes `is_own` and
+   * deliberately does not advance the thread's date or position; this
+   * reducer lifted and re-dated it anyway, so a reply jumped its thread
+   * to the top of the Inbox and dropped back on the next refresh.
+   */
+  it('leaves the row where it is and does not re-date it', () => {
+    const qc = new QueryClient()
+    primeInfiniteCache(qc)
+    const key = conversationKeys.infinite({ folder: 'INBOX' })
+    const before = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)!
+    const target = before.pages[0][1]
+
+    onNewMessage(qc, {
+      sender: 'LI HAO <me@example.com>',
+      snippet: 'my reply',
+      subject: 'hi',
+      thread_id: 't-2',
+      type: 'NewMessage',
+      user: 'me@example.com',
+    } as NewMessageEvent)
+
+    const after = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)!
+    expect(after.pages[0].map((c) => c.thread_id)).toEqual(['t-1', 't-2', 't-3'])
+    expect(after.pages[0][1].last_date).toBe(target.last_date)
+    expect(after.pages[0][1].unread_count).toBe(target.unread_count)
+    expect(after.pages[0][1].message_count).toBe(target.message_count + 1)
+  })
+
+  it('still lifts and re-dates a message from anyone else', () => {
+    const qc = new QueryClient()
+    primeInfiniteCache(qc)
+    const key = conversationKeys.infinite({ folder: 'INBOX' })
+
+    onNewMessage(qc, {
+      sender: 'Someone <them@example.com>',
+      snippet: 'inbound',
+      subject: 'hi',
+      thread_id: 't-2',
+      type: 'NewMessage',
+      user: 'me@example.com',
+    } as NewMessageEvent)
+
+    const after = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)!
+    expect(after.pages[0].map((c) => c.thread_id)).toEqual(['t-2', 't-1', 't-3'])
+    expect(after.pages[0][0].unread_count).toBe(1)
+    expect(after.pages[0][0].last_date).toBeGreaterThan(100)
+  })
+})

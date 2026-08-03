@@ -15,6 +15,7 @@
 import type { ConversationSummary, NewMessageEvent } from '@/lib/types'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 
+import { extractEmail } from '@/lib/avatar'
 import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 
@@ -44,6 +45,13 @@ export function onConversationRead(qc: QueryClient, threadId: string): void {
  * filter yet), invalidate only that specific query key so the server
  * decides whether the row belongs.
  *
+ * **Unless the user sent it.** `record_message_arrival` takes `is_own`
+ * and deliberately leaves the thread's date, position and unread count
+ * alone — "replying must not re-date the Inbox row to the user's own
+ * send time". This reducer did all three anyway, so a reply jumped its
+ * thread to the top of the Inbox and marked it unread until the next
+ * refresh put the server's answer back.
+ *
  * Iterates BOTH the legacy `mailKeys.conversations()` prefix and the
  * v2.1 `conversationKeys.infinites()` prefix so every reader across
  * the migration transition sees the same live update.
@@ -70,6 +78,19 @@ export function onNewMessage(qc: QueryClient, event: NewMessageEvent): void {
   }
 }
 
+/**
+ * True when the event describes the user's own outbound copy.
+ *
+ * The same question the server asks — `senders_csv_contains_user` — and
+ * it has to be asked here too, because the answer changes what the row
+ * is allowed to do. `mirror_send` publishes this event with
+ * `sender = the user's own address`.
+ */
+function isOwnSend(event: NewMessageEvent): boolean {
+  const from = extractEmail(event.sender).toLowerCase()
+  return from.length > 0 && from === event.user.trim().toLowerCase()
+}
+
 function liftAndPatch(
   old: InfiniteData<ConversationSummary[]>,
   location: ThreadLocation,
@@ -77,6 +98,22 @@ function liftAndPatch(
 ): InfiniteData<ConversationSummary[]> {
   const existing = old.pages[location.page]?.[location.idx]
   if (!existing) return old
+
+  if (isOwnSend(event)) {
+    // Counters only, in place. Mirrors `record_message_arrival`'s
+    // `is_own` branch: `count` and `sent_count` move, the date, the
+    // unread count and the row's position do not.
+    const patched: ConversationSummary = {
+      ...existing,
+      message_count: existing.message_count + 1,
+      sent_count: existing.sent_count + 1,
+    }
+    const pages = old.pages.map((page, p) =>
+      p === location.page ? page.map((c, i) => (i === location.idx ? patched : c)) : page
+    )
+    return { ...old, pages }
+  }
+
   const patched: ConversationSummary = {
     ...existing,
     last_date: Math.floor(Date.now() / 1000),
