@@ -16,6 +16,7 @@ import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { extractEmail } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
+import { defaultReadingTarget } from '@/lib/thread-reading'
 import { authAtom } from '@/store/auth'
 import {
   composeReplySourceAtom,
@@ -132,36 +133,28 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     setSelectedMsgIdx(null)
   }, [selectedId])
 
-  // Auto-pick the reading target + scroll to bottom when a thread's
-  // data first resolves for the current selectedId. The target is the
-  // LAST RECEIVED message, not simply the last message — after the user
-  // replies, the tail is their own copy, and opening an Inbox thread
-  // onto your own words reads like "a sent mail in the Inbox"
-  // (2026-07-18). Threads with no inbound message (sent-only) fall back
-  // to the tail. A Sent-view click still wins: the focusedMessageUid
-  // effect below runs after and overrides this pick.
-  const lastResolvedRef = useRef<null | string>(null)
+  // Scroll to the bottom when a thread's data first resolves. Scrolling
+  // is an action, so it belongs in an effect and is latched per thread.
+  // *Which message is being read* is not an action and no longer lives
+  // here — see `currentMsgIdx` below. It used to be written by this same
+  // effect behind this same latch, and the two disagreed: leaving a
+  // thread and coming back moves `selectedId` A -> null -> A, which
+  // resets the pointer, while the latch still said "A already picked"
+  // and skipped the re-pick. The result was a thread whose header and
+  // timeline were both showing it and whose pane said "Select a message
+  // to preview" — a state the app should not have been able to hold.
+  const scrolledFor = useRef<null | string>(null)
   useEffect(() => {
     if (!selectedId || !threadQuery.data) return
-    if (lastResolvedRef.current === selectedId) return
-    lastResolvedRef.current = selectedId
-    const msgs = threadQuery.data
-    const my = auth?.address ?? ''
-    let pick: null | number = msgs.length > 0 ? msgs.length - 1 : null
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (extractEmail(msgs[i].sender) !== my) {
-        pick = i
-        break
-      }
-    }
-    setSelectedMsgIdx(pick)
+    if (scrolledFor.current === selectedId) return
+    scrolledFor.current = selectedId
     if (typeof contentScrollRef.current?.scrollTo === 'function') {
       contentScrollRef.current.scrollTo(0, 0)
     }
     if (typeof bottomRef.current?.scrollIntoView === 'function') {
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }))
     }
-  }, [threadQuery.data, selectedId, auth?.address])
+  }, [threadQuery.data, selectedId])
 
   // invalidate the active thread (used after Reply / Forward send so the
   // new outbound message shows up immediately)
@@ -327,7 +320,13 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const subject = messages[0]?.subject ?? ''
   const lastMsg = messages[messages.length - 1]
   const myEmail = auth?.address ?? ''
-  const selectedMsg = selectedMsgIdx !== null ? messages[selectedMsgIdx] : null
+  // The reading target, derived rather than stored. `selectedMsgIdx` is
+  // "the message the reader clicked", and `null` there means "they have
+  // not clicked one" — not "none is shown". A thread that has messages
+  // always has one to show, so the pane's empty state is reachable only
+  // when the thread is genuinely empty.
+  const currentMsgIdx = selectedMsgIdx ?? defaultReadingTarget(messages, auth?.address ?? '')
+  const selectedMsg = currentMsgIdx !== null ? messages[currentMsgIdx] : null
 
   const replyRecipients = lastMsg ? extractEmail(lastMsg.sender) : ''
   const replyAllRecipients = lastMsg
@@ -393,7 +392,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         myEmail={myEmail}
         onBack={onBack}
         selectedMsg={selectedMsg}
-        selectedMsgIdx={selectedMsgIdx}
+        selectedMsgIdx={currentMsgIdx}
         setMobileReplyOpen={setMobileReplyOpen}
         setMobileThreadTab={setMobileThreadTab}
         setSelectedId={setSelectedId}
@@ -414,7 +413,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         refetchThread={refetchThread}
         replyCtx={replyCtx}
         replyMode={replyMode}
-        selectedMsgIdx={selectedMsgIdx}
+        selectedMsgIdx={currentMsgIdx}
         setForwardSource={setForwardSource}
         setMobileThreadTab={setMobileThreadTab}
         setReplyMode={setReplyMode}
