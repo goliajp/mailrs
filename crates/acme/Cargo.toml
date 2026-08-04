@@ -23,7 +23,7 @@ default = ["axum-http"]
 axum-http = ["dep:axum"]
 
 [dependencies]
-mailrs-tls-reload = "1"
+mailrs-tls-reload = { path = "../tls-reload", version = "1" }
 instant-acme = { version = "0.8", features = ["rcgen"] }
 rustls = "0.23"
 rustls-pki-types = { version = "1", features = ["alloc"] }

@@ -2864,26 +2864,7 @@ dependencies = [
  "criterion 0.8.2",
  "futures-util",
  "instant-acme",
- "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls",
- "rustls-pki-types",
- "serde_json",
- "tokio",
- "tracing",
- "x509-parser",
-]
-
-[[package]]
-name = "mailrs-acme"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c040c7e16e4bae76578abdcac4c0dd465cd2ab867a59573191eb9726d87927ea"
-dependencies = [
- "axum",
- "chrono",
- "futures-util",
- "instant-acme",
- "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-tls-reload",
  "rustls",
  "rustls-pki-types",
  "serde_json",
@@ -2930,29 +2911,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-arf"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a611a6c2231f6d297bc5e19059ce9618eebd9a368e21064a1dc7e2483c7e7b90"
-
-[[package]]
 name = "mailrs-attachment-extract"
 version = "1.0.0"
 dependencies = [
  "criterion 0.8.2",
  "image",
- "pdf-extract",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "mailrs-attachment-extract"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecee507619ed5ba6b90b9b4a6508db147d654a56f9c5c466368a7f8851dfb1f6"
-dependencies = [
  "pdf-extract",
  "serde",
  "serde_json",
@@ -2966,7 +2929,7 @@ dependencies = [
  "async-trait",
  "criterion 0.8.2",
  "dashmap",
- "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff",
  "tokio",
  "tracing",
 ]
@@ -2978,12 +2941,6 @@ dependencies = [
  "criterion 0.8.2",
  "exponential-backoff",
 ]
-
-[[package]]
-name = "mailrs-backoff"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f6575a9a4575e42d772d6934674d5b77c810a86288489a2bdfa2b6ebb185084"
 
 [[package]]
 name = "mailrs-bayes"
@@ -2998,30 +2955,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-clamav"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "380c3ed8ad0d3be9b363158a3e85540faa545a44fdc8070f96f166e7d289c2d3"
-dependencies = [
- "tokio",
-]
-
-[[package]]
 name = "mailrs-clean"
 version = "1.0.3"
 dependencies = [
  "criterion 0.8.2",
  "html2text",
  "memchr",
-]
-
-[[package]]
-name = "mailrs-clean"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a5a72de707c163d0dcc63b3a3abd3b7c778771626984442f943636d1bb72921"
-dependencies = [
- "html2text",
 ]
 
 [[package]]
@@ -3063,7 +3002,7 @@ dependencies = [
  "base64",
  "kevy-client",
  "mailrs-core-api",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-rfc5322",
  "rand_core 0.6.4",
  "serde",
  "serde_json",
@@ -3095,18 +3034,6 @@ dependencies = [
  "hex",
  "sha2 0.11.0",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-dav"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "597531b40ff0ff14640fa2b34ca960d095f80df9d10acc2c7405f701e5b23c16"
-dependencies = [
- "async-trait",
- "chrono",
- "hex",
- "sha2 0.11.0",
 ]
 
 [[package]]
@@ -3150,7 +3077,7 @@ dependencies = [
  "compact_str",
  "criterion 0.8.2",
  "flate2",
- "mailrs-mail-builder 1.0.0",
+ "mailrs-mail-builder",
  "mailrs-mime",
  "psl",
  "quick-xml 0.41.0",
@@ -3182,15 +3109,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-dnsbl"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b03f2803d9bc554f04b6f2542e656674517084c3ca107269533ba73475e5310"
-dependencies = [
- "hickory-resolver",
-]
-
-[[package]]
 name = "mailrs-fastcore"
 version = "0.0.0"
 dependencies = [
@@ -3204,38 +3122,38 @@ dependencies = [
  "instant-acme",
  "kevy-client",
  "kevy-embedded",
- "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-acme",
  "mailrs-alias-store",
  "mailrs-alias-store-net",
  "mailrs-arc",
- "mailrs-arf 1.0.0",
+ "mailrs-arf",
  "mailrs-bayes",
- "mailrs-clean 1.0.3",
+ "mailrs-clean",
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
  "mailrs-dkim",
  "mailrs-dmarc",
  "mailrs-ical",
- "mailrs-imap-codec 1.0.0",
- "mailrs-imap-format 1.0.0",
- "mailrs-imap-proto 1.0.5",
+ "mailrs-imap-codec",
+ "mailrs-imap-format",
+ "mailrs-imap-proto",
  "mailrs-inbound",
  "mailrs-intelligence",
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
  "mailrs-mime",
- "mailrs-mta-sts 1.0.0",
+ "mailrs-mta-sts",
  "mailrs-outbound-queue",
- "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-rfc2047",
+ "mailrs-rfc5322",
  "mailrs-sieve",
  "mailrs-smtp-client",
- "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-srs",
+ "mailrs-tls-reload",
+ "mailrs-tls-rpt",
  "mailrs-triage",
- "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-webhook-signature",
  "password-hash",
  "psl",
  "rand_core 0.6.4",
@@ -3276,16 +3194,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-imap-codec"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c87d1bc3aad73ac72f5abc94a3a772f0a442de025c2f9771e3ade1733a14e20"
-dependencies = [
- "bytes",
- "tokio-util",
-]
-
-[[package]]
 name = "mailrs-imap-format"
 version = "1.0.0"
 dependencies = [
@@ -3295,27 +3203,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-imap-format"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e4ae6f72a0b89408f36dc8fb440410f4daed95352ee76ccb6b11066dbb40425"
-dependencies = [
- "chrono",
-]
-
-[[package]]
 name = "mailrs-imap-proto"
 version = "1.0.5"
 dependencies = [
  "criterion 0.8.2",
  "imap-codec",
 ]
-
-[[package]]
-name = "mailrs-imap-proto"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6dbc9c491f7c7b4020a1739a4440c991ab6357f5fa6f8c238e5f00dac95e157"
 
 [[package]]
 name = "mailrs-inbound"
@@ -3356,18 +3249,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-jmap"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21744602a51d9a1c131b597d28d3dff46db59b17a1794b49767171a21ca14fbd"
-dependencies = [
- "async-trait",
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "mailrs-mail-builder"
 version = "1.0.0"
 dependencies = [
@@ -3376,25 +3257,14 @@ dependencies = [
  "criterion 0.8.2",
  "mail-parser",
  "mailrs-mime",
- "mailrs-rfc2047 1.1.2",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-rfc2047",
+ "mailrs-rfc5322",
  "memchr",
  "proptest",
  "reqwest 0.12.28",
  "serde",
  "testcontainers",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-mail-builder"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f95ec0d3ef1b799ef453b8dd1a186c4d80da99c18ff3a7bcb1b08b4b0fd60561"
-dependencies = [
- "base64",
- "chrono",
- "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3425,7 +3295,7 @@ dependencies = [
  "kevy-index",
  "mailrs-alias-store",
  "mailrs-mailbox",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-rfc5322",
  "serde",
  "serde_json",
  "thiserror",
@@ -3463,9 +3333,9 @@ dependencies = [
  "dhat",
  "encoding_rs",
  "mail-parser",
- "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc2047",
  "mailrs-rfc2231",
- "mailrs-rfc5322 1.0.1",
+ "mailrs-rfc5322",
  "memchr",
  "proptest",
 ]
@@ -3476,16 +3346,6 @@ version = "0.1.0"
 dependencies = [
  "criterion 0.5.1",
  "mailrs-syscall",
-]
-
-[[package]]
-name = "mailrs-mta-sts"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "636f8285787f696010ffde326eb52a2b5d97da73929029aba7e1ef6f531fddfe"
-dependencies = [
- "async-trait",
- "tokio",
 ]
 
 [[package]]
@@ -3521,10 +3381,10 @@ dependencies = [
  "hickory-resolver",
  "kevy-embedded",
  "mailrs-arc",
- "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff",
  "mailrs-dkim",
- "mailrs-mail-builder 1.0.0",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-mail-builder",
+ "mailrs-rfc5322",
  "mailrs-smtp-client",
  "metrics",
  "rcgen 0.14.8",
@@ -3580,17 +3440,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-rate-limit"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0372d5a387a91bc45eff681430a7bedc768e6dd64dc9649f5441bbe9a93b152c"
-dependencies = [
- "async-trait",
- "dashmap",
- "quanta",
-]
-
-[[package]]
 name = "mailrs-receiver"
 version = "0.1.0"
 dependencies = [
@@ -3604,31 +3453,31 @@ dependencies = [
  "ipnet",
  "kevy-client",
  "mailrs-arc",
- "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-arf",
  "mailrs-auth-guard",
  "mailrs-bayes",
- "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-clamav",
  "mailrs-core",
  "mailrs-delivery-executor",
  "mailrs-dkim",
  "mailrs-dmarc",
  "mailrs-inbound",
  "mailrs-intelligence",
- "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-mail-builder",
  "mailrs-mailbox",
  "mailrs-message-store",
  "mailrs-mime",
  "mailrs-outbound-queue",
- "mailrs-rate-limit 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-rfc5322 1.0.1",
+ "mailrs-rate-limit",
+ "mailrs-rfc2047",
+ "mailrs-rfc5322",
  "mailrs-shield",
  "mailrs-sieve",
- "mailrs-smtp-codec 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-smtp-proto 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-codec",
+ "mailrs-smtp-proto",
  "mailrs-spf",
- "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-srs",
+ "mailrs-tls-reload",
  "memchr",
  "metrics",
  "reqwest 0.13.4",
@@ -3654,16 +3503,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-rfc2047"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa8da086b3fed3ff98a9e3bbf9599b35336fdcab365d53816f24250845433c7a"
-dependencies = [
- "base64",
- "encoding_rs",
-]
-
-[[package]]
 name = "mailrs-rfc2231"
 version = "1.0.0"
 dependencies = [
@@ -3671,12 +3510,6 @@ dependencies = [
  "encoding_rs",
  "proptest",
 ]
-
-[[package]]
-name = "mailrs-rfc5322"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb740170b7e617d73a6f601e1587f0803afd87a6d98120e9a0b1a831a0591a03"
 
 [[package]]
 name = "mailrs-rfc5322"
@@ -3730,34 +3563,34 @@ dependencies = [
  "jsonwebtoken",
  "kevy-client",
  "kevy-embedded",
- "mailrs-acme 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-acme",
  "mailrs-alias-store",
  "mailrs-alias-store-net",
  "mailrs-arc",
- "mailrs-arf 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-attachment-extract 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-arf",
+ "mailrs-attachment-extract",
  "mailrs-auth-guard",
- "mailrs-backoff 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-backoff",
  "mailrs-bayes",
- "mailrs-clamav 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-clean 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-clamav",
+ "mailrs-clean",
  "mailrs-core",
  "mailrs-core-api",
  "mailrs-core-sidestate",
  "mailrs-core-sync",
- "mailrs-dav 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dav",
  "mailrs-delivery-executor",
  "mailrs-dkim",
  "mailrs-dmarc",
  "mailrs-fastcore",
  "mailrs-ical",
- "mailrs-imap-codec 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-imap-format 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-imap-proto 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-imap-codec",
+ "mailrs-imap-format",
+ "mailrs-imap-proto",
  "mailrs-inbound",
  "mailrs-intelligence",
- "mailrs-jmap 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-mail-builder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-jmap",
+ "mailrs-mail-builder",
  "mailrs-mailbox",
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
@@ -3766,22 +3599,22 @@ dependencies = [
  "mailrs-mmalloc",
  "mailrs-outbound-queue",
  "mailrs-postmaster",
- "mailrs-rate-limit 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rate-limit",
  "mailrs-receiver",
- "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc2047",
  "mailrs-rfc2231",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-rfc5322",
  "mailrs-shield",
  "mailrs-sieve",
  "mailrs-smtp-client",
- "mailrs-smtp-codec 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-smtp-proto 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-smtp-codec",
+ "mailrs-smtp-proto",
  "mailrs-spf",
- "mailrs-srs 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-reload 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mailrs-tls-rpt 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-srs",
+ "mailrs-tls-reload",
+ "mailrs-tls-rpt",
  "mailrs-triage",
- "mailrs-webhook-signature 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-webhook-signature",
  "memchr",
  "metrics",
  "metrics-exporter-prometheus",
@@ -3826,7 +3659,7 @@ dependencies = [
  "criterion 0.8.2",
  "hickory-resolver",
  "kevy-embedded",
- "mailrs-dnsbl 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-dnsbl",
  "spg-sqlx",
  "sqlx",
  "tokio",
@@ -3845,7 +3678,7 @@ name = "mailrs-sieve-core"
 version = "0.2.0"
 dependencies = [
  "criterion 0.8.2",
- "mailrs-rfc5322 1.1.0",
+ "mailrs-rfc5322",
  "memchr",
  "thiserror",
 ]
@@ -3876,16 +3709,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-smtp-codec"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1af4536a07195627a36d7547071efafb2b2ff30d46b4922808547841266ba12"
-dependencies = [
- "bytes",
- "tokio-util",
-]
-
-[[package]]
 name = "mailrs-smtp-proto"
 version = "1.0.5"
 dependencies = [
@@ -3893,15 +3716,6 @@ dependencies = [
  "criterion 0.8.2",
  "memchr",
  "smtp-codec",
-]
-
-[[package]]
-name = "mailrs-smtp-proto"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aedffaf6eac5416d72e10e8e6475a91bab272220423e6ad32beec8efd9a6fa84"
-dependencies = [
- "base64",
 ]
 
 [[package]]
@@ -3931,18 +3745,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-srs"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bde1e3ba8b31b42d57ba72b502d301816592b7702434345b727ae48e4d512f29"
-dependencies = [
- "chrono",
- "hex",
- "hmac 0.13.0",
- "sha2 0.11.0",
-]
-
-[[package]]
 name = "mailrs-syscall"
 version = "0.1.0"
 
@@ -3959,18 +3761,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-tls-reload"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7fc857705411136271084e48d6fa3c4c450b8cfedc46f4bc7d36e204e0e1a2d"
-dependencies = [
- "arc-swap",
- "rustls",
- "rustls-pki-types",
- "tokio-rustls",
-]
-
-[[package]]
 name = "mailrs-tls-rpt"
 version = "1.2.0"
 dependencies = [
@@ -3981,19 +3771,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "mailrs-tls-rpt"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "633568e5537b6d81911b4af82ac2e46ec7e704ec11d91d1c09f0b43ed971e012"
-dependencies = [
- "async-trait",
- "base64",
- "flate2",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -4025,11 +3802,11 @@ dependencies = [
  "mailrs-core-sidestate",
  "mailrs-ical",
  "mailrs-intelligence",
- "mailrs-jmap 1.1.2",
+ "mailrs-jmap",
  "mailrs-message-store",
  "mailrs-mime",
  "mailrs-oauth-client",
- "mailrs-rfc2047 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mailrs-rfc2047",
  "mailrs-rfc2231",
  "metrics",
  "metrics-exporter-prometheus",
@@ -4058,17 +3835,6 @@ name = "mailrs-webhook-signature"
 version = "1.0.0"
 dependencies = [
  "criterion 0.8.2",
- "hex",
- "hmac 0.13.0",
- "sha2 0.11.0",
-]
-
-[[package]]
-name = "mailrs-webhook-signature"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6c8658cb3ad48d79bce90da4530984d65d50f6216a7e4041989a905cfa60136"
-dependencies = [
  "hex",
  "hmac 0.13.0",
  "sha2 0.11.0",

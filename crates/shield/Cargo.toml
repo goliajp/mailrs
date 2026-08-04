@@ -25,7 +25,7 @@ kevy-store = ["dep:kevy-embedded", "dep:sqlx", "dep:async-trait"]
 spg = ["dep:spg-sqlx"]
 
 [dependencies]
-mailrs-dnsbl = "1"
+mailrs-dnsbl = { path = "../dnsbl", version = "1" }
 hickory-resolver = "0.26"
 
 # kevy-store feature

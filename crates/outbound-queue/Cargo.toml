@@ -28,7 +28,7 @@ spg = ["pg", "dep:spg-sqlx"]
 [dependencies]
 async-trait = "0.1"
 thiserror = "2"
-mailrs-backoff = "1"
+mailrs-backoff = { path = "../backoff", version = "1" }
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 tracing = "0.1"
 metrics = "0.24"

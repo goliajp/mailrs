@@ -22,7 +22,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Shared session infra (event bus, UserStore, LdapConfig) + hot-reload TLS.
 mailrs-core = { path = "../core" }
-mailrs-tls-reload = "1"
+mailrs-tls-reload = { path = "../tls-reload", version = "1" }
 # rustls crypto provider must be installed once per process before any TLS
 # config is built (SMTPS/STARTTLS). The server binary does this in its run();
 # the standalone receiver binary must do the same or rustls panics on first use.
@@ -34,7 +34,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 # DMARC verifier), so it stays free of spg / kevy-embedded.
 mailrs-inbound = { path = "../inbound", version = "1" }
 mailrs-bayes = { path = "../bayes" }
-mailrs-rfc5322 = "1"
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-shield = { path = "../shield", version = "3" }
 mailrs-dmarc = { path = "../dmarc", version = "2" }
 mailrs-spf = { path = "../spf", version = "2" }
@@ -42,8 +42,8 @@ mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
 mailrs-intelligence = { path = "../intelligence", version = "3" }
 mailrs-auth-guard = { path = "../auth-guard", version = "2" }
-mailrs-rate-limit = "1"
-mailrs-clamav = "1"
+mailrs-rate-limit = { path = "../rate-limit", version = "1" }
+mailrs-clamav = { path = "../clamav", version = "1" }
 # Network kevy-server client for the receiver/core split: greylist/rate/auth
 # state + SpoolDelivered notify go over kevy:// instead of in-process.
 kevy-client = { workspace = true }
@@ -53,19 +53,19 @@ serde_json = { workspace = true }
 # SMTP session machinery (S5.4). mailrs-outbound-queue is pulled WITHOUT
 # its /spg feature — the receiver binds only the Notifier / QueueStore
 # trait surfaces, never the spg-backed PgQueueStore.
-mailrs-smtp-proto = "1"
-mailrs-smtp-codec = "1"
+mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
+mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
 mailrs-sieve = { path = "../sieve", version = "2" }
 mailrs-outbound-queue = { path = "../outbound-queue", version = "4" }
-mailrs-mail-builder = "1"
+mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 mailrs-delivery-executor = { path = "../delivery-executor", version = "1.2" }
 # mailrs-mailbox is pulled WITHOUT its /spg feature — the receiver uses only
 # the backend-generic threading helpers (message-id / in-reply-to parsing).
 mailrs-mailbox = { path = "../mailbox", version = "1" }
-mailrs-rfc2047 = "1"
+mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
-mailrs-srs = "1"
-mailrs-arf = "1"
+mailrs-srs = { path = "../srs", version = "1" }
+mailrs-arf = { path = "../arf", version = "1" }
 
 tokio = { version = "1", features = ["sync", "rt", "rt-multi-thread", "time", "macros", "net", "io-util", "signal"] }
 tokio-util = { version = "0.7", features = ["codec"] }
