@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-clamav"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Async ClamAV (clamd) TCP client. Implements the INSTREAM protocol for malware scanning, plus PING and VERSION commands. Tokio-based; no external state."
 license = "Apache-2.0 OR MIT"

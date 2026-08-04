@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-attachment-extract"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Extract text from email attachments (PDF + image OCR). PDF text via `pdf-extract` (pure Rust); OCR via the `tesseract` CLI subprocess (not linked as a C library). Two-stage fallback for scanned PDFs: try embedded text first, fall back to OCR on the raw bytes if the text is too short. Returns `ExtractionResult` with text + language + confidence + page count + JSON metadata."
 license = "Apache-2.0 OR MIT"

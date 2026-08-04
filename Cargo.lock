@@ -2857,7 +2857,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-acme"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "axum",
  "chrono",
@@ -2904,7 +2904,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-arf"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "criterion 0.8.2",
  "memchr",
@@ -2912,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-attachment-extract"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "criterion 0.8.2",
  "image",
@@ -2936,7 +2936,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-backoff"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "criterion 0.8.2",
  "exponential-backoff",
@@ -2948,7 +2948,7 @@ version = "0.1.0"
 
 [[package]]
 name = "mailrs-clamav"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "criterion 0.8.2",
  "tokio",
@@ -2956,7 +2956,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-clean"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "criterion 0.8.2",
  "html2text",
@@ -3026,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dav"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3101,7 +3101,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dnsbl"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "criterion 0.8.2",
  "hickory-resolver",
@@ -3185,7 +3185,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-codec"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bytes",
  "criterion 0.8.2",
@@ -3195,7 +3195,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-format"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "criterion 0.8.2",
@@ -3204,7 +3204,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap-proto"
-version = "1.0.5"
+version = "2.0.0"
 dependencies = [
  "criterion 0.8.2",
  "imap-codec",
@@ -3238,7 +3238,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-jmap"
-version = "1.1.2"
+version = "1.1.3"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3250,7 +3250,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mail-builder"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64",
  "chrono",
@@ -3492,7 +3492,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-rfc2047"
-version = "1.1.2"
+version = "1.1.3"
 dependencies = [
  "base64",
  "criterion 0.8.2",
@@ -3504,7 +3504,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-rfc2231"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "criterion 0.8.2",
  "encoding_rs",
@@ -3700,7 +3700,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-codec"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "bytes",
  "criterion 0.8.2",
@@ -3710,7 +3710,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smtp-proto"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "base64",
  "criterion 0.8.2",
@@ -3734,7 +3734,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-srs"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "chrono",
  "criterion 0.8.2",
@@ -3750,7 +3750,7 @@ version = "0.1.0"
 
 [[package]]
 name = "mailrs-tls-reload"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "arc-swap",
  "criterion 0.8.2",
@@ -3762,7 +3762,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-tls-rpt"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "async-trait",
  "base64",
@@ -3832,7 +3832,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-webhook-signature"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "criterion 0.8.2",
  "hex",

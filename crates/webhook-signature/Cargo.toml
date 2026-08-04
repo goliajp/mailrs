@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-webhook-signature"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "HMAC-SHA256 webhook payload signing + verification. Header-format helpers (sha256=hash). Constant-time HMAC compare. Optional secret-rotation support so receivers can verify against current + previous key during rollovers."
 license = "Apache-2.0 OR MIT"
