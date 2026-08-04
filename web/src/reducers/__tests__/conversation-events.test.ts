@@ -145,9 +145,7 @@ describe('onNewMessage — the user replying to a thread', () => {
 
     const after = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)!
     expect(after.pages[0].map((c) => c.thread_id)).toEqual(['t-1', 't-2', 't-3'])
-    expect(after.pages[0][1].last_date).toBe(target.last_date)
-    expect(after.pages[0][1].unread_count).toBe(target.unread_count)
-    expect(after.pages[0][1].message_count).toBe(target.message_count + 1)
+    expect(after.pages[0][1]).toEqual(target)
   })
 
   it('still lifts and re-dates a message from anyone else', () => {
@@ -168,5 +166,37 @@ describe('onNewMessage — the user replying to a thread', () => {
     expect(after.pages[0].map((c) => c.thread_id)).toEqual(['t-2', 't-1', 't-3'])
     expect(after.pages[0][0].unread_count).toBe(1)
     expect(after.pages[0][0].last_date).toBeGreaterThan(100)
+  })
+
+  /**
+   * The event stream is at-least-once — the feed consumer re-tails on
+   * FEEDRESYNC and on any read error, and the socket reconnects on its
+   * own — and the event carries no message identity, so a second
+   * delivery is indistinguishable from a second message. Incrementing
+   * made that permanent: three crates.io rows showed "3" on 2026-08-04
+   * against a server that said 1, and nothing server-side decrements.
+   */
+  it('applying the same event twice leaves the same row', () => {
+    const qc = new QueryClient()
+    primeInfiniteCache(qc)
+    const key = conversationKeys.infinite({ folder: 'INBOX' })
+    const event = {
+      sender: 'crates.io <noreply@crates.io>',
+      snippet: 'published',
+      subject: 'Successfully published',
+      thread_id: 't-2',
+      type: 'NewMessage',
+      user: 'me@example.com',
+    } as NewMessageEvent
+
+    onNewMessage(qc, event)
+    const once = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)!.pages[0][0]
+    onNewMessage(qc, event)
+    onNewMessage(qc, event)
+    const thrice = qc.getQueryData<InfiniteData<ConversationSummary[]>>(key)!.pages[0][0]
+
+    expect(thrice.message_count).toBe(once.message_count)
+    expect(thrice.unread_count).toBe(once.unread_count)
+    expect(thrice.received_count).toBe(once.received_count)
   })
 })
