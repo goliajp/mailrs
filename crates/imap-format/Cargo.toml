@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-imap-format"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "IMAP wire-format helpers (RFC 9051): FLAGS / INTERNALDATE / quoted string / address structures / BODY[…] section extraction / BODYSTRUCTURE assembly. Pairs with mailrs-imap-proto (parsing + state machine) and mailrs-imap-codec (line + literal framing). 22 standalone pure functions, no I/O."
 license = "Apache-2.0 OR MIT"

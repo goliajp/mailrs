@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-backoff"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "Exponential backoff with optional jitter (AWS-style taxonomy: None / Equal / Full). Pure delay math — no I/O, no async, no allocation. Useful for any retry loop: SMTP outbound, webhook delivery, auth-lockout, HTTP client retries."
 license = "Apache-2.0 OR MIT"

@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-tls-reload"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 description = "Hot-reloadable rustls ServerConfig via arc-swap. Atomic cert/key rotation without dropping in-flight connections. Plus PEM file loader. Use with ACME, Let's Encrypt renewal hooks, or any cert-rotation flow."
 license = "Apache-2.0 OR MIT"

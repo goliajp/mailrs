@@ -62,7 +62,7 @@ mailrs-imap-format = { path = "../imap-format", version = "1" }
 mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-sieve = { path = "../sieve", version = "2" }
 mailrs-outbound-queue = { path = "../outbound-queue", version = "4" }
-mailrs-imap-proto = { path = "../imap-proto", version = "1" }
+mailrs-imap-proto = { path = "../imap-proto", version = "2" }
 mailrs-ical = { path = "../ical", version = "2" }
 mailrs-intelligence = { path = "../intelligence", version = "3" }
 mailrs-mailbox = { path = "../mailbox", version = "1" }

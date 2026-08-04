@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dnsbl"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "RFC 5782 DNS-based blocklist lookup. Reverse-IPv4 + zone query + Spamhaus return-code interpretation + in-process TTL cache (positive + negative). Pairs with hickory-resolver for the DNS layer."
 license = "Apache-2.0 OR MIT"
