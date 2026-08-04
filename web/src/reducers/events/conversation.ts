@@ -100,28 +100,36 @@ function liftAndPatch(
   if (!existing) return old
 
   if (isOwnSend(event)) {
-    // Counters only, in place. Mirrors `record_message_arrival`'s
-    // `is_own` branch: `count` and `sent_count` move, the date, the
-    // unread count and the row's position do not.
-    const patched: ConversationSummary = {
-      ...existing,
-      message_count: existing.message_count + 1,
-      sent_count: existing.sent_count + 1,
-    }
-    const pages = old.pages.map((page, p) =>
-      p === location.page ? page.map((c, i) => (i === location.idx ? patched : c)) : page
-    )
-    return { ...old, pages }
+    // Nothing. `record_message_arrival`'s `is_own` branch moves only
+    // `count` and `sent_count`, and those are counters — see below for
+    // why this reducer does not compute counters. The row's date,
+    // unread count and position must not move for a send, and the two
+    // numbers that do move arrive with the invalidation
+    // `applyOptimisticSent` already issues.
+    return old
   }
 
+  // Set, never increment. The event carries a thread id and no message
+  // identity, so a client cannot tell a second delivery of one event
+  // from a second message — and the stream is at-least-once: the feed
+  // consumer re-tails on `FEEDRESYNC` and on any read error, and the
+  // socket reconnects on its own. Incrementing turned that into
+  // permanent over-counting: 25 crates.io notifications arrived in a
+  // burst on 2026-08-04 and three of them showed "3" against a server
+  // that said 1 for all 57 rows — and nothing on the server side ever
+  // decrements `count`, so it had never been anything but 1.
+  //
+  // `unread_count` becomes at-least-one because that is what the event
+  // actually tells us: there is mail here you have not read. The exact
+  // counts belong to the server and arrive with the next fetch; showing
+  // a number the client cannot compute is worse than showing a stale
+  // one, because the stale one converges.
   const patched: ConversationSummary = {
     ...existing,
     last_date: Math.floor(Date.now() / 1000),
-    message_count: existing.message_count + 1,
-    received_count: existing.received_count + 1,
     snippet: event.snippet,
     subject: event.subject || existing.subject,
-    unread_count: existing.unread_count + 1,
+    unread_count: Math.max(existing.unread_count, 1),
   }
   const removedPages = old.pages.map((page, p) =>
     p === location.page ? page.filter((_, i) => i !== location.idx) : page
