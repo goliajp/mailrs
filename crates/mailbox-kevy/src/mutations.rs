@@ -416,11 +416,16 @@ mod tests {
         let s = store();
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u)).unwrap();
-        s.set_archived(u, "t1", true).unwrap();
         s.set_pinned(u, "t1", true).unwrap();
         s.set_has_action(u, "t1", true).unwrap();
+        // A second thread for the archived axis. It cannot be `t1`: since
+        // 2026-08-05 every list but Archived excludes archived threads, so
+        // one thread cannot be on the archived axis and the other four at
+        // once — and a test that wants "on every axis" has to use two.
+        s.record_message_arrival(&arr("t2", u)).unwrap();
+        s.set_archived(u, "t2", true).unwrap();
 
-        // the thread is on every axis now
+        // the threads are on every axis now
         let on_axes = |s: &KevyMailboxStore| {
             [
                 crate::ListThreadsFilter {
@@ -455,6 +460,7 @@ mod tests {
         // messages-and-files test would seed upsert_message first.
         assert!(blob_refs.is_empty());
         assert!(s.get_thread("t1").unwrap().is_none());
+        assert!(s.delete_thread(u, "t2").unwrap().0);
 
         // Every axis again, this time through the same queries as
         // above. This used to assert `zcard == 0` over the nine legacy

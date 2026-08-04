@@ -43,9 +43,9 @@ export function useResendMutation() {
  * `sending` is expected to change on its own, and a stale one reads as a
  * stuck send.
  */
-export function useSendsQuery(status?: null | string) {
+export function useSendsQuery(status?: null | string, enabled: boolean = true) {
   return useQuery({
-    enabled: Boolean(getToken()),
+    enabled: enabled && Boolean(getToken()),
     queryKey: mailKeys.sends(status),
     refetchInterval: 15_000,
     staleTime: 5_000,

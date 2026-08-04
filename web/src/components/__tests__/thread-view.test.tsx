@@ -1,9 +1,12 @@
 import type { ConversationSummary, ThreadMessage } from '@/lib/types'
 import type { ReactNode } from 'react'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { makeConversation, makeMessage } from './thread-view-fixtures'
 
 const localStorageStore: Record<string, string> = {}
 vi.stubGlobal('localStorage', {
@@ -22,7 +25,6 @@ vi.stubGlobal('localStorage', {
 })
 
 import { authAtom } from '@/store/auth'
-import { selectedThreadIdAtom } from '@/store/ui'
 
 // v2.1 phase-5d: production reads the conversations list through
 // React Query; tests write to this mutable stub and the mocked
@@ -40,9 +42,14 @@ const flatStub: {
 }
 
 vi.mock('@/lib/api', () => ({
+  // `useCurrentListRows` calls every source hook so the hook order is
+  // fixed as the list changes; the draft one reaches lib/api even while
+  // disabled.
+  deleteDraft: vi.fn(() => Promise.resolve({ success: true })),
   deleteJson: vi.fn(() => Promise.resolve({ success: true })),
   fetchJson: vi.fn(() => Promise.resolve([])),
   getThreadReactions: vi.fn(() => Promise.resolve({})),
+  listDrafts: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
   recordFeedback: vi.fn(() => Promise.resolve({ success: true })),
   saveDraft: vi.fn(() => Promise.resolve({ success: true })),
@@ -91,6 +98,12 @@ vi.mock('@/lib/query-client', () => ({
 vi.mock('@/lib/query-keys', () => ({
   mailKeys: {
     conversations: () => ['mail', 'conversations'],
+    // The Send and Draft sources are reached through
+    // `useCurrentListRows`, which calls every one of them so the hook
+    // order stays fixed as the list changes.
+    drafts: () => ['mail', 'drafts'],
+    sends: (status?: null | string) => ['mail', 'sends', status ?? ''],
+    sent: () => ['mail', 'sent'],
     thread: (tid: null | string) => ['mail', 'thread', tid ?? ''],
   },
 }))
@@ -137,63 +150,6 @@ vi.mock('@/components/reply-box', () => ({
   ReplyBox: ({ mode }: { mode: string }) => <div data-testid="reply-box">mode: {mode}</div>,
 }))
 
-function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
-  return {
-    archived: false,
-    category: 'general',
-    flagged: false,
-    importance_level: 'normal',
-    importance_score: 0.3,
-    last_date: Math.floor(Date.now() / 1000),
-    message_count: 1,
-    participants: ['alice@example.com'],
-    pinned: false,
-    received_count: 1,
-    requires_action: false,
-    sent_count: 0,
-    snippet: 'A snippet',
-    subject: 'Test Subject',
-    thread_id: 'thread-1',
-    unread_count: 0,
-    ...overrides,
-  }
-}
-
-function makeMessage(overrides: Partial<ThreadMessage> = {}): ThreadMessage {
-  return {
-    action_deadline: null,
-    action_items: [],
-    ai_analyzed: false,
-    amounts: [],
-    attachments: [],
-    category: 'general',
-    clean_text: null,
-    dates: [],
-    flags: 0,
-    has_tracking_pixel: false,
-    html_body: null,
-    importance_level: 'normal',
-    importance_score: 0.3,
-    internal_date: 1700000000,
-    is_bulk_sender: false,
-    message_id: '<msg1@example.com>',
-    new_content: null,
-    people: [],
-    recipients: 'bob@example.com',
-    requires_action: false,
-    risk_reason: '',
-    risk_score: 0,
-    sender: 'Alice Smith <alice@example.com>',
-    sender_intent: 'inform',
-    sender_trust: 'verified',
-    subject: 'Test Subject',
-    summary: '',
-    text_body: 'Hello, this is a test message',
-    uid: 100,
-    ...overrides,
-  }
-}
-
 function makeStore() {
   const store = createStore()
   store.set(authAtom, {
@@ -206,6 +162,14 @@ function makeStore() {
   return store
 }
 
+// `useCurrentListRows` calls every source hook so the hook order stays
+// fixed as the list changes (only one of them is enabled), which means a
+// QueryClient has to be in scope even for a test that mocks the
+// conversation query.
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { gcTime: 0, retry: false } },
+})
+
 function Wrapper({
   children,
   store,
@@ -213,7 +177,11 @@ function Wrapper({
   children: ReactNode
   store: ReturnType<typeof createStore>
 }) {
-  return <Provider store={store}>{children}</Provider>
+  return (
+    <QueryClientProvider client={testQueryClient}>
+      <Provider store={store}>{children}</Provider>
+    </QueryClientProvider>
+  )
 }
 
 const { ThreadView } = await import('@/components/thread-view')
@@ -225,8 +193,10 @@ afterEach(() => {
 
 describe('ThreadView — no selection', () => {
   it('shows empty state when no thread is selected', () => {
+    // No rows, so the list has no current item — the selection is
+    // derived now, so this is how "nothing is selected" is expressed.
     const store = makeStore()
-    store.set(selectedThreadIdAtom, null)
+    flatStub.conversations = []
     render(
       <Wrapper store={store}>
         <ThreadView />
@@ -236,8 +206,10 @@ describe('ThreadView — no selection', () => {
   })
 
   it('does not render back button in empty state (mobile nav handled by Chat)', () => {
+    // No rows, so the list has no current item — the selection is
+    // derived now, so this is how "nothing is selected" is expressed.
     const store = makeStore()
-    store.set(selectedThreadIdAtom, null)
+    flatStub.conversations = []
     const onBack = vi.fn()
     render(
       <Wrapper store={store}>
@@ -253,8 +225,8 @@ describe('ThreadView — with messages', () => {
 
   beforeEach(() => {
     store = makeStore()
+    // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
-    store.set(selectedThreadIdAtom, 'thread-1')
   })
 
   it('renders thread subject in header', () => {
@@ -325,8 +297,8 @@ describe('ThreadView — selected message detail', () => {
     // Thread fetch lives in react-query (mocked at file top), so seed the
     // messages atom directly — the component reads from there for rendering.
     const store = makeStore()
+    // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
-    store.set(selectedThreadIdAtom, 'thread-1')
     mockUseThreadQuery.mockReturnValue({ data: [msg], isPending: false })
 
     render(
@@ -376,8 +348,8 @@ describe('ThreadView — loading state', () => {
     mockUseThreadQuery.mockReturnValue({ data: undefined, isPending: true })
 
     const store = makeStore()
+    // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
-    store.set(selectedThreadIdAtom, 'thread-1')
 
     const { container } = render(
       <Wrapper store={store}>
@@ -397,8 +369,8 @@ describe('ThreadView — loading state', () => {
     mockUseThreadQuery.mockReturnValue({ data: undefined, isPending: true })
 
     const store = makeStore()
+    // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
-    store.set(selectedThreadIdAtom, 'thread-1')
 
     render(
       <Wrapper store={store}>
@@ -417,8 +389,8 @@ describe('ThreadView — delete dialog', () => {
 
   beforeEach(() => {
     store = makeStore()
+    // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
-    store.set(selectedThreadIdAtom, 'thread-1')
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
 
@@ -449,19 +421,21 @@ describe('ThreadView — toolbar', () => {
 
   beforeEach(() => {
     store = makeStore()
+    // The first row of the list IS the selection; nothing has to set it.
     flatStub.conversations = [makeConversation()]
-    store.set(selectedThreadIdAtom, 'thread-1')
     mockUseThreadQuery.mockReturnValue({ data: [makeMessage()], isPending: false })
   })
 
-  it('close button clears selection', () => {
+  // The "Close" X is gone with the model that made it meaningful: a list
+  // with rows always has a current one, so clearing the pick jumped to
+  // the first row rather than emptying the pane.
+  it('has no close button', () => {
     render(
       <Wrapper store={store}>
         <ThreadView />
       </Wrapper>
     )
-    fireEvent.click(screen.getByTitle('Close'))
-    expect(store.get(selectedThreadIdAtom)).toBeNull()
+    expect(screen.queryByTitle('Close')).toBeNull()
   })
 
   it('renders reply box', () => {

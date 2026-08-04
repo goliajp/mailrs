@@ -11,13 +11,16 @@ import { useEffect, useRef, useState } from 'react'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { useCurrentMailFilters, useCurrentThreadMessages } from '@/hooks/use-current-mail-filters'
-import { useFlatConversations } from '@/hooks/use-flat-conversations'
+import {
+  useConversationRows,
+  useCurrentThreadMessages,
+  useSelectedThreadId,
+} from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
-import { mobileViewAtom, selectedThreadIdAtom } from '@/store/ui'
+import { mobileViewAtom } from '@/store/ui'
 
 /**
  * Stable empty-array reference so `?? []` doesn't manufacture a fresh
@@ -52,9 +55,8 @@ function MobileConversationView() {
   const setMobileView = useSetAtom(mobileViewAtom)
   // v2.1 phase-5b: reader migrated off `conversationsAtom` — reads
   // directly from the same RQ cache line the mail list owns.
-  const filters = useCurrentMailFilters()
-  const { conversations } = useFlatConversations(filters)
-  const selectedId = useAtomValue(selectedThreadIdAtom)
+  const { rows: conversations } = useConversationRows()
+  const selectedId = useSelectedThreadId()
   const conversation = conversations.find((c) => c.thread_id === selectedId)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -133,11 +135,10 @@ function MobileConversationView() {
 
 function MobileReplyView() {
   const auth = useAtomValue(authAtom)
-  const selectedId = useAtomValue(selectedThreadIdAtom)
+  const selectedId = useSelectedThreadId()
   const messages = useCurrentThreadMessages()
   const setMobileView = useSetAtom(mobileViewAtom)
-  const filters = useCurrentMailFilters()
-  const { conversations } = useFlatConversations(filters)
+  const { rows: conversations } = useConversationRows()
   const conversation = conversations.find((c) => c.thread_id === selectedId)
 
   const [replyMode, setReplyMode] = useState<ReplyMode>('reply')
@@ -205,10 +206,9 @@ function MobileReplyView() {
 function MobileThreadView() {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
-  const selectedId = useAtomValue(selectedThreadIdAtom)
+  const selectedId = useSelectedThreadId()
   const setMobileView = useSetAtom(mobileViewAtom)
-  const filters = useCurrentMailFilters()
-  const { conversations } = useFlatConversations(filters)
+  const { rows: conversations } = useConversationRows()
 
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
   const scrollRef = useRef<HTMLDivElement>(null)

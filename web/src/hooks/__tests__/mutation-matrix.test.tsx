@@ -91,10 +91,13 @@ function makeConvo(id: string, over: Partial<ConversationSummary> = {}): Convers
   } as ConversationSummary
 }
 
-// The three "screens" — distinct cache lines the matrix checks.
+// The screens — distinct cache lines the matrix checks.
+const INBOX_KEY = conversationKeys.infinite({ folder: 'Inbox' } as never)
+const JUNK_KEY = conversationKeys.infinite({ folder: 'Junk' } as never)
+const ARCHIVED_KEY = conversationKeys.infinite({ archived: true } as never)
 const SCREEN_KEYS = [
-  conversationKeys.infinite({}), // mail-list (inbox)
-  conversationKeys.infinite({ folder: 'junk' } as never), // junk-view
+  conversationKeys.infinite({}), // mail-list, unscoped
+  JUNK_KEY,
   mailKeys.conversations(), // legacy dashboard callers
 ] as const
 
@@ -105,11 +108,20 @@ function findRow(key: readonly unknown[], threadId: string): ConversationSummary
   return data?.pages.flat().find((c) => c.thread_id === threadId)
 }
 
+/**
+ * One row per screen, shaped so it belongs where it is seeded.
+ *
+ * The junk line gets a `spam` copy: a cache line only ever held rows
+ * that satisfied its own filter, and since the optimistic patch prunes
+ * by that filter, seeding an inbox row into the junk list would have it
+ * pruned for a reason the test is not about.
+ */
 function seedAllScreens(threadId: string) {
   for (const key of SCREEN_KEYS) {
+    const category = key === JUNK_KEY ? 'spam' : 'inbox'
     queryClient.setQueryData<Pages>(key, {
       pageParams: [undefined],
-      pages: [[makeConvo(threadId), makeConvo('other-thread')]],
+      pages: [[makeConvo(threadId, { category }), makeConvo('other-thread', { category })]],
     })
   }
 }
@@ -132,18 +144,6 @@ afterEach(() => {
 // Each row: [name, hook, wire fn to mock, assertion over the patched row]
 
 const FIELD_MATRIX = [
-  {
-    hook: useArchiveMutation,
-    name: 'archive',
-    assert: (c: ConversationSummary | undefined) => expect(c?.archived).toBe(true),
-    wireFn: () => wire.wireArchiveThread,
-  },
-  {
-    hook: useUnarchiveMutation,
-    name: 'unarchive',
-    assert: (c: ConversationSummary | undefined) => expect(c?.archived).toBe(false),
-    wireFn: () => wire.wireUnarchiveThread,
-  },
   {
     hook: useStarMutation,
     name: 'star',
@@ -187,8 +187,56 @@ const FIELD_MATRIX = [
 
 const DROP_MATRIX = [
   { hook: useDeleteMutation, name: 'delete', wireFn: () => wire.wireDeleteThread },
-  { hook: useMarkJunkMutation, name: 'mark-junk', wireFn: () => wire.wireMarkJunk },
-  { hook: useMarkNotJunkMutation, name: 'mark-not-junk', wireFn: () => wire.wireMarkNotJunk },
+] as const
+
+// ── matrix: moves between lists ───────────────────────────────────
+//
+// These write the field their endpoint writes and let `belongsTo` place
+// the row: it leaves the lists it no longer belongs to and stays in the
+// one it moved into. They used to drop it from every cache line —
+// including the destination — so marking junk from inside Junk made the
+// row vanish and the refetch put it back.
+const LIVE_INBOX = { archived: false, category: 'inbox' } as const
+const IN_ARCHIVE = { archived: true, category: 'inbox' } as const
+const IN_JUNK = { archived: false, category: 'spam' } as const
+
+const MOVE_MATRIX = [
+  {
+    after: IN_ARCHIVE,
+    before: LIVE_INBOX,
+    hook: useArchiveMutation,
+    keeps: ARCHIVED_KEY,
+    leaves: INBOX_KEY,
+    name: 'archive',
+    wireFn: () => wire.wireArchiveThread,
+  },
+  {
+    after: LIVE_INBOX,
+    before: IN_ARCHIVE,
+    hook: useUnarchiveMutation,
+    keeps: INBOX_KEY,
+    leaves: ARCHIVED_KEY,
+    name: 'unarchive',
+    wireFn: () => wire.wireUnarchiveThread,
+  },
+  {
+    after: IN_JUNK,
+    before: LIVE_INBOX,
+    hook: useMarkJunkMutation,
+    keeps: JUNK_KEY,
+    leaves: INBOX_KEY,
+    name: 'mark-junk',
+    wireFn: () => wire.wireMarkJunk,
+  },
+  {
+    after: LIVE_INBOX,
+    before: IN_JUNK,
+    hook: useMarkNotJunkMutation,
+    keeps: INBOX_KEY,
+    leaves: JUNK_KEY,
+    name: 'mark-not-junk',
+    wireFn: () => wire.wireMarkNotJunk,
+  },
 ] as const
 
 describe('mutation matrix — optimistic patch reaches every screen', () => {
@@ -218,6 +266,36 @@ describe('mutation matrix — optimistic patch reaches every screen', () => {
         expect(findRow(key, 't-target')).toBeUndefined()
         expect(findRow(key, 'other-thread')).toBeDefined()
       }
+    })
+  }
+
+  for (const row of MOVE_MATRIX) {
+    it(`${row.name}: leaves the list it left and joins the one it moved to`, async () => {
+      // Both lists hold the thread in its pre-move state — the shape a
+      // user who has visited both leaves the cache in, and the one that
+      // matters: an optimistic patch can take a row out of a list, but
+      // it cannot put one into a list that never cached it. Arriving in
+      // the destination is the refetch's job; not being thrown out of it
+      // is this patch's.
+      queryClient.setQueryData<Pages>(row.leaves, {
+        pageParams: [undefined],
+        pages: [[makeConvo('t-target', row.before), makeConvo('bystander-left', row.before)]],
+      })
+      queryClient.setQueryData<Pages>(row.keeps, {
+        pageParams: [undefined],
+        pages: [[makeConvo('t-target', row.before), makeConvo('bystander-right', row.after)]],
+      })
+
+      vi.mocked(row.wireFn()).mockResolvedValue(undefined as never)
+      const { result } = renderHook(() => row.hook(), { wrapper })
+      result.current.mutate({ threadId: 't-target' })
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+      expect(findRow(row.leaves, 't-target')).toBeUndefined()
+      expect(findRow(row.keeps, 't-target')).toBeDefined()
+      // Neither list loses a bystander it was already showing.
+      expect(findRow(row.leaves, 'bystander-left')).toBeDefined()
+      expect(findRow(row.keeps, 'bystander-right')).toBeDefined()
     })
   }
 

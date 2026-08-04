@@ -1,6 +1,7 @@
 import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,7 +26,12 @@ const flatStub: {
 
 // mock api module
 vi.mock('@/lib/api', () => ({
+  // `useCurrentListRows` calls every source hook so the hook order is
+  // fixed as the list changes; the draft one reaches lib/api even while
+  // disabled.
+  deleteDraft: vi.fn(() => Promise.resolve({ success: true })),
   fetchJson: vi.fn(() => Promise.resolve([])),
+  listDrafts: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
@@ -162,6 +168,14 @@ function makeStore() {
   return store
 }
 
+// `useCurrentListRows` calls every source hook so the hook order stays
+// fixed as the list changes (only one of them is enabled), which means a
+// QueryClient has to be in scope even for a test that mocks the
+// conversation query.
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { gcTime: 0, retry: false } },
+})
+
 function Wrapper({
   children,
   store,
@@ -169,7 +183,11 @@ function Wrapper({
   children: ReactNode
   store: ReturnType<typeof createStore>
 }) {
-  return <Provider store={store}>{children}</Provider>
+  return (
+    <QueryClientProvider client={testQueryClient}>
+      <Provider store={store}>{children}</Provider>
+    </QueryClientProvider>
+  )
 }
 
 // must import after mocks
@@ -194,7 +212,7 @@ describe('ConversationList empty states', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -206,7 +224,7 @@ describe('ConversationList empty states', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -223,7 +241,7 @@ describe('ConversationList empty states', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -248,7 +266,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -261,7 +279,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -273,7 +291,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -289,7 +307,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -301,7 +319,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -313,7 +331,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -325,7 +343,7 @@ describe('ConversationItem rendering', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -343,32 +361,36 @@ describe('switching lists', () => {
   })
 
   /**
-   * The component does not remount when the folder changes, so scroll and
-   * selection both carried over: scrolling the Inbox and opening Sent showed
-   * the middle of Sent, and a thread selected in the Inbox stayed open above
-   * the Sent list.
+   * The component does not remount when the list changes, so scroll and
+   * selection both carried over: scrolling the Inbox and opening Junk showed
+   * the middle of Junk, and a thread selected in the Inbox stayed open above
+   * the Junk list.
    */
   it('selects the first message of the list it switched to', async () => {
-    const { selectedThreadIdAtom } = await import('@/store/ui')
-    flatStub.conversations = [makeConversation({ thread_id: 'inbox-1' })]
+    const { activeListAtom, pickedItemAtom } = await import('@/store/ui')
+    flatStub.conversations = [makeConversation({ subject: 'inbox one', thread_id: 'inbox-1' })]
 
     const view = render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
-    expect(store.get(selectedThreadIdAtom)).toBe('inbox-1')
+    expect(screen.getByLabelText(/inbox one/).getAttribute('aria-selected')).toBe('true')
 
-    // Switch lists: different filters, different rows.
-    filtersStub.current = { folder: 'Sent' }
-    flatStub.conversations = [makeConversation({ thread_id: 'sent-1' })]
+    // Pick the row explicitly, then switch lists. The pick has to be
+    // dropped by the switch, or it survives into a list it is not in —
+    // a thread you replied in is in both Inbox and Send.
+    store.set(pickedItemAtom, { list: 'inbox', threadId: 'inbox-1', uid: null })
+    store.set(activeListAtom, 'junk')
+    filtersStub.current = { folder: 'Junk' }
+    flatStub.conversations = [makeConversation({ subject: 'junk one', thread_id: 'junk-1' })]
     view.rerender(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
-    expect(store.get(selectedThreadIdAtom)).toBe('sent-1')
+    expect(screen.getByLabelText(/junk one/).getAttribute('aria-selected')).toBe('true')
   })
 
   /**

@@ -17,7 +17,6 @@ import {
   Reply,
   Star,
   Trash2,
-  X,
 } from 'lucide-react'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
@@ -64,7 +63,6 @@ type ContentPaneProps = {
   selectedMsgIdx: null | number
   setMobileReplyOpen: (v: boolean) => void
   setMobileThreadTab: (v: MobileThreadTab) => void
-  setSelectedId: (v: null | string) => void
   setShowDeleteConfirm: (v: boolean) => void
   setTimelineCollapsed: Dispatch<SetStateAction<boolean>>
   subject: string
@@ -98,7 +96,6 @@ export function ThreadContentPane({
   selectedMsgIdx,
   setMobileReplyOpen,
   setMobileThreadTab,
-  setSelectedId,
   setShowDeleteConfirm,
   setTimelineCollapsed,
   subject,
@@ -187,9 +184,11 @@ export function ThreadContentPane({
                 <PanelRightClose className="h-4 w-4" />
               )}
             </HdrBtn>
-            <HdrBtn onClick={() => setSelectedId(null)} title="Close">
-              <X className="h-4 w-4" />
-            </HdrBtn>
+            {/* The "Close" X is gone. Deselecting is no longer a state
+                the model has: a list with rows always has a current one,
+                so clearing the pick only jumped you back to the first
+                row. Use the list to move, or the collapse button above
+                to get the pane out of the way. */}
           </div>
         </div>
 

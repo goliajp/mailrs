@@ -10,6 +10,7 @@ import {
   invalidateBucketMove,
   invalidateMail,
   invalidateMailAggregatesOnly,
+  patchConversationFields,
   patchConversations,
   removeStickyUnread,
   rollbackConversations,
@@ -73,7 +74,10 @@ export function useArchiveMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      // `archived: true` is the whole of what the endpoint writes. The
+      // row leaves the Inbox and joins Archived because of what that
+      // makes true, not because this decides it should.
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, archived: true } : c
       )
       return { snapshots }
@@ -91,13 +95,18 @@ export function useBatchMutation() {
     onMutate: async ({ action, threadIds }) => {
       await cancelConversationFetches()
       const set = new Set(threadIds)
-      const snapshots = patchConversations((c) => {
+      // Delete is the one that genuinely removes a row rather than
+      // moving it, so it stays on the dropping patch; the rest write a
+      // field and let `belongsTo` place them.
+      if (action === 'delete') {
+        const snapshots = patchConversations((c) => (set.has(c.thread_id) ? null : c))
+        return { snapshots }
+      }
+      const snapshots = patchConversationFields((c) => {
         if (!set.has(c.thread_id)) return c
         switch (action) {
           case 'archive':
             return { ...c, archived: true }
-          case 'delete':
-            return null
           case 'read':
             return { ...c, unread_count: 0 }
           case 'star':
@@ -149,7 +158,12 @@ export function useMarkJunkMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      // It used to drop the row from every cached list, Junk included —
+      // so marking junk from inside Junk made the row vanish and the
+      // refetch put it back. Write the category the endpoint writes.
+      const snapshots = patchConversationFields((c) =>
+        c.thread_id === threadId ? { ...c, category: 'spam' } : c
+      )
       return { snapshots }
     },
     onSettled: () => invalidateBucketMove(),
@@ -168,17 +182,21 @@ export function useMarkNotJunkMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      const snapshots = patchConversationFields((c) =>
+        c.thread_id === threadId ? { ...c, category: 'inbox' } : c
+      )
       return { snapshots }
     },
     onSettled: () => invalidateBucketMove(),
   })
 }
 
-// v2.9 triage — the three bucket-move mutations share the same
-// optimistic-drop shape as junk: the moved thread vanishes from the
-// current view and repopulates the target view on the next refetch.
-function useBucketMoveMutation(mutationFn: (threadId: string) => Promise<void>) {
+// v2.9 triage — the three bucket moves write the destination category
+// and let `belongsTo` sort out which lists that puts the thread in and
+// out of. They used to drop it from every cached list and wait for the
+// refetch to repopulate the one it had moved to, so the destination
+// blinked empty on arrival.
+function useBucketMoveMutation(mutationFn: (threadId: string) => Promise<void>, category: string) {
   return useMutation<unknown, Error, { threadId: string }, Context>({
     mutationFn: ({ threadId }) => mutationFn(threadId),
     onError: (_e, _vars, ctx) => {
@@ -186,16 +204,19 @@ function useBucketMoveMutation(mutationFn: (threadId: string) => Promise<void>) 
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) => (c.thread_id === threadId ? null : c))
+      const snapshots = patchConversationFields((c) =>
+        c.thread_id === threadId ? { ...c, category } : c
+      )
       return { snapshots }
     },
     onSettled: () => invalidateBucketMove(),
   })
 }
 
-export const useMarkNotificationMutation = () => useBucketMoveMutation(wireMarkNotification)
-export const useMarkPromotionMutation = () => useBucketMoveMutation(wireMarkPromotion)
-export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbox)
+export const useMarkNotificationMutation = () =>
+  useBucketMoveMutation(wireMarkNotification, 'notification')
+export const useMarkPromotionMutation = () => useBucketMoveMutation(wireMarkPromotion, 'promotion')
+export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbox, 'inbox')
 
 // ── send-side optimistic ─────────────────────────────────────────────
 //
@@ -262,7 +283,7 @@ export function useMarkReadMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, unread_count: 0 } : c
       )
       // Keep this thread visible in the current 'unread' filter session
@@ -295,7 +316,7 @@ export function useMarkUnreadMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, unread_count: Math.max(1, c.unread_count) } : c
       )
       // The row is genuinely unread again, no need to pin it as sticky any
@@ -320,7 +341,7 @@ export function usePinMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, pinned: true } : c
       )
       return { snapshots }
@@ -354,7 +375,7 @@ export function useStarMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, flagged: true } : c
       )
       return { snapshots }
@@ -371,7 +392,7 @@ export function useUnarchiveMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, archived: false } : c
       )
       return { snapshots }
@@ -390,7 +411,7 @@ export function useUnpinMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, pinned: false } : c
       )
       return { snapshots }
@@ -416,7 +437,7 @@ export function useUnstarMutation() {
     },
     onMutate: async ({ threadId }) => {
       await cancelConversationFetches()
-      const snapshots = patchConversations((c) =>
+      const snapshots = patchConversationFields((c) =>
         c.thread_id === threadId ? { ...c, flagged: false } : c
       )
       return { snapshots }

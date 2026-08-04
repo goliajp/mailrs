@@ -218,14 +218,15 @@ mod tests {
     /// are gone, and these are the same questions asked of the rows
     /// the engine now indexes.
     fn bucket_count(s: &KevyMailboxStore, user: &str, bucket: &str) -> usize {
-        s.count_thread_ids_by_bucket_via_table(user, bucket)
+        s.count_thread_ids_by_bucket_via_table(user, bucket, crate::ArchiveScope::Live)
             .unwrap()
     }
     fn flag_count(s: &KevyMailboxStore, user: &str, flag: &str) -> usize {
         s.count_thread_ids_by_flag_via_table(user, flag).unwrap()
     }
     fn total_count(s: &KevyMailboxStore, user: &str) -> usize {
-        s.count_thread_ids_by_activity_via_table(user).unwrap()
+        s.count_thread_ids_by_activity_via_table(user, crate::ArchiveScope::Live)
+            .unwrap()
     }
     /// What the Inbox axis actually serves. Distinct from
     /// `bucket_count`: Inbox reads the sent-excluding ORDERPATH, so a
@@ -244,7 +245,7 @@ mod tests {
             .collect()
     }
     fn in_bucket(s: &KevyMailboxStore, user: &str, bucket: &str, tid: &str) -> bool {
-        s.list_thread_ids_by_bucket_via_table(user, bucket, 1000)
+        s.list_thread_ids_by_bucket_via_table(user, bucket, crate::ArchiveScope::Live, 1000)
             .unwrap()
             .iter()
             .any(|t| t == tid)

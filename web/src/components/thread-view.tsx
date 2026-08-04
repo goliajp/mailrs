@@ -9,8 +9,12 @@ import { ThreadContentPane } from '@/components/thread-content-pane'
 import { ThreadConversationPane, VISIBLE_RECENT } from '@/components/thread-conversation-pane'
 import { type ThreadReplyContext } from '@/components/thread-reply-box'
 import { ThreadViewDialogs } from '@/components/thread-view-dialogs'
-import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
-import { useFlatConversations } from '@/hooks/use-flat-conversations'
+import {
+  useConversationRows,
+  useCurrentListRows,
+  useCurrentSelection,
+  useSelectThreadId,
+} from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
@@ -22,13 +26,10 @@ import {
   composeReplySourceAtom,
   composingNewAtom,
   crossAccountReadAtom,
-  focusedMessageUidAtom,
   mobileReplyOpenAtom,
   mobileThreadTabAtom,
   selectedDomainsAtom,
-  selectedThreadIdAtom,
   timelineCollapsedAtom,
-  visibleConversationIdsAtom,
 } from '@/store/ui'
 
 type ForwardSource = {
@@ -48,8 +49,8 @@ const EMPTY_MESSAGES: readonly ThreadMessage[] = []
 
 export function ThreadView({ onBack }: { onBack?: () => void }) {
   const auth = useAtomValue(authAtom)
-  const selectedId = useAtomValue(selectedThreadIdAtom)
-  const setSelectedId = useSetAtom(selectedThreadIdAtom)
+  const selection = useCurrentSelection()
+  const selectedId = selection?.threadId ?? null
   // v2.1 2026-07-08: read `messages` straight from the RQ cache. The
   // previous local `useState<ThreadMessage[]>` mirror + bridge effect
   // repeatedly leaked stale copies of the previous thread's messages
@@ -69,22 +70,25 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // list, memoised flatten, `useMemo` yields a primitive that React
   // compares with Object.is (Number primitives), so unrelated array
   // changes don't re-render the ThreadView subtree.
-  const currentFilters = useCurrentMailFilters()
-  const { conversations: currentConversations } = useFlatConversations(currentFilters)
+  const { rows: currentConversations } = useConversationRows()
   const selectedUnreadCount = useMemo(() => {
     if (!selectedId) return 0
     return currentConversations.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
   }, [selectedId, currentConversations])
-  const visibleIds = useAtomValue(visibleConversationIdsAtom)
-  const currentIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
+  // Prev/next walk the same rows the list draws, because they are the
+  // same value — this used to read an atom the list kept in step with an
+  // effect, which is two copies of one list.
+  const rows = useCurrentListRows()
+  const setSelectedId = useSelectThreadId()
+  const currentIdx = selectedId ? rows.findIndex((r) => r.threadId === selectedId) : -1
   const hasPrev = currentIdx > 0
-  const hasNext = currentIdx >= 0 && currentIdx < visibleIds.length - 1
+  const hasNext = currentIdx >= 0 && currentIdx < rows.length - 1
   const goToPrev = useCallback(() => {
-    if (hasPrev) setSelectedId(visibleIds[currentIdx - 1])
-  }, [hasPrev, visibleIds, currentIdx, setSelectedId])
+    if (hasPrev) setSelectedId(rows[currentIdx - 1]?.threadId ?? null)
+  }, [hasPrev, rows, currentIdx, setSelectedId])
   const goToNext = useCallback(() => {
-    if (hasNext) setSelectedId(visibleIds[currentIdx + 1])
-  }, [hasNext, visibleIds, currentIdx, setSelectedId])
+    if (hasNext) setSelectedId(rows[currentIdx + 1]?.threadId ?? null)
+  }, [hasNext, rows, currentIdx, setSelectedId])
   const selectedDomains = useAtomValue(selectedDomainsAtom)
   const domainsRef = useRef(selectedDomains)
   domainsRef.current = selectedDomains
@@ -99,8 +103,12 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const [selectedMsgIdx, setSelectedMsgIdx] = useState<null | number>(null)
-  const focusedMsgUid = useAtomValue(focusedMessageUidAtom)
-  const setFocusedMsgUid = useSetAtom(focusedMessageUidAtom)
+  // The message to scroll to, when the selected row named one — a Send
+  // row is one message, a conversation row is a whole thread. It used to
+  // be a separate atom the Send list wrote and this cleared, which meant
+  // arriving at Send and having its first row picked for you focused
+  // nothing: there was no click to write it.
+  const focusedMsgUid = selection?.uid ?? null
   const [isRead, setIsRead] = useState(true)
   const [isFlagged, setIsFlagged] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -285,14 +293,21 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const hasCollapsedTimeline = messages.length > 5 && !showAllMessages
   const handleSelectMsg = useCallback((idx: number) => setSelectedMsgIdx(idx), [])
 
-  // focus a specific message when arriving from the Sent view (or a
-  // shared ?msg= URL): expand the timeline if it's collapsed away, mark
-  // it selected, and scroll it into view. consume the atom so it fires
-  // once per navigation.
+  // Focus a specific message when the selected row names one: expand the
+  // timeline if it is collapsed away, mark it selected, and scroll it
+  // into view.
+  //
+  // Scrolling is an action, so it is guarded on the pair it was last run
+  // for rather than by clearing the value that asked for it — that value
+  // is now derived, and clearing a derivation only makes it come back.
+  const scrolledToRef = useRef<null | string>(null)
   useEffect(() => {
-    if (focusedMsgUid === null || messages.length === 0) return
+    if (focusedMsgUid === null || selectedId === null || messages.length === 0) return
+    const mark = `${selectedId}:${focusedMsgUid}`
+    if (scrolledToRef.current === mark) return
     const idx = messages.findIndex((m) => m.uid === focusedMsgUid)
     if (idx === -1) return
+    scrolledToRef.current = mark
     if (hasCollapsedTimeline && idx < messages.length - VISIBLE_RECENT) {
       setShowAllMessages(true)
     }
@@ -301,8 +316,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     if (el) {
       window.setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120)
     }
-    setFocusedMsgUid(null)
-  }, [focusedMsgUid, messages, hasCollapsedTimeline, setFocusedMsgUid])
+  }, [focusedMsgUid, selectedId, messages, hasCollapsedTimeline])
 
   // empty state
   if (!selectedId) {
@@ -395,7 +409,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
         selectedMsgIdx={currentMsgIdx}
         setMobileReplyOpen={setMobileReplyOpen}
         setMobileThreadTab={setMobileThreadTab}
-        setSelectedId={setSelectedId}
         setShowDeleteConfirm={setShowDeleteConfirm}
         setTimelineCollapsed={setTimelineCollapsed}
         subject={subject}

@@ -38,7 +38,21 @@ pub struct ListThreadsFilter<'a> {
     pub folder: Option<&'a str>,
     /// Only threads with `pinned = true`.
     pub pinned: bool,
-    /// Only threads with `archived = true`.
+    /// Where the page sits relative to the archive.
+    ///
+    /// `true` is the Archived list — cross-folder, keyed on the
+    /// `archived` flag. `false` is **every other list**, and it excludes
+    /// archived threads rather than ignoring the column: Archived is a
+    /// place of its own, so a thread in it is not also in the Inbox.
+    ///
+    /// That exclusion was missing until 2026-08-05. The doc on
+    /// `core-api`'s `ConversationFilter` has said "`false` (default)
+    /// hides them" since it was written, and the Postgres lane
+    /// implements it (`BOOL_OR(m.archived) = false`); this lane applied
+    /// no predicate at all, so the server returned Inbox pages with
+    /// archived threads in them and the web client deleted the rows
+    /// after the fact — from a page whose size it had already been
+    /// told.
     pub archived: bool,
     /// Only threads with `unread_count > 0`.
     pub has_unread: bool,
@@ -178,6 +192,16 @@ pub(super) struct FlagKey<'a> {
 /// did not list. The Inbox arm carries the sent-only exclusion for the
 /// same reason `Scope::Bucket` does: a thread the user only ever sent
 /// into is not in their Inbox on any axis.
+/// The exclusion every list but Archived carries, in the membership
+/// row's own column vocabulary.
+///
+/// A function rather than a constant because the predicate lists are
+/// `(&str, String)` — and one definition rather than five literals
+/// because the page and the badge must exclude the same set.
+pub(super) fn not_archived() -> (&'static str, String) {
+    ("archived", "0".to_string())
+}
+
 pub(super) fn bucket_predicates<'a>(
     bucket: &'a str,
     extra: &[(&'a str, String)],
@@ -194,12 +218,14 @@ pub(super) fn bucket_predicates<'a>(
 ///
 /// This is the unread badge. It lives beside the scope that lists those
 /// threads, and builds its filters with the same function, so the two
-/// cannot answer differently.
+/// cannot answer differently — including the archive exclusion, without
+/// which the badge counts threads the Unread view will not list.
 impl KevyMailboxStore {
     pub fn count_flag_non_junk(&self, user: &str, flag: &str) -> io::Result<usize> {
         let mut total = 0usize;
+        let live = [not_archived()];
         for bucket in NON_JUNK_BUCKETS {
-            let scoped = bucket_predicates(bucket, &[]);
+            let scoped = bucket_predicates(bucket, &live);
             let refs: Vec<(&str, &str)> = scoped.iter().map(|(c, v)| (*c, v.as_str())).collect();
             total += self.count_thread_ids_by_flag_filtered(user, flag, &refs)?;
         }
@@ -240,6 +266,12 @@ impl KevyMailboxStore {
 
         // No flag set: the scope's own ORDERPATH answers it directly,
         // and its total is an index count rather than a walk.
+        //
+        // `archived` is one of that ORDERPATH's equality columns, and
+        // this branch is only reachable when no flag is on — which
+        // includes `archived`, so the page is always the live one. The
+        // Archived list has a flag on and leaves through the branch
+        // below, keyed on that flag's own index.
         let Some((key_flag, rest)) = flags.split_first() else {
             return match scope {
                 Scope::All => self.list_default_via_table(user, filter, offset, limit),
@@ -261,6 +293,12 @@ impl KevyMailboxStore {
         // key and the rest cost a comparison — which is why "starred and
         // unread, within Inbox" needs no index of its own.
         let mut extra: Vec<(&str, String)> = rest.iter().map(|f| (*f, "1".to_string())).collect();
+        // Every list but Archived excludes it. When it *is* the Archived
+        // list the column is the key, so pinning it to 0 here would ask
+        // the index for rows it exists to exclude.
+        if !filter.archived {
+            extra.push(not_archived());
+        }
         match scope {
             Scope::All => {}
             Scope::Bucket(b) => {

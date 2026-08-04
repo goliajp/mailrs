@@ -1,11 +1,13 @@
 // The React Query cache surgery the mail mutations share: the optimistic
 // patch, its rollback, the sticky-unread set, and the four invalidations.
 
+import type { ListAxes } from '@/lib/list-membership'
 import type { ConversationSummary } from '@/lib/types'
 
 import { type QueryKey } from '@tanstack/react-query'
 import { getDefaultStore } from 'jotai'
 
+import { belongsTo } from '@/lib/list-membership'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
@@ -87,6 +89,41 @@ export function invalidateMailAggregatesOnly() {
   queryClient.invalidateQueries({ queryKey: conversationKeys.lists() }).catch(() => {})
 }
 
+/**
+ * Apply a **field** patch to every cached list, then let each list drop
+ * the rows that no longer belong in it.
+ *
+ * The two halves used to be one: each mutation returned `null` from its
+ * patch to make a row disappear, which meant every mutation carried its
+ * own opinion of which lists a moved thread leaves. `mark junk` dropped
+ * it from all of them including Junk, so the row left the screen and the
+ * refetch put it back; `archive` dropped it from none and relied on a
+ * client-side filter that the server made redundant on 2026-08-05, so
+ * archiving from the Inbox left the row sitting there.
+ *
+ * Now a mutation writes what its endpoint writes and `belongsTo` decides
+ * the rest, per cache line, from that line's own axes.
+ */
+export function patchConversationFields(
+  patch: (c: ConversationSummary) => ConversationSummary
+): Array<[QueryKey, InfinitePages | undefined]> {
+  const snapshots: Array<[QueryKey, InfinitePages | undefined]> = []
+  for (const prefix of [mailKeys.conversations(), conversationKeys.infinites()]) {
+    for (const [key, data] of queryClient.getQueriesData<InfinitePages>({ queryKey: prefix })) {
+      snapshots.push([key, data])
+      if (!data) continue
+      const axes = axesOfCacheKey(key)
+      queryClient.setQueryData<InfinitePages>(key, {
+        ...data,
+        pages: data.pages.map((page) =>
+          page.map(patch).filter((c) => axes === null || belongsTo(axes, c))
+        ),
+      })
+    }
+  }
+  return snapshots
+}
+
 export function patchConversations(
   patch: (c: ConversationSummary) => ConversationSummary | null
 ): Array<[QueryKey, InfinitePages | undefined]> {
@@ -130,4 +167,25 @@ export function removeStickyUnread(threadId: string) {
 
 export function rollbackConversations(snapshots: Array<[QueryKey, InfinitePages | undefined]>) {
   for (const [key, data] of snapshots) queryClient.setQueryData(key, data)
+}
+
+/**
+ * The axes a cache line was fetched with, read back off its own key.
+ *
+ * Both key shapes end in the filter object — `conversationKeys.infinite`
+ * with `canonicaliseFilter`'s output, `mailKeys.conversations` with
+ * `normalizeFilters`' — and both spell these four the same way. A key
+ * whose tail is neither returns null, and such a line is patched without
+ * being pruned rather than being emptied on a guess.
+ */
+function axesOfCacheKey(key: QueryKey): ListAxes | null {
+  const tail = key[key.length - 1]
+  if (typeof tail !== 'object' || tail === null) return null
+  const f = tail as Record<string, unknown>
+  return {
+    archived: f.archived === true || f.archived === 1,
+    folder: typeof f.folder === 'string' ? f.folder : null,
+    starred: f.starred === true || f.starred === 1 ? true : null,
+    unread: f.unread === true || f.unread === 1 ? true : null,
+  }
 }

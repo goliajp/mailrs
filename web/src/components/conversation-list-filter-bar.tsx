@@ -1,70 +1,33 @@
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { MAIL_LIST_ROWS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import {
+  activeListAtom,
   categoryFilterAtom,
-  folderAtom,
   type ImportanceSection,
   importanceSectionAtom,
-  type MailFolder,
-  quickFilterAtom,
   searchQueryAtom,
   selectedDomainsAtom,
-  showArchivedAtom,
+  selectMailListAtom,
   type SortOrder,
   sortOrderAtom,
 } from '@/store/ui'
 
-// v2.4.2 Phase 4.3 — the pre-Phase-2 "Spam" tab is superseded by the
-// Junk folder tab. The internal `activeCategory === 'spam'` is still
-// honored by the backend for legacy links / stored filters.
-// v2.8.2 — "All" becomes "Inbox" (dedicated inbox folder axis: no Junk,
-// no sent-only threads). "Archived" is a first-class tab.
-// v2.9 triage — "N & P" is the merged Notifications & Promotions view.
+// The tabs are `lib/mail-lists.ts`, in the order it lists them. They
+// were a literal here with a `resolveActiveTab()` beside it that
+// reconstructed which one was current out of five other atoms; the tab
+// is now the state and those atoms are read off it.
+//
 // 2026-07-16 — two fixed rows (user layout); selection is shown by a
 // deeper/solid background (no per-tab colors, no ring) — a uniform
 // segmented-control look.
-const TAB_ROWS: { label: string; value: string }[][] = [
-  [
-    { label: 'Inbox', value: 'inbox' },
-    { label: 'N & P', value: 'np' },
-    { label: 'Unread', value: 'unread' },
-    { label: 'Starred', value: 'starred' },
-    { label: 'Junk', value: 'junk' },
-  ],
-  [
-    // "Send", not "Sent": the view holds sends that failed and sends
-    // still going out, so a heading claiming they were sent would be
-    // wrong about the rows it is showing. The `sent` value and the
-    // `'Sent'` folder key are internal identifiers and unchanged.
-    { label: 'Send', value: 'sent' },
-    { label: 'Draft', value: 'draft' },
-    { label: 'Archived', value: 'archived' },
-  ],
-]
-
 function panelChipClass(isActive: boolean, extra: string): string {
   const base = `rounded-md px-2 py-0.5 transition-colors ${extra}`
   if (isActive) return `${base} bg-fg text-bg`
   return `${base} text-fg-secondary hover:bg-bg-secondary`
-}
-
-function resolveActiveTab(state: {
-  activeCategory: null | string
-  folder: MailFolder
-  quickFilter: string
-  showArchived: boolean
-}): string {
-  if (state.activeCategory === 'spam' || state.activeCategory === 'scam') return 'junk'
-  if (state.folder === 'Sent') return 'sent'
-  if (state.folder === 'Drafts') return 'draft'
-  if (state.folder === 'Junk') return 'junk'
-  if (state.folder === 'NP') return 'np'
-  if (state.showArchived) return 'archived'
-  if (state.quickFilter !== 'all') return state.quickFilter
-  return 'inbox'
 }
 
 function sectionLabel(s: ImportanceSection): string {
@@ -79,9 +42,6 @@ function sortLabel(s: SortOrder): string {
   return s
 }
 
-// which tab is highlighted, derived from the several independent atoms
-// that together describe the current view. explicit if-returns — no
-// nested ternaries.
 // `relevance` is only offered while a search is running — for a plain
 // list it means the same thing as `newest`, and a chip that changes
 // nothing is worse than one that is absent.
@@ -100,12 +60,11 @@ function tabButtonClass(isActive: boolean): string {
 // otherwise re-create the tabs + filter-panel JSX even though the
 // atom-backed state is identical.
 export const FilterBar = memo(function FilterBar() {
-  const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
-  const [folder, setFolder] = useAtom(folderAtom)
+  const activeList = useAtomValue(activeListAtom)
+  const selectList = useSetAtom(selectMailListAtom)
   const [section, setSection] = useAtom(importanceSectionAtom)
   const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
-  const [showArchived, setShowArchived] = useAtom(showArchivedAtom)
   const [activeCategory, setActiveCategory] = useAtom(categoryFilterAtom)
   const [selectedDomains, setSelectedDomains] = useAtom(selectedDomainsAtom)
   const selectedDomainsVal = useAtomValue(selectedDomainsAtom)
@@ -125,48 +84,16 @@ export const FilterBar = memo(function FilterBar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [filtersOpen])
 
-  const activeTab = resolveActiveTab({ activeCategory, folder, quickFilter, showArchived })
-
-  const handleTab = (tab: string) => {
-    if (tab === activeTab) return
-    // reset to the Inbox base axis, then apply the tab-specific view.
+  // Switching lists resets the refinements stacked on the old one: a
+  // category chosen inside Inbox is not a question about Junk, and
+  // leaving it applied is how a tab could open empty for no visible
+  // reason. `selectMailListAtom` owns the list and the pick; these two
+  // are the filter bar's own state and it clears them here.
+  const handleTab = (id: MailListId) => {
+    if (id === activeList) return
     setActiveCategory(null)
-    setFolder('Inbox')
-    setQuickFilter('all')
     setSection(null)
-    setShowArchived(false)
-    switch (tab) {
-      case 'archived':
-        setShowArchived(true)
-        break
-      case 'draft':
-        setFolder('Drafts')
-        break
-      case 'junk':
-        setFolder('Junk')
-        break
-      case 'np':
-        setFolder('NP')
-        break
-      case 'sent':
-        setFolder('Sent')
-        break
-      case 'starred':
-        // Cross-folder: a starred promotion is still starred.
-        setFolder('NonJunk')
-        setQuickFilter('starred')
-        break
-      case 'unread':
-        // Cross-folder, and it has to be — the unread badge counts the
-        // same buckets, so an Inbox-scoped view here made a non-zero
-        // count lead to an empty page.
-        setFolder('NonJunk')
-        setQuickFilter('unread')
-        break
-      default:
-        // 'inbox' — base state already applied above
-        break
-    }
+    selectList(id)
   }
 
   const hasAdvancedFilters =
@@ -182,16 +109,16 @@ export const FilterBar = memo(function FilterBar() {
   return (
     <div className="border-border flex items-start gap-1 border-b px-3 py-1.5">
       <div className="flex flex-1 flex-col gap-1">
-        {TAB_ROWS.map((row, ri) => (
+        {MAIL_LIST_ROWS.map((row, ri) => (
           // index key OK: static two-row layout, never reordered
           <div className="flex flex-wrap items-center gap-1" key={ri}>
-            {row.map((t) => (
+            {row.map((id) => (
               <button
-                className={tabButtonClass(activeTab === t.value)}
-                key={t.value}
-                onClick={() => handleTab(t.value)}
+                className={tabButtonClass(activeList === id)}
+                key={id}
+                onClick={() => handleTab(id)}
               >
-                {t.label}
+                {MAIL_LISTS[id].label}
               </button>
             ))}
           </div>
@@ -277,7 +204,6 @@ export const FilterBar = memo(function FilterBar() {
                 className="border-border text-fg-muted hover:bg-bg-secondary mt-3 w-full rounded-md border py-1 text-center transition-colors"
                 onClick={() => {
                   setSortOrder('newest')
-                  setShowArchived(false)
                   setActiveCategory(null)
                   setSelectedDomains([])
                   setSection(null)

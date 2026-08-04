@@ -7,6 +7,13 @@ const mockSetThreadMessages = vi.fn()
 
 // jotai mocks: useAtomValue returns context-appropriate defaults; useSetAtom returns
 // stable spies so tests can assert what the hook calls
+// The selection is derived from the current list's rows, and this file
+// mocks jotai wholesale — so stub the reader rather than drag the whole
+// query stack in behind it.
+vi.mock('@/hooks/use-current-list', () => ({
+  useSelectedThreadId: () => null,
+}))
+
 vi.mock('jotai', () => ({
   useAtomValue: vi.fn().mockImplementation((atom: symbol) => {
     const name = atom.description ?? ''
