@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-arc"
-version = "3.0.0"
+version = "3.0.1"
 edition = "2024"
 description = "RFC 8617 Authenticated Received Chain (ARC) — header parsing, chain extraction, and signature verification + sealing. ARC extends DKIM/SPF/DMARC across forwarders by chaining per-hop authentication results inside cryptographically-sealed header sets. v3 cuts RSA crypto over to aws-lc-rs via mailrs-dkim 3.0 for ~3× faster sign."
 license = "Apache-2.0 OR MIT"

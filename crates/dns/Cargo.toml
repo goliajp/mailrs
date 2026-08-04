@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dns"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Light hickory-resolver wrapper exposing the 5 DNS query types email servers actually use (TXT, A, AAAA, MX, PTR). NXDOMAIN mapped to empty Vec for consistent caller code. Shared trait so future versions of mailrs-spf/dkim/dnsbl can adopt one resolver shape."
 license = "Apache-2.0 OR MIT"

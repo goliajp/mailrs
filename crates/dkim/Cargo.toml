@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-dkim"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2024"
 description = "RFC 6376 DKIM signature verifier + signer. Parses DKIM-Signature headers, applies simple/relaxed canonicalization, verifies rsa-sha256 / ed25519-sha256 against the selector TXT record. RSA primitive backed by aws-lc-rs for ~3× faster sign vs pure-Rust. Pluggable DNS via DkimResolver trait."
 license = "Apache-2.0 OR MIT"
