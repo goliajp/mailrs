@@ -1,4 +1,9 @@
+import type { PickedItem, SelectableRow } from '@/lib/list-selection'
+import type { WireSendStatus } from '@/wire/schemas/sends'
+
 import { atom } from 'jotai'
+
+import { type MailListId, threadAxesOf } from '@/lib/mail-lists'
 
 /**
  * v2.1 phase-5d COMPLETE: `conversationsAtom` / `threadMessagesAtom`
@@ -10,11 +15,64 @@ import { atom } from 'jotai'
  * `useFlatConversations` / `useCurrentThreadMessages` /
  * `useCurrentUnreadCount`; every writer goes through
  * `patchAllInfiniteLists` or `reducers/commands/conversation.ts`.
- *
- * Next: rename this file to `store/ui.ts` — everything left below
- * is a genuine local-UI atom.
  */
-export const selectedThreadIdAtom = atom<null | string>(null)
+
+// ── which list, and what is picked in it ─────────────────────────────
+
+/**
+ * The list on screen. One value, and the only state behind the tabs —
+ * `folderAtom`, `quickFilterAtom` and `showArchivedAtom` below are read
+ * off it. See `lib/mail-lists.ts` for why round-tripping through five
+ * independent atoms and reconstructing the tab name from them was the
+ * shape that let four components disagree about the same thing.
+ */
+export const activeListAtom = atom<MailListId>('inbox')
+
+/**
+ * The row the user clicked, and the list they clicked it in.
+ *
+ * NOT "the selection" — that is `resolveSelection`, which falls back to
+ * the list's first row. This is only the deviation from that default.
+ */
+export const pickedItemAtom = atom<null | PickedItem>(null)
+
+/**
+ * Switch lists. Clearing the pick happens in the same write, so nothing
+ * downstream has to observe an intermediate state — which is what the
+ * mount and unmount effects in four components were each trying to do.
+ */
+export const selectMailListAtom = atom(null, (get, set, id: MailListId) => {
+  if (get(activeListAtom) === id) return
+  set(activeListAtom, id)
+  set(pickedItemAtom, null)
+})
+
+/** Click a row of the list you are already on. */
+export const pickInListAtom = atom(null, (get, set, row: SelectableRow) => {
+  set(pickedItemAtom, { ...row, list: get(activeListAtom) })
+})
+
+/**
+ * Open a specific thread from outside the list — the dashboard, a
+ * restored URL. The list is named because a pick only counts inside one.
+ */
+export const openThreadAtom = atom(null, (_get, set, item: PickedItem) => {
+  set(activeListAtom, item.list)
+  set(pickedItemAtom, item)
+})
+
+/**
+ * What the Send and Draft lists narrow themselves by.
+ *
+ * Atoms rather than component state because the reading pane has to
+ * resolve the same first row the list draws, and it cannot see a
+ * `useState` inside `SendList`. Narrowing is part of "which rows is this
+ * list showing", so it belongs where the list does.
+ */
+export const sendStatusFilterAtom = atom<null | WireSendStatus>(null)
+export const sendQueryAtom = atom('')
+export const draftQueryAtom = atom('')
+
 export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
 export const categoryFilterAtom = atom<null | string>(null)
@@ -33,24 +91,23 @@ export const sortOrderAtom = atom<SortOrder>('newest')
 export const batchModeAtom = atom(false)
 export const selectedThreadIdsAtom = atom<Set<string>>(new Set<string>())
 
-// mailbox folder filter.
-// v2.8.2: default flipped from null (mixed by_activity axis — showed
-// Junk + Sent threads inside "All") to 'Inbox' (dedicated inbox zset —
-// excludes Junk/Sent; starred/archived stay orthogonal flags on top).
+// mailbox folder filter — derived from the active list, never set.
+//
 // Junk is the physical Junk mailbox (set by classifier or "mark junk").
-// v2.9 triage — 'NP' is the merged Notifications & Promotions view
-// (backend reads the union of the notifications + promotions folder
-// zsets). Notifications and Promotions are distinct buckets underneath.
-// `NonJunk` is not a folder anyone can navigate to — it is the scope
-// the Unread and Starred views ask the backend for. Those are
-// attributes of a thread, not places it lives, so scoping them to one
-// folder answers a question nobody asked; scoping them to everything
-// would drag Junk back out of the one surface it is allowed to have.
+// 'NP' is the merged Notifications & Promotions view (the server reads
+// the union of the two buckets). `NonJunk` is not a folder anyone can
+// navigate to — it is the scope the Unread and Starred lists ask the
+// backend for. Those are attributes of a thread, not places it lives, so
+// scoping them to one folder answers a question nobody asked; scoping
+// them to everything would drag Junk back out of the one surface it is
+// allowed to have.
 export type MailFolder = 'Drafts' | 'Inbox' | 'Junk' | 'NonJunk' | 'NP' | 'Sent' | 'Trash' | null
-export const folderAtom = atom<MailFolder>('Inbox')
+export const folderAtom = atom<MailFolder>(
+  (get) => (threadAxesOf(get(activeListAtom))?.folder ?? null) as MailFolder
+)
 
-// archived view toggle
-export const showArchivedAtom = atom(false)
+// archived view — derived, same as the folder.
+export const showArchivedAtom = atom((get) => threadAxesOf(get(activeListAtom))?.archived === true)
 
 // supermode: mark read across all domain accounts
 export const crossAccountReadAtom = atom(false)
@@ -59,9 +116,16 @@ export const crossAccountReadAtom = atom(false)
 export type ImportanceSection = 'important' | 'other' | null
 export const importanceSectionAtom = atom<ImportanceSection>(null)
 
-// quick filter
+// quick filter — derived, same as the folder. `attachment` has no list
+// of its own yet, so nothing produces it; it stays in the union because
+// the sticky-unread reset and the row filter both switch on this.
 export type QuickFilter = 'all' | 'attachment' | 'starred' | 'unread'
-export const quickFilterAtom = atom<QuickFilter>('all')
+export const quickFilterAtom = atom<QuickFilter>((get) => {
+  const axes = threadAxesOf(get(activeListAtom))
+  if (axes?.unread) return 'unread'
+  if (axes?.starred) return 'starred'
+  return 'all'
+})
 
 // Threads marked-as-read while the user is sitting on the 'unread' filter.
 // They stay visible in the list until the user leaves the unread filter (or
@@ -72,9 +136,6 @@ export const stickyUnreadIdsAtom = atom<Set<string>>(new Set<string>())
 
 // keyboard shortcuts dialog
 export const shortcutsDialogOpenAtom = atom(false)
-
-// visible conversation ids in display order (synced from conversation-list)
-export const visibleConversationIdsAtom = atom<string[]>([])
 
 // websocket connection status
 export type ConnectionStatus = 'connected' | 'connecting' | 'offline'
@@ -152,8 +213,3 @@ export type ComposeRedraftSource = {
   to: string
 }
 export const composeRedraftSourceAtom = atom<ComposeRedraftSource | null>(null)
-
-// when set, the open thread should scroll to + highlight the message with
-// this uid (set by clicking a Sent-view row so its exact outbound message
-// is focused). synced to the `?msg=` URL param. cleared once consumed.
-export const focusedMessageUidAtom = atom<null | number>(null)

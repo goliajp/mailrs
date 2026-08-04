@@ -91,7 +91,10 @@ mod tests {
         let u = "u@x.com";
         s.record_message_arrival(&arr("t1", u, "inbox")).unwrap();
 
-        let count = |cat: &str| s.count_thread_ids_by_category_via_table(u, cat).unwrap();
+        let count = |cat: &str| {
+            s.count_thread_ids_by_category_via_table(u, cat, crate::ArchiveScope::Live)
+                .unwrap()
+        };
         assert_eq!(count("inbox"), 1);
         assert_eq!(count("social"), 0);
 
@@ -111,7 +114,7 @@ mod tests {
         assert!(s.move_category(u, "t1", "inbox").unwrap());
         // Still exactly one thread on the inbox category axis.
         assert_eq!(
-            s.count_thread_ids_by_category_via_table(u, "inbox")
+            s.count_thread_ids_by_category_via_table(u, "inbox", crate::ArchiveScope::Live)
                 .unwrap(),
             1
         );

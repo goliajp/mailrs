@@ -2,22 +2,23 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import type { Draft } from '@/lib/api'
 
 import { toast } from '@goliapkg/gds'
-import { useSetAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useMemo } from 'react'
 
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
-import { useDeleteDraftMutation, useDraftsQuery } from '@/hooks/use-drafts'
+import { useDraftRows } from '@/hooks/use-current-list'
+import { useDeleteDraftMutation } from '@/hooks/use-drafts'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowStateClass } from '@/lib/list-row-class'
 import {
   composeDraftSourceAtom,
   composeReplySourceAtom,
   composingNewAtom,
-  selectedThreadIdAtom,
+  draftQueryAtom,
 } from '@/store/ui'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
@@ -28,30 +29,18 @@ type DraftListItem = { draft: Draft; type: 'row' } | { label: string; type: 'div
 // a row reopens it in the composer (which upserts the same id on autosave
 // and deletes it on send).
 export function DraftsList() {
-  const { data: drafts = [], isLoading } = useDraftsQuery()
+  // Nothing is auto-selected here, and that is not an omission: a draft
+  // row opens the composer, so picking one for you would pop it open the
+  // moment you arrived. `useCurrentListRows` returns no rows for this
+  // list, so the reading pane beside it is empty — which it now is
+  // because of a derivation rather than a `setSelectedThreadId(null)` on
+  // mount racing three other components' effects.
+  const { all: drafts, loading: isLoading, rows: filtered } = useDraftRows()
   const deleteDraftMut = useDeleteDraftMutation()
   const setComposingNew = useSetAtom(composingNewAtom)
-  const setSelectedThreadId = useSetAtom(selectedThreadIdAtom)
-
-  // Arriving at Drafts clears the selection but selects nothing.
-  //
-  // The reading pane renders a thread whichever list is showing, so coming
-  // here from the Inbox left it displaying a thread that is not in this
-  // list. Unlike the Inbox and Send, there is no first row to take: opening
-  // a draft opens the composer, so auto-selecting one would pop it open the
-  // moment you arrived.
-  useEffect(() => {
-    setSelectedThreadId(null)
-  }, [setSelectedThreadId])
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
-  const [query, setQuery] = useState('')
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return drafts
-    return drafts.filter((d) => matchesDraft(d, q))
-  }, [drafts, query])
+  const [query, setQuery] = useAtom(draftQueryAtom)
 
   const openDraft = (d: Draft) => {
     setReplySource(null)
@@ -216,12 +205,4 @@ function groupByDate(drafts: readonly Draft[]): DraftListItem[] {
     out.push({ draft: d, type: 'row' })
   }
   return out
-}
-
-function matchesDraft(d: Draft, q: string): boolean {
-  return (
-    d.subject.toLowerCase().includes(q) ||
-    d.to.toLowerCase().includes(q) ||
-    d.body.toLowerCase().includes(q)
-  )
 }

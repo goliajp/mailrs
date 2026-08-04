@@ -1,6 +1,7 @@
 import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,7 +27,12 @@ const flatStub: {
 
 // mock api module
 vi.mock('@/lib/api', () => ({
+  // `useCurrentListRows` calls every source hook so the hook order is
+  // fixed as the list changes; the draft one reaches lib/api even while
+  // disabled.
+  deleteDraft: vi.fn(() => Promise.resolve({ success: true })),
   fetchJson: vi.fn(() => Promise.resolve([])),
+  listDrafts: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
@@ -163,6 +169,14 @@ function makeStore() {
   return store
 }
 
+// `useCurrentListRows` calls every source hook so the hook order stays
+// fixed as the list changes (only one of them is enabled), which means a
+// QueryClient has to be in scope even for a test that mocks the
+// conversation query.
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { gcTime: 0, retry: false } },
+})
+
 function Wrapper({
   children,
   store,
@@ -170,7 +184,11 @@ function Wrapper({
   children: ReactNode
   store: ReturnType<typeof createStore>
 }) {
-  return <Provider store={store}>{children}</Provider>
+  return (
+    <QueryClientProvider client={testQueryClient}>
+      <Provider store={store}>{children}</Provider>
+    </QueryClientProvider>
+  )
 }
 
 // must import after mocks
@@ -199,7 +217,7 @@ describe('FilterBar — sort', () => {
   it('shows sort options in filter dropdown', () => {
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -227,7 +245,7 @@ describe('FilterBar — sort', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -255,7 +273,7 @@ describe('FilterBar — archived tab', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -263,30 +281,32 @@ describe('FilterBar — archived tab', () => {
     expect(screen.getByText('Archived')).toBeDefined()
   })
 
-  it('shows archived conversations when Archived tab clicked', () => {
-    flatStub.conversations = [
-      makeConversation({
-        archived: false,
-        subject: 'Normal Item',
-        thread_id: 'normal',
-      }),
-      makeConversation({
-        archived: true,
-        subject: 'Archived Item',
-        thread_id: 'archived',
-      }),
-    ]
+  /**
+   * The tab asks the server for the archived axis; it does not sift the
+   * page it was given.
+   *
+   * This used to assert that an archived row disappeared from the Inbox,
+   * which the client did by filtering the page after the fact — from a
+   * page whose size the server had already reported, so the count and
+   * the rows disagreed. Since 2026-08-05 the server excludes archived
+   * threads from every list but this one, and what is left for the
+   * client to get right is which list it asks for.
+   */
+  it('switches to the archived axis when the Archived tab is clicked', async () => {
+    const { activeListAtom, showArchivedAtom } = await import('@/store/ui')
+    flatStub.conversations = [makeConversation()]
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
-
-    expect(screen.queryByText('Archived Item')).toBeNull()
+    expect(store.get(showArchivedAtom)).toBe(false)
 
     fireEvent.click(screen.getByText('Archived'))
-    expect(screen.getByText('Archived Item')).toBeDefined()
+
+    expect(store.get(activeListAtom)).toBe('archived')
+    expect(store.get(showArchivedAtom)).toBe(true)
   })
 })
 
@@ -304,7 +324,7 @@ describe('BatchActionBar', () => {
   it('does not show batch action bar initially', () => {
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -317,7 +337,7 @@ describe('BatchActionBar', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -333,7 +353,7 @@ describe('BatchActionBar', () => {
   it('toggles batch mode via batch select button', () => {
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -353,7 +373,7 @@ describe('BatchActionBar', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 
@@ -367,7 +387,7 @@ describe('BatchActionBar', () => {
 
     render(
       <Wrapper store={store}>
-        <ConversationList onLoadMore={vi.fn()} />
+        <ConversationList />
       </Wrapper>
     )
 

@@ -6,9 +6,10 @@ import {
   categoryFilterAtom,
   composingNewAtom,
   mobileViewAtom,
+  pickedItemAtom,
+  pickInListAtom,
   searchQueryAtom,
   selectedDomainsAtom,
-  selectedThreadIdAtom,
   selectedThreadIdsAtom,
   shortcutsDialogOpenAtom,
   sortOrderAtom,
@@ -39,9 +40,9 @@ describe('sortOrderAtom', () => {
 })
 
 describe('primitive atoms — initial values', () => {
-  it('selectedThreadIdAtom defaults to null', () => {
+  it('pickedItemAtom defaults to null', () => {
     const store = createStore()
-    expect(store.get(selectedThreadIdAtom)).toBeNull()
+    expect(store.get(pickedItemAtom)).toBeNull()
   })
 
   // v2.1 phase-5d: threadMessagesAtom deleted. Thread-view /
@@ -95,10 +96,14 @@ describe('primitive atoms — initial values', () => {
 })
 
 describe('primitive atoms — writability', () => {
-  it('selectedThreadIdAtom can be set to a thread id', () => {
+  it('pickedItemAtom records the list a row was picked in', () => {
     const store = createStore()
-    store.set(selectedThreadIdAtom, 'thread-xyz')
-    expect(store.get(selectedThreadIdAtom)).toBe('thread-xyz')
+    store.set(pickInListAtom, { threadId: 'thread-xyz', uid: null })
+    expect(store.get(pickedItemAtom)).toEqual({
+      list: 'inbox',
+      threadId: 'thread-xyz',
+      uid: null,
+    })
   })
 
   it('searchQueryAtom can be updated', () => {

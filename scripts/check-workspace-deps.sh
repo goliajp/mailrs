@@ -43,6 +43,20 @@ for ct in crates/*/Cargo.toml; do
     done < <(grep -E '^mailrs-[a-z0-9-]+ *=' "$ct" | grep -v 'path *=' | sed 's/ *=.*//;s/$/ /')
 done
 
+# A publishable crate's path dependency also needs a `version`, or
+# `cargo publish` refuses it: the packaged manifest has no path to
+# follow, so the version is the only thing left pointing at the
+# dependency. `mailrs-mmalloc -> mailrs-syscall` was written without one
+# and was unpublishable until 2026-08-04 — invisible until the day
+# someone tried.
+for ct in crates/*/Cargo.toml; do
+    grep -q '^publish = false' "$ct" && continue
+    while IFS= read -r dep; do
+        echo "  $(dirname "$ct")/Cargo.toml: $dep has a path but no version, so it cannot be published"
+        bad=$((bad + 1))
+    done < <(grep -E '^mailrs-[a-z0-9-]+ = \{ *path = "[^"]*" *\}' "$ct" | sed 's/ *=.*//')
+done
+
 if [ "$bad" -gt 0 ]; then
     echo
     echo "$bad dependency(s) name a crate in this repo and resolve to the"

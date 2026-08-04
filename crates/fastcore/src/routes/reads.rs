@@ -208,7 +208,11 @@ pub(crate) async fn get_categories(
             category: cat.to_string(),
             count: state
                 .mailbox
-                .count_thread_ids_by_category_via_table(&_user, cat)
+                .count_thread_ids_by_category_via_table(
+                    &_user,
+                    cat,
+                    mailrs_mailbox_kevy::ArchiveScope::Live,
+                )
                 .unwrap_or(0) as i64,
         })
         .filter(|c| c.count > 0)
@@ -350,7 +354,7 @@ pub(crate) async fn list_mailboxes(
     use mailrs_core_api::method::mailbox::{ListMailboxesResponse, MailboxWire};
     let total = state
         .mailbox
-        .count_thread_ids_by_activity_via_table(&user)
+        .count_thread_ids_by_activity_via_table(&user, mailrs_mailbox_kevy::ArchiveScope::All)
         .unwrap_or(0) as u32;
     let unseen = state
         .mailbox

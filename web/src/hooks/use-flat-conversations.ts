@@ -26,22 +26,31 @@
 
 import type { ConversationSummary } from '@/lib/types'
 
-import { useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import { shallowEqualConvo } from '@/hooks/use-mail-events'
 import { useConversationsQuery } from '@/hooks/use-mail-queries'
 import { type MailListFilters } from '@/lib/query-keys'
 
+/**
+ * `filters` is nullable because the list on screen may not be served by
+ * `/conversations` at all — Send and Draft have their own endpoints. A
+ * null filter disables the query rather than substituting an Inbox one,
+ * which would fetch a list nobody is looking at and hand its first row
+ * to the reading pane.
+ */
 export function useFlatConversations(
-  filters: MailListFilters,
+  filters: MailListFilters | null,
   enabled: boolean = true
 ): {
   conversations: ConversationSummary[]
   hasMore: boolean
   initialLoading: boolean
   loadingMore: boolean
+  loadMore: () => Promise<void>
+  refresh: () => Promise<void>
 } {
-  const query = useConversationsQuery(filters, enabled)
+  const query = useConversationsQuery(filters ?? {}, enabled && filters !== null)
   const prevFlat = useRef<ConversationSummary[]>([])
 
   const conversations = useMemo(() => {
@@ -77,5 +86,17 @@ export function useFlatConversations(
   const hasMore = query.hasNextPage ?? false
   const loadingMore = query.isFetchingNextPage
 
-  return { conversations, hasMore, initialLoading, loadingMore }
+  // The paging and refresh handlers travel with the rows. They used to
+  // be built in `chat.tsx` off a second copy of this query and passed
+  // down as props, which is how the page the list drew and the page
+  // `loadMore` extended could be two different queries.
+  const loadMore = useCallback(async () => {
+    if (!query.hasNextPage || query.isFetchingNextPage) return
+    await query.fetchNextPage()
+  }, [query])
+  const refresh = useCallback(async () => {
+    await query.refetch()
+  }, [query])
+
+  return { conversations, hasMore, initialLoading, loadingMore, loadMore, refresh }
 }

@@ -6,6 +6,7 @@
 
 #![cfg(test)]
 
+mod archive_scope;
 mod bucket_axis;
 mod filters;
 mod junk_cutover;

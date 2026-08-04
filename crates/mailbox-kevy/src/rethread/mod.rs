@@ -426,7 +426,16 @@ impl KevyMailboxStore {
         if needle.chars().count() < 2 || limit == 0 {
             return Ok(Vec::new());
         }
-        let tids = self.list_thread_ids_by_activity_via_table(user, usize::MAX, None)?;
+        // Candidates, not results: `in_search_scope` decides which tab a
+        // hit belongs to, and it compares `row.archived` against the tab
+        // the search came from. Excluding archived here would make a
+        // search inside Archived able to match nothing.
+        let tids = self.list_thread_ids_by_activity_via_table(
+            user,
+            crate::ArchiveScope::All,
+            usize::MAX,
+            None,
+        )?;
         let mut out = Vec::with_capacity(limit);
         for tid in tids {
             if skip.contains(&tid) {

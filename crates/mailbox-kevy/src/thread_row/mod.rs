@@ -1,13 +1,11 @@
-//! Thread row read/write — the first real method on the kevy backend.
+//! What a thread row *is* — the shape both the shared conversation hash
+//! and each owner's membership row are read from and written as.
 //!
-//! Phase 7.5 — uses the 1.15.0 op surface (hset / hgetall + zincrby +
-//! zrevrange) to write a thread aggregate and read it back in one
-//! round trip per row, replacing the cascading `list_conversations`
-//! aggregate (Rock 1) with O(log n) zset lookups.
+//! The store operations that use it live in [`store`]; keeping the shape
+//! here means the two directions of every conversion sit next to each
+//! other, which is the pairing that has to stay honest
+//! (`field_names_match_to_pairs`).
 
-use std::io;
-
-use super::KevyMailboxStore;
 use super::keys;
 
 /// Sent-folder membership predicate — true when the thread's
@@ -358,145 +356,7 @@ pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Ve
         ),
     ]
 }
-
-impl KevyMailboxStore {
-    /// Write the membership row only when it is absent or differs.
-    ///
-    /// Returns whether anything was written. The read-compare costs one
-    /// HGETALL against a write that would otherwise churn the AOF on
-    /// every backfill pass over already-correct data.
-    pub(crate) fn write_thread_user_if_changed(
-        &self,
-        user: &str,
-        row: &ThreadRow,
-    ) -> io::Result<bool> {
-        let key = keys::thread_user(user, &row.thread_id);
-        let want = thread_user_pairs(user, row);
-        let have: std::collections::HashMap<Vec<u8>, Vec<u8>> = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?
-            .into_iter()
-            .collect();
-        let fresh = have.is_empty();
-        if !fresh && want.iter().all(|(k, v)| have.get(k) == Some(v)) {
-            return Ok(false);
-        }
-        let refs: Vec<(&[u8], &[u8])> = want
-            .iter()
-            .map(|(k, v)| (k.as_slice(), v.as_slice()))
-            .collect();
-        self.store()
-            .hset(key.as_bytes(), &refs)
-            .map_err(std::io::Error::other)?;
-        if fresh {
-            self.plant_thread_user_defaults(&key)?;
-        }
-        Ok(true)
-    }
-
-    /// Give a brand-new membership row its per-user flags, all off.
-    ///
-    /// A conversation you have just received is not starred, archived or
-    /// pinned **by you**, whatever the shared hash says about whoever else
-    /// has it. Seeding from there is the leak this migration closes, so
-    /// the seed is zero.
-    ///
-    /// The columns have to exist rather than be absent: they are declared,
-    /// and `written_fields_cover_declared_columns` holds the write path to
-    /// producing every one of them.
-    fn plant_thread_user_defaults(&self, key: &str) -> io::Result<()> {
-        let zeros: Vec<(&[u8], &[u8])> = PER_USER_FLAGS
-            .iter()
-            .map(|f| (f.as_bytes(), b"0".as_slice()))
-            .collect();
-        self.store()
-            .hset(key.as_bytes(), &zeros)
-            .map_err(std::io::Error::other)?;
-        Ok(())
-    }
-
-    /// Write the thread aggregate hash + bump it to head of every index
-    /// zset the row's flags say it belongs to.
-    ///
-    /// Replaces the SQL fanout in the cascade: one HSET + up to 7 ZADDs
-    /// in a single closure, no PG round trip, no group-by aggregation.
-    pub fn upsert_thread(&self, user: &str, row: &ThreadRow) -> io::Result<()> {
-        // v2 Stage B.1: 1 hset + 7 conditional zadd/zrem now collapse
-        // into a single AtomicCtx closure, holding one shard write
-        // lock. Prior implementation held 8 independent locks and
-        // could race concurrent list_threads calls mid-fanout.
-        let key = keys::thread(&row.thread_id);
-        let pairs = row.to_pairs();
-        let pair_refs: Vec<(&[u8], &[u8])> = pairs
-            .iter()
-            .map(|(k, v)| (k.as_slice(), v.as_slice()))
-            .collect();
-        let tu_key = keys::thread_user(user, &row.thread_id);
-        let tu_pairs = thread_user_pairs(user, row);
-        let tu_refs: Vec<(&[u8], &[u8])> = tu_pairs
-            .iter()
-            .map(|(k, v)| (k.as_slice(), v.as_slice()))
-            .collect();
-        self.store()
-            .atomic(|ctx| {
-                ctx.hset(key.as_bytes(), &pair_refs)?;
-
-                // The membership row for the declared `threaduser`
-                // table, and now the only thing this writes: every
-                // access path the twelve zsets used to encode in their
-                // key names is a column here, maintained by the engine.
-                // `bucket` is stored rather than derived because the
-                // engine cannot call `bucket_of`.
-                //
-                // A row that did not exist gets its per-user flags at
-                // zero, in the same closure, so no reader can catch it
-                // between the two writes with the columns missing.
-                let fresh = !ctx.hexists(tu_key.as_bytes(), b"tid")?;
-                ctx.hset(tu_key.as_bytes(), &tu_refs)?;
-                if fresh {
-                    let zeros: Vec<(&[u8], &[u8])> = PER_USER_FLAGS
-                        .iter()
-                        .map(|f| (f.as_bytes(), b"0".as_slice()))
-                        .collect();
-                    ctx.hset(tu_key.as_bytes(), &zeros)?;
-                }
-
-                Ok(())
-            })
-            .map_err(std::io::Error::other)
-    }
-
-    /// Read a single thread row back. Returns `None` if the hash is
-    /// empty (deleted or never existed).
-    pub fn get_thread(&self, thread_id: &str) -> io::Result<Option<ThreadRow>> {
-        let key = keys::thread(thread_id);
-        let pairs = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?;
-        Ok(ThreadRow::from_pairs(thread_id.to_string(), &pairs))
-    }
-
-    /// One user's copy of a conversation, read from their membership row.
-    ///
-    /// Distinct from [`Self::get_thread`], which reads the shared
-    /// aggregate: on a thread two accounts both received, the shared one
-    /// holds whichever owner wrote last. `None` means this user has no
-    /// row for it, which is what not having the conversation means.
-    pub fn get_thread_for_user(
-        &self,
-        user: &str,
-        thread_id: &str,
-    ) -> io::Result<Option<ThreadRow>> {
-        let key = keys::thread_user(user, thread_id);
-        let pairs = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?;
-        Ok(ThreadRow::from_user_pairs(thread_id.to_string(), &pairs))
-    }
-}
+mod store;
 
 #[cfg(test)]
 mod tests {
@@ -526,6 +386,7 @@ mod tests {
     }
 
     use super::*;
+    use crate::KevyMailboxStore;
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;
 
@@ -563,6 +424,56 @@ mod tests {
             st.write_thread_user_if_changed("alice@x.com", &moved)
                 .unwrap(),
             "a changed field must write again"
+        );
+    }
+
+    /// Every declared per-user flag exists on the row, whatever wrote it
+    /// first.
+    ///
+    /// `archived` is an equality component of every ORDERPATH prefix, so
+    /// a row without it is in none of them — invisible in every list
+    /// rather than merely un-archived. The arrival path writes this
+    /// user's counters to the row before the row-writer runs, so the row
+    /// is not empty by the time planting was asked whether it was new,
+    /// and the flags were never planted at all on the one path that
+    /// creates most rows.
+    #[test]
+    fn a_row_created_by_an_arrival_carries_every_declared_flag() {
+        let st = store();
+        let u = "alice@x.com";
+        st.record_message_arrival(&crate::MessageArrival {
+            thread_id: "t-arrival",
+            user: u,
+            subject: "Hello",
+            senders_csv: "bob@y.com",
+            latest_date: 100,
+            latest_preview: "p",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        })
+        .unwrap();
+
+        let have: std::collections::HashMap<Vec<u8>, Vec<u8>> = st
+            .store()
+            .hgetall(keys::thread_user(u, "t-arrival").as_bytes())
+            .unwrap()
+            .into_iter()
+            .collect();
+        let absent: Vec<&str> = PER_USER_FLAGS
+            .iter()
+            .copied()
+            .filter(|f| !have.contains_key(f.as_bytes()))
+            .collect();
+        assert!(absent.is_empty(), "declared flags missing: {absent:?}");
+        assert_eq!(
+            have.get(b"archived".as_slice()).map(Vec::as_slice),
+            Some(b"0".as_slice())
+        );
+        assert_eq!(
+            have.get(b"unread".as_slice()).map(Vec::as_slice),
+            Some(b"1".as_slice()),
+            "and planting must not overwrite the flag the arrival set"
         );
     }
 

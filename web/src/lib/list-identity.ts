@@ -12,7 +12,8 @@ import type { MailListFilters } from '@/lib/query-keys'
  * the selection when this value changes, and both need to agree with each
  * other and with the query cache.
  */
-export function listIdentity(f: MailListFilters): string {
+export function listIdentity(f: MailListFilters | null): string {
+  if (f === null) return 'none'
   return JSON.stringify([
     f.folder,
     f.category,

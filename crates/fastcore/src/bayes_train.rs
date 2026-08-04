@@ -194,7 +194,12 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
         spam_ids.extend(
             state
                 .mailbox
-                .list_thread_ids_by_category_via_table(user, cat, ALL)
+                .list_thread_ids_by_category_via_table(
+                    user,
+                    cat,
+                    mailrs_mailbox_kevy::ArchiveScope::All,
+                    ALL,
+                )
                 .unwrap_or_default(),
         );
     }
@@ -209,7 +214,12 @@ pub fn bootstrap(state: &Arc<FastcoreState>, user: &str) -> (u64, u64) {
     let ham_ids: Vec<String> = if want_ham > 0 {
         state
             .mailbox
-            .list_thread_ids_by_bucket_unsent_via_table(user, "inbox", want_ham as usize)
+            .list_thread_ids_by_bucket_unsent_via_table(
+                user,
+                "inbox",
+                mailrs_mailbox_kevy::ArchiveScope::All,
+                want_ham as usize,
+            )
             .unwrap_or_default()
     } else {
         Vec::new()
@@ -262,7 +272,12 @@ pub fn backfill_triage(state: &Arc<FastcoreState>, user: &str) -> (u64, u64, u64
     use mailrs_mailbox_kevy::keys::Bucket;
     let tids: Vec<String> = state
         .mailbox
-        .list_thread_ids_by_bucket_unsent_via_table(user, "inbox", ALL)
+        .list_thread_ids_by_bucket_unsent_via_table(
+            user,
+            "inbox",
+            mailrs_mailbox_kevy::ArchiveScope::All,
+            ALL,
+        )
         .unwrap_or_default();
 
     let (mut n_inbox, mut n_notif, mut n_promo) = (0u64, 0u64, 0u64);

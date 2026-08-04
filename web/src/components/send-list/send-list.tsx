@@ -1,30 +1,30 @@
 import type { SendRow } from './send-model'
-import type { WireSendStatus } from '@/wire/schemas/sends'
 
 import { toast } from '@goliapkg/gds'
 import { useAtom, useSetAtom } from 'jotai'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
-import { useResendMutation, useSendsQuery } from '@/hooks/use-sends'
-import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
+import { useCurrentSelection, useSendRows } from '@/hooks/use-current-list'
+import { useResendMutation } from '@/hooks/use-sends'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowClass } from '@/lib/list-row-class'
 import {
   composeRedraftSourceAtom,
   composingNewAtom,
-  focusedMessageUidAtom,
   mobileViewAtom,
-  selectedThreadIdAtom,
+  pickInListAtom,
+  sendQueryAtom,
+  sendStatusFilterAtom,
 } from '@/store/ui'
 import { wireGetRedraft } from '@/wire/endpoints/sends'
 
 import { FailureDetail } from './failure-detail'
-import { filterByStatus, joinSends, needsAttention } from './send-model'
+import { needsAttention } from './send-model'
 import { StatusBadge } from './status-badge'
 import { StatusFilter } from './status-filter'
 
@@ -45,59 +45,24 @@ type Item = { label: string; type: 'divider' } | { row: SendRow; type: 'row' }
  * on 2026-07-30 (`.claude/rules/frontend/react-key-contract.md`).
  */
 export function SendList() {
-  const { data: messages, isLoading } = useSentMessagesQuery()
-  const { data: sends } = useSendsQuery()
-  const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
-  const setFocusedMsgUid = useSetAtom(focusedMessageUidAtom)
+  const { all: rows, loading: isLoading, rows: visible } = useSendRows()
+  const selectedThreadId = useCurrentSelection()?.threadId ?? null
+  const pickRow = useSetAtom(pickInListAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
-  const [query, setQuery] = useState('')
-  const [status, setStatus] = useState<null | WireSendStatus>(null)
+  const [query, setQuery] = useAtom(sendQueryAtom)
+  const [status, setStatus] = useAtom(sendStatusFilterAtom)
   const [expanded, setExpanded] = useState<null | string>(null)
   const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const resend = useResendMutation()
 
-  const rows = useMemo(() => joinSends(messages ?? [], sends ?? []), [messages, sends])
-
-  const visible = useMemo(() => {
-    const byStatus = filterByStatus(rows, status)
-    const q = query.trim().toLowerCase()
-    if (!q) return byStatus
-    return byStatus.filter(
-      (r) => r.to.toLowerCase().includes(q) || r.subject.toLowerCase().includes(q)
-    )
-  }, [rows, status, query])
-
   const attention = useMemo(() => rows.filter(needsAttention).length, [rows])
 
-  // Arriving at Send selects its first row.
-  //
-  // The selection is a global atom and this list only ever wrote it, so
-  // switching here from the Inbox left the reading pane showing a thread
-  // from the list you had left. Same rule as the conversation list, and it
-  // sets the atom directly rather than going through `openMessage`, which
-  // also switches the mobile view to the thread — that would drag a phone
-  // user into a message they did not open.
-  useEffect(() => {
-    if (selectedThreadId !== null) return
-    const first = visible[0]
-    if (!first) return
-    setSelectedThreadId(first.threadId)
-    setFocusedMsgUid(first.uid)
-  }, [visible, selectedThreadId, setSelectedThreadId, setFocusedMsgUid])
-
-  // Leaving clears it, so the list taken to next chooses its own first row
-  // rather than inheriting a thread that is not in it.
-  useEffect(() => {
-    return () => setSelectedThreadId(null)
-  }, [setSelectedThreadId])
-
   const openMessage = (row: SendRow) => {
-    setSelectedThreadId(row.threadId)
-    // Null when the sweep has not indexed the maildir copy yet. Focusing
-    // nothing opens the thread without scrolling to a specific message,
-    // which is the same degradation an optimistic row has.
-    setFocusedMsgUid(row.uid)
+    // `uid` is null when the sweep has not indexed the maildir copy yet.
+    // Focusing nothing opens the thread without scrolling to a specific
+    // message, the same degradation an optimistic row has.
+    pickRow({ threadId: row.threadId, uid: row.uid })
     setMobileView('thread')
   }
 

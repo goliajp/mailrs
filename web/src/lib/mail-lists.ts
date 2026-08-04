@@ -1,0 +1,123 @@
+import type { MailListFilters } from '@/lib/query-keys'
+
+export type MailList = {
+  /** What the list says when it has nothing in it. */
+  emptyLabel: string
+  /** The chip's text. */
+  label: string
+  source: MailListSource
+}
+
+/**
+ * The lists the mail screen can show, as one value each.
+ *
+ * "Which list am I looking at" used to be six atoms — `folder`,
+ * `quickFilter`, `showArchived`, `categoryFilter`, `importanceSection`
+ * and the search box — and `resolveActiveTab()` reconstructed the tab
+ * name back out of them to decide which chip to highlight. A fact that
+ * has to be reverse-engineered from its own consequences is a fact
+ * nobody owns, and four different components each kept their own
+ * opinion of what the current list's first row was.
+ *
+ * So the tab is the state and the filters are derived, not the other way
+ * round. Whether a list is a real backend axis (Inbox, Junk) or one the
+ * server assembles from a flag (Unread, Starred, Archived) or a
+ * different endpoint entirely (Send, Draft) is a fact about the source,
+ * not about the UI — the screen treats all eight the same way.
+ */
+export type MailListId =
+  | 'archived'
+  | 'draft'
+  | 'inbox'
+  | 'junk'
+  | 'np'
+  | 'send'
+  | 'starred'
+  | 'unread'
+
+/**
+ * Where a list's rows come from.
+ *
+ * `threads` is `/conversations` with the list's axes; the other two are
+ * their own endpoints with their own row shapes. Nothing above this
+ * cares which — `useCurrentListRows` dispatches once and everything
+ * downstream sees rows.
+ */
+export type MailListSource =
+  | { filters: ThreadListAxes; kind: 'threads' }
+  | { kind: 'drafts' }
+  | { kind: 'sends' }
+
+/** The axes of `MailListFilters` a list fixes. The rest are refinements. */
+export type ThreadListAxes = Pick<MailListFilters, 'archived' | 'folder' | 'starred' | 'unread'>
+
+/**
+ * `NonJunk` for Unread and Starred is deliberate and not a folder anyone
+ * can navigate to: they are attributes of a thread rather than places it
+ * lives, so scoping them to one folder answers a question nobody asked,
+ * and scoping them to everything drags Junk back out of the one surface
+ * it is allowed to have.
+ */
+export const MAIL_LISTS: Record<MailListId, MailList> = {
+  archived: {
+    emptyLabel: 'No archived conversations',
+    label: 'Archived',
+    // Cross-folder: the server drops the folder when this is set, because
+    // "archived within Inbox" is not what the tab means.
+    source: { filters: { archived: true }, kind: 'threads' },
+  },
+  draft: { emptyLabel: 'No drafts', label: 'Draft', source: { kind: 'drafts' } },
+  inbox: {
+    emptyLabel: 'All caught up!',
+    label: 'Inbox',
+    source: { filters: { folder: 'Inbox' }, kind: 'threads' },
+  },
+  junk: {
+    emptyLabel: 'No junk mail',
+    label: 'Junk',
+    source: { filters: { folder: 'Junk' }, kind: 'threads' },
+  },
+  np: {
+    emptyLabel: 'Nothing here',
+    label: 'N & P',
+    source: { filters: { folder: 'NP' }, kind: 'threads' },
+  },
+  // "Send", not "Sent": the view holds sends that failed and sends still
+  // going out, so a heading claiming they were sent would be wrong about
+  // the rows it is showing.
+  send: { emptyLabel: 'Nothing sent yet', label: 'Send', source: { kind: 'sends' } },
+  starred: {
+    emptyLabel: 'Nothing starred',
+    label: 'Starred',
+    source: { filters: { folder: 'NonJunk', starred: true }, kind: 'threads' },
+  },
+  unread: {
+    emptyLabel: 'All caught up!',
+    label: 'Unread',
+    source: { filters: { folder: 'NonJunk', unread: true }, kind: 'threads' },
+  },
+}
+
+/** The two rows of chips, in the order the filter bar draws them. */
+export const MAIL_LIST_ROWS: MailListId[][] = [
+  ['inbox', 'np', 'unread', 'starred', 'junk'],
+  ['send', 'draft', 'archived'],
+]
+
+export function isMailListId(v: unknown): v is MailListId {
+  return typeof v === 'string' && v in MAIL_LISTS
+}
+
+/**
+ * The thread axes a list fixes, or nothing when its rows do not come
+ * from `/conversations`.
+ *
+ * Send and Draft still render the filter bar, and the conversation query
+ * is not what fills them — so callers that need the axes ask for them
+ * rather than reading a folder off a list that has none.
+ */
+export function threadAxesOf(id: MailListId): null | ThreadListAxes {
+  const { source } = MAIL_LISTS[id]
+  if (source.kind !== 'threads') return null
+  return source.filters
+}

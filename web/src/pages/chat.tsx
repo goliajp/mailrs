@@ -1,8 +1,5 @@
-import type { MailListFilters } from '@/lib/query-keys'
-import type { ConversationSummary } from '@/lib/types'
-
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { ConversationList } from '@/components/conversation-list'
@@ -12,52 +9,47 @@ import { MobileMail } from '@/components/mobile-mail'
 import { NewConversation } from '@/components/new-conversation'
 import { SendList } from '@/components/send-list/send-list'
 import { ThreadView } from '@/components/thread-view'
+import { useCurrentSelection } from '@/hooks/use-current-list'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMailEvents } from '@/hooks/use-mail-events'
-import { useConversationsQuery } from '@/hooks/use-mail-queries'
 import { MPane, MPaneGroup } from '@/layouts/pane'
+import { isMailListId, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import { authAtom } from '@/store/auth'
 import {
+  activeListAtom,
   categoryFilterAtom,
   composingNewAtom,
-  focusedMessageUidAtom,
-  folderAtom,
   importanceSectionAtom,
   mobileViewAtom,
-  quickFilterAtom,
-  searchQueryAtom,
-  selectedDomainsAtom,
-  selectedThreadIdAtom,
+  openThreadAtom,
+  selectMailListAtom,
   shortcutsDialogOpenAtom,
-  showArchivedAtom,
 } from '@/store/ui'
 
 export function Chat() {
   const auth = useAtomValue(authAtom)
   const composingNew = useAtomValue(composingNewAtom)
-  const searchQuery = useAtomValue(searchQueryAtom)
-  const categoryFilter = useAtomValue(categoryFilterAtom)
-  const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const folder = useAtomValue(folderAtom)
+  const activeList = useAtomValue(activeListAtom)
+  const selectList = useSetAtom(selectMailListAtom)
+  const openThread = useSetAtom(openThreadAtom)
   const [mobileView, setMobileView] = useAtom(mobileViewAtom)
   const [shortcutsOpen, setShortcutsOpen] = useAtom(shortcutsDialogOpenAtom)
-  const showArchived = useAtomValue(showArchivedAtom)
-  const [quickFilter, setQuickFilter] = useAtom(quickFilterAtom)
   const [importanceSection, setImportanceSection] = useAtom(importanceSectionAtom)
-  const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
-  const [focusedMsgUid, setFocusedMsgUid] = useAtom(focusedMessageUidAtom)
-  const setFolder = useSetAtom(folderAtom)
-  const setCategoryFilter = useSetAtom(categoryFilterAtom)
+  const [categoryFilter, setCategoryFilter] = useAtom(categoryFilterAtom)
+  const selection = useCurrentSelection()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Single effect that owns the URL <-> atom sync:
-  //   - first run: restore atom values from URL params (and skip writing
-  //     back, so we don't clobber the URL before our setX calls flush)
-  //   - subsequent runs: write atom values into URL
+  // Single effect that owns the URL <-> state sync:
+  //   - first run: restore from URL params (and skip writing back, so we
+  //     don't clobber the URL before those writes flush)
+  //   - subsequent runs: write state into the URL
   // Keeping it in one effect avoids the race between a separate "restore"
-  // and "sync" pair where the sync's first invocation captures default
-  // atom values and overwrites the URL to empty before the restore's
-  // setX updates have re-rendered.
+  // and "sync" pair where the sync's first invocation captures the
+  // defaults and overwrites the URL to empty before the restore lands.
+  //
+  // `?list=` replaced `?folder=` + `?tab=`, which between them encoded
+  // the same thing twice. The old pair is still read, because somebody
+  // has a tab open on one.
   const initializedRef = useRef(false)
   useEffect(() => {
     if (!initializedRef.current) {
@@ -70,58 +62,46 @@ export function Chat() {
         | 'reply'
         | 'thread'
         | null
-      const urlFolder = searchParams.get('folder')
-      const urlTab = searchParams.get('tab')
       const urlCat = searchParams.get('cat')
-      if (urlThread) setSelectedThreadId(urlThread)
-      if (urlMsg) setFocusedMsgUid(Number(urlMsg))
+      const restored = listFromParams(searchParams)
+      if (restored) selectList(restored)
       if (urlView) setMobileView(urlView)
-      if (
-        urlFolder === 'Drafts' ||
-        urlFolder === 'Inbox' ||
-        urlFolder === 'NP' ||
-        urlFolder === 'Sent' ||
-        urlFolder === 'Trash' ||
-        urlFolder === 'Junk'
-      ) {
-        setFolder(urlFolder)
-      }
-      if (urlTab === 'unread' || urlTab === 'starred' || urlTab === 'attachment') {
-        setQuickFilter(urlTab)
-      } else if (urlTab === 'important' || urlTab === 'other') {
-        setImportanceSection(urlTab)
-      }
       if (urlCat) setCategoryFilter(urlCat)
+      const tab = searchParams.get('tab')
+      if (tab === 'important' || tab === 'other') setImportanceSection(tab)
+      // Last, and with the list named: `selectList` clears the pick, so
+      // restoring the thread before it would throw the thread away.
+      if (urlThread) {
+        openThread({
+          list: restored ?? 'inbox',
+          threadId: urlThread,
+          uid: urlMsg ? Number(urlMsg) : null,
+        })
+      }
       return
     }
     const params = new URLSearchParams()
-    if (selectedThreadId) params.set('thread', selectedThreadId)
-    if (focusedMsgUid !== null) params.set('msg', String(focusedMsgUid))
+    if (selection) params.set('thread', selection.threadId)
+    if (selection?.uid != null) params.set('msg', String(selection.uid))
     if (mobileView !== 'list') params.set('view', mobileView)
-    if (folder) params.set('folder', folder)
-    if (quickFilter !== 'all') params.set('tab', quickFilter)
-    else if (importanceSection) params.set('tab', importanceSection)
+    params.set('list', activeList)
+    if (importanceSection) params.set('tab', importanceSection)
     if (categoryFilter) params.set('cat', categoryFilter)
     const newSearch = params.toString()
-    const currentSearch = searchParams.toString()
-    if (newSearch !== currentSearch) {
+    if (newSearch !== searchParams.toString()) {
       setSearchParams(params, { replace: true })
     }
   }, [
-    selectedThreadId,
-    focusedMsgUid,
+    selection,
     mobileView,
-    folder,
-    quickFilter,
+    activeList,
     importanceSection,
     categoryFilter,
     searchParams,
     setSearchParams,
-    setSelectedThreadId,
-    setFocusedMsgUid,
+    selectList,
+    openThread,
     setMobileView,
-    setFolder,
-    setQuickFilter,
     setImportanceSection,
     setCategoryFilter,
   ])
@@ -141,108 +121,23 @@ export function Chat() {
   // keyboard navigation
   useKeyboardNav()
 
-  // Search-only debounce: avoid hammering the server while the user types.
-  // For all other filter changes the query swap is instant via RQ cache.
-  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery)
-  useEffect(() => {
-    if (!searchQuery) {
-      setDebouncedSearch('')
-      return
-    }
-    const t = setTimeout(() => setDebouncedSearch(searchQuery), 300)
-    return () => clearTimeout(t)
-  }, [searchQuery])
-
-  const filters: MailListFilters = useMemo(
-    () => ({
-      archived: showArchived,
-      category: categoryFilter,
-      domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-      folder,
-      query: debouncedSearch || undefined,
-      section: importanceSection,
-      starred: quickFilter === 'starred',
-      unread: quickFilter === 'unread',
-    }),
-    [
-      showArchived,
-      categoryFilter,
-      selectedDomains,
-      folder,
-      debouncedSearch,
-      importanceSection,
-      quickFilter,
-    ]
-  )
-
-  const conversationsQuery = useConversationsQuery(filters)
-
-  // Project the query state onto the legacy atoms so the rest of the UI
-  // (conversation-list, thread-view, etc.) keeps working unchanged.
-  // Identity-preserving merge keeps memo'd rows from re-rendering when a
-  // refetch returns the same payload.
-  const flatConversations = useMemo(() => {
-    const pages = conversationsQuery.data?.pages ?? []
-    const flat: ConversationSummary[] = []
-    const seen = new Set<string>()
-    for (const page of pages) {
-      for (const c of page) {
-        if (seen.has(c.thread_id)) continue
-        seen.add(c.thread_id)
-        flat.push(c)
-      }
-    }
-    return flat
-  }, [conversationsQuery.data])
-
-  // v2.1 phase-5d: the atom-sync effect that used to write
-  // `flatConversations` → `conversationsAtom` here is gone. Every
-  // production caller reads the same shape from
-  // `useFlatConversations` (RQ-native). The atom stays only as a
-  // test bridge — see `store/chat.ts::conversationsAtom` note.
-
-  // v2.1 phase-5d: `initialLoadingAtom` / `hasMoreAtom` /
-  // `loadingMoreAtom` deleted. `conversation-list.tsx` +
-  // `useFlatConversations` now derive these signals from the RQ query
-  // directly. The atom-shadow effects that used to live here are gone.
-
-  const loadMore = useCallback(() => {
-    if (!conversationsQuery.hasNextPage) return Promise.resolve()
-    if (conversationsQuery.isFetchingNextPage) return Promise.resolve()
-    return conversationsQuery.fetchNextPage().then(() => undefined)
-  }, [conversationsQuery])
-
-  const refreshConversations = useCallback(
-    () => conversationsQuery.refetch().then(() => undefined),
-    [conversationsQuery]
-  )
-
-  // auto-select first conversation on desktop. Effect deps key off the
-  // first thread_id (a string) rather than the whole conversations array
-  // — the array reference flips on every WebSocket refetch even when the
-  // top item is identical, which used to fire this effect (a no-op) on
-  // every tick and pull the whole chat page into the re-render path.
-  const firstThreadId = flatConversations[0]?.thread_id
-  useEffect(() => {
-    if (window.innerWidth >= 768 && !selectedThreadId && !composingNew && firstThreadId) {
-      setSelectedThreadId(firstThreadId)
-    }
-  }, [firstThreadId, selectedThreadId, composingNew, setSelectedThreadId])
-
-  // the list pane shows drafts / sends on their tabs, otherwise the
-  // thread list. The `'Sent'` folder key is internal and stays; the tab
-  // is labelled Send because the view now holds sends that failed and
-  // sends still going out, not only ones that completed.
+  // The conversation query lived here as well as in the list, with its
+  // own copy of the filter memo and an effect that selected its first
+  // row — even while Send or Draft was the list on screen. Both are
+  // gone: `ConversationList` owns the query for the list it draws, and
+  // the selection is derived from whichever list that is.
+  // Which list component to draw, off the same value everything else
+  // reads — one switch over the source kind rather than a chain of
+  // folder comparisons that had to agree with the tab resolver.
   const renderList = () => {
-    if (folder === 'Drafts') return <DraftsList />
-    if (folder === 'Sent') return <SendList />
-    return (
-      <ConversationList
-        onLoadMore={loadMore}
-        onRefresh={refreshConversations}
-        onSelectConversation={() => setMobileView('thread')}
-      />
-    )
+    switch (MAIL_LISTS[activeList].source.kind) {
+      case 'drafts':
+        return <DraftsList />
+      case 'sends':
+        return <SendList />
+      case 'threads':
+        return <ConversationList onSelectConversation={() => setMobileView('thread')} />
+    }
   }
 
   const renderMobileBody = () => {
@@ -276,4 +171,28 @@ export function Chat() {
       </MPaneGroup>
     </>
   )
+}
+
+/**
+ * The list a URL names.
+ *
+ * `?list=` is the current spelling. `?folder=` + `?tab=` was the old
+ * pair — two params that between them encoded one fact, and could
+ * disagree — and it is still read so a tab somebody left open on it
+ * lands where it did before.
+ */
+function listFromParams(params: URLSearchParams): MailListId | null {
+  const list = params.get('list')
+  if (isMailListId(list)) return list
+
+  const tab = params.get('tab')
+  if (tab === 'unread' || tab === 'starred') return tab
+
+  const folder = params.get('folder')
+  if (folder === 'Drafts') return 'draft'
+  if (folder === 'Sent') return 'send'
+  if (folder === 'Junk') return 'junk'
+  if (folder === 'NP') return 'np'
+  if (folder === 'Inbox') return 'inbox'
+  return null
 }

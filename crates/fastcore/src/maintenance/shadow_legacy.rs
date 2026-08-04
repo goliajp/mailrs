@@ -69,16 +69,21 @@ pub(crate) async fn shadow_read_route(
                     0,
                     None,
                 ),
-                "default" => state
-                    .mailbox
-                    .list_thread_ids_by_activity_via_table(user, limit, None),
+                "default" => state.mailbox.list_thread_ids_by_activity_via_table(
+                    user,
+                    mailrs_mailbox_kevy::ArchiveScope::All,
+                    limit,
+                    None,
+                ),
                 _ => {
                     let mut m: Vec<String> = Vec::new();
                     for b in ["notifications", "promotions"] {
-                        if let Ok(t) = state
-                            .mailbox
-                            .list_thread_ids_by_bucket_via_table(user, b, limit)
-                        {
+                        if let Ok(t) = state.mailbox.list_thread_ids_by_bucket_via_table(
+                            user,
+                            b,
+                            mailrs_mailbox_kevy::ArchiveScope::All,
+                            limit,
+                        ) {
                             m.extend(t);
                         }
                     }
@@ -227,10 +232,12 @@ pub(crate) async fn shadow_read_route(
                     .collect(),
                 Err(_) => continue,
             };
-            let table = match state
-                .mailbox
-                .list_thread_ids_by_category_via_table(user, cat, limit)
-            {
+            let table = match state.mailbox.list_thread_ids_by_category_via_table(
+                user,
+                cat,
+                mailrs_mailbox_kevy::ArchiveScope::All,
+                limit,
+            ) {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::warn!(err = %e, %user, cat, "category orderpath query failed");
@@ -286,13 +293,19 @@ pub(crate) async fn shadow_read_route(
             // compare against that one — otherwise this reports a
             // divergence the serving path does not have.
             let table_result = if bucket == "inbox" {
-                state
-                    .mailbox
-                    .list_thread_ids_by_bucket_unsent_via_table(user, bucket, limit)
+                state.mailbox.list_thread_ids_by_bucket_unsent_via_table(
+                    user,
+                    bucket,
+                    mailrs_mailbox_kevy::ArchiveScope::All,
+                    limit,
+                )
             } else {
-                state
-                    .mailbox
-                    .list_thread_ids_by_bucket_via_table(user, bucket, limit)
+                state.mailbox.list_thread_ids_by_bucket_via_table(
+                    user,
+                    bucket,
+                    mailrs_mailbox_kevy::ArchiveScope::All,
+                    limit,
+                )
             };
             let table = match table_result {
                 Ok(t) => t,

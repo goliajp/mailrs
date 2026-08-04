@@ -18,9 +18,9 @@ export function useDeleteDraftMutation() {
   })
 }
 
-export function useDraftsQuery() {
+export function useDraftsQuery(enabled: boolean = true) {
   return useQuery({
-    enabled: Boolean(getToken()),
+    enabled: enabled && Boolean(getToken()),
     queryFn: listDrafts,
     queryKey: mailKeys.drafts(),
     staleTime: 30_000,

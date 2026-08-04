@@ -6,6 +6,8 @@
 //! asserted: kevy panics rather than returning an error when an ORDERPATH
 //! names a column the table never declared, and that panic is at boot.
 
+use std::io;
+
 use super::KevyMailboxStore;
 use super::keys;
 
@@ -59,10 +61,68 @@ impl KevyMailboxStore {
             }
             None => {}
         }
+        // Before the indexes are built, not after: they are built from
+        // the rows, and a row missing a column an ORDERPATH keys on is in
+        // none of them. `archived` joined those prefixes on 2026-08-05,
+        // and the arrival path — which creates most rows — had never
+        // written it, so declaring first would have served every account
+        // an empty mailbox until a sweep caught up.
+        match self.plant_missing_user_flags() {
+            Ok((scanned, planted)) if planted > 0 => {
+                tracing::info!(
+                    scanned,
+                    planted,
+                    "membership rows given their missing flags"
+                )
+            }
+            Ok((scanned, _)) => tracing::debug!(scanned, "membership rows already complete"),
+            Err(e) => tracing::error!(error = %e, "planting membership row flags failed"),
+        }
         match self.store.table_declare(spec) {
             Ok(()) => tracing::info!("threaduser table declared"),
             Err(e) => tracing::error!(error = %e, "threaduser table declaration failed"),
         }
+    }
+
+    /// Give every membership row the declared per-user flags it lacks.
+    ///
+    /// Returns `(scanned, planted)`. Convergent, not merely idempotent:
+    /// a row that already carries all five is not written, so the second
+    /// boot after a spec change reports `planted: 0` and touches nothing
+    /// (`periodic-work-must-converge`).
+    ///
+    /// Only runs when the declaration is about to change, which is the
+    /// only moment the set of columns an index needs can have grown.
+    fn plant_missing_user_flags(&self) -> io::Result<(usize, usize)> {
+        use crate::thread_row::PER_USER_FLAGS;
+        let pattern = format!("{}*", String::from_utf8_lossy(keys::THREAD_USER_PREFIX));
+        let mut scanned = 0usize;
+        let mut planted = 0usize;
+        for key in self.store.keys(Some(pattern.as_bytes()), None) {
+            scanned += 1;
+            let have: std::collections::HashSet<Vec<u8>> = self
+                .store
+                .hgetall(&key)
+                .map_err(io::Error::other)?
+                .into_iter()
+                .map(|(f, _)| f)
+                .collect();
+            let missing: Vec<&str> = PER_USER_FLAGS
+                .iter()
+                .copied()
+                .filter(|f| !have.contains(f.as_bytes()))
+                .collect();
+            if missing.is_empty() {
+                continue;
+            }
+            let zeros: Vec<(&[u8], &[u8])> = missing
+                .iter()
+                .map(|f| (f.as_bytes(), b"0".as_slice()))
+                .collect();
+            self.store.hset(&key, &zeros).map_err(io::Error::other)?;
+            planted += 1;
+        }
+        Ok((scanned, planted))
     }
 
     pub fn ensure_admin_indexes(&self) {
@@ -222,12 +282,20 @@ pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
         // colliding row is undefined between calls, which is how a
         // paged reader silently skips or repeats one at a page
         // boundary.
+        // `archived` sits in every prefix for the same reason
+        // `sent_only` sits in one: Archived is a list of its own, so
+        // every other list excludes it, and an exclusion belongs in the
+        // declared query shape rather than in a filter applied to the
+        // page after it was counted. Without it the server answered
+        // "Inbox" with archived threads in it and the client deleted
+        // them from the page it had already been told the size of.
         orderpaths: vec![
             path(
                 "by_user_bucket",
                 &[
                     ("user", false),
                     ("bucket", false),
+                    ("archived", false),
                     ("activity", true),
                     ("ord", false),
                 ],
@@ -245,22 +313,28 @@ pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
                     ("user", false),
                     ("bucket", false),
                     ("sent_only", false),
+                    ("archived", false),
                     ("activity", true),
                     ("ord", false),
                 ],
             ),
-            // The default axis — no predicate, just the user's threads
-            // newest first. The only ORDERPATH here with nothing
-            // between `user` and the sort key.
+            // The default axis — no predicate but the archive
+            // exclusion, just the user's threads newest first.
             path(
                 "by_user_activity",
-                &[("user", false), ("activity", true), ("ord", false)],
+                &[
+                    ("user", false),
+                    ("archived", false),
+                    ("activity", true),
+                    ("ord", false),
+                ],
             ),
             path(
                 "by_user_category",
                 &[
                     ("user", false),
                     ("category", false),
+                    ("archived", false),
                     ("activity", true),
                     ("ord", false),
                 ],

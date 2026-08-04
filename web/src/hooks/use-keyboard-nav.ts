@@ -1,22 +1,23 @@
 import { toast } from '@goliapkg/gds'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
-import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
-import { useFlatConversations } from '@/hooks/use-flat-conversations'
+import {
+  useConversationRows,
+  useCurrentListRows,
+  useSelectedThreadId,
+  useSelectThreadId,
+} from '@/hooks/use-current-list'
 import { queryClient } from '@/lib/query-client'
 import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import {
   categoryFilterAtom,
   composeReplySourceAtom,
   composingNewAtom,
-  folderAtom,
   importanceSectionAtom,
   mobileViewAtom,
-  quickFilterAtom,
-  selectedThreadIdAtom,
+  selectMailListAtom,
   shortcutsDialogOpenAtom,
-  visibleConversationIdsAtom,
 } from '@/store/ui'
 import {
   wireArchiveThread,
@@ -36,17 +37,16 @@ export function useKeyboardNav() {
   // `conversationKeys.infinites()` cache via `patchAllInfiniteLists` —
   // every screen subscribing to that cache line re-renders on the
   // next tick with the mutation applied.
-  const filters = useCurrentMailFilters()
-  const { conversations } = useFlatConversations(filters)
-  const visibleIds = useAtomValue(visibleConversationIdsAtom)
-  const [selectedThreadId, setSelectedThreadId] = useAtom(selectedThreadIdAtom)
+  const { rows: conversations } = useConversationRows()
+  const rows = useCurrentListRows()
+  const selectedThreadId = useSelectedThreadId()
+  const setSelectedThreadId = useSelectThreadId()
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
   const setShortcutsOpen = useSetAtom(shortcutsDialogOpenAtom)
-  const setFolder = useSetAtom(folderAtom)
+  const selectList = useSetAtom(selectMailListAtom)
   const setSection = useSetAtom(importanceSectionAtom)
-  const setQuickFilter = useSetAtom(quickFilterAtom)
   const setCategory = useSetAtom(categoryFilterAtom)
 
   useEffect(() => {
@@ -71,9 +71,10 @@ export function useKeyboardNav() {
               patchAllInfiniteLists(queryClient, (c) =>
                 c.thread_id === selectedThreadId ? null : c
               )
-              const idx = visibleIds.indexOf(selectedThreadId)
-              const next = visibleIds[idx + 1] ?? visibleIds[idx - 1] ?? null
-              setSelectedThreadId(next)
+              // The pick is cleared rather than moved: with the row
+              // gone, the list's own first row is the answer, and
+              // nothing here has to guess at the neighbour.
+              setSelectedThreadId(null)
             })
             .catch(() => toast.error('Failed'))
           break
@@ -96,15 +97,10 @@ export function useKeyboardNav() {
         // falls through
         case 'j': {
           e.preventDefault()
-          if (visibleIds.length === 0) return
-          if (selectedThreadId === null) {
-            setSelectedThreadId(visibleIds[0])
-            scrollToThread()
-            return
-          }
-          const idx = visibleIds.indexOf(selectedThreadId)
-          if (idx < visibleIds.length - 1) {
-            setSelectedThreadId(visibleIds[idx + 1])
+          if (rows.length === 0) return
+          const idx = rows.findIndex((r) => r.threadId === selectedThreadId)
+          if (idx < rows.length - 1) {
+            setSelectedThreadId(rows[idx + 1]?.threadId ?? null)
             scrollToThread()
           }
           break
@@ -114,15 +110,10 @@ export function useKeyboardNav() {
         // falls through
         case 'k': {
           e.preventDefault()
-          if (visibleIds.length === 0) return
-          if (selectedThreadId === null) {
-            setSelectedThreadId(visibleIds[0])
-            scrollToThread()
-            return
-          }
-          const idx = visibleIds.indexOf(selectedThreadId)
+          if (rows.length === 0) return
+          const idx = rows.findIndex((r) => r.threadId === selectedThreadId)
           if (idx > 0) {
-            setSelectedThreadId(visibleIds[idx - 1])
+            setSelectedThreadId(rows[idx - 1]?.threadId ?? null)
             scrollToThread()
           }
           break
@@ -144,12 +135,9 @@ export function useKeyboardNav() {
               patchAllInfiniteLists(queryClient, (c) =>
                 c.thread_id === selectedThreadId ? { ...c, archived: action === 'archive' } : c
               )
-              // auto-advance to next thread after archive
-              if (action === 'archive') {
-                const archIdx = visibleIds.indexOf(selectedThreadId)
-                const nextId = visibleIds[archIdx + 1] ?? visibleIds[archIdx - 1] ?? null
-                if (nextId) setSelectedThreadId(nextId)
-              }
+              // Archiving takes the row out of every list but Archived,
+              // so dropping the pick lands on whatever is now first.
+              if (action === 'archive') setSelectedThreadId(null)
             })
             .catch(() => toast.error('Failed'))
           break
@@ -201,8 +189,8 @@ export function useKeyboardNav() {
           patchAllInfiniteLists(queryClient, (c) =>
             c.thread_id === selectedThreadId ? { ...c, unread_count: 0 } : c
           )
-          const readIdx = visibleIds.indexOf(selectedThreadId)
-          const nextThread = visibleIds[readIdx + 1] ?? visibleIds[readIdx - 1] ?? null
+          const readIdx = rows.findIndex((r) => r.threadId === selectedThreadId)
+          const nextThread = rows[readIdx + 1]?.threadId ?? rows[readIdx - 1]?.threadId ?? null
           if (nextThread) setSelectedThreadId(nextThread)
           break
         }
@@ -211,10 +199,9 @@ export function useKeyboardNav() {
           if (!gPending) break
           e.preventDefault()
           gPending = false
-          setFolder('Inbox')
           setSection(null)
-          setQuickFilter('all')
           setCategory(null)
+          selectList('inbox')
           break
         }
 
@@ -299,10 +286,9 @@ export function useKeyboardNav() {
           if (gPending && e.key === 's') {
             e.preventDefault()
             gPending = false
-            setFolder('Sent')
             setSection(null)
-            setQuickFilter('all')
             setCategory(null)
+            selectList('send')
           } else {
             gPending = false
           }
@@ -314,7 +300,7 @@ export function useKeyboardNav() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
     conversations,
-    visibleIds,
+    rows,
     selectedThreadId,
     setSelectedThreadId,
     setComposingNew,
@@ -322,8 +308,7 @@ export function useKeyboardNav() {
     setMobileView,
     setShortcutsOpen,
     setCategory,
-    setFolder,
-    setQuickFilter,
+    selectList,
     setSection,
   ])
 }

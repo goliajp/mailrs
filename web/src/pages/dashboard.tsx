@@ -24,10 +24,9 @@ import { conversationKeys } from '@/store/query-keys-v21'
 import {
   composeReplySourceAtom,
   composingNewAtom,
-  folderAtom,
-  quickFilterAtom,
+  openThreadAtom,
   searchQueryAtom,
-  selectedThreadIdAtom,
+  selectMailListAtom,
 } from '@/store/ui'
 import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 
@@ -52,12 +51,11 @@ export function Dashboard() {
   const auth = useAtomValue(authAtom)
   const greeting = useGreeting()
   const navigate = useNavigate()
-  const setSelectedThread = useSetAtom(selectedThreadIdAtom)
+  const openThread = useSetAtom(openThreadAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const setSearchQuery = useSetAtom(searchQueryAtom)
-  const setFolder = useSetAtom(folderAtom)
-  const setQuickFilter = useSetAtom(quickFilterAtom)
+  const selectList = useSetAtom(selectMailListAtom)
   const [searchInput, setSearchInput] = useState('')
 
   // no separate `loading` state: the only skeleton the user can see is the
@@ -115,10 +113,12 @@ export function Dashboard() {
 
   const goToThread = useCallback(
     (threadId: string) => {
-      setSelectedThread(threadId)
+      // Named with the list it belongs to: a pick only counts inside
+      // one, and these rows come from the Inbox axis.
+      openThread({ list: 'inbox', threadId, uid: null })
       navigate('/mail')
     },
-    [navigate, setSelectedThread]
+    [navigate, openThread]
   )
 
   const handleCompose = useCallback(() => {
@@ -135,10 +135,9 @@ export function Dashboard() {
     // Same scope the badge counts. Without the folder reset this lands
     // on whatever folder was last viewed — in practice Inbox, which is
     // where two unread promotions went missing.
-    setFolder('NonJunk')
-    setQuickFilter('unread')
+    selectList('unread')
     navigate('/mail')
-  }, [navigate, setFolder, setQuickFilter])
+  }, [navigate, selectList])
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {

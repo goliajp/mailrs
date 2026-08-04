@@ -1,111 +1,76 @@
 /**
- * `useCurrentMailFilters` — the ONE way for any mail-facing component
- * to know what filter is currently active.
+ * The `/conversations` filter for the list on screen — or `null` when
+ * the list on screen is not served by `/conversations` at all.
  *
- * v2.1 phase-5b introduces this hook so `conversation-list.tsx`,
- * `mobile-mail.tsx`, and eventually `thread-view.tsx` can each read
- * from `useFlatConversations(filters)` without duplicating the
- * atom-composition logic that today lives inline in `chat.tsx`.
+ * `null` rather than a default is the point: Send and Draft have their
+ * own endpoints, and returning an Inbox filter for them is exactly how
+ * `chat.tsx` ended up running a second conversation query and selecting
+ * its first row while the Send list was the thing on screen.
  *
- * The hook mirrors `chat.tsx`'s existing `filters` memo — same
- * fields, same defaults, same debounced-search treatment. Keep them
- * in lock-step: any new filter axis added here must also land on
- * chat.tsx (until Phase 5d unifies them by deleting the atom-based
- * mirror in chat.tsx).
+ * The rows themselves, and the selection over them, live in
+ * `use-current-list` — which depends on this. Nothing here may depend
+ * back on it.
  */
-
-import type { ThreadMessage } from '@/lib/types'
 
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useFlatConversations } from '@/hooks/use-flat-conversations'
-import { useThreadQuery } from '@/hooks/use-mail-queries'
+import { MAIL_LISTS, threadAxesOf } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
 import {
+  activeListAtom,
   categoryFilterAtom,
-  folderAtom,
   importanceSectionAtom,
-  quickFilterAtom,
   searchQueryAtom,
   selectedDomainsAtom,
-  selectedThreadIdAtom,
-  showArchivedAtom,
 } from '@/store/ui'
 
-/**
- * Stable empty-array reference so `?? []` doesn't manufacture a fresh
- * array reference on every render (which would defeat React.memo on
- * downstream children).
- */
-const EMPTY_MESSAGES: readonly ThreadMessage[] = []
-
-/** Same 200 ms search debounce as chat.tsx. */
+/** Same 200 ms search debounce as the list's input. */
 const SEARCH_DEBOUNCE_MS = 200
 
-export function useCurrentMailFilters(): MailListFilters {
-  const folder = useAtomValue(folderAtom)
+export function useCurrentMailFilters(): MailListFilters | null {
+  const list = useAtomValue(activeListAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const quickFilter = useAtomValue(quickFilterAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
-  const showArchived = useAtomValue(showArchivedAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
   const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS)
 
-  return useMemo<MailListFilters>(
-    () => ({
-      archived: showArchived,
+  return useMemo<MailListFilters | null>(() => {
+    const axes = threadAxesOf(list)
+    if (!axes) return null
+    // The list fixes its axes; category, section, search and domains are
+    // refinements stacked on top of whichever list is showing.
+    return {
+      ...axes,
       category: categoryFilter,
       domains: selectedDomains.length > 0 ? selectedDomains : undefined,
-      folder,
       query: debouncedSearch || undefined,
       section: importanceSection,
-      starred: quickFilter === 'starred',
-      unread: quickFilter === 'unread',
-    }),
-    [
-      showArchived,
-      categoryFilter,
-      selectedDomains,
-      folder,
-      debouncedSearch,
-      importanceSection,
-      quickFilter,
-    ]
-  )
+    }
+  }, [list, categoryFilter, selectedDomains, debouncedSearch, importanceSection])
 }
 
 /**
- * The messages of the currently-selected thread, as the mail list
- * defines "current." Wraps `useThreadQuery` with the same
- * selectedThreadId + selectedDomains atoms every reader would
- * otherwise pluck separately.
+ * Unread across the mailbox, not across the list on screen.
  *
- * v2.1 phase-5d finale: replaces `useAtomValue(threadMessagesAtom)`
- * for read-only callers (`reply-box`, `mobile-mail` views). RQ dedupes
- * the underlying query, so N components subscribing here still results
- * in one fetch, one cache line, one identity-stable value.
- */
-export function useCurrentThreadMessages() {
-  const selectedThreadId = useAtomValue(selectedThreadIdAtom)
-  const selectedDomains = useAtomValue(selectedDomainsAtom)
-  const { data } = useThreadQuery(selectedThreadId, selectedDomains)
-  return data ?? EMPTY_MESSAGES
-}
-
-/**
- * Sum unread_count over the currently-visible conversation list.
- *
- * v2.1 phase-5d — this replaces the derived `unreadCountAtom`, which
- * summed over the atom-shadowed conversation list. Same semantic:
- * whatever filter the mail list is currently showing is what this
- * badge reflects. The AppSidebar / mobile-shell / document-title
- * effect all subscribe to it.
+ * The badge renders in the app sidebar and the mobile shell, which are
+ * up outside the mail screen entirely — so "whatever list is showing"
+ * was not a question those had an answer to. It reads the Unread list's
+ * own axes, which is the set that tab lists and the set the server's
+ * `count_flag_non_junk` counts.
  */
 export function useCurrentUnreadCount(): number {
-  const filters = useCurrentMailFilters()
+  const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const filters = useMemo<MailListFilters>(() => {
+    const source = MAIL_LISTS.unread.source
+    return {
+      ...(source.kind === 'threads' ? source.filters : {}),
+      domains: selectedDomains.length > 0 ? selectedDomains : undefined,
+    }
+  }, [selectedDomains])
   const { conversations } = useFlatConversations(filters)
   return useMemo(() => conversations.reduce((sum, c) => sum + c.unread_count, 0), [conversations])
 }

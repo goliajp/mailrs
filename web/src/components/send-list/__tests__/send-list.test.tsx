@@ -1,6 +1,7 @@
 import type { WireSentMessage } from '@/wire/schemas/mail'
 import type { WireSend } from '@/wire/schemas/sends'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -26,6 +27,14 @@ vi.mock('@/components/conversation-list-filter-bar', () => ({
 
 import { SendList } from '../send-list'
 
+// `useCurrentListRows` calls every source hook so the hook order stays
+// fixed as the list changes (only one of them is enabled), so a
+// QueryClient has to be in scope even though this file mocks the send
+// queries it cares about.
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { gcTime: 0, retry: false } },
+})
+
 function msg(over: Partial<WireSentMessage> & { message_id: string }): WireSentMessage {
   return {
     internal_date: 1785369273,
@@ -40,9 +49,11 @@ function msg(over: Partial<WireSentMessage> & { message_id: string }): WireSentM
 
 function renderList() {
   return render(
-    <Provider store={createStore()}>
-      <SendList />
-    </Provider>
+    <QueryClientProvider client={testQueryClient}>
+      <Provider store={createStore()}>
+        <SendList />
+      </Provider>
+    </QueryClientProvider>
   )
 }
 
@@ -91,9 +102,11 @@ describe('SendList row identity', () => {
       msg({ message_id: 'a@golia.jp', subject: 'send test 1' }),
     ]
     rerender(
-      <Provider store={createStore()}>
-        <SendList />
-      </Provider>
+      <QueryClientProvider client={testQueryClient}>
+        <Provider store={createStore()}>
+          <SendList />
+        </Provider>
+      </QueryClientProvider>
     )
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
 
@@ -102,9 +115,11 @@ describe('SendList row identity', () => {
       msg({ message_id: 'a@golia.jp', subject: 'send test 1', uid: 30744 }),
     ]
     rerender(
-      <Provider store={createStore()}>
-        <SendList />
-      </Provider>
+      <QueryClientProvider client={testQueryClient}>
+        <Provider store={createStore()}>
+          <SendList />
+        </Provider>
+      </QueryClientProvider>
     )
     expect(screen.getAllByRole('listitem'), 'two sends must never render three rows').toHaveLength(
       2

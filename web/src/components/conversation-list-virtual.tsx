@@ -2,11 +2,14 @@ import type { SingleAction } from '@/components/conversation-actions'
 import type { ConversationSummary } from '@/lib/types'
 
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useAtomValue } from 'jotai'
 import { Mail } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { ConversationItem } from '@/components/conversation-item'
 import { SwipeableRow } from '@/components/swipeable-row'
+import { MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import { activeListAtom } from '@/store/ui'
 
 export type VirtualListItem =
   | { anchor: string; label: string; type: 'divider' }
@@ -18,14 +21,6 @@ export type VirtualListItem =
   | { type: 'end' }
   | { type: 'sentinel' }
 
-// Scroll position, per list.
-//
-// Survives the component unmounting on a mobile view switch (module scope)
-// and a full page refresh (sessionStorage). Keyed by which list is showing,
-// because it used to be one variable and one fixed key for all of them:
-// scrolling the Inbox and then opening Sent left Sent at the Inbox's offset,
-// showing the middle of a list the user had never scrolled.
-
 export function DateDivider({ label }: { label: string }) {
   return (
     <div className="sticky top-0 z-10 flex justify-center py-1.5 select-none">
@@ -36,14 +31,13 @@ export function DateDivider({ label }: { label: string }) {
   )
 }
 
-// row outer class — pulled out so the JSX above stops being a 9-line
-// ternary salad; the four input bools map to the same 5-token output every
-// render, so a pure function is the clean place for it.
-// compact two-line rows (2026-07-17): h-16, no snippet line, matching
-// the Sent view's density. Height MUST stay in sync with the
-// virtualizer's estimateSize (fixed-size mode — see the note there), which
-// is why the base lives in `lib/list-row-class.ts` alongside the states —
-// the Send view has the same row and had drifted from it.
+// Scroll position, per list.
+//
+// Survives the component unmounting on a mobile view switch (module scope)
+// and a full page refresh (sessionStorage). Keyed by which list is showing,
+// because it used to be one variable and one fixed key for all of them:
+// scrolling the Inbox and then opening Sent left Sent at the Inbox's offset,
+// showing the middle of a list the user had never scrolled.
 
 export function VirtualConversationList({
   batchMode,
@@ -64,7 +58,6 @@ export function VirtualConversationList({
   scrollContainerRef,
   selectedId,
   selectedThreadIds,
-  showArchived,
 }: {
   batchMode: boolean
   conversations: ConversationSummary[]
@@ -84,8 +77,8 @@ export function VirtualConversationList({
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
   selectedId: null | string
   selectedThreadIds: Set<string>
-  showArchived: boolean
 }) {
+  const activeList = useAtomValue(activeListAtom)
   // build flat list of items. Search results are relevance-ordered, not
   // date-monotonic — date group pills would repeat and read as noise, so
   // skip them entirely while searching.
@@ -214,21 +207,7 @@ export function VirtualConversationList({
       >
         <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
           <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
-          <p className="text-sm font-medium">
-            {isSearching
-              ? 'No results found'
-              : folder === 'Sent'
-                ? 'No sent messages'
-                : folder === 'Drafts'
-                  ? 'No drafts'
-                  : folder === 'Trash'
-                    ? 'Trash is empty'
-                    : folder === 'Junk'
-                      ? 'No junk mail'
-                      : showArchived
-                        ? 'No archived conversations'
-                        : 'All caught up!'}
-          </p>
+          <p className="text-sm font-medium">{emptyLabel(isSearching, activeList)}</p>
           <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
         </div>
       </div>
@@ -330,4 +309,27 @@ export function VirtualConversationList({
       </div>
     </div>
   )
+}
+
+// row outer class — pulled out so the JSX above stops being a 9-line
+// ternary salad; the four input bools map to the same 5-token output every
+// render, so a pure function is the clean place for it.
+// compact two-line rows (2026-07-17): h-16, no snippet line, matching
+// the Sent view's density. Height MUST stay in sync with the
+// virtualizer's estimateSize (fixed-size mode — see the note there), which
+// is why the base lives in `lib/list-row-class.ts` alongside the states —
+// the Send view has the same row and had drifted from it.
+
+/**
+ * What an empty list says.
+ *
+ * One lookup on the list, not a chain of comparisons against the filters
+ * it happens to imply — which is the same reverse-engineering the tab
+ * resolver used to do, and it had already drifted: it answered "No sent
+ * messages" for a folder the Send tab no longer sets, and had no arm at
+ * all for Starred or N & P, so both said "All caught up!".
+ */
+function emptyLabel(isSearching: boolean, list: MailListId): string {
+  if (isSearching) return 'No results found'
+  return MAIL_LISTS[list].emptyLabel
 }

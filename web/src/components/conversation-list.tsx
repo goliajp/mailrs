@@ -11,8 +11,8 @@ import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { VirtualConversationList } from '@/components/conversation-list-virtual'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
+import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
-import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
 import { persistScroll, readSavedScroll } from '@/lib/list-scroll'
@@ -24,38 +24,33 @@ import {
   composeReplySourceAtom,
   composingNewAtom,
   folderAtom,
-  importanceSectionAtom,
+  pickInListAtom,
   quickFilterAtom,
   searchQueryAtom,
-  selectedThreadIdAtom,
   selectedThreadIdsAtom,
-  showArchivedAtom,
   sortOrderAtom,
   stickyUnreadIdsAtom,
-  visibleConversationIdsAtom,
 } from '@/store/ui'
 import { wireBatchMutation, wireMarkAllRead } from '@/wire/endpoints/mutations'
 
-export function ConversationList({
-  onLoadMore,
-  onRefresh,
-  onSelectConversation,
-}: {
-  onLoadMore: () => void
-  onRefresh?: () => Promise<void> | void
-  onSelectConversation?: () => void
-}) {
+export function ConversationList({ onSelectConversation }: { onSelectConversation?: () => void }) {
   const auth = useAtomValue(authAtom)
   const myEmail = auth?.address ?? ''
-  // v2.1 phase-5b/c: reader migrated off `conversationsAtom` — the
-  // component reads the same conversations directly from the
-  // `conversationKeys.infinite(...)` cache line the mail-list query
-  // owns. The mark-all-read writer (see line ~720) patches the RQ
-  // cache via `patchAllInfiniteLists`; every screen subscribing to
-  // that cache re-renders together on the next paint.
+  // The rows and the current one both come from `use-current-list`, so
+  // the reading pane beside this list is looking at the same list. The
+  // narrowing that used to be a `useMemo` here is `narrowConversations`,
+  // out where both can call it.
   const filters = useCurrentMailFilters()
-  const { conversations, hasMore, initialLoading, loadingMore } = useFlatConversations(filters)
-  const [selectedId, setSelectedId] = useAtom(selectedThreadIdAtom)
+  const {
+    hasMore,
+    initialLoading,
+    loadingMore,
+    loadMore,
+    refresh,
+    rows: sortedConversations,
+  } = useConversationRows()
+  const selectedId = useCurrentSelection()?.threadId ?? null
+  const pickRow = useSetAtom(pickInListAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
@@ -66,8 +61,8 @@ export function ConversationList({
   const [batchLoading, setBatchLoading] = useState(false)
 
   // refs to avoid stale closures in observer callback
-  const onLoadMoreRef = useRef(onLoadMore)
-  onLoadMoreRef.current = onLoadMore
+  const onLoadMoreRef = useRef(loadMore)
+  onLoadMoreRef.current = loadMore
   const loadingRef = useRef(loadingMore)
   loadingRef.current = loadingMore
 
@@ -75,7 +70,7 @@ export function ConversationList({
   const observerRef = useRef<IntersectionObserver | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Which list is showing. Scroll and selection both reset off this.
+  // Which list is showing. The saved scroll position is per-list.
   const identity = useMemo(() => listIdentity(filters), [filters])
   const identityRef = useRef(identity)
 
@@ -99,16 +94,13 @@ export function ConversationList({
     }
   }, [])
 
-  // Switching lists starts at the top with the first message selected.
+  // Switching lists starts at the top.
   //
-  // The component does not remount when the folder changes, so without this
+  // The component does not remount when the list changes, so without this
   // the container keeps the offset it had: scrolling the Inbox and then
-  // opening Sent showed the middle of Sent. The selection carried over the
-  // same way — a thread from the Inbox stayed open above the Sent list.
-  //
-  // `setSelectedId` and not the click handler: the handler also switches the
-  // mobile view to the thread, which would drag a phone user into a message
-  // they did not open.
+  // opening Sent showed the middle of Sent. Scrolling is an action, which
+  // is why it is still an effect — the selection is not, and the two used
+  // to be done together here.
   const scrollRestoredRef = useRef(false)
   useEffect(() => {
     if (identityRef.current === identity) return
@@ -117,24 +109,14 @@ export function ConversationList({
     const el = scrollContainerRef.current
     if (el) el.scrollTop = 0
     persistScroll(identity, 0)
-    setSelectedId(null)
-  }, [identity, setSelectedId])
-
-  // With the list changed and the selection cleared, take the first row of
-  // whatever arrived. Separate from the reset above because the rows are
-  // not there yet when the identity changes.
-  useEffect(() => {
-    if (selectedId !== null) return
-    const first = conversations[0]
-    if (first) setSelectedId(first.thread_id)
-  }, [conversations, selectedId, setSelectedId])
+  }, [identity])
 
   // scroll restore: wait until conversations actually populate before
   // applying the saved scrollTop — otherwise the scroll container has
   // no content height yet and the assignment clamps to 0.
   useEffect(() => {
     if (scrollRestoredRef.current) return
-    if (conversations.length === 0) return
+    if (sortedConversations.length === 0) return
     const el = scrollContainerRef.current
     if (!el) return
     const saved = readSavedScroll(identity)
@@ -148,7 +130,7 @@ export function ConversationList({
       if (node) node.scrollTop = saved
       scrollRestoredRef.current = true
     })
-  }, [conversations.length, identity])
+  }, [sortedConversations.length, identity])
 
   // callback ref: called when sentinel mounts/unmounts
   const sentinelCallback = useCallback((node: HTMLDivElement | null) => {
@@ -233,9 +215,7 @@ export function ConversationList({
 
   const handleContextAction = useConversationActions()
 
-  const [sortOrder, setSortOrder] = useAtom(sortOrderAtom)
-  const showArchived = useAtomValue(showArchivedAtom)
-  const importanceSection = useAtomValue(importanceSectionAtom)
+  const setSortOrder = useSetAtom(sortOrderAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
   const folder = useAtomValue(folderAtom)
   const [stickyUnread, setStickyUnread] = useAtom(stickyUnreadIdsAtom)
@@ -269,69 +249,6 @@ export function ConversationList({
     [setStickyUnread]
   )
 
-  // apply client-side filtering + sort
-  const sortedConversations = useMemo(() => {
-    let visible = showArchived ? conversations : conversations.filter((c) => !c.archived)
-
-    // "hide my own latest sends from All" is enforced by the server in
-    // list_conversations when folder != Sent; no client filter needed
-
-    // quick filter
-    if (quickFilter === 'unread') {
-      // Gmail-style: a thread marked-read while the user is sitting on this
-      // filter stays visible until they leave the filter (the row should
-      // never just vanish under the cursor). stickyUnread is cleared by the
-      // useEffect above when quickFilter flips off 'unread'.
-      visible = visible.filter((c) => c.unread_count > 0 || stickyUnread.has(c.thread_id))
-    } else if (quickFilter === 'starred') {
-      visible = visible.filter((c) => c.flagged)
-    }
-    // attachment filter skipped: ConversationSummary does not have has_attachments yet
-
-    // importance section filter
-    if (importanceSection === 'important') {
-      visible = visible.filter(
-        (c) => c.importance_level === 'critical' || c.importance_level === 'important'
-      )
-    } else if (importanceSection === 'other') {
-      visible = visible.filter(
-        (c) => c.importance_level === 'low' || c.importance_level === 'noise'
-      )
-    }
-
-    // `relevance` means "leave the server's order alone". For a plain
-    // list that order is already newest-first, so the two agree; for a
-    // search it is the ranking, and sorting it by date would discard
-    // the ranking. Everything else genuinely sorts — `newest` used to
-    // return early here on the assumption the server had already done
-    // it, which was true of the list and false of search, so the one
-    // option named after a date was the only one that never applied one.
-    if (sortOrder === 'relevance') return visible
-    const pinned = visible.filter((c) => c.pinned)
-    const unpinned = visible.filter((c) => !c.pinned)
-    if (sortOrder === 'newest') {
-      unpinned.sort((a, b) => b.last_date - a.last_date)
-    } else if (sortOrder === 'oldest') {
-      unpinned.sort((a, b) => a.last_date - b.last_date)
-    } else if (sortOrder === 'unread') {
-      unpinned.sort((a, b) => b.unread_count - a.unread_count || b.last_date - a.last_date)
-    }
-    return [...pinned, ...unpinned]
-  }, [conversations, sortOrder, showArchived, importanceSection, quickFilter, stickyUnread])
-
-  // sync visible conversation ids to store for keyboard nav. Compare order
-  // before writing to avoid replacing the atom (and re-rendering every
-  // subscriber, e.g. ThreadView) when the list shape is unchanged but the
-  // array reference flipped from a WebSocket-driven refetch.
-  const setVisibleIds = useSetAtom(visibleConversationIdsAtom)
-  useEffect(() => {
-    setVisibleIds((prev) => {
-      const next = sortedConversations.map((c) => c.thread_id)
-      if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev
-      return next
-    })
-  }, [sortedConversations, setVisibleIds])
-
   // stable callbacks that accept threadId to avoid inline closures in the map
   const handleSelect = useCallback(
     (threadId: string) => {
@@ -340,11 +257,11 @@ export function ConversationList({
       if (scrollContainerRef.current) {
         persistScroll(identityRef.current, scrollContainerRef.current.scrollTop)
       }
-      setSelectedId(threadId)
+      pickRow({ threadId, uid: null })
       setComposingNew(false)
       onSelectConversation?.()
     },
-    [setSelectedId, setComposingNew, onSelectConversation]
+    [pickRow, setComposingNew, onSelectConversation]
   )
 
   const isSearching = searchQuery.trim().length > 0
@@ -398,7 +315,7 @@ export function ConversationList({
           </button>
         )}
 
-        {conversations.some((c) => c.unread_count > 0) && (
+        {sortedConversations.some((c) => c.unread_count > 0) && (
           <button
             aria-label="Mark all as read"
             className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
@@ -426,7 +343,6 @@ export function ConversationList({
           onClick={() => {
             setComposeReplySource(null)
             setComposingNew(true)
-            setSelectedId(null)
           }}
           title="New conversation"
         >
@@ -449,13 +365,12 @@ export function ConversationList({
         myEmail={myEmail}
         onContextAction={handleContextAction}
         onLoadMore={sentinelCallback}
-        onRefresh={onRefresh}
+        onRefresh={refresh}
         onSelect={handleSelect}
         onToggleCheck={toggleThreadCheck}
         scrollContainerRef={scrollContainerRef}
         selectedId={selectedId}
         selectedThreadIds={selectedThreadIds}
-        showArchived={showArchived}
       />
 
       {/* floating batch action bar */}

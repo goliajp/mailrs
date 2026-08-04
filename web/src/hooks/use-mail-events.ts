@@ -3,12 +3,13 @@ import type { ConversationSummary, NewMessageEvent, SmtpEvent } from '@/lib/type
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef } from 'react'
 
+import { useSelectedThreadId } from '@/hooks/use-current-list'
 import { playNotificationSound } from '@/lib/notification-sound'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { onNewMessage } from '@/reducers/events/conversation'
 import { notificationsAtom, notificationSoundAtom } from '@/store/settings'
-import { connectionStatusAtom, selectedThreadIdAtom } from '@/store/ui'
+import { connectionStatusAtom } from '@/store/ui'
 
 // shallow equality over the conversation fields ConversationItem actually
 // renders. Used to preserve object identity across refetches so memo'd
@@ -43,7 +44,7 @@ const RECONNECT_MAX = 30_000
 
 export function useMailEvents(user: string) {
   const setConnectionStatus = useSetAtom(connectionStatusAtom)
-  const selectedThreadId = useAtomValue(selectedThreadIdAtom)
+  const selectedThreadId = useSelectedThreadId()
   const selectedRef = useRef(selectedThreadId)
   selectedRef.current = selectedThreadId
   const notificationsEnabled = useAtomValue(notificationsAtom)

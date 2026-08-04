@@ -12,6 +12,12 @@ use crate::keys;
 use crate::thread_row::ThreadRow;
 
 use super::{FlagKey, ListThreadsFilter};
+use crate::table_query::ArchiveScope;
+
+/// Every function here serves a list the user navigated to, and
+/// Archived is not one of them — it has a flag on, so it leaves the
+/// dispatcher through the flag branch and never arrives here.
+const LIVE: ArchiveScope = ArchiveScope::Live;
 
 impl KevyMailboxStore {
     /// The default axis, off the pure-recency ORDERPATH.
@@ -22,18 +28,20 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let total = self.count_thread_ids_by_activity_via_table(user)?;
+        let total = self.count_thread_ids_by_activity_via_table(user, LIVE)?;
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
         let tids = match filter.before_ts {
-            Some(ts) => self.list_thread_ids_by_activity_via_table(user, limit, Some(ts - 1))?,
+            Some(ts) => {
+                self.list_thread_ids_by_activity_via_table(user, LIVE, limit, Some(ts - 1))?
+            }
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
                 }
                 let mut page =
-                    self.list_thread_ids_by_activity_via_table(user, offset + limit, None)?;
+                    self.list_thread_ids_by_activity_via_table(user, LIVE, offset + limit, None)?;
                 page.drain(..offset.min(page.len()));
                 page
             }
@@ -65,9 +73,9 @@ impl KevyMailboxStore {
         let mut total = 0usize;
         for b in buckets {
             total += if *b == "inbox" {
-                self.count_thread_ids_by_bucket_unsent_via_table(user, b)?
+                self.count_thread_ids_by_bucket_unsent_via_table(user, b, LIVE)?
             } else {
-                self.count_thread_ids_by_bucket_via_table(user, b)?
+                self.count_thread_ids_by_bucket_via_table(user, b, LIVE)?
             };
         }
         if limit == 0 {
@@ -80,16 +88,21 @@ impl KevyMailboxStore {
                 ("inbox", Some(ts)) => self.list_thread_ids_by_bucket_unsent_before_via_table(
                     user,
                     bucket,
+                    LIVE,
                     ts - 1,
                     want,
                 )?,
                 ("inbox", None) => {
-                    self.list_thread_ids_by_bucket_unsent_via_table(user, bucket, want)?
+                    self.list_thread_ids_by_bucket_unsent_via_table(user, bucket, LIVE, want)?
                 }
-                (_, Some(ts)) => {
-                    self.list_thread_ids_by_bucket_before_via_table(user, bucket, ts - 1, want)?
-                }
-                (_, None) => self.list_thread_ids_by_bucket_via_table(user, bucket, want)?,
+                (_, Some(ts)) => self.list_thread_ids_by_bucket_before_via_table(
+                    user,
+                    bucket,
+                    LIVE,
+                    ts - 1,
+                    want,
+                )?,
+                (_, None) => self.list_thread_ids_by_bucket_via_table(user, bucket, LIVE, want)?,
             };
             let (rows, _) = self.hydrate_page(user, &tids, 0)?;
             merged.extend(rows);
@@ -229,20 +242,20 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let total = self.count_thread_ids_by_category_via_table(user, cat)?;
+        let total = self.count_thread_ids_by_category_via_table(user, cat, LIVE)?;
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
         let tids = match filter.before_ts {
             Some(ts) => {
-                self.list_thread_ids_by_category_before_via_table(user, cat, ts - 1, limit)?
+                self.list_thread_ids_by_category_before_via_table(user, cat, LIVE, ts - 1, limit)?
             }
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
                 }
                 let mut page =
-                    self.list_thread_ids_by_category_via_table(user, cat, offset + limit)?;
+                    self.list_thread_ids_by_category_via_table(user, cat, LIVE, offset + limit)?;
                 page.drain(..offset.min(page.len()));
                 page
             }
@@ -269,29 +282,38 @@ impl KevyMailboxStore {
         // post-filter, so the count stays an index count.
         let unsent_only = bucket == "inbox";
         let total = if unsent_only {
-            self.count_thread_ids_by_bucket_unsent_via_table(user, bucket)?
+            self.count_thread_ids_by_bucket_unsent_via_table(user, bucket, LIVE)?
         } else {
-            self.count_thread_ids_by_bucket_via_table(user, bucket)?
+            self.count_thread_ids_by_bucket_via_table(user, bucket, LIVE)?
         };
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
 
         let tids = match filter.before_ts {
-            Some(ts) if unsent_only => {
-                self.list_thread_ids_by_bucket_unsent_before_via_table(user, bucket, ts - 1, limit)?
-            }
+            Some(ts) if unsent_only => self.list_thread_ids_by_bucket_unsent_before_via_table(
+                user,
+                bucket,
+                LIVE,
+                ts - 1,
+                limit,
+            )?,
             Some(ts) => {
-                self.list_thread_ids_by_bucket_before_via_table(user, bucket, ts - 1, limit)?
+                self.list_thread_ids_by_bucket_before_via_table(user, bucket, LIVE, ts - 1, limit)?
             }
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
                 }
                 let mut page = if unsent_only {
-                    self.list_thread_ids_by_bucket_unsent_via_table(user, bucket, offset + limit)?
+                    self.list_thread_ids_by_bucket_unsent_via_table(
+                        user,
+                        bucket,
+                        LIVE,
+                        offset + limit,
+                    )?
                 } else {
-                    self.list_thread_ids_by_bucket_via_table(user, bucket, offset + limit)?
+                    self.list_thread_ids_by_bucket_via_table(user, bucket, LIVE, offset + limit)?
                 };
                 page.drain(..offset.min(page.len()));
                 page

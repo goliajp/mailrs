@@ -55,7 +55,12 @@ mod orderpath_read_tests {
             .unwrap();
 
         let got = st
-            .list_thread_ids_by_bucket_via_table("alice@x.com", "inbox", 50)
+            .list_thread_ids_by_bucket_via_table(
+                "alice@x.com",
+                "inbox",
+                crate::ArchiveScope::Live,
+                50,
+            )
             .unwrap();
         assert_eq!(got, vec!["newest", "middle", "old"]);
     }
@@ -77,7 +82,12 @@ mod orderpath_read_tests {
             .unwrap();
 
         let got = st
-            .list_thread_ids_by_bucket_via_table("alice@x.com", "inbox", 50)
+            .list_thread_ids_by_bucket_via_table(
+                "alice@x.com",
+                "inbox",
+                crate::ArchiveScope::Live,
+                50,
+            )
             .unwrap();
         assert_eq!(got, vec![long_tid, "short".to_string()]);
     }
