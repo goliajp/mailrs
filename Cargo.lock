@@ -2887,7 +2887,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-arc"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "async-trait",
  "base64",
@@ -3048,7 +3048,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dkim"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "async-trait",
  "aws-lc-rs",
@@ -3069,7 +3069,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dmarc"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -3091,7 +3091,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dns"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-ical"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3212,7 +3212,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-inbound"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
@@ -3223,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-intelligence"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
@@ -3269,7 +3269,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mailbox"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3325,7 +3325,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mime"
-version = "2.0.1"
+version = "2.0.2"
 dependencies = [
  "base64",
  "compact_str",
@@ -3372,7 +3372,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-outbound-queue"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3414,7 +3414,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-postmaster"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3667,7 +3667,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-sieve"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "criterion 0.8.2",
  "mailrs-sieve-core",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-sieve-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "criterion 0.8.2",
  "mailrs-rfc5322",
@@ -3720,7 +3720,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-spf"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "compact_str",

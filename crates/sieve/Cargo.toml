@@ -1,6 +1,6 @@
 [package]
 name = "mailrs-sieve"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2024"
 description = "Clean delivery-action wrapper over the native `mailrs-sieve-core` RFC 5228 Sieve engine (Apache-2.0 OR MIT, no AGPL). Flattens the engine's structured action stream into one `SieveAction { Keep, FileInto, Discard, Redirect, Reject, Vacation }` enum the caller pattern-matches in its delivery loop, with imap4flags carry-through and caller-owned vacation (engine emits parsed parameters; the caller builds + dedups the reply)."
 license = "Apache-2.0 OR MIT"
@@ -16,7 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-mailrs-sieve-core = { path = "../sieve-core", version = "0.2" }
+mailrs-sieve-core = { path = "../sieve-core", version = "0.3" }
 
 [[bench]]
 name = "sieve"
