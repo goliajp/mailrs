@@ -31,7 +31,7 @@ spg = [
 core-rpc = ["dep:mailrs-core-api", "dep:mailrs-core-sidestate"]
 
 [dependencies]
-mailrs-smtp-proto = "1"
+mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
 mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
 mailrs-delivery-executor = { path = "../delivery-executor", version = "1.2" }
 mailrs-message-store = { path = "../message-store" }
@@ -56,13 +56,13 @@ axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 dashmap = "6"
 mailrs-smtp-client = { path = "../smtp-client", version = "2" }
-mailrs-smtp-codec = "1"
-mailrs-imap-codec = "1"
-mailrs-imap-format = "1"
-mailrs-attachment-extract = "1"
+mailrs-smtp-codec = { path = "../smtp-codec", version = "1" }
+mailrs-imap-codec = { path = "../imap-codec", version = "1" }
+mailrs-imap-format = { path = "../imap-format", version = "1" }
+mailrs-attachment-extract = { path = "../attachment-extract", version = "1" }
 mailrs-sieve = { path = "../sieve", version = "2" }
 mailrs-outbound-queue = { path = "../outbound-queue", version = "4" }
-mailrs-imap-proto = "1"
+mailrs-imap-proto = { path = "../imap-proto", version = "1" }
 mailrs-ical = { path = "../ical", version = "2" }
 mailrs-intelligence = { path = "../intelligence", version = "3" }
 mailrs-mailbox = { path = "../mailbox", version = "1" }
@@ -71,33 +71,33 @@ mailrs-alias-store-net = { path = "../alias-store-net" }
 # Optional — pulled in by the `core-rpc` feature only.
 mailrs-core-api = { path = "../core-api", optional = true, features = ["server"] }
 mailrs-core-sidestate = { path = "../core-sidestate", optional = true }
-mailrs-jmap = "1"
-mailrs-dav = "1"
+mailrs-jmap = { path = "../jmap", version = "1" }
+mailrs-dav = { path = "../dav", version = "1" }
 async-trait = "0.1"
 mailrs-postmaster = { path = "../postmaster", version = "1" }
 mailrs-shield = { path = "../shield", version = "3" }
-mailrs-clean = "1"
+mailrs-clean = { path = "../clean", version = "1" }
 mailrs-dmarc = { path = "../dmarc", version = "2" }
 mailrs-inbound = { path = "../inbound", version = "1" }
-mailrs-rate-limit = "1"
+mailrs-rate-limit = { path = "../rate-limit", version = "1" }
 # Path, not the published version: `addr_key` (the one address comparison
 # for the whole tree) is newer than what is on crates.io.
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
-mailrs-rfc2047 = "1"
-mailrs-mail-builder = "1"
+mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
+mailrs-mail-builder = { path = "../mail-builder", version = "1" }
 mailrs-auth-guard = { path = "../auth-guard", version = "2" }
-mailrs-srs = "1"
+mailrs-srs = { path = "../srs", version = "1" }
 mailrs-rfc2231 = { path = "../rfc2231", version = "1" }
-mailrs-webhook-signature = "1"
-mailrs-clamav = "1"
-mailrs-backoff = "1"
-mailrs-tls-reload = "1"
-mailrs-acme = "1"
+mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
+mailrs-clamav = { path = "../clamav", version = "1" }
+mailrs-backoff = { path = "../backoff", version = "1" }
+mailrs-tls-reload = { path = "../tls-reload", version = "1" }
+mailrs-acme = { path = "../acme", version = "1" }
 mailrs-spf = { path = "../spf", version = "2" }
 mailrs-dkim = { path = "../dkim", version = "3" }
 mailrs-arc = { path = "../arc", version = "3" }
-mailrs-arf = "1"
-mailrs-tls-rpt = "1.2"
+mailrs-arf = { path = "../arf", version = "1" }
+mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }

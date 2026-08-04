@@ -176,6 +176,40 @@ pub(super) fn message_matches_criteria(
                 }
                 Err(_) => false,
             },
+            // The six below arrived when this lane stopped compiling
+            // against the *published* mailrs-imap-proto — which has
+            // fewer `SearchKey` variants than the one in this repo — and
+            // started compiling against the crate next door. The
+            // fastcore lane has answered all six since it has always
+            // used the path copy; these mirror it as closely as
+            // `MessageMeta` allows.
+            SearchKey::Header(name, pattern) => {
+                // Metadata carries three headers and no others. Saying
+                // "no match" for the rest is the honest answer: this
+                // store cannot see them without reading the message,
+                // and claiming a match it did not check is worse than
+                // admitting the miss.
+                let value = match name.to_ascii_lowercase().as_str() {
+                    "from" => Some(&msg.sender),
+                    "to" => Some(&msg.recipients),
+                    "subject" => Some(&msg.subject),
+                    _ => None,
+                };
+                match value {
+                    // `HEADER <field> ""` asks whether the field exists.
+                    Some(v) if pattern.is_empty() => !v.is_empty(),
+                    Some(v) => v.to_ascii_lowercase().contains(pattern),
+                    None => false,
+                }
+            }
+            SearchKey::Larger(n) => u64::from(msg.size) > u64::from(*n),
+            SearchKey::Smaller(n) => u64::from(msg.size) < u64::from(*n),
+            SearchKey::Or(a, b) => {
+                message_matches_criteria(msg, std::slice::from_ref(a.as_ref()))
+                    || message_matches_criteria(msg, std::slice::from_ref(b.as_ref()))
+            }
+            SearchKey::Not(k) => !message_matches_criteria(msg, std::slice::from_ref(k.as_ref())),
+            SearchKey::And(ks) => message_matches_criteria(msg, ks),
         };
         if !matches {
             return false;

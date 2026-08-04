@@ -61,6 +61,12 @@ if [ "${SKIP_GATE:-0}" != 1 ]; then
     ./scripts/check-mcp-parity.sh
     ./scripts/check-rest-parity.sh
 
+    # A crate in this repo depended on by version alone resolves to the
+    # published copy, so both end up in the binary and edits to the local
+    # one do nothing. 23 crates were duplicated that way until
+    # 2026-08-03, two at different versions. Costs nothing to check.
+    ./scripts/check-workspace-deps.sh
+
     # The 500-line limit, as a ratchet: a new file over it fails, and a
     # file already on the baseline may only shrink. 51 files were over it
     # with no gate at all, because the copy of `file-size.md` this repo

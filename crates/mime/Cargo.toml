@@ -16,8 +16,8 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-mailrs-rfc5322 = "1"
-mailrs-rfc2047 = "1"
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-rfc2231 = { path = "../rfc2231", version = "1" }
 base64 = "0.22"
 encoding_rs = "0.8"
