@@ -2,7 +2,7 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import type { Draft } from '@/lib/api'
 
 import { toast } from '@goliapkg/gds'
-import { useAtom, useSetAtom } from 'jotai'
+import { useSetAtom } from 'jotai'
 import { Trash2 } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
@@ -14,12 +14,7 @@ import { useDraftRows } from '@/hooks/use-current-list'
 import { useDeleteDraftMutation } from '@/hooks/use-drafts'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowStateClass } from '@/lib/list-row-class'
-import {
-  composeDraftSourceAtom,
-  composeReplySourceAtom,
-  composingNewAtom,
-  searchQueryAtom,
-} from '@/store/ui'
+import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
 // grouping the inbox list uses (drafts group on updated_at).
@@ -40,7 +35,6 @@ export function DraftsList() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
-  const [query, setQuery] = useAtom(searchQueryAtom)
 
   const openDraft = (d: Draft) => {
     setReplySource(null)
@@ -101,12 +95,7 @@ export function DraftsList() {
 
   return (
     <div className="flex h-full flex-col">
-      <ListSearchInput
-        label="Search drafts"
-        onChange={setQuery}
-        placeholder="Search drafts…"
-        value={query}
-      />
+      <ListSearchInput label="Search drafts" placeholder="Search drafts…" />
       <FilterBar />
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
     </div>

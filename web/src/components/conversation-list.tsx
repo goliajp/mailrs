@@ -4,12 +4,13 @@ import type { BatchAction } from '@/components/conversation-actions'
 
 import { toast } from '@goliapkg/gds'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { CheckCircle, MailCheck, Search, SquarePen, X } from 'lucide-react'
+import { CheckCircle, MailCheck, SquarePen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { VirtualConversationList } from '@/components/conversation-list-virtual'
+import { ListSearchInput } from '@/components/list-search-input'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
 import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
@@ -53,7 +54,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const pickRow = useSetAtom(pickInListAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const setComposeReplySource = useSetAtom(composeReplySourceAtom)
-  const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
+  const searchQuery = useAtomValue(searchQueryAtom)
 
   // batch mode state
   const [batchMode, setBatchMode] = useAtom(batchModeAtom)
@@ -269,31 +270,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
   return (
     <div className="relative flex h-full flex-col select-none">
-      <div className="border-border flex items-center gap-2 border-b px-3 py-2">
-        <div className="relative flex-1" role="search">
-          <Search
-            aria-hidden="true"
-            className="text-fg-muted absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2"
-          />
-          <input
-            aria-label="Search conversations"
-            className="border-border bg-bg-secondary text-fg placeholder:text-fg-muted focus:border-accent focus:bg-bg w-full rounded-md border py-2 pr-8 pl-9 text-sm transition-colors outline-none"
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search..."
-            type="text"
-            value={searchQuery}
-          />
-          {isSearching && (
-            <button
-              aria-label="Clear search"
-              className="text-fg-muted hover:text-fg-secondary absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5"
-              onClick={() => setSearchQuery('')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
+      <ListSearchInput label="Search conversations">
         {/* batch select toggle — hidden during search */}
         {!isSearching && (
           <button
@@ -348,7 +325,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         >
           <SquarePen aria-hidden="true" className="h-5 w-5" />
         </button>
-      </div>
+      </ListSearchInput>
 
       <FilterBar />
 

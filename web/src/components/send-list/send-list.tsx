@@ -18,7 +18,6 @@ import {
   composingNewAtom,
   mobileViewAtom,
   pickInListAtom,
-  searchQueryAtom,
   sendStatusFilterAtom,
 } from '@/store/ui'
 import { wireGetRedraft } from '@/wire/endpoints/sends'
@@ -49,7 +48,6 @@ export function SendList() {
   const selectedThreadId = useCurrentSelection()?.threadId ?? null
   const pickRow = useSetAtom(pickInListAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
-  const [query, setQuery] = useAtom(searchQueryAtom)
   const [status, setStatus] = useAtom(sendStatusFilterAtom)
   const [expanded, setExpanded] = useState<null | string>(null)
   const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
@@ -135,12 +133,7 @@ export function SendList() {
 
   return (
     <div className="flex h-full flex-col">
-      <ListSearchInput
-        label="Search send"
-        onChange={setQuery}
-        placeholder="Search send…"
-        value={query}
-      />
+      <ListSearchInput label="Search send" placeholder="Search send…" />
       <FilterBar />
       <StatusFilter attention={attention} onChange={setStatus} value={status} />
       <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
