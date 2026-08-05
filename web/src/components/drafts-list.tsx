@@ -18,7 +18,7 @@ import {
   composeDraftSourceAtom,
   composeReplySourceAtom,
   composingNewAtom,
-  draftQueryAtom,
+  searchQueryAtom,
 } from '@/store/ui'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
@@ -40,7 +40,7 @@ export function DraftsList() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const setDraftSource = useSetAtom(composeDraftSourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)
-  const [query, setQuery] = useAtom(draftQueryAtom)
+  const [query, setQuery] = useAtom(searchQueryAtom)
 
   const openDraft = (d: Draft) => {
     setReplySource(null)

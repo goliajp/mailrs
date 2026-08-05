@@ -26,18 +26,18 @@ import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useSendsQuery } from '@/hooks/use-sends'
 import { useSentMessagesQuery } from '@/hooks/use-sent-messages'
+import { draftDate, matchesQuery, sortByDate } from '@/lib/list-narrow'
 import { narrowConversations } from '@/lib/list-rows'
 import { resolveSelection } from '@/lib/list-selection'
 import { MAIL_LISTS } from '@/lib/mail-lists'
 import {
   activeListAtom,
-  draftQueryAtom,
   importanceSectionAtom,
   pickedItemAtom,
   pickInListAtom,
   quickFilterAtom,
+  searchQueryAtom,
   selectedDomainsAtom,
-  sendQueryAtom,
   sendStatusFilterAtom,
   sortOrderAtom,
   stickyUnreadIdsAtom,
@@ -80,21 +80,24 @@ export function useConversationRows(): {
  * The rows of whichever list is showing, reduced to what the reading
  * pane needs.
  *
- * Draft is empty on purpose and not for want of rows: a draft opens the
- * composer, so auto-selecting one would pop it open the moment you
- * arrived at the tab.
+ * A list whose registry entry says `selectable: false` has none — Draft
+ * is the one, because a draft row opens the composer and auto-selecting
+ * one would pop it open the moment you arrived at the tab.
  */
 export function useCurrentListRows(): readonly SelectableRow[] {
   const list = useAtomValue(activeListAtom)
   const conversations = useConversationRows()
   const sends = useSendRows()
-  // Called for hook-order stability; its rows are deliberately not
-  // selectable, so nothing here reads them.
+  // Called for hook-order stability; Draft is not selectable, so nothing
+  // here reads its rows.
   useDraftRows()
 
   return useMemo(() => {
+    if (!MAIL_LISTS[list].selectable) return NO_ROWS
     switch (MAIL_LISTS[list].source.kind) {
       case 'drafts':
+        // Unreachable while Draft is the only unselectable list, kept so
+        // the switch stays total if a selectable draft-like list appears.
         return NO_ROWS
       case 'sends':
         return sends.rows.map((r) => ({ threadId: r.threadId, uid: r.uid }))
@@ -123,20 +126,20 @@ export function useCurrentThreadMessages(): readonly ThreadMessage[] {
 /** The Draft rows the list draws, after its search narrowing. */
 export function useDraftRows(): { all: Draft[]; loading: boolean; rows: Draft[] } {
   const enabled = useAtomValue(activeListAtom) === 'draft'
-  const query = useAtomValue(draftQueryAtom)
+  const query = useAtomValue(searchQueryAtom)
+  const sortOrder = useAtomValue(sortOrderAtom)
   const { data, isLoading } = useDraftsQuery(enabled)
   const all = useMemo(() => data ?? [], [data])
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return all
-    return all.filter(
-      (d) =>
-        d.subject.toLowerCase().includes(q) ||
-        d.to.toLowerCase().includes(q) ||
-        d.body.toLowerCase().includes(q)
-    )
-  }, [all, query])
+  const rows = useMemo(
+    () =>
+      sortByDate(
+        all.filter((d) => matchesQuery(query, [d.subject, d.to, d.body])),
+        draftDate,
+        sortOrder
+      ),
+    [all, query, sortOrder]
+  )
 
   return { all, loading: isLoading, rows }
 }
@@ -171,19 +174,21 @@ export function useSelectThreadId(): (id: null | string) => void {
 export function useSendRows(): { all: SendRow[]; loading: boolean; rows: SendRow[] } {
   const enabled = useAtomValue(activeListAtom) === 'send'
   const status = useAtomValue(sendStatusFilterAtom)
-  const query = useAtomValue(sendQueryAtom)
+  const query = useAtomValue(searchQueryAtom)
+  const sortOrder = useAtomValue(sortOrderAtom)
   const { data: messages, isLoading } = useSentMessagesQuery(enabled)
   const { data: sends } = useSendsQuery(null, enabled)
 
   const all = useMemo(() => joinSends(messages ?? [], sends ?? []), [messages, sends])
-  const rows = useMemo(() => {
-    const byStatus = filterByStatus(all, status)
-    const q = query.trim().toLowerCase()
-    if (!q) return byStatus
-    return byStatus.filter(
-      (r) => r.to.toLowerCase().includes(q) || r.subject.toLowerCase().includes(q)
-    )
-  }, [all, status, query])
+  const rows = useMemo(
+    () =>
+      sortByDate(
+        filterByStatus(all, status).filter((r) => matchesQuery(query, [r.to, r.subject])),
+        (r) => r.date,
+        sortOrder
+      ),
+    [all, status, query, sortOrder]
+  )
 
   return { all, loading: isLoading, rows }
 }

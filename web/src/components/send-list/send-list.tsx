@@ -18,7 +18,7 @@ import {
   composingNewAtom,
   mobileViewAtom,
   pickInListAtom,
-  sendQueryAtom,
+  searchQueryAtom,
   sendStatusFilterAtom,
 } from '@/store/ui'
 import { wireGetRedraft } from '@/wire/endpoints/sends'
@@ -49,7 +49,7 @@ export function SendList() {
   const selectedThreadId = useCurrentSelection()?.threadId ?? null
   const pickRow = useSetAtom(pickInListAtom)
   const setMobileView = useSetAtom(mobileViewAtom)
-  const [query, setQuery] = useAtom(sendQueryAtom)
+  const [query, setQuery] = useAtom(searchQueryAtom)
   const [status, setStatus] = useAtom(sendStatusFilterAtom)
   const [expanded, setExpanded] = useState<null | string>(null)
   const setRedraftSource = useSetAtom(composeRedraftSourceAtom)

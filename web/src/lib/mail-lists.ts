@@ -5,6 +5,15 @@ export type MailList = {
   emptyLabel: string
   /** The chip's text. */
   label: string
+  /**
+   * Whether a row of this list can become the current item.
+   *
+   * Draft is the one that cannot, and it is a property of the list
+   * rather than a case in a switch: a draft opens the composer, so
+   * auto-selecting the first row would pop it open the moment you
+   * arrived at the tab. Every other list selects its first row.
+   */
+  selectable: boolean
   source: MailListSource
 }
 
@@ -64,36 +73,52 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     label: 'Archived',
     // Cross-folder: the server drops the folder when this is set, because
     // "archived within Inbox" is not what the tab means.
+    selectable: true,
     source: { filters: { archived: true }, kind: 'threads' },
   },
-  draft: { emptyLabel: 'No drafts', label: 'Draft', source: { kind: 'drafts' } },
+  draft: {
+    emptyLabel: 'No drafts',
+    label: 'Draft',
+    selectable: false,
+    source: { kind: 'drafts' },
+  },
   inbox: {
     emptyLabel: 'All caught up!',
     label: 'Inbox',
+    selectable: true,
     source: { filters: { folder: 'Inbox' }, kind: 'threads' },
   },
   junk: {
     emptyLabel: 'No junk mail',
     label: 'Junk',
+    selectable: true,
     source: { filters: { folder: 'Junk' }, kind: 'threads' },
   },
   np: {
     emptyLabel: 'Nothing here',
     label: 'N & P',
+    selectable: true,
     source: { filters: { folder: 'NP' }, kind: 'threads' },
   },
   // "Send", not "Sent": the view holds sends that failed and sends still
   // going out, so a heading claiming they were sent would be wrong about
   // the rows it is showing.
-  send: { emptyLabel: 'Nothing sent yet', label: 'Send', source: { kind: 'sends' } },
+  send: {
+    emptyLabel: 'Nothing sent yet',
+    label: 'Send',
+    selectable: true,
+    source: { kind: 'sends' },
+  },
   starred: {
     emptyLabel: 'Nothing starred',
     label: 'Starred',
+    selectable: true,
     source: { filters: { folder: 'NonJunk', starred: true }, kind: 'threads' },
   },
   unread: {
     emptyLabel: 'All caught up!',
     label: 'Unread',
+    selectable: true,
     source: { filters: { folder: 'NonJunk', unread: true }, kind: 'threads' },
   },
 }
