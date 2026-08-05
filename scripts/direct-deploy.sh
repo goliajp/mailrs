@@ -11,6 +11,7 @@
 #   SKIP_BUILD=1 ./scripts/direct-deploy.sh <ver>   # reuse last local image
 #   SKIP_GATE=1  ./scripts/direct-deploy.sh <ver>   # emergency: skip the gate
 #   SKIP_WEB=1   ./scripts/direct-deploy.sh <ver>   # backend-only roll
+#   WEB_ONLY=1   ./scripts/direct-deploy.sh <ver>   # web-only roll
 #
 # Steps:
 #   0. gate: fmt + clippy + test + release perf gates. This used to be
@@ -51,7 +52,28 @@ assert_clean_tree() {
 HEAD_AT_START="$(git rev-parse HEAD)"
 assert_clean_tree
 
-if [ "${SKIP_GATE:-0}" != 1 ]; then
+# The inverse of SKIP_WEB, and the reason it had to exist: the browser
+# bundle changes far more often than the binary, and without this the
+# only way to ship a frontend fix was a twenty-minute image rebuild that
+# produced a byte-identical binary. On 2026-08-05 prod was serving a
+# bundle five commits old — including the fix for the bug being reported
+# — because that rebuild is enough friction to put the deploy off.
+#
+# It skips the Rust gate too. Nothing Rust ships, so `cargo test` here
+# would only be verifying that the commit prod is already running still
+# passes. `bun run check` + `bun run test` still run, inside step 5.
+if [ "${WEB_ONLY:-0}" = 1 ]; then
+    echo "==> WEB_ONLY=1 — steps 0-4 and 6 skipped; prod keeps the binary it is running"
+    if [ "${SKIP_WEB:-0}" = 1 ]; then
+        echo "!! WEB_ONLY=1 and SKIP_WEB=1 together ship nothing"
+        exit 1
+    fi
+    # Not SKIP_GATE: that one prints "shipping unverified code to prod",
+    # which would be false here — step 5 still runs check + test.
+    WEB_ONLY_SKIPS_RUST_GATE=1
+fi
+
+if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     echo "==> [0/6] gate: parity + fmt + clippy + test + perf"
 
     # Two lanes serve one client, so a route or MCP tool on one and not the
@@ -106,7 +128,9 @@ if [ "$(git rev-parse HEAD)" != "$HEAD_AT_START" ]; then
     exit 1
 fi
 
-if [ "${SKIP_BUILD:-0}" != 1 ]; then
+if [ "${WEB_ONLY:-0}" = 1 ]; then
+    echo "==> [1-4/6] skipped (WEB_ONLY)"
+elif [ "${SKIP_BUILD:-0}" != 1 ]; then
     echo "==> [1/6] local arm64 build ($VERSION)"
     docker buildx build \
         --platform linux/arm64 \
@@ -119,6 +143,7 @@ else
     echo "==> [1/6] SKIP_BUILD=1 — reusing local $TAG"
 fi
 
+if [ "${WEB_ONLY:-0}" != 1 ]; then
 echo "==> [2/6] push $GHCR (best-effort)"
 docker tag "$TAG" "$GHCR"
 if ! docker push "$GHCR"; then
@@ -189,6 +214,8 @@ case "$REPLAY" in
     *"(clean)"*) echo "    replay clean ✓" ;;
     *) echo "!! replay line is NOT clean — investigate before walking away (AOF black-hole SOP)" ;;
 esac
+fi
+
 echo "==> [5/6] web: build + rsync"
 # Until 2026-07-30 this script shipped only the four Rust containers, so a
 # release whose value was in the browser reached prod with the old bundle
@@ -261,6 +288,12 @@ if [ "${SKIP_WEB:-0}" != 1 ]; then
     esac
 else
     echo "!! [5/6] SKIP_WEB=1 — prod keeps the bundle it already has"
+fi
+
+if [ "${WEB_ONLY:-0}" = 1 ]; then
+    echo "==> [6/6] skipped (WEB_ONLY) — no cargo build ran, nothing to reclaim"
+    echo "done: prod web now serving direct-$VERSION; binary untouched"
+    exit 0
 fi
 
 echo "==> [6/6] prune target/"
