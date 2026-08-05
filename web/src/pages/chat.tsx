@@ -188,6 +188,9 @@ function listFromParams(params: URLSearchParams): MailListId | null {
   const tab = params.get('tab')
   if (tab === 'unread' || tab === 'starred') return tab
 
+  // Archived was its own boolean param before it was a list.
+  if (params.get('archived') === '1') return 'archived'
+
   const folder = params.get('folder')
   if (folder === 'Drafts') return 'draft'
   if (folder === 'Sent') return 'send'

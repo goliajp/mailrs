@@ -1,8 +1,12 @@
 import { Search, X } from 'lucide-react'
 
-// the search header used by the client-filtered list views (Drafts,
-// Sent). Matches ConversationList's search styling; controlled so each
-// list owns its own filter state (no shared atom → no cross-tab bleed).
+// The search header for the lists that match their rows on the client
+// (Draft, Send). Matches ConversationList's styling.
+//
+// Controlled, and every caller hands it `searchQueryAtom`: one question
+// per screen. It used to be one private atom per list, which meant the
+// same box asked something different depending on which chip was lit —
+// and the query you had typed vanished when you changed tab.
 export function ListSearchInput({
   label,
   onChange,

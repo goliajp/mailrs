@@ -62,16 +62,17 @@ export const openThreadAtom = atom(null, (_get, set, item: PickedItem) => {
 })
 
 /**
- * What the Send and Draft lists narrow themselves by.
+ * The status Send narrows itself by — its own axis, which no other list
+ * has.
  *
- * Atoms rather than component state because the reading pane has to
- * resolve the same first row the list draws, and it cannot see a
- * `useState` inside `SendList`. Narrowing is part of "which rows is this
- * list showing", so it belongs where the list does.
+ * The *query* is not here: every list narrows by `searchQueryAtom`, and
+ * Send and Draft each having a private one is what made the same search
+ * box mean something different depending on which chip was lit. An atom
+ * rather than component state because the reading pane has to resolve
+ * the same first row the list draws, and it cannot see a `useState`
+ * inside `SendList`.
  */
 export const sendStatusFilterAtom = atom<null | WireSendStatus>(null)
-export const sendQueryAtom = atom('')
-export const draftQueryAtom = atom('')
 
 export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
