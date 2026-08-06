@@ -128,6 +128,49 @@ struct WireTests {
         #expect(response.message == "queue unavailable")
     }
 
+    /// Attachments as `conversation_body.rs` builds them: filename,
+    /// content_type, size, and `content_id` only on inline parts.
+    ///
+    /// No `index` — the position in the array is the index, which is how
+    /// `get_attachment` resolves it (`attachments.get(index)`).
+    @Test func decodesAttachmentsWithoutAnIndexField() throws {
+        let json = Data("""
+        [{"uid":7,"sender":"a@b.jp","sender_trust":"","recipients":"me@golia.jp",
+          "subject":"","flags":0,"internal_date":1,"message_id":"<x>",
+          "text_body":null,"html_body":null,"category":"inbox","risk_score":0,
+          "risk_reason":"","summary":"","people":{},"dates":{},"amounts":{},
+          "action_items":[],"ai_analyzed":false,"importance_level":"normal",
+          "importance_score":0,"is_bulk_sender":false,"has_tracking_pixel":false,
+          "requires_action":false,"sender_intent":"",
+          "attachments":[
+            {"filename":"請求書.pdf","content_type":"application/pdf","size":12345},
+            {"filename":"logo.png","content_type":"image/png","size":900,
+             "content_id":"logo@example.com"}]}]
+        """.utf8)
+
+        let messages = try JSONDecoder().decode([Wire.Message].self, from: json)
+        let attachments = messages[0].attachments
+        #expect(attachments.count == 2)
+        #expect(attachments[0].filename == "請求書.pdf")
+        #expect(attachments[0].contentId == nil)
+        #expect(attachments[1].contentId == "logo@example.com")
+    }
+
+    /// A message with no attachments still decodes — the field is always
+    /// present on the wire, but as an empty array.
+    @Test func decodesAMessageWithNoAttachments() throws {
+        let json = Data("""
+        [{"uid":1,"sender":"a@b.jp","sender_trust":"","recipients":"me@golia.jp",
+          "subject":"","flags":0,"internal_date":1,"message_id":"<x>",
+          "text_body":"hi","html_body":null,"attachments":[],"category":"inbox",
+          "risk_score":0,"risk_reason":"","summary":"","people":{},"dates":{},
+          "amounts":{},"action_items":[],"ai_analyzed":false,
+          "importance_level":"normal","importance_score":0,"is_bulk_sender":false,
+          "has_tracking_pixel":false,"requires_action":false,"sender_intent":""}]
+        """.utf8)
+        #expect(try JSONDecoder().decode([Wire.Message].self, from: json)[0].attachments.isEmpty)
+    }
+
     @Test func encodesLoginWithSnakeCaseTotp() throws {
         let body = Wire.LoginRequest(address: "a@golia.jp", password: "pw", totpCode: "123456")
         let encoded = try JSONEncoder().encode(body)

@@ -48,6 +48,31 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/webapi/src/handlers/conversation_body.rs` —
+    /// built inline as `serde_json::json!` per attachment part.
+    ///
+    /// There is no `index` on the wire. The index a URL needs is the
+    /// position in the array, which is how `get_attachment` looks it up
+    /// (`attachments.get(index)`), so callers must count rather than read
+    /// a field. The web client's schema declares an `index` defaulting to
+    /// 0 that the server never sends; it happens to be harmless there
+    /// only because the UI passes the array position instead.
+    struct Attachment: Decodable, Sendable {
+        let filename: String
+        let contentType: String
+        let size: Int
+        /// Present only on `multipart/related` inline images — the parts
+        /// an HTML body references with `<img src="cid:…">`.
+        let contentId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case filename
+            case contentType = "content_type"
+            case size
+            case contentId = "content_id"
+        }
+    }
+
     /// Backend: `crates/webapi/src/handlers/compose.rs` — `SendRequest`,
     /// posted to `/api/mail/send`.
     ///
@@ -115,6 +140,7 @@ enum Wire {
         let messageId: String
         let textBody: String?
         let htmlBody: String?
+        let attachments: [Attachment]
 
         var id: UInt32 { uid }
 
@@ -128,6 +154,7 @@ enum Wire {
             case messageId = "message_id"
             case textBody = "text_body"
             case htmlBody = "html_body"
+            case attachments
         }
     }
 

@@ -17,9 +17,10 @@ is a confusing way to be told a dependency is missing.
 
 import json
 import re
+import base64
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -76,11 +77,31 @@ CONVOS = [{
     "received_count": 1, "sent_count": 0,
 }]
 
+# A one-pixel PNG, so the attachment path carries real bytes with a real
+# content type rather than a text file pretending.
+PIXEL_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+# Which attachment indices have been fetched, in order, exposed at
+# `/debug/fetched`. The UI test asserts on this because it is the only
+# thing that can tell the indices apart: both files preview the same, so
+# a client that always asked for index 0 would open a preview and look
+# correct. That is exactly what an earlier version of the test did.
+FETCHED = []
+
+ATTACHMENTS = [
+    {"filename": "請求書_2026年8月分.pdf", "content_type": "application/pdf", "size": 1234},
+    {"filename": "logo.png", "content_type": "image/png", "size": len(PIXEL_PNG)},
+]
+
+
 def msg(uid, sender, trust, html):
     return {"uid": uid, "sender": sender, "sender_trust": trust,
             "recipients": "me@golia.jp", "subject": "Quarterly report", "flags": 0,
             "internal_date": 1754400000, "message_id": f"<m{uid}@x>",
-            "text_body": "plain fallback", "html_body": html, "attachments": [],
+            "text_body": "plain fallback", "html_body": html,
+            "attachments": ATTACHMENTS if uid == 1 else [],
             "category": "inbox", "risk_score": 0, "risk_reason": "", "summary": "",
             "people": {}, "dates": {}, "amounts": {}, "action_items": [],
             "ai_analyzed": False, "importance_level": "normal", "importance_score": 0.1,
@@ -99,7 +120,34 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_bytes(self, body, content_type, filename):
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        # RFC 6266, both forms — the same shape `messages.rs` sends.
+        self.send_header(
+            "Content-Disposition",
+            f"attachment; filename=\"attachment\"; filename*=UTF-8''{quote(filename)}",
+        )
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
+        attachment = re.match(
+            r"^/api/mail/messages/(\d+)/attachments/(\d+)$", self.path.split("?")[0]
+        )
+        if attachment:
+            index = int(attachment.group(2))
+            if index >= len(ATTACHMENTS):
+                self._send({}, 404)
+                return
+            meta = ATTACHMENTS[index]
+            FETCHED.append(index)
+            self._send_bytes(PIXEL_PNG, meta["content_type"], meta["filename"])
+            return
+        if self.path.split("?")[0] == "/debug/fetched":
+            self._send({"attachment_indices": FETCHED})
+            return
         if re.match(r"^/api/conversations/t\d+$", self.path.split("?")[0]):
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
