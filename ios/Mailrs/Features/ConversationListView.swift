@@ -5,20 +5,33 @@ struct ConversationListView: View {
 
     var body: some View {
         NavigationStack {
-            List(session.conversations) { conversation in
-                ConversationRow(conversation: conversation)
+            // The empty state replaces the list rather than covering it.
+            // `.overlay { if isEmpty { … } }` reads well and installs a
+            // full-screen container either way — with rows present it is
+            // an invisible sheet of glass over them, and every row
+            // reports itself untappable underneath it.
+            Group {
+                if session.conversations.isEmpty {
+                    ContentUnavailableView("All caught up", systemImage: "tray")
+                } else {
+                    List(session.conversations) { conversation in
+                        NavigationLink {
+                            ThreadView(conversation: conversation)
+                        } label: {
+                            ConversationRow(conversation: conversation)
+                        }
+                    }
+                    .listStyle(.plain)
+                    // On the List, not the Group: `refreshable` attaches
+                    // to the nearest scrollable view, and a Group is not
+                    // one.
+                    .refreshable { await session.loadConversations() }
+                }
             }
-            .listStyle(.plain)
-            .refreshable { await session.loadConversations() }
             .navigationTitle("Inbox")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Sign out") { session.signOut() }
-                }
-            }
-            .overlay {
-                if session.conversations.isEmpty {
-                    ContentUnavailableView("All caught up", systemImage: "tray")
                 }
             }
         }

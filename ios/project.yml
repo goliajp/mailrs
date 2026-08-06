@@ -45,6 +45,18 @@ targets:
         # Simulator builds sign ad-hoc; nothing to configure.
         CODE_SIGNING_ALLOWED: "YES"
         TARGETED_DEVICE_FAMILY: "1,2"
+        # A self-hosted mail server is often on the LAN over plain HTTP,
+        # and the UI tests reach a stub on localhost. This permits local
+        # names only — it does not open cleartext to the internet.
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: true
+
+  MailrsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: MailrsUITests
+    dependencies:
+      - target: Mailrs
 
   MailrsTests:
     type: bundle.unit-test
