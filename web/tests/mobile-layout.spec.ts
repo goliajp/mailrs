@@ -92,6 +92,45 @@ function recordWrites(page: Page): string[] {
   return writes
 }
 
+/**
+ * A horizontal drag across a row, paced like a real one.
+ *
+ * The events have to be spaced: the commit threshold is read from React
+ * state, so dispatching move and end in the same task leaves `handleTouchEnd`
+ * looking at the offset from before the drag. That is a property of the
+ * test harness, not of a finger.
+ */
+async function swipeRow(page: Page, index: number, dx: number) {
+  const box = await page.locator('[role="listitem"]').nth(index).boundingBox()
+  if (!box) throw new Error('no row to swipe')
+  const x0 = box.x + 180
+  const y0 = box.y + box.height / 2
+  const fire = (type: string, x: number) =>
+    page.evaluate(
+      ([type, x, y, index]) => {
+        const row = document.querySelectorAll('[role="listitem"]')[index as number]
+        const target = row.parentElement as HTMLElement
+        const t = new Touch({ clientX: x as number, clientY: y as number, identifier: 1, target })
+        target.dispatchEvent(
+          new TouchEvent(type as string, {
+            bubbles: true,
+            cancelable: true,
+            changedTouches: [t],
+            targetTouches: type === 'touchend' ? [] : [t],
+            touches: type === 'touchend' ? [] : [t],
+          })
+        )
+      },
+      [type, x, y0, index] as const
+    )
+  await fire('touchstart', x0)
+  for (let i = 1; i <= 6; i++) {
+    await fire('touchmove', x0 + (dx * i) / 6)
+    await page.waitForTimeout(30)
+  }
+  await fire('touchend', x0 + dx)
+}
+
 async function stubApi(page: Page) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -201,6 +240,39 @@ for (const phone of PHONES) {
       // And stays at one: both shells used to run the effect.
       await page.waitForTimeout(600)
       expect(writes.filter((w) => w.endsWith('/read'))).toEqual(['/api/conversations/t1/read'])
+    })
+
+    /**
+     * Deleting a thread unlinks its maildir files. There is no trash and
+     * nothing to restore from, and the reading pane has always said so
+     * before doing it — but the list reached the same verb without
+     * asking, so until 2026-08-05 one left swipe on a phone destroyed
+     * mail outright.
+     */
+    test('a left swipe asks before destroying anything', async ({ page }) => {
+      await stubApi(page)
+      const writes = recordWrites(page)
+      await page.goto('/mail')
+      await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
+
+      await swipeRow(page, 1, -110)
+      await expect(page.getByText('Delete conversation?')).toBeVisible()
+      expect(writes.filter((w) => w.includes('conversations/t'))).toEqual([])
+
+      await page.getByRole('button', { name: 'Cancel' }).click()
+      await page.waitForTimeout(300)
+      expect(writes.filter((w) => w.includes('conversations/t'))).toEqual([])
+    })
+
+    /** Archive is reversible, so it needs no question. */
+    test('a right swipe archives straight away', async ({ page }) => {
+      await stubApi(page)
+      const writes = recordWrites(page)
+      await page.goto('/mail')
+      await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
+
+      await swipeRow(page, 1, 110)
+      await expect.poll(() => writes.some((w) => w.endsWith('/archive')), { timeout: 4000 }).toBe(true)
     })
 
     test('the conversation list survives hostile subjects and addresses', async ({ page }) => {

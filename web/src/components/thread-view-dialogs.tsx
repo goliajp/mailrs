@@ -3,7 +3,7 @@ import type { ThreadReplyContext } from '@/components/thread-reply-box'
 
 import { X } from 'lucide-react'
 
-import { BottomSheet } from '@/components/bottom-sheet'
+import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { MobileModal } from '@/components/mobile-modal'
 import { ThreadReplyBox } from '@/components/thread-reply-box'
 
@@ -79,26 +79,11 @@ export function ThreadViewDialogs({
       )}
 
       {/* delete confirm dialog */}
-      {showDeleteConfirm && (
-        <BottomSheet onClose={() => setShowDeleteConfirm(false)} open>
-          <h3 className="text-fg text-sm font-semibold">Delete conversation?</h3>
-          <p className="text-fg-muted mt-1.5 text-sm">This will permanently delete all messages.</p>
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              className="border-border text-fg-secondary hover:bg-bg-secondary rounded-md border px-3 py-2 text-sm transition-colors"
-              onClick={() => setShowDeleteConfirm(false)}
-            >
-              Cancel
-            </button>
-            <button
-              className="bg-danger rounded-md px-3 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
-              onClick={handleDelete}
-            >
-              Delete
-            </button>
-          </div>
-        </BottomSheet>
-      )}
+      <DeleteThreadConfirm
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        open={showDeleteConfirm}
+      />
     </>
   )
 }
