@@ -20,6 +20,15 @@ struct ConversationListView: View {
                         } label: {
                             ConversationRow(conversation: conversation)
                         }
+                        .onAppear {
+                            // Paging on the last row appearing, rather
+                            // than on a "Load more" button: the row is
+                            // already the thing that means "you have
+                            // reached the bottom".
+                            if conversation.threadId == session.conversations.last?.threadId {
+                                Task { await session.loadMore() }
+                            }
+                        }
                     }
                     .listStyle(.plain)
                     // On the List, not the Group: `refreshable` attaches

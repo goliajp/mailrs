@@ -73,13 +73,19 @@ actor MailrsClient {
     }
 
     /// `GET /api/conversations` — a bare array, see `Wire.Conversation`.
-    func conversations(folder: String = "Inbox", limit: Int = 50) async throws -> [Wire.Conversation] {
+    func conversations(
+        folder: String = "Inbox", limit: Int = 50, before: Int64? = nil
+    ) async throws -> [Wire.Conversation] {
         var components = URLComponents(url: baseURL.appendingPathComponent("/api/conversations"),
                                        resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+        var items = [
             URLQueryItem(name: "folder", value: folder),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
+        if let before {
+            items.append(URLQueryItem(name: "before_ts", value: String(before)))
+        }
+        components?.queryItems = items
         guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
