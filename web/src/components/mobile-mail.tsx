@@ -181,8 +181,15 @@ function MobileReplyView() {
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{subject}</h2>
       </div>
 
-      {/* reply box — takes all remaining space, browser handles keyboard natively */}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      {/* The reply box takes the space that is left — and `flex flex-col`
+          is what makes that true. ReplyBox's own root is `flex-1`, which
+          resolves against nothing unless this is a flex container, so it
+          sized to its content instead and the Send bar hung below the
+          bottom of a box that clips. Invisible while the screen was tall
+          enough to hold the content anyway; the moment the keyboard took
+          336px it put Send under the keyboard, which is the thing the
+          shell was shrunk to prevent. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ReplyBox
           lastMessageId={lastMsg.message_id ?? ''}
           mode={replyMode}
