@@ -8,10 +8,11 @@ import XCTest
 /// the shapes the Rust handlers send, including a 760px-wide HTML body,
 /// so the fit-to-width path is exercised rather than asserted about.
 final class SignInFlowTests: XCTestCase {
-    private func launch(signedIn: Bool = false) -> XCUIApplication {
+    private func launch(signedIn: Bool = false, folder: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-mailrsBaseURL", "http://localhost:6039"]
         app.launchArguments += signedIn ? ["-mailrsToken", "stub-token"] : ["-mailrsSignedOut"]
+        if let folder { app.launchArguments += ["-mailrsFolder", folder] }
         app.launch()
         return app
     }
@@ -115,6 +116,28 @@ final class SignInFlowTests: XCTestCase {
             swipes += 1
         }
         XCTAssertTrue(badge.exists, "a suspicious sender was shown without saying so")
+    }
+
+    /// Paging must not drop the threads that share the boundary second.
+    ///
+    /// The stub's paging fixture puts five threads on one timestamp
+    /// straddling the 50-row page edge, because the server filters
+    /// `latest_date < before_ts` — so a client that asked for its oldest
+    /// row's own second would lose the three that did not fit, silently,
+    /// and a shorter list looks exactly like the end of the mailbox.
+    /// `Paged thread 51` is one of the three.
+    func testPagingDoesNotSkipTheBoundarySecond() {
+        let app = launch(signedIn: true, folder: "Paged")
+        XCTAssertTrue(app.staticTexts["Paged thread 0"].waitForExistence(timeout: 15),
+                      "paged list never loaded")
+
+        let target = app.staticTexts["Paged thread 51"]
+        var swipes = 0
+        while !target.exists && swipes < 40 {
+            app.swipeUp(velocity: .fast)
+            swipes += 1
+        }
+        XCTAssertTrue(target.exists, "a thread sharing the page-boundary second was skipped")
     }
 
     func testRepliesToAThread() {
