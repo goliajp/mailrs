@@ -157,6 +157,28 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/mail/messages/{uid}/attachments/{index}` — the bytes.
+    ///
+    /// Not the `/content` sibling: that one answers JSON with extracted
+    /// text and only for `text/*`, `application/json` and
+    /// `application/xml`, returning `success: false` for everything else.
+    /// This one is the file.
+    ///
+    /// `index` is the position in the message's attachment array — the
+    /// handler resolves it as `attachments.get(index)` and there is no id
+    /// on the wire to use instead.
+    func attachment(uid: UInt32, index: Int) async throws -> Data {
+        let path = "/api/mail/messages/\(uid)/attachments/\(index)"
+        let (data, response) = try await send("GET", path, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        return data
+    }
+
     /// `POST /api/conversations/{id}/archive` — 204, no body.
     func archive(threadId: String) async throws {
         try await verb("POST", "/api/conversations/\(threadId)/archive")

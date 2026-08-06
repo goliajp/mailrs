@@ -141,6 +141,11 @@ final class Session {
         }
     }
 
+    func attachment(uid: UInt32, index: Int) async throws -> Data {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.attachment(uid: uid, index: index)
+    }
+
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.messages(threadId: threadId)

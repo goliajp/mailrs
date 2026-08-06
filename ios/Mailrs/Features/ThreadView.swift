@@ -76,6 +76,15 @@ private struct MessageCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
+            if !message.attachments.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(message.attachments.enumerated()), id: \.offset) { index, attachment in
+                        AttachmentRow(uid: message.uid, index: index, attachment: attachment)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
             if let html = message.htmlBody, !html.isEmpty {
                 MessageBodyView(html: html, height: $bodyHeight)
                     .frame(height: bodyHeight)

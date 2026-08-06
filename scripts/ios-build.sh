@@ -77,6 +77,12 @@ xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" buil
 # an app bug and is not one.
 STUB_PORT=6039
 echo "==> [3/3] test (stub on :$STUB_PORT)"
+# Kill first, then start. Reusing whatever already holds the port means
+# testing against whatever build of the stub that process happens to be:
+# a stale one without `/debug/fetched` made the attachment-index
+# assertion read `[]` and look like the app had not fetched anything.
+pkill -f "Testing/stub-api.py" 2>/dev/null || true
+sleep 0.3
 python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-stub.log 2>&1 &
 STUB_PID=$!
 trap 'kill $STUB_PID 2>/dev/null || true' EXIT

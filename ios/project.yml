@@ -47,8 +47,12 @@ schemes:
         - name: start stub API
           script: |
             cd "$PROJECT_DIR"
-            (lsof -nP -iTCP:6039 -sTCP:LISTEN >/dev/null 2>&1) || \
-              (nohup python3 Testing/stub-api.py 6039 >/tmp/mailrs-ios-stub.log 2>&1 &)
+            # Kill then start, rather than reusing whatever holds the
+            # port: a stub left over from an earlier run is an older
+            # build of the stub, and the tests then measure that.
+            pkill -f "Testing/stub-api.py" 2>/dev/null || true
+            sleep 0.3
+            nohup python3 Testing/stub-api.py 6039 >/tmp/mailrs-ios-stub.log 2>&1 &
           settingsTarget: Mailrs
 
 targets:

@@ -204,6 +204,65 @@ final class SignInFlowTests: XCTestCase {
                       "the thread was still listed after archiving")
     }
 
+    /// Attachments are listed, and tapping one opens it.
+    ///
+    /// The index the server accepts is the position in the array — there
+    /// is none on the wire — so a row that opened the wrong file would
+    /// show the wrong preview rather than fail. Tapping the second one
+    /// is the check that counting is what the UI does.
+    func testOpensAnAttachment() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+
+        XCTAssertTrue(app.staticTexts["請求書_2026年8月分.pdf"].waitForExistence(timeout: 10),
+                      "the attachment was not listed")
+        XCTAssertTrue(app.staticTexts["logo.png"].exists, "the second attachment was not listed")
+
+        app.staticTexts["logo.png"].tap()
+
+        // Quick Look presents in a navigation controller so the sheet has
+        // a way out; Done appearing means the preview opened rather than
+        // the download failing into an alert.
+        // Done, not the Quick Look overlay: the preview opened without a
+        // close button until 2026-08-07, leaving dragging the sheet down
+        // as the only way out.
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 15),
+                      "the preview opened with no way to close it")
+        XCTAssertFalse(app.staticTexts["Could not open"].exists,
+                       "the download failed")
+
+        // Which index was asked for, from the stub rather than from the
+        // screen. Nothing on screen can tell them apart — both files
+        // preview identically — so the first version of this test passed
+        // with every row pinned to index 0, which is the exact bug it
+        // exists to catch.
+        XCTAssertEqual(fetchedAttachmentIndices(), [1],
+                       "the second attachment did not fetch index 1")
+        done.tap()
+    }
+
+    /// The attachment indices the stub has served, in order.
+    private func fetchedAttachmentIndices() -> [Int] {
+        guard let url = URL(string: "http://localhost:6039/debug/fetched") else { return [] }
+        var result: [Int] = []
+        let done = expectation(description: "debug/fetched")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let indices = json["attachment_indices"] as? [Int] {
+                result = indices
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
