@@ -1,0 +1,7 @@
+# Generated from project.yml by xcodegen. A pbxproj is a machine-written
+# blob that conflicts on every parallel edit and carries nothing
+# project.yml does not — regenerate rather than merge.
+Mailrs.xcodeproj/
+DerivedData/
+*.xcuserstate
+.DS_Store
