@@ -140,6 +140,70 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(target.exists, "a thread sharing the page-boundary second was skipped")
     }
 
+    /// Deleting asks first, and a cancel destroys nothing.
+    ///
+    /// The verb is irreversible — `thread_actions.rs` unlinks the maildir
+    /// files, so there is no trash and no undo to offer. The web client
+    /// reached the same verb from a swipe without asking until
+    /// 2026-08-05, and one gesture destroyed a thread outright. This app
+    /// asks from the first version that can delete.
+    func testDeleteAsksBeforeDestroyingAnything() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+
+        row.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+
+        XCTAssertTrue(app.staticTexts["This will permanently delete all messages."]
+            .waitForExistence(timeout: 5), "delete did not ask")
+        app.buttons["Cancel"].tap()
+        // Still there. The delete is not optimistic — the row leaves only
+        // when the server has said it is gone — so a row still on screen
+        // is proof nothing was sent.
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "the thread went away on a cancel")
+    }
+
+    /// Confirming does delete it. The row leaving is the assertion: the
+    /// list is not updated optimistically, so it can only have gone after
+    /// the server answered.
+    func testConfirmingDeleteRemovesTheThread() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+
+        row.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        // The alert's Delete, not the swipe button behind it.
+        app.alerts.buttons["Delete"].tap()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10),
+                      "the thread was still listed after a confirmed delete")
+    }
+
+    /// Archive does not ask, because it is reversible. A question about a
+    /// reversible action is noise that teaches people to dismiss
+    /// questions — which is how the one that matters gets dismissed too.
+    func testArchiveTakesTheRowWithoutAsking() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+
+        row.swipeRight()
+        app.buttons["Archive"].firstMatch.tap()
+
+        XCTAssertFalse(app.staticTexts["This will permanently delete all messages."].exists,
+                       "archive asked a question it does not need to")
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10),
+                      "the thread was still listed after archiving")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(

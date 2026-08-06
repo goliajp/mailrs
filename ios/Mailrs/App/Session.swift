@@ -109,6 +109,38 @@ final class Session {
         )
     }
 
+    /// Archive, and take the row off the list.
+    ///
+    /// Optimistic, because archiving is reversible: if the server refuses
+    /// the row comes back, and the worst case is a row that reappears
+    /// rather than mail that is gone.
+    func archive(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let previous = conversations
+        conversations.removeAll { $0.threadId == conversation.threadId }
+        do {
+            try await client.archive(threadId: conversation.threadId)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Delete, and take the row off the list.
+    ///
+    /// Not optimistic. The server unlinks the maildir files, so there is
+    /// nothing to restore and no honest way to put the row back — the
+    /// row goes only once the server says it is gone.
+    func delete(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        do {
+            try await client.delete(threadId: conversation.threadId)
+            conversations.removeAll { $0.threadId == conversation.threadId }
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.messages(threadId: threadId)
