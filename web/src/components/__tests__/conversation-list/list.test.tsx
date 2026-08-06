@@ -375,7 +375,10 @@ describe('switching lists', () => {
         <ConversationList />
       </Wrapper>
     )
-    expect(screen.getByLabelText(/inbox one/).getAttribute('aria-selected')).toBe('true')
+    // `aria-current`, not `aria-selected`: the row's activation is a
+    // button, and selected is only defined on option / tab / row /
+    // gridcell — it was being ignored by assistive tech here.
+    expect(screen.getByLabelText(/inbox one/).getAttribute('aria-current')).toBe('true')
 
     // Pick the row explicitly, then switch lists. The pick has to be
     // dropped by the switch, or it survives into a list it is not in —
@@ -390,7 +393,7 @@ describe('switching lists', () => {
       </Wrapper>
     )
 
-    expect(screen.getByLabelText(/junk one/).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByLabelText(/junk one/).getAttribute('aria-current')).toBe('true')
   })
 
   /**

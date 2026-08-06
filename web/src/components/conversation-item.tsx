@@ -10,7 +10,12 @@ import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-m
 import { SenderAvatar } from '@/components/sender-avatar'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
-import { mailRowClass } from '@/lib/list-row-class'
+import {
+  MAIL_ROW_CONTENT,
+  MAIL_ROW_FOCUS,
+  MAIL_ROW_FRAME,
+  mailRowStateClass,
+} from '@/lib/list-row-class'
 
 export const ConversationItem = memo(function ConversationItem({
   batchMode,
@@ -152,15 +157,23 @@ export const ConversationItem = memo(function ConversationItem({
 
   return (
     <div
-      className="group"
+      className={`group ${MAIL_ROW_FRAME} ${getRowStateClass({ batchMode, checked, hasUnread, selected })}`}
       onTouchEnd={ctx.onTouchEnd}
       onTouchMove={ctx.onTouchMove}
       onTouchStart={ctx.onTouchStart}
       role="listitem"
     >
+      {/* The row's activation, stretched under the content rather than
+          wrapped around it. A `<button>` cannot contain the archive and
+          star buttons — no interactive content model — and React said so
+          on every render. Empty, so its accessible name is the label
+          below and nothing else. */}
       <button
+        // `aria-current`, not `aria-selected`: selected is only defined on
+        // option / tab / row / gridcell and was ignored here. "The one the
+        // reading pane is showing" is what current means.
+        aria-current={selected && !batchMode}
         aria-label={`${name}: ${convo.subject || '(no subject)'}${hasUnread ? `, ${convo.unread_count} unread` : ''}${isPinned ? ', pinned' : ''}`}
-        aria-selected={selected && !batchMode}
         // h-24 (96px) — HARD-FIXED row height. The previous design let
         // the row collapse when convo.snippet was empty, which mixed
         // two row-heights into the same list and broke the virtualizer's
@@ -170,10 +183,14 @@ export const ConversationItem = memo(function ConversationItem({
         // fixed height the virtualizer never has to re-measure anything,
         // so the overlap bug class is eliminated by construction —
         // no patch, no hack.
-        className={getRowClass({ batchMode, checked, hasUnread, selected })}
+        className={`absolute inset-0 z-0 ${MAIL_ROW_FOCUS}`}
         onClick={handleClick}
         onContextMenu={ctx.open}
-      >
+        type="button"
+      />
+      {/* Transparent to the pointer so a tap anywhere lands on the button
+          above; the action buttons opt back in. */}
+      <div className={`pointer-events-none relative z-10 ${MAIL_ROW_CONTENT}`}>
         {batchMode && (
           <div className="mt-0.5 flex shrink-0 items-center">
             <div
@@ -214,7 +231,7 @@ export const ConversationItem = memo(function ConversationItem({
                   (group-hover, no useState — keeps the row out of the
                   re-render path for hover changes). */}
               {!batchMode && (
-                <span className="flex items-center gap-0.5 md:hidden">
+                <span className="pointer-events-auto flex items-center gap-0.5 md:hidden">
                   <button
                     className="touch-target text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-1"
                     onClick={(e) => {
@@ -239,7 +256,7 @@ export const ConversationItem = memo(function ConversationItem({
               )}
               {/* desktop: hover actions via group-hover */}
               {!batchMode && (
-                <span className="hidden items-center gap-0.5 md:group-hover:flex">
+                <span className="pointer-events-auto hidden items-center gap-0.5 md:group-hover:flex">
                   <button
                     className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary rounded p-0.5"
                     onClick={(e) => {
@@ -294,7 +311,7 @@ export const ConversationItem = memo(function ConversationItem({
           </div>
           {/* compact rows: no snippet/preview line (2026-07-17, user) */}
         </div>
-      </button>
+      </div>
       <ContextMenu items={contextItems} onClose={ctx.close} position={ctx.position} />
       <ActionSheet items={contextItems} onClose={ctx.close} open={ctx.actionSheetOpen} />
     </div>
@@ -305,7 +322,7 @@ export const ConversationItem = memo(function ConversationItem({
 // Spam = AI-derived category filter (categoryFilter='spam', see classify.rs).
 // Junk = physical Junk mailbox (mb.name='Junk'), populated by sieve / "mark spam" action.
 
-function getRowClass({
+function getRowStateClass({
   batchMode,
   checked,
   hasUnread,
@@ -316,7 +333,7 @@ function getRowClass({
   hasUnread: boolean
   selected: boolean
 }): string {
-  return mailRowClass({ batchMode, checked, muted: !hasUnread, selected })
+  return mailRowStateClass({ batchMode, checked, muted: !hasUnread, selected })
 }
 
 function getSenderClass({ hasUnread, isOwn }: { hasUnread: boolean; isOwn: boolean }): string {

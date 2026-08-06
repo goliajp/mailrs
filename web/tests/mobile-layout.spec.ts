@@ -67,6 +67,22 @@ const THREADS = [
   },
 ]
 
+/**
+ * Tap the row where a thumb would, not at its geometric centre.
+ *
+ * The row's activation is a button stretched under the content, and the
+ * archive / star cluster sits on top of it — near the middle of the row
+ * once the date is long. Clicking the element's centre lands on Archive.
+ * That is not new: the cluster occupied the same pixels when it was
+ * nested inside the row button, and clicking it selected nothing then
+ * either.
+ */
+async function openFirstRow(page: Page) {
+  const box = await page.locator('[role="listitem"]').first().boundingBox()
+  if (!box) throw new Error('no conversation row to open')
+  await page.mouse.click(box.x + 60, box.y + box.height / 2)
+}
+
 async function stubApi(page: Page) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -127,6 +143,25 @@ for (const phone of PHONES) {
   test.describe(phone.name, () => {
     test.use({ viewport: { height: phone.height, width: phone.width } })
 
+    /**
+     * A control inside a control is invalid HTML and puts a focusable
+     * element where assistive tech expects a label. Every conversation
+     * row was a `<button>` wrapping four more until 2026-08-05 — found
+     * only because driving the real app surfaced React saying so, not by
+     * reading the file.
+     */
+    test('no control contains another control', async ({ page }) => {
+      await stubApi(page)
+      await page.goto('/mail')
+      await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
+      const nested = await page.evaluate(() =>
+        [...document.querySelectorAll('button button, button a[href], a[href] button, a[href] a[href]')].map(
+          (el) => `${el.tagName.toLowerCase()} in ${el.closest('button, a[href]')?.tagName.toLowerCase()}`
+        )
+      )
+      expect(nested).toEqual([])
+    })
+
     test('the conversation list survives hostile subjects and addresses', async ({ page }) => {
       await stubApi(page)
       await page.goto('/mail')
@@ -137,7 +172,7 @@ for (const phone of PHONES) {
     test('a 760px email is scaled to the column, attachments and all', async ({ page }) => {
       await stubApi(page)
       await page.goto('/mail')
-      await page.locator('[role="listitem"] button').first().click()
+      await openFirstRow(page)
 
       // Liveness first: the body has to be on screen before its width
       // means anything. A hidden host measures 0 and would "fit".
