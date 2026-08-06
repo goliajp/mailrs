@@ -1,0 +1,55 @@
+# XcodeGen spec — the project's source of truth.
+#
+# `Mailrs.xcodeproj` is generated from this and is NOT in git: a pbxproj
+# is a 2,000-line machine-written blob that conflicts on every parallel
+# edit, and none of it is information this file does not already carry.
+# Regenerate with `xcodegen generate` (or `./scripts/ios-build.sh`,
+# which does it for you).
+name: Mailrs
+options:
+  bundleIdPrefix: jp.golia
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # GOLIA K.K. Set now so device builds work the moment an Apple
+    # Development certificate exists on this team — the simulator does
+    # not need one, and the certificate currently on this machine for
+    # KF79DRC524 is a Developer ID (macOS) cert, which cannot sign iOS.
+    DEVELOPMENT_TEAM: KF79DRC524
+    CODE_SIGN_STYLE: Automatic
+    # Strict concurrency is the default in Swift 6 language mode; stated
+    # here so it is a decision rather than an accident of the toolchain.
+    SWIFT_STRICT_CONCURRENCY: complete
+    # Both targets, not just the app: a test bundle is code-signed too,
+    # and without this the build fails at the signing step with a message
+    # about Info.plist that reads like an app-target problem.
+    GENERATE_INFOPLIST_FILE: "YES"
+
+targets:
+  Mailrs:
+    type: application
+    platform: iOS
+    sources:
+      - path: Mailrs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.golia.mailrs
+        INFOPLIST_KEY_CFBundleDisplayName: Mailrs
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # Simulator builds sign ad-hoc; nothing to configure.
+        CODE_SIGNING_ALLOWED: "YES"
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  MailrsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: MailrsTests
+    dependencies:
+      - target: Mailrs
