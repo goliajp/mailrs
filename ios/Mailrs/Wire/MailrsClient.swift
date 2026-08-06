@@ -112,6 +112,45 @@ actor MailrsClient {
         }
     }
 
+    /// `POST /api/mail/send`.
+    ///
+    /// The handler answers 200 with `success: false` for a send it
+    /// accepted but could not queue, so the status code alone is not the
+    /// answer — a reply that never left would otherwise look sent.
+    @discardableResult
+    func sendReply(
+        to recipients: [String],
+        cc: [String] = [],
+        subject: String,
+        body: String,
+        inReplyTo: String?,
+        threadId: String
+    ) async throws -> Wire.SendResponse {
+        let payload = Wire.SendRequest(
+            to: recipients, cc: cc, subject: subject, body: body,
+            inReplyTo: inReplyTo, replyToThreadId: threadId
+        )
+        let (data, response) = try await send(
+            "POST", "/api/mail/send", body: try JSONEncoder().encode(payload), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        let result: Wire.SendResponse
+        do {
+            result = try JSONDecoder().decode(Wire.SendResponse.self, from: data)
+        } catch {
+            throw MailrsError.decoding("send response — \(error)")
+        }
+        guard result.success else {
+            throw MailrsError.transport(result.message ?? "The server did not queue the message.")
+        }
+        return result
+    }
+
     private func send(
         _ method: String, _ path: String, body: Data?, authorized: Bool
     ) async throws -> (Data, URLResponse) {

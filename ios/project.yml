@@ -30,6 +30,27 @@ settings:
     # about Info.plist that reads like an app-target problem.
     GENERATE_INFOPLIST_FILE: "YES"
 
+# Running the tests from Xcode has to work too, not only through
+# `scripts/ios-build.sh`. Without this, ⌘U starts no stub and every UI
+# test reports "inbox never listed" — an app-shaped message for a
+# missing dependency.
+schemes:
+  Mailrs:
+    build:
+      targets:
+        Mailrs: all
+        MailrsTests: [test]
+        MailrsUITests: [test]
+    test:
+      targets: [MailrsTests, MailrsUITests]
+      preActions:
+        - name: start stub API
+          script: |
+            cd "$PROJECT_DIR"
+            (lsof -nP -iTCP:6039 -sTCP:LISTEN >/dev/null 2>&1) || \
+              (nohup python3 Testing/stub-api.py 6039 >/tmp/mailrs-ios-stub.log 2>&1 &)
+          settingsTarget: Mailrs
+
 targets:
   Mailrs:
     type: application

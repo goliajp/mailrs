@@ -5,6 +5,7 @@ struct ThreadView: View {
     @Environment(Session.self) private var session
     @State private var messages: [Wire.Message] = []
     @State private var failure: String?
+    @State private var replying = false
 
     var body: some View {
         Group {
@@ -29,6 +30,19 @@ struct ThreadView: View {
         }
         .navigationTitle(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    replying = true
+                } label: {
+                    Label("Reply", systemImage: "arrowshape.turn.up.left")
+                }
+                .disabled(messages.isEmpty)
+            }
+        }
+        .sheet(isPresented: $replying) {
+            ReplyView(thread: conversation, replyingTo: messages.last)
+        }
 
         .task {
             do {

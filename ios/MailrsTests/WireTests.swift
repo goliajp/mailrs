@@ -101,6 +101,33 @@ struct WireTests {
         #expect(messages[0].textBody == "plain")
     }
 
+    /// Both threading fields, every time.
+    ///
+    /// `compose.rs` marks each of them `#[serde(default)]`, so omitting
+    /// one is not an error — it is an empty value the server accepts and
+    /// a reply that arrives detached from its thread. The handler's own
+    /// comment records that happening on 2026-07-30. This is the
+    /// assertion that keeps the pair together.
+    @Test func sendsBothThreadingFieldsOnAReply() throws {
+        let request = Wire.SendRequest(
+            to: ["alice@example.com"], cc: [], subject: "Re: Q3", body: "Noted.",
+            inReplyTo: "<m1@x>", replyToThreadId: "t1"
+        )
+        let text = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
+        #expect(text.contains("\"in_reply_to\":\"<m1@x>\""))
+        #expect(text.contains("\"reply_to_thread_id\":\"t1\""))
+    }
+
+    /// `crates/webapi/src/handlers/compose.rs` — `SendResponse`. The
+    /// handler answers 200 with `success: false` for a message it took
+    /// but could not queue, so the status code is not the whole answer.
+    @Test func decodesARefusedSend() throws {
+        let json = Data(#"{"message_id":"","success":false,"message":"queue unavailable"}"#.utf8)
+        let response = try JSONDecoder().decode(Wire.SendResponse.self, from: json)
+        #expect(!response.success)
+        #expect(response.message == "queue unavailable")
+    }
+
     @Test func encodesLoginWithSnakeCaseTotp() throws {
         let body = Wire.LoginRequest(address: "a@golia.jp", password: "pw", totpCode: "123456")
         let encoded = try JSONEncoder().encode(body)
