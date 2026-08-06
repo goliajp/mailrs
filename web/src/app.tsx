@@ -22,6 +22,7 @@ import { RouteErrorFallback } from '@/components/route-error-fallback'
 import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
 import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { MPane } from '@/layouts/pane'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
@@ -105,26 +106,26 @@ export function App() {
  * from `<Outlet />`.
  */
 function AuthShellLayout() {
-  return (
-    <RequireAuth>
-      {/* desktop: AppShell with sidebar + status bar */}
-      <div className="hidden md:contents">
-        <AppShell
-          gap={6}
-          padded
-          sidebar={<AppSidebar />}
-          sidebarWidth={56}
-          statusBar={<StatusBar />}
-        >
-          <Outlet />
-        </AppShell>
-      </div>
-      {/* mobile: independent shell with bottom nav */}
-      <div className="contents md:hidden">
+  // One shell, not both hidden behind CSS. `hidden md:contents` mounted
+  // the desktop tree on phones and the mobile tree on desktops: 83% of a
+  // phone's DOM was the copy nobody could see, and opening a thread sent
+  // two `mark read` writes because both trees ran the effect. Measured
+  // in a production build, so not a StrictMode artifact.
+  const isMobile = useIsMobile()
+  if (isMobile) {
+    return (
+      <RequireAuth>
         <MobileShell>
           <Outlet />
         </MobileShell>
-      </div>
+      </RequireAuth>
+    )
+  }
+  return (
+    <RequireAuth>
+      <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
+        <Outlet />
+      </AppShell>
     </RequireAuth>
   )
 }

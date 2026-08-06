@@ -1,9 +1,10 @@
 import { Archive, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 const THRESHOLD = 80
 const MAX_SWIPE = 120
-const MOBILE_QUERY = '(max-width: 767px)'
 
 type SwipeableRowProps = {
   children: React.ReactNode
@@ -120,24 +121,4 @@ export function SwipeableRow({ children, onSwipeLeft, onSwipeRight }: SwipeableR
       </div>
     </div>
   )
-}
-
-// Subscribe to the mobile breakpoint via matchMedia so desktop renders
-// zero swipe scaffolding. The previous CSS-only `md:contents` approach
-// left a `position: relative` shim between the surrounding virtualizer's
-// `measureElement` ref and the row's real content box — that shim's
-// height was the value the virtualizer cached, and it sometimes
-// diverged from the rendered content height during refetches, causing
-// adjacent rows to visually overlap.
-function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY)
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
-  return isMobile
 }
