@@ -53,7 +53,11 @@ export const MessageBubble = memo(function MessageBubble({
         <div>
           {/* html mail is light-mode by design — container stays white in
               both themes to match the :host background inside HtmlFrame */}
-          <div className="border-border overflow-hidden border bg-white select-text">
+          {/* `overflow-hidden` here is what made a wide email unreadable:
+              the part past the column was clipped and unreachable, on a
+              phone and on a desktop alike. HtmlFrame scales the body to
+              fit; whatever a pathological width leaves over scrolls. */}
+          <div className="border-border border bg-white select-text">
             <HtmlFrame attachments={attachments} html={parts.body} uid={uid} />
           </div>
         </div>

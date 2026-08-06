@@ -34,13 +34,37 @@ export default defineConfig({
     trace: 'off',
     video: 'off',
   },
-  webServer: useExternal
-    ? undefined
-    : {
-        command: 'bunx vite preview --port 4173 --strictPort',
-        reuseExistingServer: true,
-        timeout: 30_000,
-        url: 'http://localhost:4173',
-      },
+  // Two projects, two servers. The layout tier renders real components
+  // through vite's *dev* server — it needs TS/JSX transformed on the fly,
+  // which `vite preview` (a static dist) cannot do, and putting a test
+  // fixture into the production build to work around that would ship it
+  // to users.
+  projects: [
+    { name: 'perf', testMatch: /perf-.*\.spec\.ts/ },
+    {
+      name: 'layout',
+      testMatch: /fit-to-width\.spec\.ts/,
+      use: { baseURL: 'http://localhost:6037' },
+    },
+  ],
+  webServer: [
+    // Port from the shared port registry (this project's row).
+    {
+      command: 'bunx vite --port 6037 --strictPort',
+      reuseExistingServer: true,
+      timeout: 30_000,
+      url: 'http://localhost:6037',
+    },
+    ...(useExternal
+      ? []
+      : [
+          {
+            command: 'bunx vite preview --port 4173 --strictPort',
+            reuseExistingServer: true,
+            timeout: 30_000,
+            url: 'http://localhost:4173',
+          },
+        ]),
+  ],
   workers: 1,
 })
