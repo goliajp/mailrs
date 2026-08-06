@@ -275,6 +275,47 @@ for (const phone of PHONES) {
       await expect.poll(() => writes.some((w) => w.endsWith('/archive')), { timeout: 4000 }).toBe(true)
     })
 
+    /**
+     * The Send button has to stay reachable while the keyboard is up.
+     *
+     * iOS draws the keyboard over the page instead of shrinking the
+     * layout viewport, and the document is `overflow: hidden` on phones,
+     * so anything under it cannot be scrolled to. The shell shrinks to
+     * the visual viewport for that reason — but shrinking the shell only
+     * helps if the column inside can shrink with it, and one wrapper was
+     * a flex item without being a flex container, so ReplyBox sized to
+     * its content and hung Send below a box that clips.
+     */
+    test('the Send button stays above the keyboard', async ({ page }) => {
+      await stubApi(page)
+      await page.goto('/mail')
+      await openFirstRow(page)
+      await page.getByRole('button', { name: /reply/i }).first().click()
+      await expect(page.getByRole('button', { name: /^send$/i }).first()).toBeVisible()
+
+      const keyboardHeight = 336
+      const result = await page.evaluate((kb) => {
+        const vv = window.visualViewport
+        if (!vv) return null
+        Object.defineProperty(vv, 'height', { configurable: true, value: window.innerHeight - kb })
+        vv.dispatchEvent(new Event('resize'))
+        return new Promise<{ keyboardTop: number; sendBottom: number }>((res) =>
+          setTimeout(() => {
+            const send = [...document.querySelectorAll('button')].find((b) =>
+              /^send$/i.test(b.textContent?.trim() ?? '')
+            )
+            res({
+              keyboardTop: window.innerHeight - kb,
+              sendBottom: Math.round(send?.getBoundingClientRect().bottom ?? Number.NaN),
+            })
+          }, 400)
+        )
+      }, keyboardHeight)
+
+      expect(result).not.toBeNull()
+      expect(result!.sendBottom).toBeLessThanOrEqual(result!.keyboardTop)
+    })
+
     test('the conversation list survives hostile subjects and addresses', async ({ page }) => {
       await stubApi(page)
       await page.goto('/mail')
