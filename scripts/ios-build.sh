@@ -36,7 +36,24 @@ echo "==> [2/3] build"
 xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" build \
   | grep -E "error:|warning:|\*\* BUILD" || true
 
-echo "==> [3/3] test"
+# The UI tests drive the app against a stub, and the script owns its
+# lifetime. Left to the operator it is simply absent on the run that
+# matters, and the suite reports "inbox never listed" — which reads like
+# an app bug and is not one.
+STUB_PORT=6039
+echo "==> [3/3] test (stub on :$STUB_PORT)"
+python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-stub.log 2>&1 &
+STUB_PID=$!
+trap 'kill $STUB_PID 2>/dev/null || true' EXIT
+for _ in $(seq 1 20); do
+    curl -fsS -o /dev/null "http://127.0.0.1:$STUB_PORT/api/conversations" && break
+    sleep 0.25
+done
+if ! curl -fsS -o /dev/null "http://127.0.0.1:$STUB_PORT/api/conversations"; then
+    echo "!! stub did not come up on :$STUB_PORT — see /tmp/mailrs-ios-stub.log"
+    exit 1
+fi
+
 xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" test \
   | grep -E "✔|✘|error:|\*\* TEST" || true
 

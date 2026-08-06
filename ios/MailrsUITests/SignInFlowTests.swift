@@ -116,4 +116,32 @@ final class SignInFlowTests: XCTestCase {
         }
         XCTAssertTrue(badge.exists, "a suspicious sender was shown without saying so")
     }
+
+    func testRepliesToAThread() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "thread never opened")
+        app.buttons["Reply"].tap()
+
+        // The subject is prefilled from the thread and not editable here,
+        // so the only thing to type is the message.
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), "no composer")
+        editor.tap()
+        editor.typeText("Noted, thanks.")
+
+        app.buttons["Send"].tap()
+
+        // Back on the thread: the sheet dismisses only on a send the
+        // server said it queued. If it had failed the sheet would still
+        // be up with the reason in it.
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "the reply sheet never dismissed — the send did not succeed")
+    }
 }

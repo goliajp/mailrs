@@ -81,6 +81,17 @@ final class Session {
         }
     }
 
+    func sendReply(
+        to recipients: [String], subject: String, body: String,
+        inReplyTo: String?, threadId: String
+    ) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.sendReply(
+            to: recipients, subject: subject, body: body,
+            inReplyTo: inReplyTo, threadId: threadId
+        )
+    }
+
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.messages(threadId: threadId)

@@ -48,6 +48,53 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/webapi/src/handlers/compose.rs` — `SendRequest`,
+    /// posted to `/api/mail/send`.
+    ///
+    /// Every field the handler reads is `#[serde(default)]`, so a missing
+    /// one is silently an empty string rather than a 400 — which is why
+    /// the threading pair below is sent together rather than trusted to
+    /// one or the other.
+    struct SendRequest: Encodable {
+        let to: [String]
+        let cc: [String]
+        let subject: String
+        let body: String
+        /// The Message-ID of the message being replied to.
+        let inReplyTo: String?
+        /// The conversation the reply lives in.
+        ///
+        /// Both, always. The handler treats this as a fallback for when
+        /// `in_reply_to` is absent, and its comment says why it had to
+        /// exist: a client can drop `in_reply_to` and nothing notices —
+        /// a reply with an attachment arrived unthreaded on prod on
+        /// 2026-07-30 while two without attachments were fine the same
+        /// day. Sending both costs a field and removes the failure.
+        let replyToThreadId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case to
+            case cc
+            case subject
+            case body
+            case inReplyTo = "in_reply_to"
+            case replyToThreadId = "reply_to_thread_id"
+        }
+    }
+
+    /// Backend: `crates/webapi/src/handlers/compose.rs` — `SendResponse`.
+    struct SendResponse: Decodable {
+        let messageId: String
+        let success: Bool
+        let message: String?
+
+        enum CodingKeys: String, CodingKey {
+            case messageId = "message_id"
+            case success
+            case message
+        }
+    }
+
     /// Backend: `crates/webapi/src/handlers/conversation_body.rs` —
     /// `ThreadMessageResponse`.
     ///
