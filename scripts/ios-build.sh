@@ -4,6 +4,8 @@
 # Usage:
 #   ./scripts/ios-build.sh              # generate + build + test
 #   ./scripts/ios-build.sh run          # ... then install and launch on sim-mailrs
+#   ./scripts/ios-build.sh device       # build signed, install and launch on a
+#                                       # paired iPhone (skips the simulator suite)
 #
 # The simulator is a named device, not "whatever is booted": a shared
 # simulator accumulates other projects' state, and a login screen that
@@ -29,6 +31,39 @@ fi
 echo "==> $SIM_NAME = $UDID"
 
 cd ios
+
+# A paired phone, signed with the GOLIA K.K. team's Apple Development
+# certificate. The certificate is `CN=Apple Development: HAO LI (…)`,
+# `OU=KF79DRC524`, `O=GOLIA K.K.` — the common name is the person, which
+# is why reading `security find-identity` alone made it look as though
+# the team had no iOS certificate at all. It has one.
+if [ "${1:-}" = "device" ]; then
+    xcodegen generate --spec project.yml
+    # JSON, not the table: device names contain spaces ("panda's
+    # iphone"), so positional awk over the columns picks the wrong field
+    # and asks CoreDevice for a device called "iPhone".
+    DEVICE=$(xcrun devicectl list devices --json-output - 2>/dev/null | python3 -c "
+import json, sys
+devices = json.load(sys.stdin)['result']['devices']
+paired = [d for d in devices
+          if 'paired' in d.get('connectionProperties', {}).get('pairingState', '')]
+print(paired[0]['identifier'] if paired else '')
+")
+    if [ -z "$DEVICE" ]; then
+        echo "!! no paired iPhone — plug one in and trust this Mac"
+        exit 1
+    fi
+    echo "==> device $DEVICE"
+    xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
+      -destination "platform=iOS,id=$DEVICE" -derivedDataPath /tmp/mailrs-device build \
+      | grep -E "error:|Signing Identity|\*\* BUILD" || true
+    APP=/tmp/mailrs-device/Build/Products/Debug-iphoneos/Mailrs.app
+    [ -d "$APP" ] || { echo "!! no built app at $APP"; exit 1; }
+    xcrun devicectl device install app --device "$DEVICE" "$APP" | grep -E "bundleID|Error"
+    xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE_ID" | tail -1
+    exit 0
+fi
+
 echo "==> [1/3] xcodegen"
 xcodegen generate --spec project.yml
 
