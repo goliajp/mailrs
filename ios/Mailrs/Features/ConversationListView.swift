@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ConversationListView: View {
     @Environment(Session.self) private var session
+    /// The thread a delete is waiting on confirmation for.
+    @State private var pendingDelete: Wire.Conversation?
 
     var body: some View {
         NavigationStack {
@@ -19,6 +21,31 @@ struct ConversationListView: View {
                             ThreadView(conversation: conversation)
                         } label: {
                             ConversationRow(conversation: conversation)
+                        }
+                        .swipeActions(edge: .trailing) {
+                            // Delete asks. `thread_actions.rs` unlinks the
+                            // maildir files, so there is no trash and no
+                            // undo to offer afterwards — the web client
+                            // reached the same verb from a swipe without
+                            // asking until 2026-08-05, and one gesture
+                            // destroyed a thread outright.
+                            Button(role: .destructive) {
+                                pendingDelete = conversation
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .leading) {
+                            // Archive does not ask. It is reversible, and
+                            // a question about a reversible action is
+                            // noise that teaches people to dismiss
+                            // questions.
+                            Button {
+                                Task { await session.archive(conversation) }
+                            } label: {
+                                Label("Archive", systemImage: "archivebox")
+                            }
+                            .tint(.green)
                         }
                         .onAppear {
                             // Paging on the last row appearing, rather
@@ -38,6 +65,28 @@ struct ConversationListView: View {
                 }
             }
             .navigationTitle("Inbox")
+            // `.alert`, not `.confirmationDialog`. The dialog rendered as
+            // a popover here and SwiftUI drops the `.cancel` button in
+            // that presentation — leaving a destructive confirmation
+            // whose only visible action was Delete, and tapping outside
+            // as the undocumented way back. The safe way out of a
+            // question about permanent deletion has to be on screen.
+            .alert(
+                "Delete conversation?",
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: { if !$0 { pendingDelete = nil } }
+                ),
+                presenting: pendingDelete
+            ) { conversation in
+                Button("Delete", role: .destructive) {
+                    Task { await session.delete(conversation) }
+                    pendingDelete = nil
+                }
+                Button("Cancel", role: .cancel) { pendingDelete = nil }
+            } message: { _ in
+                Text("This will permanently delete all messages.")
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Sign out") { session.signOut() }

@@ -118,8 +118,22 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def do_DELETE(self):
+        # `DELETE /api/conversations/{id}` — 204, no body. The real one
+        # unlinks maildir files; this one just says yes.
+        if re.match(r"^/api/conversations/[\w-]+$", self.path.split("?")[0]):
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        else:
+            self._send({}, 404)
+
     def do_POST(self):
-        if self.path.startswith("/api/auth/login"):
+        if re.match(r"^/api/conversations/[\w-]+/(un)?archive$", self.path.split("?")[0]):
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        elif self.path.startswith("/api/auth/login"):
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
         elif self.path.startswith("/api/mail/send"):

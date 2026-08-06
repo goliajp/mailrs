@@ -157,6 +157,35 @@ actor MailrsClient {
         return result
     }
 
+    /// `POST /api/conversations/{id}/archive` — 204, no body.
+    func archive(threadId: String) async throws {
+        try await verb("POST", "/api/conversations/\(threadId)/archive")
+    }
+
+    /// `POST /api/conversations/{id}/unarchive`.
+    func unarchive(threadId: String) async throws {
+        try await verb("POST", "/api/conversations/\(threadId)/unarchive")
+    }
+
+    /// `DELETE /api/conversations/{id}`.
+    ///
+    /// Irreversible. `thread_actions.rs` unlinks the maildir files after
+    /// clearing the kevy rows — there is no trash and nothing to restore
+    /// from — which is why every caller of this asks first.
+    func delete(threadId: String) async throws {
+        try await verb("DELETE", "/api/conversations/\(threadId)")
+    }
+
+    private func verb(_ method: String, _ path: String) async throws {
+        let (_, response) = try await send(method, path, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+    }
+
     private func send(
         _ method: String, _ path: String, body: Data?, authorized: Bool
     ) async throws -> (Data, URLResponse) {
