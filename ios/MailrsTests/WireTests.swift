@@ -57,6 +57,50 @@ struct WireTests {
         #expect(challenge.requiresTotp)
     }
 
+    /// `crates/webapi/src/handlers/conversation_body.rs` —
+    /// `ThreadMessageResponse`, also a bare array. The struct has forty
+    /// fields; this client reads nine and must ignore the rest rather
+    /// than failing to decode because an analysis field it never uses
+    /// changed shape.
+    @Test func decodesThreadMessagesAndIgnoresTheFieldsItDoesNotUse() throws {
+        let json = Data("""
+        [{"uid":7,"sender":"alice@example.com","sender_trust":"verified",
+          "recipients":"me@golia.jp","subject":"Q3","flags":0,
+          "internal_date":1754400000,"message_id":"<m1@x>",
+          "text_body":"hello","html_body":"<p>hello</p>","attachments":[],
+          "category":"inbox","risk_score":0,"risk_reason":"","summary":"",
+          "people":{},"dates":{},"amounts":{},"action_items":[],
+          "ai_analyzed":false,"importance_level":"normal","importance_score":0.1,
+          "is_bulk_sender":false,"has_tracking_pixel":false,"requires_action":false,
+          "sender_intent":""}]
+        """.utf8)
+
+        let messages = try JSONDecoder().decode([Wire.Message].self, from: json)
+        #expect(messages.count == 1)
+        #expect(messages[0].uid == 7)
+        #expect(messages[0].senderTrust == "verified")
+        #expect(messages[0].htmlBody == "<p>hello</p>")
+    }
+
+    /// `cc`, `text_body` and `html_body` are all optional on the wire —
+    /// `cc` is skipped entirely when absent, and a message can genuinely
+    /// have no HTML part.
+    @Test func decodesAMessageWithNoHtmlPartAndNoCc() throws {
+        let json = Data("""
+        [{"uid":1,"sender":"a@b.jp","sender_trust":"","recipients":"me@golia.jp",
+          "subject":"","flags":0,"internal_date":1,"message_id":"<x>",
+          "text_body":"plain","html_body":null,"attachments":[],"category":"inbox",
+          "risk_score":0,"risk_reason":"","summary":"","people":{},"dates":{},
+          "amounts":{},"action_items":[],"ai_analyzed":false,
+          "importance_level":"normal","importance_score":0,"is_bulk_sender":false,
+          "has_tracking_pixel":false,"requires_action":false,"sender_intent":""}]
+        """.utf8)
+
+        let messages = try JSONDecoder().decode([Wire.Message].self, from: json)
+        #expect(messages[0].htmlBody == nil)
+        #expect(messages[0].textBody == "plain")
+    }
+
     @Test func encodesLoginWithSnakeCaseTotp() throws {
         let body = Wire.LoginRequest(address: "a@golia.jp", password: "pw", totpCode: "123456")
         let encoded = try JSONEncoder().encode(body)

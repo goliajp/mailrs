@@ -95,6 +95,23 @@ actor MailrsClient {
         }
     }
 
+    /// `GET /api/conversations/{thread_id}` — a bare array, like the list.
+    func messages(threadId: String) async throws -> [Wire.Message] {
+        let url = baseURL.appendingPathComponent("/api/conversations/\(threadId)")
+        let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        do {
+            return try JSONDecoder().decode([Wire.Message].self, from: data)
+        } catch {
+            throw MailrsError.decoding("thread messages — \(error)")
+        }
+    }
+
     private func send(
         _ method: String, _ path: String, body: Data?, authorized: Bool
     ) async throws -> (Data, URLResponse) {

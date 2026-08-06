@@ -48,6 +48,42 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/webapi/src/handlers/conversation_body.rs` —
+    /// `ThreadMessageResponse`.
+    ///
+    /// `GET /api/conversations/{thread_id}` returns a bare array of
+    /// these, like the list endpoint. Most of the struct is analysis
+    /// output this client does not read yet; the fields below are the
+    /// ones it does, and `Decodable` ignores the rest.
+    struct Message: Decodable, Identifiable, Sendable {
+        let uid: UInt32
+        let sender: String
+        /// `"verified"` (DMARC pass), `"suspicious"` (an auth method
+        /// failed — likely spoofed), `"unverified"`, or `""` for mail
+        /// that predates the signal. Cryptographic, not a model.
+        let senderTrust: String
+        let recipients: String
+        let subject: String
+        let internalDate: Int64
+        let messageId: String
+        let textBody: String?
+        let htmlBody: String?
+
+        var id: UInt32 { uid }
+
+        enum CodingKeys: String, CodingKey {
+            case uid
+            case sender
+            case senderTrust = "sender_trust"
+            case recipients
+            case subject
+            case internalDate = "internal_date"
+            case messageId = "message_id"
+            case textBody = "text_body"
+            case htmlBody = "html_body"
+        }
+    }
+
     /// Backend: `crates/webapi/src/handlers/conversations.rs` —
     /// `ConversationResponse`.
     ///
