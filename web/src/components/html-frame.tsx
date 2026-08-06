@@ -3,6 +3,7 @@ import type { AttachmentInfo } from '@/lib/types'
 import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useRef } from 'react'
 
+import { fitHeight, fitScale } from '@/lib/fit-to-width'
 import { getToken } from '@/store/auth'
 
 const CJK_FONTS =
@@ -141,6 +142,12 @@ const SHADOW_STYLES = `
     user-select: text;
     -webkit-user-select: text;
     max-width: 680px;
+    /* Fit-to-width scales this element; the origin has to be the top-left
+       corner or the shrunk page drifts away from the column it is in.
+       The auto margins below centre it, which is right at full size and
+       wrong under a transform — the script switches to a left margin
+       when it scales. */
+    transform-origin: 0 0;
     margin: 0 auto;
     padding: 12px;
     box-sizing: border-box;
@@ -227,11 +234,100 @@ export function HtmlFrame({
       img.decoding = 'async'
       img.referrerPolicy = 'no-referrer'
     }
+
+    const wrap = root.querySelector<HTMLElement>('.mail-wrap')
+    if (!wrap) return
+
+    // Measured, not guessed: `scrollWidth` is the width the content
+    // actually wants, and it is the only thing that knows about a
+    // `<table width="700">` nested six levels down. It is a layout value,
+    // so a transform does not disturb it.
+
+    // Every property fit() writes, cleared together. Clearing a subset is
+    // how a message that scaled once stays wrong after the column grows:
+    // an early version left `margin-left: 0` behind, so widening the pane
+    // back to full size gave an email that no longer centred.
+    const reset = () => {
+      wrap.style.transform = ''
+      wrap.style.width = ''
+      wrap.style.maxWidth = ''
+      wrap.style.marginLeft = ''
+      host.style.height = ''
+    }
+
+    // The column, and the size the content reports in whatever state it
+    // is currently in. Stable across passes either way: when scaled, the
+    // width is pinned to exactly the content width, so re-reading gives
+    // the same number back.
+    const state = () => `${host.clientWidth}:${wrap.scrollWidth}:${wrap.scrollHeight}`
+
+    // What the last pass settled on. fit() writes to the elements it is
+    // observing, so without a settled state every notification redoes the
+    // same arithmetic and rewrites the same values — the browser reports
+    // that as `ResizeObserver loop completed with undelivered
+    // notifications`, and it is the shape `periodic-work-must-converge`
+    // names: idempotent is not the same as convergent.
+    let settled = ''
+
+    const fit = () => {
+      if (state() === settled) return
+      // Measure at full size, or a later pass measures an earlier pass's
+      // result and the page shrinks a little further every time.
+      reset()
+      const hostWidth = host.clientWidth
+      const contentWidth = wrap.scrollWidth
+      const scale = fitScale(contentWidth, hostWidth)
+      if (scale < 1) {
+        // Laid out at the content's width, then scaled down to the host's.
+        // The stylesheet's `max-width: 680px` has to come off with it —
+        // it wins over an inline width, so leaving it on kept the wrap's
+        // box (and its white background) narrower than the content
+        // painting out of it, a seam down the side of any message whose
+        // body carries a background colour.
+        wrap.style.width = `${contentWidth}px`
+        wrap.style.maxWidth = 'none'
+        // The auto margins would centre the *pre-transform* box, pushing
+        // the shrunk page off to the right.
+        wrap.style.marginLeft = '0'
+        wrap.style.transform = `scale(${scale})`
+        host.style.height = `${fitHeight(wrap.scrollHeight, scale)}px`
+      }
+      settled = state()
+    }
+
+    fit()
+    // Writing inside the observation callback is what makes the browser
+    // say the loop went undelivered — the resize it causes lands in the
+    // same frame it was told about. A frame's delay puts the write after
+    // delivery, and coalesces the two observers firing for one change
+    // into a single pass.
+    let queued = 0
+    const schedule = () => {
+      if (queued !== 0) return
+      queued = requestAnimationFrame(() => {
+        queued = 0
+        fit()
+      })
+    }
+    // Images arrive after first paint and change both dimensions, and the
+    // column itself changes on rotate and on a pane drag. One observer for
+    // both, disconnected on unmount — an earlier iframe version leaked one
+    // per body change.
+    const ro = new ResizeObserver(schedule)
+    ro.observe(host)
+    ro.observe(wrap)
+    return () => {
+      cancelAnimationFrame(queued)
+      ro.disconnect()
+    }
   }, [sanitized])
 
   return (
     <div
-      className={`relative isolate [contain:layout_style_paint] ${maxHeight ? 'overflow-auto' : ''}`}
+      // `overflow-x: auto` rather than nothing: a message past the fit
+      // floor still has a remainder, and before this it was clipped with
+      // no way to reach it — the pixels were simply gone.
+      className={`relative isolate overflow-x-auto [contain:layout_style_paint] ${maxHeight ? 'overflow-y-auto' : ''}`}
       ref={hostRef}
       style={{ maxHeight }}
     />

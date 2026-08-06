@@ -70,7 +70,7 @@ function MobileConversationView() {
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
           aria-label="Back to thread"
-          className="text-fg-muted hover:text-fg -ml-1 p-1"
+          className="touch-target text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('thread')}
           type="button"
         >
@@ -171,7 +171,7 @@ function MobileReplyView() {
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
           aria-label="Back to thread"
-          className="text-fg-muted hover:text-fg -ml-1 p-1"
+          className="touch-target text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('thread')}
           type="button"
         >
@@ -253,7 +253,7 @@ function MobileThreadView() {
       <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <button
           aria-label="Back to inbox"
-          className="text-fg-muted hover:text-fg -ml-1 p-1"
+          className="touch-target text-fg-muted hover:text-fg -ml-1 p-1"
           onClick={() => setMobileView('list')}
           type="button"
         >
@@ -263,7 +263,7 @@ function MobileThreadView() {
         {messages.length > 1 && (
           <button
             aria-label={`View conversation (${messages.length} messages)`}
-            className="text-fg-muted hover:text-fg flex items-center gap-1 rounded-md px-2 py-1 text-xs"
+            className="touch-target text-fg-muted hover:text-fg flex items-center gap-1 rounded-md px-2 py-1 text-xs"
             onClick={() => setMobileView('conversation')}
             type="button"
           >
