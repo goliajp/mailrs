@@ -17,6 +17,7 @@ import {
   useSelectedThreadId,
 } from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
+import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatDate, formatFullDate } from '@/lib/format'
 import { authAtom } from '@/store/auth'
@@ -239,6 +240,12 @@ function MobileThreadView() {
   useEffect(() => {
     scrollRef.current?.scrollTo(0, 0)
   }, [selectedId])
+
+  // This view only renders while the phone is on the thread, so showing
+  // is true whenever it is mounted. Until 2026-08-05 nothing here marked
+  // anything read — the hidden desktop tree did it, which is also why it
+  // happened without the mail being on screen.
+  useMarkReadOnOpen(selectedId, true)
 
   const selectedMsg =
     selectedMsgIdx != null ? messages[selectedMsgIdx] : messages[messages.length - 1]

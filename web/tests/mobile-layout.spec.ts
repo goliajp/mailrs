@@ -83,6 +83,15 @@ async function openFirstRow(page: Page) {
   await page.mouse.click(box.x + 60, box.y + box.height / 2)
 }
 
+/** Non-GET requests the app made, in order. */
+function recordWrites(page: Page): string[] {
+  const writes: string[] = []
+  page.on('request', (r) => {
+    if (r.method() !== 'GET' && r.url().includes('/api/')) writes.push(new URL(r.url()).pathname)
+  })
+  return writes
+}
+
 async function stubApi(page: Page) {
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -160,6 +169,38 @@ for (const phone of PHONES) {
         )
       )
       expect(nested).toEqual([])
+    })
+
+    /**
+     * A thread is read when you read it.
+     *
+     * The phone auto-selects the first row as soon as the list arrives —
+     * that is how the reading pane knows what to show once you tap in.
+     * It is not permission to mark anything read. Until 2026-08-05 the
+     * hidden desktop tree was mounted here, auto-opened that selection
+     * and marked it read: arriving at your mailbox on a phone marked the
+     * newest thread read, twice, without it ever being on screen.
+     */
+    test('arriving at the mailbox marks nothing read', async ({ page }) => {
+      await stubApi(page)
+      const writes = recordWrites(page)
+      await page.goto('/mail')
+      await expect(page.locator('[role="listitem"]')).toHaveCount(THREADS.length)
+      await page.waitForTimeout(800)
+      expect(writes.filter((w) => w.endsWith('/read'))).toEqual([])
+    })
+
+    test('opening a thread marks it read, once', async ({ page }) => {
+      await stubApi(page)
+      const writes = recordWrites(page)
+      await page.goto('/mail')
+      await openFirstRow(page)
+      await expect
+        .poll(() => writes.filter((w) => w.endsWith('/read')).length, { timeout: 5000 })
+        .toBe(1)
+      // And stays at one: both shells used to run the effect.
+      await page.waitForTimeout(600)
+      expect(writes.filter((w) => w.endsWith('/read'))).toEqual(['/api/conversations/t1/read'])
     })
 
     test('the conversation list survives hostile subjects and addresses', async ({ page }) => {

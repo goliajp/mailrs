@@ -41,11 +41,19 @@ export default defineConfig({
   // to users.
   projects: [
     { name: 'perf', testMatch: /perf-.*\.spec\.ts/ },
+    // The fixture tier renders components vite *dev* transforms on the
+    // fly; a static dist cannot serve a .tsx fixture, and adding one to
+    // the production build would ship it to users.
     {
       name: 'layout',
-      testMatch: /(fit-to-width|mobile-layout)\.spec\.ts/,
+      testMatch: /fit-to-width\.spec\.ts/,
       use: { baseURL: 'http://localhost:6037' },
     },
+    // The app tier runs against the built bundle, like `perf`. Not a
+    // preference: React StrictMode double-invokes effects in dev, so
+    // "this fires exactly once" is unanswerable there — the mark-read
+    // assertion read 2 against a dev server and 1 against this one.
+    { name: 'mobile', testMatch: /mobile-layout\.spec\.ts/ },
   ],
   webServer: [
     // Port from the shared port registry (this project's row).

@@ -10,6 +10,7 @@ import { NewConversation } from '@/components/new-conversation'
 import { SendList } from '@/components/send-list/send-list'
 import { ThreadView } from '@/components/thread-view'
 import { useCurrentSelection } from '@/hooks/use-current-list'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMailEvents } from '@/hooks/use-mail-events'
 import { MPane, MPaneGroup } from '@/layouts/pane'
@@ -120,6 +121,7 @@ export function Chat() {
 
   // keyboard navigation
   useKeyboardNav()
+  const isMobile = useIsMobile()
 
   // The conversation query lived here as well as in the list, with its
   // own copy of the filter memo and an effect that selected its first
@@ -156,20 +158,21 @@ export function Chat() {
     return <ThreadView onBack={() => setMobileView('list')} />
   }
 
+  // One layout, not both with one hidden. The shell above already picks
+  // its branch this way; leaving this one on CSS kept a whole second
+  // conversation list and reading pane mounted on every phone, running
+  // their effects against data nobody could see.
+  if (isMobile) {
+    return <div className="h-full">{renderMobileBody()}</div>
+  }
   return (
-    <>
-      {/* ─── MOBILE: full-screen view switching ─── */}
-      <div className="h-full md:hidden">{renderMobileBody()}</div>
+    <MPaneGroup className="flex">
+      <MPane width={480}>{renderList()}</MPane>
 
-      {/* ─── DESKTOP: side-by-side pane layout ─── */}
-      <MPaneGroup className="hidden md:flex">
-        <MPane width={480}>{renderList()}</MPane>
+      <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
 
-        <MPaneGroup>{renderDesktopMain()}</MPaneGroup>
-
-        <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
-      </MPaneGroup>
-    </>
+      <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} open={shortcutsOpen} />
+    </MPaneGroup>
   )
 }
 

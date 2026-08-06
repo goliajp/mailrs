@@ -2,7 +2,7 @@ import type { ThreadMessage } from '@/lib/types'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Mail } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { type ReplyMode } from '@/components/reply-box'
 import { ThreadContentPane } from '@/components/thread-content-pane'
@@ -16,6 +16,7 @@ import {
   useSelectThreadId,
 } from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
+import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
 import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { extractEmail } from '@/lib/avatar'
@@ -71,10 +72,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // compares with Object.is (Number primitives), so unrelated array
   // changes don't re-render the ThreadView subtree.
   const { rows: currentConversations } = useConversationRows()
-  const selectedUnreadCount = useMemo(() => {
-    if (!selectedId) return 0
-    return currentConversations.find((c) => c.thread_id === selectedId)?.unread_count ?? 0
-  }, [selectedId, currentConversations])
   // Prev/next walk the same rows the list draws, because they are the
   // same value — this used to read an atom the list kept in step with an
   // effect, which is two copies of one list.
@@ -172,7 +169,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     handleMarkUnread,
     handleStar,
     handleUnstar,
-    markReadMutation,
     refetchThread,
   } = useThreadActions({
     crossAccountReadRef,
@@ -240,38 +236,11 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     // thread fetch is owned by useThreadQuery; nothing imperative to do here
   }, [selectedId, currentConversations, setMobileThreadTab, setMobileReplyOpen])
 
-  // auto mark-as-read whenever the currently-displayed thread is unread.
-  // covers: first open, list-filter switch where selection happens to stay
-  // on the same thread, and new-message arrival on the open thread.
-  // suppressed for a given selection after the user explicitly marks unread.
-  // selectedUnreadCount is derived above via selectAtom — primitive,
-  // re-renders only when the count itself changes
-
-  useEffect(() => {
-    if (!selectedId) return
-    // Thread is already read — nothing to do.
-    if (selectedUnreadCount === 0) {
-      return
-    }
-    // Mutation in flight — the ONLY re-entry guard we need. The
-    // wrapper flips pending true→false several times per successful
-    // mutation cycle (onMutate → onSuccess → onSettled), and this
-    // effect's deps include the mutation object, so without this
-    // gate we'd re-issue the POST on every micro-transition. When the
-    // mutation actually completes, the optimistic patch already set
-    // unread_count = 0, so the top guard returns before we get here.
-    // If the mutation errors (and we DON'T roll back — see
-    // useMarkReadMutation), the patch stays, so no retry loop either.
-    if (markReadMutation.isPending) return
-
-    const doms = domainsRef.current
-    const crossAll = crossAccountReadRef.current
-    setIsRead(true)
-    markReadMutation.mutate({
-      domains: crossAll && doms.length > 0 ? doms : undefined,
-      threadId: selectedId,
-    })
-  }, [selectedId, selectedUnreadCount, markReadMutation])
+  // Showing is unconditionally true here: this component only renders
+  // when the desktop reading pane is on screen. The mobile view passes
+  // its own answer — see the hook for why "selected" is not the same
+  // question.
+  useMarkReadOnOpen(selectedId, true, () => setIsRead(true))
 
   // Smooth-scroll to the bottom of the conversation timeline only when an
   // actually-new message arrives (last message's uid changed). Previously
