@@ -1,7 +1,7 @@
 import type { SingleAction } from '@/components/conversation-actions'
 
 import { toast } from '@goliapkg/gds'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
 import {
   useArchiveMutation,
@@ -25,7 +25,19 @@ import {
 // Fifteen mutation hooks and a 170-line switch lived inside
 // `ConversationList` until 2026-08-02; nothing in them is specific to that
 // component, and the drafts and Send lists want the same verbs.
-export function useConversationActions() {
+export type ConversationActions = {
+  /** Route a verb to its mutation. `delete` is held for confirmation. */
+  act: (threadId: string, action: SingleAction) => Promise<void>
+  /** Dismiss the confirmation without deleting. */
+  cancelDelete: () => void
+  /** Delete the held thread. */
+  confirmDelete: () => void
+  /** The thread awaiting confirmation, or null. */
+  pendingDelete: null | string
+}
+
+export function useConversationActions(): ConversationActions {
+  const [pendingDelete, setPendingDelete] = useState<null | string>(null)
   // single-thread context menu action — each individual mutation runs
   // its own optimistic-update + rollback cycle inside react-query, so this
   // dispatcher only routes by action name. Toast messages remain here so
@@ -45,7 +57,7 @@ export function useConversationActions() {
   const markNotificationMutation = useMarkNotificationMutation()
   const markPromotionMutation = useMarkPromotionMutation()
   const moveToInboxMutation = useMoveToInboxMutation()
-  return useCallback(
+  const act = useCallback(
     async (threadId: string, action: SingleAction) => {
       const onError = (err: unknown) => {
         toast.error(err instanceof Error ? err.message : 'Action failed')
@@ -58,10 +70,12 @@ export function useConversationActions() {
           )
           break
         case 'delete':
-          deleteMutation.mutate(
-            { threadId },
-            { onError, onSuccess: () => toast.success('Deleted') }
-          )
+          // Held, not run. Deleting unlinks the maildir files, and the
+          // reading pane has always asked first — the list reached the
+          // same verb without asking, so a left swipe on a phone was one
+          // gesture away from permanent loss. The caller renders
+          // `DeleteThreadConfirm` off `pendingDelete`.
+          setPendingDelete(threadId)
           break
         case 'mark-junk':
           markJunkMutation.mutate(
@@ -136,7 +150,6 @@ export function useConversationActions() {
     },
     [
       archiveMutation,
-      deleteMutation,
       markJunkMutation,
       markNotJunkMutation,
       markNotificationMutation,
@@ -152,4 +165,22 @@ export function useConversationActions() {
       unstarMutation,
     ]
   )
+
+  const confirmDelete = useCallback(() => {
+    if (!pendingDelete) return
+    const threadId = pendingDelete
+    setPendingDelete(null)
+    deleteMutation.mutate(
+      { threadId },
+      {
+        onError: (err: unknown) =>
+          toast.error(err instanceof Error ? err.message : 'Action failed'),
+        onSuccess: () => toast.success('Deleted'),
+      }
+    )
+  }, [pendingDelete, deleteMutation])
+
+  const cancelDelete = useCallback(() => setPendingDelete(null), [])
+
+  return { act, cancelDelete, confirmDelete, pendingDelete }
 }

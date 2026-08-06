@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BatchActionBar } from '@/components/conversation-list-batch-action-bar'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { VirtualConversationList } from '@/components/conversation-list-virtual'
+import { DeleteThreadConfirm } from '@/components/delete-thread-confirm'
 import { ListSearchInput } from '@/components/list-search-input'
 import { useConversationActions } from '@/hooks/use-conversation-actions'
 import { useConversationRows, useCurrentSelection } from '@/hooks/use-current-list'
@@ -214,7 +215,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
     [selectedThreadIds, exitBatchMode]
   )
 
-  const handleContextAction = useConversationActions()
+  const actions = useConversationActions()
 
   const setSortOrder = useSetAtom(sortOrderAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
@@ -329,6 +330,12 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
       <FilterBar />
 
+      <DeleteThreadConfirm
+        onCancel={actions.cancelDelete}
+        onConfirm={actions.confirmDelete}
+        open={actions.pendingDelete !== null}
+      />
+
       <VirtualConversationList
         batchMode={batchMode}
         conversations={sortedConversations}
@@ -340,7 +347,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         isSearching={isSearching}
         loadingMore={loadingMore}
         myEmail={myEmail}
-        onContextAction={handleContextAction}
+        onContextAction={actions.act}
         onLoadMore={sentinelCallback}
         onRefresh={refresh}
         onSelect={handleSelect}
