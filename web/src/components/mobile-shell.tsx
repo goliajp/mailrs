@@ -2,12 +2,31 @@ import { Home, Inbox, Server, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
+import { useVisualViewport } from '@/hooks/use-visual-viewport'
 
-// independent mobile app shell — no AppShell/Pane dependency
-// fixed height viewport with bottom navigation
+/**
+ * Independent mobile app shell — no AppShell/Pane dependency.
+ *
+ * The height is the visual viewport while a keyboard is up, and `100dvh`
+ * otherwise. Not a refinement: iOS Safari does not shrink the layout
+ * viewport for the keyboard — `100dvh` stays the full screen and the
+ * keyboard is drawn over the bottom of it. Everything anchored to the
+ * bottom of this column goes under it, and `html, body, #root` are
+ * `overflow: hidden` on phones, so there is nothing to scroll to reach
+ * them again. On the reply screen that is the Send button.
+ *
+ * Here rather than on the reply screen because this is the element that
+ * claims the height; fixing it here fixes composing, replying and
+ * searching at once. `MobileModal` has done the same thing with the same
+ * hook since it was written — this shell just never asked.
+ */
 export function MobileShell({ children }: { children: React.ReactNode }) {
+  const { isKeyboardOpen, viewportHeight } = useVisualViewport()
   return (
-    <div className="flex flex-col" style={{ height: '100dvh' }}>
+    <div
+      className="flex flex-col"
+      style={{ height: isKeyboardOpen ? `${viewportHeight}px` : '100dvh' }}
+    >
       <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
       <MobileNav />
     </div>
