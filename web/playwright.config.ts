@@ -43,7 +43,7 @@ export default defineConfig({
     { name: 'perf', testMatch: /perf-.*\.spec\.ts/ },
     {
       name: 'layout',
-      testMatch: /fit-to-width\.spec\.ts/,
+      testMatch: /(fit-to-width|mobile-layout)\.spec\.ts/,
       use: { baseURL: 'http://localhost:6037' },
     },
   ],
