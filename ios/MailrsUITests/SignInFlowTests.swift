@@ -9,6 +9,7 @@ import XCTest
 /// so the fit-to-width path is exercised rather than asserted about.
 final class SignInFlowTests: XCTestCase {
     private func launch(signedIn: Bool = false, folder: String? = nil) -> XCUIApplication {
+        resetStub()
         let app = XCUIApplication()
         app.launchArguments = ["-mailrsBaseURL", "http://localhost:6039"]
         app.launchArguments += signedIn ? ["-mailrsToken", "stub-token"] : ["-mailrsSignedOut"]
@@ -246,6 +247,35 @@ final class SignInFlowTests: XCTestCase {
         done.tap()
     }
 
+    /// Clear the stub's recorders so each test reads only its own
+    /// traffic. They are module-level lists in one long-lived process,
+    /// so without this "exactly one send" depends on test order.
+    private func resetStub() {
+        guard let url = URL(string: "http://localhost:6039/debug/reset") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let done = expectation(description: "debug/reset")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 10)
+    }
+
+    /// The bodies the stub has been POSTed to `/api/mail/send`.
+    private func sentMessages() -> [[String: Any]] {
+        guard let url = URL(string: "http://localhost:6039/debug/sent") else { return [] }
+        var result: [[String: Any]] = []
+        let done = expectation(description: "debug/sent")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let sent = json["sent"] as? [[String: Any]] {
+                result = sent
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     /// The attachment indices the stub has served, in order.
     private func fetchedAttachmentIndices() -> [Int] {
         guard let url = URL(string: "http://localhost:6039/debug/fetched") else { return [] }
@@ -453,6 +483,51 @@ final class SignInFlowTests: XCTestCase {
                       "marking read removed the row")
     }
 
+    /// A new message starts its own thread.
+    ///
+    /// The threading fields are the assertion, and they are read from
+    /// the stub because nothing on screen shows them — a compose that
+    /// filed its message inside whatever conversation was open would look
+    /// identical here and be wrong on the server. Sending
+    /// `reply_to_thread_id` on a new message is the mirror of the bug
+    /// that made replies arrive detached.
+    func testComposesANewMessageWithNoThread() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        // Send stays disabled until there is somewhere to send it.
+        XCTAssertFalse(app.buttons["Send"].isEnabled, "Send was offered with no recipient")
+
+        to.tap()
+        to.typeText("someone@example.com")
+        app.textFields["Subject"].tap()
+        app.textFields["Subject"].typeText("Hello")
+        app.textViews.firstMatch.tap()
+        app.textViews.firstMatch.typeText("First contact.")
+
+        XCTAssertTrue(app.buttons["Send"].isEnabled, "Send stayed disabled with a valid address")
+        app.buttons["Send"].tap()
+
+        // Back on the list: the sheet dismisses only on a send the server
+        // said it queued.
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 10), "the compose sheet never dismissed")
+
+        let sent = sentMessages()
+        XCTAssertEqual(sent.count, 1, "expected exactly one send")
+        XCTAssertEqual(sent.first?["to"] as? [String], ["someone@example.com"])
+        XCTAssertEqual(sent.first?["subject"] as? String, "Hello")
+        XCTAssertNil(sent.first?["in_reply_to"] as? String,
+                     "a new message named a parent message")
+        XCTAssertNil(sent.first?["reply_to_thread_id"] as? String,
+                     "a new message was filed inside a thread")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
@@ -479,5 +554,16 @@ final class SignInFlowTests: XCTestCase {
         // be up with the reason in it.
         XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
                       "the reply sheet never dismissed — the send did not succeed")
+
+        // The other side of the same coin: a reply must carry both
+        // threading fields, since `compose.rs` defaults each of them and
+        // a missing one arrives as a detached message rather than an
+        // error.
+        let sent = sentMessages()
+        XCTAssertEqual(sent.count, 1, "expected exactly one send")
+        XCTAssertEqual(sent.first?["reply_to_thread_id"] as? String, "t1")
+        // The newest message in the thread, not the first — a reply
+        // answers what was last said. The stub's thread has two.
+        XCTAssertEqual(sent.first?["in_reply_to"] as? String, "<m2@x>")
     }
 }

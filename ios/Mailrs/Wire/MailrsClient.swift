@@ -120,6 +120,18 @@ actor MailrsClient {
     /// The handler answers 200 with `success: false` for a send it
     /// accepted but could not queue, so the status code alone is not the
     /// answer — a reply that never left would otherwise look sent.
+    /// A message that starts its own thread — no `in_reply_to`, no
+    /// `reply_to_thread_id`.
+    @discardableResult
+    func sendNew(
+        to recipients: [String], cc: [String] = [], subject: String, body: String
+    ) async throws -> Wire.SendResponse {
+        try await post(Wire.SendRequest(
+            to: recipients, cc: cc, subject: subject, body: body,
+            inReplyTo: nil, replyToThreadId: nil
+        ))
+    }
+
     @discardableResult
     func sendReply(
         to recipients: [String],
@@ -129,10 +141,15 @@ actor MailrsClient {
         inReplyTo: String?,
         threadId: String
     ) async throws -> Wire.SendResponse {
-        let payload = Wire.SendRequest(
+        return try await post(Wire.SendRequest(
             to: recipients, cc: cc, subject: subject, body: body,
             inReplyTo: inReplyTo, replyToThreadId: threadId
-        )
+        ))
+    }
+
+    /// The one place a compose form becomes a request, so new messages
+    /// and replies cannot drift apart in how they read the answer.
+    private func post(_ payload: Wire.SendRequest) async throws -> Wire.SendResponse {
         let (data, response) = try await send(
             "POST", "/api/mail/send", body: try JSONEncoder().encode(payload), authorized: true
         )

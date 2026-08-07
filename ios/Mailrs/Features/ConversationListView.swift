@@ -6,6 +6,7 @@ struct ConversationListView: View {
     @State private var pendingDelete: Wire.Conversation?
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
+    @State private var composing = false
 
     var body: some View {
         NavigationStack {
@@ -94,6 +95,7 @@ struct ConversationListView: View {
                 }
             }
             .navigationTitle(session.activeList.title)
+            .sheet(isPresented: $composing) { ComposeView() }
             .searchable(text: $searchText, prompt: "Search mail")
             .onChange(of: searchText) { _, text in
                 // Debounced, and the previous request cancelled: a
@@ -141,6 +143,13 @@ struct ConversationListView: View {
                         }
                     } label: {
                         Label("Lists", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        composing = true
+                    } label: {
+                        Label("New message", systemImage: "square.and.pencil")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

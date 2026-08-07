@@ -209,6 +209,16 @@ final class Session {
         return try await client.attachment(uid: uid, index: index)
     }
 
+    /// Send a message that is not a reply.
+    ///
+    /// Both threading fields stay nil. Sending `reply_to_thread_id` here
+    /// would file a new message inside an existing conversation, which
+    /// is the mirror of the bug that made replies arrive unthreaded.
+    func sendNew(to recipients: [String], subject: String, body: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.sendNew(to: recipients, subject: subject, body: body)
+    }
+
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.messages(threadId: threadId)

@@ -100,6 +100,11 @@ PIXEL_PNG = base64.b64decode(
 # correct. That is exactly what an earlier version of the test did.
 FETCHED = []
 
+# Bodies POSTed to /api/mail/send, exposed at `/debug/sent`. A new
+# message and a reply differ only in two fields nothing on screen shows,
+# so the test reads them here rather than guessing from the UI.
+SENT = []
+
 ATTACHMENTS = [
     {"filename": "請求書_2026年8月分.pdf", "content_type": "application/pdf", "size": 1234},
     {"filename": "logo.png", "content_type": "image/png", "size": len(PIXEL_PNG)},
@@ -174,6 +179,9 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/fetched":
             self._send({"attachment_indices": FETCHED})
             return
+        if self.path.split("?")[0] == "/debug/sent":
+            self._send({"sent": SENT})
+            return
         if re.match(r"^/api/conversations/t\d+$", self.path.split("?")[0]):
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
@@ -224,6 +232,15 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
+        # Each test starts from a clean recorder. Without this the lists
+        # accumulate across the whole run and an assertion like "exactly
+        # one send" passes or fails on test order — which is how the
+        # reply test started seeing the compose test's message.
+        if self.path.split("?")[0] == "/debug/reset":
+            FETCHED.clear()
+            SENT.clear()
+            self._send({"ok": True})
+            return
         if re.match(
             r"^/api/conversations/[\w-]+/(read|unread|star|unstar|archive|unarchive)$",
             self.path.split("?")[0],
@@ -235,6 +252,12 @@ class H(BaseHTTPRequestHandler):
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
         elif self.path.startswith("/api/mail/send"):
+            length = int(self.headers.get("Content-Length", "0"))
+            if length:
+                try:
+                    SENT.append(json.loads(self.rfile.read(length)))
+                except ValueError:
+                    SENT.append({})
             # `success` is part of the answer, not just the status code:
             # the handler returns 200 with `success: false` for a message
             # it accepted but could not queue.
