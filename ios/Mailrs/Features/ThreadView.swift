@@ -228,6 +228,10 @@ private struct MessageCard: View {
                 // half-laid-out page.
                 MessageBodyView(html: html, height: $bodyHeight)
                     .frame(height: bodyHeight)
+                    // Mail that keeps its own white paper would
+                    // otherwise put square corners inside a rounded
+                    // card.
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .opacity(bodyHeight > 1 ? 1 : 0)
                     .animation(.easeIn(duration: 0.15), value: bodyHeight > 1)
             } else {

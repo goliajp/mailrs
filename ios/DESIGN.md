@@ -32,6 +32,17 @@ the recipient's avatar (a sent row's face is who it went to, mirroring
 the inbox's who it came from) and their delivery states are tinted
 capsules, the web's badge shape.
 
+Message bodies follow the phone only when the mail has no opinion.
+A dark thread used to show every HTML body as a white slab, which was
+a deliberate choice — mail is authored against white, and handing a
+dark background to a message that sets its own black text is worse
+than the slab. But that reasoning only covers mail that styles
+itself. `MailAppearance` draws the line: any declared colour — a
+background, a text colour, a `<font>` tag — means the message is a
+design and keeps its white paper; mail that declares none inherits
+the app's surface, and the body becomes part of the card instead of
+a bright rectangle in a dark room.
+
 ## The row (the unit everything multiplies)
 
 **Two lines, no preview.** The web made this exact call on 2026-07-17
