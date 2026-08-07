@@ -8,6 +8,8 @@ struct ThreadView: View {
     @State private var messages: [Wire.Message] = []
     @State private var failure: String?
     @State private var replying = false
+    @State private var confirmingDelete = false
+    @Environment(\.dismiss) private var dismiss
     /// Messages whose fold state the reader explicitly flipped. What is
     /// actually expanded is derived — (is last) XOR (in here) — so a
     /// thread change only has to clear this set.
@@ -28,6 +30,23 @@ struct ThreadView: View {
             index > 0 ? rows[index - 1] : nil,
             index + 1 < rows.count ? rows[index + 1] : nil
         )
+    }
+
+    /// The star's state, derived from the list rather than mirrored
+    /// here. A local copy toggled alongside the session's meant the
+    /// button's decision depended on which of the two ran first — and
+    /// `Task { }` defers, so the session read the value this screen
+    /// had already flipped and sent the opposite verb.
+    private var isStarred: Bool {
+        starTarget.flagged
+    }
+
+    /// The list's row while it is listed, this screen's snapshot
+    /// otherwise — the row leaves the list on archive, and the thread
+    /// can still be on screen for the moment before it dismisses.
+    private var starTarget: Wire.Conversation {
+        session.visibleConversations.first { $0.threadId == conversation.threadId }
+            ?? conversation
     }
 
     private func step(to target: Wire.Conversation?) {
@@ -117,9 +136,54 @@ struct ThreadView: View {
                 }
                 .disabled(messages.isEmpty)
             }
+            // Triage from inside the thread — Apple Mail's bottom bar.
+            // Without it every verdict costs a trip back to the list and
+            // a swipe on a row you have to find again.
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button {
+                    Task { await session.toggleStarred(starTarget) }
+                } label: {
+                    Label(
+                        isStarred ? "Unstar" : "Star",
+                        systemImage: isStarred ? "star.fill" : "star"
+                    )
+                }
+                .tint(isStarred ? .yellow : nil)
+                Spacer()
+                Button {
+                    Task { await session.archive(conversation) }
+                    // Leaves immediately: the row is already gone from
+                    // the list behind, and the undo toast is waiting
+                    // there. Staying would leave a thread on screen
+                    // that the mailbox no longer lists.
+                    dismiss()
+                } label: {
+                    Label("Archive", systemImage: "archivebox")
+                }
+                Spacer()
+                Button(role: .destructive) {
+                    confirmingDelete = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
         }
         .sheet(isPresented: $replying) {
             ReplyView(thread: conversation, replyingTo: messages.last)
+        }
+        .alert("Delete conversation?", isPresented: $confirmingDelete) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    // Deletion is not optimistic anywhere: the server
+                    // unlinks the files, so the screen leaves only once
+                    // it says they are gone.
+                    await session.delete(conversation)
+                    dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete all messages.")
         }
 
         .task(id: conversation.threadId) {

@@ -114,6 +114,16 @@ context line: how many messages, and who wrote them (me excluded, the
 row-face rule again). The nav title is now empty; the back button
 already says which list you came from.
 
+## Triage from inside the thread
+
+Star, Archive and Delete live in the thread's bottom bar — Apple
+Mail's shape — because every verdict otherwise cost a trip back to
+the list and a swipe on a row you had to find again. Star stays (a
+verdict that does not remove the thread should not remove the
+reader from it); Archive leaves at once and lands on the list where
+its undo toast is already waiting; Delete keeps its confirmation and
+leaves only once the server says the files are gone.
+
 ## Serial processing (the thread view)
 
 ▲/▼ in the thread toolbar walk the list order without returning to it —

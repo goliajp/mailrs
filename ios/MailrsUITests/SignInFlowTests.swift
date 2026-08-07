@@ -312,6 +312,57 @@ final class SignInFlowTests: XCTestCase {
     /// is none on the wire — so a row that opened the wrong file would
     /// show the wrong preview rather than fail. Tapping the second one
     /// is the check that counting is what the UI does.
+    /// Triage without leaving the thread.
+    ///
+    /// Archiving from inside has to do both halves: reach the server,
+    /// and put the reader back on a list that no longer shows the row.
+    /// The wire assertion is what separates it from a screen that
+    /// merely dismissed.
+    func testArchivingFromInsideTheThreadReturnsToAListWithoutIt() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["thread-subject"].waitForExistence(timeout: 10),
+                      "thread never opened")
+
+        app.buttons["Archive"].tap()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10),
+                      "still on the thread, or the row survived the archive")
+        XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].waitForExistence(timeout: 10),
+                      "did not return to the list")
+        let writes = recordedWrites()
+        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/archive") },
+                      "the archive never reached the server: \(writes)")
+    }
+
+    /// The star toggles in place — a verdict that does not remove the
+    /// thread should not remove the reader from it.
+    func testStarringFromInsideTheThreadStays() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        let subject = app.staticTexts["thread-subject"]
+        XCTAssertTrue(subject.waitForExistence(timeout: 10), "thread never opened")
+
+        app.buttons["Star"].tap()
+
+        XCTAssertTrue(app.buttons["Unstar"].waitForExistence(timeout: 5),
+                      "the button did not become its own undo")
+        XCTAssertTrue(subject.exists, "starring left the thread")
+        let writes = recordedWrites()
+        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/star") },
+                      "the star never reached the server: \(writes)")
+    }
+
     /// The subject is readable in the thread.
     ///
     /// It used to live only in the nav bar, squeezed between a back
