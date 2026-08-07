@@ -20,7 +20,7 @@ import re
 import base64
 import sys
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
@@ -272,6 +272,10 @@ class H(BaseHTTPRequestHandler):
             self._send({"sent": SENT})
             return
         if re.match(r"^/api/conversations/t\d+$", self.path.split("?")[0]):
+            # The delay covers thread bodies too: the offline tests need
+            # a window in which only a cache could have painted them.
+            if LIST_DELAY_MS[0]:
+                time.sleep(LIST_DELAY_MS[0] / 1000)
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
             if LIST_DELAY_MS[0]:
@@ -425,4 +429,4 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 6039
-    HTTPServer(("127.0.0.1", port), H).serve_forever()
+    ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()

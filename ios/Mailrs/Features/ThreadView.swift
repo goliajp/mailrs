@@ -112,13 +112,29 @@ struct ThreadView: View {
         }
 
         .task(id: conversation.threadId) {
+            // Last fetch first: an opened conversation reads from disk
+            // while — or without — the network answering.
+            if messages.isEmpty,
+               let cached = session.cachedMessages(threadId: conversation.threadId) {
+                messages = cached
+            }
             do {
-                messages = try await session.messages(threadId: conversation.threadId)
+                let fresh = try await session.messages(threadId: conversation.threadId)
+                // Identical answers skip the swap: replacing the array
+                // rebuilds every card and re-measures every body for
+                // nothing.
+                if fresh != messages { messages = fresh }
                 // After the messages are on screen, not before: an open
                 // that failed to load anything has not been read.
                 await session.markThreadRead(conversation)
             } catch {
-                failure = error.localizedDescription
+                // Cached mail on screen is a readable thread; the error
+                // pane would replace it with an apology. It also stays
+                // unread — showing yesterday's copy is not an open that
+                // reached the server.
+                if messages.isEmpty {
+                    failure = error.localizedDescription
+                }
             }
         }
     }

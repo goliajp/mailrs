@@ -512,7 +512,15 @@ final class Session {
 
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
-        return try await client.messages(threadId: threadId)
+        let fresh = try await client.messages(threadId: threadId)
+        cache.writeMessages(fresh, threadId: threadId)
+        return fresh
+    }
+
+    /// The last fetch of this thread, from disk — what an opened
+    /// conversation shows while (or without) the network answering.
+    func cachedMessages(threadId: String) -> [Wire.Message]? {
+        cache.readMessages(threadId: threadId)
     }
 
     func signIn(address: String, password: String, totpCode: String?) async {

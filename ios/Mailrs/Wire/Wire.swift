@@ -57,7 +57,7 @@ enum Wire {
     /// a field. The web client's schema declares an `index` defaulting to
     /// 0 that the server never sends; it happens to be harmless there
     /// only because the UI passes the array position instead.
-    struct Attachment: Decodable, Sendable {
+    struct Attachment: Codable, Equatable, Sendable {
         let filename: String
         let contentType: String
         let size: Int
@@ -239,7 +239,7 @@ enum Wire {
     /// these, like the list endpoint. Most of the struct is analysis
     /// output this client does not read yet; the fields below are the
     /// ones it does, and `Decodable` ignores the rest.
-    struct Message: Decodable, Identifiable, Sendable {
+    struct Message: Codable, Equatable, Identifiable, Sendable {
         let uid: UInt32
         let sender: String
         /// `"verified"` (DMARC pass), `"suspicious"` (an auth method
