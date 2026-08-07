@@ -312,6 +312,28 @@ final class SignInFlowTests: XCTestCase {
     /// is none on the wire — so a row that opened the wrong file would
     /// show the wrong preview rather than fail. Tapping the second one
     /// is the check that counting is what the UI does.
+    /// The subject is readable in the thread.
+    ///
+    /// It used to live only in the nav bar, squeezed between a back
+    /// button and three toolbar buttons, where it showed six words and
+    /// an ellipsis. The count line is the falsifiable part: it exists
+    /// only in the header, so a nav-bar title that happens to carry
+    /// the full string as its accessibility label cannot satisfy this.
+    func testTheThreadShowsItsWholeSubject() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+
+        XCTAssertTrue(app.staticTexts["2 messages · Alice Smith, spoofed"]
+            .waitForExistence(timeout: 10),
+            "no thread header — the subject has nowhere to be read")
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"].exists,
+                      "the header did not carry the subject")
+    }
+
     /// A thread opens with everything but the newest message folded —
     /// the thread is context, the last message is the reason you came.
     /// The fold is real (the older body and its To line are absent, not
@@ -1251,8 +1273,17 @@ final class SignInFlowTests: XCTestCase {
 
         app.buttons["Next thread"].tap()
 
-        XCTAssertTrue(app.navigationBars["請求書のご送付につきまして"].waitForExistence(timeout: 10),
-                      "the chevron did not move to the next thread")
+        // The header, not the nav bar: the subject moved there when the
+        // bar proved too narrow to show it. Asked of the element rather
+        // than of the screen — the pushed-away list can still answer
+        // that a string exists somewhere.
+        let subject = app.staticTexts["thread-subject"]
+        var moved = false
+        for _ in 0..<20 where !moved {
+            moved = subject.exists && subject.label == "請求書のご送付につきまして"
+            if !moved { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        XCTAssertTrue(moved, "the chevron did not move to the next thread")
         XCTAssertFalse(app.buttons["Next thread"].isEnabled,
                        "the last thread offered a next")
         var writes: [String] = []

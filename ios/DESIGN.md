@@ -104,6 +104,16 @@ toast carries the count ("Archived ×N"). Sign-out is expected to move
 off the toolbar when a settings surface exists; Select took the slot
 priority because triage is daily and sign-out is rare.
 
+## The thread's title block
+
+The subject gets a line of its own above the messages — Apple Mail's
+shape — because a nav bar squeezed between a back button and three
+toolbar buttons showed six words and an ellipsis, and that was the
+only place the subject appeared at all. Three lines at title3, then a
+context line: how many messages, and who wrote them (me excluded, the
+row-face rule again). The nav title is now empty; the back button
+already says which list you came from.
+
 ## Serial processing (the thread view)
 
 ▲/▼ in the thread toolbar walk the list order without returning to it —
