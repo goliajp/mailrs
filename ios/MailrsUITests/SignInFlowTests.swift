@@ -726,14 +726,6 @@ final class SignInFlowTests: XCTestCase {
                       "marking read removed the row")
     }
 
-    /// A new message starts its own thread.
-    ///
-    /// The threading fields are the assertion, and they are read from
-    /// the stub because nothing on screen shows them — a compose that
-    /// filed its message inside whatever conversation was open would look
-    /// identical here and be wrong on the server. Sending
-    /// `reply_to_thread_id` on a new message is the mirror of the bug
-    /// that made replies arrive detached.
     /// Typing a partial name offers the contact book; tapping the
     /// offer lands the bare address on the wire. The floor is the
     /// falsifiable part: a one-character token must never reach the
@@ -774,6 +766,14 @@ final class SignInFlowTests: XCTestCase {
                       "the typed token never reached the contacts endpoint: \(queries)")
     }
 
+    /// A new message starts its own thread.
+    ///
+    /// The threading fields are the assertion, and they are read from
+    /// the stub because nothing on screen shows them — a compose that
+    /// filed its message inside whatever conversation was open would look
+    /// identical here and be wrong on the server. Sending
+    /// `reply_to_thread_id` on a new message is the mirror of the bug
+    /// that made replies arrive detached.
     func testComposesANewMessageWithNoThread() {
         let app = launch(signedIn: true)
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
@@ -809,6 +809,12 @@ final class SignInFlowTests: XCTestCase {
                      "a new message named a parent message")
         XCTAssertNil(sent.first?["reply_to_thread_id"] as? String,
                      "a new message was filed inside a thread")
+        // Sent means no longer a draft. The sheet's closing save runs
+        // after the send's delete, and without the didSend guard it
+        // quietly refiled the just-deleted draft from the fields still
+        // in memory — the reply sheet shipped that exact bug first.
+        XCTAssertEqual(storedDrafts().count, 0,
+                       "the sent compose left a draft behind")
     }
 
     /// Closing the composer keeps what was written, and reopening it
@@ -1176,6 +1182,57 @@ final class SignInFlowTests: XCTestCase {
                       "forward subject not prefixed")
         XCTAssertNil(sent["in_reply_to"] ?? nil, "a forward must not thread")
         XCTAssertNil(sent["reply_to_thread_id"] ?? nil, "a forward must not thread")
+    }
+
+    /// A half-written reply survives: closing the sheet files it under
+    /// the thread, reopening puts the words back, sending clears it.
+    /// The wire's reply_to_thread_id is what separates a reply draft
+    /// from a loose compose draft — without it, resume could never
+    /// find the thread again.
+    func testAHalfWrittenReplySurvivesTheSheetClosing() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "thread never opened")
+
+        app.buttons["Reply"].tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), "no composer")
+        editor.tap()
+        editor.typeText("Half a reply")
+        app.buttons["Cancel"].tap()
+
+        // The draft reached the server, filed under this thread.
+        let stored = storedDrafts()
+        XCTAssertEqual(stored.count, 1, "expected exactly one draft: \(stored)")
+        XCTAssertEqual(stored.first?["reply_to_thread_id"] as? String, "t1",
+                       "the reply draft lost its thread")
+
+        // Reopening the sheet resumes where the typing stopped.
+        app.buttons["Reply"].tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), "sheet never reopened")
+        let resumed = app.textViews.containing(
+            NSPredicate(format: "value CONTAINS %@", "Half a reply")
+        ).firstMatch
+        XCTAssertTrue(resumed.waitForExistence(timeout: 5),
+                      "the reply draft did not restore into the editor")
+
+        editor.tap()
+        editor.typeText(" — finished.")
+        app.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "the send never dismissed the sheet")
+
+        // Sent means no longer a draft.
+        XCTAssertEqual(storedDrafts().count, 0,
+                       "the sent reply left its draft behind")
+        XCTAssertTrue((sentMessages().last?["body"] as? String ?? "").contains("Half a reply"),
+                      "the sent body lost the restored half")
     }
 
     func testRepliesToAThread() {
