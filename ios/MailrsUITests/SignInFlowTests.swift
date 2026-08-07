@@ -263,6 +263,79 @@ final class SignInFlowTests: XCTestCase {
         return result
     }
 
+    /// Searching narrows to what the server matched, and clearing it
+    /// puts the mailbox back.
+    func testSearchesAndClears() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no search field")
+        field.tap()
+        field.typeText("請求")
+
+        // The Japanese thread matches; the English one does not.
+        XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].waitForExistence(timeout: 10),
+                      "the matching thread was not shown")
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForNonExistence(timeout: 5),
+                      "a thread the server did not match stayed on screen")
+
+        // Clearing restores the list rather than leaving the results up.
+        app.buttons["Clear text"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 10), "the mailbox did not come back")
+    }
+
+    /// Search results keep the server's ranking.
+    ///
+    /// `search_conversations` hydrates by walking the ranked hit ids, so
+    /// the array arrives in relevance order — re-sorting it by date on
+    /// the client throws the ranking away. The stub returns two hits with
+    /// the OLDER one first for exactly this reason: with a single hit,
+    /// a date sort and a preserved ranking are indistinguishable, and an
+    /// earlier version of this test passed with the client sorting.
+    func testSearchKeepsTheServersOrder() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        let field = app.searchFields.firstMatch
+        field.tap()
+        field.typeText("ref")
+
+        let older = app.staticTexts["請求書のご送付につきまして"]
+        let newer = app.staticTexts["Quarterly report and the follow-up notes"]
+        XCTAssertTrue(older.waitForExistence(timeout: 10), "search returned nothing")
+        XCTAssertTrue(newer.exists, "search dropped a hit")
+
+        // The server ranked the older thread first. On screen it must be
+        // above the newer one.
+        XCTAssertLessThan(older.frame.minY, newer.frame.minY,
+                          "the results were re-sorted by date, discarding the ranking")
+    }
+
+    /// One character is not a search. The server's own LIKE stage refuses
+    /// it, so asking is a round trip that can only return noise — and the
+    /// stub answers a match for "e" precisely so a client without the
+    /// floor would visibly narrow the list.
+    func testOneCharacterDoesNotSearch() {
+        let app = launch(signedIn: true)
+        let english = app.staticTexts["Quarterly report and the follow-up notes"]
+        XCTAssertTrue(english.waitForExistence(timeout: 15), "inbox never listed")
+
+        let field = app.searchFields.firstMatch
+        field.tap()
+        field.typeText("e")
+
+        // Both rows still there: nothing was searched.
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertTrue(english.exists, "one character narrowed the list")
+        XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].exists,
+                      "one character narrowed the list")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
