@@ -21,3 +21,4 @@ dhat-heap.json
 # (workspace-local TMPDIR avoids the macOS sandbox blocking tesseract from
 # reading /tmp/claude-501/). Always deleted post-release; ignored as belt+braces.
 .tmp-release/
+.smix/
