@@ -1,6 +1,4 @@
-import PhotosUI
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Writing a new message.
 ///
@@ -30,8 +28,6 @@ struct ComposeView: View {
     @State private var suggestions: [String] = []
     @State private var suggestionTask: Task<Void, Never>?
     @State private var attachments: [MultipartForm.FilePart] = []
-    @State private var pickedPhoto: PhotosPickerItem?
-    @State private var importingFile = false
     @FocusState private var focus: Field?
 
     private enum Field { case to, subject, body }
@@ -59,27 +55,7 @@ struct ComposeView: View {
                 }
                 if !attachments.isEmpty {
                     Section {
-                    ForEach(Array(attachments.enumerated()), id: \.offset) { index, file in
-                        HStack {
-                            Image(systemName: "paperclip")
-                                .foregroundStyle(.secondary)
-                            Text(file.filename)
-                                .font(.subheadline)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(file.data.count.formatted(.byteCount(style: .file)))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button {
-                                _ = withAnimation { attachments.remove(at: index) }
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Remove \(file.filename)")
-                        }
-                    }
+                        AttachmentRows(attachments: $attachments)
                     }
                 }
                 if let failure {
@@ -93,32 +69,7 @@ struct ComposeView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    // Gmail's paperclip position: in the bar, where the
-                    // keyboard cannot cover it mid-compose.
-                    Menu {
-                        PhotosPicker(selection: $pickedPhoto, matching: .images) {
-                            Label("Photo library", systemImage: "photo")
-                        }
-                        Button {
-                            importingFile = true
-                        } label: {
-                            Label("Choose a file", systemImage: "folder")
-                        }
-                        if ProcessInfo.processInfo.arguments.contains("-mailrsToken") {
-                            // Test-only: the system pickers are separate
-                            // processes XCUITest cannot reach, so the
-                            // wire path gets its own way in.
-                            Button("Attach sample file") {
-                                attachments.append(.init(
-                                    name: "attachments", filename: "sample.txt",
-                                    contentType: "text/plain",
-                                    data: Data("sample attachment".utf8)
-                                ))
-                            }
-                        }
-                    } label: {
-                        Label("Attach", systemImage: "paperclip")
-                    }
+                    AttachMenu(attachments: $attachments)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") { Task { await send() } }
@@ -142,44 +93,6 @@ struct ComposeView: View {
                 suggestionTask = ContactSuggestions.schedule(
                     replacing: suggestionTask, for: text, in: session
                 ) { suggestions = $0 }
-            }
-            .onChange(of: pickedPhoto) { _, item in
-                guard let item else { return }
-                Task {
-                    // The transferable is bytes plus a best-effort type;
-                    // a photo that fails to load attaches nothing rather
-                    // than an empty file.
-                    guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-                    let type = item.supportedContentTypes.first
-                    let ext = type?.preferredFilenameExtension ?? "jpg"
-                    withAnimation {
-                        attachments.append(.init(
-                            name: "attachments",
-                            filename: "photo-\(attachments.count + 1).\(ext)",
-                            contentType: type?.preferredMIMEType ?? "image/jpeg",
-                            data: data
-                        ))
-                    }
-                    pickedPhoto = nil
-                }
-            }
-            .fileImporter(isPresented: $importingFile, allowedContentTypes: [.item]) { result in
-                guard case let .success(url) = result else { return }
-                // Security-scoped: without the access pair the read
-                // fails on real devices and quietly works in the
-                // simulator, which is the worst kind of passing.
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                guard let data = try? Data(contentsOf: url) else { return }
-                let type = UTType(filenameExtension: url.pathExtension)
-                withAnimation {
-                    attachments.append(.init(
-                        name: "attachments",
-                        filename: url.lastPathComponent,
-                        contentType: type?.preferredMIMEType ?? "application/octet-stream",
-                        data: data
-                    ))
-                }
             }
             .onDisappear {
                 autosave?.cancel()
