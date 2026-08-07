@@ -111,7 +111,7 @@ final class Session {
            index + 1 < ProcessInfo.processInfo.arguments.count {
             let client = MailrsClient(baseURL: baseURL, token: ProcessInfo.processInfo.arguments[index + 1])
             self.client = client
-            state = .signedIn(address: "test@golia.jp", displayName: "Test")
+            state = .signedIn(address: "me@golia.jp", displayName: "Test")
             // Through loadConversations, not an inline fetch: the badge
             // refresh lives there, and this path quietly skipping it is
             // exactly how the real cold launch below shipped a badge
@@ -144,6 +144,20 @@ final class Session {
             try await client.sendReply(
                 to: recipients, subject: subject, body: body,
                 inReplyTo: inReplyTo, threadId: threadId
+            )
+        }
+    }
+
+    func sendForward(
+        to recipients: [String], subject: String, body: String,
+        forwardMessageId: String, forwardAttachmentsFrom: UInt32?
+    ) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await sendWithFeedback {
+            try await client.sendForward(
+                to: recipients, subject: subject, body: body,
+                forwardMessageId: forwardMessageId,
+                forwardAttachmentsFrom: forwardAttachmentsFrom
             )
         }
     }

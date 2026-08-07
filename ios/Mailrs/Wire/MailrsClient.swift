@@ -128,7 +128,8 @@ actor MailrsClient {
     ) async throws -> Wire.SendResponse {
         try await post(Wire.SendRequest(
             to: recipients, cc: cc, subject: subject, body: body,
-            inReplyTo: nil, replyToThreadId: nil
+            inReplyTo: nil, replyToThreadId: nil,
+            forwardMessageId: nil, forwardAttachmentsFrom: nil
         ))
     }
 
@@ -143,7 +144,27 @@ actor MailrsClient {
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, subject: subject, body: body,
-            inReplyTo: inReplyTo, replyToThreadId: threadId
+            inReplyTo: inReplyTo, replyToThreadId: threadId,
+            forwardMessageId: nil, forwardAttachmentsFrom: nil
+        ))
+    }
+
+    /// A forward: no threading fields — a forward starts its own thread
+    /// — and the original travels by reference, with the server
+    /// appending body and attachments from the raw .eml.
+    @discardableResult
+    func sendForward(
+        to recipients: [String],
+        subject: String,
+        body: String,
+        forwardMessageId: String,
+        forwardAttachmentsFrom: UInt32?
+    ) async throws -> Wire.SendResponse {
+        return try await post(Wire.SendRequest(
+            to: recipients, cc: [], subject: subject, body: body,
+            inReplyTo: nil, replyToThreadId: nil,
+            forwardMessageId: forwardMessageId,
+            forwardAttachmentsFrom: forwardAttachmentsFrom
         ))
     }
 

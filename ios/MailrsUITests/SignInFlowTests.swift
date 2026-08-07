@@ -995,6 +995,81 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertEqual(writes.count, 1, "stepping to a thread did not mark it read")
     }
 
+    /// Reply All widens the To line to everyone on the last message
+    /// minus me. The fixture's last message carries a third party
+    /// precisely so this is distinguishable from Reply — with identical
+    /// To lines, a reply-all that only hit the sender would pass.
+    func testReplyAllAddressesEveryoneButMe() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "thread never opened")
+        app.buttons["Reply"].tap()
+
+        app.buttons["Reply All"].tap()
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), "no composer")
+        editor.tap()
+        editor.typeText("All hands answer.")
+        app.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "the sheet never dismissed")
+
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        let to = sent["to"] as? [String] ?? []
+        XCTAssertEqual(Set(to), ["spoofed@example.com", "bob@example.com"],
+                       "reply-all did not address sender plus the third party: \(to)")
+        XCTAssertFalse(to.contains("me@golia.jp"), "reply-all addressed me back")
+        XCTAssertNotNil(sent["in_reply_to"] as? String, "reply-all lost threading")
+    }
+
+    /// Forward is the backend kind: the typed text travels, the original
+    /// body and attachments are appended server-side from the .eml. The
+    /// wire shape is the assertion — `forward_message_id` present, both
+    /// threading fields absent (a forward starts its own thread).
+    func testForwardSendsByReferenceWithoutThreading() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "thread never opened")
+        app.buttons["Reply"].tap()
+
+        app.buttons["Forward"].tap()
+        let toField = app.textFields["forward-to"]
+        XCTAssertTrue(toField.waitForExistence(timeout: 5), "no forward To field")
+        toField.tap()
+        toField.typeText("third@example.com")
+        let editor = app.textViews.firstMatch
+        editor.tap()
+        editor.typeText("FYI.")
+        app.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "the sheet never dismissed")
+
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        XCTAssertEqual(sent["to"] as? [String], ["third@example.com"])
+        XCTAssertEqual(sent["forward_message_id"] as? String, "<m2@x>",
+                       "forward did not reference the original message")
+        XCTAssertTrue((sent["subject"] as? String ?? "").hasPrefix("Fwd:"),
+                      "forward subject not prefixed")
+        XCTAssertNil(sent["in_reply_to"] ?? nil, "a forward must not thread")
+        XCTAssertNil(sent["reply_to_thread_id"] ?? nil, "a forward must not thread")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(

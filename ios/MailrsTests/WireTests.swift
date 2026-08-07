@@ -111,11 +111,31 @@ struct WireTests {
     @Test func sendsBothThreadingFieldsOnAReply() throws {
         let request = Wire.SendRequest(
             to: ["alice@example.com"], cc: [], subject: "Re: Q3", body: "Noted.",
-            inReplyTo: "<m1@x>", replyToThreadId: "t1"
+            inReplyTo: "<m1@x>", replyToThreadId: "t1",
+            forwardMessageId: nil, forwardAttachmentsFrom: nil
         )
         let text = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
         #expect(text.contains("\"in_reply_to\":\"<m1@x>\""))
         #expect(text.contains("\"reply_to_thread_id\":\"t1\""))
+        // Optionals must vanish when nil, not encode as null — the
+        // handler treats a present-but-null forward differently from an
+        // absent one only by accident of serde defaults; absent is the
+        // shape the web sends.
+        #expect(!text.contains("forward_message_id"))
+    }
+
+    /// A forward carries the reference and neither threading field.
+    @Test func aForwardCarriesTheReferenceAndNoThreading() throws {
+        let request = Wire.SendRequest(
+            to: ["x@example.com"], cc: [], subject: "Fwd: Q3", body: "FYI.",
+            inReplyTo: nil, replyToThreadId: nil,
+            forwardMessageId: "<m2@x>", forwardAttachmentsFrom: 2
+        )
+        let text = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
+        #expect(text.contains("\"forward_message_id\":\"<m2@x>\""))
+        #expect(text.contains("\"forward_attachments_from\":2"))
+        #expect(!text.contains("in_reply_to"))
+        #expect(!text.contains("reply_to_thread_id"))
     }
 
     /// `crates/webapi/src/handlers/compose.rs` — `SendResponse`. The

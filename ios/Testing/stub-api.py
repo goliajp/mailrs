@@ -143,8 +143,9 @@ ATTACHMENTS = [
 def msg(uid, sender, trust, html):
     # Senders carry display names, as real mail does — the clients must
     # show the name and keep the address for the wire.
+    recipients = "me@golia.jp, Bob <bob@example.com>" if uid == 2 else "me@golia.jp"
     return {"uid": uid, "sender": sender, "sender_trust": trust,
-            "recipients": "me@golia.jp", "subject": "Quarterly report", "flags": 0,
+            "recipients": recipients, "subject": "Quarterly report", "flags": 0,
             "internal_date": 1754400000, "message_id": f"<m{uid}@x>",
             "text_body": "plain fallback", "html_body": html,
             "attachments": ATTACHMENTS if uid == 1 else [],
