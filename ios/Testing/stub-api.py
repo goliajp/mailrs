@@ -65,14 +65,14 @@ CONVOS = [{
     "thread_id": "t1", "subject": "Quarterly report and the follow-up notes",
     "participants": ["alice@example.com"], "message_count": 2, "unread_count": 2,
     "last_date": 1754400000, "category": "inbox", "flagged": False,
-    "snippet": "Please review before Friday", "pinned": False, "archived": False,
+    "snippet": "Please review before Friday, ref 2026", "pinned": False, "archived": False,
     "importance_level": "normal", "importance_score": 0.5, "requires_action": False,
     "received_count": 2, "sent_count": 0,
 }, {
     "thread_id": "t2", "subject": "請求書のご送付につきまして",
     "participants": ["keiri@example.co.jp"], "message_count": 1, "unread_count": 0,
     "last_date": 1754300000, "category": "inbox", "flagged": False,
-    "snippet": "ご確認ください。", "pinned": False, "archived": False,
+    "snippet": "ご確認ください。ref 2026", "pinned": False, "archived": False,
     "importance_level": "normal", "importance_score": 0.2, "requires_action": False,
     "received_count": 1, "sent_count": 0,
 }]
@@ -133,6 +133,22 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path.split("?")[0] == "/api/conversations/search":
+            query = parse_qs(urlparse(self.path).query)
+            term = query.get("q", [""])[0]
+            # Deliberately NOT date order: the real endpoint hydrates by
+            # walking the ranked hit ids, so the array arrives ranked.
+            # The older thread comes first here, so a client that re-sorted
+            # by date would visibly reorder it.
+            # Both fixtures carry "ref 2026", so that term returns two
+            # hits — and `reversed` puts the OLDER one first. A single-hit
+            # fixture cannot tell a preserved ranking from a date sort,
+            # which is how the first version of this test passed with the
+            # client re-sorting by date.
+            hits = [c for c in reversed(CONVOS)
+                    if term.lower() in c["subject"].lower() or term.lower() in c["snippet"].lower()]
+            self._send(hits)
+            return
         attachment = re.match(
             r"^/api/mail/messages/(\d+)/attachments/(\d+)$", self.path.split("?")[0]
         )

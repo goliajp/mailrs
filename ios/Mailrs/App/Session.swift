@@ -49,6 +49,16 @@ final class Session {
     /// Whether the server has any older threads left.
     private(set) var reachedEnd = false
     private(set) var loadingMore = false
+    /// The query the visible rows answer, or nil when they are the list.
+    private(set) var searchQuery: String?
+    private(set) var searchResults: [Wire.Conversation] = []
+
+    /// What the list draws — search results while searching, the mailbox
+    /// otherwise. One property so no screen has to know which it is
+    /// looking at, and no screen can show one while counting the other.
+    var visibleConversations: [Wire.Conversation] {
+        searchQuery == nil ? conversations : searchResults
+    }
     private(set) var needsTotp = false
 
     private var client: MailrsClient?
@@ -189,12 +199,41 @@ final class Session {
         }
     }
 
+    /// Run a search, or clear one.
+    ///
+    /// The results replace the list rather than filtering it: the server
+    /// searches the whole folder, so a client-side filter over the page
+    /// in hand would miss everything below it.
+    func search(text: String) async {
+        guard let client else { return }
+        guard let query = SearchRule.query(from: text) else {
+            searchQuery = nil
+            searchResults = []
+            return
+        }
+        searchQuery = query
+        do {
+            let hits = try await client.search(query: query, folder: folder)
+            // Only if this is still the current query — a slower earlier
+            // request must not overwrite a later one's results.
+            guard searchQuery == query else { return }
+            searchResults = hits
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
     /// The next page, keyed off the oldest row on screen.
     ///
     /// Guarded against re-entry as well as against the end: the list asks
     /// for more when its last row appears, and that row stays on screen
     /// while the request is in flight.
     func loadMore() async {
+        // Never while searching. Search results come back ranked, and
+        // `before_ts` pages by date — asking for "older than the last
+        // result" would append date-ordered rows to a relevance-ordered
+        // list and quietly mix two orderings.
+        guard searchQuery == nil else { return }
         guard let client, !loadingMore, !reachedEnd else { return }
         guard let before = ThreadPage.nextBefore(after: conversations) else { return }
         loadingMore = true

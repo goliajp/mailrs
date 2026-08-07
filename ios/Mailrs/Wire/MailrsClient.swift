@@ -157,6 +157,36 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/conversations/search` — ranked, and already hydrated
+    /// into the same row shape the list uses.
+    ///
+    /// The order is the ranking. `search_conversations` hydrates by
+    /// walking the hit ids (`thread_ids.iter().filter_map`), so the array
+    /// arrives in relevance order and re-sorting it by date would throw
+    /// the ranking away.
+    func search(query: String, folder: String, limit: Int = 50) async throws -> [Wire.Conversation] {
+        var components = URLComponents(url: baseURL.appendingPathComponent("/api/conversations/search"),
+                                       resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "folder", value: folder),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
+        let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        do {
+            return try JSONDecoder().decode([Wire.Conversation].self, from: data)
+        } catch {
+            throw MailrsError.decoding("search results — \(error)")
+        }
+    }
+
     /// `GET /api/mail/messages/{uid}/attachments/{index}` — the bytes.
     ///
     /// Not the `/content` sibling: that one answers JSON with extracted

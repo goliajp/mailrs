@@ -4,6 +4,8 @@ struct ConversationListView: View {
     @Environment(Session.self) private var session
     /// The thread a delete is waiting on confirmation for.
     @State private var pendingDelete: Wire.Conversation?
+    @State private var searchText = ""
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -13,10 +15,14 @@ struct ConversationListView: View {
             // an invisible sheet of glass over them, and every row
             // reports itself untappable underneath it.
             Group {
-                if session.conversations.isEmpty {
-                    ContentUnavailableView("All caught up", systemImage: "tray")
+                if session.visibleConversations.isEmpty {
+                    if session.searchQuery != nil {
+                        ContentUnavailableView.search(text: searchText)
+                    } else {
+                        ContentUnavailableView("All caught up", systemImage: "tray")
+                    }
                 } else {
-                    List(session.conversations) { conversation in
+                    List(session.visibleConversations) { conversation in
                         NavigationLink {
                             ThreadView(conversation: conversation)
                         } label: {
@@ -52,7 +58,7 @@ struct ConversationListView: View {
                             // than on a "Load more" button: the row is
                             // already the thing that means "you have
                             // reached the bottom".
-                            if conversation.threadId == session.conversations.last?.threadId {
+                            if conversation.threadId == session.visibleConversations.last?.threadId {
                                 Task { await session.loadMore() }
                             }
                         }
@@ -65,6 +71,18 @@ struct ConversationListView: View {
                 }
             }
             .navigationTitle("Inbox")
+            .searchable(text: $searchText, prompt: "Search mail")
+            .onChange(of: searchText) { _, text in
+                // Debounced, and the previous request cancelled: a
+                // keystroke per character otherwise puts one search in
+                // flight per letter, and the slowest one wins.
+                searchTask?.cancel()
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
+                    await session.search(text: text)
+                }
+            }
             // `.alert`, not `.confirmationDialog`. The dialog rendered as
             // a popover here and SwiftUI drops the `.cancel` button in
             // that presentation — leaving a destructive confirmation
