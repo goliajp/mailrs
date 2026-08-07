@@ -259,6 +259,23 @@ final class SignInFlowTests: XCTestCase {
         wait(for: [done], timeout: 10)
     }
 
+    /// Every non-GET the stub has served since the last reset.
+    private func recordedWrites() -> [String] {
+        guard let url = URL(string: "http://localhost:6039/debug/writes") else { return [] }
+        var result: [String] = []
+        let done = expectation(description: "debug/writes")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let writes = json["writes"] as? [String] {
+                result = writes
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     /// The drafts the stub is holding.
     private func storedDrafts() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/api/mail/drafts") else { return [] }
@@ -622,6 +639,49 @@ final class SignInFlowTests: XCTestCase {
 
         Thread.sleep(forTimeInterval: 2)
         XCTAssertTrue(storedDrafts().isEmpty, "an empty compose left a draft behind")
+    }
+
+    /// Opening a thread marks it read — once, and only because it was
+    /// opened.
+    ///
+    /// Asserted at the network level as well as on the row: the read verb
+    /// answers 204 with no body, so a client that fired it twice, or from
+    /// the wrong place, would look identical on screen. The web client
+    /// shipped exactly that bug — a hidden pane marked the newest thread
+    /// read on arrival, twice, without it ever being displayed.
+    func testOpeningAThreadMarksItRead() {
+        let app = launch(signedIn: true)
+        let unreadRow = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                        "Quarterly report", "Unread")
+        ).firstMatch
+        XCTAssertTrue(unreadRow.waitForExistence(timeout: 15), "no unread row")
+
+        // Arriving at the mailbox marks nothing. The list selecting or
+        // drawing a row is not reading it.
+        XCTAssertFalse(recordedWrites().contains { $0.hasSuffix("/read") },
+                       "something marked mail read before any thread was opened")
+
+        unreadRow.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "thread never opened")
+
+        var writes: [String] = []
+        for _ in 0..<20 {
+            writes = recordedWrites().filter { $0.hasSuffix("/read") }
+            if !writes.isEmpty { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertEqual(writes, ["POST /api/conversations/t1/read"],
+                       "expected exactly one read for the opened thread")
+
+        // And the row shows it: back on the list, the unread marker is
+        // gone but the row itself is not.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(unreadRow.waitForNonExistence(timeout: 10),
+                      "the row is still announced as unread after being read")
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"].exists,
+                      "reading the thread removed the row")
     }
 
     func testRepliesToAThread() {

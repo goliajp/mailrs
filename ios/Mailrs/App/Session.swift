@@ -126,6 +126,29 @@ final class Session {
         )
     }
 
+    /// A thread is read because someone is reading it.
+    ///
+    /// Called by the thread view once its messages are on screen — not
+    /// by the list, and not on selection. The web client learned that
+    /// distinction the hard way: a hidden pane auto-opening the newest
+    /// thread marked mail read that had never been displayed. Here the
+    /// view only exists when a person navigated into it, which is what
+    /// makes this safe.
+    func markThreadRead(_ conversation: Wire.Conversation) async {
+        guard conversation.unreadCount > 0, let client else { return }
+        do {
+            try await client.setRead(threadId: conversation.threadId, true)
+            // Patched after the server confirms, and the row is not
+            // re-filtered: in the Unread list the row stays visible
+            // until the next refresh rather than vanishing while you
+            // are standing on it.
+            patch(conversation.threadId) { $0.unreadCount = 0 }
+        } catch {
+            // Still unread is the honest state if the call failed; the
+            // next open retries by construction.
+        }
+    }
+
     /// Toggle read, and show it immediately.
     ///
     /// Optimistic, like archive and unlike delete: both directions are
