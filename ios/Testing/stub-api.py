@@ -284,7 +284,7 @@ class H(BaseHTTPRequestHandler):
             self._send({"ok": True})
             return
         if re.match(
-            r"^/api/conversations/[\w-]+/(read|unread|star|unstar|archive|unarchive)$",
+            r"^/api/conversations/[\w-]+/(read|unread|star|unstar|archive|unarchive|mark-junk|mark-not-junk)$",
             self.path.split("?")[0],
         ):
             self.send_response(204)

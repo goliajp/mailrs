@@ -684,6 +684,60 @@ final class SignInFlowTests: XCTestCase {
                       "reading the thread removed the row")
     }
 
+    /// Marking junk sends the verdict and takes the row off the list.
+    ///
+    /// The verb is the assertion (network level, like read): mark-junk
+    /// trains the Bayes filter, so a menu item that archived instead
+    /// would look right on screen and silently teach the filter nothing.
+    func testMarkAsJunkSendsTheVerdictAndRemovesTheRow() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+
+        row.press(forDuration: 1.0)
+        let markJunk = app.buttons["Mark as junk"]
+        XCTAssertTrue(markJunk.waitForExistence(timeout: 5), "no junk item in the menu")
+        markJunk.tap()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10),
+                      "the junked thread stayed in the Inbox")
+        var writes: [String] = []
+        for _ in 0..<20 {
+            writes = recordedWrites().filter { $0.contains("junk") }
+            if !writes.isEmpty { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertEqual(writes, ["POST /api/conversations/t1/mark-junk"],
+                       "the junk verdict never reached the server")
+    }
+
+    /// In the Junk list the same gesture offers the rescue instead.
+    func testJunkListOffersNotJunk() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+        app.buttons["Lists"].tap()
+        app.buttons["Junk"].tap()
+        let junkRow = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "You have won")
+        ).firstMatch
+        XCTAssertTrue(junkRow.waitForExistence(timeout: 10), "junk list never loaded")
+
+        junkRow.press(forDuration: 1.0)
+        XCTAssertTrue(app.buttons["Not junk"].waitForExistence(timeout: 5),
+                      "the Junk list did not offer the rescue")
+        XCTAssertFalse(app.buttons["Mark as junk"].exists,
+                       "the Junk list offered junking what is already junk")
+        app.buttons["Not junk"].tap()
+
+        XCTAssertTrue(junkRow.waitForNonExistence(timeout: 10),
+                      "the rescued thread stayed in Junk")
+        XCTAssertTrue(recordedWrites().contains("POST /api/conversations/junk1/mark-not-junk"),
+                      "the rescue never reached the server")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
