@@ -74,7 +74,8 @@ def convo(tid, subject, snippet, ts):
 
 CONVOS = [{
     "thread_id": "t1", "subject": "Quarterly report and the follow-up notes",
-    "participants": ["alice@example.com"], "message_count": 2, "unread_count": 2,
+    "participants": ["Alice Smith <alice@example.com>"],
+    "message_count": 2, "unread_count": 2,
     "last_date": 1754400000, "category": "inbox", "flagged": False,
     "snippet": "Please review before Friday, ref 2026", "pinned": False, "archived": False,
     "importance_level": "normal", "importance_score": 0.5, "requires_action": False,
@@ -140,6 +141,8 @@ ATTACHMENTS = [
 
 
 def msg(uid, sender, trust, html):
+    # Senders carry display names, as real mail does — the clients must
+    # show the name and keep the address for the wire.
     return {"uid": uid, "sender": sender, "sender_trust": trust,
             "recipients": "me@golia.jp", "subject": "Quarterly report", "flags": 0,
             "internal_date": 1754400000, "message_id": f"<m{uid}@x>",
@@ -151,7 +154,7 @@ def msg(uid, sender, trust, html):
             "is_bulk_sender": False, "has_tracking_pixel": False,
             "requires_action": False, "sender_intent": ""}
 
-MESSAGES = [msg(1, "alice@example.com", "verified", WIDE),
+MESSAGES = [msg(1, "Alice Smith <alice@example.com>", "verified", WIDE),
             msg(2, "spoofed@example.com", "suspicious", "<p>Short reply, narrow body.</p>")]
 
 class H(BaseHTTPRequestHandler):

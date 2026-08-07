@@ -81,6 +81,13 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(firstRow.waitForExistence(timeout: 15), "inbox never listed")
         XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].exists,
                       "the CJK subject did not survive the round trip")
+        // The fixture's From is "Alice Smith <alice@example.com>"; the
+        // row must wear the name. Seeing the raw form here means the
+        // SenderName port silently stopped being applied.
+        XCTAssertTrue(app.staticTexts["Alice Smith"].exists,
+                      "row shows the raw address, not the display name")
+        XCTAssertFalse(app.staticTexts["Alice Smith <alice@example.com>"].exists,
+                       "row shows the unparsed From header")
     }
 
     func testOpensAThreadAndRendersTheBody() {
