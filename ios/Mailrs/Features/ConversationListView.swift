@@ -196,9 +196,13 @@ struct ConversationListView: View {
 
 struct ConversationRow: View {
     let conversation: Wire.Conversation
+    @Environment(Session.self) private var session
 
     private var sender: String {
-        conversation.participants.first ?? "(unknown)"
+        SenderName.rowFace(
+            participants: conversation.participants,
+            myAddress: session.myAddress
+        )
     }
 
     var body: some View {

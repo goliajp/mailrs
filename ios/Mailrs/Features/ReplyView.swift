@@ -20,7 +20,10 @@ struct ReplyView: View {
     /// arrive addressed back at the person sending it.
     private var recipients: [String] {
         guard let replyingTo else { return [] }
-        return [replyingTo.sender]
+        // The addr-spec, not the display form: the server takes bare
+        // addresses, and "Alice Smith <alice@…>" as a recipient entry
+        // is trusting every hop to re-parse what we already parsed.
+        return [SenderName.extractEmail(replyingTo.sender)]
     }
 
     private var subject: String {
@@ -33,7 +36,8 @@ struct ReplyView: View {
         NavigationStack {
             Form {
                 Section("To") {
-                    Text(recipients.joined(separator: ", "))
+                    // Shown as the name, sent as the address.
+                    Text(replyingTo.map { SenderName.extractName($0.sender) } ?? "")
                         .foregroundStyle(.secondary)
                 }
                 Section("Subject") {

@@ -71,6 +71,13 @@ final class Session {
     /// What the list draws — search results while searching, the mailbox
     /// otherwise. One property so no screen has to know which it is
     /// looking at, and no screen can show one while counting the other.
+    /// The signed-in address, lowercased for comparison — the "me" the
+    /// row-face rule filters out.
+    var myAddress: String {
+        if case let .signedIn(address, _) = state { return address.lowercased() }
+        return ""
+    }
+
     var visibleConversations: [Wire.Conversation] {
         searchQuery == nil ? conversations : searchResults
     }

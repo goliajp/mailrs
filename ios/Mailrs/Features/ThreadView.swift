@@ -110,7 +110,7 @@ private struct MessageCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text(message.sender)
+                Text(SenderName.extractName(message.sender))
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 SenderTrustBadge(verdict: message.senderTrust)
