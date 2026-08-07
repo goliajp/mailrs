@@ -171,6 +171,31 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/mail/sent` — the sent axis, a bare array.
+    func sentMessages() async throws -> [Wire.SentMessage] {
+        try await getJSON("/api/mail/sent")
+    }
+
+    /// `GET /api/mail/sends` — the delivery-status projection.
+    func sends() async throws -> [Wire.Send] {
+        try await getJSON("/api/mail/sends")
+    }
+
+    private func getJSON<T: Decodable>(_ path: String) async throws -> T {
+        let (data, response) = try await send("GET", path, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw MailrsError.decoding("\(path) — \(error)")
+        }
+    }
+
     /// `POST /api/push/tokens` — hand the server this device's address.
     ///
     /// Backend: `crates/webapi/src/handlers/push.rs` —

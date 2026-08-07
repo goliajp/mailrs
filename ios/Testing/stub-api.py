@@ -195,6 +195,30 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/fetched":
             self._send({"attachment_indices": FETCHED})
             return
+        if self.path.split("?")[0] == "/api/mail/sent":
+            self._send([
+                {"uid": 41, "message_id": "<filed@golia.jp>", "thread_id": "t1",
+                 "to": "alice@example.com", "subject": "Filed and delivered",
+                 "internal_date": 1754380000},
+                {"uid": 42, "message_id": "<noproj@golia.jp>", "thread_id": "t2",
+                 "to": "bob@example.com", "subject": "Predates the projection",
+                 "internal_date": 1754370000},
+            ])
+            return
+        if self.path.split("?")[0] == "/api/mail/sends":
+            # One joined (brackets deliberately absent — the join must
+            # normalise), one failed send the sweep has not filed.
+            self._send([
+                {"send_id": "filed@golia.jp", "thread_id": "t1",
+                 "subject": "Filed and delivered", "to": ["alice@example.com"],
+                 "created_at": 1754380000, "status": "delivered",
+                 "can_resend": False, "resent_from": None, "recipients": []},
+                {"send_id": "unfiled@golia.jp", "thread_id": "t3",
+                 "subject": "Never left the queue", "to": ["carol@example.com"],
+                 "created_at": 1754390000, "status": "failed",
+                 "can_resend": True, "resent_from": None, "recipients": []},
+            ])
+            return
         if self.path.split("?")[0] == "/api/mail/drafts":
             self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
             return
