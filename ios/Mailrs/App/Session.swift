@@ -126,6 +126,52 @@ final class Session {
         )
     }
 
+    /// Toggle read, and show it immediately.
+    ///
+    /// Optimistic, like archive and unlike delete: both directions are
+    /// reversible by the same gesture, so the worst a failed call costs
+    /// is a row that snaps back.
+    func toggleRead(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let markRead = conversation.unreadCount > 0
+        let previous = conversations
+        patch(conversation.threadId) { $0.unreadCount = markRead ? 0 : max(1, $0.unreadCount) }
+        do {
+            try await client.setRead(threadId: conversation.threadId, markRead)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    func toggleStarred(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let starred = !conversation.flagged
+        let previous = conversations
+        patch(conversation.threadId) { $0.flagged = starred }
+        do {
+            try await client.setStarred(threadId: conversation.threadId, starred)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Replace one row in whichever collection is on screen.
+    ///
+    /// Both, not whichever is showing: a row can be in the list and in
+    /// the search results at once, and patching only the visible one
+    /// leaves the other holding the old value for when the search is
+    /// dismissed.
+    private func patch(_ threadId: String, _ change: (inout Wire.Conversation) -> Void) {
+        if let index = conversations.firstIndex(where: { $0.threadId == threadId }) {
+            change(&conversations[index])
+        }
+        if let index = searchResults.firstIndex(where: { $0.threadId == threadId }) {
+            change(&searchResults[index])
+        }
+    }
+
     /// Archive, and take the row off the list.
     ///
     /// Optimistic, because archiving is reversible: if the server refuses

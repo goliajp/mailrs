@@ -224,7 +224,10 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
-        if re.match(r"^/api/conversations/[\w-]+/(un)?archive$", self.path.split("?")[0]):
+        if re.match(
+            r"^/api/conversations/[\w-]+/(read|unread|star|unstar|archive|unarchive)$",
+            self.path.split("?")[0],
+        ):
             self.send_response(204)
             self.send_header("Content-Length", "0")
             self.end_headers()

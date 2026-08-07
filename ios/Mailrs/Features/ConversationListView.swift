@@ -43,6 +43,28 @@ struct ConversationListView: View {
                             }
                         }
                         .swipeActions(edge: .leading) {
+                            // Unread and star before archive: they are
+                            // the two a thumb reaches for most, and both
+                            // are undone by the same swipe again.
+                            Button {
+                                Task { await session.toggleRead(conversation) }
+                            } label: {
+                                Label(
+                                    conversation.unreadCount > 0 ? "Read" : "Unread",
+                                    systemImage: conversation.unreadCount > 0
+                                        ? "envelope.open" : "envelope.badge"
+                                )
+                            }
+                            .tint(.blue)
+                            Button {
+                                Task { await session.toggleStarred(conversation) }
+                            } label: {
+                                Label(
+                                    conversation.flagged ? "Unstar" : "Star",
+                                    systemImage: conversation.flagged ? "star.slash" : "star"
+                                )
+                            }
+                            .tint(.yellow)
                             // Archive does not ask. It is reversible, and
                             // a question about a reversible action is
                             // noise that teaches people to dismiss
@@ -140,10 +162,16 @@ struct ConversationRow: View {
         HStack(alignment: .top, spacing: 12) {
             // The unread marker is a dot rather than bold-everything:
             // one signal, in one place, that survives a long subject.
+            // The dot carries the unread state, and a colour is not a
+            // label — without this a VoiceOver user cannot tell a read
+            // row from an unread one at all, and nothing in the row's
+            // spoken text says which it is.
             Circle()
                 .fill(conversation.unreadCount > 0 ? Color.accentColor : .clear)
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
+                .accessibilityHidden(conversation.unreadCount == 0)
+                .accessibilityLabel("Unread")
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
@@ -156,9 +184,17 @@ struct ConversationRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
-                    .font(.subheadline)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    if conversation.flagged {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                            .accessibilityLabel("Starred")
+                    }
+                }
                 Text(conversation.snippet)
                     .font(.caption)
                     .foregroundStyle(.secondary)
