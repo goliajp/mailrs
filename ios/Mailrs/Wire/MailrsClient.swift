@@ -171,6 +171,20 @@ actor MailrsClient {
         return result
     }
 
+    /// `POST /api/push/tokens` — hand the server this device's address.
+    ///
+    /// Backend: `crates/webapi/src/handlers/push.rs` —
+    /// `RegisterPushTokenRequest`, pinned by
+    /// `wire-contract/requests/push-register.json`.
+    func registerPushToken(_ token: String) async throws {
+        let body = try JSONEncoder().encode(["token": token, "platform": "ios"])
+        let (_, response) = try await send("POST", "/api/push/tokens", body: body, authorized: true)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
     /// `GET /api/mail/drafts` — newest first, sorted server-side by
     /// `updated_at`.
     func drafts() async throws -> [Wire.Draft] {

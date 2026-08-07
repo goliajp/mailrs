@@ -357,6 +357,9 @@ pub(crate) fn ingest_delivered_file(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
+    // Side effect, never a filter — same shape as the FBL and TLS-RPT
+    // hooks in the drain. No-op until MAILRS_APNS_* is configured.
+    crate::push::maybe_notify(addr, &from, &subject, category, is_own);
     // Importance follows the latest INBOUND message, like the thread's
     // display fields — the user's own reply must not restate it.
     if !is_own {

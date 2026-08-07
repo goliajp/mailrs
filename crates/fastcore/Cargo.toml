@@ -34,6 +34,7 @@ name = "mailrs-fastcore-sender"
 path = "src/bin/sender/main.rs"
 
 [dependencies]
+mailrs-apns = { path = "../apns", version = "1" }
 mailrs-core-api = { path = "../core-api", features = ["server", "client"] }
 mailrs-core = { path = "../core" }
 mailrs-mailbox-kevy = { path = "../mailbox-kevy" }

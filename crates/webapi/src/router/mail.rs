@@ -204,6 +204,14 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             get(handlers::sends::send_redraft),
         )
         .route(
+            "/api/push/tokens",
+            post(handlers::push::register_push_token),
+        )
+        .route(
+            "/api/push/tokens/{token}",
+            delete(handlers::push::delete_push_token),
+        )
+        .route(
             "/api/mail/drafts",
             get(handlers::prefs::list_drafts).post(handlers::prefs::save_draft),
         )

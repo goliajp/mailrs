@@ -39,6 +39,7 @@ pub mod misc;
 pub mod oidc;
 pub mod prefs;
 pub mod prefs_misc;
+pub mod push;
 pub mod search;
 pub mod send;
 pub mod send_queue;

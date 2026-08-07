@@ -2886,6 +2886,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-apns"
+version = "1.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "base64",
+ "reqwest 0.13.4",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "mailrs-arc"
 version = "3.0.1"
 dependencies = [
@@ -3125,6 +3137,7 @@ dependencies = [
  "mailrs-acme",
  "mailrs-alias-store",
  "mailrs-alias-store-net",
+ "mailrs-apns",
  "mailrs-arc",
  "mailrs-arf",
  "mailrs-bayes",
@@ -5004,6 +5017,7 @@ dependencies = [
  "base64",
  "bytes",
  "futures-core",
+ "h2",
  "http",
  "http-body",
  "http-body-util",

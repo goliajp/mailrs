@@ -61,6 +61,8 @@ targets:
     platform: iOS
     sources:
       - path: Mailrs
+    entitlements:
+      path: Mailrs/Mailrs.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.golia.mailrs

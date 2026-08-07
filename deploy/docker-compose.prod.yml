@@ -103,6 +103,15 @@ services:
       MAILRS_DSN_FROM_DOMAIN: ${MAILRS_DSN_FROM_DOMAIN:-golia.ai}
       MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_KEVY_URL: kevy://kevy-server:6379
+      # APNs push — uncomment once a GOLIA K.K. (KF79DRC524) APNs Auth
+      # Key exists (developer.apple.com → Certificates → Keys → +, tick
+      # APNs; download AuthKey_<KEYID>.p8 to /apps/mailrs/secrets/ on the
+      # host). Absent = push disabled, zero cost.
+      # MAILRS_APNS_KEY_PATH: /secrets/AuthKey_XXXXXXXXXX.p8
+      # MAILRS_APNS_KEY_ID: XXXXXXXXXX
+      # MAILRS_APNS_TEAM_ID: KF79DRC524
+      # MAILRS_APNS_TOPIC: jp.golia.mailrs
+      # MAILRS_APNS_ENDPOINT: https://api.push.apple.com  # default is sandbox
       MAILRS_ALIAS_STORE_BACKEND: network
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem
