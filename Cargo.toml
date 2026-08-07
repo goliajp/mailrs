@@ -70,6 +70,7 @@ members = [
     "crates/core-sync",
     "crates/core-sidestate",
     "crates/alias-store",
+    "crates/apns",
     "crates/alias-store-net",
 ]
 

@@ -1,0 +1,27 @@
+[package]
+name = "mailrs-apns"
+version = "1.0.0"
+edition = "2024"
+rust-version.workspace = true
+license = "MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-apns"
+description = "Token-based APNs client: ES256 provider JWTs (cached and refreshed on Apple's schedule), HTTP/2 delivery via reqwest, and 410/BadDeviceToken surfaced as Unregistered so callers can prune dead tokens."
+
+[dependencies]
+# ES256 for the provider token — already the workspace's signing backend
+# (dkim uses it for RSA); no new crypto stack.
+aws-lc-rs = "1"
+base64 = "0.22"
+serde_json = { workspace = true }
+thiserror = "2"
+# Matches crates/intelligence's reqwest line. `http2` is required, not an
+# optimisation: api.push.apple.com refuses HTTP/1.1 outright.
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -238,6 +238,12 @@ final class Session {
         drafts.removeAll { $0.id == id }
     }
 
+    /// Upload this device's APNs token, so the server can reach it.
+    func registerPushToken(_ token: String) async {
+        guard let client else { return }
+        try? await client.registerPushToken(token)
+    }
+
     /// Send a message that is not a reply.
     ///
     /// Both threading fields stay nil. Sending `reply_to_thread_id` here
@@ -265,6 +271,7 @@ final class Session {
             TokenStore.save(login.token)
             TokenStore.saveAddress(login.address)
             state = .signedIn(address: login.address, displayName: login.displayName)
+            PushRegistrar.requestAndRegister()
             await loadConversations()
         } catch MailrsError.needsTotp {
             needsTotp = true

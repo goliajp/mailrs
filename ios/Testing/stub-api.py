@@ -278,6 +278,10 @@ class H(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/auth/login"):
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
+        elif self.path.startswith("/api/push/tokens"):
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
         elif self.path.startswith("/api/mail/drafts"):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length)) if length else {}
