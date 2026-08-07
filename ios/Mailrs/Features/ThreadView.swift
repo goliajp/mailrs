@@ -51,6 +51,11 @@ struct ThreadView: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
+                        ThreadHeader(
+                            conversation: conversation,
+                            messages: messages,
+                            myAddress: session.myAddress
+                        )
                         ForEach(messages) { message in
                             if ThreadCollapse.isExpanded(
                                 uid: message.uid,
@@ -77,7 +82,11 @@ struct ThreadView: View {
                 .background(Color(.systemGroupedBackground))
             }
         }
-        .navigationTitle(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
+        // Empty on purpose: the subject is the header's job now, where
+        // it can wrap and be read. A nav-bar copy squeezed between the
+        // back button and three toolbar buttons showed six words and an
+        // ellipsis, and was the only place the subject appeared at all.
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // Apple Mail's chevrons: process the mailbox serially
@@ -139,6 +148,68 @@ struct ThreadView: View {
                 }
             }
         }
+    }
+}
+
+/// The thread's own title block.
+///
+/// Apple Mail gives the subject a line of its own above the messages;
+/// a nav bar cannot, and a subject nobody can read is a mail app's
+/// worst small failure.
+private struct ThreadHeader: View {
+    let conversation: Wire.Conversation
+    let messages: [Wire.Message]
+    let myAddress: String
+
+    /// Everyone who wrote in this thread, in the order they first
+    /// appear, minus me — the same rule the row's face follows.
+    private var participants: String {
+        var seen = Set<String>()
+        var names: [String] = []
+        for message in messages {
+            let email = SenderName.extractEmail(message.sender)
+            if email == myAddress || seen.contains(email) { continue }
+            seen.insert(email)
+            names.append(SenderName.extractName(message.sender))
+        }
+        return names.joined(separator: ", ")
+    }
+
+    private var countLabel: String {
+        messages.count == 1 ? "1 message" : "\(messages.count) messages"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
+                    .font(.title3.weight(.semibold))
+                    // Named so a test can ask this element what it says
+                    // rather than asking the screen whether a string is
+                    // anywhere on it — the list behind a push can still
+                    // answer yes.
+                    .accessibilityIdentifier("thread-subject")
+                    // Three lines: enough for the long ones mail
+                    // actually carries, bounded so the messages are
+                    // still on screen when the thread opens.
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if conversation.flagged {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                        .accessibilityLabel("Starred")
+                }
+            }
+            Text(participants.isEmpty ? countLabel : "\(countLabel) · \(participants)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 2)
     }
 }
 
