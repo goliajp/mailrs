@@ -72,6 +72,16 @@ Apple Mail's chevrons. Each step is an open, so it marks read through
 the same rule as any open. List order is `visibleConversations`, the
 one ordering the list itself draws.
 
+## Long threads (folding)
+
+A thread opens with everything but the newest message folded to one
+line — sender, a breath of body, a paperclip if it carries files, the
+date. Both benchmarks make this call: the thread is context, the last
+message is the reason you came. Tap the line to unfold; tap an open
+card's header to fold it back. Expansion is derived, not latched —
+the state is only the set of explicit toggles, XORed against "is the
+newest" (`ThreadCollapse`), so switching threads just clears the set.
+
 ## Loading and motion (landed previously, part of this system)
 
 Empty states wait for evidence; every row mutation animates including
