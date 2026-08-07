@@ -8,6 +8,10 @@ struct ThreadView: View {
     @State private var messages: [Wire.Message] = []
     @State private var failure: String?
     @State private var replying = false
+    /// Messages whose fold state the reader explicitly flipped. What is
+    /// actually expanded is derived — (is last) XOR (in here) — so a
+    /// thread change only has to clear this set.
+    @State private var toggled = Set<UInt32>()
 
     init(conversation: Wire.Conversation) {
         _conversation = State(initialValue: conversation)
@@ -30,6 +34,7 @@ struct ThreadView: View {
         guard let target else { return }
         messages = []
         failure = nil
+        toggled = []
         conversation = target
     }
 
@@ -47,7 +52,23 @@ struct ThreadView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(messages) { message in
-                            MessageCard(message: message)
+                            if ThreadCollapse.isExpanded(
+                                uid: message.uid,
+                                lastUid: messages.last?.uid,
+                                toggled: toggled
+                            ) {
+                                // The header folds the card; the body
+                                // keeps its own taps (links, text
+                                // selection, attachments).
+                                MessageCard(message: message) {
+                                    withAnimation { toggled.formSymmetricDifference([message.uid]) }
+                                }
+                            } else {
+                                CollapsedMessageRow(message: message)
+                                    .onTapGesture {
+                                        withAnimation { toggled.formSymmetricDifference([message.uid]) }
+                                    }
+                            }
                             Divider()
                         }
                     }
@@ -103,8 +124,47 @@ struct ThreadView: View {
     }
 }
 
+/// One message folded to a line: who, a breath of what, when. Tap for
+/// the full card.
+private struct CollapsedMessageRow: View {
+    let message: Wire.Message
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(SenderName.extractName(message.sender))
+                .font(.subheadline)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Text(ThreadCollapse.snippet(message.textBody))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if !message.attachments.isEmpty {
+                Image(systemName: "paperclip")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Has attachments")
+            }
+            Text(Date(timeIntervalSince1970: TimeInterval(message.internalDate)),
+                 format: .dateTime.month().day())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("collapsed-\(message.uid)")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Expands the message")
+    }
+}
+
 private struct MessageCard: View {
     let message: Wire.Message
+    /// Tapping the header folds the card back to its line.
+    let onHeaderTap: () -> Void
     @State private var bodyHeight: CGFloat = 1
 
     var body: some View {
@@ -120,6 +180,8 @@ private struct MessageCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onHeaderTap)
             Text("To: \(message.recipients)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)

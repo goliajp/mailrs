@@ -113,7 +113,7 @@ final class SignInFlowTests: XCTestCase {
         // was the first assertion here and it is also the sender shown in
         // the inbox row, so it passed without anything having navigated —
         // an assertion satisfied by the screen you were already on.
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
 
         // The spoofed sender is the second message, below a body authored
@@ -311,6 +311,34 @@ final class SignInFlowTests: XCTestCase {
     /// is none on the wire — so a row that opened the wrong file would
     /// show the wrong preview rather than fail. Tapping the second one
     /// is the check that counting is what the UI does.
+    /// A thread opens with everything but the newest message folded —
+    /// the thread is context, the last message is the reason you came.
+    /// The fold is real (the older body and its To line are absent, not
+    /// just small), and tapping the line brings the full card back.
+    func testOlderMessagesOpenFoldedAndUnfoldOnTap() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+
+        let folded = app.buttons["collapsed-1"]
+        XCTAssertTrue(folded.waitForExistence(timeout: 10), "older message not folded")
+        XCTAssertFalse(app.staticTexts["To: me@golia.jp"].exists,
+                       "the folded message is still showing its full header")
+        XCTAssertFalse(app.staticTexts["請求書_2026年8月分.pdf"].exists,
+                       "the folded message is still showing its attachments")
+
+        folded.tap()
+
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 5),
+                      "tapping the line did not unfold the card")
+        XCTAssertTrue(app.staticTexts["請求書_2026年8月分.pdf"].exists,
+                      "the unfolded card lost its attachments")
+        XCTAssertFalse(folded.exists, "the folded line outlived its card")
+    }
+
     func testOpensAnAttachment() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
@@ -318,6 +346,12 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         row.tap()
+
+        // The first message opens folded — its attachments live inside
+        // the fold, so the header line is the way in.
+        let folded = app.buttons["collapsed-1"]
+        XCTAssertTrue(folded.waitForExistence(timeout: 10), "older message not collapsed")
+        folded.tap()
 
         XCTAssertTrue(app.staticTexts["請求書_2026年8月分.pdf"].waitForExistence(timeout: 10),
                       "the attachment was not listed")
@@ -374,6 +408,23 @@ final class SignInFlowTests: XCTestCase {
     /// Clear the stub's recorders so each test reads only its own
     /// traffic. They are module-level lists in one long-lived process,
     /// so without this "exactly one send" depends on test order.
+    /// Switch the reply sheet's segmented mode, verified by the title.
+    ///
+    /// The sheet auto-focuses the editor, so the keyboard is animating
+    /// the form upward exactly when the first tap lands — a tap on
+    /// coordinates the segment has already left switches nothing and
+    /// raises nothing. The mode change is the assertion; the tap
+    /// retries until the title says it happened.
+    private func switchReplyMode(_ app: XCUIApplication, to mode: String) {
+        let segment = app.buttons[mode]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5), "no \(mode) segment")
+        for _ in 0..<3 {
+            segment.tap()
+            if app.navigationBars[mode].waitForExistence(timeout: 2) { return }
+        }
+        XCTFail("the \(mode) segment never switched the sheet")
+    }
+
     private func resetStub() {
         guard let url = URL(string: "http://localhost:6039/debug/reset") else { return }
         var request = URLRequest(url: url)
@@ -804,7 +855,7 @@ final class SignInFlowTests: XCTestCase {
                        "something marked mail read before any thread was opened")
 
         unreadRow.tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
 
         var writes: [String] = []
@@ -926,7 +977,7 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertGreaterThan(onArrival, 0, "the badge count was never fetched at all")
 
         unreadRow.tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
 
         var after = onArrival
@@ -975,7 +1026,7 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         row.tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
         XCTAssertFalse(app.buttons["Previous thread"].isEnabled,
                        "the first thread offered a previous")
@@ -1007,17 +1058,17 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         row.tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
         app.buttons["Reply"].tap()
 
-        app.buttons["Reply All"].tap()
+        switchReplyMode(app, to: "Reply All")
         let editor = app.textViews.firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 5), "no composer")
         editor.tap()
         editor.typeText("All hands answer.")
         app.buttons["Send"].tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "the sheet never dismissed")
 
         guard let sent = sentMessages().last else {
@@ -1042,11 +1093,11 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         row.tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
         app.buttons["Reply"].tap()
 
-        app.buttons["Forward"].tap()
+        switchReplyMode(app, to: "Forward")
         let toField = app.textFields["forward-to"]
         XCTAssertTrue(toField.waitForExistence(timeout: 5), "no forward To field")
         toField.tap()
@@ -1055,7 +1106,7 @@ final class SignInFlowTests: XCTestCase {
         editor.tap()
         editor.typeText("FYI.")
         app.buttons["Send"].tap()
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "the sheet never dismissed")
 
         guard let sent = sentMessages().last else {
@@ -1078,7 +1129,7 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         row.tap()
 
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "thread never opened")
         app.buttons["Reply"].tap()
 
@@ -1094,7 +1145,7 @@ final class SignInFlowTests: XCTestCase {
         // Back on the thread: the sheet dismisses only on a send the
         // server said it queued. If it had failed the sheet would still
         // be up with the reason in it.
-        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"].waitForExistence(timeout: 10),
                       "the reply sheet never dismissed — the send did not succeed")
 
         // The other side of the same coin: a reply must carry both
