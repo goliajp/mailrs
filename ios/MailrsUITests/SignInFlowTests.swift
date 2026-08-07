@@ -1085,6 +1085,43 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
             .waitForExistence(timeout: 3),
             "no rows before the delayed network answer — the cache did not serve")
+        app.terminate()
+        setStubListDelay(0)
+    }
+
+    /// The other half of offline: a conversation opened before is
+    /// readable on relaunch while the network is still 6 seconds away.
+    /// The 3-second wait is the falsifiable part — only the disk can
+    /// paint the body inside it.
+    func testAnOpenedThreadIsReadableFromCacheOnRelaunch() {
+        let first = launch(signedIn: true)
+        let row = first.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(first.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "thread never opened on the caching launch")
+        first.terminate()
+
+        setStubListDelay(6000)
+        let app = XCUIApplication()
+        app.launchArguments = ["-mailrsBaseURL", "http://localhost:6039",
+                               "-mailrsToken", "stub-token"]
+        app.launch()
+        let cachedRow = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(cachedRow.waitForExistence(timeout: 3), "no cached rows")
+        cachedRow.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 3),
+            "the thread did not paint from disk before the network answer")
+        // Hand the stub back without the delay: the app under test may
+        // still hold requests parked in 6-second sleeps, and the next
+        // test should not inherit them.
+        app.terminate()
+        setStubListDelay(0)
     }
 
     func testLoadingShowsProgressNotTheEmptyState() {

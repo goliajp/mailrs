@@ -35,6 +35,14 @@ struct MailCache {
         write(rows, to: "conversations-\(sanitized(list)).json")
     }
 
+    func readMessages(threadId: String) -> [Wire.Message]? {
+        read([Wire.Message].self, from: "thread-\(sanitized(threadId)).json")
+    }
+
+    func writeMessages(_ messages: [Wire.Message], threadId: String) {
+        write(messages, to: "thread-\(sanitized(threadId)).json")
+    }
+
     private func read<T: Decodable>(_ type: T.Type, from name: String) -> T? {
         let url = directory.appendingPathComponent(name)
         guard let data = try? Data(contentsOf: url) else { return nil }
