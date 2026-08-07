@@ -54,6 +54,13 @@ schemes:
             sleep 0.3
             nohup python3 Testing/stub-api.py 6039 >/tmp/mailrs-ios-stub.log 2>&1 &
           settingsTarget: Mailrs
+      postActions:
+        - name: stop stub API
+          script: |
+            # The pre-action's nohup outlives the test run; without this
+            # every ⌘U leaves one python process holding :6039 forever.
+            pkill -f "Testing/stub-api.py" 2>/dev/null || true
+          settingsTarget: Mailrs
 
 targets:
   Mailrs:
