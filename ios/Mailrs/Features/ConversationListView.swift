@@ -60,23 +60,30 @@ struct ConversationListView: View {
                                 }
                             }
                         }
-                        .swipeActions(edge: .trailing) {
-                            // Delete asks. `thread_actions.rs` unlinks the
-                            // maildir files, so there is no trash and no
-                            // undo to offer afterwards — the web client
-                            // reached the same verb from a swipe without
-                            // asking until 2026-08-05, and one gesture
-                            // destroyed a thread outright.
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            // Archive owns the full swipe — the triage
+                            // gesture in both benchmark apps, and it
+                            // cannot destroy anything. Delete is behind
+                            // it, keeps its confirmation, and
+                            // deliberately lost the full-swipe slot: the
+                            // fastest gesture in the app must not be the
+                            // irreversible one.
+                            Button {
+                                Task { await session.archive(conversation) }
+                            } label: {
+                                Label("Archive", systemImage: "archivebox")
+                            }
+                            .tint(.green)
                             Button(role: .destructive) {
                                 pendingDelete = conversation
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
-                        .swipeActions(edge: .leading) {
-                            // Unread and star before archive: they are
-                            // the two a thumb reaches for most, and both
-                            // are undone by the same swipe again.
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            // Read owns the right full swipe, as in
+                            // Apple Mail; both directions are undone by
+                            // the same swipe again.
                             Button {
                                 Task { await session.toggleRead(conversation) }
                             } label: {
@@ -96,16 +103,6 @@ struct ConversationListView: View {
                                 )
                             }
                             .tint(.yellow)
-                            // Archive does not ask. It is reversible, and
-                            // a question about a reversible action is
-                            // noise that teaches people to dismiss
-                            // questions.
-                            Button {
-                                Task { await session.archive(conversation) }
-                            } label: {
-                                Label("Archive", systemImage: "archivebox")
-                            }
-                            .tint(.green)
                         }
                         .onAppear {
                             // Paging on the last row appearing, rather
@@ -205,34 +202,36 @@ struct ConversationRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // The unread marker is a dot rather than bold-everything:
-            // one signal, in one place, that survives a long subject.
+        HStack(alignment: .center, spacing: 8) {
             // The dot carries the unread state, and a colour is not a
             // label — without this a VoiceOver user cannot tell a read
-            // row from an unread one at all, and nothing in the row's
-            // spoken text says which it is.
+            // row from an unread one at all.
             Circle()
                 .fill(conversation.unreadCount > 0 ? Color.accentColor : .clear)
                 .frame(width: 8, height: 8)
-                .padding(.top, 6)
                 .accessibilityHidden(conversation.unreadCount == 0)
                 .accessibilityLabel("Unread")
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
                     Text(sender)
                         .font(.subheadline.weight(conversation.unreadCount > 0 ? .semibold : .regular))
                         .lineLimit(1)
-                    Spacer()
-                    Text(Date(timeIntervalSince1970: TimeInterval(conversation.lastDate)),
-                         format: .dateTime.month().day())
+                    Spacer(minLength: 4)
+                    if conversation.messageCount > 1 {
+                        Text("×\(conversation.messageCount)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    Text(RowDate.label(epochSeconds: conversation.lastDate))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 HStack(spacing: 4) {
                     Text(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
                         .font(.subheadline)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                     if conversation.flagged {
                         Image(systemName: "star.fill")
@@ -240,13 +239,10 @@ struct ConversationRow: View {
                             .foregroundStyle(.yellow)
                             .accessibilityLabel("Starred")
                     }
+                    Spacer(minLength: 0)
                 }
-                Text(conversation.snippet)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }

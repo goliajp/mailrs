@@ -1,11 +1,37 @@
 import SwiftUI
 
 struct ThreadView: View {
-    let conversation: Wire.Conversation
+    /// Mutable: the ▲▼ chevrons walk the list without leaving the
+    /// screen, so which conversation this shows changes in place.
+    @State private var conversation: Wire.Conversation
     @Environment(Session.self) private var session
     @State private var messages: [Wire.Message] = []
     @State private var failure: String?
     @State private var replying = false
+
+    init(conversation: Wire.Conversation) {
+        _conversation = State(initialValue: conversation)
+    }
+
+    /// Neighbours in the order the list draws — the one ordering the
+    /// person was just looking at, whatever list and search produced it.
+    private var neighbours: (previous: Wire.Conversation?, next: Wire.Conversation?) {
+        let rows = session.visibleConversations
+        guard let index = rows.firstIndex(where: { $0.threadId == conversation.threadId }) else {
+            return (nil, nil)
+        }
+        return (
+            index > 0 ? rows[index - 1] : nil,
+            index + 1 < rows.count ? rows[index + 1] : nil
+        )
+    }
+
+    private func step(to target: Wire.Conversation?) {
+        guard let target else { return }
+        messages = []
+        failure = nil
+        conversation = target
+    }
 
     var body: some View {
         Group {
@@ -31,6 +57,26 @@ struct ThreadView: View {
         .navigationTitle(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // Apple Mail's chevrons: process the mailbox serially
+            // without bouncing back to the list between messages. Each
+            // step is an open, so it marks read through the same rule
+            // as any open.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    step(to: neighbours.previous)
+                } label: {
+                    Label("Previous thread", systemImage: "chevron.up")
+                }
+                .disabled(neighbours.previous == nil)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    step(to: neighbours.next)
+                } label: {
+                    Label("Next thread", systemImage: "chevron.down")
+                }
+                .disabled(neighbours.next == nil)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     replying = true
@@ -44,7 +90,7 @@ struct ThreadView: View {
             ReplyView(thread: conversation, replyingTo: messages.last)
         }
 
-        .task {
+        .task(id: conversation.threadId) {
             do {
                 messages = try await session.messages(threadId: conversation.threadId)
                 // After the messages are on screen, not before: an open
@@ -75,7 +121,7 @@ private struct MessageCard: View {
                     .foregroundStyle(.secondary)
             }
             Text("To: \(message.recipients)")
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
@@ -103,7 +149,7 @@ private struct MessageCard: View {
                     .textSelection(.enabled)
             }
         }
-        .padding(16)
+        .padding(12)
     }
 }
 

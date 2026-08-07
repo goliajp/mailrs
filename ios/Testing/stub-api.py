@@ -81,7 +81,7 @@ CONVOS = [{
     "received_count": 2, "sent_count": 0,
 }, {
     "thread_id": "t2", "subject": "請求書のご送付につきまして",
-    "participants": ["keiri@example.co.jp"], "message_count": 1, "unread_count": 0,
+    "participants": ["keiri@example.co.jp"], "message_count": 1, "unread_count": 1,
     "last_date": 1754300000, "category": "inbox", "flagged": False,
     "snippet": "ご確認ください。ref 2026", "pinned": False, "archived": False,
     "importance_level": "normal", "importance_score": 0.2, "requires_action": False,
@@ -278,6 +278,25 @@ class H(BaseHTTPRequestHandler):
                 return
             if folder == "NP":
                 self._send([convo("np1", "Newsletter thread", "weekly", 1754270000)])
+                return
+            if folder == "Dense":
+                rows = [convo(f"d{i}",
+                              ["Quarterly planning follow-up", "請求書のご送付につきまして",
+                               "Re: server maintenance window", "Team offsite logistics",
+                               "Invoice #2026-081 overdue", "Weekly metrics digest",
+                               "Your parcel is out for delivery", "会議室予約の確認",
+                               "Password rotation reminder", "Q3 budget review notes",
+                               "New starter onboarding", "Renewal quote attached"][i % 12],
+                              "preview text that would wrap",
+                              int(time.time()) - [3600, 7200, 90000, 260000, 350000,
+                                                  500000, 700000, 2600000, 5200000,
+                                                  9000000, 34000000, 40000000][i % 12])
+                        for i in range(12)]
+                for i, r in enumerate(rows):
+                    r["unread_count"] = 1 if i % 3 == 0 else 0
+                    r["flagged"] = i % 4 == 0
+                    r["message_count"] = (i % 5) + 1
+                self._send(rows)
                 return
             if folder == "Paged":
                 limit = int(query.get("limit", ["50"])[0])
