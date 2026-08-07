@@ -158,12 +158,25 @@ actor MailrsClient {
         to recipients: [String],
         subject: String,
         body: String,
-        attachments: [MultipartForm.FilePart]
+        attachments: [MultipartForm.FilePart],
+        inReplyTo: String? = nil,
+        replyToThreadId: String? = nil,
+        forwardMessageId: String? = nil,
+        forwardAttachmentsFrom: UInt32? = nil
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
         var fields: [(String, String)] = recipients.map { ("to", $0) }
         fields.append(("subject", subject))
         fields.append(("body", body))
+        // Same optionality contract as the JSON route: absent, never
+        // empty — the handler filters empties for some fields and not
+        // others, and absent is the shape it always understands.
+        if let inReplyTo { fields.append(("in_reply_to", inReplyTo)) }
+        if let replyToThreadId { fields.append(("reply_to_thread_id", replyToThreadId)) }
+        if let forwardMessageId { fields.append(("forward_message_id", forwardMessageId)) }
+        if let forwardAttachmentsFrom {
+            fields.append(("forward_attachments_from", String(forwardAttachmentsFrom)))
+        }
         let form = MultipartForm.encode(fields: fields, files: attachments, boundary: boundary)
         let url = baseURL.appendingPathComponent("/api/mail/send-multipart")
         let (data, response) = try await send(

@@ -1368,6 +1368,87 @@ final class SignInFlowTests: XCTestCase {
                       "the sent body lost the restored half")
     }
 
+    /// A reply with a file rides the multipart route — and must keep
+    /// both threading fields. compose.rs defaults each of them, so a
+    /// route switch that dropped one would not error; the reply would
+    /// arrive detached. The stub records the parsed form, so this is
+    /// asserted on what arrived.
+    func testAReplyWithAFileKeepsItsThreading() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "thread never opened")
+        app.buttons["Reply"].tap()
+
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), "no composer")
+        editor.tap()
+        editor.typeText("With a file.")
+        app.buttons["Attach"].tap()
+        app.buttons["Attach sample file"].tap()
+        XCTAssertTrue(app.staticTexts["sample.txt"].waitForExistence(timeout: 5),
+                      "the attachment row never listed")
+        app.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "the send never dismissed")
+
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        let files = sent["attachments"] as? [[String: Any]] ?? []
+        XCTAssertEqual(files.first?["filename"] as? String, "sample.txt")
+        XCTAssertEqual(sent["in_reply_to"] as? String, "<m2@x>",
+                       "the multipart route dropped in_reply_to")
+        XCTAssertEqual(sent["reply_to_thread_id"] as? String, "t1",
+                       "the multipart route dropped reply_to_thread_id")
+    }
+
+    /// A forward with an added file carries both the reference and the
+    /// file — the server appends the original and extends the list, so
+    /// neither displaces the other.
+    func testAForwardWithAFileCarriesReferenceAndFile() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "thread never opened")
+        app.buttons["Reply"].tap()
+
+        switchReplyMode(app, to: "Forward")
+        let toField = app.textFields["forward-to"]
+        XCTAssertTrue(toField.waitForExistence(timeout: 5), "no forward To field")
+        toField.tap()
+        toField.typeText("third@example.com")
+        let editor = app.textViews.firstMatch
+        editor.tap()
+        editor.typeText("FYI, file added.")
+        app.buttons["Attach"].tap()
+        app.buttons["Attach sample file"].tap()
+        XCTAssertTrue(app.staticTexts["sample.txt"].waitForExistence(timeout: 5))
+        app.buttons["Send"].tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "the send never dismissed")
+
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        XCTAssertEqual(sent["forward_message_id"] as? String, "<m2@x>",
+                       "the file displaced the forward reference")
+        let files = sent["attachments"] as? [[String: Any]] ?? []
+        XCTAssertEqual(files.first?["filename"] as? String, "sample.txt",
+                       "the reference displaced the file")
+        XCTAssertNil(sent["in_reply_to"] ?? nil, "a forward must not thread")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(

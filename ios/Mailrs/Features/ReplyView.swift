@@ -37,6 +37,7 @@ struct ReplyView: View {
     /// upserted — a half-written reply must survive the app dying.
     @State private var draftId: Int64?
     @State private var autosave: Task<Void, Never>?
+    @State private var attachments: [MultipartForm.FilePart] = []
     @FocusState private var bodyFocused: Bool
 
     /// The addr-specs, not the display forms: the server takes bare
@@ -115,6 +116,11 @@ struct ReplyView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if !attachments.isEmpty {
+                    Section {
+                        AttachmentRows(attachments: $attachments)
+                    }
+                }
                 if let failure {
                     Section {
                         Text(failure).foregroundStyle(.red)
@@ -126,6 +132,9 @@ struct ReplyView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    AttachMenu(attachments: $attachments)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") { Task { await send() } }
@@ -226,7 +235,8 @@ struct ReplyView: View {
                     subject: subject,
                     body: body_,
                     inReplyTo: replyingTo?.messageId,
-                    threadId: thread.threadId
+                    threadId: thread.threadId,
+                    attachments: attachments
                 )
             case .forward:
                 guard let replyingTo else { return }
@@ -235,7 +245,8 @@ struct ReplyView: View {
                     subject: subject,
                     body: body_,
                     forwardMessageId: replyingTo.messageId,
-                    forwardAttachmentsFrom: replyingTo.uid
+                    forwardAttachmentsFrom: replyingTo.uid,
+                    attachments: attachments
                 )
             }
             // Sent, so it is no longer a draft. Cancel the pending

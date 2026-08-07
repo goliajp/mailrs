@@ -139,25 +139,47 @@ final class Session {
 
     func sendReply(
         to recipients: [String], subject: String, body: String,
-        inReplyTo: String?, threadId: String
+        inReplyTo: String?, threadId: String,
+        attachments: [MultipartForm.FilePart] = []
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
-            try await client.sendReply(
+            if attachments.isEmpty {
+                return try await client.sendReply(
+                    to: recipients, subject: subject, body: body,
+                    inReplyTo: inReplyTo, threadId: threadId
+                )
+            }
+            // The multipart route, with both threading fields riding
+            // along — a reply that lost them arrives detached.
+            return try await client.sendMultipart(
                 to: recipients, subject: subject, body: body,
-                inReplyTo: inReplyTo, threadId: threadId
+                attachments: attachments,
+                inReplyTo: inReplyTo, replyToThreadId: threadId
             )
         }
     }
 
     func sendForward(
         to recipients: [String], subject: String, body: String,
-        forwardMessageId: String, forwardAttachmentsFrom: UInt32?
+        forwardMessageId: String, forwardAttachmentsFrom: UInt32?,
+        attachments: [MultipartForm.FilePart] = []
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
-            try await client.sendForward(
+            if attachments.isEmpty {
+                return try await client.sendForward(
+                    to: recipients, subject: subject, body: body,
+                    forwardMessageId: forwardMessageId,
+                    forwardAttachmentsFrom: forwardAttachmentsFrom
+                )
+            }
+            // The server appends the original and EXTENDS the file
+            // list (inline_forward_content), so the added files and
+            // the forwarded ones coexist.
+            return try await client.sendMultipart(
                 to: recipients, subject: subject, body: body,
+                attachments: attachments,
                 forwardMessageId: forwardMessageId,
                 forwardAttachmentsFrom: forwardAttachmentsFrom
             )
