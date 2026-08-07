@@ -192,6 +192,31 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/contacts?q=&limit=` — a bare array of `Name <email>`
+    /// strings. Backend: `crates/webapi/src/handlers/prefs_misc.rs` —
+    /// `get_contacts`, backed by the per-user contacts hash the ingest
+    /// path maintains.
+    func contacts(matching query: String, limit: Int = 5) async throws -> [String] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/contacts"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        guard let url = components?.url else { throw MailrsError.transport("Bad contacts URL.") }
+        let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        do {
+            return try JSONDecoder().decode([String].self, from: data)
+        } catch {
+            throw MailrsError.decoding("contacts — \(error)")
+        }
+    }
+
     /// `GET /api/conversations/unseen-count` — `{"count": N}`.
     ///
     /// Backend: `conversations.rs::get_unseen_count`, which counts

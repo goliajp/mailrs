@@ -21,6 +21,8 @@ struct ComposeView: View {
     /// autosave upserts the same one instead of creating another.
     @State private var draftId: Int64?
     @State private var autosave: Task<Void, Never>?
+    @State private var suggestions: [String] = []
+    @State private var suggestionTask: Task<Void, Never>?
     @FocusState private var focus: Field?
 
     private enum Field { case to, subject, body }
@@ -35,6 +37,7 @@ struct ComposeView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($focus, equals: .to)
+                    ContactSuggestions(text: $to, suggestions: $suggestions)
                 }
                 Section("Subject") {
                     TextField("Subject", text: $subject)
@@ -73,6 +76,11 @@ struct ComposeView: View {
                 focus = .to
             }
             .onChange(of: [to, subject, body_]) { _, _ in scheduleAutosave() }
+            .onChange(of: to) { _, text in
+                suggestionTask = ContactSuggestions.schedule(
+                    replacing: suggestionTask, for: text, in: session
+                ) { suggestions = $0 }
+            }
             .onDisappear {
                 autosave?.cancel()
                 // Cancel is not "discard": closing the composer with

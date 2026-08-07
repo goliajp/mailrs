@@ -107,6 +107,9 @@ FETCHED = []
 # so the test reads them here rather than guessing from the UI.
 SENT = []
 
+# Every q= the contacts endpoint has answered, for debounce assertions.
+CONTACT_QUERIES = []
+
 # Drafts, kept as the server keeps them: upsert on a supplied id,
 # allocate one otherwise. Modelling the id behaviour rather than always
 # appending is the point — a client that posted without its id would
@@ -227,6 +230,20 @@ class H(BaseHTTPRequestHandler):
                  "to": "bob@example.com", "subject": "Predates the projection",
                  "internal_date": 1754370000},
             ])
+            return
+        if self.path.split("?")[0] == "/api/contacts":
+            # Same shape as get_contacts: bare array of "Name <email>",
+            # substring match on either half, case-insensitive.
+            qs = parse_qs(urlparse(self.path).query)
+            q = qs.get("q", [""])[0].lower()
+            CONTACT_QUERIES.append(q)
+            book = ["Alice Smith <alice@example.com>",
+                    "Bob <bob@example.com>",
+                    "Keiri <keiri@example.co.jp>"]
+            self._send([c for c in book if q in c.lower()])
+            return
+        if self.path == "/debug/contact-queries":
+            self._send({"queries": CONTACT_QUERIES})
             return
         if self.path.split("?")[0] == "/api/mail/sends":
             # One joined (brackets deliberately absent — the join must
@@ -357,6 +374,7 @@ class H(BaseHTTPRequestHandler):
             WRITES.clear()
             UNSEEN_FETCHES[0] = 0
             LIST_DELAY_MS[0] = 0
+            CONTACT_QUERIES.clear()
             self._send({"ok": True})
             return
         if re.match(
