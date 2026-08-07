@@ -336,6 +336,72 @@ final class SignInFlowTests: XCTestCase {
                       "one character narrowed the list")
     }
 
+    /// Switching lists asks the server for the new list, and takes the
+    /// old list's rows with it.
+    ///
+    /// The stub gives each list a distinct row precisely so a switcher
+    /// that changed the title without changing the request would be
+    /// visible here — that is the shape this would fail as.
+    func testSwitchingListsChangesWhatIsListed() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Junk"].tap()
+
+        XCTAssertTrue(app.staticTexts["You have won"].waitForExistence(timeout: 10),
+                      "Junk did not load its own threads")
+        XCTAssertFalse(app.staticTexts["Quarterly report and the follow-up notes"].exists,
+                       "the previous list's rows stayed on screen")
+        XCTAssertTrue(app.navigationBars["Junk"].waitForExistence(timeout: 5),
+                      "the title did not follow the list")
+    }
+
+    /// Archived is cross-folder — it names no folder and sets a flag —
+    /// so it is the list most likely to be built wrong.
+    func testArchivedIsItsOwnList() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Archived"].tap()
+
+        XCTAssertTrue(app.staticTexts["Archived thread"].waitForExistence(timeout: 10),
+                      "Archived did not ask for archived threads")
+    }
+
+    /// A search belongs to the list it was typed in.
+    ///
+    /// iOS 26 presents `.searchable` over the bottom of the screen and
+    /// takes the whole navigation bar away while it is up, so a list
+    /// cannot be switched mid-search — the path a user has is to dismiss
+    /// the search first. `Session.select` clears the query and its
+    /// results anyway, because "the rows on screen belong to the list on
+    /// screen" should not depend on which of two screens is in front.
+    func testSwitchingListsAfterASearchShowsTheNewList() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        let field = app.searchFields.firstMatch
+        field.tap()
+        field.typeText("請求")
+        XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].waitForExistence(timeout: 10),
+                      "search did not run")
+
+        app.buttons["close"].tap()
+
+        app.buttons["Lists"].tap()
+        app.buttons["Junk"].tap()
+
+        XCTAssertTrue(app.staticTexts["You have won"].waitForExistence(timeout: 10),
+                      "Junk did not load")
+        XCTAssertFalse(app.staticTexts["請求書のご送付につきまして"].exists,
+                       "a result from the previous list's search survived the switch")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(

@@ -19,7 +19,8 @@ struct ConversationListView: View {
                     if session.searchQuery != nil {
                         ContentUnavailableView.search(text: searchText)
                     } else {
-                        ContentUnavailableView("All caught up", systemImage: "tray")
+                        ContentUnavailableView(session.activeList.emptyMessage,
+                                               systemImage: session.activeList.systemImage)
                     }
                 } else {
                     List(session.visibleConversations) { conversation in
@@ -70,7 +71,7 @@ struct ConversationListView: View {
                     .refreshable { await session.loadConversations() }
                 }
             }
-            .navigationTitle("Inbox")
+            .navigationTitle(session.activeList.title)
             .searchable(text: $searchText, prompt: "Search mail")
             .onChange(of: searchText) { _, text in
                 // Debounced, and the previous request cancelled: a
@@ -106,6 +107,20 @@ struct ConversationListView: View {
                 Text("This will permanently delete all messages.")
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Picker("List", selection: Binding(
+                            get: { session.activeList },
+                            set: { list in Task { await session.select(list) } }
+                        )) {
+                            ForEach(MailList.allCases) { list in
+                                Label(list.title, systemImage: list.systemImage).tag(list)
+                            }
+                        }
+                    } label: {
+                        Label("Lists", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Sign out") { session.signOut() }
                 }

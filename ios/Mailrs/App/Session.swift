@@ -31,13 +31,20 @@ final class Session {
     /// Where this app points. A simulator reaches the host's localhost
     /// directly, so the local stack works with no extra plumbing; a
     /// device needs the LAN address or the public host instead.
-    /// Which folder the list asks for. A launch argument overrides it so
-    /// a UI test can reach the stub's paging fixture; the app itself has
-    /// no folder switcher yet.
-    /// Not `Self.launchValue(…)`: a stored property initialiser cannot
-    /// reference the covariant `Self` of a non-final class, and the
-    /// `@Observable` macro expands this into one.
-    var folder: String = launchValue("-mailrsFolder") ?? "Inbox"
+    /// The list on screen. Everything the list, its paging and its search
+    /// ask for comes from this one value.
+    private(set) var activeList: MailList = .inbox
+
+    /// Points the list at the stub's paging fixture, which is not one of
+    /// the real lists. Not `Self.launchValue(…)`: a stored property
+    /// initialiser cannot reference the covariant `Self` of a non-final
+    /// class, and the `@Observable` macro expands this into one.
+    private let folderOverride: String? = launchValue("-mailrsFolder")
+
+    var axes: MailListAxes {
+        if let folderOverride { return MailListAxes(folder: folderOverride) }
+        return activeList.axes
+    }
 
     /// A launch argument overrides it, which is how the UI tests point
     /// the app at a stub instead of a live server. Inert in normal use —
@@ -90,7 +97,7 @@ final class Session {
             let client = MailrsClient(baseURL: baseURL, token: ProcessInfo.processInfo.arguments[index + 1])
             self.client = client
             state = .signedIn(address: "test@golia.jp", displayName: "Test")
-            conversations = (try? await client.conversations(folder: folder)) ?? []
+            conversations = (try? await client.conversations(axes: axes)) ?? []
             return
         }
         guard let token = TokenStore.load() else { return }
@@ -98,7 +105,7 @@ final class Session {
         self.client = client
         state = .signedIn(address: TokenStore.loadAddress() ?? "", displayName: "")
         do {
-            conversations = try await client.conversations(folder: folder)
+            conversations = try await client.conversations(axes: axes)
         } catch {
             // The stored token no longer works — clear it rather than
             // leaving a credential that fails on every launch.
@@ -192,11 +199,27 @@ final class Session {
     func loadConversations() async {
         guard let client else { return }
         do {
-            conversations = try await client.conversations(folder: folder)
+            conversations = try await client.conversations(axes: axes)
             reachedEnd = false
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    /// Switch lists.
+    ///
+    /// Everything scoped to the old list goes with it: the rows, the
+    /// paging cursor's end flag, and any search. Carrying a search across
+    /// would leave Junk showing hits from Inbox, and carrying `reachedEnd`
+    /// would leave a fresh list unable to page.
+    func select(_ list: MailList) async {
+        guard list != activeList else { return }
+        activeList = list
+        conversations = []
+        searchResults = []
+        searchQuery = nil
+        reachedEnd = false
+        await loadConversations()
     }
 
     /// Run a search, or clear one.
@@ -213,7 +236,7 @@ final class Session {
         }
         searchQuery = query
         do {
-            let hits = try await client.search(query: query, folder: folder)
+            let hits = try await client.search(query: query, axes: axes)
             // Only if this is still the current query — a slower earlier
             // request must not overwrite a later one's results.
             guard searchQuery == query else { return }
@@ -239,7 +262,7 @@ final class Session {
         loadingMore = true
         defer { loadingMore = false }
         do {
-            let page = try await client.conversations(folder: folder, before: before)
+            let page = try await client.conversations(axes: axes, before: before)
             let merged = ThreadPage.merge(conversations, with: page)
             conversations = merged.rows
             // Nothing new means the end — including the case where a page
