@@ -307,28 +307,79 @@ struct ConversationRow: View {
         )
     }
 
+    /// Whose color and initial the avatar wears — the same participant
+    /// the name comes from.
+    private var face: String {
+        let mine = session.myAddress
+        let others = conversation.participants.filter { SenderName.extractEmail($0) != mine }
+        return others.first ?? conversation.participants.first ?? ""
+    }
+
+    private var extraParticipants: Int {
+        let mine = session.myAddress
+        let others = conversation.participants.filter { SenderName.extractEmail($0) != mine }
+        return max(0, others.count - 1)
+    }
+
+    /// The web row's count chip: received and sent split when the
+    /// thread has both directions, a plain total otherwise.
+    private var countLabel: String? {
+        guard conversation.messageCount > 1 else { return nil }
+        if conversation.sentCount > 0, conversation.receivedCount > 0 {
+            return "\(conversation.receivedCount)↓ \(conversation.sentCount)↑"
+        }
+        return "×\(conversation.messageCount)"
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            // The dot carries the unread state, and a colour is not a
-            // label — without this a VoiceOver user cannot tell a read
-            // row from an unread one at all.
-            Circle()
-                .fill(conversation.unreadCount > 0 ? Color.accentColor : .clear)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(conversation.unreadCount == 0)
-                .accessibilityLabel("Unread")
+        HStack(alignment: .center, spacing: 10) {
+            // The avatar wears the unread state as a badge on its rim —
+            // the dot keeps its VoiceOver label ("Unread"), because a
+            // colour is not a label.
+            SenderAvatar(sender: face)
+                .overlay(alignment: .topTrailing) {
+                    if conversation.unreadCount > 0 {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 11, height: 11)
+                            .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
+                            .offset(x: 1, y: -1)
+                            .accessibilityHidden(false)
+                            .accessibilityLabel("Unread")
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(sender)
                         .font(.subheadline.weight(conversation.unreadCount > 0 ? .semibold : .regular))
                         .lineLimit(1)
+                    if extraParticipants > 0 {
+                        Text("+\(extraParticipants)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if conversation.importanceLevel == "critical"
+                        || conversation.importanceLevel == "important" {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(
+                                conversation.importanceLevel == "critical" ? .red : .orange
+                            )
+                            .accessibilityLabel(
+                                conversation.importanceLevel == "critical"
+                                    ? "Critical" : "Important"
+                            )
+                    }
                     Spacer(minLength: 4)
-                    if conversation.messageCount > 1 {
-                        Text("×\(conversation.messageCount)")
+                    if let countLabel {
+                        Text(countLabel)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color(.tertiarySystemFill), in: Capsule())
                     }
                     Text(RowDate.label(epochSeconds: conversation.lastDate))
                         .font(.caption)

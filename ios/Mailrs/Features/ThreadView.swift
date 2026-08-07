@@ -50,7 +50,7 @@ struct ThreadView: View {
                 ProgressView()
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(messages) { message in
                             if ThreadCollapse.isExpanded(
                                 uid: message.uid,
@@ -69,10 +69,12 @@ struct ThreadView: View {
                                         withAnimation { toggled.formSymmetricDifference([message.uid]) }
                                     }
                             }
-                            Divider()
                         }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
                 }
+                .background(Color(.systemGroupedBackground))
             }
         }
         .navigationTitle(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
@@ -169,6 +171,8 @@ private struct CollapsedMessageRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .background(Color(.secondarySystemGroupedBackground).opacity(0.6),
+                    in: RoundedRectangle(cornerRadius: 12))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("collapsed-\(message.uid)")
@@ -185,23 +189,28 @@ private struct MessageCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(SenderName.extractName(message.sender))
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                SenderTrustBadge(verdict: message.senderTrust)
-                Spacer()
-                Text(Date(timeIntervalSince1970: TimeInterval(message.internalDate)),
-                     format: .dateTime.month().day().hour().minute())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .center, spacing: 8) {
+                SenderAvatar(sender: message.sender, size: 32)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(SenderName.extractName(message.sender))
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        SenderTrustBadge(verdict: message.senderTrust)
+                        Spacer()
+                        Text(Date(timeIntervalSince1970: TimeInterval(message.internalDate)),
+                             format: .dateTime.month().day().hour().minute())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("To: \(message.recipients)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: onHeaderTap)
-            Text("To: \(message.recipients)")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
 
             if !message.attachments.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -228,6 +237,8 @@ private struct MessageCard: View {
             }
         }
         .padding(12)
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

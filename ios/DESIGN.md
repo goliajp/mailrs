@@ -4,6 +4,27 @@ Benchmarks: Apple Mail (motion, gestures, dates), Gmail (triage speed),
 and the web client's own settled decisions — which win ties, because
 they are the same person's taste already paid for.
 
+## Identity (the visual system)
+
+One blood-line with the web client. The accent is GOLIA blue
+(#3b7ddd light / #3b82f6 dark — the gds tokens), set as the asset
+catalog's AccentColor so every tint inherits it. Sender avatars are
+the web's exactly: 16 tailwind-500 colors picked by the same
+31-multiply hash over the address, so the same correspondent wears
+the same color on every client — the hash is unit-tested against
+values computed by the web's algorithm, wrapping like JS `| 0`.
+The app icon is drawn geometry (PIL, checked in as 1024px): the
+accent field, a white envelope, signal rings radiating from the
+flap. SF stays the typeface — on iOS the system font is the
+professional choice, and identity lives in color and shape.
+
+Rows carry the web's grammar: avatar with the unread dot on its rim
+(keeping its VoiceOver label), +N extra participants, received↓
+sent↑ split in a capsule chip when a thread has both directions,
+an importance mark for critical/important. Thread messages are
+cards on the grouped background; folded rows are quieter cards of
+the same radius.
+
 ## The row (the unit everything multiplies)
 
 **Two lines, no preview.** The web made this exact call on 2026-07-17
