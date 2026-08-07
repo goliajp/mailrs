@@ -42,15 +42,21 @@ if [ "${1:-}" = "device" ]; then
     # JSON, not the table: device names contain spaces ("panda's
     # iphone"), so positional awk over the columns picks the wrong field
     # and asks CoreDevice for a device called "iPhone".
+    # Paired is not present: devicectl keeps listing a phone that was
+    # unplugged an hour ago, and the build then fails at install with a
+    # CoreDevice "unable to locate" that reads like a tooling bug. The
+    # tunnel state is what says the phone is actually here.
     DEVICE=$(xcrun devicectl list devices --json-output - 2>/dev/null | python3 -c "
 import json, sys
 devices = json.load(sys.stdin)['result']['devices']
-paired = [d for d in devices
-          if 'paired' in d.get('connectionProperties', {}).get('pairingState', '')]
-print(paired[0]['identifier'] if paired else '')
+here = [d for d in devices
+        if 'paired' in d.get('connectionProperties', {}).get('pairingState', '')
+        and d.get('connectionProperties', {}).get('tunnelState') != 'unavailable']
+print(here[0]['identifier'] if here else '')
 ")
     if [ -z "$DEVICE" ]; then
-        echo "!! no paired iPhone — plug one in and trust this Mac"
+        echo "!! no iPhone reachable — paired devices exist but none is connected."
+        echo "!! Plug the phone in (or put it on this network with Wi-Fi debugging on)."
         exit 1
     fi
     echo "==> device $DEVICE"
