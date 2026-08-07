@@ -47,6 +47,11 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
     case starred
     case junk
     case archived
+    /// Not a thread list: two endpoints joined by `SendJoin`. "Send",
+    /// not "Sent" — the rows include mail that failed and mail still
+    /// going out, and a heading claiming they were sent would be wrong
+    /// about exactly the rows worth looking at.
+    case send
 
     var id: String { rawValue }
 
@@ -58,6 +63,7 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .starred: "Starred"
         case .junk: "Junk"
         case .archived: "Archived"
+        case .send: "Send"
         }
     }
 
@@ -69,6 +75,7 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .starred: "star"
         case .junk: "xmark.bin"
         case .archived: "archivebox"
+        case .send: "paperplane"
         }
     }
 
@@ -82,6 +89,7 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .starred: "Nothing starred"
         case .junk: "No junk mail"
         case .archived: "No archived conversations"
+        case .send: "Nothing sent yet"
         }
     }
 
@@ -102,6 +110,9 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         // folder when this is set, because "archived within Inbox" is not
         // what the tab means.
         case .archived: MailListAxes(archived: true)
+        // Unused: Send never queries /api/conversations. The axes exist
+        // so the type stays total; `Session` branches on the case.
+        case .send: MailListAxes()
         }
     }
 }

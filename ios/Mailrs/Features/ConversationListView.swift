@@ -17,7 +17,9 @@ struct ConversationListView: View {
             // an invisible sheet of glass over them, and every row
             // reports itself untappable underneath it.
             Group {
-                if session.visibleConversations.isEmpty {
+                if session.activeList == .send {
+                    SendListSection(searchText: searchText)
+                } else if session.visibleConversations.isEmpty {
                     if session.searchQuery != nil {
                         ContentUnavailableView.search(text: searchText)
                     } else {

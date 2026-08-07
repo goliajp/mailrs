@@ -73,6 +73,50 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/core-api/src/method/thread.rs` —
+    /// `SentMessageSummary`, a bare array from `GET /api/mail/sent`.
+    struct SentMessage: Decodable, Sendable {
+        let uid: UInt32
+        let messageId: String
+        let threadId: String
+        let to: String
+        let subject: String
+        let internalDate: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case uid
+            case messageId = "message_id"
+            case threadId = "thread_id"
+            case to
+            case subject
+            case internalDate = "internal_date"
+        }
+    }
+
+    /// Backend: `crates/webapi/src/handlers/sends/mod.rs` —
+    /// `SendResponse`, a bare array from `GET /api/mail/sends`. Status is
+    /// one of scheduled / sending / delivered / failed / partial
+    /// (`core-sidestate/src/families/send/mod.rs`).
+    struct Send: Decodable, Sendable {
+        let sendId: String
+        let threadId: String
+        let subject: String
+        let to: [String]
+        let createdAt: Int64
+        let status: String
+        let resentFrom: String?
+
+        enum CodingKeys: String, CodingKey {
+            case sendId = "send_id"
+            case threadId = "thread_id"
+            case subject
+            case to
+            case createdAt = "created_at"
+            case status
+            case resentFrom = "resent_from"
+        }
+    }
+
     /// Backend: `crates/core-api/src/method/admin/userdata.rs` —
     /// `DraftWire`, served by `prefs.rs::list_drafts`.
     ///

@@ -738,6 +738,34 @@ final class SignInFlowTests: XCTestCase {
                       "the rescue never reached the server")
     }
 
+    /// The Send list shows all three kinds of row honestly: a filed
+    /// message with its status joined across a bracket difference, a
+    /// failed send the maildir sweep has not filed, and old mail with no
+    /// projection saying nothing.
+    func testSendListJoinsStatusAndShowsFailures() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Send"].tap()
+
+        // The failed, unfiled send is the row the list exists for — a
+        // naive /api/mail/sent listing would not contain it at all.
+        XCTAssertTrue(app.staticTexts["Never left the queue"].waitForExistence(timeout: 10),
+                      "the unfiled failed send is missing — the list is only showing the sent axis")
+        XCTAssertTrue(app.staticTexts["Failed"].exists, "the failure is not called out")
+
+        // The filed one carries its delivered mark, joined across the
+        // bracket difference the stub deliberately serves.
+        XCTAssertTrue(app.staticTexts["Filed and delivered"].exists, "the filed send is missing")
+
+        // And the pre-projection one is present with no badge — absence
+        // says nothing rather than claiming delivery.
+        XCTAssertTrue(app.staticTexts["Predates the projection"].exists,
+                      "old mail without a projection row was dropped")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(

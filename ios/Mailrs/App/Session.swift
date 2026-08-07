@@ -255,6 +255,21 @@ final class Session {
     }
 
     private(set) var drafts: [Wire.Draft] = []
+    private(set) var sendRows: [SendJoin.Row] = []
+
+    /// The Send list's rows: both endpoints, joined. Failures are the
+    /// list's whole reason to exist, so a partial fetch does not render
+    /// as an empty "Nothing sent yet".
+    func loadSendRows() async {
+        guard let client else { return }
+        do {
+            async let messages = client.sentMessages()
+            async let sends = client.sends()
+            sendRows = SendJoin.join(messages: try await messages, sends: try await sends)
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
 
     func loadDrafts() async {
         guard let client else { return }
@@ -334,6 +349,9 @@ final class Session {
     }
 
     func loadConversations() async {
+        // Send is not served by /api/conversations; asking it with empty
+        // axes would answer with the whole mailbox.
+        guard activeList != .send else { return await loadSendRows() }
         guard let client else { return }
         do {
             conversations = try await client.conversations(axes: axes)
@@ -356,7 +374,12 @@ final class Session {
         searchResults = []
         searchQuery = nil
         reachedEnd = false
-        await loadConversations()
+        sendRows = []
+        if list == .send {
+            await loadSendRows()
+        } else {
+            await loadConversations()
+        }
     }
 
     /// Run a search, or clear one.
