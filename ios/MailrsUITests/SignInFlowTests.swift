@@ -259,6 +259,23 @@ final class SignInFlowTests: XCTestCase {
         wait(for: [done], timeout: 10)
     }
 
+    /// The drafts the stub is holding.
+    private func storedDrafts() -> [[String: Any]] {
+        guard let url = URL(string: "http://localhost:6039/api/mail/drafts") else { return [] }
+        var result: [[String: Any]] = []
+        let done = expectation(description: "drafts")
+        var request = URLRequest(url: url)
+        request.setValue("Bearer stub-token", forHTTPHeaderField: "Authorization")
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                result = json
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     /// The bodies the stub has been POSTed to `/api/mail/send`.
     private func sentMessages() -> [[String: Any]] {
         guard let url = URL(string: "http://localhost:6039/debug/sent") else { return [] }
@@ -526,6 +543,85 @@ final class SignInFlowTests: XCTestCase {
                      "a new message named a parent message")
         XCTAssertNil(sent.first?["reply_to_thread_id"] as? String,
                      "a new message was filed inside a thread")
+    }
+
+    /// Closing the composer keeps what was written, and reopening it
+    /// from Drafts gets it back.
+    ///
+    /// Cancel is not discard. Before drafts, dismissing the sheet threw
+    /// the message away with no warning and no way back.
+    func testACancelledComposeIsKeptAsADraft() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        to.tap()
+        to.typeText("later@example.com")
+        app.textFields["Subject"].tap()
+        app.textFields["Subject"].typeText("Half written")
+
+        app.buttons["Cancel"].tap()
+
+        app.buttons["Lists"].tap()
+        app.buttons["Drafts"].tap()
+        XCTAssertTrue(app.staticTexts["Half written"].waitForExistence(timeout: 10),
+                      "the cancelled compose was not kept")
+
+        app.staticTexts["Half written"].tap()
+        let resumedSubject = app.textFields["Subject"]
+        XCTAssertTrue(resumedSubject.waitForExistence(timeout: 5), "the draft did not reopen")
+        XCTAssertEqual(resumedSubject.value as? String, "Half written",
+                       "the draft reopened without its subject")
+    }
+
+    /// One compose session is one draft, however long it is typed for.
+    ///
+    /// The server upserts on a supplied id; a client that posted without
+    /// its id would leave a draft per autosave tick. The stub models
+    /// that, so a trail shows up here as a count.
+    func testAutosaveKeepsOneDraftPerSession() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        let subject = app.textFields["Subject"]
+        XCTAssertTrue(app.textFields["someone@example.com"].waitForExistence(timeout: 5))
+        subject.tap()
+        subject.typeText("One")
+        // Past the 2s autosave, twice, with an edit in between.
+        Thread.sleep(forTimeInterval: 3)
+        subject.typeText(" and two")
+        Thread.sleep(forTimeInterval: 3)
+        app.buttons["Cancel"].tap()
+
+        app.buttons["Lists"].tap()
+        app.buttons["Drafts"].tap()
+        XCTAssertTrue(app.staticTexts["One and two"].waitForExistence(timeout: 10),
+                      "the draft did not keep the latest text")
+        // From the server, not `app.cells`: the conversation list stays
+        // mounted under the sheet, so its two rows are counted too and
+        // one draft reads as three.
+        XCTAssertEqual(storedDrafts().count, 1,
+                       "autosave left more than one draft for a single compose")
+    }
+
+    /// An untouched composer leaves nothing behind. A Drafts list filling
+    /// up with blanks is worse than no list.
+    func testAnEmptyComposeSavesNothing() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        XCTAssertTrue(app.textFields["someone@example.com"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertTrue(storedDrafts().isEmpty, "an empty compose left a draft behind")
     }
 
     func testRepliesToAThread() {

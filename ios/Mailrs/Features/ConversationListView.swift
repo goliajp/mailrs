@@ -7,6 +7,7 @@ struct ConversationListView: View {
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
+    @State private var showingDrafts = false
 
     var body: some View {
         NavigationStack {
@@ -96,6 +97,7 @@ struct ConversationListView: View {
             }
             .navigationTitle(session.activeList.title)
             .sheet(isPresented: $composing) { ComposeView() }
+            .sheet(isPresented: $showingDrafts) { DraftsView() }
             .searchable(text: $searchText, prompt: "Search mail")
             .onChange(of: searchText) { _, text in
                 // Debounced, and the previous request cancelled: a
@@ -140,6 +142,12 @@ struct ConversationListView: View {
                             ForEach(MailList.allCases) { list in
                                 Label(list.title, systemImage: list.systemImage).tag(list)
                             }
+                        }
+                        Divider()
+                        Button {
+                            showingDrafts = true
+                        } label: {
+                            Label("Drafts", systemImage: "doc.text")
                         }
                     } label: {
                         Label("Lists", systemImage: "line.3.horizontal.decrease.circle")

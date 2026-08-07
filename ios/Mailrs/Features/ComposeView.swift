@@ -6,6 +6,9 @@ import SwiftUI
 /// fields nil — a new message is not in a thread, and sending it with a
 /// `reply_to_thread_id` would file it inside one.
 struct ComposeView: View {
+    /// A draft being resumed, if this is not a blank compose.
+    var resuming: Wire.Draft?
+
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
 
@@ -14,6 +17,10 @@ struct ComposeView: View {
     @State private var body_ = ""
     @State private var sending = false
     @State private var failure: String?
+    /// The id the server gave this session's draft. Held so every
+    /// autosave upserts the same one instead of creating another.
+    @State private var draftId: Int64?
+    @State private var autosave: Task<Void, Never>?
     @FocusState private var focus: Field?
 
     private enum Field { case to, subject, body }
@@ -56,8 +63,53 @@ struct ComposeView: View {
                         .disabled(!AddressList.isSendable(to) || sending)
                 }
             }
-            .onAppear { focus = .to }
+            .onAppear {
+                if let resuming {
+                    to = resuming.to
+                    subject = resuming.subject
+                    body_ = resuming.body
+                    draftId = resuming.id
+                }
+                focus = .to
+            }
+            .onChange(of: [to, subject, body_]) { _, _ in scheduleAutosave() }
+            .onDisappear {
+                autosave?.cancel()
+                // Cancel is not "discard": closing the composer with
+                // something in it saves rather than throwing it away, and
+                // the draft is what makes that safe.
+                saveNow()
+            }
         }
+    }
+
+    /// Debounced, because every keystroke changes the fields and a save
+    /// per character is a POST per character.
+    private func scheduleAutosave() {
+        autosave?.cancel()
+        autosave = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            await save()
+        }
+    }
+
+    private func saveNow() {
+        guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
+        let (recipients, title, text, id) = (to, subject, body_, draftId)
+        Task {
+            _ = await session.saveDraft(
+                id: id, to: recipients, subject: title, body: text, replyToThreadId: nil
+            )
+            await session.loadDrafts()
+        }
+    }
+
+    private func save() async {
+        guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
+        draftId = await session.saveDraft(
+            id: draftId, to: to, subject: subject, body: body_, replyToThreadId: nil
+        )
     }
 
     private func send() async {
@@ -67,6 +119,13 @@ struct ComposeView: View {
             try await session.sendNew(
                 to: AddressList.parse(to), subject: subject, body: body_
             )
+            // Sent, so it is no longer a draft. Cancel the pending
+            // autosave first or it recreates the one just deleted.
+            autosave?.cancel()
+            if let draftId {
+                await session.deleteDraft(id: draftId)
+                self.draftId = nil
+            }
             dismiss()
         } catch {
             failure = error.localizedDescription
