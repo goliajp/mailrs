@@ -209,6 +209,35 @@ final class Session {
         return try await client.attachment(uid: uid, index: index)
     }
 
+    private(set) var drafts: [Wire.Draft] = []
+
+    func loadDrafts() async {
+        guard let client else { return }
+        drafts = (try? await client.drafts()) ?? []
+    }
+
+    /// Save a compose session, returning the id the server gave it.
+    ///
+    /// The caller keeps that id and passes it back on the next save, so
+    /// one session upserts one draft. Posting without it on every
+    /// autosave would leave a new draft per tick.
+    func saveDraft(
+        id: Int64?, to: String, subject: String, body: String, replyToThreadId: String?
+    ) async -> Int64? {
+        guard let client else { return nil }
+        let request = Wire.SaveDraftRequest(
+            id: id, to: to, cc: "", bcc: "", subject: subject, body: body,
+            replyToThreadId: replyToThreadId
+        )
+        return try? await client.saveDraft(request)
+    }
+
+    func deleteDraft(id: Int64) async {
+        guard let client else { return }
+        try? await client.deleteDraft(id: id)
+        drafts.removeAll { $0.id == id }
+    }
+
     /// Send a message that is not a reply.
     ///
     /// Both threading fields stay nil. Sending `reply_to_thread_id` here

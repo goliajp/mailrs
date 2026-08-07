@@ -171,6 +171,46 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/mail/drafts` — newest first, sorted server-side by
+    /// `updated_at`.
+    func drafts() async throws -> [Wire.Draft] {
+        let (data, response) = try await send("GET", "/api/mail/drafts", body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        do {
+            return try JSONDecoder().decode([Wire.Draft].self, from: data)
+        } catch {
+            throw MailrsError.decoding("drafts — \(error)")
+        }
+    }
+
+    /// `POST /api/mail/drafts` — returns the id, new or the one given.
+    func saveDraft(_ draft: Wire.SaveDraftRequest) async throws -> Int64 {
+        let (data, response) = try await send(
+            "POST", "/api/mail/drafts", body: try JSONEncoder().encode(draft), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        do {
+            return try JSONDecoder().decode(Wire.SaveDraftResponse.self, from: data).id
+        } catch {
+            throw MailrsError.decoding("save draft — \(error)")
+        }
+    }
+
+    /// `DELETE /api/mail/drafts/{id}`.
+    func deleteDraft(id: Int64) async throws {
+        try await verb("DELETE", "/api/mail/drafts/\(id)")
+    }
+
     /// `GET /api/conversations/search` — ranked, and already hydrated
     /// into the same row shape the list uses.
     ///

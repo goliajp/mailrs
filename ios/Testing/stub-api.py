@@ -105,6 +105,17 @@ FETCHED = []
 # so the test reads them here rather than guessing from the UI.
 SENT = []
 
+# Drafts, kept as the server keeps them: upsert on a supplied id,
+# allocate one otherwise. Modelling the id behaviour rather than always
+# appending is the point — a client that posted without its id would
+# leave a trail here, which is exactly the bug to catch.
+DRAFTS = {}
+DRAFT_COUNTER = [0]
+
+# Every draft POST body, so a client that keeps losing its id shows up as
+# a run of `null`s rather than only as a count.
+DRAFT_POSTS = []
+
 ATTACHMENTS = [
     {"filename": "請求書_2026年8月分.pdf", "content_type": "application/pdf", "size": 1234},
     {"filename": "logo.png", "content_type": "image/png", "size": len(PIXEL_PNG)},
@@ -179,6 +190,12 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/fetched":
             self._send({"attachment_indices": FETCHED})
             return
+        if self.path.split("?")[0] == "/api/mail/drafts":
+            self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
+            return
+        if self.path.split("?")[0] == "/debug/draft-posts":
+            self._send({"ids": DRAFT_POSTS})
+            return
         if self.path.split("?")[0] == "/debug/sent":
             self._send({"sent": SENT})
             return
@@ -222,6 +239,13 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_DELETE(self):
+        draft = re.match(r"^/api/mail/drafts/(\d+)$", self.path.split("?")[0])
+        if draft:
+            DRAFTS.pop(int(draft.group(1)), None)
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         # `DELETE /api/conversations/{id}` — 204, no body. The real one
         # unlinks maildir files; this one just says yes.
         if re.match(r"^/api/conversations/[\w-]+$", self.path.split("?")[0]):
@@ -239,6 +263,9 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/reset":
             FETCHED.clear()
             SENT.clear()
+            DRAFTS.clear()
+            DRAFT_COUNTER[0] = 0
+            DRAFT_POSTS.clear()
             self._send({"ok": True})
             return
         if re.match(
@@ -251,6 +278,23 @@ class H(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/auth/login"):
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
+        elif self.path.startswith("/api/mail/drafts"):
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            DRAFT_POSTS.append(body.get("id"))
+            draft_id = body.get("id")
+            if draft_id is None:
+                DRAFT_COUNTER[0] += 1
+                draft_id = DRAFT_COUNTER[0]
+            now = 1754400000 + draft_id
+            DRAFTS[draft_id] = {
+                "id": draft_id, "to": body.get("to", ""), "cc": body.get("cc", ""),
+                "bcc": body.get("bcc", ""), "subject": body.get("subject", ""),
+                "body": body.get("body", ""),
+                "reply_to_thread_id": body.get("reply_to_thread_id"),
+                "created_at": now, "updated_at": now,
+            }
+            self._send({"id": draft_id})
         elif self.path.startswith("/api/mail/send"):
             length = int(self.headers.get("Content-Length", "0"))
             if length:

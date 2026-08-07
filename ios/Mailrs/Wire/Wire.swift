@@ -73,6 +73,65 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/core-api/src/method/admin/userdata.rs` —
+    /// `DraftWire`, served by `prefs.rs::list_drafts`.
+    ///
+    /// `to` is a **String** here, not the array `SendRequest` takes: a
+    /// draft stores what was typed, and parsing it into addresses is the
+    /// send's job. Restoring one therefore puts the text back in the
+    /// field exactly as it was left.
+    struct Draft: Decodable, Identifiable, Sendable {
+        let id: Int64
+        let to: String
+        let cc: String
+        let bcc: String
+        let subject: String
+        let body: String
+        let replyToThreadId: String?
+        let createdAt: Int64
+        let updatedAt: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case to
+            case cc
+            case bcc
+            case subject
+            case body
+            case replyToThreadId = "reply_to_thread_id"
+            case createdAt = "created_at"
+            case updatedAt = "updated_at"
+        }
+    }
+
+    /// Backend: `SaveDraftRequest`. An `id` upserts that draft in place;
+    /// without one the server allocates a fresh id — which is why a
+    /// compose session keeps the id it is given rather than posting
+    /// anonymously on every autosave and leaving a trail of drafts.
+    struct SaveDraftRequest: Encodable {
+        let id: Int64?
+        let to: String
+        let cc: String
+        let bcc: String
+        let subject: String
+        let body: String
+        let replyToThreadId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case to
+            case cc
+            case bcc
+            case subject
+            case body
+            case replyToThreadId = "reply_to_thread_id"
+        }
+    }
+
+    struct SaveDraftResponse: Decodable {
+        let id: Int64
+    }
+
     /// Backend: `crates/webapi/src/handlers/compose.rs` — `SendRequest`,
     /// posted to `/api/mail/send`.
     ///
