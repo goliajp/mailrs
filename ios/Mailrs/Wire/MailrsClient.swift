@@ -74,14 +74,11 @@ actor MailrsClient {
 
     /// `GET /api/conversations` — a bare array, see `Wire.Conversation`.
     func conversations(
-        folder: String = "Inbox", limit: Int = 50, before: Int64? = nil
+        axes: MailListAxes, limit: Int = 50, before: Int64? = nil
     ) async throws -> [Wire.Conversation] {
         var components = URLComponents(url: baseURL.appendingPathComponent("/api/conversations"),
                                        resolvingAgainstBaseURL: false)
-        var items = [
-            URLQueryItem(name: "folder", value: folder),
-            URLQueryItem(name: "limit", value: String(limit)),
-        ]
+        var items = axes.queryItems + [URLQueryItem(name: "limit", value: String(limit))]
         if let before {
             items.append(URLQueryItem(name: "before_ts", value: String(before)))
         }
@@ -164,12 +161,14 @@ actor MailrsClient {
     /// walking the hit ids (`thread_ids.iter().filter_map`), so the array
     /// arrives in relevance order and re-sorting it by date would throw
     /// the ranking away.
-    func search(query: String, folder: String, limit: Int = 50) async throws -> [Wire.Conversation] {
+    func search(query: String, axes: MailListAxes, limit: Int = 50) async throws -> [Wire.Conversation] {
         var components = URLComponents(url: baseURL.appendingPathComponent("/api/conversations/search"),
                                        resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+        // The same axes the list uses. `SearchQuery` takes the identical
+        // four, and scoping the search differently from the list it was
+        // typed into is how searching Junk returns Inbox.
+        components?.queryItems = axes.queryItems + [
             URLQueryItem(name: "q", value: query),
-            URLQueryItem(name: "folder", value: folder),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
         guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }

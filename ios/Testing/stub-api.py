@@ -61,6 +61,16 @@ def _paged_convos(limit, before_ts):
 
 BASE_TS = 1754400000
 
+
+def convo(tid, subject, snippet, ts):
+    return {
+        "thread_id": tid, "subject": subject, "participants": ["someone@example.com"],
+        "message_count": 1, "unread_count": 0, "last_date": ts, "category": "inbox",
+        "flagged": False, "snippet": snippet, "pinned": False, "archived": False,
+        "importance_level": "normal", "importance_score": 0.0, "requires_action": False,
+        "received_count": 1, "sent_count": 0,
+    }
+
 CONVOS = [{
     "thread_id": "t1", "subject": "Quarterly report and the follow-up notes",
     "participants": ["alice@example.com"], "message_count": 2, "unread_count": 2,
@@ -170,7 +180,28 @@ class H(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             # The paging fixture is opt-in so the small, readable
             # two-row list stays what the other tests see.
-            if query.get("folder", [""])[0] == "Paged":
+            folder = query.get("folder", [""])[0]
+            archived = query.get("archived", ["false"])[0] == "true"
+            # Each list gets its own row, so a switch that did not change
+            # what was asked for would show the wrong one. Without this
+            # every folder returned the same two threads and a broken
+            # switcher looked correct.
+            if archived:
+                self._send([convo("arch1", "Archived thread", "old news", 1754100000)])
+                return
+            if folder == "Junk":
+                self._send([convo("junk1", "You have won", "definitely real", 1754200000)])
+                return
+            if folder == "NonJunk" and query.get("starred", [""])[0] == "true":
+                self._send([convo("star1", "Starred thread", "kept", 1754250000)])
+                return
+            if folder == "NonJunk" and query.get("unread", [""])[0] == "true":
+                self._send([convo("unread1", "Unread thread", "not opened", 1754260000)])
+                return
+            if folder == "NP":
+                self._send([convo("np1", "Newsletter thread", "weekly", 1754270000)])
+                return
+            if folder == "Paged":
                 limit = int(query.get("limit", ["50"])[0])
                 before = query.get("before_ts", [None])[0]
                 self._send(_paged_convos(limit, int(before) if before else None))
