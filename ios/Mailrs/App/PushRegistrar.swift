@@ -33,6 +33,21 @@ enum PushRegistrar {
     }
 }
 
+/// The app icon's unread badge.
+///
+/// Server-counted, never client-derived: the pages in hand are one list
+/// and fifty rows of it, and summing them would show a number that
+/// changes with scrolling. `setBadgeCount` silently does nothing until
+/// badge authorization is granted, which the sign-in permission request
+/// already asks for — so this needs no gating of its own.
+@MainActor
+enum AppBadge {
+    static func update(_ count: Int) {
+        guard !PushRegistrar.isUnderTest else { return }
+        UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
+    }
+}
+
 /// The UIKit half: token callbacks have no SwiftUI surface.
 final class AppDelegate: NSObject, UIApplicationDelegate {
     /// Set by `MailrsApp` so the token can reach the session's client.

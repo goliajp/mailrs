@@ -97,7 +97,11 @@ final class Session {
             let client = MailrsClient(baseURL: baseURL, token: ProcessInfo.processInfo.arguments[index + 1])
             self.client = client
             state = .signedIn(address: "test@golia.jp", displayName: "Test")
-            conversations = (try? await client.conversations(axes: axes)) ?? []
+            // Through loadConversations, not an inline fetch: the badge
+            // refresh lives there, and this path quietly skipping it is
+            // exactly how the real cold launch below shipped a badge
+            // that never updated.
+            await loadConversations()
             return
         }
         guard let token = TokenStore.load() else { return }
@@ -106,6 +110,7 @@ final class Session {
         state = .signedIn(address: TokenStore.loadAddress() ?? "", displayName: "")
         do {
             conversations = try await client.conversations(axes: axes)
+            await refreshBadge()
         } catch {
             // The stored token no longer works — clear it rather than
             // leaving a credential that fails on every launch.
@@ -143,6 +148,7 @@ final class Session {
             // until the next refresh rather than vanishing while you
             // are standing on it.
             patch(conversation.threadId) { $0.unreadCount = 0 }
+            await refreshBadge()
         } catch {
             // Still unread is the honest state if the call failed; the
             // next open retries by construction.
@@ -358,6 +364,17 @@ final class Session {
             reachedEnd = false
         } catch {
             state = .failed(error.localizedDescription)
+        }
+        await refreshBadge()
+    }
+
+    /// The icon's number, refreshed wherever the mailbox may have moved:
+    /// after a list load, after marking read, after a delete. Server
+    /// count, because the client only ever holds one page of one list.
+    func refreshBadge() async {
+        guard let client else { return }
+        if let count = try? await client.unseenCount() {
+            AppBadge.update(count)
         }
     }
 
