@@ -21,7 +21,11 @@ struct SendListSection: View {
 
     var body: some View {
         if rows.isEmpty {
-            ContentUnavailableView("Nothing sent yet", systemImage: "paperplane")
+            if session.initialLoading {
+                ProgressView()
+            } else {
+                ContentUnavailableView("Nothing sent yet", systemImage: "paperplane")
+            }
         } else {
             List(rows) { row in
                 SendRowView(row: row)

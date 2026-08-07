@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Who is signed in, and the client that speaks for them.
 ///
@@ -56,6 +57,13 @@ final class Session {
     /// Whether the server has any older threads left.
     private(set) var reachedEnd = false
     private(set) var loadingMore = false
+    /// True from asking for a list until its first page answers.
+    ///
+    /// Its whole purpose is the empty state: without it, "All caught up"
+    /// flashes on every cold open and every list switch while the first
+    /// page is still in flight — an empty mailbox announced about a full
+    /// one. Apple Mail never shows the empty state until it knows.
+    private(set) var initialLoading = false
     /// The query the visible rows answer, or nil when they are the list.
     private(set) var searchQuery: String?
     private(set) var searchResults: [Wire.Conversation] = []
@@ -125,10 +133,26 @@ final class Session {
         inReplyTo: String?, threadId: String
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.sendReply(
-            to: recipients, subject: subject, body: body,
-            inReplyTo: inReplyTo, threadId: threadId
-        )
+        try await sendWithFeedback {
+            try await client.sendReply(
+                to: recipients, subject: subject, body: body,
+                inReplyTo: inReplyTo, threadId: threadId
+            )
+        }
+    }
+
+    /// The physical answer to Send. The sheet dismissing says it too,
+    /// but the thumb is on the button and the eyes may not be — Gmail
+    /// and Apple Mail both confirm a send through the hand. Failure taps
+    /// differently *before* the error text appears, for the same reason.
+    private func sendWithFeedback(_ send: () async throws -> some Sendable) async throws {
+        do {
+            _ = try await send()
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            throw error
+        }
     }
 
     /// A thread is read because someone is reading it.
@@ -147,7 +171,7 @@ final class Session {
             // re-filtered: in the Unread list the row stays visible
             // until the next refresh rather than vanishing while you
             // are standing on it.
-            patch(conversation.threadId) { $0.unreadCount = 0 }
+            withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
             await refreshBadge()
         } catch {
             // Still unread is the honest state if the call failed; the
@@ -164,7 +188,7 @@ final class Session {
         guard let client else { return }
         let markRead = conversation.unreadCount > 0
         let previous = conversations
-        patch(conversation.threadId) { $0.unreadCount = markRead ? 0 : max(1, $0.unreadCount) }
+        withAnimation { patch(conversation.threadId) { $0.unreadCount = markRead ? 0 : max(1, $0.unreadCount) } }
         do {
             try await client.setRead(threadId: conversation.threadId, markRead)
         } catch {
@@ -177,7 +201,7 @@ final class Session {
         guard let client else { return }
         let starred = !conversation.flagged
         let previous = conversations
-        patch(conversation.threadId) { $0.flagged = starred }
+        withAnimation { patch(conversation.threadId) { $0.flagged = starred } }
         do {
             try await client.setStarred(threadId: conversation.threadId, starred)
         } catch {
@@ -212,13 +236,17 @@ final class Session {
         guard let client else { return }
         let previous = conversations
         let previousResults = searchResults
-        conversations.removeAll { $0.threadId == conversation.threadId }
-        searchResults.removeAll { $0.threadId == conversation.threadId }
+        withAnimation {
+            conversations.removeAll { $0.threadId == conversation.threadId }
+            searchResults.removeAll { $0.threadId == conversation.threadId }
+        }
         do {
             try await client.setJunk(threadId: conversation.threadId, junk)
         } catch {
-            conversations = previous
-            searchResults = previousResults
+            withAnimation {
+                conversations = previous
+                searchResults = previousResults
+            }
             state = .failed(error.localizedDescription)
         }
     }
@@ -231,11 +259,11 @@ final class Session {
     func archive(_ conversation: Wire.Conversation) async {
         guard let client else { return }
         let previous = conversations
-        conversations.removeAll { $0.threadId == conversation.threadId }
+        withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
         do {
             try await client.archive(threadId: conversation.threadId)
         } catch {
-            conversations = previous
+            withAnimation { conversations = previous }
             state = .failed(error.localizedDescription)
         }
     }
@@ -249,7 +277,7 @@ final class Session {
         guard let client else { return }
         do {
             try await client.delete(threadId: conversation.threadId)
-            conversations.removeAll { $0.threadId == conversation.threadId }
+            withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -268,13 +296,16 @@ final class Session {
     /// as an empty "Nothing sent yet".
     func loadSendRows() async {
         guard let client else { return }
+        if sendRows.isEmpty { initialLoading = true }
         do {
             async let messages = client.sentMessages()
             async let sends = client.sends()
-            sendRows = SendJoin.join(messages: try await messages, sends: try await sends)
+            let rows = SendJoin.join(messages: try await messages, sends: try await sends)
+            withAnimation { sendRows = rows }
         } catch {
             state = .failed(error.localizedDescription)
         }
+        initialLoading = false
     }
 
     func loadDrafts() async {
@@ -317,7 +348,9 @@ final class Session {
     /// is the mirror of the bug that made replies arrive unthreaded.
     func sendNew(to recipients: [String], subject: String, body: String) async throws {
         guard let client else { throw MailrsError.badCredentials }
-        try await client.sendNew(to: recipients, subject: subject, body: body)
+        try await sendWithFeedback {
+            try await client.sendNew(to: recipients, subject: subject, body: body)
+        }
     }
 
     func messages(threadId: String) async throws -> [Wire.Message] {
@@ -359,12 +392,20 @@ final class Session {
         // axes would answer with the whole mailbox.
         guard activeList != .send else { return await loadSendRows() }
         guard let client else { return }
+        // Only when the screen has nothing yet: pull-to-refresh on a
+        // populated list must not blank it behind a spinner.
+        if conversations.isEmpty { initialLoading = true }
         do {
-            conversations = try await client.conversations(axes: axes)
+            let page = try await client.conversations(axes: axes)
+            // Rows slide in and the empty state cross-fades away, the
+            // way a List is expected to move. Without the animation
+            // block SwiftUI swaps the frames in one step.
+            withAnimation { conversations = page }
             reachedEnd = false
         } catch {
             state = .failed(error.localizedDescription)
         }
+        initialLoading = false
         await refreshBadge()
     }
 
@@ -407,8 +448,10 @@ final class Session {
     func search(text: String) async {
         guard let client else { return }
         guard let query = SearchRule.query(from: text) else {
-            searchQuery = nil
-            searchResults = []
+            withAnimation {
+                searchQuery = nil
+                searchResults = []
+            }
             return
         }
         searchQuery = query
@@ -417,7 +460,7 @@ final class Session {
             // Only if this is still the current query — a slower earlier
             // request must not overwrite a later one's results.
             guard searchQuery == query else { return }
-            searchResults = hits
+            withAnimation { searchResults = hits }
         } catch {
             state = .failed(error.localizedDescription)
         }

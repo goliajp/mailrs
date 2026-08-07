@@ -19,6 +19,7 @@ import json
 import re
 import base64
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -126,6 +127,11 @@ WRITES = []
 # the client behaviour worth pinning is "refreshed at the moments the
 # number may have moved".
 UNSEEN_FETCHES = [0]
+
+# Milliseconds to sit on before answering the conversation list. The
+# empty-state test needs the first page to be observably in flight —
+# without a delay the stub answers faster than XCUITest can look.
+LIST_DELAY_MS = [0]
 
 ATTACHMENTS = [
     {"filename": "請求書_2026年8月分.pdf", "content_type": "application/pdf", "size": 1234},
@@ -247,6 +253,8 @@ class H(BaseHTTPRequestHandler):
         if re.match(r"^/api/conversations/t\d+$", self.path.split("?")[0]):
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
+            if LIST_DELAY_MS[0]:
+                time.sleep(LIST_DELAY_MS[0] / 1000)
             query = parse_qs(urlparse(self.path).query)
             # The paging fixture is opt-in so the small, readable
             # two-row list stays what the other tests see.
@@ -311,6 +319,12 @@ class H(BaseHTTPRequestHandler):
         # accumulate across the whole run and an assertion like "exactly
         # one send" passes or fails on test order — which is how the
         # reply test started seeing the compose test's message.
+        if self.path.split("?")[0] == "/debug/set-delay":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            LIST_DELAY_MS[0] = int(body.get("ms", 0))
+            self._send({"ok": True})
+            return
         if self.path.split("?")[0] == "/debug/reset":
             FETCHED.clear()
             SENT.clear()
@@ -319,6 +333,7 @@ class H(BaseHTTPRequestHandler):
             DRAFT_POSTS.clear()
             WRITES.clear()
             UNSEEN_FETCHES[0] = 0
+            LIST_DELAY_MS[0] = 0
             self._send({"ok": True})
             return
         if re.match(

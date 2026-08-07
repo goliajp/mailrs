@@ -8,8 +8,11 @@ import XCTest
 /// the shapes the Rust handlers send, including a 760px-wide HTML body,
 /// so the fit-to-width path is exercised rather than asserted about.
 final class SignInFlowTests: XCTestCase {
-    private func launch(signedIn: Bool = false, folder: String? = nil) -> XCUIApplication {
+    private func launch(
+        signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0
+    ) -> XCUIApplication {
         resetStub()
+        if listDelayMs > 0 { setStubListDelay(listDelayMs) }
         let app = XCUIApplication()
         app.launchArguments = ["-mailrsBaseURL", "http://localhost:6039"]
         app.launchArguments += signedIn ? ["-mailrsToken", "stub-token"] : ["-mailrsSignedOut"]
@@ -245,6 +248,30 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertEqual(fetchedAttachmentIndices(), [1],
                        "the second attachment did not fetch index 1")
         done.tap()
+    }
+
+    /// Make the stub sit on the conversation list, so "first page in
+    /// flight" lasts long enough for assertions to look at it.
+    private func setStubListDelay(_ ms: Int) {
+        guard let url = URL(string: "http://localhost:6039/debug/set-delay") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["ms": ms])
+        let done = expectation(description: "debug/set-delay")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 10)
+    }
+
+    /// Make the stub sit on the conversation list for a while — the
+    /// loading state is only observable if loading takes observable time.
+    private func setStubDelay(_ ms: Int) {
+        guard let url = URL(string: "http://localhost:6039/debug/set-delay") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["ms": ms])
+        let done = expectation(description: "debug/set-delay")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 10)
     }
 
     /// Clear the stub's recorders so each test reads only its own
@@ -813,6 +840,29 @@ final class SignInFlowTests: XCTestCase {
         }
         XCTAssertGreaterThan(after, onArrival,
                              "reading a thread did not refresh the badge count")
+    }
+
+    /// While the first page is in flight, the screen says "loading",
+    /// never "empty".
+    ///
+    /// "All caught up" flashing on every open — announced about a full
+    /// mailbox, retracted a beat later when the rows arrived — was the
+    /// state before this. An empty state is a conclusion; showing it
+    /// without the evidence teaches people the screen lies, and neither
+    /// Apple Mail nor Gmail ever shows it during a load.
+    func testLoadingShowsProgressNotTheEmptyState() {
+        let app = launch(signedIn: true, listDelayMs: 2500)
+
+        XCTAssertTrue(app.activityIndicators.firstMatch.waitForExistence(timeout: 2),
+                      "no loading indicator during the first page")
+        XCTAssertFalse(app.staticTexts["All caught up"].exists,
+                       "the empty state was shown while the first page was still in flight")
+
+        // And the conclusion arrives: rows, not the spinner.
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "the list never loaded")
+        XCTAssertFalse(app.activityIndicators.firstMatch.exists,
+                       "the spinner outlived the load")
     }
 
     func testRepliesToAThread() {

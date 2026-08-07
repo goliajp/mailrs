@@ -20,7 +20,14 @@ struct ConversationListView: View {
                 if session.activeList == .send {
                     SendListSection(searchText: searchText)
                 } else if session.visibleConversations.isEmpty {
-                    if session.searchQuery != nil {
+                    // Loading before empty: "All caught up" flashing on
+                    // every open, while the first page was still in
+                    // flight, announced an empty mailbox about a full
+                    // one. The empty state is a *conclusion*, and it
+                    // waits for the evidence.
+                    if session.initialLoading {
+                        ProgressView()
+                    } else if session.searchQuery != nil {
                         ContentUnavailableView.search(text: searchText)
                     } else {
                         ContentUnavailableView(session.activeList.emptyMessage,

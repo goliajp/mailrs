@@ -90,7 +90,15 @@ struct MessageBodyView: UIViewRepresentable {
                 // A transform does not change layout, so the height the
                 // view needs is the scaled one — without this the row
                 // keeps the unscaled height and leaves a blank band.
-                self.parent.height = CGFloat(contentHeight * scale)
+                //
+                // Animated, because this lands after first paint: the
+                // card grows from its placeholder to the measured height,
+                // and without the animation the whole thread lurches by
+                // the body's full height in one frame — the jump Apple
+                // Mail never shows.
+                withAnimation(.easeOut(duration: 0.2)) {
+                    self.parent.height = CGFloat(contentHeight * scale)
+                }
             }
         }
 

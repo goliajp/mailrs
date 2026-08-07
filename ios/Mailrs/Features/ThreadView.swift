@@ -89,8 +89,14 @@ private struct MessageCard: View {
             }
 
             if let html = message.htmlBody, !html.isEmpty {
+                // Faded in once measured rather than popping at full
+                // size: until the height resolves the WebView is a
+                // 1pt sliver, and revealing it mid-measure shows a
+                // half-laid-out page.
                 MessageBodyView(html: html, height: $bodyHeight)
                     .frame(height: bodyHeight)
+                    .opacity(bodyHeight > 1 ? 1 : 0)
+                    .animation(.easeIn(duration: 0.15), value: bodyHeight > 1)
             } else {
                 Text(message.textBody ?? "")
                     .font(.callout)
