@@ -54,6 +54,17 @@ later. Pure classifier, unit-tested; formatting stays locale-native.
 Delete deliberately loses the full-swipe slot it had: the fastest
 gesture in the app must not be the irreversible one.
 
+## Batch processing (select mode)
+
+Select → checkboxes → one action for the lot, Gmail's triage-at-scale.
+The count lives in the navigation title while selecting (Apple Mail's
+pattern — the bottom bar's floating pills truncate text). Read /
+Archive / Delete in the bottom bar; batch delete keeps the confirm,
+batch archive shares the single undo slot with the swipe and the
+toast carries the count ("Archived ×N"). Sign-out is expected to move
+off the toolbar when a settings surface exists; Select took the slot
+priority because triage is daily and sign-out is rare.
+
 ## Serial processing (the thread view)
 
 ▲/▼ in the thread toolbar walk the list order without returning to it —

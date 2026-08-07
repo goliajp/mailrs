@@ -8,6 +8,12 @@ struct ConversationListView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
     @State private var showingDrafts = false
+    /// Multi-select state. `selection` only means anything while
+    /// `editMode` is active; leaving select mode clears it.
+    @State private var selection = Set<String>()
+    @State private var editMode: EditMode = .inactive
+    /// The batch a delete is waiting on confirmation for.
+    @State private var pendingBatchDelete: [Wire.Conversation]?
 
     var body: some View {
         NavigationStack {
@@ -34,7 +40,7 @@ struct ConversationListView: View {
                                                systemImage: session.activeList.systemImage)
                     }
                 } else {
-                    List(session.visibleConversations) { conversation in
+                    List(session.visibleConversations, selection: $selection) { conversation in
                         NavigationLink {
                             ThreadView(conversation: conversation)
                         } label: {
@@ -121,13 +127,20 @@ struct ConversationListView: View {
                     .refreshable { await session.loadConversations() }
                 }
             }
-            .navigationTitle(session.activeList.title)
+            // While selecting, the title is the count — Apple Mail's
+            // pattern, and it spares the bottom bar a cramped pill.
+            .navigationTitle(
+                editMode == .active
+                    ? "\(selection.count) selected"
+                    : session.activeList.title
+            )
             // The undo snackbar. Bottom-anchored but lifted above the
             // search field, which iOS 26 also puts at the bottom.
             .overlay(alignment: .bottom) {
                 if session.pendingUndo != nil {
                     HStack(spacing: 12) {
-                        Text("Archived")
+                        let count = session.pendingUndo?.rows.count ?? 1
+                        Text(count > 1 ? "Archived ×\(count)" : "Archived")
                             .foregroundStyle(.white)
                         Button("Undo") {
                             Task { await session.undoArchive() }
@@ -179,6 +192,23 @@ struct ConversationListView: View {
             } message: { _ in
                 Text("This will permanently delete all messages.")
             }
+            .alert(
+                "Delete \(pendingBatchDelete?.count ?? 0) conversations?",
+                isPresented: Binding(
+                    get: { pendingBatchDelete != nil },
+                    set: { if !$0 { pendingBatchDelete = nil } }
+                ),
+                presenting: pendingBatchDelete
+            ) { batch in
+                Button("Delete", role: .destructive) {
+                    leaveSelectMode()
+                    Task { await session.deleteAll(batch) }
+                    pendingBatchDelete = nil
+                }
+                Button("Cancel", role: .cancel) { pendingBatchDelete = nil }
+            } message: { _ in
+                Text("This will permanently delete all their messages.")
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
@@ -196,6 +226,14 @@ struct ConversationListView: View {
                         } label: {
                             Label("Drafts", systemImage: "doc.text")
                         }
+                        Divider()
+                        // Sign-out moved off the bar when Select took
+                        // its slot: triage is daily, sign-out is rare.
+                        Button(role: .destructive) {
+                            session.signOut()
+                        } label: {
+                            Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
                     } label: {
                         Label("Lists", systemImage: "line.3.horizontal.decrease.circle")
                     }
@@ -207,11 +245,54 @@ struct ConversationListView: View {
                         Label("New message", systemImage: "square.and.pencil")
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign out") { session.signOut() }
+                if session.activeList != .send, !session.visibleConversations.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        if editMode == .active {
+                            Button("Done") {
+                                withAnimation { editMode = .inactive }
+                                selection.removeAll()
+                            }
+                        } else {
+                            Button("Select") {
+                                withAnimation { editMode = .active }
+                            }
+                        }
+                    }
+                }
+                // The batch bar. `bottomBar` keeps it clear of the
+                // search field, which owns the very bottom on iOS 26.
+                if editMode == .active {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Spacer()
+                        Button("Read") {
+                            Task { await session.markAllRead(selectedConversations) }
+                            leaveSelectMode()
+                        }
+                        .disabled(selection.isEmpty)
+                        Button("Archive") {
+                            let batch = selectedConversations
+                            leaveSelectMode()
+                            Task { await session.archiveAll(batch) }
+                        }
+                        .disabled(selection.isEmpty)
+                        Button("Delete", role: .destructive) {
+                            pendingBatchDelete = selectedConversations
+                        }
+                        .disabled(selection.isEmpty)
+                    }
                 }
             }
+            .environment(\.editMode, $editMode)
         }
+    }
+
+    private var selectedConversations: [Wire.Conversation] {
+        session.visibleConversations.filter { selection.contains($0.threadId) }
+    }
+
+    private func leaveSelectMode() {
+        withAnimation { editMode = .inactive }
+        selection.removeAll()
     }
 }
 

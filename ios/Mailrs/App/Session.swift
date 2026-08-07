@@ -264,32 +264,76 @@ final class Session {
     /// the row comes back, and the worst case is a row that reappears
     /// rather than mail that is gone.
     func archive(_ conversation: Wire.Conversation) async {
-        guard let client else { return }
-        let previous = conversations
-        let index = conversations.firstIndex { $0.threadId == conversation.threadId }
-        withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
+        await archiveAll([conversation])
+    }
+
+    /// Archive a batch, and take the rows off the list.
+    ///
+    /// Optimistic, because archiving is reversible: refused rows come
+    /// back, and the worst case is a row that reappears rather than
+    /// mail that is gone. The whole batch shares one undo slot — the
+    /// toast the single-row swipe gets, with a count on it.
+    func archiveAll(_ selected: [Wire.Conversation]) async {
+        guard let client, !selected.isEmpty else { return }
+        let ids = Set(selected.map(\.threadId))
+        let rows = conversations.enumerated()
+            .filter { ids.contains($0.element.threadId) }
+            .map { UndoableRow(conversation: $0.element, index: $0.offset) }
+        withAnimation { conversations.removeAll { ids.contains($0.threadId) } }
         // The undo slot opens with the optimistic removal, so the toast
-        // is there the moment the row leaves. Archiving from the
+        // is there the moment the rows leave. Archiving from the
         // Archived list is the one place undo would un-archive into the
         // wrong tab, so it stays silent there.
         if activeList != .archived {
-            offerUndo(for: conversation, at: index ?? 0)
+            offerUndo(rows)
         }
-        do {
-            try await client.archive(threadId: conversation.threadId)
-        } catch {
-            withAnimation { conversations = previous }
+        var failed: [UndoableRow] = []
+        for row in rows {
+            do {
+                try await client.archive(threadId: row.conversation.threadId)
+            } catch {
+                failed.append(row)
+            }
+        }
+        if !failed.isEmpty {
+            // The rows the server kept come back; the ones it archived
+            // stay gone. A live undo toast over a half-failed batch
+            // would un-archive rows that were never archived.
             clearUndo()
-            state = .failed(error.localizedDescription)
+            withAnimation { conversations = Session.reinserted(failed, into: conversations) }
+            state = .failed("archive failed for \(failed.count) of \(rows.count)")
         }
     }
 
-    /// The one archive that can still be taken back. A single slot, as
-    /// in Gmail's snackbar: a second archive replaces the first, because
-    /// a stack of undos is a history feature, not a safety net.
-    struct PendingUndo: Equatable {
+    /// Mark a batch read. Rows already read are skipped on the wire —
+    /// the server call exists to change something.
+    func markAllRead(_ selected: [Wire.Conversation]) async {
+        guard let client else { return }
+        for conversation in selected where conversation.unreadCount > 0 {
+            withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
+            do {
+                try await client.setRead(threadId: conversation.threadId, true)
+            } catch {
+                withAnimation {
+                    patch(conversation.threadId) { $0.unreadCount = conversation.unreadCount }
+                }
+                state = .failed(error.localizedDescription)
+            }
+        }
+        await refreshBadge()
+    }
+
+    /// The archive that can still be taken back. A single slot, as in
+    /// Gmail's snackbar: a second archive replaces the first, because a
+    /// stack of undos is a history feature, not a safety net. The slot
+    /// holds a whole batch — one gesture, one undo.
+    struct UndoableRow: Equatable {
         let conversation: Wire.Conversation
         let index: Int
+    }
+
+    struct PendingUndo: Equatable {
+        let rows: [UndoableRow]
     }
 
     private(set) var pendingUndo: PendingUndo?
@@ -299,9 +343,9 @@ final class Session {
     /// is not wearing a permanent banner.
     static let undoWindow: Duration = .seconds(5)
 
-    private func offerUndo(for conversation: Wire.Conversation, at index: Int) {
+    private func offerUndo(_ rows: [UndoableRow]) {
         undoDismissTask?.cancel()
-        withAnimation { pendingUndo = PendingUndo(conversation: conversation, index: index) }
+        withAnimation { pendingUndo = PendingUndo(rows: rows) }
         let offered = pendingUndo
         undoDismissTask = Task { [weak self] in
             try? await Task.sleep(for: Session.undoWindow)
@@ -315,20 +359,36 @@ final class Session {
         withAnimation { pendingUndo = nil }
     }
 
-    /// Take the archive back: the row returns to the exact position it
-    /// left, optimistically — unarchiving is as reversible as archiving,
-    /// so the same contract holds in both directions.
+    /// Rows going back to the exact positions they left. Ascending
+    /// order is what makes the indices mean what they meant: each
+    /// insert restores the coordinate system the next one was recorded
+    /// in.
+    nonisolated static func reinserted(
+        _ rows: [UndoableRow], into list: [Wire.Conversation]
+    ) -> [Wire.Conversation] {
+        var out = list
+        for row in rows.sorted(by: { $0.index < $1.index }) {
+            out.insert(row.conversation, at: min(row.index, out.count))
+        }
+        return out
+    }
+
+    /// Take the archive back: every row returns to the position it
+    /// left, optimistically — unarchiving is as reversible as
+    /// archiving, so the same contract holds in both directions.
     func undoArchive() async {
         guard let client, let undo = pendingUndo else { return }
         clearUndo()
-        withAnimation {
-            conversations.insert(undo.conversation, at: min(undo.index, conversations.count))
-        }
-        do {
-            try await client.unarchive(threadId: undo.conversation.threadId)
-        } catch {
-            withAnimation { conversations.removeAll { $0.threadId == undo.conversation.threadId } }
-            state = .failed(error.localizedDescription)
+        withAnimation { conversations = Session.reinserted(undo.rows, into: conversations) }
+        for row in undo.rows {
+            do {
+                try await client.unarchive(threadId: row.conversation.threadId)
+            } catch {
+                withAnimation {
+                    conversations.removeAll { $0.threadId == row.conversation.threadId }
+                }
+                state = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -344,6 +404,15 @@ final class Session {
             withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
         } catch {
             state = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Delete a batch. Sequential and non-optimistic for the same
+    /// reason the single delete is: rows leave only as the server
+    /// confirms each one is gone.
+    func deleteAll(_ selected: [Wire.Conversation]) async {
+        for conversation in selected {
+            await delete(conversation)
         }
     }
 

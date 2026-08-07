@@ -252,6 +252,59 @@ final class SignInFlowTests: XCTestCase {
                       "undo was local only — the server still has t1 archived: \(writes)")
     }
 
+    /// Select mode is Gmail's batch triage: pick rows, act once. The
+    /// batch shares the single undo slot with the swipe — one gesture,
+    /// one undo — and the wire assertion requires every selected row to
+    /// round-trip, so a batch that only archived the first row, or an
+    /// undo that only restored one, cannot pass.
+    func testBatchArchiveAndUndoRoundTripEveryRow() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let first = app.staticTexts["Quarterly report and the follow-up notes"]
+        XCTAssertTrue(first.waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Select"].tap()
+        first.tap()
+        app.staticTexts["請求書のご送付につきまして"].tap()
+        XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 5),
+                      "selection did not count both rows")
+
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(first.waitForNonExistence(timeout: 10), "batch did not archive")
+        XCTAssertTrue(app.staticTexts["Archived ×2"].waitForExistence(timeout: 5),
+                      "toast did not carry the batch count")
+
+        app.buttons["undo-archive"].tap()
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "first row not restored")
+        XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].exists,
+                      "second row not restored")
+
+        let writes = recordedWrites()
+        for tid in ["t1", "t2"] {
+            XCTAssertTrue(writes.contains { $0.hasSuffix("/\(tid)/archive") },
+                          "\(tid) never archived on the wire: \(writes)")
+            XCTAssertTrue(writes.contains { $0.hasSuffix("/\(tid)/unarchive") },
+                          "\(tid) never unarchived on the wire: \(writes)")
+        }
+    }
+
+    /// Sign-out lives in the Lists menu since Select took its toolbar
+    /// slot. This test exists because the move briefly deleted the
+    /// button outright — nothing was pinning it — and an app you cannot
+    /// sign out of fails silently until a human needs to.
+    func testSignOutLivesInTheListsMenuAndReturnsToLogin() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"].waitForExistence(timeout: 15)
+        )
+        app.buttons["Lists"].tap()
+        let signOut = app.buttons["Sign out"]
+        XCTAssertTrue(signOut.waitForExistence(timeout: 5), "no sign-out anywhere")
+        signOut.tap()
+        XCTAssertTrue(app.textFields["you@example.com"].waitForExistence(timeout: 10),
+                      "sign out did not return to the login form")
+    }
+
     /// Attachments are listed, and tapping one opens it.
     ///
     /// The index the server accepts is the position in the array — there
