@@ -402,6 +402,57 @@ final class SignInFlowTests: XCTestCase {
                        "a result from the previous list's search survived the switch")
     }
 
+    /// Starring shows immediately and survives the round trip.
+    ///
+    /// The star indicator is the assertion rather than the swipe button's
+    /// label: the label flips off local state either way, so a toggle
+    /// that never reached the server would still relabel itself. The row
+    /// carrying a star is what a user sees.
+    func testStarringShowsOnTheRow() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        XCTAssertFalse(row.label.contains("Starred"), "the fixture already starts starred")
+
+        row.swipeRight()
+        app.buttons["Star"].firstMatch.tap()
+
+        let starred = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Starred")
+        ).firstMatch
+        XCTAssertTrue(starred.waitForExistence(timeout: 10),
+                      "the row did not show a star after starring")
+    }
+
+    /// Marking read clears the unread marker.
+    ///
+    /// Asserted on the row's spoken label, which is the only place the
+    /// state exists as anything but a colour — the dot had no
+    /// accessibility label until 2026-08-07, so this test had nothing to
+    /// read and its first version only checked the row was still there.
+    func testMarkingReadClearsTheUnreadMarker() {
+        let app = launch(signedIn: true)
+        // Both the subject and "Unread": once the row is read its swipe
+        // action relabels itself to "Unread", and a locator matching that
+        // word alone finds the button instead of the row.
+        let unread = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                        "Quarterly report", "Unread")
+        ).firstMatch
+        XCTAssertTrue(unread.waitForExistence(timeout: 15),
+                      "no unread row to mark read")
+
+        unread.swipeRight()
+        app.buttons["Read"].firstMatch.tap()
+
+        XCTAssertTrue(unread.waitForNonExistence(timeout: 10),
+                      "the row is still announced as unread")
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"].exists,
+                      "marking read removed the row")
+    }
+
     func testRepliesToAThread() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(

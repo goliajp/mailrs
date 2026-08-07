@@ -208,6 +208,16 @@ actor MailrsClient {
         return data
     }
 
+    /// `POST /api/conversations/{id}/read` and `/unread`.
+    func setRead(threadId: String, _ read: Bool) async throws {
+        try await verb("POST", "/api/conversations/\(threadId)/\(read ? "read" : "unread")")
+    }
+
+    /// `POST /api/conversations/{id}/star` and `/unstar`.
+    func setStarred(threadId: String, _ starred: Bool) async throws {
+        try await verb("POST", "/api/conversations/\(threadId)/\(starred ? "star" : "unstar")")
+    }
+
     /// `POST /api/conversations/{id}/archive` — 204, no body.
     func archive(threadId: String) async throws {
         try await verb("POST", "/api/conversations/\(threadId)/archive")

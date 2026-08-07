@@ -169,10 +169,13 @@ enum Wire {
         let subject: String
         let participants: [String]
         let messageCount: Int
-        let unreadCount: Int
+        /// `var` because an optimistic read toggle writes it before the
+        /// server has answered. Everything else is what the server said.
+        var unreadCount: Int
         let lastDate: Int64
         let category: String
-        let flagged: Bool
+        /// `var` for the same reason as `unreadCount` — the star toggle.
+        var flagged: Bool
         let snippet: String
         let pinned: Bool
         let archived: Bool
