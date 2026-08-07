@@ -13,6 +13,13 @@ import WebKit
 struct MessageBodyView: UIViewRepresentable {
     let html: String
     @Binding var height: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Dark paper only for mail that declares no colours of its own —
+    /// see `MailAppearance`.
+    private var dark: Bool {
+        colorScheme == .dark && MailAppearance.followsAppTheme(html: html)
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -30,37 +37,55 @@ struct MessageBodyView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
         webView.isOpaque = false
-        webView.backgroundColor = .white
+        // Clear, not white: the document paints its own paper, so the
+        // card behind shows through for mail that follows the app.
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        guard context.coordinator.loadedHTML != html else { return }
+        // The scheme is part of what was loaded: switching appearance
+        // with the thread open has to repaint, and comparing only the
+        // HTML left the old paper in place.
+        guard context.coordinator.loadedHTML != html
+                || context.coordinator.loadedDark != dark else { return }
         context.coordinator.loadedHTML = html
-        webView.loadHTMLString(Self.document(for: html), baseURL: nil)
+        context.coordinator.loadedDark = dark
+        webView.loadHTMLString(Self.document(for: html, dark: dark), baseURL: nil)
     }
 
     /// The message wrapped in a document that pins the things email
     /// cannot be trusted to get right.
     ///
-    /// Light-mode regardless of the phone's appearance: HTML mail is
-    /// authored against a white background and almost none of it
-    /// supports dark mode, so honouring the system setting produces
-    /// black text on black far more often than it produces dark mode.
-    private static func document(for html: String) -> String {
-        """
+    /// Mail that declares its own colours is rendered on white paper
+    /// whatever the phone's appearance — honouring dark for a message
+    /// that sets black text produces black on black, which is worse
+    /// than a bright rectangle. Mail that declares none follows the
+    /// app, because for a paragraph and a link the bright rectangle is
+    /// the only thing wrong with the screen.
+    private static func document(for html: String, dark: Bool) -> String {
+        let scheme = dark ? "dark" : "light"
+        // Transparent when following the app: the card behind is the
+        // paper, so the body and its rounded corners stay one surface.
+        let background = dark ? "transparent" : "#fff"
+        let text = dark ? "#e6e6ea" : "#1a1a1a"
+        let link = dark ? "#6ea8fe" : "#2563eb"
+        let rule = dark ? "#48484a" : "#d4d4d8"
+        let quote = dark ? "#a1a1aa" : "#71717a"
+        return """
         <!doctype html><html><head><meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
-          :root { color-scheme: light; }
-          html, body { margin: 0; padding: 0; background: #fff; color: #1a1a1a; }
+          :root { color-scheme: \(scheme); }
+          html, body { margin: 0; padding: 0; background: \(background); color: \(text); }
           body { padding: 12px; font: 15px/1.6 -apple-system, 'Hiragino Sans', sans-serif;
                  word-wrap: break-word; overflow-wrap: break-word; }
           img { max-width: 100%; height: auto; }
-          a { color: #2563eb; }
+          a { color: \(link); }
           pre { overflow-x: auto; }
-          blockquote { border-left: 3px solid #d4d4d8; padding-left: 12px;
-                       margin: 8px 0; color: #71717a; }
+          blockquote { border-left: 3px solid \(rule); padding-left: 12px;
+                       margin: 8px 0; color: \(quote); }
         </style></head><body>\(html)</body></html>
         """
     }
@@ -69,6 +94,7 @@ struct MessageBodyView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate {
         private let parent: MessageBodyView
         var loadedHTML: String?
+        var loadedDark = false
 
         init(_ parent: MessageBodyView) {
             self.parent = parent
