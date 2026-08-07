@@ -21,14 +21,24 @@ struct DraftsView: View {
                             Button {
                                 resuming = draft
                             } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(DraftRule.title(subject: draft.subject, body: draft.body))
-                                        .font(.subheadline)
-                                        .lineLimit(1)
-                                    Text(draft.to.isEmpty ? "No recipient" : draft.to)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                HStack(spacing: 10) {
+                                    // A draft has no correspondent yet;
+                                    // its face is the document.
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.system(size: 17))
+                                        .foregroundStyle(Color.accentColor)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.accentColor.opacity(0.12), in: Circle())
+                                        .accessibilityHidden(true)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(DraftRule.title(subject: draft.subject, body: draft.body))
+                                            .font(.subheadline)
+                                            .lineLimit(1)
+                                        Text(draft.to.isEmpty ? "No recipient" : draft.to)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
                             }
                             .buttonStyle(.plain)

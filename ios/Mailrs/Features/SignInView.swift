@@ -9,6 +9,31 @@ struct SignInView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // The brand, before the form: the mark from the app
+                // icon in accent, the name in rounded — a front door,
+                // not a settings page.
+                Section {
+                    VStack(spacing: 10) {
+                        Image(systemName: "envelope.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(
+                                .linearGradient(
+                                    colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                        Text("Mailrs")
+                            .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                        Text("GOLIA mail, in your pocket")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .listRowBackground(Color.clear)
+                }
+                .accessibilityElement(children: .combine)
+
                 Section("Account") {
                     TextField("you@example.com", text: $address)
                         .textContentType(.emailAddress)
@@ -54,16 +79,27 @@ struct SignInView: View {
                             )
                         }
                     } label: {
-                        if session.state == .signingIn {
-                            ProgressView()
-                        } else {
-                            Text("Sign in")
+                        // Full width and centered: the front door's one
+                        // action should not read as another table row.
+                        Group {
+                            if session.state == .signingIn {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Sign in").fontWeight(.semibold)
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 22)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     .disabled(address.isEmpty || password.isEmpty || session.state == .signingIn)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 }
             }
-            .navigationTitle("Mailrs")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

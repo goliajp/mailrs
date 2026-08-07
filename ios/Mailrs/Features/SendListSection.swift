@@ -39,10 +39,23 @@ struct SendListSection: View {
 private struct SendRowView: View {
     let row: SendJoin.Row
 
+    /// The first recipient wears the avatar — a sent row's face is who
+    /// it went to, mirroring the inbox where the face is who it came
+    /// from.
+    private var face: String {
+        row.to.split(separator: ",").first.map {
+            $0.trimmingCharacters(in: .whitespaces)
+        } ?? ""
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 10) {
+            if !face.isEmpty {
+                SenderAvatar(sender: face)
+            }
+            VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text(row.to.isEmpty ? "(no recipient)" : row.to)
+                Text(row.to.isEmpty ? "(no recipient)" : displayedTo)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 Spacer()
@@ -58,8 +71,16 @@ private struct SendRowView: View {
                     .lineLimit(1)
                 StatusBadge(status: row.status)
             }
+            }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Names, not addr-specs — the same rendering the inbox rows use.
+    private var displayedTo: String {
+        row.to.split(separator: ",")
+            .map { SenderName.extractName($0.trimmingCharacters(in: .whitespaces)) }
+            .joined(separator: ", ")
     }
 }
 
@@ -75,17 +96,19 @@ private struct StatusBadge: View {
     var body: some View {
         switch status {
         case "failed":
+            // `.titleAndIcon` explicitly: inside a List, the default
+            // label style is the Form one, which aligns icons in their
+            // own column and stretched the glyph away from its word.
             Label("Failed", systemImage: "exclamationmark.circle.fill")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.red)
+                .labelStyle(.titleAndIcon)
+                .chip(.red)
         case "partial":
             Label("Partial", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.orange)
+                .labelStyle(.titleAndIcon)
+                .chip(.orange)
         case "sending", "scheduled":
-            Text(status ?? "")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Text((status ?? "").capitalized)
+                .chip(.secondary)
         case "delivered":
             Image(systemName: "checkmark")
                 .font(.caption2)
@@ -94,5 +117,19 @@ private struct StatusBadge: View {
         default:
             EmptyView()
         }
+    }
+}
+
+/// A status pill: the web's badge shape (rounded, tinted background,
+/// the colour carried by the text rather than a solid fill), so a
+/// delivery state reads as a state and not as body copy.
+private extension View {
+    func chip(_ tint: Color) -> some View {
+        self
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.12), in: Capsule())
     }
 }

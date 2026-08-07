@@ -25,6 +25,13 @@ an importance mark for critical/important. Thread messages are
 cards on the grouped background; folded rows are quieter cards of
 the same radius.
 
+The identity reaches the edges too. The sign-in screen is a front
+door: the mark, the name in rounded, one line of what this is, and a
+full-width prominent button — not another table row. Sent rows wear
+the recipient's avatar (a sent row's face is who it went to, mirroring
+the inbox's who it came from) and their delivery states are tinted
+capsules, the web's badge shape.
+
 ## The row (the unit everything multiplies)
 
 **Two lines, no preview.** The web made this exact call on 2026-07-17

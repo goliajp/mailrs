@@ -71,7 +71,7 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .inbox: "tray"
         case .np: "megaphone"
-        case .unread: "circle.badge.fill"
+        case .unread: "envelope.badge"
         case .starred: "star"
         case .junk: "xmark.bin"
         case .archived: "archivebox"
