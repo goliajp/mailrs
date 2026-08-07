@@ -199,6 +199,13 @@ enum Wire {
         /// 2026-07-30 while two without attachments were fine the same
         /// day. Sending both costs a field and removes the failure.
         let replyToThreadId: String?
+        /// Forwarding, the backend way: with this set (and no client
+        /// attachments) the body carries only the typed text — the
+        /// server appends the original body and attachments from the
+        /// raw .eml. No threading fields on a forward.
+        let forwardMessageId: String?
+        /// The uid whose attachments ride along on a forward.
+        let forwardAttachmentsFrom: UInt32?
 
         enum CodingKeys: String, CodingKey {
             case to
@@ -207,6 +214,8 @@ enum Wire {
             case body
             case inReplyTo = "in_reply_to"
             case replyToThreadId = "reply_to_thread_id"
+            case forwardMessageId = "forward_message_id"
+            case forwardAttachmentsFrom = "forward_attachments_from"
         }
     }
 
