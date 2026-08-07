@@ -116,6 +116,11 @@ DRAFT_COUNTER = [0]
 # a run of `null`s rather than only as a count.
 DRAFT_POSTS = []
 
+# Every non-GET path, in order, at `/debug/writes`. The read/star verbs
+# answer 204 with no body, so which of them fired — and how many times —
+# is invisible on screen; the tests read it here.
+WRITES = []
+
 ATTACHMENTS = [
     {"filename": "請求書_2026年8月分.pdf", "content_type": "application/pdf", "size": 1234},
     {"filename": "logo.png", "content_type": "image/png", "size": len(PIXEL_PNG)},
@@ -193,6 +198,9 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/mail/drafts":
             self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
             return
+        if self.path.split("?")[0] == "/debug/writes":
+            self._send({"writes": WRITES})
+            return
         if self.path.split("?")[0] == "/debug/draft-posts":
             self._send({"ids": DRAFT_POSTS})
             return
@@ -239,6 +247,7 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_DELETE(self):
+        WRITES.append("DELETE " + self.path.split("?")[0])
         draft = re.match(r"^/api/mail/drafts/(\d+)$", self.path.split("?")[0])
         if draft:
             DRAFTS.pop(int(draft.group(1)), None)
@@ -256,6 +265,11 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
+        # The reset itself is not traffic under test — and it must not be
+        # recorded before clearing, or clear-then-unrecord pops an empty
+        # list.
+        if not self.path.startswith("/debug/"):
+            WRITES.append("POST " + self.path.split("?")[0])
         # Each test starts from a clean recorder. Without this the lists
         # accumulate across the whole run and an assertion like "exactly
         # one send" passes or fails on test order — which is how the
@@ -266,6 +280,7 @@ class H(BaseHTTPRequestHandler):
             DRAFTS.clear()
             DRAFT_COUNTER[0] = 0
             DRAFT_POSTS.clear()
+            WRITES.clear()
             self._send({"ok": True})
             return
         if re.match(

@@ -47,6 +47,9 @@ struct ThreadView: View {
         .task {
             do {
                 messages = try await session.messages(threadId: conversation.threadId)
+                // After the messages are on screen, not before: an open
+                // that failed to load anything has not been read.
+                await session.markThreadRead(conversation)
             } catch {
                 failure = error.localizedDescription
             }
