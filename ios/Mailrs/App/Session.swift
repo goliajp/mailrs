@@ -266,11 +266,68 @@ final class Session {
     func archive(_ conversation: Wire.Conversation) async {
         guard let client else { return }
         let previous = conversations
+        let index = conversations.firstIndex { $0.threadId == conversation.threadId }
         withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
+        // The undo slot opens with the optimistic removal, so the toast
+        // is there the moment the row leaves. Archiving from the
+        // Archived list is the one place undo would un-archive into the
+        // wrong tab, so it stays silent there.
+        if activeList != .archived {
+            offerUndo(for: conversation, at: index ?? 0)
+        }
         do {
             try await client.archive(threadId: conversation.threadId)
         } catch {
             withAnimation { conversations = previous }
+            clearUndo()
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    /// The one archive that can still be taken back. A single slot, as
+    /// in Gmail's snackbar: a second archive replaces the first, because
+    /// a stack of undos is a history feature, not a safety net.
+    struct PendingUndo: Equatable {
+        let conversation: Wire.Conversation
+        let index: Int
+    }
+
+    private(set) var pendingUndo: PendingUndo?
+    private var undoDismissTask: Task<Void, Never>?
+
+    /// Visible long enough to read and act, short enough that the list
+    /// is not wearing a permanent banner.
+    static let undoWindow: Duration = .seconds(5)
+
+    private func offerUndo(for conversation: Wire.Conversation, at index: Int) {
+        undoDismissTask?.cancel()
+        withAnimation { pendingUndo = PendingUndo(conversation: conversation, index: index) }
+        let offered = pendingUndo
+        undoDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: Session.undoWindow)
+            guard !Task.isCancelled, let self, self.pendingUndo == offered else { return }
+            withAnimation { self.pendingUndo = nil }
+        }
+    }
+
+    private func clearUndo() {
+        undoDismissTask?.cancel()
+        withAnimation { pendingUndo = nil }
+    }
+
+    /// Take the archive back: the row returns to the exact position it
+    /// left, optimistically — unarchiving is as reversible as archiving,
+    /// so the same contract holds in both directions.
+    func undoArchive() async {
+        guard let client, let undo = pendingUndo else { return }
+        clearUndo()
+        withAnimation {
+            conversations.insert(undo.conversation, at: min(undo.index, conversations.count))
+        }
+        do {
+            try await client.unarchive(threadId: undo.conversation.threadId)
+        } catch {
+            withAnimation { conversations.removeAll { $0.threadId == undo.conversation.threadId } }
             state = .failed(error.localizedDescription)
         }
     }
@@ -433,6 +490,7 @@ final class Session {
     /// would leave Junk showing hits from Inbox, and carrying `reachedEnd`
     /// would leave a fresh list unable to page.
     func select(_ list: MailList) async {
+        clearUndo()
         guard list != activeList else { return }
         activeList = list
         conversations = []

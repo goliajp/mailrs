@@ -40,7 +40,11 @@ later. Pure classifier, unit-tested; formatting stays locale-native.
 ## Gestures (triage without opening)
 
     full swipe left   = Archive  (the benchmark triage gesture; no
-                                  confirm — it is reversible)
+                                  confirm — it is reversible, and a
+                                  5-second Undo snackbar makes the
+                                  reversal one tap, Gmail-style; single
+                                  slot, a second archive replaces the
+                                  first)
     partial left      = Archive · Delete (Delete keeps its confirm:
                                   the server unlinks files)
     full swipe right  = Read/Unread toggle (Apple Mail's)

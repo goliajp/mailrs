@@ -122,6 +122,27 @@ struct ConversationListView: View {
                 }
             }
             .navigationTitle(session.activeList.title)
+            // The undo snackbar. Bottom-anchored but lifted above the
+            // search field, which iOS 26 also puts at the bottom.
+            .overlay(alignment: .bottom) {
+                if session.pendingUndo != nil {
+                    HStack(spacing: 12) {
+                        Text("Archived")
+                            .foregroundStyle(.white)
+                        Button("Undo") {
+                            Task { await session.undoArchive() }
+                        }
+                        .fontWeight(.semibold)
+                        .accessibilityIdentifier("undo-archive")
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.black.opacity(0.85), in: Capsule())
+                    .padding(.bottom, 72)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
             .sheet(isPresented: $composing) { ComposeView() }
             .sheet(isPresented: $showingDrafts) { DraftsView() }
             .searchable(text: $searchText, prompt: "Search mail")

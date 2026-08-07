@@ -220,6 +220,38 @@ final class SignInFlowTests: XCTestCase {
                       "the thread was still listed after archiving")
     }
 
+    /// The undo snackbar is the other half of archive-without-asking:
+    /// the fastest gesture in the app is safe because it can be taken
+    /// back on the spot. The wire assertion is the falsifiable part —
+    /// a toast that only reinserted the row locally would pass every
+    /// screen check while the server still had the thread archived.
+    func testUndoBringsAnArchivedRowBack() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+
+        row.swipeLeft()
+        app.buttons["Archive"].firstMatch.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10), "row not archived")
+
+        let undo = app.buttons["undo-archive"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "no undo offered")
+        undo.tap()
+
+        XCTAssertTrue(row.waitForExistence(timeout: 10),
+                      "undo did not bring the row back")
+        XCTAssertFalse(undo.exists, "toast outlived the undo")
+
+        let writes = recordedWrites()
+        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/archive") },
+                      "archive never reached the server: \(writes)")
+        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/unarchive") },
+                      "undo was local only — the server still has t1 archived: \(writes)")
+    }
+
     /// Attachments are listed, and tapping one opens it.
     ///
     /// The index the server accepts is the position in the array — there
