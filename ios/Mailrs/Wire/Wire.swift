@@ -276,7 +276,7 @@ enum Wire {
     /// `GET /api/conversations` returns a **bare array** of these. Not an
     /// envelope: there is no `items` / `has_more` / `next_cursor` wrapper,
     /// however much the shape of every other list endpoint suggests one.
-    struct Conversation: Decodable, Equatable, Identifiable, Sendable {
+    struct Conversation: Codable, Equatable, Identifiable, Sendable {
         let threadId: String
         let subject: String
         let participants: [String]
