@@ -192,6 +192,11 @@ final class SignInFlowTests: XCTestCase {
     /// Archive does not ask, because it is reversible. A question about a
     /// reversible action is noise that teaches people to dismiss
     /// questions — which is how the one that matters gets dismissed too.
+    ///
+    /// It lives on the trailing edge now and owns the full swipe — the
+    /// triage gesture in both benchmark apps. Delete sits behind it and
+    /// deliberately lost the full-swipe slot: the fastest gesture in the
+    /// app must not be the irreversible one.
     func testArchiveTakesTheRowWithoutAsking() {
         let app = launch(signedIn: true)
         let row = app.buttons.containing(
@@ -199,7 +204,7 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        row.swipeRight()
+        row.swipeLeft()
         app.buttons["Archive"].firstMatch.tap()
 
         XCTAssertFalse(app.staticTexts["This will permanently delete all messages."].exists,
@@ -863,6 +868,39 @@ final class SignInFlowTests: XCTestCase {
             .waitForExistence(timeout: 15), "the list never loaded")
         XCTAssertFalse(app.activityIndicators.firstMatch.exists,
                        "the spinner outlived the load")
+    }
+
+    /// The thread view's chevrons walk the list without leaving it.
+    ///
+    /// Serial processing is the throughput feature: without it every
+    /// message costs a round trip through the list. The step is an open,
+    /// so it marks read through the same rule as any open — asserted via
+    /// the stub's write log, since t2's read is invisible on this screen.
+    func testChevronsWalkToTheNextThread() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "thread never opened")
+        XCTAssertFalse(app.buttons["Previous thread"].isEnabled,
+                       "the first thread offered a previous")
+
+        app.buttons["Next thread"].tap()
+
+        XCTAssertTrue(app.navigationBars["請求書のご送付につきまして"].waitForExistence(timeout: 10),
+                      "the chevron did not move to the next thread")
+        XCTAssertFalse(app.buttons["Next thread"].isEnabled,
+                       "the last thread offered a next")
+        var writes: [String] = []
+        for _ in 0..<20 {
+            writes = recordedWrites().filter { $0 == "POST /api/conversations/t2/read" }
+            if !writes.isEmpty { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertEqual(writes.count, 1, "stepping to a thread did not mark it read")
     }
 
     func testRepliesToAThread() {
