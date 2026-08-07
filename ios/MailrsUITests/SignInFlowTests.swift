@@ -771,6 +771,76 @@ final class SignInFlowTests: XCTestCase {
                       "the typed token never reached the contacts endpoint: \(queries)")
     }
 
+    /// A compose with a file goes out the multipart door, and the file
+    /// arrives — filename, declared type, and its actual bytes counted
+    /// server-side. The stub records what it parsed out of the form,
+    /// so an encoder that drops the CRLF before the boundary (the file
+    /// silently truncates) or misquotes the filename (the field parses
+    /// as empty) fails here rather than on a real mailbox.
+    func testAnAttachedFileArrivesThroughTheMultipartSend() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        to.tap()
+        to.typeText("file@example.com")
+
+        app.buttons["Attach"].tap()
+        let sample = app.buttons["Attach sample file"]
+        XCTAssertTrue(sample.waitForExistence(timeout: 5), "no attach menu")
+        sample.tap()
+
+        XCTAssertTrue(app.staticTexts["sample.txt"].waitForExistence(timeout: 5),
+                      "the attachment row never listed")
+
+        app.buttons["Send"].tap()
+        XCTAssertTrue(to.waitForNonExistence(timeout: 10), "the send never dismissed")
+
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        XCTAssertEqual(sent["to"] as? [String], ["file@example.com"])
+        let files = sent["attachments"] as? [[String: Any]] ?? []
+        XCTAssertEqual(files.count, 1, "expected one file: \(sent)")
+        XCTAssertEqual(files.first?["filename"] as? String, "sample.txt")
+        XCTAssertEqual(files.first?["content_type"] as? String, "text/plain")
+        XCTAssertEqual(files.first?["bytes"] as? Int, "sample attachment".utf8.count,
+                       "the file's bytes did not survive the form encoding")
+    }
+
+    /// Removing an attachment before sending means it does not travel —
+    /// the send falls back to the JSON route, which has no file field.
+    func testARemovedAttachmentDoesNotTravel() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        to.tap()
+        to.typeText("file@example.com")
+        app.buttons["Attach"].tap()
+        app.buttons["Attach sample file"].tap()
+        XCTAssertTrue(app.staticTexts["sample.txt"].waitForExistence(timeout: 5))
+
+        app.buttons["Remove sample.txt"].tap()
+        XCTAssertTrue(app.staticTexts["sample.txt"].waitForNonExistence(timeout: 5),
+                      "the row outlived the removal")
+
+        app.buttons["Send"].tap()
+        XCTAssertTrue(to.waitForNonExistence(timeout: 10), "the send never dismissed")
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        XCTAssertNil(sent["attachments"], "a removed file still travelled: \(sent)")
+    }
+
     /// A new message starts its own thread.
     ///
     /// The threading fields are the assertion, and they are read from

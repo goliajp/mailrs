@@ -412,6 +412,37 @@ class H(BaseHTTPRequestHandler):
                 "created_at": now, "updated_at": now,
             }
             self._send({"id": draft_id})
+        elif self.path.split("?")[0] == "/api/mail/send-multipart":
+            # Parsed with the stdlib email machinery: prepend the real
+            # Content-Type header and the form body is a MIME multipart.
+            # Recorded in the same shape as the JSON sends, with the
+            # files summarised — filename, declared type, byte count —
+            # so tests assert on what arrived, not what was meant.
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length)
+            from email.parser import BytesParser
+            msg = BytesParser().parsebytes(
+                b"Content-Type: " + self.headers.get("Content-Type", "").encode() +
+                b"\r\n\r\n" + raw)
+            record = {"to": [], "attachments": []}
+            for part in msg.walk():
+                if part.is_multipart():
+                    continue
+                name = part.get_param("name", header="content-disposition")
+                filename = part.get_filename()
+                payload = part.get_payload(decode=True) or b""
+                if filename:
+                    record["attachments"].append({
+                        "filename": filename,
+                        "content_type": part.get_content_type(),
+                        "bytes": len(payload),
+                    })
+                elif name == "to":
+                    record["to"].append(payload.decode())
+                elif name:
+                    record[name] = payload.decode()
+            SENT.append(record)
+            self._send({"message_id": "<stub-multipart@golia.jp>", "success": True})
         elif self.path.startswith("/api/mail/send"):
             length = int(self.headers.get("Content-Length", "0"))
             if length:

@@ -149,6 +149,42 @@ actor MailrsClient {
         ))
     }
 
+    /// `POST /api/mail/send-multipart` — the send that carries files.
+    /// Backend: `crates/webapi/src/handlers/send.rs` —
+    /// `send_message_multipart`; `to` and `attachments` are repeated
+    /// fields, the rest match the JSON names.
+    @discardableResult
+    func sendMultipart(
+        to recipients: [String],
+        subject: String,
+        body: String,
+        attachments: [MultipartForm.FilePart]
+    ) async throws -> Wire.SendResponse {
+        let boundary = "mailrs-\(UUID().uuidString)"
+        var fields: [(String, String)] = recipients.map { ("to", $0) }
+        fields.append(("subject", subject))
+        fields.append(("body", body))
+        let form = MultipartForm.encode(fields: fields, files: attachments, boundary: boundary)
+        let url = baseURL.appendingPathComponent("/api/mail/send-multipart")
+        let (data, response) = try await send(
+            "POST", url: url, body: form, authorized: true,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        let result: Wire.SendResponse
+        do {
+            result = try JSONDecoder().decode(Wire.SendResponse.self, from: data)
+        } catch {
+            throw MailrsError.decoding("send response — \(error)")
+        }
+        guard result.success else {
+            throw MailrsError.transport(result.message ?? "The server did not queue the message.")
+        }
+        return result
+    }
+
     /// A forward: no threading fields — a forward starts its own thread
     /// — and the original travels by reference, with the server
     /// appending body and attachments from the raw .eml.
@@ -418,13 +454,14 @@ actor MailrsClient {
     }
 
     private func send(
-        _ method: String, url: URL, body: Data?, authorized: Bool
+        _ method: String, url: URL, body: Data?, authorized: Bool,
+        contentType: String = "application/json"
     ) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
         if body != nil {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         if authorized, let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

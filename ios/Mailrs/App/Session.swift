@@ -503,10 +503,22 @@ final class Session {
     /// Both threading fields stay nil. Sending `reply_to_thread_id` here
     /// would file a new message inside an existing conversation, which
     /// is the mirror of the bug that made replies arrive unthreaded.
-    func sendNew(to recipients: [String], subject: String, body: String) async throws {
+    func sendNew(
+        to recipients: [String], subject: String, body: String,
+        attachments: [MultipartForm.FilePart] = []
+    ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
-            try await client.sendNew(to: recipients, subject: subject, body: body)
+            if attachments.isEmpty {
+                return try await client.sendNew(
+                    to: recipients, subject: subject, body: body
+                )
+            }
+            // Files ride the multipart route; the JSON route has no
+            // field for them.
+            return try await client.sendMultipart(
+                to: recipients, subject: subject, body: body, attachments: attachments
+            )
         }
     }
 
