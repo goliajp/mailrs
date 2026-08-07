@@ -87,21 +87,6 @@ fn now_secs() -> i64 {
 mod tests {
     use super::*;
 
-    /// The fixture in `wire-contract/requests/` is what the iOS client
-    /// sends; this keeps the struct honest against it the same way the
-    /// web client's bodies are pinned.
-    #[test]
-    fn ios_registration_body_parses() {
-        let fixture = std::fs::read_to_string(format!(
-            "{}/../../wire-contract/requests/push-register.json",
-            env!("CARGO_MANIFEST_DIR")
-        ))
-        .expect("fixture");
-        let req: RegisterPushTokenRequest = serde_json::from_str(&fixture).expect("parse");
-        assert!(!req.token.is_empty());
-        assert_eq!(req.platform, "ios");
-    }
-
     #[test]
     fn key_is_per_user() {
         assert_eq!(tokens_key("a@golia.jp"), "push:tokens:a@golia.jp");

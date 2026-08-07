@@ -39,6 +39,13 @@ fn parse<T: serde::de::DeserializeOwned>(name: &str) -> T {
 }
 
 #[test]
+fn push_register_body_matches() {
+    let v: handlers::push::RegisterPushTokenRequest = parse("push-register");
+    assert!(!v.token.is_empty());
+    assert_eq!(v.platform, "ios");
+}
+
+#[test]
 fn snooze_body_matches() {
     let v: handlers::conversations::SnoozeBody = parse("snooze");
     assert_eq!(v.snoozed_until, 1_785_542_400);
@@ -396,6 +403,7 @@ fn every_fixture_has_a_test() {
         "alias-create",
         "domain-create",
         "group-permissions-set",
+        "push-register",
         "ai-polish",
         "ai-reply-suggest",
         "batch-mutation",
