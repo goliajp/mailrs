@@ -259,6 +259,23 @@ final class SignInFlowTests: XCTestCase {
         wait(for: [done], timeout: 10)
     }
 
+    /// How many times the badge's count has been fetched.
+    private func unseenFetches() -> Int {
+        guard let url = URL(string: "http://localhost:6039/debug/unseen-fetches") else { return -1 }
+        var result = -1
+        let done = expectation(description: "debug/unseen-fetches")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let fetches = json["fetches"] as? Int {
+                result = fetches
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     /// Every non-GET the stub has served since the last reset.
     private func recordedWrites() -> [String] {
         guard let url = URL(string: "http://localhost:6039/debug/writes") else { return [] }
@@ -764,6 +781,38 @@ final class SignInFlowTests: XCTestCase {
         // says nothing rather than claiming delivery.
         XCTAssertTrue(app.staticTexts["Predates the projection"].exists,
                       "old mail without a projection row was dropped")
+    }
+
+    /// The badge's count is refreshed when the mailbox may have moved.
+    ///
+    /// The icon itself belongs to the OS — no test can read it — so what
+    /// is pinned is the input: the server count is fetched on arrival,
+    /// and fetched again after reading a thread changes it. A badge fed
+    /// once at launch goes stale the moment mail is read, which is the
+    /// number a person then distrusts forever.
+    func testBadgeCountRefreshesAfterReading() {
+        let app = launch(signedIn: true)
+        let unreadRow = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                        "Quarterly report", "Unread")
+        ).firstMatch
+        XCTAssertTrue(unreadRow.waitForExistence(timeout: 15), "inbox never listed")
+
+        let onArrival = unseenFetches()
+        XCTAssertGreaterThan(onArrival, 0, "the badge count was never fetched at all")
+
+        unreadRow.tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp"].waitForExistence(timeout: 10),
+                      "thread never opened")
+
+        var after = onArrival
+        for _ in 0..<20 {
+            after = unseenFetches()
+            if after > onArrival { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertGreaterThan(after, onArrival,
+                             "reading a thread did not refresh the badge count")
     }
 
     func testRepliesToAThread() {

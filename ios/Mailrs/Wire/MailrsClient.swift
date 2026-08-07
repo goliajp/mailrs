@@ -171,6 +171,19 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/conversations/unseen-count` — `{"count": N}`.
+    ///
+    /// Backend: `conversations.rs::get_unseen_count`, which counts
+    /// unread across the whole non-junk mailbox — not the page in hand
+    /// and not the active list. That is the number an app icon should
+    /// wear: the icon is visible from the home screen, where "which
+    /// list was open" is not a meaningful scope.
+    func unseenCount() async throws -> Int {
+        struct Body: Decodable { let count: Int }
+        let body: Body = try await getJSON("/api/conversations/unseen-count")
+        return body.count
+    }
+
     /// `GET /api/mail/sent` — the sent axis, a bare array.
     func sentMessages() async throws -> [Wire.SentMessage] {
         try await getJSON("/api/mail/sent")

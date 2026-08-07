@@ -121,6 +121,12 @@ DRAFT_POSTS = []
 # is invisible on screen; the tests read it here.
 WRITES = []
 
+# How many times the unseen count was asked for — the badge's input.
+# The badge itself belongs to the OS and no test can read the icon, so
+# the client behaviour worth pinning is "refreshed at the moments the
+# number may have moved".
+UNSEEN_FETCHES = [0]
+
 ATTACHMENTS = [
     {"filename": "請求書_2026年8月分.pdf", "content_type": "application/pdf", "size": 1234},
     {"filename": "logo.png", "content_type": "image/png", "size": len(PIXEL_PNG)},
@@ -194,6 +200,13 @@ class H(BaseHTTPRequestHandler):
             return
         if self.path.split("?")[0] == "/debug/fetched":
             self._send({"attachment_indices": FETCHED})
+            return
+        if self.path.split("?")[0] == "/api/conversations/unseen-count":
+            UNSEEN_FETCHES[0] += 1
+            self._send({"count": 3})
+            return
+        if self.path.split("?")[0] == "/debug/unseen-fetches":
+            self._send({"fetches": UNSEEN_FETCHES[0]})
             return
         if self.path.split("?")[0] == "/api/mail/sent":
             self._send([
@@ -305,6 +318,7 @@ class H(BaseHTTPRequestHandler):
             DRAFT_COUNTER[0] = 0
             DRAFT_POSTS.clear()
             WRITES.clear()
+            UNSEEN_FETCHES[0] = 0
             self._send({"ok": True})
             return
         if re.match(
