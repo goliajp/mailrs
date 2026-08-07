@@ -162,6 +162,14 @@ final class Session {
         }
     }
 
+    /// Contact suggestions for a To field. Failures answer as no
+    /// suggestions — autocomplete is an offer, not a feature that may
+    /// interrupt composing with an error.
+    func contacts(matching query: String) async -> [String] {
+        guard let client else { return [] }
+        return (try? await client.contacts(matching: query)) ?? []
+    }
+
     /// The physical answer to Send. The sheet dismissing says it too,
     /// but the thumb is on the button and the eyes may not be — Gmail
     /// and Apple Mail both confirm a send through the hand. Failure taps

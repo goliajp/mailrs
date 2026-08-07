@@ -425,6 +425,23 @@ final class SignInFlowTests: XCTestCase {
         XCTFail("the \(mode) segment never switched the sheet")
     }
 
+    /// Every q= the stub's contacts endpoint has answered.
+    private func contactQueries() -> [String] {
+        guard let url = URL(string: "http://localhost:6039/debug/contact-queries") else { return [] }
+        var result: [String] = []
+        let done = expectation(description: "debug/contact-queries")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let queries = json["queries"] as? [String] {
+                result = queries
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     private func resetStub() {
         guard let url = URL(string: "http://localhost:6039/debug/reset") else { return }
         var request = URLRequest(url: url)
@@ -717,6 +734,46 @@ final class SignInFlowTests: XCTestCase {
     /// identical here and be wrong on the server. Sending
     /// `reply_to_thread_id` on a new message is the mirror of the bug
     /// that made replies arrive detached.
+    /// Typing a partial name offers the contact book; tapping the
+    /// offer lands the bare address on the wire. The floor is the
+    /// falsifiable part: a one-character token must never reach the
+    /// server, so the stub's query log distinguishes a debounced
+    /// autocomplete from one that fires per keystroke.
+    func testContactSuggestionCompletesTheToField() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        to.tap()
+        to.typeText("ali")
+
+        let offer = app.buttons["Alice Smith <alice@example.com>"]
+        XCTAssertTrue(offer.waitForExistence(timeout: 5), "no suggestion offered")
+        offer.tap()
+
+        XCTAssertEqual(to.value as? String, "alice@example.com, ",
+                       "the pick did not land as the addr-spec")
+        XCTAssertFalse(offer.exists, "the offer outlived the pick")
+
+        app.buttons["Send"].tap()
+        XCTAssertTrue(to.waitForNonExistence(timeout: 10), "the send never dismissed")
+
+        guard let sent = sentMessages().last else {
+            XCTFail("nothing reached the server"); return
+        }
+        XCTAssertEqual(sent["to"] as? [String], ["alice@example.com"])
+
+        let queries = contactQueries()
+        XCTAssertFalse(queries.contains("a"),
+                       "a one-character token was queried: \(queries)")
+        XCTAssertTrue(queries.contains { $0.hasPrefix("al") },
+                      "the typed token never reached the contacts endpoint: \(queries)")
+    }
+
     func testComposesANewMessageWithNoThread() {
         let app = launch(signedIn: true)
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]

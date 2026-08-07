@@ -27,6 +27,8 @@ struct ReplyView: View {
     @State private var forwardTo = ""
     @State private var sending = false
     @State private var failure: String?
+    @State private var suggestions: [String] = []
+    @State private var suggestionTask: Task<Void, Never>?
     @FocusState private var bodyFocused: Bool
 
     /// The addr-specs, not the display forms: the server takes bare
@@ -79,6 +81,7 @@ struct ReplyView: View {
                             .keyboardType(.emailAddress)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("forward-to")
+                        ContactSuggestions(text: $forwardTo, suggestions: $suggestions)
                     } else {
                         // Shown as names, sent as addresses.
                         Text(displayedRecipients)
@@ -122,6 +125,11 @@ struct ReplyView: View {
                 }
             }
             .onAppear { bodyFocused = true }
+            .onChange(of: forwardTo) { _, text in
+                suggestionTask = ContactSuggestions.schedule(
+                    replacing: suggestionTask, for: text, in: session
+                ) { suggestions = $0 }
+            }
         }
     }
 
