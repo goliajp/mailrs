@@ -64,6 +64,8 @@ final class Session {
     /// page is still in flight — an empty mailbox announced about a full
     /// one. Apple Mail never shows the empty state until it knows.
     private(set) var initialLoading = false
+    /// Last-known rows on disk; every successful fetch overwrites.
+    private let cache = MailCache.bootstrap()
     /// The query the visible rows answer, or nil when they are the list.
     private(set) var searchQuery: String?
     private(set) var searchResults: [Wire.Conversation] = []
@@ -547,8 +549,14 @@ final class Session {
         // axes would answer with the whole mailbox.
         guard activeList != .send else { return await loadSendRows() }
         guard let client else { return }
-        // Only when the screen has nothing yet: pull-to-refresh on a
-        // populated list must not blank it behind a spinner.
+        // A cold screen opens on the last-known rows while the network
+        // answers — a mailbox you saw an hour ago beats a spinner. The
+        // fetch then replaces them in place; only a screen with nothing
+        // at all shows the spinner, and pull-to-refresh on a populated
+        // list still never blanks it.
+        if conversations.isEmpty, let cached = cache.readConversations(list: activeList.rawValue) {
+            withAnimation { conversations = cached }
+        }
         if conversations.isEmpty { initialLoading = true }
         do {
             let page = try await client.conversations(axes: axes)
@@ -557,8 +565,14 @@ final class Session {
             // block SwiftUI swaps the frames in one step.
             withAnimation { conversations = page }
             reachedEnd = false
+            cache.writeConversations(page, list: activeList.rawValue)
         } catch {
-            state = .failed(error.localizedDescription)
+            // With cached rows on screen, a failed refresh is stale
+            // mail, not a broken app — the error state would replace a
+            // readable mailbox with an apology.
+            if conversations.isEmpty {
+                state = .failed(error.localizedDescription)
+            }
         }
         initialLoading = false
         await refreshBadge()

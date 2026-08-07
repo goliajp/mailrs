@@ -9,12 +9,17 @@ import XCTest
 /// so the fit-to-width path is exercised rather than asserted about.
 final class SignInFlowTests: XCTestCase {
     private func launch(
-        signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0
+        signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0,
+        keepCache: Bool = false
     ) -> XCUIApplication {
         resetStub()
         if listDelayMs > 0 { setStubListDelay(listDelayMs) }
         let app = XCUIApplication()
         app.launchArguments = ["-mailrsBaseURL", "http://localhost:6039"]
+        // Tests assert empty-start behaviours (spinners, empty states)
+        // that yesterday's cached rows would satisfy or contradict at
+        // random. The offline test opts out to prove the cache works.
+        if !keepCache { app.launchArguments += ["-mailrsFreshCache"] }
         app.launchArguments += signedIn ? ["-mailrsToken", "stub-token"] : ["-mailrsSignedOut"]
         if let folder { app.launchArguments += ["-mailrsFolder", folder] }
         app.launch()
@@ -1061,6 +1066,27 @@ final class SignInFlowTests: XCTestCase {
     /// state before this. An empty state is a conclusion; showing it
     /// without the evidence teaches people the screen lies, and neither
     /// Apple Mail nor Gmail ever shows it during a load.
+    /// The offline promise: a relaunch opens on the rows the last
+    /// session saw, before the network answers. The delayed stub is
+    /// what makes it falsifiable — without the cache, nothing can put
+    /// a row on screen until the 6-second answer arrives, so the
+    /// 3-second wait only passes if the rows came from disk.
+    func testARelaunchOpensOnCachedRowsBeforeTheNetworkAnswers() {
+        let first = launch(signedIn: true)
+        XCTAssertTrue(first.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "the caching launch never listed")
+        first.terminate()
+
+        setStubListDelay(6000)
+        let app = XCUIApplication()
+        app.launchArguments = ["-mailrsBaseURL", "http://localhost:6039",
+                               "-mailrsToken", "stub-token"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 3),
+            "no rows before the delayed network answer — the cache did not serve")
+    }
+
     func testLoadingShowsProgressNotTheEmptyState() {
         let app = launch(signedIn: true, listDelayMs: 2500)
 
