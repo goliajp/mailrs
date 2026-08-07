@@ -31,6 +31,26 @@ struct ConversationListView: View {
                         } label: {
                             ConversationRow(conversation: conversation)
                         }
+                        .contextMenu {
+                            // Junk lives in the long-press menu, not the
+                            // swipe rows — those are full, and a verdict
+                            // that trains the filter deserves a deliberate
+                            // gesture rather than the one you make fifty
+                            // times a day.
+                            if session.activeList == .junk {
+                                Button {
+                                    Task { await session.setJunk(conversation, junk: false) }
+                                } label: {
+                                    Label("Not junk", systemImage: "checkmark.shield")
+                                }
+                            } else {
+                                Button(role: .destructive) {
+                                    Task { await session.setJunk(conversation, junk: true) }
+                                } label: {
+                                    Label("Mark as junk", systemImage: "xmark.bin")
+                                }
+                            }
+                        }
                         .swipeActions(edge: .trailing) {
                             // Delete asks. `thread_actions.rs` unlinks the
                             // maildir files, so there is no trash and no

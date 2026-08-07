@@ -279,6 +279,15 @@ actor MailrsClient {
         return data
     }
 
+    /// `POST /api/conversations/{id}/mark-junk` and `/mark-not-junk`.
+    ///
+    /// More than a move: the server trains the Bayes classifier on the
+    /// verdict and (for not-junk) whitelists the sender, which is why
+    /// this is worth reaching for over archive when something is spam.
+    func setJunk(threadId: String, _ junk: Bool) async throws {
+        try await verb("POST", "/api/conversations/\(threadId)/\(junk ? "mark-junk" : "mark-not-junk")")
+    }
+
     /// `POST /api/conversations/{id}/read` and `/unread`.
     func setRead(threadId: String, _ read: Bool) async throws {
         try await verb("POST", "/api/conversations/\(threadId)/\(read ? "read" : "unread")")

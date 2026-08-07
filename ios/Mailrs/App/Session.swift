@@ -195,6 +195,28 @@ final class Session {
         }
     }
 
+    /// Mark junk (or rescue from Junk), and take the row off this list.
+    ///
+    /// Optimistic like archive: the same verb in the other direction
+    /// undoes it, and the worst a failure costs is a row that returns.
+    /// The row leaves whichever list is showing because the verdict
+    /// moves the thread between folders — a spam row lingering in the
+    /// Inbox after being marked is the confusing outcome.
+    func setJunk(_ conversation: Wire.Conversation, junk: Bool) async {
+        guard let client else { return }
+        let previous = conversations
+        let previousResults = searchResults
+        conversations.removeAll { $0.threadId == conversation.threadId }
+        searchResults.removeAll { $0.threadId == conversation.threadId }
+        do {
+            try await client.setJunk(threadId: conversation.threadId, junk)
+        } catch {
+            conversations = previous
+            searchResults = previousResults
+            state = .failed(error.localizedDescription)
+        }
+    }
+
     /// Archive, and take the row off the list.
     ///
     /// Optimistic, because archiving is reversible: if the server refuses
