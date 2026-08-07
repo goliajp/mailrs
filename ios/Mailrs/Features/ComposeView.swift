@@ -16,6 +16,10 @@ struct ComposeView: View {
     @State private var subject = ""
     @State private var body_ = ""
     @State private var sending = false
+    /// Send succeeded: the words left as mail, so the sheet's closing
+    /// must not refile them as a draft. Without this, onDisappear's
+    /// save ran after the send's delete and quietly resurrected it.
+    @State private var didSend = false
     @State private var failure: String?
     /// The id the server gave this session's draft. Held so every
     /// autosave upserts the same one instead of creating another.
@@ -103,6 +107,7 @@ struct ComposeView: View {
     }
 
     private func saveNow() {
+        guard !didSend else { return }
         guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
         let (recipients, title, text, id) = (to, subject, body_, draftId)
         Task {
@@ -129,6 +134,7 @@ struct ComposeView: View {
             )
             // Sent, so it is no longer a draft. Cancel the pending
             // autosave first or it recreates the one just deleted.
+            didSend = true
             autosave?.cancel()
             if let draftId {
                 await session.deleteDraft(id: draftId)
