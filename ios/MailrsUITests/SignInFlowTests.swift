@@ -170,8 +170,7 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        row.swipeLeft()
-        app.buttons["Delete"].firstMatch.tap()
+        swipeAndTap(app, row: row, edge: .trailing, action: "Delete")
 
         XCTAssertTrue(app.staticTexts["This will permanently delete all messages."]
             .waitForExistence(timeout: 5), "delete did not ask")
@@ -192,8 +191,7 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        row.swipeLeft()
-        app.buttons["Delete"].firstMatch.tap()
+        swipeAndTap(app, row: row, edge: .trailing, action: "Delete")
         // The alert's Delete, not the swipe button behind it.
         app.alerts.buttons["Delete"].tap()
 
@@ -216,8 +214,7 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        row.swipeLeft()
-        app.buttons["Archive"].firstMatch.tap()
+        swipeAndTap(app, row: row, edge: .trailing, action: "Archive")
 
         XCTAssertFalse(app.staticTexts["This will permanently delete all messages."].exists,
                        "archive asked a question it does not need to")
@@ -238,8 +235,7 @@ final class SignInFlowTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        row.swipeLeft()
-        app.buttons["Archive"].firstMatch.tap()
+        swipeAndTap(app, row: row, edge: .trailing, action: "Archive")
         XCTAssertTrue(row.waitForNonExistence(timeout: 10), "row not archived")
 
         let undo = app.buttons["undo-archive"]
@@ -446,6 +442,34 @@ final class SignInFlowTests: XCTestCase {
         wait(for: [done], timeout: 10)
         return result
     }
+
+    /// Swipe a row and tap one of the revealed actions.
+    ///
+    /// The swipe is setup, not the assertion, and under a loaded
+    /// machine it sometimes lands as a scroll — the actions never
+    /// appear and the test reports a missing button, which reads like
+    /// the app lost the action. Retrying until the action exists keeps
+    /// the red lights meaningful; if three swipes reveal nothing, that
+    /// is a real failure and says so.
+    private func swipeAndTap(
+        _ app: XCUIApplication, row: XCUIElement, edge: SwipeEdge, action: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let button = app.buttons[action]
+        for _ in 0..<3 {
+            switch edge {
+            case .leading: row.swipeRight()
+            case .trailing: row.swipeLeft()
+            }
+            if button.waitForExistence(timeout: 2) {
+                button.firstMatch.tap()
+                return
+            }
+        }
+        XCTFail("swiping never revealed \(action)", file: file, line: line)
+    }
+
+    private enum SwipeEdge { case leading, trailing }
 
     private func resetStub() {
         guard let url = URL(string: "http://localhost:6039/debug/reset") else { return }
@@ -694,8 +718,7 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         XCTAssertFalse(row.label.contains("Starred"), "the fixture already starts starred")
 
-        row.swipeRight()
-        app.buttons["Star"].firstMatch.tap()
+        swipeAndTap(app, row: row, edge: .leading, action: "Star")
 
         let starred = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Starred")
@@ -722,8 +745,7 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(unread.waitForExistence(timeout: 15),
                       "no unread row to mark read")
 
-        unread.swipeRight()
-        app.buttons["Read"].firstMatch.tap()
+        swipeAndTap(app, row: unread, edge: .leading, action: "Read")
 
         XCTAssertTrue(unread.waitForNonExistence(timeout: 10),
                       "the row is still announced as unread")
