@@ -43,7 +43,12 @@ DAYS="${1:-14}"
 # warnings. Re-measure this number rather than raising it by reflex: if
 # sweep starts reclaiming again, the growth is dead weight and the
 # ceiling is doing its job.
-CEILING_GB="${CEILING_GB:-120}"
+#
+# 2026-08-07: measured 151 GB with `cargo sweep --dry-run --time 3`
+# answering "nothing" — that IS the 3-day working set now (the apns
+# crate brought reqwest/hyper into two more binaries, and the workspace
+# keeps growing). 160 gives headroom without letting real rot hide.
+CEILING_GB="${CEILING_GB:-160}"
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
