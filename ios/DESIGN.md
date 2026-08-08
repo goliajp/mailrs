@@ -77,6 +77,10 @@ design and keeps its white paper; mail that declares none inherits
 the app's surface, and the body becomes part of the card instead of
 a bright rectangle in a dark room.
 
+The list's title is inline, not large. A large title spends about
+fifty points of every screen restating a word the toolbar has room
+for, and this list is measured in rows.
+
 ## The row (the unit everything multiplies)
 
 **Two lines, no preview.** The web made this exact call on 2026-07-17

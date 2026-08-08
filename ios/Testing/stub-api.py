@@ -119,6 +119,16 @@ ALIASES = [
 ]
 ALIAS_COUNTER = [2]
 
+# Groups list under `items` like the other admin collections, but their
+# members come back under `members` as bare addresses — a difference the
+# client has to hold rather than assume away.
+GROUPS = [
+    {"id": 1, "address": "team@golia.jp", "domain": "golia.jp", "name": "Team",
+     "description": "", "created_at": 1754400000},
+]
+GROUP_MEMBERS = {1: ["lihao@golia.jp", "Keiri <keiri@golia.jp>"]}
+GROUP_COUNTER = [1]
+
 ACCOUNTS = [
     {"address": "lihao@golia.jp", "domain": "golia.jp", "display_name": "Li Hao",
      "active": True, "created_at": 1754400000, "quota_bytes": 5368709120},
@@ -264,6 +274,13 @@ class H(BaseHTTPRequestHandler):
                  "internal_date": 1754370000},
             ])
             return
+        members = re.match(r"^/api/admin/email-groups/(\d+)/members$", self.path.split("?")[0])
+        if members:
+            self._send({"members": GROUP_MEMBERS.get(int(members.group(1)), [])})
+            return
+        if self.path.split("?")[0] == "/api/admin/email-groups":
+            self._send({"items": GROUPS})
+            return
         if self.path.split("?")[0] == "/api/admin/aliases":
             self._send({"items": ALIASES})
             return
@@ -386,6 +403,24 @@ class H(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         WRITES.append("DELETE " + self.path.split("?")[0])
+        member = re.match(r"^/api/admin/email-groups/(\d+)/members/(.+)$",
+                          self.path.split("?")[0])
+        if member:
+            gid, addr = int(member.group(1)), unquote(member.group(2))
+            GROUP_MEMBERS[gid] = [m for m in GROUP_MEMBERS.get(gid, []) if m != addr]
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        group = re.match(r"^/api/admin/email-groups/(\d+)$", self.path.split("?")[0])
+        if group:
+            wanted = int(group.group(1))
+            GROUPS[:] = [g for g in GROUPS if g["id"] != wanted]
+            GROUP_MEMBERS.pop(wanted, None)
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         account = re.match(r"^/api/admin/accounts/(.+)$", self.path.split("?")[0])
         if account:
             wanted = unquote(account.group(1))
@@ -475,6 +510,13 @@ class H(BaseHTTPRequestHandler):
                 {"name": "golia.ai", "created_at": 1754400001},
             ]
             ACCOUNT_POSTS.clear()
+            GROUPS[:] = [
+                {"id": 1, "address": "team@golia.jp", "domain": "golia.jp",
+                 "name": "Team", "description": "", "created_at": 1754400000},
+            ]
+            GROUP_MEMBERS.clear()
+            GROUP_MEMBERS[1] = ["lihao@golia.jp", "Keiri <keiri@golia.jp>"]
+            GROUP_COUNTER[0] = 1
             self._send({"ok": True})
             return
         if re.match(
@@ -508,6 +550,24 @@ class H(BaseHTTPRequestHandler):
                 "created_at": now, "updated_at": now,
             }
             self._send({"id": draft_id})
+        elif re.match(r"^/api/admin/email-groups/(\d+)/members$", self.path.split("?")[0]):
+            gid = int(re.match(r"^/api/admin/email-groups/(\d+)/members$",
+                               self.path.split("?")[0]).group(1))
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            GROUP_MEMBERS.setdefault(gid, []).append(body.get("member_address", ""))
+            self._send({"ok": True})
+        elif self.path.split("?")[0] == "/api/admin/email-groups":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            GROUP_COUNTER[0] += 1
+            GROUPS.append({
+                "id": GROUP_COUNTER[0], "address": body.get("address", ""),
+                "domain": body.get("domain", ""), "name": body.get("name", ""),
+                "description": body.get("description", ""), "created_at": 1754400002,
+            })
+            GROUP_MEMBERS[GROUP_COUNTER[0]] = []
+            self._send({"id": GROUP_COUNTER[0]})
         elif self.path.split("?")[0] == "/api/admin/accounts":
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length)) if length else {}

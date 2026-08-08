@@ -312,6 +312,54 @@ enum Wire {
         let name: String
     }
 
+    /// Backend: `crates/core-api/src/method/admin/directory.rs` —
+    /// `EmailGroupWire`. One address that delivers to many people,
+    /// where an alias delivers to one.
+    struct EmailGroup: Codable, Equatable, Identifiable, Sendable {
+        let id: Int64
+        let address: String
+        let domain: String
+        let name: String
+        let description: String
+        let createdAt: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case address
+            case domain
+            case name
+            case description
+            case createdAt = "created_at"
+        }
+    }
+
+    struct EmailGroupList: Decodable, Sendable {
+        let items: [EmailGroup]
+    }
+
+    /// Backend: `EmailGroupMembersResponse` — bare addresses under
+    /// `members`, not objects. The list endpoints in this area use
+    /// `items`; this one does not, which is worth saying rather than
+    /// discovering.
+    struct EmailGroupMembers: Decodable, Sendable {
+        let members: [String]
+    }
+
+    struct CreateEmailGroupRequest: Encodable, Sendable {
+        let address: String
+        let domain: String
+        let name: String
+        let description: String
+    }
+
+    struct EmailGroupMemberRequest: Encodable, Sendable {
+        let memberAddress: String
+
+        enum CodingKeys: String, CodingKey {
+            case memberAddress = "member_address"
+        }
+    }
+
     struct AliasList: Decodable, Sendable {
         let items: [Alias]
     }

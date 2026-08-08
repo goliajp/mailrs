@@ -245,6 +245,41 @@ final class Session {
         try await client.deleteDomain(name: name)
     }
 
+    func emailGroups() async throws -> [Wire.EmailGroup] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.emailGroups()
+    }
+
+    func createEmailGroup(address: String, name: String, description: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.createEmailGroup(Wire.CreateEmailGroupRequest(
+            address: address,
+            domain: AliasRule.domain(of: address),
+            name: name,
+            description: description
+        ))
+    }
+
+    func deleteEmailGroup(id: Int64) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.deleteEmailGroup(id: id)
+    }
+
+    func emailGroupMembers(id: Int64) async throws -> [String] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.emailGroupMembers(id: id)
+    }
+
+    func addEmailGroupMember(id: Int64, address: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.addEmailGroupMember(id: id, address: address)
+    }
+
+    func removeEmailGroupMember(id: Int64, address: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.removeEmailGroupMember(id: id, address: address)
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }
