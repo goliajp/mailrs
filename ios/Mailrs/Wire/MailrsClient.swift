@@ -375,6 +375,19 @@ actor MailrsClient {
         try await verb("DELETE", "/api/admin/suppressions")
     }
 
+    /// `GET /api/admin/dmarc/reports`.
+    func dmarcReports() async throws -> [Wire.DmarcReport] {
+        let list: Wire.DmarcReportList = try await getJSON("/api/admin/dmarc/reports")
+        return list.items
+    }
+
+    /// `GET /api/admin/dmarc/sources` — the rollup, with the window's
+    /// own totals so the screen does not have to add up the rows and
+    /// hope it matched what the server counted.
+    func dmarcSources() async throws -> Wire.DmarcSourceList {
+        try await getJSON("/api/admin/dmarc/sources")
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no

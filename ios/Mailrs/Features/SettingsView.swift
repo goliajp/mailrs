@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var showingDomains = false
     @State private var showingGroups = false
     @State private var showingQueue = false
+    @State private var showingDmarc = false
 
     /// The zones worth offering by name, plus whatever the phone is
     /// set to. A full tz database picker is a list of 400 strings and
@@ -94,6 +95,11 @@ struct SettingsView: View {
                     } label: {
                         Label("Queue", systemImage: "tray.and.arrow.up")
                     }
+                    Button {
+                        showingDmarc = true
+                    } label: {
+                        Label("DMARC", systemImage: "checkmark.shield")
+                    }
                 }
 
                 Section {
@@ -110,6 +116,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingDomains) { DomainsView() }
             .sheet(isPresented: $showingGroups) { EmailGroupsView() }
             .sheet(isPresented: $showingQueue) { QueueView() }
+            .sheet(isPresented: $showingDmarc) { DmarcView() }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

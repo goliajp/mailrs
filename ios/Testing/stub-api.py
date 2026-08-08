@@ -132,6 +132,26 @@ QUEUE = [
 ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# DMARC as the handlers answer it. The rollup carries the window's own
+# totals rather than leaving the client to add up the rows — and one
+# source deliberately loses mail, because a screen where everything
+# passes cannot show whether it would surface the one that does not.
+DMARC_REPORTS = [
+    {"sid": "google.com!abc", "org_name": "google.com", "email": "noreply-dmarc@google.com",
+     "policy_domain": "golia.jp", "begin": 1754352000, "end": 1754438400,
+     "p": "quarantine", "total": 120, "passing": 118, "rows": 3},
+    {"sid": "yahoo.com!def", "org_name": "yahoo.com", "email": "dmarc@yahoo.com",
+     "policy_domain": "golia.jp", "begin": 1754265600, "end": 1754352000,
+     "p": "none", "total": 40, "passing": 40, "rows": 1},
+]
+DMARC_SOURCES = {
+    "items": [
+        {"source_ip": "203.0.113.10", "total": 150, "passing": 150, "domains": ["golia.jp"]},
+        {"source_ip": "198.51.100.7", "total": 10, "passing": 8, "domains": ["golia.jp"]},
+    ],
+    "total": 160, "passing": 158, "reports": 2,
+}
+
 # Groups list under `items` like the other admin collections, but their
 # members come back under `members` as bare addresses — a difference the
 # client has to hold rather than assume away.
@@ -293,6 +313,12 @@ class H(BaseHTTPRequestHandler):
             return
         if self.path.split("?")[0] == "/api/admin/email-groups":
             self._send({"items": GROUPS})
+            return
+        if self.path.split("?")[0] == "/api/admin/dmarc/reports":
+            self._send({"items": DMARC_REPORTS})
+            return
+        if self.path.split("?")[0] == "/api/admin/dmarc/sources":
+            self._send(DMARC_SOURCES)
             return
         if self.path.split("?")[0] == "/api/admin/queues":
             self._send({"items": QUEUE})

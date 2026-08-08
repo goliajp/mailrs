@@ -296,6 +296,16 @@ final class Session {
         try await client.clearSuppressions()
     }
 
+    func dmarcReports() async throws -> [Wire.DmarcReport] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.dmarcReports()
+    }
+
+    func dmarcSources() async throws -> Wire.DmarcSourceList {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.dmarcSources()
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }
