@@ -257,7 +257,8 @@ final class Session {
             TokenStore.save(login.token)
             TokenStore.saveAddress(login.address)
             state = .signedIn(address: login.address, displayName: login.displayName)
-            PushRegistrar.requestAndRegister()
+            // The badge only — see `PushRegistrar`.
+            PushRegistrar.requestBadgeAuthorization()
             await loadConversations()
             await loadMyAliases()
         } catch MailrsError.needsTotp {
