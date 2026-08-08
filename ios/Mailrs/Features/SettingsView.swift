@@ -24,7 +24,8 @@ struct SettingsView: View {
                       "Europe/London", "Europe/Berlin",
                       "America/New_York", "America/Los_Angeles", "UTC"]
         let current = TimeZone.autoupdatingCurrent.identifier
-        return common.contains(current) ? common : [current] + common
+        if common.contains(current) { return common }
+        return [current] + common
     }
 
     var body: some View {

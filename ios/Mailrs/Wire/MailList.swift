@@ -25,12 +25,22 @@ extension MailListAxes {
     /// boolean, so it is always sent.
     var queryItems: [URLQueryItem] {
         var items: [URLQueryItem] = [
-            URLQueryItem(name: "archived", value: archived ? "true" : "false")
+            URLQueryItem(name: "archived", value: MailListAxes.flag(archived))
         ]
         if let folder { items.append(URLQueryItem(name: "folder", value: folder)) }
-        if let unread { items.append(URLQueryItem(name: "unread", value: unread ? "true" : "false")) }
-        if let starred { items.append(URLQueryItem(name: "starred", value: starred ? "true" : "false")) }
+        if let unread {
+            items.append(URLQueryItem(name: "unread", value: MailListAxes.flag(unread)))
+        }
+        if let starred {
+            items.append(URLQueryItem(name: "starred", value: MailListAxes.flag(starred)))
+        }
         return items
+    }
+
+    /// The server reads these as the strings, not as JSON booleans.
+    static func flag(_ value: Bool) -> String {
+        if value { return "true" }
+        return "false"
     }
 }
 

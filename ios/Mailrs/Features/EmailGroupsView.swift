@@ -32,7 +32,7 @@ struct EmailGroupsView: View {
                             EmailGroupDetailView(group: group)
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(group.name.isEmpty ? group.address : group.name)
+                                ValueOrPlaceholder(value: group.name, placeholder: "\(group.address)")
                                     .font(.subheadline.weight(.medium))
                                     .lineLimit(1)
                                 Text(group.address)
@@ -161,6 +161,11 @@ struct EmailGroupDetailView: View {
     @State private var adding = false
     @State private var newMember = ""
 
+    private var groupTitle: String {
+        if group.name.isEmpty { return group.address }
+        return group.name
+    }
+
     var body: some View {
         Group {
             if loading, members.isEmpty {
@@ -195,7 +200,7 @@ struct EmailGroupDetailView: View {
                 .refreshable { await load() }
             }
         }
-        .navigationTitle(group.name.isEmpty ? group.address : group.name)
+        .navigationTitle(groupTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

@@ -66,7 +66,10 @@ enum SenderName {
         }
         let email = extractEmail(decoded)
         let parts = email.split(separator: "@", maxSplits: 1)
-        guard parts.count == 2 else { return email.isEmpty ? sender : email }
+        guard parts.count == 2 else {
+            if email.isEmpty { return sender }
+            return email
+        }
         let local = String(parts[0])
         let domain = String(parts[1])
         if isMachineGenerated(local) {

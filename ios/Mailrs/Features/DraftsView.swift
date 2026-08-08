@@ -34,7 +34,8 @@ struct DraftsView: View {
                                         Text(DraftRule.title(subject: draft.subject, body: draft.body))
                                             .font(.subheadline)
                                             .lineLimit(1)
-                                        Text(draft.to.isEmpty ? "No recipient" : draft.to)
+                                        ValueOrPlaceholder(value: draft.to,
+                                                           placeholder: "No recipient")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)

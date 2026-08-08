@@ -546,17 +546,23 @@ actor MailrsClient {
     /// verdict and (for not-junk) whitelists the sender, which is why
     /// this is worth reaching for over archive when something is spam.
     func setJunk(threadId: String, _ junk: Bool) async throws {
-        try await verb("POST", "/api/conversations/\(threadId)/\(junk ? "mark-junk" : "mark-not-junk")")
+        var verbName = "mark-not-junk"
+        if junk { verbName = "mark-junk" }
+        try await verb("POST", "/api/conversations/\(threadId)/\(verbName)")
     }
 
     /// `POST /api/conversations/{id}/read` and `/unread`.
     func setRead(threadId: String, _ read: Bool) async throws {
-        try await verb("POST", "/api/conversations/\(threadId)/\(read ? "read" : "unread")")
+        var verbName = "unread"
+        if read { verbName = "read" }
+        try await verb("POST", "/api/conversations/\(threadId)/\(verbName)")
     }
 
     /// `POST /api/conversations/{id}/star` and `/unstar`.
     func setStarred(threadId: String, _ starred: Bool) async throws {
-        try await verb("POST", "/api/conversations/\(threadId)/\(starred ? "star" : "unstar")")
+        var verbName = "unstar"
+        if starred { verbName = "star" }
+        try await verb("POST", "/api/conversations/\(threadId)/\(verbName)")
     }
 
     /// `POST /api/conversations/{id}/archive` — 204, no body.

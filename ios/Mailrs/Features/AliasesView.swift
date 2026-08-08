@@ -22,7 +22,8 @@ struct AliasesView: View {
     /// address on golia.jp, then every address on golia.ai.
     private var byDomain: [(domain: String, aliases: [Wire.Alias])] {
         Dictionary(grouping: aliases) { alias in
-            alias.domain.isEmpty ? AliasRule.domain(of: alias.sourceAddress) : alias.domain
+            guard alias.domain.isEmpty else { return alias.domain }
+            return AliasRule.domain(of: alias.sourceAddress)
         }
         .map { (domain: $0.key, aliases: $0.value.sorted { $0.sourceAddress < $1.sourceAddress }) }
         .sorted { $0.domain < $1.domain }

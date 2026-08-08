@@ -48,3 +48,15 @@ enum ThreadPage {
         return Merged(rows: rows, progressed: progressed)
     }
 }
+
+extension Array {
+    /// The element at `index`, or nil when it is out of bounds.
+    ///
+    /// The thread's chevrons ask for "the row before this one" at the
+    /// top of the list and "the row after" at the bottom, where the
+    /// honest answer is nothing rather than a crash.
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
+    }
+}

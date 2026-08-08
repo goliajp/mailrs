@@ -6,6 +6,13 @@ struct SignInView: View {
     @State private var password = ""
     @State private var totpCode = ""
 
+    /// Absent rather than empty: the server reads an empty code as a
+    /// wrong one, and "I have no code" is a different claim.
+    private var submittedTotp: String? {
+        if totpCode.isEmpty { return nil }
+        return totpCode
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -72,7 +79,7 @@ struct SignInView: View {
                             await session.signIn(
                                 address: address,
                                 password: password,
-                                totpCode: totpCode.isEmpty ? nil : totpCode
+                                totpCode: submittedTotp
                             )
                         }
                     } label: {
