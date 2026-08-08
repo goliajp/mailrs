@@ -321,6 +321,9 @@ private struct MessageCard: View {
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
     @State private var bodyHeight: CGFloat = 1
+    /// Per message, and not remembered: consenting to load one
+    /// sender's images is not consent for the next one's.
+    @State private var loadRemote = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -356,12 +359,30 @@ private struct MessageCard: View {
                 .padding(.vertical, 4)
             }
 
+            if let html = message.htmlBody, !html.isEmpty,
+               !loadRemote, RemoteContent.hasRemoteReferences(html: html) {
+                // Said plainly, and only when there is something to
+                // say: fetching a remote image tells the sender the
+                // message was opened, from where and when.
+                Button {
+                    withAnimation { loadRemote = true }
+                } label: {
+                    Label("Load images", systemImage: "photo")
+                        .font(.caption.weight(.medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("load-images")
+            }
+
             if let html = message.htmlBody, !html.isEmpty {
                 // Faded in once measured rather than popping at full
                 // size: until the height resolves the WebView is a
                 // 1pt sliver, and revealing it mid-measure shows a
                 // half-laid-out page.
-                MessageBodyView(html: html, height: $bodyHeight)
+                MessageBodyView(html: html, height: $bodyHeight, blockRemote: !loadRemote)
                     .frame(height: bodyHeight)
                     // Mail that keeps its own white paper would
                     // otherwise put square corners inside a rounded

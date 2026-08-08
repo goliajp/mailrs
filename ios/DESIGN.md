@@ -114,6 +114,17 @@ context line: how many messages, and who wrote them (me excluded, the
 row-face rule again). The nav title is now empty; the back button
 already says which list you came from.
 
+## Remote content waits to be asked
+
+Fetching a remote image tells the sender the message was opened, from
+which address and when — a logo and a 1×1 beacon report identically.
+So http and https subresources are refused until the reader taps
+*Load images*, per message, never remembered: consenting to one
+sender's images is not consent for the next one's. The refusal is a
+content rule list, not attribute rewriting, because the pixel that
+does not want to be found hides in a CSS background. Images the
+message carries itself (`data:`, `cid:`) always render.
+
 ## Triage from inside the thread
 
 Star, Archive and Delete live in the thread's bottom bar — Apple

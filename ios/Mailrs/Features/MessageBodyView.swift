@@ -13,6 +13,8 @@ import WebKit
 struct MessageBodyView: UIViewRepresentable {
     let html: String
     @Binding var height: CGFloat
+    /// Remote subresources are refused until the reader asks for them.
+    var blockRemote: Bool = true
     @Environment(\.colorScheme) private var colorScheme
 
     /// Dark paper only for mail that declares no colours of its own —
@@ -45,14 +47,31 @@ struct MessageBodyView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        // The scheme is part of what was loaded: switching appearance
-        // with the thread open has to repaint, and comparing only the
-        // HTML left the old paper in place.
+        // Every input that changes what is painted: the mail, the
+        // appearance, and whether the reader has asked for the remote
+        // half of it.
         guard context.coordinator.loadedHTML != html
-                || context.coordinator.loadedDark != dark else { return }
+                || context.coordinator.loadedDark != dark
+                || context.coordinator.loadedBlocked != blockRemote else { return }
         context.coordinator.loadedHTML = html
         context.coordinator.loadedDark = dark
-        webView.loadHTMLString(Self.document(for: html, dark: dark), baseURL: nil)
+        context.coordinator.loadedBlocked = blockRemote
+        let document = Self.document(for: html, dark: dark)
+        guard blockRemote else {
+            webView.configuration.userContentController.removeAllContentRuleLists()
+            webView.loadHTMLString(document, baseURL: nil)
+            return
+        }
+        // Compiled before the load, never after: a rule list installed
+        // once the page is up arrives after the beacon has already
+        // fired, which is the whole thing this prevents.
+        Task { @MainActor in
+            if let rules = await RemoteBlock.rules() {
+                webView.configuration.userContentController.removeAllContentRuleLists()
+                webView.configuration.userContentController.add(rules)
+            }
+            webView.loadHTMLString(document, baseURL: nil)
+        }
     }
 
     /// The message wrapped in a document that pins the things email
@@ -95,6 +114,7 @@ struct MessageBodyView: UIViewRepresentable {
         private let parent: MessageBodyView
         var loadedHTML: String?
         var loadedDark = false
+        var loadedBlocked = true
 
         init(_ parent: MessageBodyView) {
             self.parent = parent
@@ -142,5 +162,36 @@ struct MessageBodyView: UIViewRepresentable {
             }
             decisionHandler(.allow)
         }
+    }
+}
+
+/// The content-blocking rule the message bodies load under.
+///
+/// A rule list rather than rewriting `src` attributes: it refuses at
+/// the network layer, so it also covers the pixel hiding in a CSS
+/// background — which attribute rewriting misses, and which is where
+/// a sender puts one that does not want to be found. Only http and
+/// https are refused, so `data:` images the message carries itself
+/// still render.
+@MainActor
+enum RemoteBlock {
+    private static let source = """
+    [{"trigger":{"url-filter":"^https?://",
+      "resource-type":["image","style-sheet","font","media","raw","script","svg-document"]},
+      "action":{"type":"block"}}]
+    """
+
+    /// Compiled once — the compile is a disk-backed operation, and a
+    /// per-message one would put it between the open and the paint.
+    private static var compiled: WKContentRuleList?
+
+    static func rules() async -> WKContentRuleList? {
+        if let compiled { return compiled }
+        let store = WKContentRuleListStore.default()
+        let list = try? await store?.compileContentRuleList(
+            forIdentifier: "mailrs-block-remote", encodedContentRuleList: source
+        )
+        compiled = list
+        return list
     }
 }

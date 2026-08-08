@@ -312,6 +312,39 @@ final class SignInFlowTests: XCTestCase {
     /// is none on the wire — so a row that opened the wrong file would
     /// show the wrong preview rather than fail. Tapping the second one
     /// is the check that counting is what the UI does.
+    /// Remote images wait to be asked for.
+    ///
+    /// Fetching one tells the sender the message was opened, from
+    /// which address and when — so the newsletter's tracking pixel
+    /// must not fire on open. The banner is the affordance; tapping it
+    /// is consent for that message only.
+    func testRemoteImagesWaitForConsent() {
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+
+        // The newsletter is the folded one; its remote pixel lives in
+        // the body the fold hides.
+        let folded = app.buttons["collapsed-1"]
+        XCTAssertTrue(folded.waitForExistence(timeout: 10), "older message not folded")
+        folded.tap()
+
+        let banner = app.buttons["load-images"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 10),
+                      "a message with a remote pixel loaded it without asking")
+
+        banner.tap()
+        XCTAssertTrue(banner.waitForNonExistence(timeout: 5),
+                      "the banner outlived the consent")
+        // The reply has nothing remote in it and must not be wearing a
+        // banner of its own.
+        XCTAssertEqual(app.buttons.matching(identifier: "load-images").count, 0,
+                       "a local message asked to load images")
+    }
+
     /// Triage without leaving the thread.
     ///
     /// Archiving from inside has to do both halves: reach the server,
