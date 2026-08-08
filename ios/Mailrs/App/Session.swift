@@ -186,6 +186,31 @@ final class Session {
         }
     }
 
+    // MARK: Administration
+
+    func aliases() async throws -> [Wire.Alias] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.aliases()
+    }
+
+    /// The domain travels as its own field because the handler takes
+    /// one, and `alias` is the type this screen creates — `forward` is
+    /// a different feature with different semantics, not a spelling.
+    func addAlias(source: String, target: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.addAlias(Wire.AddAliasRequest(
+            sourceAddress: source,
+            targetAddress: target,
+            domain: AliasRule.domain(of: source),
+            aliasType: "alias"
+        ))
+    }
+
+    func deleteAlias(id: Int64) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.deleteAlias(id: id)
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }

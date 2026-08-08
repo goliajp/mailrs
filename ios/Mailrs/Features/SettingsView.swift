@@ -11,6 +11,7 @@ struct SettingsView: View {
     @Environment(Preferences.self) private var preferences
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @State private var showingAliases = false
 
     /// The zones worth offering by name, plus whatever the phone is
     /// set to. A full tz database picker is a list of 400 strings and
@@ -62,6 +63,14 @@ struct SettingsView: View {
                     Text("Times on messages are shown in this zone.")
                 }
 
+                Section("Administration") {
+                    Button {
+                        showingAliases = true
+                    } label: {
+                        Label("Aliases", systemImage: "arrow.triangle.branch")
+                    }
+                }
+
                 Section {
                     Button(role: .destructive) {
                         session.signOut()
@@ -71,6 +80,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingAliases) { AliasesView() }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

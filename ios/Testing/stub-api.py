@@ -109,6 +109,16 @@ FETCHED = []
 # Bodies POSTed to /api/mail/send, exposed at `/debug/sent`. A new
 # message and a reply differ only in two fields nothing on screen shows,
 # so the test reads them here rather than guessing from the UI.
+# Aliases, in the `{items: [...]}` envelope the admin endpoint uses —
+# deliberately unlike /api/conversations, which is a bare array.
+ALIASES = [
+    {"id": 1, "source_address": "sales@golia.jp", "target_address": "lihao@golia.jp",
+     "domain": "golia.jp", "alias_type": "alias", "active": True, "created_at": 1754400000},
+    {"id": 2, "source_address": "info@golia.ai", "target_address": "lihao@golia.jp",
+     "domain": "golia.ai", "alias_type": "alias", "active": False, "created_at": 1754400001},
+]
+ALIAS_COUNTER = [2]
+
 SENT = []
 
 # Every q= the contacts endpoint has answered, for debounce assertions.
@@ -239,6 +249,9 @@ class H(BaseHTTPRequestHandler):
                  "internal_date": 1754370000},
             ])
             return
+        if self.path.split("?")[0] == "/api/admin/aliases":
+            self._send({"items": ALIASES})
+            return
         if self.path.split("?")[0] == "/api/contacts":
             # Same shape as get_contacts: bare array of "Name <email>",
             # substring match on either half, case-insensitive.
@@ -349,6 +362,14 @@ class H(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         WRITES.append("DELETE " + self.path.split("?")[0])
+        alias = re.match(r"^/api/admin/aliases/(\d+)$", self.path.split("?")[0])
+        if alias:
+            wanted = int(alias.group(1))
+            ALIASES[:] = [a for a in ALIASES if a["id"] != wanted]
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         draft = re.match(r"^/api/mail/drafts/(\d+)$", self.path.split("?")[0])
         if draft:
             DRAFTS.pop(int(draft.group(1)), None)
@@ -392,6 +413,15 @@ class H(BaseHTTPRequestHandler):
             LIST_FETCHES[0] = 0
             LIST_DELAY_MS[0] = 0
             CONTACT_QUERIES.clear()
+            ALIASES[:] = [
+                {"id": 1, "source_address": "sales@golia.jp",
+                 "target_address": "lihao@golia.jp", "domain": "golia.jp",
+                 "alias_type": "alias", "active": True, "created_at": 1754400000},
+                {"id": 2, "source_address": "info@golia.ai",
+                 "target_address": "lihao@golia.jp", "domain": "golia.ai",
+                 "alias_type": "alias", "active": False, "created_at": 1754400001},
+            ]
+            ALIAS_COUNTER[0] = 2
             self._send({"ok": True})
             return
         if re.match(
@@ -425,6 +455,19 @@ class H(BaseHTTPRequestHandler):
                 "created_at": now, "updated_at": now,
             }
             self._send({"id": draft_id})
+        elif self.path.split("?")[0] == "/api/admin/aliases":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            ALIAS_COUNTER[0] += 1
+            ALIASES.append({
+                "id": ALIAS_COUNTER[0],
+                "source_address": body.get("source_address", ""),
+                "target_address": body.get("target_address", ""),
+                "domain": body.get("domain", ""),
+                "alias_type": body.get("alias_type", ""),
+                "active": True, "created_at": 1754400002,
+            })
+            self._send({"id": ALIAS_COUNTER[0]})
         elif self.path.split("?")[0] == "/api/mail/send-multipart":
             # Parsed with the stdlib email machinery: prepend the real
             # Content-Type header and the form body is a MIME multipart.
