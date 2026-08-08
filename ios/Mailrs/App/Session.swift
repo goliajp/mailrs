@@ -682,9 +682,23 @@ final class Session {
         initialLoading = false
     }
 
+    /// Why the last load failed, if it did.
+    ///
+    /// `(try? …) ?? []` said "you have no drafts" when the server had
+    /// said nothing at all — the one swallowed error in this file that
+    /// the reader would have believed, because an empty draft list is
+    /// perfectly ordinary. A failure now keeps the previous drafts and
+    /// says so.
+    private(set) var draftsFailure: String?
+
     func loadDrafts() async {
         guard let client else { return }
-        drafts = (try? await client.drafts()) ?? []
+        do {
+            drafts = try await client.drafts()
+            draftsFailure = nil
+        } catch {
+            draftsFailure = error.localizedDescription
+        }
     }
 
     /// Save a compose session, returning the id the server gave it.

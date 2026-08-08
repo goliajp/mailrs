@@ -106,6 +106,35 @@ empty, which the reader can see; the line under it says where drafts
 come from, which they cannot. Every absence that is not
 self-evident carries one.
 
+And a conclusion waits for its evidence. Every list is
+`loading → failed → empty → content`, in that order, because "No
+drafts" printed while the request is still out is a claim nobody made.
+Drafts was written after the mail lists and inherited none of it: it
+announced an empty list on open and then filled in underneath itself.
+
+The failure branch needs the failure to survive the load, which is why
+`(try? await client.drafts()) ?? []` had to go. Of the seven swallowed
+errors in `Session`, that was the one the reader would have believed —
+an empty draft list is perfectly ordinary, so the lie was plausible.
+The others are honest: a missing brand icon *is* absence, and a delete
+that fails leaves the row visibly there.
+
+One swallowed error is left, knowingly: the save that runs as the
+composer closes. If it fails there is no composer left to say so, and
+"Cancel is not discard" quietly stops being true. Making that honest
+means holding the text locally and retrying — an outbox, which is a
+feature and not a polish, so it is written down here rather than
+invented in passing.
+
+## Deletion asks in proportion to what is lost
+
+Deleting an alias asks, and an alias takes five seconds to retype.
+Deleting a draft — unrecoverable prose — asked nothing, because
+`onDelete` is one gesture away and nobody looked at the two side by
+side. Conversations get an undo instead, which is the same protection
+by a different route; drafts, inside a sheet with nowhere to put a
+snackbar, get the named alert everything else uses.
+
 ## Every field is named
 
 Including the largest one. SwiftUI's `TextEditor` has no placeholder,
@@ -170,6 +199,52 @@ changes a decision: today → time, yesterday → "Yesterday", this week →
 weekday, this year → month + day, older → date with year. "Aug 5" on
 today's mail hides exactly the freshness that decides open-now versus
 later. Pure classifier, unit-tested; formatting stays locale-native.
+
+Three forms, because there are three kinds of fact, and one view
+(`RowDateText`) so no surface can pick its own:
+
+- **ladder** — a row being *scanned*. Drops whatever position in the
+  list already implies.
+- **stamp** — one row being *read on purpose*: an opened message, an
+  audit entry. Absolute, and the year is not optional. `Aug 8, 20:17`
+  is the same string for this year and for four years ago.
+- **day** — a *window* rather than a moment. A DMARC report covers a
+  reporting period, so a clock on it would print a precision the fact
+  does not have.
+
+The ladder was written for the conversation list and used there alone:
+the thread's message rows, the sent list, the report list and the audit
+log each printed their own `.month().day()`. A message from ten minutes
+ago read `20:17` in the list and `8/8` in the thread it belongs to —
+the same fact, two answers, and the less useful one on the screen you
+opened to read it.
+
+All three are read in the reader's calendar — the system's, with the
+chosen zone and language grafted on. Those are separate environment
+keys, so a row that reads one and not the other disagrees with itself.
+`Calendar.reader` assembles it once and the view does the reading, so a
+caller cannot forget.
+
+## A status word that repeats the screen's title is not information
+
+The queue row said "Waiting", which is what the word *queue* had
+already said, while the wire had carried `next_retry`, `scheduled_at`
+and `created_at` all along. A queue screen answers two questions — how
+long has this been sitting here, when will it move — and neither was on
+it.
+
+Worse, a **scheduled** send and a **stuck** one read identically. One
+is working as intended, the other needs attention, and the operator
+could not tell them apart. Now the first says `Scheduled` in accent and
+`Sends 20:17`; the second says `Retrying` and `Next attempt 20:17`.
+
+A retry time in the *past* is not printed as a promise: "next attempt
+20:17" shown at 21:00 accuses the queue of being broken when it is
+merely busy. That rule is `QueueTiming`, pure and tested, because
+"scheduled" and "overdue" differ only by the clock.
+
+The timing is one line with the attempt count trailing it, so a narrow
+phone truncates the tail instead of wrapping.
 
 ## Gestures (triage without opening)
 

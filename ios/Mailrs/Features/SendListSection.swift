@@ -69,10 +69,7 @@ private struct SendRowView: View {
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 Spacer()
-                Text(Date(timeIntervalSince1970: TimeInterval(row.date)),
-                     format: .dateTime.month().day())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                RowDateText(epochSeconds: row.date)
             }
             HStack(spacing: 6) {
                 ValueOrPlaceholder(value: row.subject, placeholder: "(no subject)")
