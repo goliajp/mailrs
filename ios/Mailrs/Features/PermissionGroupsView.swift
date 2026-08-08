@@ -26,7 +26,10 @@ struct PermissionGroupsView: View {
                                            systemImage: "exclamationmark.triangle",
                                            description: Text(failure))
                 } else if groups.isEmpty {
-                    ContentUnavailableView("No groups", systemImage: "lock.shield")
+                    ContentUnavailableView(
+                        "No groups", systemImage: "lock.shield",
+                        description: Text("A group grants its members the permissions you tick.")
+                    )
                 } else {
                     List(groups) { group in
                         NavigationLink {

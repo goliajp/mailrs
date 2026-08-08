@@ -39,7 +39,10 @@ struct AliasesView: View {
                                            systemImage: "exclamationmark.triangle",
                                            description: Text(failure))
                 } else if aliases.isEmpty {
-                    ContentUnavailableView("No aliases", systemImage: "arrow.triangle.branch")
+                    ContentUnavailableView(
+                        "No aliases", systemImage: "arrow.triangle.branch",
+                        description: Text("An alias delivers one address to another.")
+                    )
                 } else {
                     List {
                         ForEach(byDomain, id: \.domain) { group in

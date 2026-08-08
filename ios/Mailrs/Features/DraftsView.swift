@@ -14,7 +14,10 @@ struct DraftsView: View {
         NavigationStack {
             Group {
                 if session.drafts.isEmpty {
-                    ContentUnavailableView("No drafts", systemImage: "doc.text")
+                    ContentUnavailableView(
+                        "No drafts", systemImage: "doc.text",
+                        description: Text("A message you close without sending is kept here.")
+                    )
                 } else {
                     List {
                         ForEach(session.drafts) { draft in

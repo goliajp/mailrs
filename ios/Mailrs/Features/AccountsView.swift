@@ -37,7 +37,10 @@ struct AccountsView: View {
                                            systemImage: "exclamationmark.triangle",
                                            description: Text(failure))
                 } else if accounts.isEmpty {
-                    ContentUnavailableView("No accounts", systemImage: "person.2")
+                    ContentUnavailableView(
+                        "No accounts", systemImage: "person.2",
+                        description: Text("Accounts are the mailboxes this server hosts.")
+                    )
                 } else {
                     List {
                         ForEach(byDomain, id: \.domain) { group in

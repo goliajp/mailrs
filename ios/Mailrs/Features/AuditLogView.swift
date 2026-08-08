@@ -32,7 +32,10 @@ struct AuditLogView: View {
                                            systemImage: "exclamationmark.triangle",
                                            description: Text(failure))
                 } else if rows.isEmpty {
-                    ContentUnavailableView("Nothing recorded", systemImage: "list.bullet.rectangle")
+                    ContentUnavailableView(
+                        "Nothing recorded", systemImage: "list.bullet.rectangle",
+                        description: Text("Administrative changes appear here as they happen.")
+                    )
                 } else {
                     List(rows) { row in
                         AuditRowView(row: row)
@@ -43,10 +46,10 @@ struct AuditLogView: View {
             .navigationTitle("Audit log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker("Filter", selection: $filter) {
                             Text("All").tag("")

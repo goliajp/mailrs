@@ -25,7 +25,10 @@ struct EmailGroupsView: View {
                                            systemImage: "exclamationmark.triangle",
                                            description: Text(failure))
                 } else if groups.isEmpty {
-                    ContentUnavailableView("No groups", systemImage: "person.3")
+                    ContentUnavailableView(
+                        "No groups", systemImage: "person.3",
+                        description: Text("A group delivers one address to several people.")
+                    )
                 } else {
                     List(groups) { group in
                         NavigationLink {
