@@ -306,6 +306,11 @@ final class Session {
         return try await client.dmarcSources()
     }
 
+    func auditLog(actionPrefix: String?) async throws -> [Wire.AuditRow] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.auditLog(actionPrefix: actionPrefix)
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }

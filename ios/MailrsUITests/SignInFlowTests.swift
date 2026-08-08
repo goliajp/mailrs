@@ -467,6 +467,39 @@ final class SignInFlowTests: XCTestCase {
                       "the compose button stayed English")
     }
 
+    /// The audit log shows what was done, and filters by family.
+    ///
+    /// The bare action is the shape worth pinning: the server writes
+    /// `login` with no dot, and a client that assumed one would show
+    /// an empty verb next to a family that is the whole string. The
+    /// filter is asserted through the wire — it is a prefix the server
+    /// applies over a wider scan, so filtering locally would return
+    /// fewer rows than asking for them does.
+    func testAuditLogListsAndFiltersByFamily() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        scrollTo(app, button: "Audit log")
+        app.buttons["Audit log"].tap()
+
+        XCTAssertTrue(app.staticTexts["old@golia.jp"].waitForExistence(timeout: 10),
+                      "the audit log never decoded")
+        XCTAssertTrue(app.staticTexts["login"].exists,
+                      "an action with no dot lost its verb")
+
+        app.buttons["Filter"].tap()
+        app.buttons["alias"].tap()
+
+        XCTAssertTrue(app.staticTexts["sales@golia.jp"].waitForExistence(timeout: 10),
+                      "the filtered list never came back")
+        XCTAssertFalse(app.staticTexts["login"].exists,
+                       "the family filter did not narrow the list")
+    }
+
     /// DMARC reads as deliverability, not as a security score.
     ///
     /// The rate is the assertion, and it is asserted to one decimal:

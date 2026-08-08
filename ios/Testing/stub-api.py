@@ -132,6 +132,18 @@ QUEUE = [
 ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# The audit log, with a bare action among the dotted ones — the server
+# is free to write one, and a client that assumed a dot would show an
+# empty verb.
+AUDIT = [
+    {"id": 3, "timestamp": 1754400200, "actor": "me@golia.jp",
+     "action": "alias.delete", "target": "old@golia.jp", "detail": "-> lihao@golia.jp"},
+    {"id": 2, "timestamp": 1754400100, "actor": "me@golia.jp",
+     "action": "alias.create", "target": "sales@golia.jp", "detail": "-> lihao@golia.jp"},
+    {"id": 1, "timestamp": 1754400000, "actor": "me@golia.jp",
+     "action": "login", "target": "me@golia.jp", "detail": ""},
+]
+
 # DMARC as the handlers answer it. The rollup carries the window's own
 # totals rather than leaving the client to add up the rows — and one
 # source deliberately loses mail, because a screen where everything
@@ -313,6 +325,15 @@ class H(BaseHTTPRequestHandler):
             return
         if self.path.split("?")[0] == "/api/admin/email-groups":
             self._send({"items": GROUPS})
+            return
+        if self.path.split("?")[0] == "/api/admin/audit-log":
+            # The server filters by action PREFIX and scans a wider
+            # window when it does; the fixture matches that contract so
+            # a client that filtered locally would look identical here
+            # and differ against the real one.
+            wanted = parse_qs(urlparse(self.path).query).get("action", [""])[0]
+            rows = [r for r in AUDIT if not wanted or r["action"].startswith(wanted)]
+            self._send({"items": rows})
             return
         if self.path.split("?")[0] == "/api/admin/dmarc/reports":
             self._send({"items": DMARC_REPORTS})

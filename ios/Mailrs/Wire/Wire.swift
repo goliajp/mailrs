@@ -464,6 +464,29 @@ enum Wire {
         let reports: Int
     }
 
+    /// Backend: `crates/core-api/src/method/admin/ops.rs` —
+    /// `AuditRowWire`, served by `admin_audit.rs::list_audit_log`.
+    ///
+    /// Every admin write in this app records one of these, which is
+    /// what makes the rest of the administration screens answerable
+    /// afterwards rather than merely done.
+    struct AuditRow: Decodable, Identifiable, Sendable {
+        let id: Int64
+        let timestamp: Int64
+        /// Who did it, as an address.
+        let actor: String
+        /// Dotted, `alias.create` / `account.delete` — the prefix is
+        /// what the server filters on.
+        let action: String
+        /// What it was done to.
+        let target: String
+        let detail: String
+    }
+
+    struct AuditList: Decodable, Sendable {
+        let items: [AuditRow]
+    }
+
     struct AliasList: Decodable, Sendable {
         let items: [Alias]
     }
