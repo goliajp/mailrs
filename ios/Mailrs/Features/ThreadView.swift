@@ -27,9 +27,24 @@ struct ThreadView: View {
             return (nil, nil)
         }
         return (
-            index > 0 ? rows[index - 1] : nil,
-            index + 1 < rows.count ? rows[index + 1] : nil
+            rows[safe: index - 1],
+            rows[safe: index + 1]
         )
+    }
+
+    private var starLabel: LocalizedStringKey {
+        if isStarred { return "Unstar" }
+        return "Star"
+    }
+
+    private var starIcon: String {
+        if isStarred { return "star.fill" }
+        return "star"
+    }
+
+    private var starTint: Color? {
+        if isStarred { return .yellow }
+        return nil
     }
 
     /// The star's state, derived from the list rather than mirrored
@@ -144,12 +159,9 @@ struct ThreadView: View {
                 Button {
                     Task { await session.toggleStarred(starTarget) }
                 } label: {
-                    Label(
-                        isStarred ? "Unstar" : "Star",
-                        systemImage: isStarred ? "star.fill" : "star"
-                    )
+                    Label(starLabel, systemImage: starIcon)
                 }
-                .tint(isStarred ? .yellow : nil)
+                .tint(starTint)
                 Spacer()
                 Button {
                     Task { await session.archive(conversation) }
@@ -283,7 +295,7 @@ private struct ThreadHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
+                ValueOrPlaceholder(value: conversation.subject, placeholder: "(no subject)")
                     .font(.title3.weight(.semibold))
                     // Named so a test can ask this element what it says
                     // rather than asking the screen whether a string is
@@ -363,6 +375,13 @@ private struct MessageCard: View {
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
     @State private var bodyHeight: CGFloat = 1
+
+    /// Zero until the body has been measured — the card grows into its
+    /// height rather than flashing a half-laid-out page.
+    private var measuredOpacity: Double {
+        if bodyHeight > 1 { return 1 }
+        return 0
+    }
     /// Per message, and not remembered: consenting to load one
     /// sender's images is not consent for the next one's.
     @State private var loadRemote = false
@@ -430,7 +449,7 @@ private struct MessageCard: View {
                     // otherwise put square corners inside a rounded
                     // card.
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .opacity(bodyHeight > 1 ? 1 : 0)
+                    .opacity(measuredOpacity)
                     .animation(.easeIn(duration: 0.15), value: bodyHeight > 1)
             } else {
                 Text(message.textBody ?? "")

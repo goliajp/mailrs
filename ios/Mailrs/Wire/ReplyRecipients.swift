@@ -33,8 +33,14 @@ enum ReplyRecipients {
     }
 
     static func subject(_ original: String, forwarding: Bool) -> String {
-        let prefix = forwarding ? "Fwd:" : "Re:"
+        let prefix = prefixFor(forwarding: forwarding)
         if original.lowercased().hasPrefix(prefix.lowercased()) { return original }
-        return original.isEmpty ? prefix : "\(prefix) \(original)"
+        if original.isEmpty { return prefix }
+        return "\(prefix) \(original)"
+    }
+
+    private static func prefixFor(forwarding: Bool) -> String {
+        if forwarding { return "Fwd:" }
+        return "Re:"
     }
 }

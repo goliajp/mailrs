@@ -95,9 +95,8 @@ struct ConversationListView: View {
                                 Task { await session.toggleRead(conversation) }
                             } label: {
                                 Label(
-                                    conversation.unreadCount > 0 ? "Read" : "Unread",
-                                    systemImage: conversation.unreadCount > 0
-                                        ? "envelope.open" : "envelope.badge"
+                                    ReadToggle.label(unread: conversation.unreadCount > 0),
+                                    systemImage: ReadToggle.icon(unread: conversation.unreadCount > 0)
                                 )
                             }
                             .tint(.blue)
@@ -105,8 +104,8 @@ struct ConversationListView: View {
                                 Task { await session.toggleStarred(conversation) }
                             } label: {
                                 Label(
-                                    conversation.flagged ? "Unstar" : "Star",
-                                    systemImage: conversation.flagged ? "star.slash" : "star"
+                                    StarToggle.label(starred: conversation.flagged),
+                                    systemImage: StarToggle.icon(starred: conversation.flagged)
                                 )
                             }
                             .tint(.yellow)
@@ -339,6 +338,21 @@ struct ConversationRow: View {
     /// Read rows recede, the web's `muted`. Unread already carries the
     /// dot and the weight; dimming what is done is what makes a long
     /// list scannable rather than uniformly loud.
+    private var senderWeight: Font.Weight {
+        if conversation.unreadCount > 0 { return .semibold }
+        return .regular
+    }
+
+    private var importanceColor: Color {
+        if conversation.importanceLevel == "critical" { return .red }
+        return .orange
+    }
+
+    private var importanceLabel: LocalizedStringKey {
+        if conversation.importanceLevel == "critical" { return "Critical" }
+        return "Important"
+    }
+
     private var rowOpacity: Double {
         if conversation.unreadCount > 0 { return 1 }
         return 0.7
@@ -396,7 +410,7 @@ struct ConversationRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(sender)
-                        .font(.subheadline.weight(conversation.unreadCount > 0 ? .semibold : .regular))
+                        .font(.subheadline.weight(senderWeight))
                         .lineLimit(1)
                     if extraParticipants > 0 {
                         Text("+\(extraParticipants)")
@@ -407,13 +421,8 @@ struct ConversationRow: View {
                         || conversation.importanceLevel == "important" {
                         Image(systemName: "exclamationmark.circle.fill")
                             .font(.caption2)
-                            .foregroundStyle(
-                                conversation.importanceLevel == "critical" ? .red : .orange
-                            )
-                            .accessibilityLabel(
-                                conversation.importanceLevel == "critical"
-                                    ? "Critical" : "Important"
-                            )
+                            .foregroundStyle(importanceColor)
+                            .accessibilityLabel(importanceLabel)
                     }
                     Spacer(minLength: 4)
                     if let countLabel {
@@ -431,7 +440,7 @@ struct ConversationRow: View {
                         .foregroundStyle(.secondary)
                 }
                 HStack(spacing: 4) {
-                    Text(conversation.subject.isEmpty ? "(no subject)" : conversation.subject)
+                    ValueOrPlaceholder(value: conversation.subject, placeholder: "(no subject)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

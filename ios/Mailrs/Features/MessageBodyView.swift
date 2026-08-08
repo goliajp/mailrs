@@ -84,14 +84,13 @@ struct MessageBodyView: UIViewRepresentable {
     /// app, because for a paragraph and a link the bright rectangle is
     /// the only thing wrong with the screen.
     private static func document(for html: String, dark: Bool) -> String {
-        let scheme = dark ? "dark" : "light"
-        // Transparent when following the app: the card behind is the
-        // paper, so the body and its rounded corners stay one surface.
-        let background = dark ? "transparent" : "#fff"
-        let text = dark ? "#e6e6ea" : "#1a1a1a"
-        let link = dark ? "#6ea8fe" : "#2563eb"
-        let rule = dark ? "#48484a" : "#d4d4d8"
-        let quote = dark ? "#a1a1aa" : "#71717a"
+        let palette = DocumentPalette.of(dark: dark)
+        let scheme = palette.scheme
+        let background = palette.background
+        let text = palette.text
+        let link = palette.link
+        let rule = palette.rule
+        let quote = palette.quote
         return """
         <!doctype html><html><head><meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -193,5 +192,35 @@ enum RemoteBlock {
         )
         compiled = list
         return list
+    }
+}
+
+/// The colours the message document is written with.
+///
+/// One value chosen once rather than six conditionals in a row: the
+/// two sets are two designs, and reading them side by side is how you
+/// see that the dark one is transparent — the card behind it is the
+/// paper, so the body and its rounded corners stay one surface.
+private struct DocumentPalette {
+    let scheme: String
+    let background: String
+    let text: String
+    let link: String
+    let rule: String
+    let quote: String
+
+    static let light = DocumentPalette(
+        scheme: "light", background: "#fff", text: "#1a1a1a",
+        link: "#2563eb", rule: "#d4d4d8", quote: "#71717a"
+    )
+
+    static let dark = DocumentPalette(
+        scheme: "dark", background: "transparent", text: "#e6e6ea",
+        link: "#6ea8fe", rule: "#48484a", quote: "#a1a1aa"
+    )
+
+    static func of(dark: Bool) -> DocumentPalette {
+        if dark { return .dark }
+        return .light
     }
 }

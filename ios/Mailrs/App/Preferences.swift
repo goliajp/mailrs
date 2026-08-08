@@ -54,7 +54,8 @@ final class Preferences {
         }
 
         var locale: Locale? {
-            self == .system ? nil : Locale(identifier: rawValue)
+            guard self != .system else { return nil }
+            return Locale(identifier: rawValue)
         }
     }
 

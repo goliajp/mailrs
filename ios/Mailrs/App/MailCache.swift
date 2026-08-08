@@ -65,6 +65,9 @@ struct MailCache {
     /// trusts its input is a path traversal waiting for the input to
     /// stop being an enum.
     private func sanitized(_ key: String) -> String {
-        String(key.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character($0) : "-" })
+        String(key.unicodeScalars.map { scalar in
+            guard CharacterSet.alphanumerics.contains(scalar) else { return Character("-") }
+            return Character(scalar)
+        })
     }
 }

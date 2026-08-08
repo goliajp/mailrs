@@ -21,6 +21,7 @@ enum DraftRule {
             .first
             .map(String.init)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return firstLine.isEmpty ? "(no subject)" : firstLine
+        if firstLine.isEmpty { return "(no subject)" }
+        return firstLine
     }
 }

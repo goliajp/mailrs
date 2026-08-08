@@ -59,6 +59,7 @@ final class SenderIcons {
         let email = SenderName.extractEmail(sender)
         guard let at = email.lastIndex(of: "@") else { return nil }
         let domain = String(email[email.index(after: at)...])
-        return domain.contains(".") ? domain : nil
+        guard domain.contains(".") else { return nil }
+        return domain
     }
 }

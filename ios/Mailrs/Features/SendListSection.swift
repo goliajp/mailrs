@@ -62,7 +62,7 @@ private struct SendRowView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text(row.to.isEmpty ? "(no recipient)" : displayedTo)
+                ValueOrPlaceholder(value: displayedTo, placeholder: "(no recipient)")
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 Spacer()
@@ -72,7 +72,7 @@ private struct SendRowView: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
-                Text(row.subject.isEmpty ? "(no subject)" : row.subject)
+                ValueOrPlaceholder(value: row.subject, placeholder: "(no subject)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

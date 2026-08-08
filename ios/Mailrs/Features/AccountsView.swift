@@ -20,7 +20,8 @@ struct AccountsView: View {
 
     private var byDomain: [(domain: String, accounts: [Wire.Account])] {
         Dictionary(grouping: accounts) { account in
-            account.domain.isEmpty ? AliasRule.domain(of: account.address) : account.domain
+            guard account.domain.isEmpty else { return account.domain }
+            return AliasRule.domain(of: account.address)
         }
         .map { (domain: $0.key, accounts: $0.value.sorted { $0.address < $1.address }) }
         .sorted { $0.domain < $1.domain }
@@ -181,7 +182,8 @@ private struct AccountRow: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 SenderAvatar(sender: account.address, size: 28)
-                Text(account.displayName.isEmpty ? account.address : account.displayName)
+                ValueOrPlaceholder(value: account.displayName,
+                                   placeholder: "\(account.address)")
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 if !account.active {

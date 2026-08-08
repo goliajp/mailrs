@@ -49,7 +49,8 @@ struct Theme: Equatable, Sendable {
     )
 
     static func of(_ scheme: ColorScheme) -> Theme {
-        scheme == .dark ? .dark : .light
+        if scheme == .dark { return .dark }
+        return .light
     }
 }
 

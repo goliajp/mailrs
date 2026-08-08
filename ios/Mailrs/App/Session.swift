@@ -81,7 +81,8 @@ final class Session {
     }
 
     var visibleConversations: [Wire.Conversation] {
-        searchQuery == nil ? conversations : searchResults
+        if searchQuery == nil { return conversations }
+        return searchResults
     }
     private(set) var needsTotp = false
 
@@ -341,7 +342,15 @@ final class Session {
         guard let client else { return }
         let markRead = conversation.unreadCount > 0
         let previous = conversations
-        withAnimation { patch(conversation.threadId) { $0.unreadCount = markRead ? 0 : max(1, $0.unreadCount) } }
+        withAnimation {
+            patch(conversation.threadId) { row in
+                if markRead {
+                    row.unreadCount = 0
+                    return
+                }
+                row.unreadCount = max(1, row.unreadCount)
+            }
+        }
         do {
             try await client.setRead(threadId: conversation.threadId, markRead)
         } catch {

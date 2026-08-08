@@ -14,6 +14,7 @@ enum SearchRule {
     /// after a word and would otherwise make " a" a two-character query.
     static func query(from text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.count >= minimumLength ? trimmed : nil
+        guard trimmed.count >= minimumLength else { return nil }
+        return trimmed
     }
 }
