@@ -247,6 +247,71 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/core-api/src/method/admin/directory.rs` —
+    /// `AccountWire`. Same `{items: […]}` envelope as the alias list.
+    struct Account: Codable, Equatable, Identifiable, Sendable {
+        let address: String
+        let domain: String
+        let displayName: String
+        let active: Bool
+        let createdAt: Int64
+        let quotaBytes: Int64
+        let recoveryEmail: String?
+
+        var id: String { address }
+
+        enum CodingKeys: String, CodingKey {
+            case address
+            case domain
+            case displayName = "display_name"
+            case active
+            case createdAt = "created_at"
+            case quotaBytes = "quota_bytes"
+            case recoveryEmail = "recovery_email"
+        }
+    }
+
+    struct AccountList: Decodable, Sendable {
+        let items: [Account]
+    }
+
+    /// Backend: `AddAccountRequest`. The password travels in plaintext
+    /// over TLS and the server hashes it with Argon2 — so it is held
+    /// only for the length of the request, never cached, never logged,
+    /// and never written to a draft.
+    struct AddAccountRequest: Encodable, Sendable {
+        let address: String
+        let displayName: String
+        let password: String
+
+        enum CodingKeys: String, CodingKey {
+            case address
+            case displayName = "display_name"
+            case password
+        }
+    }
+
+    /// Backend: `DomainWire`.
+    struct Domain: Codable, Equatable, Identifiable, Sendable {
+        let name: String
+        let createdAt: Int64
+
+        var id: String { name }
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case createdAt = "created_at"
+        }
+    }
+
+    struct DomainList: Decodable, Sendable {
+        let items: [Domain]
+    }
+
+    struct AddDomainRequest: Encodable, Sendable {
+        let name: String
+    }
+
     struct AliasList: Decodable, Sendable {
         let items: [Alias]
     }

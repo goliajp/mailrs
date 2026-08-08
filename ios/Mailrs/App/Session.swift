@@ -211,6 +211,40 @@ final class Session {
         try await client.deleteAlias(id: id)
     }
 
+    func accounts() async throws -> [Wire.Account] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.accounts()
+    }
+
+    /// The password is a parameter and nothing else: it is not stored
+    /// on this object, not logged, and not carried into a retry.
+    func addAccount(address: String, displayName: String, password: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.addAccount(Wire.AddAccountRequest(
+            address: address, displayName: displayName, password: password
+        ))
+    }
+
+    func deleteAccount(address: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.deleteAccount(address: address)
+    }
+
+    func domains() async throws -> [Wire.Domain] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.domains()
+    }
+
+    func addDomain(name: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.addDomain(name: name)
+    }
+
+    func deleteDomain(name: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.deleteDomain(name: name)
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }

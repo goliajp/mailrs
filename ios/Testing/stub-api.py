@@ -21,7 +21,7 @@ import base64
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 WIDE = ('<table width="760" style="width:760px"><tr><td>'
         '<div style="width:760px;background:#eef;padding:8px">'
@@ -118,6 +118,21 @@ ALIASES = [
      "domain": "golia.ai", "alias_type": "alias", "active": False, "created_at": 1754400001},
 ]
 ALIAS_COUNTER = [2]
+
+ACCOUNTS = [
+    {"address": "lihao@golia.jp", "domain": "golia.jp", "display_name": "Li Hao",
+     "active": True, "created_at": 1754400000, "quota_bytes": 5368709120},
+    {"address": "noreply@golia.jp", "domain": "golia.jp", "display_name": "",
+     "active": False, "created_at": 1754400001, "quota_bytes": 0},
+]
+DOMAINS = [
+    {"name": "golia.jp", "created_at": 1754400000},
+    {"name": "golia.ai", "created_at": 1754400001},
+]
+
+# What reached POST /api/admin/accounts: the address, and whether a
+# password came with it — never the password.
+ACCOUNT_POSTS = []
 
 SENT = []
 
@@ -252,6 +267,12 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/admin/aliases":
             self._send({"items": ALIASES})
             return
+        if self.path.split("?")[0] == "/api/admin/accounts":
+            self._send({"items": ACCOUNTS})
+            return
+        if self.path.split("?")[0] == "/api/admin/domains":
+            self._send({"items": DOMAINS})
+            return
         if self.path.split("?")[0] == "/api/contacts":
             # Same shape as get_contacts: bare array of "Name <email>",
             # substring match on either half, case-insensitive.
@@ -282,6 +303,9 @@ class H(BaseHTTPRequestHandler):
             return
         if self.path.split("?")[0] == "/api/mail/drafts":
             self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
+            return
+        if self.path.split("?")[0] == "/debug/account-posts":
+            self._send({"posts": ACCOUNT_POSTS})
             return
         if self.path.split("?")[0] == "/debug/list-fetches":
             self._send({"fetches": LIST_FETCHES[0]})
@@ -362,6 +386,22 @@ class H(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         WRITES.append("DELETE " + self.path.split("?")[0])
+        account = re.match(r"^/api/admin/accounts/(.+)$", self.path.split("?")[0])
+        if account:
+            wanted = unquote(account.group(1))
+            ACCOUNTS[:] = [a for a in ACCOUNTS if a["address"] != wanted]
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        domain = re.match(r"^/api/admin/domains/(.+)$", self.path.split("?")[0])
+        if domain:
+            wanted = unquote(domain.group(1))
+            DOMAINS[:] = [d for d in DOMAINS if d["name"] != wanted]
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         alias = re.match(r"^/api/admin/aliases/(\d+)$", self.path.split("?")[0])
         if alias:
             wanted = int(alias.group(1))
@@ -422,6 +462,19 @@ class H(BaseHTTPRequestHandler):
                  "alias_type": "alias", "active": False, "created_at": 1754400001},
             ]
             ALIAS_COUNTER[0] = 2
+            ACCOUNTS[:] = [
+                {"address": "lihao@golia.jp", "domain": "golia.jp",
+                 "display_name": "Li Hao", "active": True,
+                 "created_at": 1754400000, "quota_bytes": 5368709120},
+                {"address": "noreply@golia.jp", "domain": "golia.jp",
+                 "display_name": "", "active": False,
+                 "created_at": 1754400001, "quota_bytes": 0},
+            ]
+            DOMAINS[:] = [
+                {"name": "golia.jp", "created_at": 1754400000},
+                {"name": "golia.ai", "created_at": 1754400001},
+            ]
+            ACCOUNT_POSTS.clear()
             self._send({"ok": True})
             return
         if re.match(
@@ -455,6 +508,26 @@ class H(BaseHTTPRequestHandler):
                 "created_at": now, "updated_at": now,
             }
             self._send({"id": draft_id})
+        elif self.path.split("?")[0] == "/api/admin/accounts":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            addr = body.get("address", "")
+            ACCOUNTS.append({
+                "address": addr,
+                "domain": addr.split("@")[-1] if "@" in addr else "",
+                "display_name": body.get("display_name", ""),
+                "active": True, "created_at": 1754400002, "quota_bytes": 0,
+            })
+            # The password must reach the server and go no further: the
+            # recorder keeps whether one arrived, never the value.
+            ACCOUNT_POSTS.append({"address": addr,
+                                  "had_password": bool(body.get("password"))})
+            self._send({"ok": True})
+        elif self.path.split("?")[0] == "/api/admin/domains":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            DOMAINS.append({"name": body.get("name", ""), "created_at": 1754400002})
+            self._send({"ok": True})
         elif self.path.split("?")[0] == "/api/admin/aliases":
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length)) if length else {}
