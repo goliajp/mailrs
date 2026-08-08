@@ -69,6 +69,7 @@ struct SVGPathTests {
             ("globe", Lucide.globe), ("lockKeyhole", Lucide.lockKeyhole),
             ("send", Lucide.send), ("shieldCheck", Lucide.shieldCheck),
             ("scrollText", Lucide.scrollText), ("keyRound", Lucide.keyRound),
+            ("scanFace", Lucide.scanFace), ("fingerprint", Lucide.fingerprint),
         ]
         for (name, elements) in icons {
             for element in elements {

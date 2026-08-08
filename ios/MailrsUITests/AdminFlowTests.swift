@@ -189,7 +189,7 @@ final class AdminFlowTests: MailrsUITestCase {
 
         app.buttons["Lists"].tap()
         app.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["Groups"].waitForExistence(timeout: 5), "no groups entry")
+        scrollTo(app, button: "Groups")
         app.buttons["Groups"].tap()
 
         XCTAssertTrue(app.staticTexts["team@golia.jp"].waitForExistence(timeout: 10),
@@ -264,6 +264,7 @@ final class AdminFlowTests: MailrsUITestCase {
 
         app.buttons["Lists"].tap()
         app.buttons["Settings"].tap()
+        scrollTo(app, button: "Domains")
         app.buttons["Domains"].tap()
 
         XCTAssertTrue(app.staticTexts["golia.jp"].waitForExistence(timeout: 10),

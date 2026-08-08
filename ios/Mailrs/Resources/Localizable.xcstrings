@@ -481,6 +481,22 @@
         }
       }
     },
+    "Asked for when the app starts, and when you come back to it after a minute away.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリの起動時と、1 分以上離れてから戻ったときに確認します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动应用时，以及离开一分钟以上再回来时会要求验证。"
+          }
+        }
+      }
+    },
     "Attach": {
       "localizations": {
         "ja": {
@@ -1284,6 +1300,22 @@
     "Mailrs": {
       "shouldTranslate": false
     },
+    "Mailrs is locked": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mailrs はロックされています"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mailrs 已锁定"
+          }
+        }
+      }
+    },
     "Mark as junk": {
       "localizations": {
         "ja": {
@@ -1828,6 +1860,22 @@
         }
       }
     },
+    "Privacy": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プライバシー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私"
+          }
+        }
+      }
+    },
     "Queue": {
       "localizations": {
         "ja": {
@@ -1936,6 +1984,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "报告"
+          }
+        }
+      }
+    },
+    "Require Face ID": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID を要求"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 Face ID"
+          }
+        }
+      }
+    },
+    "Require Optic ID": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optic ID を要求"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 Optic ID"
+          }
+        }
+      }
+    },
+    "Require Touch ID": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID を要求"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 Touch ID"
+          }
+        }
+      }
+    },
+    "Require passcode": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスコードを要求"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要设备密码"
+          }
+        }
+      }
+    },
+    "Require unlocking": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロック解除を要求"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要解锁"
           }
         }
       }
@@ -2436,6 +2564,22 @@
         }
       }
     },
+    "Turn on locking": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロックを有効にします"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启锁定"
+          }
+        }
+      }
+    },
     "Undo": {
       "localizations": {
         "ja": {
@@ -2448,6 +2592,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "撤销"
+          }
+        }
+      }
+    },
+    "Unlock": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロック解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁"
+          }
+        }
+      }
+    },
+    "Unlock your mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールのロックを解除します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁你的邮件"
           }
         }
       }
