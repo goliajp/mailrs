@@ -146,7 +146,13 @@ final class SignInFlowTests: XCTestCase {
         // at 760px — so it has to be scrolled to. The badge is the point
         // of the assertion: a forged From must not borrow the trust of a
         // verified one.
-        let badge = app.staticTexts["Unverified sender"]
+        //
+        // An image, not a text: the badge is a mark now, because the
+        // words wrapped the header onto two lines. Asserting on its
+        // accessibility label is also the check that the words are
+        // still said aloud — a mark with no label would look right and
+        // tell a VoiceOver reader nothing.
+        let badge = app.images["Unverified sender"]
         var swipes = 0
         while !badge.exists && swipes < 8 {
             app.swipeUp()

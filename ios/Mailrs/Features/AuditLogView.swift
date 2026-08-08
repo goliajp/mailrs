@@ -99,8 +99,10 @@ private struct AuditRowView: View {
             HStack(spacing: 6) {
                 Text(verbatim: AuditAction.family(of: row.action))
                     .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
                 Text(verbatim: AuditAction.verb(of: row.action))
                     .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
                     .foregroundStyle(verbColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -119,6 +121,7 @@ private struct AuditRowView: View {
                 Text(verbatim: SenderName.extractName(row.actor))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 if !row.detail.isEmpty {
                     Text(verbatim: "· \(row.detail)")
                         .font(.caption)

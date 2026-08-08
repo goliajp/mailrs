@@ -316,8 +316,10 @@ private struct ThreadHeader: View {
             }
             HStack(spacing: 4) {
                 Text(countLabel)
+                    .layoutPriority(1)
                 if !participants.isEmpty {
                     Text(verbatim: "· \(participants)")
+                        .lineLimit(1)
                 }
             }
             .font(.caption)
@@ -395,8 +397,12 @@ private struct MessageCard: View {
                         Text(SenderName.extractName(message.sender))
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
+                            // The name yields before the date does: a
+                            // truncated name is still a name, and a
+                            // truncated timestamp is nothing.
+                            .layoutPriority(1)
                         SenderTrustBadge(verdict: message.senderTrust)
-                        Spacer()
+                        Spacer(minLength: 4)
                         Text(Date(timeIntervalSince1970: TimeInterval(message.internalDate)),
                              format: .dateTime.month().day().hour().minute())
                             .font(.caption)
@@ -406,6 +412,7 @@ private struct MessageCard: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
             .contentShape(Rectangle())
@@ -476,14 +483,20 @@ private struct SenderTrustBadge: View {
     var body: some View {
         switch verdict {
         case "suspicious":
-            Label("Unverified sender", systemImage: "exclamationmark.shield.fill")
-                .font(.caption2.weight(.semibold))
+            // A mark, not a sentence. "Unverified sender" spelled out
+            // beside a name and a date is two words too many for the
+            // line, and the header wrapped — which reads as a defect
+            // whatever it says. Colour and shape carry it; the words
+            // stay as the accessibility label, where they are read
+            // aloud rather than competing for width.
+            Image(systemName: "exclamationmark.shield.fill")
+                .font(.footnote)
                 .foregroundStyle(.orange)
-                .labelStyle(.titleAndIcon)
+                .accessibilityLabel("Unverified sender")
         case "verified":
             Image(systemName: "checkmark.seal.fill")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(.green)
                 .accessibilityLabel("Verified sender")
         default:
             EmptyView()

@@ -191,6 +191,7 @@ private struct ReportRow: View {
                 Text(verbatim: report.policyDomain)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 // The published policy, because a 100% rate under
                 // `p=none` means nothing was being enforced.
                 Text(verbatim: "p=\(report.p)")
