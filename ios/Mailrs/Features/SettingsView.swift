@@ -45,7 +45,7 @@ struct SettingsView: View {
                     Button {
                         showingKeys = true
                     } label: {
-                        Label("API keys", systemImage: "key")
+                        LucideRow(title: "API keys", icon: Lucide.keyRound)
                     }
                 }
 
@@ -88,27 +88,27 @@ struct SettingsView: View {
                     Button {
                         showingAccounts = true
                     } label: {
-                        Label("Accounts", systemImage: "person.2")
+                        LucideRow(title: "Accounts", icon: Lucide.users)
                     }
                     Button {
                         showingAliases = true
                     } label: {
-                        Label("Aliases", systemImage: "arrow.triangle.branch")
+                        LucideRow(title: "Aliases", icon: Lucide.split)
                     }
                     Button {
                         showingGroups = true
                     } label: {
-                        Label("Groups", systemImage: "person.3")
+                        LucideRow(title: "Groups", icon: Lucide.mails)
                     }
                     Button {
                         showingDomains = true
                     } label: {
-                        Label("Domains", systemImage: "globe")
+                        LucideRow(title: "Domains", icon: Lucide.globe)
                     }
                     Button {
                         showingPermissions = true
                     } label: {
-                        Label("Permissions", systemImage: "lock.shield")
+                        LucideRow(title: "Permissions", icon: Lucide.lockKeyhole)
                     }
                 }
 
@@ -116,17 +116,17 @@ struct SettingsView: View {
                     Button {
                         showingQueue = true
                     } label: {
-                        Label("Queue", systemImage: "tray.and.arrow.up")
+                        LucideRow(title: "Queue", icon: Lucide.send)
                     }
                     Button {
                         showingDmarc = true
                     } label: {
-                        Label("DMARC", systemImage: "checkmark.shield")
+                        LucideRow(title: "DMARC", icon: Lucide.shieldCheck)
                     }
                     Button {
                         showingAudit = true
                     } label: {
-                        Label("Audit log", systemImage: "list.bullet.rectangle")
+                        LucideRow(title: "Audit log", icon: Lucide.scrollText)
                     }
                 }
 
