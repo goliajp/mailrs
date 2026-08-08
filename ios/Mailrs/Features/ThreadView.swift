@@ -387,7 +387,39 @@ private struct MessageCard: View {
     @State private var loadRemote = false
 
     private var files: [(index: Int, attachment: Wire.Attachment)] {
-        MessageContent.listable(message.attachments)
+        MessageContent.listable(message.attachments, inlined: Array(inlineParts.keys.compactMap(indexOfPart)))
+    }
+
+    /// Content-ID → `data:` URI, for the parts the body points at.
+    /// Fetched once per message; empty for the overwhelming majority of
+    /// mail, which references nothing.
+    @State private var inlineParts: [String: String] = [:]
+
+    private func indexOfPart(_ contentId: String) -> Int? {
+        message.attachments.firstIndex {
+            InlineImages.normalise($0.contentId ?? "") == contentId
+        }
+    }
+
+    /// The body as it will be drawn: the message's own pictures folded
+    /// in, nothing fetched from the network.
+    private func resolvedHTML(_ html: String) -> String {
+        InlineImages.inline(html: html, parts: inlineParts)
+    }
+
+    private func loadInlineParts(_ html: String) async {
+        let wanted = InlineImages.referenced(html: html, attachments: message.attachments)
+        guard !wanted.isEmpty else { return }
+        var found: [String: String] = [:]
+        for index in wanted {
+            let part = message.attachments[index]
+            guard let raw = part.contentId else { continue }
+            guard let data = try? await session.attachment(uid: message.uid, index: index) else { continue }
+            found[InlineImages.normalise(raw)] = InlineImages.dataURI(
+                contentType: part.contentType, data: data
+            )
+        }
+        inlineParts = found
     }
 
     /// Two sentences, because "no content" and "no content but here are
@@ -482,7 +514,9 @@ private struct MessageCard: View {
                 // size: until the height resolves the WebView is a
                 // 1pt sliver, and revealing it mid-measure shows a
                 // half-laid-out page.
-                MessageBodyView(html: html, height: $bodyHeight, blockRemote: !loadRemote)
+                MessageBodyView(html: resolvedHTML(html), height: $bodyHeight,
+                                blockRemote: !loadRemote)
+                    .task(id: html) { await loadInlineParts(html) }
                     .frame(height: bodyHeight)
                     // Mail that keeps its own white paper would
                     // otherwise put square corners inside a rounded

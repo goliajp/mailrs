@@ -16,6 +16,7 @@ is a confusing way to be told a dependency is missing.
 """
 
 import json
+import os
 import re
 import base64
 import sys
@@ -314,6 +315,55 @@ ALIAS_THREAD = [dict(msg(5, "Amazon.co.jp <no-reply@mail07.jqjintaiyang.example>
                                   {"filename": "\u8acb\u6c42\u66f8.pdf",
                                    "content_type": "application/pdf", "size": 1234}])]
 
+# Real mail, pointed at rather than committed.
+#
+# `MAILRS_STUB_REAL=<file.json>` loads messages captured from a live
+# mailbox and serves them as extra threads, so the client can be looked
+# at rendering what it will actually be given — 600px marketing tables,
+# CJK newsletters, `cid:` inline images, a 20KB plain-text digest. The
+# file stays out of the repository: fixtures in here are written by
+# hand precisely so that nobody's mail has to live in git.
+REAL_THREADS = []
+REAL_MESSAGES = {}
+
+
+def _load_real():
+    path = os.environ.get("MAILRS_STUB_REAL")
+    if not path or not os.path.exists(path):
+        return
+    with open(path) as fh:
+        blob = json.load(fh)
+    for i, (key, rec) in enumerate(sorted(blob.items())):
+        tid = f"real-{key}"
+        # Through `convo`, not by hand: the wire type requires fields a
+        # hand-written row forgets, and the client refuses the whole
+        # list over one missing `pinned` — which is the correct
+        # behaviour and exactly how this was found.
+        row = convo(tid, rec.get("subject") or f"({key})", key, 1754400000 - i)
+        row["participants"] = [rec.get("sender", "")]
+        REAL_THREADS.append(row)
+        REAL_MESSAGES[tid] = [{
+            "uid": 9000 + i, "sender": rec.get("sender", ""), "sender_trust": "verified",
+            "recipients": "me@golia.jp", "subject": rec.get("subject", ""), "flags": 0,
+            "internal_date": 1754400000 - i, "message_id": f"<{tid}@x>",
+            "text_body": rec.get("text") or "", "html_body": rec.get("html") or "",
+            "attachments": [
+                {"filename": a.get("filename") or "part",
+                 "content_type": a.get("content_type") or "application/octet-stream",
+                 "size": a.get("size") or 0, "content_id": a.get("content_id")}
+                for a in rec.get("attachments", [])
+            ],
+            "category": "inbox", "risk_score": 0, "risk_reason": "", "summary": "",
+            "people": {}, "dates": {}, "amounts": {}, "action_items": [],
+            "ai_analyzed": False, "importance_level": "normal", "importance_score": 0.1,
+            "is_bulk_sender": False, "has_tracking_pixel": False,
+            "requires_action": False, "sender_intent": "",
+        }]
+
+
+_load_real()
+
+
 class H(BaseHTTPRequestHandler):
     def _send(self, obj, status=200):
         body = json.dumps(obj).encode()
@@ -357,6 +407,18 @@ class H(BaseHTTPRequestHandler):
         )
         if attachment:
             index = int(attachment.group(2))
+            uid = int(attachment.group(1))
+            # Real messages carry their own part list; serve a valid
+            # image for any of them so `cid:` resolution can be seen.
+            for msgs in REAL_MESSAGES.values():
+                if msgs and msgs[0]["uid"] == uid:
+                    parts = msgs[0]["attachments"]
+                    if index >= len(parts):
+                        self._send({}, 404)
+                        return
+                    meta = parts[index]
+                    self._send_bytes(PIXEL_PNG, meta["content_type"], meta["filename"])
+                    return
             if index >= len(ATTACHMENTS):
                 self._send({}, 404)
                 return
@@ -494,11 +556,16 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/sent":
             self._send({"sent": SENT})
             return
-        if re.match(r"^/api/conversations/t\d+$", self.path.split("?")[0]):
+        _path = self.path.split("?")[0]
+        if re.match(r"^/api/conversations/t\d+$", _path) or _path.rsplit("/", 1)[-1] in REAL_MESSAGES:
             # The delay covers thread bodies too: the offline tests need
             # a window in which only a cache could have painted them.
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
+            tid = _path.rsplit("/", 1)[-1]
+            if tid in REAL_MESSAGES:
+                self._send(REAL_MESSAGES[tid])
+                return
             if self.path.split("?")[0] == "/api/conversations/t2":
                 self._send(ALIAS_THREAD)
                 return
@@ -555,7 +622,9 @@ class H(BaseHTTPRequestHandler):
                 before = query.get("before_ts", [None])[0]
                 self._send(_paged_convos(limit, int(before) if before else None))
             else:
-                self._send(CONVOS)
+                # Real threads first when the door is open, so the mail
+                # under inspection is the first thing on screen.
+                self._send(REAL_THREADS + CONVOS)
         else:
             self._send([], 404)
 

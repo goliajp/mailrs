@@ -308,6 +308,61 @@ heuristic could never have been.
 It also closes a gap: the thread header showed a display name and never
 an address, so `Amazon.co.jp` read as Amazon no matter who sent it.
 
+## The pictures a message brings with it
+
+`multipart/related` mail carries its images and points at them by
+Content-ID. The content-blocking rule refuses `http(s)` and nothing
+serves `cid:`, so every one of these rendered a **broken-image box** —
+and the same bytes were listed a second time as a file to download. One
+real message showed both at once: an empty frame where a logo belongs,
+and `logo.png` sitting above it.
+
+The parts are fetched and folded in as `data:` URIs, and a part the
+body draws is no longer offered as a file. This keeps the promise the
+remote-image block makes — nothing leaves the device — because these
+bytes arrived with the message.
+
+Matching is on the Content-ID with brackets stripped, case-insensitive:
+senders write `<Logo@x>` in the part header and `cid:logo@x` in the
+body about as often as they agree. A part nobody points at stays a
+file; a part that could not be fetched is left as it was, because a
+broken image is what the reader would have seen anyway.
+
+## Looking at real mail
+
+`MAILRS_STUB_REAL=<file.json>` points the stub at messages captured
+from a live mailbox — 700px marketing tables, CJK newsletters, `cid:`
+images, a 20KB text digest — so the client can be *looked at* rendering
+what it will be given. The file never enters the repository; the
+committed fixtures are written by hand precisely so nobody's mail has
+to live in git.
+
+Two things it caught immediately, both mine: a hand-written
+conversation row missing `pinned`, which the client correctly refused
+in full, and a thread route that only matched `t\d+`.
+
+## Two measurements that ended in "do not build it"
+
+**Invisible characters.** A real sender's display name reads
+`アマ\u200cゾンサ\u200bポート` — zero-width joiners inside a brand name,
+a known filter-evasion trick. Across all 31,504 messages: 33 display
+names and 75 subjects. But the domains doing it are *mixed* — Duolingo
+alone accounts for 23, using ZWSP to space emoji — so a mark would fire
+on ordinary mail, and the rule this app already follows says that
+teaches people to ignore it. Not built.
+
+**Filename spoofing.** A right-to-left override turns `fdp.exe` into
+`invoice.pdf` on screen, and Quick Look would open what the bytes
+really are. Across **1,570 real attachment filenames**: zero bidi
+controls, zero zero-width characters, zero executable extensions. The
+three "double extensions" are all `.docx.pdf`, which is a Word document
+exported to PDF. No guard built — measured, absent, and written down so
+the next person does not have to measure it again.
+
+One number from that scan is worth keeping: **425 of 1,570 attachments
+are `.p7s`**. The signature filter is not a 2% tidy-up, it removes
+**27% of every attachment row in the mailbox**.
+
 ## A message with nothing in it says so
 
 Nine messages in the sample have no body — a zip with nothing around
