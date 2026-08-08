@@ -32,6 +32,10 @@ UPDATE=0
 sources() {
     find crates -name '*.rs' ! -path '*/target/*' | sort
     find web/src \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | sort
+    # The iOS app was outside this gate until 2026-08-09, so it grew five
+    # files past the limit while the rest of the repo was held to it. The
+    # rule says every language; the script now looks where the rule does.
+    find ios/Mailrs ios/MailrsTests ios/MailrsUITests -name '*.swift' 2>/dev/null | sort
 }
 
 # Carve-out #1 from rules/common/file-size.md: generated code is exempt,

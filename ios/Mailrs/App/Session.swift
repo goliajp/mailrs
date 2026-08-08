@@ -29,6 +29,7 @@ final class Session {
         case failed(String)
     }
 
+
     /// Where this app points. A simulator reaches the host's localhost
     /// directly, so the local stack works with no extra plumbing; a
     /// device needs the LAN address or the public host instead.
@@ -36,39 +37,56 @@ final class Session {
     /// ask for comes from this one value.
     private(set) var activeList: MailList = .inbox
 
+
     /// Points the list at the stub's paging fixture, which is not one of
     /// the real lists. Not `Self.launchValue(…)`: a stored property
     /// initialiser cannot reference the covariant `Self` of a non-final
     /// class, and the `@Observable` macro expands this into one.
     private let folderOverride: String? = launchValue("-mailrsFolder")
 
+
     var axes: MailListAxes {
         if let folderOverride { return MailListAxes(folder: folderOverride) }
         return activeList.axes
     }
 
+
     /// A launch argument overrides it, which is how the UI tests point
     /// the app at a stub instead of a live server. Inert in normal use —
     /// nothing passes this flag but a test runner.
     var baseURL: URL = launchValue("-mailrsBaseURL").flatMap(URL.init(string:))
+
         ?? URL(string: "https://mail.golia.ai")!
-    private(set) var state: State = .signedOut
-    private(set) var conversations: [Wire.Conversation] = []
+    var state: State = .signedOut
+
+    // `private(set)` would make the *setter* file-private, and these
+    // are written from Session+Compose / +Directory, which are the
+    // same type in another file. Swift has no "settable within the
+    // type" — so the compiler no longer forbids a view assigning
+    // these, and nothing does.
+    var conversations: [Wire.Conversation] = []
+
     /// Whether the server has any older threads left.
-    private(set) var reachedEnd = false
-    private(set) var loadingMore = false
+    var reachedEnd = false
+
+    var loadingMore = false
+
     /// True from asking for a list until its first page answers.
     ///
     /// Its whole purpose is the empty state: without it, "All caught up"
     /// flashes on every cold open and every list switch while the first
     /// page is still in flight — an empty mailbox announced about a full
     /// one. Apple Mail never shows the empty state until it knows.
-    private(set) var initialLoading = false
+    var initialLoading = false
+
     /// Last-known rows on disk; every successful fetch overwrites.
-    private let cache = MailCache.bootstrap()
+    let cache = MailCache.bootstrap()
+
     /// The query the visible rows answer, or nil when they are the list.
-    private(set) var searchQuery: String?
-    private(set) var searchResults: [Wire.Conversation] = []
+    var searchQuery: String?
+
+    var searchResults: [Wire.Conversation] = []
+
 
     /// What the list draws — search results while searching, the mailbox
     /// otherwise. One property so no screen has to know which it is
@@ -80,13 +98,55 @@ final class Session {
         return ""
     }
 
+
     var visibleConversations: [Wire.Conversation] {
         if searchQuery == nil { return conversations }
         return searchResults
     }
-    private(set) var needsTotp = false
 
-    private var client: MailrsClient?
+    var needsTotp = false
+
+
+    // Stored properties cannot live in an extension, so the state the
+    // split subjects act on stays here with the type. Their methods are
+    // in Session+Directory / +Triage / +Compose / +Operations.
+
+
+    var drafts: [Wire.Draft] = []
+
+
+    /// Why the last load failed, if it did.
+    ///
+    /// `(try? …) ?? []` said "you have no drafts" when the server had
+    /// said nothing at all — the one swallowed error in this file that
+    /// the reader would have believed, because an empty draft list is
+    /// perfectly ordinary. A failure now keeps the previous drafts and
+    /// says so.
+    var draftsFailure: String?
+
+    var sendRows: [SendJoin.Row] = []
+
+
+
+    /// The aliases that deliver to the signed-in address.
+    ///
+    /// Held so a thread can say which of my addresses a message actually
+    /// arrived at. Loaded once per session and not refreshed: aliases
+    /// change on the order of never, and a mail app that polls the
+    /// directory is spending someone's battery on it.
+    var myAliases: [Wire.Alias] = []
+
+
+
+    var pendingUndo: PendingUndo?
+
+    var undoDismissTask: Task<Void, Never>?
+
+    // `private(set)`: the moved extensions read it, and Swift's
+    // `private` would hide it from a file that is still this type.
+    // Setting it stays here, with signing in and out.
+    private(set) var client: MailrsClient?
+
 
     /// Sign back in from the Keychain, if a token is there.
     ///
@@ -140,243 +200,13 @@ final class Session {
         }
     }
 
-    func sendReply(
-        to recipients: [String], cc: [String] = [], bcc: [String] = [],
-        subject: String, body: String,
-        inReplyTo: String?, threadId: String,
-        attachments: [MultipartForm.FilePart] = []
-    ) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await sendWithFeedback {
-            if attachments.isEmpty {
-                return try await client.sendReply(
-                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    inReplyTo: inReplyTo, threadId: threadId
-                )
-            }
-            // The multipart route, with both threading fields riding
-            // along — a reply that lost them arrives detached.
-            return try await client.sendMultipart(
-                to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                attachments: attachments,
-                inReplyTo: inReplyTo, replyToThreadId: threadId
-            )
-        }
-    }
-
-    func sendForward(
-        to recipients: [String], cc: [String] = [], bcc: [String] = [],
-        subject: String, body: String,
-        forwardMessageId: String, forwardAttachmentsFrom: UInt32?,
-        attachments: [MultipartForm.FilePart] = []
-    ) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await sendWithFeedback {
-            if attachments.isEmpty {
-                return try await client.sendForward(
-                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    forwardMessageId: forwardMessageId,
-                    forwardAttachmentsFrom: forwardAttachmentsFrom
-                )
-            }
-            // The server appends the original and EXTENDS the file
-            // list (inline_forward_content), so the added files and
-            // the forwarded ones coexist.
-            return try await client.sendMultipart(
-                to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                attachments: attachments,
-                forwardMessageId: forwardMessageId,
-                forwardAttachmentsFrom: forwardAttachmentsFrom
-            )
-        }
-    }
-
-    // MARK: Administration
-
-    func aliases() async throws -> [Wire.Alias] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.aliases()
-    }
-
-    /// The aliases that deliver to the signed-in address.
-    ///
-    /// Held so a thread can say which of my addresses a message actually
-    /// arrived at. Loaded once per session and not refreshed: aliases
-    /// change on the order of never, and a mail app that polls the
-    /// directory is spending someone's battery on it.
-    private(set) var myAliases: [Wire.Alias] = []
-
-    func loadMyAliases() async {
-        guard myAliases.isEmpty, let client else { return }
-        // Swallowed on purpose, and the only swallow in this file with a
-        // defensible silence: the endpoint is admin-adjacent, a user
-        // without the permission gets a 403, and the honest consequence
-        // is no marks — not an error banner about the directory on top
-        // of somebody's mail.
-        let all = (try? await client.aliases()) ?? []
-        let mine = myAddress
-        myAliases = all.filter { $0.targetAddress.lowercased() == mine }
-    }
-
-    /// The domain travels as its own field because the handler takes
-    /// one, and `alias` is the type this screen creates — `forward` is
-    /// a different feature with different semantics, not a spelling.
-    func addAlias(source: String, target: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.addAlias(Wire.AddAliasRequest(
-            sourceAddress: source,
-            targetAddress: target,
-            domain: AliasRule.domain(of: source),
-            aliasType: "alias"
-        ))
-    }
-
-    func deleteAlias(id: Int64) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteAlias(id: id)
-    }
-
-    func accounts() async throws -> [Wire.Account] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.accounts()
-    }
-
-    /// The password is a parameter and nothing else: it is not stored
-    /// on this object, not logged, and not carried into a retry.
-    func addAccount(address: String, displayName: String, password: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.addAccount(Wire.AddAccountRequest(
-            address: address, displayName: displayName, password: password
-        ))
-    }
-
-    func deleteAccount(address: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteAccount(address: address)
-    }
-
-    func domains() async throws -> [Wire.Domain] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.domains()
-    }
-
-    func addDomain(name: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.addDomain(name: name)
-    }
-
-    func deleteDomain(name: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteDomain(name: name)
-    }
-
-    func emailGroups() async throws -> [Wire.EmailGroup] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.emailGroups()
-    }
-
-    func createEmailGroup(address: String, name: String, description: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.createEmailGroup(Wire.CreateEmailGroupRequest(
-            address: address,
-            domain: AliasRule.domain(of: address),
-            name: name,
-            description: description
-        ))
-    }
-
-    func deleteEmailGroup(id: Int64) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteEmailGroup(id: id)
-    }
-
-    func emailGroupMembers(id: Int64) async throws -> [String] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.emailGroupMembers(id: id)
-    }
-
-    func addEmailGroupMember(id: Int64, address: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.addEmailGroupMember(id: id, address: address)
-    }
-
-    func removeEmailGroupMember(id: Int64, address: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.removeEmailGroupMember(id: id, address: address)
-    }
-
-    func queue() async throws -> [Wire.QueueJob] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.queue()
-    }
-
-    func suppressions() async throws -> [String] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.suppressions()
-    }
-
-    func clearSuppressions() async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.clearSuppressions()
-    }
-
-    func dmarcReports() async throws -> [Wire.DmarcReport] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.dmarcReports()
-    }
-
-    func dmarcSources() async throws -> Wire.DmarcSourceList {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.dmarcSources()
-    }
-
-    func auditLog(actionPrefix: String?) async throws -> [Wire.AuditRow] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.auditLog(actionPrefix: actionPrefix)
-    }
-
-    func permissionGroups() async throws -> [Wire.PermissionGroup] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.permissionGroups()
-    }
-
-    func createPermissionGroup(name: String, domain: String?, description: String) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.createPermissionGroup(
-            Wire.AddGroupRequest(name: name, domain: domain, description: description)
-        )
-    }
-
-    func deletePermissionGroup(id: Int64) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.deletePermissionGroup(id: id)
-    }
-
-    func permissionCatalogue() async throws -> [String] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.permissionCatalogue()
-    }
-
-    func groupPermissions(id: Int64) async throws -> [String] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.groupPermissions(id: id)
-    }
-
-    func setGroupPermissions(id: Int64, permissions: [String]) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.setGroupPermissions(id: id, permissions: permissions)
-    }
-
-    func groupMembers(id: Int64) async throws -> [String] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.groupMembers(id: id)
-    }
 
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }
         return try? await client.icon(domain: domain)
     }
+
 
     /// Contact suggestions for a To field. Failures answer as no
     /// suggestions — autocomplete is an offer, not a feature that may
@@ -386,384 +216,12 @@ final class Session {
         return (try? await client.contacts(matching: query)) ?? []
     }
 
-    /// The physical answer to Send. The sheet dismissing says it too,
-    /// but the thumb is on the button and the eyes may not be — Gmail
-    /// and Apple Mail both confirm a send through the hand. Failure taps
-    /// differently *before* the error text appears, for the same reason.
-    private func sendWithFeedback(_ send: () async throws -> some Sendable) async throws {
-        do {
-            _ = try await send()
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        } catch {
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
-            throw error
-        }
-    }
-
-    /// A thread is read because someone is reading it.
-    ///
-    /// Called by the thread view once its messages are on screen — not
-    /// by the list, and not on selection. The web client learned that
-    /// distinction the hard way: a hidden pane auto-opening the newest
-    /// thread marked mail read that had never been displayed. Here the
-    /// view only exists when a person navigated into it, which is what
-    /// makes this safe.
-    func markThreadRead(_ conversation: Wire.Conversation) async {
-        guard conversation.unreadCount > 0, let client else { return }
-        do {
-            try await client.setRead(threadId: conversation.threadId, true)
-            // Patched after the server confirms, and the row is not
-            // re-filtered: in the Unread list the row stays visible
-            // until the next refresh rather than vanishing while you
-            // are standing on it.
-            withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
-            await refreshBadge()
-        } catch {
-            // Still unread is the honest state if the call failed; the
-            // next open retries by construction.
-        }
-    }
-
-    /// Toggle read, and show it immediately.
-    ///
-    /// Optimistic, like archive and unlike delete: both directions are
-    /// reversible by the same gesture, so the worst a failed call costs
-    /// is a row that snaps back.
-    func toggleRead(_ conversation: Wire.Conversation) async {
-        guard let client else { return }
-        let markRead = conversation.unreadCount > 0
-        let previous = conversations
-        withAnimation {
-            patch(conversation.threadId) { row in
-                if markRead {
-                    row.unreadCount = 0
-                    return
-                }
-                row.unreadCount = max(1, row.unreadCount)
-            }
-        }
-        do {
-            try await client.setRead(threadId: conversation.threadId, markRead)
-        } catch {
-            conversations = previous
-            state = .failed(error.localizedDescription)
-        }
-    }
-
-    func toggleStarred(_ conversation: Wire.Conversation) async {
-        guard let client else { return }
-        let starred = !conversation.flagged
-        let previous = conversations
-        withAnimation { patch(conversation.threadId) { $0.flagged = starred } }
-        do {
-            try await client.setStarred(threadId: conversation.threadId, starred)
-        } catch {
-            conversations = previous
-            state = .failed(error.localizedDescription)
-        }
-    }
-
-    /// Replace one row in whichever collection is on screen.
-    ///
-    /// Both, not whichever is showing: a row can be in the list and in
-    /// the search results at once, and patching only the visible one
-    /// leaves the other holding the old value for when the search is
-    /// dismissed.
-    private func patch(_ threadId: String, _ change: (inout Wire.Conversation) -> Void) {
-        if let index = conversations.firstIndex(where: { $0.threadId == threadId }) {
-            change(&conversations[index])
-        }
-        if let index = searchResults.firstIndex(where: { $0.threadId == threadId }) {
-            change(&searchResults[index])
-        }
-    }
-
-    /// Mark junk (or rescue from Junk), and take the row off this list.
-    ///
-    /// Optimistic like archive: the same verb in the other direction
-    /// undoes it, and the worst a failure costs is a row that returns.
-    /// The row leaves whichever list is showing because the verdict
-    /// moves the thread between folders — a spam row lingering in the
-    /// Inbox after being marked is the confusing outcome.
-    /// Put a thread back to unread — the "deal with this later" verdict.
-    ///
-    /// Not `toggleRead`: that reads the row's current count to decide,
-    /// and this is called from a thread that has just been opened, so
-    /// the row already says read. The intent here is one direction, and
-    /// a toggle would silently do nothing.
-    func markUnread(_ conversation: Wire.Conversation) async {
-        guard let client else { return }
-        let previous = conversations
-        withAnimation { patch(conversation.threadId) { $0.unreadCount = max(1, $0.unreadCount) } }
-        do {
-            try await client.setRead(threadId: conversation.threadId, false)
-        } catch {
-            conversations = previous
-            state = .failed(error.localizedDescription)
-        }
-        await refreshBadge()
-    }
-
-    func setJunk(_ conversation: Wire.Conversation, junk: Bool) async {
-        guard let client else { return }
-        let previous = conversations
-        let previousResults = searchResults
-        withAnimation {
-            conversations.removeAll { $0.threadId == conversation.threadId }
-            searchResults.removeAll { $0.threadId == conversation.threadId }
-        }
-        do {
-            try await client.setJunk(threadId: conversation.threadId, junk)
-        } catch {
-            withAnimation {
-                conversations = previous
-                searchResults = previousResults
-            }
-            state = .failed(error.localizedDescription)
-        }
-    }
-
-    /// Archive, and take the row off the list.
-    ///
-    /// Optimistic, because archiving is reversible: if the server refuses
-    /// the row comes back, and the worst case is a row that reappears
-    /// rather than mail that is gone.
-    func archive(_ conversation: Wire.Conversation) async {
-        await archiveAll([conversation])
-    }
-
-    /// Archive a batch, and take the rows off the list.
-    ///
-    /// Optimistic, because archiving is reversible: refused rows come
-    /// back, and the worst case is a row that reappears rather than
-    /// mail that is gone. The whole batch shares one undo slot — the
-    /// toast the single-row swipe gets, with a count on it.
-    func archiveAll(_ selected: [Wire.Conversation]) async {
-        guard let client, !selected.isEmpty else { return }
-        let ids = Set(selected.map(\.threadId))
-        let rows = conversations.enumerated()
-            .filter { ids.contains($0.element.threadId) }
-            .map { UndoableRow(conversation: $0.element, index: $0.offset) }
-        withAnimation { conversations.removeAll { ids.contains($0.threadId) } }
-        // The undo slot opens with the optimistic removal, so the toast
-        // is there the moment the rows leave. Archiving from the
-        // Archived list is the one place undo would un-archive into the
-        // wrong tab, so it stays silent there.
-        if activeList != .archived {
-            offerUndo(rows)
-        }
-        var failed: [UndoableRow] = []
-        for row in rows {
-            do {
-                try await client.archive(threadId: row.conversation.threadId)
-            } catch {
-                failed.append(row)
-            }
-        }
-        if !failed.isEmpty {
-            // The rows the server kept come back; the ones it archived
-            // stay gone. A live undo toast over a half-failed batch
-            // would un-archive rows that were never archived.
-            clearUndo()
-            withAnimation { conversations = Session.reinserted(failed, into: conversations) }
-            state = .failed("archive failed for \(failed.count) of \(rows.count)")
-        }
-    }
-
-    /// Mark a batch read. Rows already read are skipped on the wire —
-    /// the server call exists to change something.
-    func markAllRead(_ selected: [Wire.Conversation]) async {
-        guard let client else { return }
-        for conversation in selected where conversation.unreadCount > 0 {
-            withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
-            do {
-                try await client.setRead(threadId: conversation.threadId, true)
-            } catch {
-                withAnimation {
-                    patch(conversation.threadId) { $0.unreadCount = conversation.unreadCount }
-                }
-                state = .failed(error.localizedDescription)
-            }
-        }
-        await refreshBadge()
-    }
-
-    /// The archive that can still be taken back. A single slot, as in
-    /// Gmail's snackbar: a second archive replaces the first, because a
-    /// stack of undos is a history feature, not a safety net. The slot
-    /// holds a whole batch — one gesture, one undo.
-    struct UndoableRow: Equatable {
-        let conversation: Wire.Conversation
-        let index: Int
-    }
-
-    struct PendingUndo: Equatable {
-        let rows: [UndoableRow]
-    }
-
-    private(set) var pendingUndo: PendingUndo?
-    private var undoDismissTask: Task<Void, Never>?
-
-    /// Visible long enough to read and act, short enough that the list
-    /// is not wearing a permanent banner.
-    static let undoWindow: Duration = .seconds(5)
-
-    private func offerUndo(_ rows: [UndoableRow]) {
-        undoDismissTask?.cancel()
-        withAnimation { pendingUndo = PendingUndo(rows: rows) }
-        let offered = pendingUndo
-        undoDismissTask = Task { [weak self] in
-            try? await Task.sleep(for: Session.undoWindow)
-            guard !Task.isCancelled, let self, self.pendingUndo == offered else { return }
-            withAnimation { self.pendingUndo = nil }
-        }
-    }
-
-    private func clearUndo() {
-        undoDismissTask?.cancel()
-        withAnimation { pendingUndo = nil }
-    }
-
-    /// Rows going back to the exact positions they left. Ascending
-    /// order is what makes the indices mean what they meant: each
-    /// insert restores the coordinate system the next one was recorded
-    /// in.
-    nonisolated static func reinserted(
-        _ rows: [UndoableRow], into list: [Wire.Conversation]
-    ) -> [Wire.Conversation] {
-        var out = list
-        for row in rows.sorted(by: { $0.index < $1.index }) {
-            out.insert(row.conversation, at: min(row.index, out.count))
-        }
-        return out
-    }
-
-    /// Take the archive back: every row returns to the position it
-    /// left, optimistically — unarchiving is as reversible as
-    /// archiving, so the same contract holds in both directions.
-    func undoArchive() async {
-        guard let client, let undo = pendingUndo else { return }
-        clearUndo()
-        withAnimation { conversations = Session.reinserted(undo.rows, into: conversations) }
-        for row in undo.rows {
-            do {
-                try await client.unarchive(threadId: row.conversation.threadId)
-            } catch {
-                withAnimation {
-                    conversations.removeAll { $0.threadId == row.conversation.threadId }
-                }
-                state = .failed(error.localizedDescription)
-            }
-        }
-    }
-
-    /// Delete, and take the row off the list.
-    ///
-    /// Not optimistic. The server unlinks the maildir files, so there is
-    /// nothing to restore and no honest way to put the row back — the
-    /// row goes only once the server says it is gone.
-    func delete(_ conversation: Wire.Conversation) async {
-        guard let client else { return }
-        do {
-            try await client.delete(threadId: conversation.threadId)
-            withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
-        } catch {
-            state = .failed(error.localizedDescription)
-        }
-    }
-
-    /// Delete a batch. Sequential and non-optimistic for the same
-    /// reason the single delete is: rows leave only as the server
-    /// confirms each one is gone.
-    func deleteAll(_ selected: [Wire.Conversation]) async {
-        for conversation in selected {
-            await delete(conversation)
-        }
-    }
-
-    // MARK: Agent keys
-
-    func agentKeys() async throws -> [Wire.AgentKey] {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.agentKeys()
-    }
-
-    func createAgentKey(name: String, scopes: [String]) async throws -> Wire.CreateAgentKeyResponse {
-        guard let client else { throw MailrsError.badCredentials }
-        return try await client.createAgentKey(name: name, scopes: scopes)
-    }
-
-    func deleteAgentKey(id: Int64) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await client.deleteAgentKey(id: id)
-    }
 
     func attachment(uid: UInt32, index: Int) async throws -> Data {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.attachment(uid: uid, index: index)
     }
 
-    private(set) var drafts: [Wire.Draft] = []
-    private(set) var sendRows: [SendJoin.Row] = []
-
-    /// The Send list's rows: both endpoints, joined. Failures are the
-    /// list's whole reason to exist, so a partial fetch does not render
-    /// as an empty "Nothing sent yet".
-    func loadSendRows() async {
-        guard let client else { return }
-        if sendRows.isEmpty { initialLoading = true }
-        do {
-            async let messages = client.sentMessages()
-            async let sends = client.sends()
-            let rows = SendJoin.join(messages: try await messages, sends: try await sends)
-            withAnimation { sendRows = rows }
-        } catch {
-            state = .failed(error.localizedDescription)
-        }
-        initialLoading = false
-    }
-
-    /// Why the last load failed, if it did.
-    ///
-    /// `(try? …) ?? []` said "you have no drafts" when the server had
-    /// said nothing at all — the one swallowed error in this file that
-    /// the reader would have believed, because an empty draft list is
-    /// perfectly ordinary. A failure now keeps the previous drafts and
-    /// says so.
-    private(set) var draftsFailure: String?
-
-    func loadDrafts() async {
-        guard let client else { return }
-        do {
-            drafts = try await client.drafts()
-            draftsFailure = nil
-        } catch {
-            draftsFailure = error.localizedDescription
-        }
-    }
-
-    /// Save a compose session, returning the id the server gave it.
-    ///
-    /// The caller keeps that id and passes it back on the next save, so
-    /// one session upserts one draft. Posting without it on every
-    /// autosave would leave a new draft per tick.
-    func saveDraft(
-        id: Int64?, to: String, cc: String = "", bcc: String = "",
-        subject: String, body: String, replyToThreadId: String?
-    ) async -> Int64? {
-        guard let client else { return nil }
-        let request = Wire.SaveDraftRequest(
-            id: id, to: to, cc: cc, bcc: bcc, subject: subject, body: body,
-            replyToThreadId: replyToThreadId
-        )
-        return try? await client.saveDraft(request)
-    }
-
-    func deleteDraft(id: Int64) async {
-        guard let client else { return }
-        try? await client.deleteDraft(id: id)
-        drafts.removeAll { $0.id == id }
-    }
 
     /// Upload this device's APNs token, so the server can reach it.
     func registerPushToken(_ token: String) async {
@@ -771,31 +229,6 @@ final class Session {
         try? await client.registerPushToken(token)
     }
 
-    /// Send a message that is not a reply.
-    ///
-    /// Both threading fields stay nil. Sending `reply_to_thread_id` here
-    /// would file a new message inside an existing conversation, which
-    /// is the mirror of the bug that made replies arrive unthreaded.
-    func sendNew(
-        to recipients: [String], cc: [String] = [], bcc: [String] = [],
-        subject: String, body: String,
-        attachments: [MultipartForm.FilePart] = []
-    ) async throws {
-        guard let client else { throw MailrsError.badCredentials }
-        try await sendWithFeedback {
-            if attachments.isEmpty {
-                return try await client.sendNew(
-                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body
-                )
-            }
-            // Files ride the multipart route; the JSON route has no
-            // field for them.
-            return try await client.sendMultipart(
-                to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                attachments: attachments
-            )
-        }
-    }
 
     func messages(threadId: String) async throws -> [Wire.Message] {
         guard let client else { throw MailrsError.badCredentials }
@@ -804,11 +237,13 @@ final class Session {
         return fresh
     }
 
+
     /// The last fetch of this thread, from disk — what an opened
     /// conversation shows while (or without) the network answering.
     func cachedMessages(threadId: String) -> [Wire.Message]? {
         cache.readMessages(threadId: threadId)
     }
+
 
     func signIn(address: String, password: String, totpCode: String?) async {
         state = .signingIn
@@ -833,12 +268,14 @@ final class Session {
         }
     }
 
+
     func signOut() {
         TokenStore.clear()
         client = nil
         conversations = []
         state = .signedOut
     }
+
 
     func loadConversations() async {
         // Send is not served by /api/conversations; asking it with empty
@@ -874,6 +311,7 @@ final class Session {
         await refreshBadge()
     }
 
+
     /// What a return to the app asks for.
     ///
     /// The list as it stands now, plus the badge. Not while a search is
@@ -885,6 +323,7 @@ final class Session {
         await loadConversations()
     }
 
+
     /// The icon's number, refreshed wherever the mailbox may have moved:
     /// after a list load, after marking read, after a delete. Server
     /// count, because the client only ever holds one page of one list.
@@ -894,6 +333,7 @@ final class Session {
             AppBadge.update(count)
         }
     }
+
 
     /// Switch lists.
     ///
@@ -916,6 +356,7 @@ final class Session {
             await loadConversations()
         }
     }
+
 
     /// Run a search, or clear one.
     ///
@@ -942,6 +383,7 @@ final class Session {
             state = .failed(error.localizedDescription)
         }
     }
+
 
     /// The next page, keyed off the oldest row on screen.
     ///
@@ -972,3 +414,4 @@ final class Session {
         }
     }
 }
+

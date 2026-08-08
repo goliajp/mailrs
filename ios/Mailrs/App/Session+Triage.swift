@@ -1,0 +1,306 @@
+import Foundation
+import SwiftUI
+
+/// Acting on threads: read, starred, junk, archive, delete, undo.
+///
+/// Split out of `Session.swift` at the 500-line limit this
+/// repository holds every language to — and which did not look at
+/// `ios/` until now. One type, several subjects.
+@MainActor
+extension Session {
+
+    /// A thread is read because someone is reading it.
+    ///
+    /// Called by the thread view once its messages are on screen — not
+    /// by the list, and not on selection. The web client learned that
+    /// distinction the hard way: a hidden pane auto-opening the newest
+    /// thread marked mail read that had never been displayed. Here the
+    /// view only exists when a person navigated into it, which is what
+    /// makes this safe.
+    func markThreadRead(_ conversation: Wire.Conversation) async {
+        guard conversation.unreadCount > 0, let client else { return }
+        do {
+            try await client.setRead(threadId: conversation.threadId, true)
+            // Patched after the server confirms, and the row is not
+            // re-filtered: in the Unread list the row stays visible
+            // until the next refresh rather than vanishing while you
+            // are standing on it.
+            withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
+            await refreshBadge()
+        } catch {
+            // Still unread is the honest state if the call failed; the
+            // next open retries by construction.
+        }
+    }
+
+
+    /// Toggle read, and show it immediately.
+    ///
+    /// Optimistic, like archive and unlike delete: both directions are
+    /// reversible by the same gesture, so the worst a failed call costs
+    /// is a row that snaps back.
+    func toggleRead(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let markRead = conversation.unreadCount > 0
+        let previous = conversations
+        withAnimation {
+            patch(conversation.threadId) { row in
+                if markRead {
+                    row.unreadCount = 0
+                    return
+                }
+                row.unreadCount = max(1, row.unreadCount)
+            }
+        }
+        do {
+            try await client.setRead(threadId: conversation.threadId, markRead)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+
+    func toggleStarred(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let starred = !conversation.flagged
+        let previous = conversations
+        withAnimation { patch(conversation.threadId) { $0.flagged = starred } }
+        do {
+            try await client.setStarred(threadId: conversation.threadId, starred)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+
+    /// Replace one row in whichever collection is on screen.
+    ///
+    /// Both, not whichever is showing: a row can be in the list and in
+    /// the search results at once, and patching only the visible one
+    /// leaves the other holding the old value for when the search is
+    /// dismissed.
+    private func patch(_ threadId: String, _ change: (inout Wire.Conversation) -> Void) {
+        if let index = conversations.firstIndex(where: { $0.threadId == threadId }) {
+            change(&conversations[index])
+        }
+        if let index = searchResults.firstIndex(where: { $0.threadId == threadId }) {
+            change(&searchResults[index])
+        }
+    }
+
+
+    /// Mark junk (or rescue from Junk), and take the row off this list.
+    ///
+    /// Optimistic like archive: the same verb in the other direction
+    /// undoes it, and the worst a failure costs is a row that returns.
+    /// The row leaves whichever list is showing because the verdict
+    /// moves the thread between folders — a spam row lingering in the
+    /// Inbox after being marked is the confusing outcome.
+    /// Put a thread back to unread — the "deal with this later" verdict.
+    ///
+    /// Not `toggleRead`: that reads the row's current count to decide,
+    /// and this is called from a thread that has just been opened, so
+    /// the row already says read. The intent here is one direction, and
+    /// a toggle would silently do nothing.
+    func markUnread(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let previous = conversations
+        withAnimation { patch(conversation.threadId) { $0.unreadCount = max(1, $0.unreadCount) } }
+        do {
+            try await client.setRead(threadId: conversation.threadId, false)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+        await refreshBadge()
+    }
+
+
+    func setJunk(_ conversation: Wire.Conversation, junk: Bool) async {
+        guard let client else { return }
+        let previous = conversations
+        let previousResults = searchResults
+        withAnimation {
+            conversations.removeAll { $0.threadId == conversation.threadId }
+            searchResults.removeAll { $0.threadId == conversation.threadId }
+        }
+        do {
+            try await client.setJunk(threadId: conversation.threadId, junk)
+        } catch {
+            withAnimation {
+                conversations = previous
+                searchResults = previousResults
+            }
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+
+    /// Archive, and take the row off the list.
+    ///
+    /// Optimistic, because archiving is reversible: if the server refuses
+    /// the row comes back, and the worst case is a row that reappears
+    /// rather than mail that is gone.
+    func archive(_ conversation: Wire.Conversation) async {
+        await archiveAll([conversation])
+    }
+
+
+    /// Archive a batch, and take the rows off the list.
+    ///
+    /// Optimistic, because archiving is reversible: refused rows come
+    /// back, and the worst case is a row that reappears rather than
+    /// mail that is gone. The whole batch shares one undo slot — the
+    /// toast the single-row swipe gets, with a count on it.
+    func archiveAll(_ selected: [Wire.Conversation]) async {
+        guard let client, !selected.isEmpty else { return }
+        let ids = Set(selected.map(\.threadId))
+        let rows = conversations.enumerated()
+            .filter { ids.contains($0.element.threadId) }
+            .map { UndoableRow(conversation: $0.element, index: $0.offset) }
+        withAnimation { conversations.removeAll { ids.contains($0.threadId) } }
+        // The undo slot opens with the optimistic removal, so the toast
+        // is there the moment the rows leave. Archiving from the
+        // Archived list is the one place undo would un-archive into the
+        // wrong tab, so it stays silent there.
+        if activeList != .archived {
+            offerUndo(rows)
+        }
+        var failed: [UndoableRow] = []
+        for row in rows {
+            do {
+                try await client.archive(threadId: row.conversation.threadId)
+            } catch {
+                failed.append(row)
+            }
+        }
+        if !failed.isEmpty {
+            // The rows the server kept come back; the ones it archived
+            // stay gone. A live undo toast over a half-failed batch
+            // would un-archive rows that were never archived.
+            clearUndo()
+            withAnimation { conversations = Session.reinserted(failed, into: conversations) }
+            state = .failed("archive failed for \(failed.count) of \(rows.count)")
+        }
+    }
+
+
+    /// Mark a batch read. Rows already read are skipped on the wire —
+    /// the server call exists to change something.
+    func markAllRead(_ selected: [Wire.Conversation]) async {
+        guard let client else { return }
+        for conversation in selected where conversation.unreadCount > 0 {
+            withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
+            do {
+                try await client.setRead(threadId: conversation.threadId, true)
+            } catch {
+                withAnimation {
+                    patch(conversation.threadId) { $0.unreadCount = conversation.unreadCount }
+                }
+                state = .failed(error.localizedDescription)
+            }
+        }
+        await refreshBadge()
+    }
+
+
+    /// The archive that can still be taken back. A single slot, as in
+    /// Gmail's snackbar: a second archive replaces the first, because a
+    /// stack of undos is a history feature, not a safety net. The slot
+    /// holds a whole batch — one gesture, one undo.
+    struct UndoableRow: Equatable {
+        let conversation: Wire.Conversation
+        let index: Int
+    }
+
+
+    struct PendingUndo: Equatable {
+        let rows: [UndoableRow]
+    }
+
+
+    /// Visible long enough to read and act, short enough that the list
+    /// is not wearing a permanent banner.
+    static let undoWindow: Duration = .seconds(5)
+
+
+    private func offerUndo(_ rows: [UndoableRow]) {
+        undoDismissTask?.cancel()
+        withAnimation { pendingUndo = PendingUndo(rows: rows) }
+        let offered = pendingUndo
+        undoDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: Session.undoWindow)
+            guard !Task.isCancelled, let self, self.pendingUndo == offered else { return }
+            withAnimation { self.pendingUndo = nil }
+        }
+    }
+
+
+    func clearUndo() {
+        undoDismissTask?.cancel()
+        withAnimation { pendingUndo = nil }
+    }
+
+
+    /// Rows going back to the exact positions they left. Ascending
+    /// order is what makes the indices mean what they meant: each
+    /// insert restores the coordinate system the next one was recorded
+    /// in.
+    nonisolated static func reinserted(
+        _ rows: [UndoableRow], into list: [Wire.Conversation]
+    ) -> [Wire.Conversation] {
+        var out = list
+        for row in rows.sorted(by: { $0.index < $1.index }) {
+            out.insert(row.conversation, at: min(row.index, out.count))
+        }
+        return out
+    }
+
+
+    /// Take the archive back: every row returns to the position it
+    /// left, optimistically — unarchiving is as reversible as
+    /// archiving, so the same contract holds in both directions.
+    func undoArchive() async {
+        guard let client, let undo = pendingUndo else { return }
+        clearUndo()
+        withAnimation { conversations = Session.reinserted(undo.rows, into: conversations) }
+        for row in undo.rows {
+            do {
+                try await client.unarchive(threadId: row.conversation.threadId)
+            } catch {
+                withAnimation {
+                    conversations.removeAll { $0.threadId == row.conversation.threadId }
+                }
+                state = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+
+    /// Delete, and take the row off the list.
+    ///
+    /// Not optimistic. The server unlinks the maildir files, so there is
+    /// nothing to restore and no honest way to put the row back — the
+    /// row goes only once the server says it is gone.
+    func delete(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        do {
+            try await client.delete(threadId: conversation.threadId)
+            withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+
+    /// Delete a batch. Sequential and non-optimistic for the same
+    /// reason the single delete is: rows leave only as the server
+    /// confirms each one is gone.
+    func deleteAll(_ selected: [Wire.Conversation]) async {
+        for conversation in selected {
+            await delete(conversation)
+        }
+    }
+}
