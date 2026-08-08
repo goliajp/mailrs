@@ -612,6 +612,16 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["bounced@example.com"].exists,
                       "the suppression list never decoded")
 
+        // The row used to say "Waiting" for both of these, which is the
+        // word already at the top of the screen. One is late and one was
+        // asked for tomorrow, and an operator has to be able to tell.
+        XCTAssertTrue(app.staticTexts["Retrying"].exists,
+                      "a job past its retry time still reads as merely waiting")
+        XCTAssertTrue(app.staticTexts["Scheduled"].exists,
+                      "a scheduled send is indistinguishable from a stuck one")
+        XCTAssertTrue(app.staticTexts["3 attempts"].exists,
+                      "the attempt count left the row when the timing arrived")
+
         app.buttons["Clear all"].tap()
         app.buttons["Clear"].tap()
         XCTAssertTrue(app.staticTexts["No suppressed addresses"].waitForExistence(timeout: 10),
@@ -1556,6 +1566,49 @@ final class SignInFlowTests: XCTestCase {
                        "the draft reopened without its subject")
     }
 
+    /// A draft is the least recoverable thing in the app, and it was the
+    /// only destructive action with neither a confirmation nor an undo —
+    /// while deleting an alias, which takes five seconds to retype,
+    /// asked twice.
+    func testDeletingADraftAsksAndCanBeRefused() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["New message"].tap()
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        to.tap()
+        to.typeText("later@example.com")
+        app.textFields["Subject"].tap()
+        app.textFields["Subject"].typeText("Worth keeping")
+        app.buttons["Cancel"].tap()
+
+        app.buttons["Lists"].tap()
+        app.buttons["Drafts"].tap()
+        XCTAssertTrue(app.staticTexts["Worth keeping"].waitForExistence(timeout: 10),
+                      "the draft was not kept")
+
+        let row = app.staticTexts["Worth keeping"]
+        swipeAndTap(app, row: row, edge: .trailing, action: "Delete")
+        let alert = app.alerts["Delete draft?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "the delete was not confirmed at all")
+        // The alert names it, because a list of half-written messages is
+        // exactly where "this draft" is not enough.
+        XCTAssertTrue(alert.staticTexts["Worth keeping"].exists,
+                      "the alert did not name the draft it would delete")
+        alert.buttons["Cancel"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5),
+                      "refusing the confirmation still deleted the draft")
+        XCTAssertEqual(storedDrafts().count, 1, "a refused delete reached the server")
+
+        swipeAndTap(app, row: row, edge: .trailing, action: "Delete")
+        app.alerts["Delete draft?"].buttons["Delete"].tap()
+        XCTAssertTrue(app.staticTexts["No drafts"].waitForExistence(timeout: 10),
+                      "the confirmed delete did not happen")
+        XCTAssertEqual(storedDrafts().count, 0, "the draft outlived its deletion")
+    }
+
     /// One compose session is one draft, however long it is typed for.
     ///
     /// The server upserts on a supplied id; a client that posted without
@@ -1839,6 +1892,53 @@ final class SignInFlowTests: XCTestCase {
             .waitForExistence(timeout: 15), "the list never loaded")
         XCTAssertFalse(app.activityIndicators.firstMatch.exists,
                        "the spinner outlived the load")
+    }
+
+    /// The same claim, in the sheet that did not inherit it.
+    ///
+    /// Drafts was written after the mail lists and had no loading gate:
+    /// it announced "No drafts" the instant it opened and then filled in
+    /// underneath itself. A sheet is not exempt from a rule the screen
+    /// behind it follows.
+    func testDraftsWaitsBeforeSayingThereAreNone() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        // A draft to be found, so "No drafts" would be a false claim
+        // rather than a true one arriving early.
+        app.buttons["New message"].tap()
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
+        to.tap()
+        to.typeText("later@example.com")
+        app.textFields["Subject"].tap()
+        app.textFields["Subject"].typeText("Slow to arrive")
+        app.buttons["Cancel"].tap()
+
+        // Relaunched, because the flash only happens on a *cold* open:
+        // the compose sheet's own save left the drafts in memory, so
+        // opening the sheet in the same session has data to show and is
+        // right to show it. The first attempt at this test asserted a
+        // spinner that correctly was not there.
+        setStubListDelay(2500)
+        app.terminate()
+        app.launch()
+
+        // Wait out the delayed first page, so the spinner asserted below
+        // can only be the sheet's own.
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 25), "inbox never listed after relaunch")
+        app.buttons["Lists"].tap()
+        app.buttons["Drafts"].tap()
+        XCTAssertTrue(app.activityIndicators.firstMatch.waitForExistence(timeout: 2),
+                      "no loading indicator while the drafts were in flight")
+        XCTAssertFalse(app.staticTexts["No drafts"].exists,
+                       "the empty state was shown while the request was still out")
+        XCTAssertTrue(app.staticTexts["Slow to arrive"].waitForExistence(timeout: 15),
+                      "the drafts never arrived")
+        app.terminate()
+        setStubListDelay(0)
     }
 
     /// The thread view's chevrons walk the list without leaving it.

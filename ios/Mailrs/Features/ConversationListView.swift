@@ -321,19 +321,6 @@ struct ConversationListView: View {
 struct ConversationRow: View {
     let conversation: Wire.Conversation
     @Environment(Session.self) private var session
-    @Environment(\.calendar) private var calendar
-    @Environment(\.timeZone) private var timeZone
-    @Environment(\.locale) private var locale
-
-    /// The environment's calendar carries the language but not the
-    /// chosen zone — they are separate keys, and a date read in the
-    /// phone's zone under a chosen one is the bug this avoids.
-    private var readerCalendar: Calendar {
-        var calendar = calendar
-        calendar.timeZone = timeZone
-        calendar.locale = locale
-        return calendar
-    }
 
     /// Read rows recede, the web's `muted`. Unread already carries the
     /// dot and the weight; dimming what is done is what makes a long
@@ -434,10 +421,7 @@ struct ConversationRow: View {
                             .padding(.vertical, 1)
                             .background(Color(.tertiarySystemFill), in: Capsule())
                     }
-                    Text(RowDate.label(epochSeconds: conversation.lastDate,
-                                       calendar: readerCalendar))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    RowDateText(epochSeconds: conversation.lastDate)
                 }
                 HStack(spacing: 4) {
                     ValueOrPlaceholder(value: conversation.subject, placeholder: "(no subject)")

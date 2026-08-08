@@ -111,10 +111,7 @@ private struct AuditRowView: View {
                     .padding(.vertical, 2)
                     .background(verbColor.opacity(0.12), in: Capsule())
                 Spacer(minLength: 4)
-                Text(Date(timeIntervalSince1970: TimeInterval(row.timestamp)),
-                     format: .dateTime.month().day().hour().minute())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                RowDateText(epochSeconds: row.timestamp, style: .stamp)
             }
             Text(verbatim: row.target)
                 .font(.subheadline)

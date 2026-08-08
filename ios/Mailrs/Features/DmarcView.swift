@@ -185,10 +185,7 @@ private struct ReportRow: View {
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                Text(Date(timeIntervalSince1970: TimeInterval(report.begin)),
-                     format: .dateTime.month().day())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                RowDateText(epochSeconds: report.begin, style: .day)
             }
             HStack(spacing: 6) {
                 Text(verbatim: report.policyDomain)

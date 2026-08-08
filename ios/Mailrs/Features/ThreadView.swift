@@ -355,10 +355,7 @@ private struct CollapsedMessageRow: View {
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("Has attachments")
             }
-            Text(Date(timeIntervalSince1970: TimeInterval(message.internalDate)),
-                 format: .dateTime.month().day())
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            RowDateText(epochSeconds: message.internalDate)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -403,10 +400,7 @@ private struct MessageCard: View {
                             .layoutPriority(1)
                         SenderTrustBadge(verdict: message.senderTrust)
                         Spacer(minLength: 4)
-                        Text(Date(timeIntervalSince1970: TimeInterval(message.internalDate)),
-                             format: .dateTime.month().day().hour().minute())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        RowDateText(epochSeconds: message.internalDate, style: .stamp)
                     }
                     Text("To: \(message.recipients)")
                         .font(.caption2)

@@ -123,13 +123,26 @@ ALIAS_COUNTER = [2]
 # it was found in. Everything but the identity is optional, and one row
 # deliberately has neither error nor attempts — a healthy job is the
 # shape a client is most likely to get wrong.
-QUEUE = [
-    {"id": 7, "sender": "lihao@golia.jp", "recipient": "stuck@example.com",
-     "status": "pending", "attempts": 3, "last_error": "421 too many connections",
-     "next_retry": 1754400600, "scheduled_at": None, "created_at": 1754400000},
-    {"id": 8, "sender": "lihao@golia.jp", "recipient": "fresh@example.com",
-     "status": "inflight", "created_at": 1754400100},
-]
+# Built per request, not once at import. A fixed epoch in 2025 is
+# permanently in the past, so a client that only renders *future*
+# retries — the only kind worth printing — would show nothing and the
+# test would pass on an empty row. Freezing the offsets at start-up
+# fixes that but sets a timer: fifteen minutes into a long suite the
+# "future" retry is in the past again, and the assertion fails for
+# reasons that have nothing to do with the code.
+def queue_jobs():
+    now = int(time.time())
+    return [
+        {"id": 7, "sender": "lihao@golia.jp", "recipient": "stuck@example.com",
+         "status": "pending", "attempts": 3, "last_error": "421 too many connections",
+         "next_retry": now + 900, "scheduled_at": None, "created_at": now - 7200},
+        {"id": 8, "sender": "lihao@golia.jp", "recipient": "fresh@example.com",
+         "status": "inflight", "created_at": now - 60},
+        # Asked for later, not stuck. Before the queue row read its own
+        # timestamps this was indistinguishable from the row above it.
+        {"id": 9, "sender": "lihao@golia.jp", "recipient": "later@example.com",
+         "status": "pending", "scheduled_at": now + 86400, "created_at": now - 120},
+    ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
 # Permission groups. One builtin (no domain, undeletable) and one
@@ -374,7 +387,7 @@ class H(BaseHTTPRequestHandler):
             self._send(DMARC_SOURCES)
             return
         if self.path.split("?")[0] == "/api/admin/queues":
-            self._send({"items": QUEUE})
+            self._send({"items": queue_jobs()})
             return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             self._send({"items": SUPPRESSED})
@@ -417,6 +430,12 @@ class H(BaseHTTPRequestHandler):
             ])
             return
         if self.path.split("?")[0] == "/api/mail/drafts":
+            # The delay covers drafts too: the sheet's spinner is only
+            # observable while the request is out, and without it the
+            # stub answers faster than XCUITest can look — which is how
+            # the sheet shipped announcing "No drafts" over a full list.
+            if LIST_DELAY_MS[0]:
+                time.sleep(LIST_DELAY_MS[0] / 1000)
             self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
             return
         if self.path.split("?")[0] == "/debug/account-posts":
