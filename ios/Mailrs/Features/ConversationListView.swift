@@ -130,6 +130,10 @@ struct ConversationListView: View {
                 }
             }
             .navigationTitle(navigationTitle)
+            // Inline, not large: the large title spends about fifty
+            // points of every screen restating a word the toolbar has
+            // room for, and this list is measured in rows.
+            .navigationBarTitleDisplayMode(.inline)
             // The undo snackbar. Bottom-anchored but lifted above the
             // search field, which iOS 26 also puts at the bottom.
             .overlay(alignment: .bottom) {

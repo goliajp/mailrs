@@ -310,6 +310,52 @@ actor MailrsClient {
         try await verb("DELETE", "/api/admin/domains/\(encoded)")
     }
 
+    /// `GET /api/admin/email-groups`.
+    func emailGroups() async throws -> [Wire.EmailGroup] {
+        let list: Wire.EmailGroupList = try await getJSON("/api/admin/email-groups")
+        return list.items
+    }
+
+    /// `POST /api/admin/email-groups`.
+    func createEmailGroup(_ request: Wire.CreateEmailGroupRequest) async throws {
+        let (_, response) = try await send(
+            "POST", "/api/admin/email-groups",
+            body: try JSONEncoder().encode(request), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `DELETE /api/admin/email-groups/{id}`.
+    func deleteEmailGroup(id: Int64) async throws {
+        try await verb("DELETE", "/api/admin/email-groups/\(id)")
+    }
+
+    /// `GET /api/admin/email-groups/{id}/members` — `{members: [...]}`.
+    func emailGroupMembers(id: Int64) async throws -> [String] {
+        let list: Wire.EmailGroupMembers =
+            try await getJSON("/api/admin/email-groups/\(id)/members")
+        return list.members
+    }
+
+    /// `POST /api/admin/email-groups/{id}/members`.
+    func addEmailGroupMember(id: Int64, address: String) async throws {
+        let body = try JSONEncoder().encode(Wire.EmailGroupMemberRequest(memberAddress: address))
+        let (_, response) = try await send(
+            "POST", "/api/admin/email-groups/\(id)/members", body: body, authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `DELETE /api/admin/email-groups/{id}/members/{address}`.
+    func removeEmailGroupMember(id: Int64, address: String) async throws {
+        let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? address
+        try await verb("DELETE", "/api/admin/email-groups/\(id)/members/\(encoded)")
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no

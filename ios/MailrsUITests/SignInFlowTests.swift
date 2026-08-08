@@ -463,6 +463,43 @@ final class SignInFlowTests: XCTestCase {
                       "the compose button stayed English")
     }
 
+    /// Groups list, open, and take a member.
+    ///
+    /// The two envelopes are the assertion: the group list arrives
+    /// under `items` like every other admin collection, and its
+    /// members arrive under `members` as bare addresses. A client that
+    /// assumed one shape for both would show an empty group with no
+    /// error to explain it.
+    func testEmailGroupsListAndTakeMembers() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Groups"].waitForExistence(timeout: 5), "no groups entry")
+        app.buttons["Groups"].tap()
+
+        XCTAssertTrue(app.staticTexts["team@golia.jp"].waitForExistence(timeout: 10),
+                      "the group list never decoded — check the items envelope")
+        app.staticTexts["team@golia.jp"].tap()
+
+        XCTAssertTrue(app.staticTexts["Keiri"].waitForExistence(timeout: 10),
+                      "the members never decoded — they arrive under members, not items")
+
+        app.buttons["Add member"].tap()
+        let field = app.textFields["someone@golia.jp"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no member prompt")
+        field.typeText("press@golia.jp")
+        app.buttons["Add"].tap()
+
+        XCTAssertTrue(app.staticTexts["press@golia.jp"].waitForExistence(timeout: 10),
+                      "the new member never came back from the server")
+        XCTAssertTrue(recordedWrites().contains("POST /api/admin/email-groups/1/members"),
+                      "the member was not added on the server")
+    }
+
     /// Accounts are listed and created from the phone.
     ///
     /// The password is the part that matters: it has to reach the
