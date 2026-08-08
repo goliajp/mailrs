@@ -24,7 +24,10 @@ struct SendListSection: View {
             if session.initialLoading {
                 ProgressView()
             } else {
-                ContentUnavailableView("Nothing sent yet", systemImage: "paperplane")
+                ContentUnavailableView(
+                    "Nothing sent yet", systemImage: "paperplane",
+                    description: Text("Messages you send appear here with their delivery state.")
+                )
             }
         } else {
             List(rows) { row in

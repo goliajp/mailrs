@@ -79,7 +79,10 @@ struct QueueView: View {
             .navigationTitle("Queue")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                // Trailing, like Settings and Drafts: a sheet with
+                // nothing to add has no reason to put its only way out
+                // where Cancel lives.
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }

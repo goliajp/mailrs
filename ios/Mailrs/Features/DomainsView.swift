@@ -22,7 +22,10 @@ struct DomainsView: View {
                                            systemImage: "exclamationmark.triangle",
                                            description: Text(failure))
                 } else if domains.isEmpty {
-                    ContentUnavailableView("No domains", systemImage: "globe")
+                    ContentUnavailableView(
+                        "No domains", systemImage: "globe",
+                        description: Text("A domain has to be listed here before mail to it is accepted.")
+                    )
                 } else {
                     List(domains) { domain in
                         HStack {

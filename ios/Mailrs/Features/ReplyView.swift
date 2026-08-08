@@ -125,9 +125,8 @@ struct ReplyView: View {
                     Divider()
                 }
 
-                TextEditor(text: $body_)
+                ComposerEditor(text: $body_, placeholder: "Message")
                     .focused($bodyFocused)
-                    .padding(.horizontal, 8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if !attachments.isEmpty {

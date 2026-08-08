@@ -1955,6 +1955,166 @@
           }
         }
       }
+    },
+    "A message you close without sending is kept here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信せずに閉じたメールはここに残ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭而未发送的邮件会留在这里。"
+          }
+        }
+      }
+    },
+    "An alias delivers one address to another.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアスは、あるアドレスを別のアドレスへ配送します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "别名把一个地址投递到另一个地址。"
+          }
+        }
+      }
+    },
+    "Accounts are the mailboxes this server hosts.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントは、このサーバーが持つメールボックスです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账户就是这台服务器托管的邮箱。"
+          }
+        }
+      }
+    },
+    "A domain has to be listed here before mail to it is accepted.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここに登録して初めて、そのドメイン宛のメールを受け取ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "域名必须先列在这里,发往它的邮件才会被接收。"
+          }
+        }
+      }
+    },
+    "A group delivers one address to several people.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グループは、1 つのアドレスを複数の人に配送します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件组把一个地址投递给多个人。"
+          }
+        }
+      }
+    },
+    "A group grants its members the permissions you tick.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グループは、チェックした権限をメンバーに与えます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "群组把你勾选的权限授予它的成员。"
+          }
+        }
+      }
+    },
+    "Administrative changes appear here as they happen.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理操作は、行われるたびにここに表示されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理操作发生时会即时出现在这里。"
+          }
+        }
+      }
+    },
+    "Messages you send appear here with their delivery state.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信したメールが配信状態とともに表示されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你发出的邮件会带着投递状态出现在这里。"
+          }
+        }
+      }
+    },
+    "Directory": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディレクトリ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录"
+          }
+        }
+      }
+    },
+    "Operations": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "運用"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运维"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

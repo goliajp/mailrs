@@ -72,9 +72,8 @@ struct ComposeView: View {
                     Divider()
                 }
 
-                TextEditor(text: $body_)
+                ComposerEditor(text: $body_, placeholder: "Message")
                     .focused($focus, equals: .body)
-                    .padding(.horizontal, 8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if !attachments.isEmpty {

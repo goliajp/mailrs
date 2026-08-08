@@ -92,6 +92,29 @@ The list's title is inline, not large. A large title spends about
 fifty points of every screen restating a word the toolbar has room
 for, and this list is measured in rows.
 
+## The exit is always in the same corner
+
+A sheet with nothing to add puts Done where Settings and Drafts put
+it — trailing. A sheet with an Add action keeps Done leading so the
+creative action owns the confirming corner. Either way the way out is
+where it was last time.
+
+## An empty state is a conclusion
+
+So it finishes the sentence. "No drafts" alone says the screen is
+empty, which the reader can see; the line under it says where drafts
+come from, which they cannot. Every absence that is not
+self-evident carries one.
+
+## Every field is named
+
+Including the largest one. SwiftUI's `TextEditor` has no placeholder,
+so a composer whose To and Subject were labelled had an unlabelled
+rectangle for the part people came to write in. The ghost sits behind
+the editor and takes no touches — and the editor's own background has
+to be hidden or it draws over it, which is a placeholder that is
+present and invisible.
+
 ## A row that wraps is a defect
 
 Whatever it says. A header that spills onto a second line reads as

@@ -71,7 +71,11 @@ struct SettingsView: View {
                     Text("Times on messages are shown in this zone.")
                 }
 
-                Section("Administration") {
+                // Two sections, not one of seven: directory work and
+                // operational work are different errands, and a list
+                // long enough to scroll should say where it changes
+                // subject.
+                Section("Directory") {
                     Button {
                         showingAccounts = true
                     } label: {
@@ -93,6 +97,14 @@ struct SettingsView: View {
                         Label("Domains", systemImage: "globe")
                     }
                     Button {
+                        showingPermissions = true
+                    } label: {
+                        Label("Permissions", systemImage: "lock.shield")
+                    }
+                }
+
+                Section("Operations") {
+                    Button {
                         showingQueue = true
                     } label: {
                         Label("Queue", systemImage: "tray.and.arrow.up")
@@ -101,11 +113,6 @@ struct SettingsView: View {
                         showingDmarc = true
                     } label: {
                         Label("DMARC", systemImage: "checkmark.shield")
-                    }
-                    Button {
-                        showingPermissions = true
-                    } label: {
-                        Label("Permissions", systemImage: "lock.shield")
                     }
                     Button {
                         showingAudit = true

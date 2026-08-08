@@ -50,3 +50,32 @@ enum StarToggle {
         return "star"
     }
 }
+
+/// A `TextEditor` that says what it is for while it is empty.
+///
+/// SwiftUI's has no placeholder, so an empty composer is an unlabelled
+/// rectangle — the To and Subject lines above it are named and the
+/// largest field on the screen is not. The ghost sits behind the
+/// editor and takes no touches, so tapping anywhere still lands in the
+/// text.
+struct ComposerEditor: View {
+    @Binding var text: String
+    let placeholder: LocalizedStringKey
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 8)
+                    .allowsHitTesting(false)
+            }
+            TextEditor(text: $text)
+                // Its own background is opaque and drew over the ghost
+                // behind it — the placeholder was there and invisible.
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 8)
+        }
+    }
+}
