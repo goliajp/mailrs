@@ -652,6 +652,36 @@ actor MailrsClient {
     /// `index` is the position in the message's attachment array — the
     /// handler resolves it as `attachments.get(index)` and there is no id
     /// on the wire to use instead.
+    // MARK: Agent keys
+
+    func agentKeys() async throws -> [Wire.AgentKey] {
+        struct Envelope: Decodable { let items: [Wire.AgentKey] }
+        let envelope: Envelope = try await getJSON("/api/agent/keys")
+        return envelope.items
+    }
+
+    /// The response is the only place the secret ever exists outside
+    /// this call — the server keeps eight characters of it.
+    func createAgentKey(name: String, scopes: [String]) async throws -> Wire.CreateAgentKeyResponse {
+        let request = Wire.CreateAgentKeyRequest(name: name, scopes: scopes)
+        let (data, response) = try await send(
+            "POST", "/api/agent/keys",
+            body: try JSONEncoder().encode(request), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        do {
+            return try JSONDecoder().decode(Wire.CreateAgentKeyResponse.self, from: data)
+        } catch {
+            throw MailrsError.decoding("agent key — \(error)")
+        }
+    }
+
+    func deleteAgentKey(id: Int64) async throws {
+        try await verb("DELETE", "/api/agent/keys/\(id)")
+    }
+
     func attachment(uid: UInt32, index: Int) async throws -> Data {
         let path = "/api/mail/messages/\(uid)/attachments/\(index)"
         let (data, response) = try await send("GET", path, body: nil, authorized: true)

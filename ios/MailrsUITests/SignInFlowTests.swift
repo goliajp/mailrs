@@ -1909,6 +1909,60 @@ final class SignInFlowTests: XCTestCase {
                        "the spinner outlived the load")
     }
 
+    /// Making a key, and the one moment its secret exists.
+    ///
+    /// The server keeps eight characters of the secret and nothing
+    /// else, so the sheet that shows it is the only place it will ever
+    /// be. The assertions are the wire (what was asked for) and the
+    /// list afterwards (what can still be seen).
+    func testAnApiKeyIsMadeAndItsSecretShownOnce() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        app.buttons["API keys"].tap()
+        XCTAssertTrue(app.staticTexts["Scheduler"].waitForExistence(timeout: 10),
+                      "the key list never decoded")
+        XCTAssertTrue(app.staticTexts["mk_a1b2c…"].exists,
+                      "a key is recognised by its prefix, and it is not shown")
+
+        app.buttons["New key"].tap()
+        let nameField = app.textFields["key-name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "the new-key sheet never opened")
+        nameField.tap()
+        nameField.typeText("Reporter")
+        // The scope list is the server's catalogue, not a copy.
+        app.buttons["mail.read"].tap()
+        app.buttons["Create"].tap()
+
+        XCTAssertTrue(app.staticTexts["Copy this key now"].waitForExistence(timeout: 10),
+                      "the secret was never shown")
+        let secret = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'mk_'"))
+        XCTAssertTrue(secret.firstMatch.exists, "the sheet did not carry the secret")
+        // The exact string, because the *prefix* legitimately survives
+        // in the list — "anything starting with mk_" would be there
+        // afterwards by design, and asserting it is gone was wrong.
+        let shown = secret.firstMatch.label
+        XCTAssertTrue(shown.count > 12, "that is a prefix, not a secret: \(shown)")
+        app.buttons["copy-secret"].tap()
+        XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 5),
+                      "copying said nothing")
+        // By identifier: the sheet behind it has a Done of its own, and
+        // "the only Done on screen" stopped being true the moment this
+        // sheet opened over the list.
+        app.buttons["secret-done"].tap()
+
+        // What reached the server, and what remains visible afterwards.
+        XCTAssertTrue(recordedWrites().contains("POST /api/agent/keys"),
+                      "the key was never created")
+        XCTAssertTrue(app.staticTexts["Reporter"].waitForExistence(timeout: 10),
+                      "the new key is not in the list")
+        XCTAssertFalse(app.staticTexts[shown].exists,
+                       "the secret survived the sheet it was shown in")
+    }
+
     /// A message body may not reach the network on its own.
     ///
     /// The fixture is what real mail looks like when it is hostile: a

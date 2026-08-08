@@ -681,6 +681,23 @@ final class Session {
         }
     }
 
+    // MARK: Agent keys
+
+    func agentKeys() async throws -> [Wire.AgentKey] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.agentKeys()
+    }
+
+    func createAgentKey(name: String, scopes: [String]) async throws -> Wire.CreateAgentKeyResponse {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.createAgentKey(name: name, scopes: scopes)
+    }
+
+    func deleteAgentKey(id: Int64) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.deleteAgentKey(id: id)
+    }
+
     func attachment(uid: UInt32, index: Int) async throws -> Data {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.attachment(uid: uid, index: index)

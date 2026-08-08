@@ -224,6 +224,40 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/webapi/src/handlers/apps_keys.rs` —
+    /// `list_agent_keys`, `GET /api/agent/keys`, in an `{items: […]}`
+    /// envelope.
+    ///
+    /// The secret is **not** here and cannot be: the server stores only
+    /// its first eight characters, so `prefix` is the whole of what a
+    /// key can be recognised by after the moment it is made.
+    struct AgentKey: Decodable, Identifiable, Sendable {
+        let id: Int64
+        let name: String
+        let scopes: [String]
+        let prefix: String
+        let createdAt: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case scopes
+            case prefix
+            case createdAt = "created_at"
+        }
+    }
+
+    struct CreateAgentKeyRequest: Encodable {
+        let name: String
+        let scopes: [String]
+    }
+
+    /// The one and only time the secret exists outside the caller.
+    struct CreateAgentKeyResponse: Decodable {
+        let id: Int64
+        let secret: String
+    }
+
     /// Backend: `crates/core-api/src/method/admin/directory.rs` —
     /// `AliasWire`, served by `crates/webapi/src/handlers/admin_directory.rs`.
     ///

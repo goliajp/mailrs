@@ -1,6 +1,22 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ stops working immediately.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は直ちに使えなくなります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 将立即失效。"
+          }
+        }
+      }
+    },
     "%lld attempts": {
       "localizations": {
         "ja": {
@@ -193,6 +209,22 @@
         }
       }
     },
+    "A key lets a program read and send mail as you.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キーはプログラムがあなたとしてメールを読み書きすることを許可します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥让程序以你的身份读取和发送邮件。"
+          }
+        }
+      }
+    },
     "A message you close without sending is kept here.": {
       "localizations": {
         "ja": {
@@ -205,6 +237,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭而未发送的邮件会留在这里。"
+          }
+        }
+      }
+    },
+    "API keys": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "APIキー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 密钥"
           }
         }
       }
@@ -593,6 +641,54 @@
         }
       }
     },
+    "Copied": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コピーしました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コピー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        }
+      }
+    },
+    "Copy this key now": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐコピーしてください"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在就复制"
+          }
+        }
+      }
+    },
     "Could not load DMARC": {
       "localizations": {
         "ja": {
@@ -637,6 +733,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载群组"
+          }
+        }
+      }
+    },
+    "Could not load keys": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キーを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载密钥"
           }
         }
       }
@@ -701,6 +813,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法打开这个会话"
+          }
+        }
+      }
+    },
+    "Create": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作成"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建"
           }
         }
       }
@@ -1041,6 +1169,22 @@
         }
       }
     },
+    "It is not stored and cannot be shown again. If you lose it, revoke the key and make another.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存されないため再表示できません。紛失した場合はキーを失効して作り直してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它不会被保存,也无法再次显示。若丢失,请吊销该密钥并重新创建。"
+          }
+        }
+      }
+    },
     "Junk": {
       "localizations": {
         "ja": {
@@ -1268,6 +1412,22 @@
         }
       }
     },
+    "New key": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいキー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建密钥"
+          }
+        }
+      }
+    },
     "New message": {
       "localizations": {
         "ja": {
@@ -1312,6 +1472,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "下一封会话"
+          }
+        }
+      }
+    },
+    "No API keys": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "APIキーはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有 API 密钥"
           }
         }
       }
@@ -1780,6 +1956,38 @@
         }
       }
     },
+    "Revoke": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失効"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吊销"
+          }
+        }
+      }
+    },
+    "Revoke this key?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このキーを失効しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吊销这个密钥？"
+          }
+        }
+      }
+    },
     "Scheduled": {
       "localizations": {
         "ja": {
@@ -1792,6 +2000,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已排定"
+          }
+        }
+      }
+    },
+    "Scheduler": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scheduler"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scheduler"
           }
         }
       }
@@ -2304,6 +2528,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待中"
+          }
+        }
+      }
+    },
+    "What it may do": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可する操作"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许的操作"
           }
         }
       }

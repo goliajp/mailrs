@@ -149,6 +149,14 @@ def queue_jobs():
     ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# Agent keys. The stored record has no secret in it — the server keeps
+# eight characters — so a client that expected one would decode nothing.
+AGENT_KEYS = [
+    {"id": 1, "name": "Scheduler", "scopes": ["mail.send"],
+     "prefix": "mk_a1b2c", "created_at": 1754400000},
+]
+AGENT_KEY_COUNTER = [1]
+
 # Anything that reaches here came from inside a rendered message body,
 # which is the one thing a mail client must never let happen. Four
 # messages in a 900-message sample of the real mailbox carry a <form>.
@@ -525,6 +533,9 @@ class H(BaseHTTPRequestHandler):
                  "can_resend": True, "resent_from": None, "recipients": []},
             ])
             return
+        if self.path.split("?")[0] == "/api/agent/keys":
+            self._send({"items": AGENT_KEYS})
+            return
         if self.path.split("?")[0] == "/api/mail/drafts":
             # The delay covers drafts too: the sheet's spinner is only
             # observable while the request is out, and without it the
@@ -646,6 +657,15 @@ class H(BaseHTTPRequestHandler):
         self._send({}, 404)
 
     def do_DELETE(self):
+        key = re.match(r"^/api/agent/keys/(\d+)$", self.path.split("?")[0])
+        if key:
+            WRITES.append("DELETE /api/agent/keys/" + key.group(1))
+            wanted = int(key.group(1))
+            AGENT_KEYS[:] = [k for k in AGENT_KEYS if k["id"] != wanted]
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         WRITES.append("DELETE " + self.path.split("?")[0])
         if self.path.split("?")[0] == "/api/admin/suppressions":
             SUPPRESSED.clear()
@@ -712,6 +732,21 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
+        if self.path.split("?")[0] == "/api/agent/keys":
+            WRITES.append("POST /api/agent/keys")
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            AGENT_KEY_COUNTER[0] += 1
+            new_id = AGENT_KEY_COUNTER[0]
+            secret = f"mk_{new_id:06d}deadbeefcafe1234"
+            AGENT_KEYS.append({
+                "id": new_id, "name": body.get("name", ""),
+                "scopes": body.get("scopes", []), "prefix": secret[:8],
+                "created_at": 1754400100,
+            })
+            # The secret travels exactly once, as the handler does it.
+            self._send({"id": new_id, "secret": secret})
+            return
         # Counted before anything else: a post that reaches here came out
         # of a rendered message body, and the client is supposed to make
         # that impossible.
@@ -745,6 +780,11 @@ class H(BaseHTTPRequestHandler):
             LIST_FETCHES[0] = 0
             LIST_DELAY_MS[0] = 0
             PHISH_HITS[0] = 0
+            AGENT_KEYS[:] = [
+                {"id": 1, "name": "Scheduler", "scopes": ["mail.send"],
+                 "prefix": "mk_a1b2c", "created_at": 1754400000},
+            ]
+            AGENT_KEY_COUNTER[0] = 1
             CONTACT_QUERIES.clear()
             ALIASES[:] = [
                 {"id": 1, "source_address": "sales@golia.jp",
