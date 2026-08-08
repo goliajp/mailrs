@@ -132,6 +132,24 @@ QUEUE = [
 ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# Permission groups. One builtin (no domain, undeletable) and one
+# ordinary — the builtin is the shape a client is most likely to get
+# wrong, by offering a delete the server will refuse.
+PERM_GROUPS = [
+    {"id": 1, "name": "Administrators", "description": "", "is_builtin": True,
+     "created_at": 1754400000},
+    {"id": 2, "name": "Support", "domain": "golia.jp", "description": "",
+     "is_builtin": False, "created_at": 1754400001},
+]
+PERM_CATALOGUE = [
+    "mail.send", "mail.read", "mail.read_domain",
+    "admin.domains", "admin.accounts", "admin.aliases",
+    "admin.groups", "admin.queue", "admin.sieve",
+    "admin.impersonate", "internal.rpc",
+]
+GROUP_GRANTS = {1: ["admin.accounts", "admin.aliases"], 2: ["mail.read"]}
+GROUP_PEOPLE = {1: ["lihao@golia.jp"], 2: []}
+
 # The audit log, with a bare action among the dotted ones — the server
 # is free to write one, and a client that assumed a dot would show an
 # empty verb.
@@ -326,6 +344,20 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/admin/email-groups":
             self._send({"items": GROUPS})
             return
+        perms = re.match(r"^/api/admin/groups/(\d+)/permissions$", self.path.split("?")[0])
+        if perms:
+            self._send({"permissions": GROUP_GRANTS.get(int(perms.group(1)), [])})
+            return
+        gmembers = re.match(r"^/api/admin/groups/(\d+)/members$", self.path.split("?")[0])
+        if gmembers:
+            self._send({"members": GROUP_PEOPLE.get(int(gmembers.group(1)), [])})
+            return
+        if self.path.split("?")[0] == "/api/admin/groups":
+            self._send({"items": PERM_GROUPS})
+            return
+        if self.path.split("?")[0] == "/api/admin/permissions":
+            self._send({"permissions": PERM_CATALOGUE})
+            return
         if self.path.split("?")[0] == "/api/admin/audit-log":
             # The server filters by action PREFIX and scans a wider
             # window when it does; the fixture matches that contract so
@@ -467,6 +499,20 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def do_PUT(self):
+        perms = re.match(r"^/api/admin/groups/(\d+)/permissions$", self.path.split("?")[0])
+        if perms:
+            WRITES.append(f"PUT {self.path.split('?')[0]}")
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            # Replace, exactly as the handler does: a client that sent a
+            # delta would look right here and silently revoke the rest
+            # against the real server.
+            GROUP_GRANTS[int(perms.group(1))] = body.get("permissions", [])
+            self._send({"ok": True})
+            return
+        self._send({}, 404)
+
     def do_DELETE(self):
         WRITES.append("DELETE " + self.path.split("?")[0])
         if self.path.split("?")[0] == "/api/admin/suppressions":
@@ -590,6 +636,8 @@ class H(BaseHTTPRequestHandler):
             GROUP_MEMBERS[1] = ["lihao@golia.jp", "Keiri <keiri@golia.jp>"]
             GROUP_COUNTER[0] = 1
             SUPPRESSED[:] = ["bounced@example.com", "closed@example.com"]
+            GROUP_GRANTS.clear()
+            GROUP_GRANTS.update({1: ["admin.accounts", "admin.aliases"], 2: ["mail.read"]})
             self._send({"ok": True})
             return
         if re.match(

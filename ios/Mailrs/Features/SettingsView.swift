@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var showingQueue = false
     @State private var showingDmarc = false
     @State private var showingAudit = false
+    @State private var showingPermissions = false
 
     /// The zones worth offering by name, plus whatever the phone is
     /// set to. A full tz database picker is a list of 400 strings and
@@ -102,6 +103,11 @@ struct SettingsView: View {
                         Label("DMARC", systemImage: "checkmark.shield")
                     }
                     Button {
+                        showingPermissions = true
+                    } label: {
+                        Label("Permissions", systemImage: "lock.shield")
+                    }
+                    Button {
                         showingAudit = true
                     } label: {
                         Label("Audit log", systemImage: "list.bullet.rectangle")
@@ -124,6 +130,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingQueue) { QueueView() }
             .sheet(isPresented: $showingDmarc) { DmarcView() }
             .sheet(isPresented: $showingAudit) { AuditLogView() }
+            .sheet(isPresented: $showingPermissions) { PermissionGroupsView() }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

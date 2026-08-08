@@ -415,6 +415,61 @@ actor MailrsClient {
         }
     }
 
+    /// `GET /api/admin/groups`.
+    func permissionGroups() async throws -> [Wire.PermissionGroup] {
+        let list: Wire.PermissionGroupList = try await getJSON("/api/admin/groups")
+        return list.items
+    }
+
+    /// `POST /api/admin/groups`.
+    func createPermissionGroup(_ request: Wire.AddGroupRequest) async throws {
+        let (_, response) = try await send(
+            "POST", "/api/admin/groups",
+            body: try JSONEncoder().encode(request), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `DELETE /api/admin/groups/{id}`.
+    func deletePermissionGroup(id: Int64) async throws {
+        try await verb("DELETE", "/api/admin/groups/\(id)")
+    }
+
+    /// `GET /api/admin/permissions` — the whole catalogue the server
+    /// recognises, so the screen offers what exists rather than what
+    /// someone remembered when writing it.
+    func permissionCatalogue() async throws -> [String] {
+        let set: Wire.PermissionSet = try await getJSON("/api/admin/permissions")
+        return set.permissions
+    }
+
+    /// `GET /api/admin/groups/{id}/permissions`.
+    func groupPermissions(id: Int64) async throws -> [String] {
+        let set: Wire.PermissionSet = try await getJSON("/api/admin/groups/\(id)/permissions")
+        return set.permissions
+    }
+
+    /// `PUT /api/admin/groups/{id}/permissions` — the whole set, not a
+    /// delta: the handler replaces, so sending one permission grants
+    /// exactly that one and revokes the rest.
+    func setGroupPermissions(id: Int64, permissions: [String]) async throws {
+        let body = try JSONEncoder().encode(Wire.SetPermissionsRequest(permissions: permissions))
+        let (_, response) = try await send(
+            "PUT", "/api/admin/groups/\(id)/permissions", body: body, authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `GET /api/admin/groups/{id}/members`.
+    func groupMembers(id: Int64) async throws -> [String] {
+        let list: Wire.GroupMembers = try await getJSON("/api/admin/groups/\(id)/members")
+        return list.members
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no
