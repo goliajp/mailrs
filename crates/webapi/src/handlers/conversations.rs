@@ -175,18 +175,33 @@ pub async fn get_thread_messages(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(thread_id): Path<String>,
 ) -> Result<Json<Vec<ThreadMessageResponse>>, StatusCode> {
+    Ok(Json(thread_messages_for(&state, &user, &thread_id).await?))
+}
+
+/// The thread's messages, enriched from maildir.
+///
+/// Split out of the handler so a second caller can read the same rows
+/// the client sees. `POST /api/mail/unsubscribe` needs the message's
+/// own `List-Unsubscribe` header, and taking it from here rather than
+/// from the request body is what stops the endpoint being a request
+/// forwarder pointed at any URL a caller names.
+pub(crate) async fn thread_messages_for(
+    state: &Arc<WebState>,
+    user: &str,
+    thread_id: &str,
+) -> Result<Vec<ThreadMessageResponse>, StatusCode> {
     let resp = state
         .core
-        .list_thread_messages(&user, &thread_id)
+        .list_thread_messages(user, thread_id)
         .await
         .map_err(map_err)?;
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let store = mailrs_message_store::MaildirStore;
     let mut items = Vec::with_capacity(resp.items.len());
     for w in resp.items {
-        items.push(enrich_with_body(&store, &maildir_root, &user, w).await);
+        items.push(enrich_with_body(&store, &maildir_root, user, w).await);
     }
-    Ok(Json(items))
+    Ok(items)
 }
 
 /// GET /api/conversations/unseen-count — returns `{"count": N}` inline
@@ -246,5 +261,39 @@ mod cc_tests {
     fn empty_cc_returns_none() {
         let m = b"From: a@x\r\nCc:   \r\n\r\nbody";
         assert_eq!(extract_cc_header(m), None);
+    }
+}
+
+#[cfg(test)]
+mod unsubscribe_header_tests {
+    use super::super::conversation_body::extract_header;
+
+    /// The two headers differ by a suffix, and the prefix match has to
+    /// include the colon or every message would report its `-Post`
+    /// value as the target list.
+    #[test]
+    fn list_unsubscribe_does_not_match_list_unsubscribe_post() {
+        let m = b"From: a@x\r\nList-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n\
+                  List-Unsubscribe: <https://e.example/u>\r\n\r\nbody";
+        assert_eq!(
+            extract_header(m, b"list-unsubscribe:").as_deref(),
+            Some("<https://e.example/u>")
+        );
+        assert_eq!(
+            extract_header(m, b"list-unsubscribe-post:").as_deref(),
+            Some("List-Unsubscribe=One-Click")
+        );
+    }
+
+    /// Unfolding leaves the fold's space behind, which is what
+    /// `mailrs_clean::parse_unsubscribe` then takes back out of a web
+    /// target. The two halves have to agree or long links stay broken.
+    #[test]
+    fn a_folded_unsubscribe_header_arrives_as_one_value_with_the_fold_space() {
+        let m = b"From: a@x\r\nList-Unsubscribe: <https://e.example/optin/4bda\r\n f716929>\r\n\r\nbody";
+        let raw = extract_header(m, b"list-unsubscribe:").expect("header");
+        assert_eq!(raw, "<https://e.example/optin/4bda f716929>");
+        let parsed = mailrs_clean::parse_unsubscribe(&raw, None).expect("target");
+        assert_eq!(parsed.http, vec!["https://e.example/optin/4bdaf716929"]);
     }
 }

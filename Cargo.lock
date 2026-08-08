@@ -3811,6 +3811,7 @@ dependencies = [
  "html2text",
  "jsonwebtoken",
  "kevy-client",
+ "mailrs-clean",
  "mailrs-core-api",
  "mailrs-core-sidestate",
  "mailrs-ical",

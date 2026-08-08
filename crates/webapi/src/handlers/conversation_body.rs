@@ -52,6 +52,38 @@ pub struct ThreadMessageResponse {
     pub requires_action: bool,
     pub sender_intent: String,
     pub action_deadline: Option<String>,
+    /// Where `List-Unsubscribe` says unsubscribing goes, absent when
+    /// the message carries no usable target. 42.6% of the mail in this
+    /// mailbox has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unsubscribe: Option<UnsubscribeWire>,
+}
+
+/// The unsubscribe targets a message advertises.
+///
+/// `one_click` means the sender accepts an RFC 8058 POST, which the
+/// **server** performs — see `POST /api/mail/unsubscribe`. The URLs are
+/// still sent to the client so it can offer the link when one-click is
+/// not on the table, but a client must not post to them itself: these
+/// URLs identify the subscriber, and fetching one from a phone hands
+/// the sender the reader's address and network.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct UnsubscribeWire {
+    pub one_click: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub http: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mailto: Vec<String>,
+}
+
+impl From<mailrs_clean::Unsubscribe> for UnsubscribeWire {
+    fn from(u: mailrs_clean::Unsubscribe) -> Self {
+        Self {
+            one_click: u.one_click,
+            http: u.http,
+            mailto: u.mailto,
+        }
+    }
 }
 
 impl ThreadMessageResponse {
@@ -88,6 +120,7 @@ impl ThreadMessageResponse {
             requires_action: false,
             sender_intent: String::new(),
             action_deadline: None,
+            unsubscribe: None,
         }
     }
 }
@@ -96,6 +129,15 @@ impl ThreadMessageResponse {
 /// continuation lines (leading whitespace = continuation of prior header).
 /// Returns `None` when no Cc header is present or when it's empty.
 pub(crate) fn extract_cc_header(data: &[u8]) -> Option<String> {
+    extract_header(data, b"cc:")
+}
+
+/// One named header's unfolded value.
+///
+/// `name` includes the colon, which is what keeps `list-unsubscribe:`
+/// from also matching `list-unsubscribe-post:` — two different headers
+/// that this code reads separately and must not confuse.
+pub(crate) fn extract_header(data: &[u8], name: &[u8]) -> Option<String> {
     // Header block ends at the first blank line (CRLF CRLF or LF LF).
     let head_end = memchr_bytes(data, b"\r\n\r\n")
         .or_else(|| memchr_bytes(data, b"\n\n"))
@@ -107,15 +149,16 @@ pub(crate) fn extract_cc_header(data: &[u8]) -> Option<String> {
             *l = &l[..l.len() - 1];
         }
     }
+    let n = name.len();
     let mut i = 0;
     while i < lines.len() {
         let ll = lines[i];
-        if !ll.len().ge(&3) {
+        if ll.len() < n {
             i += 1;
             continue;
         }
-        if ll.get(..3).is_some_and(|s| s.eq_ignore_ascii_case(b"cc:")) {
-            let mut val: Vec<u8> = ll[3..].trim_ascii_start().to_vec();
+        if ll.get(..n).is_some_and(|s| s.eq_ignore_ascii_case(name)) {
+            let mut val: Vec<u8> = ll[n..].trim_ascii_start().to_vec();
             let mut j = i + 1;
             while j < lines.len() {
                 let cont = lines[j];
@@ -308,6 +351,12 @@ pub(crate) async fn enrich_with_body(
         r.html_body = h;
         r.attachments = a;
         r.cc = extract_cc_header(&bytes);
+        r.unsubscribe = extract_header(&bytes, b"list-unsubscribe:")
+            .and_then(|v| {
+                let post = extract_header(&bytes, b"list-unsubscribe-post:");
+                mailrs_clean::parse_unsubscribe(&v, post.as_deref())
+            })
+            .map(UnsubscribeWire::from);
         // Repair a stale internal_date at read time. Historic
         // messages had wire.internal_date = 0 (1970) whenever the
         // old fastcore date parser choked on the header — replace

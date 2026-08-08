@@ -392,6 +392,18 @@ fn an_unknown_field_is_named_rather_than_dropped() {
 /// sitting in the directory looking like coverage it is not providing —
 /// which is the same shape of problem as a test that checks one side
 /// against itself.
+/// The body names a message, never a URL.
+///
+/// The endpoint posts to whatever `List-Unsubscribe` that message
+/// carried; a body that carried the URL instead would make the server a
+/// request forwarder for anything a caller could name.
+#[test]
+fn unsubscribe_body_matches() {
+    let v: handlers::unsubscribe::UnsubscribeRequest = parse("unsubscribe");
+    assert!(!v.thread_id.is_empty());
+    assert_eq!(v.uid, 41);
+}
+
 #[test]
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
@@ -428,6 +440,7 @@ fn every_fixture_has_a_test() {
         "signature-save",
         "snooze",
         "system-config-set",
+        "unsubscribe",
         "totp-code",
         "webhook-create",
     ];

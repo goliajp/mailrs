@@ -900,6 +900,41 @@
         }
       }
     },
+    "/api/mail/unsubscribe": {
+      "post": {
+        "operationId": "unsubscribeFromList",
+        "summary": "Unsubscribe from a mailing list via RFC 8058 one-click",
+        "description": "Posts List-Unsubscribe=One-Click to the https URL the named message's own List-Unsubscribe header carries. The server makes the request, never the client: the URL identifies the subscriber. 404 when that message advertises no one-click target.",
+        "tags": [
+          "Conversations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnsubscribeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The sender's endpoint answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsubscribeResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such message, or it offers no one-click target"
+          }
+        }
+      }
+    },
     "/api/conversations": {
       "get": {
         "operationId": "getConversations",
@@ -8525,6 +8560,43 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "UnsubscribeRequest": {
+        "type": "object",
+        "required": [
+          "thread_id",
+          "uid"
+        ],
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "description": "Thread the message is in"
+          },
+          "uid": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Message uid within the thread"
+          }
+        }
+      },
+      "UnsubscribeResult": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status the sender's endpoint returned"
+          },
+          "message": {
+            "type": "string",
+            "description": "Transport error, when the request never completed"
           }
         }
       }

@@ -552,6 +552,31 @@ curl -X POST https://mail.golia.ai/api/mail/send-multipart \
   -F "attachments=@/path/to/file.png;type=image/png"
 ```
 
+### Unsubscribe (RFC 8058 one-click)
+
+A message that carries `List-Unsubscribe` is reported with an
+`unsubscribe` object on its thread-message row:
+
+```
+"unsubscribe": {"one_click": true, "http": ["https://esp.example/u?t=..."], "mailto": ["mailto:u@esp.example"]}
+```
+
+When `one_click` is true, ask the server to leave the list. The body
+names the message, never a URL — the server posts to the URL that
+message's own header carried, because that URL identifies the
+subscriber and fetching it from a client hands the sender the reader's
+address and network.
+
+```
+curl -X POST https://mail.golia.ai/api/mail/unsubscribe \
+  -H "Authorization: Bearer mlrs_..." \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "a48529b44b1b190f@golia.jp", "uid": 41}'
+```
+
+Response: `{"ok": true, "status": 200}`. 404 when that message offers no
+one-click target — offer its `http` link instead.
+
 ### List Conversations
 
 ```

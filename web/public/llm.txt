@@ -36,6 +36,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 ### Email
 - POST /api/mail/send — send email (JSON)
 - POST /api/mail/send-multipart — send with attachments
+- POST /api/mail/unsubscribe — RFC 8058 one-click leave; body names the message, the server posts to the URL that message carried
 - GET /api/conversations — list conversations (?q=keyword, ?category=, ?limit=)
 - GET /api/conversations/{thread_id} — thread messages
 - GET /api/mail/messages/{uid} — read message
