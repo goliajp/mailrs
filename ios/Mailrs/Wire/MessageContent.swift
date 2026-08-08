@@ -43,9 +43,16 @@ enum MessageContent {
     /// fetched by its position in the array as sent. Filtering a plain
     /// list and re-enumerating it would shift every index after the one
     /// removed, and download the wrong file.
-    static func listable(_ attachments: [Wire.Attachment]) -> [(index: Int, attachment: Wire.Attachment)] {
-        attachments.enumerated()
-            .filter { !isSignature($0.element) }
+    ///
+    /// `inlined` are the parts the body draws itself — see
+    /// `InlineImages`. Listing them again offers the reader a file that
+    /// is already on the screen, which Apple Mail does not do either.
+    static func listable(
+        _ attachments: [Wire.Attachment], inlined: [Int] = []
+    ) -> [(index: Int, attachment: Wire.Attachment)] {
+        let shown = Set(inlined)
+        return attachments.enumerated()
+            .filter { !isSignature($0.element) && !shown.contains($0.offset) }
             .map { (index: $0.offset, attachment: $0.element) }
     }
 
