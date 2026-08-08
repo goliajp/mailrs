@@ -1,16 +1,23 @@
 import SwiftUI
 import UserNotifications
 
-/// Registering this device for push, at the moment it makes sense.
+/// What this app asks the system for, and what it does not.
 ///
-/// The permission prompt fires after sign-in, not at launch: an app that
-/// asks for notifications before showing any mail is asking to be
-/// declined, and iOS only asks once.
+/// **Only the badge.** The unread count on the icon needs badge
+/// authorization and nothing else — no server, no APNs key, no portal
+/// step. Alerts and sounds are not requested, because push is not
+/// wanted here, and iOS asks once: spending that one prompt on a
+/// capability nobody wants and nothing can deliver is how an app gets
+/// its notifications declined forever.
 ///
-/// Skipped entirely under the UI-test launch flags. The prompt is a
-/// system alert over the whole screen — the same shape as the
-/// save-password sheet that made every row untappable — and no test can
-/// dismiss it.
+/// The token plumbing below is left intact and unused. Turning push on
+/// later is one call — `registerForRemoteNotifications()` — plus the
+/// APNs key and App ID capability, which are portal steps.
+///
+/// The prompt still waits for sign-in rather than launch, and is
+/// skipped under the UI-test flags: it is a system alert over the whole
+/// screen, the same shape as the save-password sheet that once made
+/// every row untappable, and no test can dismiss it.
 @MainActor
 enum PushRegistrar {
     static var isUnderTest: Bool {
@@ -18,17 +25,10 @@ enum PushRegistrar {
         return arguments.contains("-mailrsSignedOut") || arguments.contains("-mailrsToken")
     }
 
-    static func requestAndRegister() {
+    static func requestBadgeAuthorization() {
         guard !isUnderTest else { return }
         Task {
-            let center = UNUserNotificationCenter.current()
-            let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound]))
-                ?? false
-            guard granted else { return }
-            // Hands the token to `AppDelegate` via the system callback;
-            // fails with "no valid aps-environment" until the App ID
-            // carries the push capability, which is a portal step.
-            UIApplication.shared.registerForRemoteNotifications()
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.badge])
         }
     }
 }
@@ -38,8 +38,8 @@ enum PushRegistrar {
 /// Server-counted, never client-derived: the pages in hand are one list
 /// and fifty rows of it, and summing them would show a number that
 /// changes with scrolling. `setBadgeCount` silently does nothing until
-/// badge authorization is granted, which the sign-in permission request
-/// already asks for — so this needs no gating of its own.
+/// badge authorization is granted, which is the one thing the sign-in
+/// prompt asks for — so this needs no gating of its own.
 @MainActor
 enum AppBadge {
     static func update(_ count: Int) {
