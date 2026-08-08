@@ -14,6 +14,8 @@
 //!   spam score.
 //! - [`detect_bulk_sender`] — RFC 2369 `List-*` header heuristic, used
 //!   to demote mailing-list traffic in inbox sorting.
+//! - [`parse_unsubscribe`] — the same header read for what it says:
+//!   where unsubscribing goes, and whether RFC 8058 one-click applies.
 //! - [`is_automated_sender`] — local-part pattern check for
 //!   `no-reply@`, `notification@`, etc.
 //! - [`split_quoted_content`] — separate a fresh reply from its quoted
@@ -142,6 +144,7 @@ pub fn clean_email_html(html: &str) -> CleanResult {
 mod html;
 mod quote;
 mod sender;
+mod unsubscribe;
 
 use html::{
     count_pattern, detect_tracking_pixels, html_to_clean_text, remove_template_chrome,
@@ -149,6 +152,7 @@ use html::{
 };
 pub use quote::split_quoted_content;
 pub use sender::{detect_bulk_sender, is_automated_sender};
+pub use unsubscribe::{Unsubscribe, parse_unsubscribe};
 
 #[cfg(test)]
 mod tests {
