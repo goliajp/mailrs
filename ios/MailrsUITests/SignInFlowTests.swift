@@ -463,6 +463,52 @@ final class SignInFlowTests: XCTestCase {
                       "the compose button stayed English")
     }
 
+    /// Aliases are listed, added and removed from the phone.
+    ///
+    /// The request shape is the assertion. The admin list arrives in an
+    /// `{items: […]}` envelope while the conversation list is a bare
+    /// array, and the add takes four fields including a domain the
+    /// server could have derived — a client that guessed either would
+    /// look identical on screen and be wrong on the wire.
+    func testAliasesCanBeListedAddedAndRemoved() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Aliases"].waitForExistence(timeout: 5), "no admin section")
+        app.buttons["Aliases"].tap()
+
+        XCTAssertTrue(app.staticTexts["sales@golia.jp"].waitForExistence(timeout: 10),
+                      "the alias list never decoded — check the items envelope")
+        XCTAssertTrue(app.staticTexts["Inactive"].exists,
+                      "an inactive alias is indistinguishable from an active one")
+
+        app.buttons["Add alias"].tap()
+        let source = app.textFields["alias-source"]
+        XCTAssertTrue(source.waitForExistence(timeout: 5), "no add form")
+        source.tap()
+        source.typeText("press@golia.jp")
+        let target = app.textFields["alias-target"]
+        target.tap()
+        target.typeText("lihao@golia.jp")
+        app.buttons["Add"].tap()
+
+        XCTAssertTrue(app.staticTexts["press@golia.jp"].waitForExistence(timeout: 10),
+                      "the new alias never came back from the server")
+        let writes = recordedWrites()
+        XCTAssertTrue(writes.contains("POST /api/admin/aliases"),
+                      "the alias was not created on the server: \(writes)")
+
+        app.staticTexts["press@golia.jp"].swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        app.buttons["Delete"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["press@golia.jp"].waitForNonExistence(timeout: 10),
+                      "the alias survived its deletion")
+    }
+
     /// Triage without leaving the thread.
     ///
     /// Archiving from inside has to do both halves: reach the server,

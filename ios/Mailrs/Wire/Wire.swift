@@ -219,6 +219,56 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/core-api/src/method/admin/directory.rs` —
+    /// `AliasWire`, served by `crates/webapi/src/handlers/admin_directory.rs`.
+    ///
+    /// `GET /api/admin/aliases` answers `{"items": [...]}` — an
+    /// envelope, unlike `/api/conversations`, which is a bare array.
+    /// The two shapes live in one app, so the difference is worth
+    /// stating rather than remembering.
+    struct Alias: Codable, Equatable, Identifiable, Sendable {
+        let id: Int64
+        let sourceAddress: String
+        let targetAddress: String
+        let domain: String
+        /// `alias` or `forward` — the server's word, shown as-is.
+        let aliasType: String
+        let active: Bool
+        let createdAt: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case sourceAddress = "source_address"
+            case targetAddress = "target_address"
+            case domain
+            case aliasType = "alias_type"
+            case active
+            case createdAt = "created_at"
+        }
+    }
+
+    struct AliasList: Decodable, Sendable {
+        let items: [Alias]
+    }
+
+    /// Backend: `AddAliasRequest`. `domain` is sent even though the
+    /// server could split it off the source: the handler takes it as a
+    /// field, and inferring what a server asks for is how a client
+    /// starts disagreeing with it.
+    struct AddAliasRequest: Encodable, Sendable {
+        let sourceAddress: String
+        let targetAddress: String
+        let domain: String
+        let aliasType: String
+
+        enum CodingKeys: String, CodingKey {
+            case sourceAddress = "source_address"
+            case targetAddress = "target_address"
+            case domain
+            case aliasType = "alias_type"
+        }
+    }
+
     /// Backend: `crates/webapi/src/handlers/compose.rs` — `SendResponse`.
     struct SendResponse: Decodable {
         let messageId: String

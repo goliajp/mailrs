@@ -241,6 +241,29 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/admin/aliases` — Backend:
+    /// `crates/webapi/src/handlers/admin_directory.rs::list_aliases`.
+    func aliases() async throws -> [Wire.Alias] {
+        let list: Wire.AliasList = try await getJSON("/api/admin/aliases")
+        return list.items
+    }
+
+    /// `POST /api/admin/aliases`.
+    func addAlias(_ request: Wire.AddAliasRequest) async throws {
+        let (_, response) = try await send(
+            "POST", "/api/admin/aliases",
+            body: try JSONEncoder().encode(request), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `DELETE /api/admin/aliases/{id}`.
+    func deleteAlias(id: Int64) async throws {
+        try await verb("DELETE", "/api/admin/aliases/\(id)")
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no
