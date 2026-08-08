@@ -1100,6 +1100,21 @@ final class SignInFlowTests: XCTestCase {
         wait(for: [done], timeout: 10)
     }
 
+    /// How many times anything reached the stub from inside a message.
+    private func phishHits() -> Int {
+        guard let url = URL(string: "http://localhost:6039/debug/phish-hits") else { return -1 }
+        var hits = -1
+        let done = expectation(description: "phish-hits")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data, let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                hits = body["hits"] as? Int ?? -1
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return hits
+    }
+
     /// How many times the badge's count has been fetched.
     private func unseenFetches() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/unseen-fetches") else { return -1 }
@@ -1892,6 +1907,50 @@ final class SignInFlowTests: XCTestCase {
             .waitForExistence(timeout: 15), "the list never loaded")
         XCTAssertFalse(app.activityIndicators.firstMatch.exists,
                        "the spinner outlived the load")
+    }
+
+    /// A message body may not reach the network on its own.
+    ///
+    /// The fixture is what real mail looks like when it is hostile: a
+    /// credential form and a meta refresh, both pointing at the stub.
+    /// Neither needs JavaScript, so this client having JavaScript off
+    /// stops neither — the previous navigation policy refused link taps
+    /// and allowed everything else, which let both straight through.
+    ///
+    /// The assertion is at the wire, not on the screen: the stub counts
+    /// what arrives, and the answer has to be nothing.
+    func testAMessageBodyCannotPostOrRedirectOnItsOwn() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.staticTexts["請求書のご送付につきまして"].tap()
+        XCTAssertTrue(app.staticTexts["To: Sales <sales@golia.jp>"].waitForExistence(timeout: 10),
+                      "the thread never opened")
+
+        // The meta refresh fires on load, with no interaction at all.
+        XCTAssertEqual(phishHits(), 0, "the message redirected itself on open")
+
+        // And the form, if its button can be reached, must not post.
+        let submit = app.buttons["Sign in to continue"]
+        if submit.waitForExistence(timeout: 5) {
+            submit.tap()
+        }
+        XCTAssertEqual(phishHits(), 0, "a form inside a message body posted to the network")
+
+        // The name says Amazon; the mail did not come from Amazon, and
+        // the header showed a display name and no address at all. iOS
+        // has no phishing API to ask — this is the whole of what an app
+        // can do, and it is worth doing.
+        XCTAssertTrue(app.staticTexts["mail07.jqjintaiyang.example"].exists,
+                      "a display name claiming another domain went unmarked")
+
+        // The signature part is not offered as a file; the real
+        // attachment beside it still is.
+        XCTAssertFalse(app.staticTexts["smime.p7s"].exists,
+                       "an S/MIME signature was listed as an attachment")
+        XCTAssertTrue(app.staticTexts["請求書.pdf"].exists,
+                      "filtering the signature took the real attachment with it")
     }
 
     /// Mail that arrived at an alias says which one.

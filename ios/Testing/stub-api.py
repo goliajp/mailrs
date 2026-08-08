@@ -148,6 +148,11 @@ def queue_jobs():
     ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# Anything that reaches here came from inside a rendered message body,
+# which is the one thing a mail client must never let happen. Four
+# messages in a 900-message sample of the real mailbox carry a <form>.
+PHISH_HITS = [0]
+
 # Permission groups. One builtin (no domain, undeletable) and one
 # ordinary — the builtin is the shape a client is most likely to get
 # wrong, by offering a delete the server will refuse.
@@ -286,9 +291,28 @@ MESSAGES = [msg(1, "Alice Smith <alice@example.com>", "verified", WIDE),
 # The second thread arrived at an alias, which is its whole purpose
 # here: the direct address is absent, so the client has to work out that
 # sales@ is one of mine and say so.
-ALIAS_THREAD = [dict(msg(5, "keiri <keiri@example.co.jp>", "verified",
-                         "<p>\u8acb\u6c42\u66f8\u3092\u304a\u9001\u308a\u3057\u307e\u3059\u3002</p>"),
-                     recipients="Sales <sales@golia.jp>")]
+# The body is a credential form posting to this stub, plus a meta
+# refresh. Neither needs JavaScript, so switching JavaScript off — which
+# this client does — stops neither of them.
+PHISH_BODY = (
+    "<p>\u8acb\u6c42\u66f8\u3092\u304a\u9001\u308a\u3057\u307e\u3059\u3002</p>"
+    "<meta http-equiv=\"refresh\" content=\"0; url=http://localhost:6039/debug/phish?via=refresh\">"
+    "<form action=\"http://localhost:6039/debug/phish\" method=\"post\">"
+    "<input type=\"password\" name=\"p\" value=\"hunter2\">"
+    "<input type=\"submit\" value=\"Sign in to continue\">"
+    "</form>"
+)
+# The display name claims a brand; the address is somewhere else
+# entirely. Six From headers of this exact shape were in the real
+# mailbox when the rule was written.
+ALIAS_THREAD = [dict(msg(5, "Amazon.co.jp <no-reply@mail07.jqjintaiyang.example>",
+                         "verified", PHISH_BODY),
+                     recipients="Sales <sales@golia.jp>",
+                     attachments=[{"filename": "smime.p7s",
+                                   "content_type": "application/pkcs7-signature",
+                                   "size": 2048},
+                                  {"filename": "\u8acb\u6c42\u66f8.pdf",
+                                   "content_type": "application/pdf", "size": 1234}])]
 
 class H(BaseHTTPRequestHandler):
     def _send(self, obj, status=200):
@@ -447,6 +471,13 @@ class H(BaseHTTPRequestHandler):
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
             self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
+            return
+        if self.path.split("?")[0] == "/debug/phish":
+            PHISH_HITS[0] += 1
+            self._send({"hits": PHISH_HITS[0]})
+            return
+        if self.path.split("?")[0] == "/debug/phish-hits":
+            self._send({"hits": PHISH_HITS[0]})
             return
         if self.path.split("?")[0] == "/debug/account-posts":
             self._send({"posts": ACCOUNT_POSTS})
@@ -612,6 +643,13 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
+        # Counted before anything else: a post that reaches here came out
+        # of a rendered message body, and the client is supposed to make
+        # that impossible.
+        if self.path.split("?")[0] == "/debug/phish":
+            PHISH_HITS[0] += 1
+            self._send({"hits": PHISH_HITS[0]})
+            return
         # The reset itself is not traffic under test — and it must not be
         # recorded before clearing, or clear-then-unrecord pops an empty
         # list.
@@ -637,6 +675,7 @@ class H(BaseHTTPRequestHandler):
             UNSEEN_FETCHES[0] = 0
             LIST_FETCHES[0] = 0
             LIST_DELAY_MS[0] = 0
+            PHISH_HITS[0] = 0
             CONTACT_QUERIES.clear()
             ALIASES[:] = [
                 {"id": 1, "source_address": "sales@golia.jp",

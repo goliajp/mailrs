@@ -39,6 +39,14 @@ struct RowDateText: View {
         Text(verbatim: text)
             .font(.caption)
             .foregroundStyle(.secondary)
+            // A date is one line or it is nothing. Squeezed between a
+            // sender name and two badges, `Aug 5, 2025 at 10:20 PM`
+            // wrapped to **one character per line** and ran down the
+            // side of the card — the row that cannot fit is the defect
+            // this app does not ship, and a stamp has no useful
+            // truncation, so it takes its width and the rest yields.
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private var text: String {
