@@ -80,6 +80,23 @@ struct SettingsView: View {
                     Text("Times on messages are shown in this zone.")
                 }
 
+                // Only where it can be honoured. A device with no
+                // passcode has nothing to authenticate against, and a
+                // switch that silently does nothing is worse than none.
+                if BiometricLock.isAvailable {
+                    Section {
+                        Toggle(isOn: lockBinding) {
+                            LucideRow(title: BiometricLock.kind().label,
+                                      icon: BiometricLock.kind().symbol)
+                        }
+                        .accessibilityIdentifier("require-biometrics")
+                    } header: {
+                        Text("Privacy")
+                    } footer: {
+                        Text("Asked for when the app starts, and when you come back to it after a minute away.")
+                    }
+                }
+
                 // Two sections, not one of seven: directory work and
                 // operational work are different errands, and a list
                 // long enough to scroll should say where it changes
@@ -164,6 +181,29 @@ struct SettingsView: View {
 
     private var languageBinding: Binding<Preferences.Language> {
         Binding(get: { preferences.language }, set: { preferences.language = $0 })
+    }
+
+    /// Turning it on asks once, straight away.
+    ///
+    /// Otherwise the first time it is exercised is a cold launch, which
+    /// is the worst moment to discover that the face on file is not
+    /// yours. Turning it off asks nothing: the phone is already unlocked
+    /// and in the owner's hand, and demanding a face to *reduce*
+    /// security is theatre.
+    private var lockBinding: Binding<Bool> {
+        Binding(
+            get: { preferences.requiresBiometrics },
+            set: { wanted in
+                guard wanted else {
+                    preferences.requiresBiometrics = false
+                    return
+                }
+                Task {
+                    let passed = await BiometricLock.authenticate(
+                        reason: String(localized: "Turn on locking"))
+                    preferences.requiresBiometrics = passed
+                }
+            })
     }
 
     private var zoneBinding: Binding<String?> {

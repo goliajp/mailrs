@@ -77,6 +77,30 @@ enum Lucide {
         .path("M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"),
     ]
 
+    /// `scan-face` — Face ID.
+    static let scanFace: [Element] = [
+        .path("M3 7V5a2 2 0 0 1 2-2h2"),
+        .path("M17 3h2a2 2 0 0 1 2 2v2"),
+        .path("M21 17v2a2 2 0 0 1-2 2h-2"),
+        .path("M7 21H5a2 2 0 0 1-2-2v-2"),
+        .path("M8 14s1.5 2 4 2 4-2 4-2"),
+        .path("M9 9h.01"),
+        .path("M15 9h.01"),
+    ]
+
+    /// `fingerprint-pattern` — Touch ID.
+    static let fingerprint: [Element] = [
+        .path("M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"),
+        .path("M14 13.12c0 2.38 0 6.38-1 8.88"),
+        .path("M17.29 21.02c.12-.6.43-2.3.5-3.02"),
+        .path("M2 12a10 10 0 0 1 18-6"),
+        .path("M2 16h.01"),
+        .path("M21.8 16c.2-2 .131-5.354 0-6"),
+        .path("M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"),
+        .path("M8.65 22c.21-.66.45-1.32.57-2"),
+        .path("M9 6.8a6 6 0 0 1 9 5.2v2"),
+    ]
+
     static let keyRound: [Element] = [
         .path("M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"),
         .circle(x: 16.5, y: 7.5, r: 0.5),

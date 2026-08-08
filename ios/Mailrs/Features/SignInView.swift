@@ -39,8 +39,14 @@ struct SignInView: View {
                 .accessibilityElement(children: .combine)
 
                 Section("Account") {
+                    // `.username`, not `.emailAddress`, even though it is
+                    // one: `.emailAddress` only picks the keyboard and
+                    // offers addresses from Contacts. A field iOS will
+                    // save a password *against* has to be the username
+                    // half of a credential, and without it the offer to
+                    // save one never appears.
                     TextField("you@example.com", text: $address)
-                        .textContentType(.emailAddress)
+                        .textContentType(.username)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()

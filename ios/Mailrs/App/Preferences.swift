@@ -78,10 +78,21 @@ final class Preferences {
         timeZoneIdentifier.flatMap(TimeZone.init(identifier:)) ?? .autoupdatingCurrent
     }
 
+    /// Whether the app asks for Face ID before showing the mail.
+    ///
+    /// Off unless it is turned on. A mail client that demands a face on
+    /// first launch is one people delete, and the phone's own lock is
+    /// already between a stranger and this screen — this is the second
+    /// one, for a phone handed over unlocked.
+    var requiresBiometrics: Bool {
+        didSet { persist(requiresBiometrics, Keys.requiresBiometrics) }
+    }
+
     private enum Keys {
         static let appearance = "mailrs.appearance"
         static let language = "mailrs.language"
         static let timeZone = "mailrs.timeZone"
+        static let requiresBiometrics = "mailrs.requiresBiometrics"
     }
 
     private let defaults: UserDefaults
@@ -99,8 +110,14 @@ final class Preferences {
         defaults.set(value, forKey: key)
     }
 
+    private func persist(_ value: Bool, _ key: String) {
+        guard loaded else { return }
+        defaults.set(value, forKey: key)
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        requiresBiometrics = defaults.bool(forKey: Keys.requiresBiometrics)
         appearance = defaults.string(forKey: Keys.appearance)
             .flatMap(Appearance.init(rawValue:)) ?? .system
         language = defaults.string(forKey: Keys.language)
