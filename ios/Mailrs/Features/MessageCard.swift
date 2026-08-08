@@ -8,6 +8,10 @@ import SwiftUI
 
 struct MessageCard: View {
     let message: Wire.Message
+    /// The thread the message is in — the unsubscribe call names both,
+    /// because the server looks the message up rather than trusting a
+    /// URL from the client.
+    let threadId: String
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
     @Environment(Session.self) private var session
@@ -175,6 +179,8 @@ struct MessageCard: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            UnsubscribeFooter(threadId: threadId, message: message)
         }
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground),

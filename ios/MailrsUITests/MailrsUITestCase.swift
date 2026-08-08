@@ -382,6 +382,29 @@ class MailrsUITestCase: XCTestCase {
     }
 
 
+    /// What the stub was asked to unsubscribe from.
+    ///
+    /// Each entry is the body the client posted. The assertion that
+    /// matters is what is **not** in it: no URL. The server takes the
+    /// target out of the message's own header, and a client that sent
+    /// one would have turned the endpoint into a request forwarder.
+    func unsubscribeRequests() -> [[String: Any]] {
+        guard let url = URL(string: "http://localhost:6039/debug/unsubscribed") else { return [] }
+        var result: [[String: Any]] = []
+        let done = expectation(description: "debug/unsubscribed")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let rows = json["unsubscribed"] as? [[String: Any]] {
+                result = rows
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
+
     /// The attachment indices the stub has served, in order.
     func fetchedAttachmentIndices() -> [Int] {
         guard let url = URL(string: "http://localhost:6039/debug/fetched") else { return [] }

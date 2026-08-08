@@ -101,7 +101,7 @@ struct ThreadView: View {
                                 // The header folds the card; the body
                                 // keeps its own taps (links, text
                                 // selection, attachments).
-                                MessageCard(message: message) {
+                                MessageCard(message: message, threadId: conversation.threadId) {
                                     withAnimation { toggled.formSymmetricDifference([message.uid]) }
                                 }
                             } else {

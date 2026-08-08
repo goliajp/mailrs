@@ -2436,6 +2436,22 @@
         }
       }
     },
+    "The sender's list did not accept it. Their link is above.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信元のリストが受け付けませんでした。上のリンクをお使いください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发件方的列表没有接受。可以用上面的链接。"
+          }
+        }
+      }
+    },
     "Theme": {
       "localizations": {
         "ja": {
@@ -2656,6 +2672,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消加星"
+          }
+        }
+      }
+    },
+    "Unsubscribe": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配信停止"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退订"
+          }
+        }
+      }
+    },
+    "Unsubscribe by email": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールで配信停止"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过邮件退订"
+          }
+        }
+      }
+    },
+    "Unsubscribe on the web": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウェブで配信停止"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在网页上退订"
+          }
+        }
+      }
+    },
+    "Unsubscribed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配信停止しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已退订"
+          }
+        }
+      }
+    },
+    "Unsubscribing…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配信停止しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在退订…"
           }
         }
       }
