@@ -118,6 +118,22 @@ extension Session {
     }
 
 
+    /// Ask the server to leave the list this message came from.
+    ///
+    /// Returns whether it worked, rather than setting `state = .failed`:
+    /// the answer belongs under the message it is about, not in a
+    /// banner over the whole mailbox, and the reader still has the
+    /// sender's own link if this comes back false.
+    func unsubscribe(threadId: String, uid: UInt32) async -> Bool {
+        guard let client else { return false }
+        do {
+            return try await client.unsubscribe(threadId: threadId, uid: uid)
+        } catch {
+            return false
+        }
+    }
+
+
     func setJunk(_ conversation: Wire.Conversation, junk: Bool) async {
         guard let client else { return }
         let previous = conversations

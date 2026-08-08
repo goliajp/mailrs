@@ -54,6 +54,9 @@ extension Wire {
         let textBody: String?
         let htmlBody: String?
         let attachments: [Attachment]
+        /// Present when the message carries `List-Unsubscribe`. 42.6%
+        /// of real mail does.
+        let unsubscribe: Unsubscribe?
 
         var id: UInt32 { uid }
 
@@ -68,6 +71,39 @@ extension Wire {
             case textBody = "text_body"
             case htmlBody = "html_body"
             case attachments
+            case unsubscribe
+        }
+    }
+
+
+    /// Backend: `crates/webapi/src/handlers/conversation_body.rs` —
+    /// `UnsubscribeWire`.
+    ///
+    /// The URLs are here so a link can be offered when one-click is not
+    /// on the table. **This client must never fetch them.** They
+    /// identify one subscriber, so a request from the phone tells the
+    /// sender the mail was opened, from which address and on whose
+    /// network — the same thing `RemoteBlock` exists to prevent in the
+    /// body. One-click goes through the server; anything else opens in
+    /// Safari, where the reader has decided to be seen.
+    struct Unsubscribe: Codable, Equatable, Sendable {
+        let oneClick: Bool
+        let http: [String]
+        let mailto: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case oneClick = "one_click"
+            case http
+            case mailto
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            oneClick = try c.decodeIfPresent(Bool.self, forKey: .oneClick) ?? false
+            // Both arrays are omitted when empty, so a message with only
+            // a mailto target decodes with no `http` key at all.
+            http = try c.decodeIfPresent([String].self, forKey: .http) ?? []
+            mailto = try c.decodeIfPresent([String].self, forKey: .mailto) ?? []
         }
     }
 

@@ -297,6 +297,31 @@ def msg(uid, sender, trust, html):
 MESSAGES = [msg(1, "Alice Smith <alice@example.com>", "verified", WIDE),
             msg(2, "spoofed@example.com", "suspicious", "<p>Short reply, narrow body.</p>")]
 
+# A newsletter, which is what 42.6% of real mail is. uid 7 accepts RFC
+# 8058 one-click; uid 8 only offers a page, so the client must say so
+# rather than pretending it can leave the list on the reader's behalf.
+# Order matters: a thread opens with its **last** message expanded, so
+# the one-click case is last. With it first, the card on screen was the
+# page-only one and tapping its button left for Safari — which is the
+# correct behaviour for that offer, and useless for testing this one.
+NEWSLETTER = [
+    dict(msg(7, "Jalan <point-j@jalan.example>", "verified",
+             "<p>\u30dd\u30a4\u30f3\u30c8\u306e\u304a\u77e5\u3089\u305b</p>"),
+         unsubscribe={"one_click": False,
+                      "http": ["https://jalan.example/unsubscribe?id=9"]}),
+    dict(msg(8, "ByteByteGo <news@substack.example>", "verified",
+             "<p>This week in systems design.</p>"),
+         unsubscribe={"one_click": True,
+                      "http": ["https://substack.example/u?t=abc"],
+                      "mailto": ["mailto:unsub@substack.example"]}),
+]
+
+# What the server was asked to unsubscribe from, and whether it agreed.
+# `/debug/unsubscribed` is how a test proves the request carried the
+# message's identity and not a URL from the client.
+UNSUBSCRIBED = []
+UNSUB_REFUSE = [False]
+
 # The second thread arrived at an alias, which is its whole purpose
 # here: the direct address is absent, so the client has to work out that
 # sales@ is one of mine and say so.
@@ -567,6 +592,9 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/sent":
             self._send({"sent": SENT})
             return
+        if self.path.split("?")[0] == "/debug/unsubscribed":
+            self._send({"unsubscribed": UNSUBSCRIBED})
+            return
         _path = self.path.split("?")[0]
         if re.match(r"^/api/conversations/t\d+$", _path) or _path.rsplit("/", 1)[-1] in REAL_MESSAGES:
             # The delay covers thread bodies too: the offline tests need
@@ -579,6 +607,9 @@ class H(BaseHTTPRequestHandler):
                 return
             if self.path.split("?")[0] == "/api/conversations/t2":
                 self._send(ALIAS_THREAD)
+                return
+            if self.path.split("?")[0] == "/api/conversations/t3":
+                self._send(NEWSLETTER)
                 return
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
@@ -608,6 +639,13 @@ class H(BaseHTTPRequestHandler):
                 return
             if folder == "NP":
                 self._send([convo("np1", "Newsletter thread", "weekly", 1754270000)])
+                return
+            # A list the newsletter thread is reachable from, so the
+            # unsubscribe footer can be opened without disturbing the
+            # two-row list every other test reads.
+            if folder == "Lists":
+                self._send([convo("t3", "This week in systems design",
+                                  "the one with a way out", 1754280000)])
                 return
             if folder == "Dense":
                 rows = [convo(f"d{i}",
@@ -816,6 +854,8 @@ class H(BaseHTTPRequestHandler):
             GROUP_MEMBERS[1] = ["lihao@golia.jp", "Keiri <keiri@golia.jp>"]
             GROUP_COUNTER[0] = 1
             SUPPRESSED[:] = ["bounced@example.com", "closed@example.com"]
+            UNSUBSCRIBED.clear()
+            UNSUB_REFUSE[0] = False
             GROUP_GRANTS.clear()
             GROUP_GRANTS.update({1: ["admin.accounts", "admin.aliases"], 2: ["mail.read"]})
             self._send({"ok": True})
@@ -830,6 +870,26 @@ class H(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/auth/login"):
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
+        elif self.path.split("?")[0] == "/debug/unsubscribe-refuse":
+            UNSUB_REFUSE[0] = True
+            self._send({"ok": True})
+        elif self.path.split("?")[0] == "/api/mail/unsubscribe":
+            # The real endpoint takes a message, looks up that message's
+            # own List-Unsubscribe header and posts to it. A body
+            # carrying a URL would mean the server had become a request
+            # forwarder — so a URL here is a 400, and a test can prove
+            # the client never sends one.
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            if any(k in body for k in ("url", "http", "target")):
+                self._send({"ok": False, "message": "the body names a message, not a URL"},
+                            status=400)
+                return
+            UNSUBSCRIBED.append({"thread_id": body.get("thread_id"), "uid": body.get("uid")})
+            if UNSUB_REFUSE[0]:
+                self._send({"ok": False, "status": 500})
+                return
+            self._send({"ok": True, "status": 200})
         elif self.path.startswith("/api/push/tokens"):
             self.send_response(204)
             self.send_header("Content-Length", "0")

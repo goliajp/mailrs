@@ -214,6 +214,39 @@ extension MailrsClient {
     }
 
 
+    /// `POST /api/mail/unsubscribe` — ask the server to leave the list.
+    ///
+    /// Backend: `crates/webapi/src/handlers/unsubscribe.rs`, pinned by
+    /// `wire-contract/requests/unsubscribe.json`. The body names the
+    /// message; the server takes the URL out of that message's own
+    /// header and posts to it, so nothing of this device reaches the
+    /// sender.
+    ///
+    /// Returns whether the sender's endpoint accepted it. A refusal
+    /// arrives as `ok: false` with the status, not as an error — the
+    /// request was fine and the far end was not, and the reader needs
+    /// to be told which.
+    func unsubscribe(threadId: String, uid: UInt32) async throws -> Bool {
+        struct Body: Encodable {
+            let thread_id: String
+            let uid: UInt32
+        }
+        struct Result: Decodable {
+            let ok: Bool
+        }
+        let body = try JSONEncoder().encode(Body(thread_id: threadId, uid: uid))
+        let (data, response) = try await send(
+            "POST", "/api/mail/unsubscribe", body: body, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        return (try? JSONDecoder().decode(Result.self, from: data))?.ok ?? false
+    }
+
+
     /// `POST /api/push/tokens` — hand the server this device's address.
     ///
     /// Backend: `crates/webapi/src/handlers/push.rs` —
