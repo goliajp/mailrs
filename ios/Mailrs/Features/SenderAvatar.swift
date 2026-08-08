@@ -8,6 +8,7 @@ import SwiftUI
 struct SenderAvatar: View {
     let sender: String
     var size: CGFloat = 36
+    @Environment(SenderIcons.self) private var icons
 
     /// tailwind-500, in the web's array order.
     static let palette: [Color] = [
@@ -45,12 +46,26 @@ struct SenderAvatar: View {
     }
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(Self.color(for: sender).gradient)
-            Text(Self.initial(for: sender))
-                .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
+        Group {
+            if let icon = icons.icon(for: sender) {
+                // The brand's own mark when its domain publishes one,
+                // the same cascade the web client draws from.
+                icon
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .clipShape(Circle())
+            } else {
+                // The letter is not a placeholder for a pending icon —
+                // it is the answer for most senders, and it draws at
+                // once so a list never flickers through blank circles.
+                ZStack {
+                    Circle()
+                        .fill(Self.color(for: sender).gradient)
+                    Text(Self.initial(for: sender))
+                        .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

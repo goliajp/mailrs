@@ -186,6 +186,12 @@ final class Session {
         }
     }
 
+    /// A sender domain's brand icon, or nil when there is none.
+    func icon(domain: String) async -> Data? {
+        guard let client else { return nil }
+        return try? await client.icon(domain: domain)
+    }
+
     /// Contact suggestions for a To field. Failures answer as no
     /// suggestions — autocomplete is an offer, not a feature that may
     /// interrupt composing with an error.

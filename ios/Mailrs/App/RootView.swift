@@ -6,6 +6,7 @@ struct RootView: View {
     /// The scheme after `preferredColorScheme` has had its say — so
     /// the tokens follow an explicit choice as readily as the system's.
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(SenderIcons.self) private var icons
     /// The launch's own `.active` is not a return: `restore()` has
     /// just fetched, and refreshing on top of it doubles every cold
     /// start's traffic.
@@ -21,7 +22,15 @@ struct RootView: View {
             }
         }
         .environment(\.theme, Theme.of(colorScheme))
-        .task { await session.restore() }
+        .task {
+            // Wired here rather than held by the icon cache itself, so
+            // the cache carries no credential and stops working when
+            // the session does.
+            icons.load = { [weak session] domain in
+                await session?.icon(domain: domain)
+            }
+            await session.restore()
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             guard hasBeenActive else {

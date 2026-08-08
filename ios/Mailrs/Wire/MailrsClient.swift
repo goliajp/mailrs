@@ -241,6 +241,19 @@ actor MailrsClient {
         return result
     }
 
+    /// `GET /api/icon/{domain}` — the sender-avatar cascade.
+    /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
+    /// **204 on a miss** rather than 404, so "this domain has no
+    /// icon" is an answer rather than an error.
+    func icon(domain: String) async throws -> Data? {
+        let encoded = domain.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? domain
+        let url = baseURL.appendingPathComponent("/api/icon/\(encoded)")
+        let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else { return nil }
+        guard http.statusCode == 200, !data.isEmpty else { return nil }
+        return data
+    }
+
     /// `GET /api/contacts?q=&limit=` — a bare array of `Name <email>`
     /// strings. Backend: `crates/webapi/src/handlers/prefs_misc.rs` —
     /// `get_contacts`, backed by the per-user contacts hash the ingest
