@@ -467,6 +467,36 @@ final class SignInFlowTests: XCTestCase {
                       "the compose button stayed English")
     }
 
+    /// DMARC reads as deliverability, not as a security score.
+    ///
+    /// The rate is the assertion, and it is asserted to one decimal:
+    /// 158 of 160 is 98.7%, and a screen that rounded it to 99% would
+    /// be hiding the two messages a receiver was entitled to reject.
+    /// The failing source must also be first — sources that lose mail
+    /// are the reason anyone opens this.
+    func testDmarcShowsTheAlignmentRateAndTheFailingSource() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        scrollTo(app, button: "DMARC")
+        app.buttons["DMARC"].tap()
+
+        XCTAssertTrue(app.staticTexts["98.7%"].waitForExistence(timeout: 10),
+                      "the window's alignment rate is wrong or missing")
+        XCTAssertTrue(app.staticTexts["158 of 160 messages aligned"].exists,
+                      "the rate is shown without what it is a rate of")
+        XCTAssertTrue(app.staticTexts["198.51.100.7"].exists,
+                      "the source that loses mail is not listed")
+        // The published policy, because a perfect rate under p=none
+        // means nothing was being enforced.
+        XCTAssertTrue(app.staticTexts["p=quarantine"].exists,
+                      "the report does not say which policy was published")
+    }
+
     /// The queue answers the question a phone is for: is anything
     /// stuck, and who has the sender given up on.
     ///
@@ -482,7 +512,7 @@ final class SignInFlowTests: XCTestCase {
 
         app.buttons["Lists"].tap()
         app.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["Queue"].waitForExistence(timeout: 5), "no queue entry")
+        scrollTo(app, button: "Queue")
         app.buttons["Queue"].tap()
 
         XCTAssertTrue(app.staticTexts["stuck@example.com"].waitForExistence(timeout: 10),
@@ -921,6 +951,22 @@ final class SignInFlowTests: XCTestCase {
     }
 
     private enum SwipeEdge { case leading, trailing }
+
+    /// Scroll a sheet until the named button is realized.
+    ///
+    /// A `List` does not build the cells below the fold, so a button
+    /// six rows down does not exist until something scrolls to it —
+    /// which is what a reader does too. Without this the failure reads
+    /// "no DMARC entry", as though the app had lost the screen.
+    private func scrollTo(_ app: XCUIApplication, button name: String,
+                          file: StaticString = #filePath, line: UInt = #line) {
+        let target = app.buttons[name]
+        for _ in 0..<5 {
+            if target.exists { return }
+            app.swipeUp()
+        }
+        XCTAssertTrue(target.exists, "never scrolled to \(name)", file: file, line: line)
+    }
 
     private func resetStub() {
         guard let url = URL(string: "http://localhost:6039/debug/reset") else { return }

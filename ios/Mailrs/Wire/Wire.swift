@@ -402,6 +402,68 @@ enum Wire {
         let items: [String]
     }
 
+    /// Backend: `crates/webapi/src/handlers/dmarc.rs` — `ReportSummary`.
+    ///
+    /// A DMARC report is somebody else telling you what your mail
+    /// looked like from their side, so `passing` against `total` is
+    /// the deliverability number: mail that did not align was mail a
+    /// receiver was entitled to reject.
+    struct DmarcReport: Decodable, Identifiable, Sendable {
+        let sid: String
+        let orgName: String
+        let policyDomain: String
+        let begin: Int64
+        let end: Int64
+        /// The policy published at report time — `none`, `quarantine`
+        /// or `reject`.
+        let p: String
+        let total: UInt64
+        let passing: UInt64
+
+        var id: String { sid }
+
+        enum CodingKeys: String, CodingKey {
+            case sid
+            case orgName = "org_name"
+            case policyDomain = "policy_domain"
+            case begin
+            case end
+            case p
+            case total
+            case passing
+        }
+    }
+
+    struct DmarcReportList: Decodable, Sendable {
+        let items: [DmarcReport]
+    }
+
+    /// Backend: `SourceSummary` — one sending IP rolled up across
+    /// reports. The ones that fail are the interesting ones: either a
+    /// forwarder that breaks alignment, or somebody sending as you.
+    struct DmarcSource: Decodable, Identifiable, Sendable {
+        let sourceIp: String
+        let total: UInt64
+        let passing: UInt64
+        let domains: [String]
+
+        var id: String { sourceIp }
+
+        enum CodingKeys: String, CodingKey {
+            case sourceIp = "source_ip"
+            case total
+            case passing
+            case domains
+        }
+    }
+
+    struct DmarcSourceList: Decodable, Sendable {
+        let items: [DmarcSource]
+        let total: UInt64
+        let passing: UInt64
+        let reports: Int
+    }
+
     struct AliasList: Decodable, Sendable {
         let items: [Alias]
     }
