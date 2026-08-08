@@ -98,6 +98,7 @@ struct ThreadView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                 }
+                .softScrollEdges()
                 .background(Color(.systemGroupedBackground))
             }
         }
@@ -412,7 +413,7 @@ private struct MessageCard: View {
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                        .floatingGlass(in: .capsule, tint: .accentColor)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("load-images")

@@ -4,6 +4,17 @@ Benchmarks: Apple Mail (motion, gestures, dates), Gmail (triage speed),
 and the web client's own settled decisions — which win ties, because
 they are the same person's taste already paid for.
 
+## Glass is a claim about layering
+
+iOS 26's Liquid Glass goes on things that float *over* content — the
+undo toast, the Load-images prompt — and on nothing else. Glass says
+"this is above the page"; putting it on the mail itself would say the
+message is hovering over something, which is untrue and unreadable.
+Scroll views get the soft edge so rows dissolve into the chrome
+rather than sliding under a hard line. The deployment target is
+iOS 18, so every use falls back to the material it replaces rather
+than to nothing.
+
 ## Tokens, not colours
 
 The palette is the web client's, ported value for value: mailrs's web

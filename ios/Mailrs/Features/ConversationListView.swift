@@ -122,6 +122,7 @@ struct ConversationListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .softScrollEdges()
                     // On the List, not the Group: `refreshable` attaches
                     // to the nearest scrollable view, and a Group is not
                     // one.
@@ -145,7 +146,10 @@ struct ConversationListView: View {
                     .font(.subheadline)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(.black.opacity(0.85), in: Capsule())
+                    // Glass, because it floats over the list rather
+                    // than belonging to it — and the rows staying
+                    // legible through it is the point of the material.
+                    .floatingGlass(in: .capsule)
                     .padding(.bottom, 72)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
