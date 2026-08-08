@@ -13,7 +13,7 @@ final class Preferences {
         case system, light, dark
         var id: String { rawValue }
 
-        var label: String {
+        var label: LocalizedStringKey {
             switch self {
             case .system: "System"
             case .light: "Light"
@@ -44,7 +44,7 @@ final class Preferences {
 
         var id: String { rawValue }
 
-        var label: String {
+        var label: LocalizedStringKey {
             switch self {
             case .system: "System"
             case .english: "English"
@@ -59,18 +59,18 @@ final class Preferences {
     }
 
     var appearance: Appearance {
-        didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
+        didSet { persist(appearance.rawValue, Keys.appearance) }
     }
 
     var language: Language {
-        didSet { defaults.set(language.rawValue, forKey: Keys.language) }
+        didSet { persist(language.rawValue, Keys.language) }
     }
 
     /// An explicit zone, or `nil` for the phone's. Mail carries
     /// timestamps from everywhere; someone who works across zones needs
     /// to read them all in one.
     var timeZoneIdentifier: String? {
-        didSet { defaults.set(timeZoneIdentifier, forKey: Keys.timeZone) }
+        didSet { persist(timeZoneIdentifier, Keys.timeZone) }
     }
 
     var timeZone: TimeZone {
@@ -85,6 +85,19 @@ final class Preferences {
 
     private let defaults: UserDefaults
 
+    /// `@Observable` rewrites a stored property with a `didSet` into an
+    /// accessor pair, and the assignments in `init` go through it — so
+    /// loading these wrote them straight back. Harmless for a value the
+    /// reader chose, and not at all harmless for one that arrived in the
+    /// launch arguments: a UI test that set a language for one launch
+    /// found it persisted into every launch after it.
+    private var loaded = false
+
+    private func persist(_ value: String?, _ key: String) {
+        guard loaded else { return }
+        defaults.set(value, forKey: key)
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         appearance = defaults.string(forKey: Keys.appearance)
@@ -92,5 +105,6 @@ final class Preferences {
         language = defaults.string(forKey: Keys.language)
             .flatMap(Language.init(rawValue:)) ?? .system
         timeZoneIdentifier = defaults.string(forKey: Keys.timeZone)
+        loaded = true
     }
 }

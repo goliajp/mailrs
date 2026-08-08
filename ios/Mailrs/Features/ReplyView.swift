@@ -12,6 +12,11 @@ struct ReplyView: View {
         case replyAll = "Reply All"
         case forward = "Forward"
         var id: String { rawValue }
+
+        /// The raw value is the wire-ish identity and the English key;
+        /// this is what the segment shows, which has to go through a
+        /// table to change language.
+        var label: LocalizedStringKey { LocalizedStringKey(rawValue) }
     }
 
     let thread: Wire.Conversation
@@ -77,7 +82,7 @@ struct ReplyView: View {
             Form {
                 Picker("Mode", selection: $mode) {
                     ForEach(Mode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                        Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)

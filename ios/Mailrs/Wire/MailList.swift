@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// The axes a list asks the server for.
 ///
@@ -55,7 +56,10 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var title: String {
+    /// The catalog key. Kept as a `String` alongside the view-facing
+    /// `title` so a test can ask whether the catalog carries it —
+    /// `LocalizedStringKey` is opaque and cannot be asked anything.
+    var titleKey: String {
         switch self {
         case .inbox: "Inbox"
         case .np: "N & P"
@@ -66,6 +70,12 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .send: "Send"
         }
     }
+
+    /// `LocalizedStringKey`, not `String`: `Text(aString)` is the
+    /// verbatim initialiser and never consults a localization table,
+    /// so a list title returned as `String` would stay English in
+    /// every language.
+    var title: LocalizedStringKey { LocalizedStringKey(titleKey) }
 
     var systemImage: String {
         switch self {
@@ -81,7 +91,7 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
 
     /// What the list shows when it is empty. Written per list because
     /// "All caught up" is wrong for Junk and alarming for Archived.
-    var emptyMessage: String {
+    var emptyMessageKey: String {
         switch self {
         case .inbox: "All caught up"
         case .np: "Nothing here"
@@ -92,6 +102,8 @@ enum MailList: String, CaseIterable, Identifiable, Sendable {
         case .send: "Nothing sent yet"
         }
     }
+
+    var emptyMessage: LocalizedStringKey { LocalizedStringKey(emptyMessageKey) }
 
     var axes: MailListAxes {
         switch self {

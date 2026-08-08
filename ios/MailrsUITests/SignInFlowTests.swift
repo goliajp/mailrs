@@ -10,7 +10,7 @@ import XCTest
 final class SignInFlowTests: XCTestCase {
     private func launch(
         signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0,
-        keepCache: Bool = false
+        keepCache: Bool = false, language: String? = nil
     ) -> XCUIApplication {
         resetStub()
         if listDelayMs > 0 { setStubListDelay(listDelayMs) }
@@ -20,6 +20,23 @@ final class SignInFlowTests: XCTestCase {
         // that yesterday's cached rows would satisfy or contradict at
         // random. The offline test opts out to prove the cache works.
         if !keepCache { app.launchArguments += ["-mailrsFreshCache"] }
+        // UserDefaults reads `-key value` pairs off the launch
+        // arguments, so a test can set a stored preference without a
+        // screen to set it on.
+        //
+        // English unless a test asks otherwise, because the suite must
+        // not depend on the host's language. This simulator runs in
+        // Chinese; before the app had a Chinese localization that made
+        // no difference, and the moment it did, half the suite went
+        // looking for English words on a Chinese screen.
+        app.launchArguments += ["-mailrs.language", language ?? "en"]
+        // And the process's own language, which is what the system
+        // components inside it follow: Quick Look's Done button and the
+        // search field's clear button are drawn by iOS, not by this
+        // app, and they answered in the simulator's Chinese while the
+        // app answered in English. Pinning the app alone left the suite
+        // half-translated.
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchArguments += signedIn ? ["-mailrsToken", "stub-token"] : ["-mailrsSignedOut"]
         if let folder { app.launchArguments += ["-mailrsFolder", folder] }
         app.launch()
@@ -427,6 +444,25 @@ final class SignInFlowTests: XCTestCase {
                        "a local message asked to load images")
     }
 
+    /// The language setting changes the app, not only its dates.
+    ///
+    /// It shipped as a picker that reformatted numbers while every
+    /// word stayed English — the honest half of a setting. The list
+    /// title is the assertion because it comes from an enum that
+    /// returned `String`, which is exactly the shape that never
+    /// reaches a localization table.
+    func testTheAppSpeaksTheChosenLanguage() {
+        // The process stays English — that is what makes this a test of
+        // the in-app override rather than of the simulator's language.
+        let app = launch(signedIn: true, language: "zh-Hans")
+        XCTAssertTrue(app.staticTexts["收件箱"].waitForExistence(timeout: 15),
+                      "the chosen language did not reach the interface")
+        XCTAssertFalse(app.staticTexts["Inbox"].exists,
+                       "both languages are on screen at once")
+        XCTAssertTrue(app.buttons["写邮件"].exists,
+                      "the compose button stayed English")
+    }
+
     /// Triage without leaving the thread.
     ///
     /// Archiving from inside has to do both halves: reach the server,
@@ -493,9 +529,12 @@ final class SignInFlowTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
         row.tap()
 
-        XCTAssertTrue(app.staticTexts["2 messages · Alice Smith, spoofed"]
-            .waitForExistence(timeout: 10),
-            "no thread header — the subject has nowhere to be read")
+        // The count is the header's own marker — the nav bar never
+        // carried it, so this cannot be satisfied by a title.
+        XCTAssertTrue(app.staticTexts["2 messages"].waitForExistence(timeout: 10),
+                      "no thread header — the subject has nowhere to be read")
+        XCTAssertTrue(app.staticTexts["· Alice Smith, spoofed"].exists,
+                      "the header lost its participants")
         XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"].exists,
                       "the header did not carry the subject")
     }

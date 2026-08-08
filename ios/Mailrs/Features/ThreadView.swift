@@ -271,8 +271,12 @@ private struct ThreadHeader: View {
         return names.joined(separator: ", ")
     }
 
-    private var countLabel: String {
-        messages.count == 1 ? "1 message" : "\(messages.count) messages"
+    /// Two keys rather than one with a plural rule: the catalog holds
+    /// the singular and the count form separately, which is what lets
+    /// a language that counts differently say so.
+    private var countLabel: LocalizedStringKey {
+        if messages.count == 1 { return "1 message" }
+        return "\(messages.count) messages"
     }
 
     var body: some View {
@@ -297,10 +301,15 @@ private struct ThreadHeader: View {
                         .accessibilityLabel("Starred")
                 }
             }
-            Text(participants.isEmpty ? countLabel : "\(countLabel) · \(participants)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                Text(countLabel)
+                if !participants.isEmpty {
+                    Text(verbatim: "· \(participants)")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
