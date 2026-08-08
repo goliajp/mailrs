@@ -281,6 +281,21 @@ final class Session {
         try await client.removeEmailGroupMember(id: id, address: address)
     }
 
+    func queue() async throws -> [Wire.QueueJob] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.queue()
+    }
+
+    func suppressions() async throws -> [String] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.suppressions()
+    }
+
+    func clearSuppressions() async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.clearSuppressions()
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }

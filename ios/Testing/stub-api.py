@@ -119,6 +119,19 @@ ALIASES = [
 ]
 ALIAS_COUNTER = [2]
 
+# The queue as list_admin_queue answers it: the job blob plus the list
+# it was found in. Everything but the identity is optional, and one row
+# deliberately has neither error nor attempts — a healthy job is the
+# shape a client is most likely to get wrong.
+QUEUE = [
+    {"id": 7, "sender": "lihao@golia.jp", "recipient": "stuck@example.com",
+     "status": "pending", "attempts": 3, "last_error": "421 too many connections",
+     "next_retry": 1754400600, "scheduled_at": None, "created_at": 1754400000},
+    {"id": 8, "sender": "lihao@golia.jp", "recipient": "fresh@example.com",
+     "status": "inflight", "created_at": 1754400100},
+]
+SUPPRESSED = ["bounced@example.com", "closed@example.com"]
+
 # Groups list under `items` like the other admin collections, but their
 # members come back under `members` as bare addresses — a difference the
 # client has to hold rather than assume away.
@@ -281,6 +294,12 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/admin/email-groups":
             self._send({"items": GROUPS})
             return
+        if self.path.split("?")[0] == "/api/admin/queues":
+            self._send({"items": QUEUE})
+            return
+        if self.path.split("?")[0] == "/api/admin/suppressions":
+            self._send({"items": SUPPRESSED})
+            return
         if self.path.split("?")[0] == "/api/admin/aliases":
             self._send({"items": ALIASES})
             return
@@ -403,6 +422,12 @@ class H(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         WRITES.append("DELETE " + self.path.split("?")[0])
+        if self.path.split("?")[0] == "/api/admin/suppressions":
+            SUPPRESSED.clear()
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         member = re.match(r"^/api/admin/email-groups/(\d+)/members/(.+)$",
                           self.path.split("?")[0])
         if member:
@@ -517,6 +542,7 @@ class H(BaseHTTPRequestHandler):
             GROUP_MEMBERS.clear()
             GROUP_MEMBERS[1] = ["lihao@golia.jp", "Keiri <keiri@golia.jp>"]
             GROUP_COUNTER[0] = 1
+            SUPPRESSED[:] = ["bounced@example.com", "closed@example.com"]
             self._send({"ok": True})
             return
         if re.match(

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showingAccounts = false
     @State private var showingDomains = false
     @State private var showingGroups = false
+    @State private var showingQueue = false
 
     /// The zones worth offering by name, plus whatever the phone is
     /// set to. A full tz database picker is a list of 400 strings and
@@ -88,6 +89,11 @@ struct SettingsView: View {
                     } label: {
                         Label("Domains", systemImage: "globe")
                     }
+                    Button {
+                        showingQueue = true
+                    } label: {
+                        Label("Queue", systemImage: "tray.and.arrow.up")
+                    }
                 }
 
                 Section {
@@ -103,6 +109,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingAccounts) { AccountsView() }
             .sheet(isPresented: $showingDomains) { DomainsView() }
             .sheet(isPresented: $showingGroups) { EmailGroupsView() }
+            .sheet(isPresented: $showingQueue) { QueueView() }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

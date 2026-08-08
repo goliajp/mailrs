@@ -360,6 +360,48 @@ enum Wire {
         }
     }
 
+    /// Backend: `crates/webapi/src/handlers/complete.rs` —
+    /// `list_admin_queue`, which reads the outbound job blob and adds
+    /// the list the job was found in as `status`.
+    ///
+    /// Everything but the identity is optional because the blob is
+    /// written at several stages: a job that has never been attempted
+    /// has no error and no retry time, and a client that required them
+    /// would decode nothing at exactly the moment the queue is healthy.
+    struct QueueJob: Decodable, Identifiable, Sendable {
+        let id: Int64
+        let sender: String
+        let recipient: String
+        /// `pending` or `inflight` — where the sender found it.
+        let status: String
+        let attempts: Int?
+        let lastError: String?
+        let nextRetry: Int64?
+        let scheduledAt: Int64?
+        let createdAt: Int64?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case sender
+            case recipient
+            case status
+            case attempts
+            case lastError = "last_error"
+            case nextRetry = "next_retry"
+            case scheduledAt = "scheduled_at"
+            case createdAt = "created_at"
+        }
+    }
+
+    struct QueueList: Decodable, Sendable {
+        let items: [QueueJob]
+    }
+
+    /// Addresses the sender refuses to try again, as bare strings.
+    struct SuppressionList: Decodable, Sendable {
+        let items: [String]
+    }
+
     struct AliasList: Decodable, Sendable {
         let items: [Alias]
     }
