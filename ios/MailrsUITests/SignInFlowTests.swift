@@ -312,6 +312,34 @@ final class SignInFlowTests: XCTestCase {
     /// is none on the wire — so a row that opened the wrong file would
     /// show the wrong preview rather than fail. Tapping the second one
     /// is the check that counting is what the UI does.
+    /// Coming back to the app asks for the mail again.
+    ///
+    /// Until push is live this is the only thing that makes a return
+    /// show new mail — without it the list is whatever it was when you
+    /// left. The stub's fetch count is the assertion: a screen that
+    /// merely reappeared would leave it where it was.
+    func testReturningToTheAppRefreshesTheList() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+        let onOpen = listFetches()
+        XCTAssertGreaterThan(onOpen, 0, "the launch never fetched")
+
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "the app did not come back")
+
+        var after = onOpen
+        for _ in 0..<20 where after == onOpen {
+            after = listFetches()
+            if after == onOpen { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        XCTAssertGreaterThan(after, onOpen,
+                             "returning to the app did not ask for the mail again")
+    }
+
     /// Remote images wait to be asked for.
     ///
     /// Fetching one tells the sender the message was opened, from
@@ -530,6 +558,23 @@ final class SignInFlowTests: XCTestCase {
             if app.navigationBars[mode].waitForExistence(timeout: 2) { return }
         }
         XCTFail("the \(mode) segment never switched the sheet")
+    }
+
+    /// How many times the conversation list has been fetched.
+    private func listFetches() -> Int {
+        guard let url = URL(string: "http://localhost:6039/debug/list-fetches") else { return -1 }
+        var result = -1
+        let done = expectation(description: "debug/list-fetches")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let fetches = json["fetches"] as? Int {
+                result = fetches
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
     }
 
     /// Every q= the stub's contacts endpoint has answered.
