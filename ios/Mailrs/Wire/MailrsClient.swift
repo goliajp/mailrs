@@ -388,6 +388,33 @@ actor MailrsClient {
         try await getJSON("/api/admin/dmarc/sources")
     }
 
+    /// `GET /api/admin/audit-log?limit=&action=`.
+    ///
+    /// `action` is a prefix on the server, so `alias` matches
+    /// `alias.create` and `alias.delete` — the filter is a family, not
+    /// an exact verb, and the screen offers it that way.
+    func auditLog(limit: Int = 100, actionPrefix: String? = nil) async throws -> [Wire.AuditRow] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/admin/audit-log"),
+            resolvingAgainstBaseURL: false
+        )
+        var query = [URLQueryItem(name: "limit", value: String(limit))]
+        if let actionPrefix, !actionPrefix.isEmpty {
+            query.append(URLQueryItem(name: "action", value: actionPrefix))
+        }
+        components?.queryItems = query
+        guard let url = components?.url else { throw MailrsError.transport("Bad audit URL.") }
+        let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        do {
+            return try JSONDecoder().decode(Wire.AuditList.self, from: data).items
+        } catch {
+            throw MailrsError.decoding("audit log — \(error)")
+        }
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no
