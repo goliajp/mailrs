@@ -36,6 +36,17 @@ environment slots SwiftUI already has for them — which is why a
 chosen zone reaches the row dates and the message headers without any
 screen consulting a preference.
 
+The in-app mark is the icon's own artwork, drawn in SwiftUI from the
+same geometry — not a system glyph tinted with the accent, which made
+the sign-in screen blue while the home screen was red: the first two
+things anyone sees, disagreeing.
+
+Two more of the web's row decisions inherited: read rows recede to
+70% (`muted` there), because unread already carries the dot and the
+weight and dimming what is done is what makes a long list scannable;
+and a failed send wears a danger-coloured left edge, because a status
+word alone is easy to scan past.
+
 ## Identity (the visual system)
 
 One blood-line with the web client. The accent is GOLIA blue

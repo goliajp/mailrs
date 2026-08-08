@@ -336,6 +336,14 @@ struct ConversationRow: View {
         return calendar
     }
 
+    /// Read rows recede, the web's `muted`. Unread already carries the
+    /// dot and the weight; dimming what is done is what makes a long
+    /// list scannable rather than uniformly loud.
+    private var rowOpacity: Double {
+        if conversation.unreadCount > 0 { return 1 }
+        return 0.7
+    }
+
     private var sender: String {
         SenderName.rowFace(
             participants: conversation.participants,
@@ -438,5 +446,6 @@ struct ConversationRow: View {
             }
         }
         .padding(.vertical, 2)
+        .opacity(rowOpacity)
     }
 }

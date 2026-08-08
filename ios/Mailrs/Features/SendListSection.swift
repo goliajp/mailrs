@@ -50,6 +50,13 @@ private struct SendRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
+            // The web's `flagged` left border: a send that failed is
+            // worth more attention than anything else a row can say,
+            // and a status word alone is easy to scan past.
+            Rectangle()
+                .fill(edgeColor)
+                .frame(width: 3)
+                .clipShape(Capsule())
             if !face.isEmpty {
                 SenderAvatar(sender: face)
             }
@@ -74,6 +81,11 @@ private struct SendRowView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var edgeColor: Color {
+        if row.status == "failed" { return Color.red.opacity(0.6) }
+        return .clear
     }
 
     /// Names, not addr-specs — the same rendering the inbox rows use.

@@ -14,14 +14,11 @@ struct SignInView: View {
                 // not a settings page.
                 Section {
                     VStack(spacing: 10) {
-                        Image(systemName: "envelope.fill")
-                            .font(.system(size: 44))
-                            .foregroundStyle(
-                                .linearGradient(
-                                    colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
-                                    startPoint: .top, endPoint: .bottom
-                                )
-                            )
+                        // The icon's own artwork, not a tinted system
+                        // glyph: the sign-in screen and the home screen
+                        // are the first two things anyone sees, and
+                        // they were different colours.
+                        BrandMark(size: 76)
                         Text("Mailrs")
                             .font(.system(.largeTitle, design: .rounded, weight: .bold))
                         Text("GOLIA mail, in your pocket")
