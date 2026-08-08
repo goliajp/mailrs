@@ -51,7 +51,7 @@ final class Session {
     /// the app at a stub instead of a live server. Inert in normal use —
     /// nothing passes this flag but a test runner.
     var baseURL: URL = launchValue("-mailrsBaseURL").flatMap(URL.init(string:))
-        ?? URL(string: "https://mail.golia.jp")!
+        ?? URL(string: "https://mail.golia.ai")!
     private(set) var state: State = .signedOut
     private(set) var conversations: [Wire.Conversation] = []
     /// Whether the server has any older threads left.
@@ -285,6 +285,25 @@ final class Session {
     /// The row leaves whichever list is showing because the verdict
     /// moves the thread between folders — a spam row lingering in the
     /// Inbox after being marked is the confusing outcome.
+    /// Put a thread back to unread — the "deal with this later" verdict.
+    ///
+    /// Not `toggleRead`: that reads the row's current count to decide,
+    /// and this is called from a thread that has just been opened, so
+    /// the row already says read. The intent here is one direction, and
+    /// a toggle would silently do nothing.
+    func markUnread(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let previous = conversations
+        withAnimation { patch(conversation.threadId) { $0.unreadCount = max(1, $0.unreadCount) } }
+        do {
+            try await client.setRead(threadId: conversation.threadId, false)
+        } catch {
+            conversations = previous
+            state = .failed(error.localizedDescription)
+        }
+        await refreshBadge()
+    }
+
     func setJunk(_ conversation: Wire.Conversation, junk: Bool) async {
         guard let client else { return }
         let previous = conversations

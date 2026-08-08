@@ -3,6 +3,9 @@ import SwiftUI
 struct RootView: View {
     @Environment(Session.self) private var session
     @Environment(\.scenePhase) private var scenePhase
+    /// The scheme after `preferredColorScheme` has had its say — so
+    /// the tokens follow an explicit choice as readily as the system's.
+    @Environment(\.colorScheme) private var colorScheme
     /// The launch's own `.active` is not a return: `restore()` has
     /// just fetched, and refreshing on top of it doubles every cold
     /// start's traffic.
@@ -17,6 +20,7 @@ struct RootView: View {
                 SignInView()
             }
         }
+        .environment(\.theme, Theme.of(colorScheme))
         .task { await session.restore() }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }

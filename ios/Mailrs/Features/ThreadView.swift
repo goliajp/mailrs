@@ -166,6 +166,38 @@ struct ThreadView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+                Spacer()
+                // The verdicts you reach only after reading: that this
+                // can wait, and that it should not have come at all.
+                Menu {
+                    Button {
+                        Task { await session.markUnread(conversation) }
+                        // Leaving is the point — the thread was opened
+                        // to be dealt with later, and staying inside a
+                        // message marked unread is a contradiction on
+                        // screen.
+                        dismiss()
+                    } label: {
+                        Label("Mark as unread", systemImage: "envelope.badge")
+                    }
+                    if session.activeList == .junk {
+                        Button {
+                            Task { await session.setJunk(conversation, junk: false) }
+                            dismiss()
+                        } label: {
+                            Label("Not junk", systemImage: "checkmark.shield")
+                        }
+                    } else {
+                        Button(role: .destructive) {
+                            Task { await session.setJunk(conversation, junk: true) }
+                            dismiss()
+                        } label: {
+                            Label("Mark as junk", systemImage: "xmark.bin")
+                        }
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis")
+                }
             }
         }
         .sheet(isPresented: $replying) {

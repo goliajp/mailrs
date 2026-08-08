@@ -312,6 +312,60 @@ final class SignInFlowTests: XCTestCase {
     /// is none on the wire — so a row that opened the wrong file would
     /// show the wrong preview rather than fail. Tapping the second one
     /// is the check that counting is what the UI does.
+    /// The two verdicts you only reach after reading.
+    ///
+    /// Marking unread is "deal with this later", so it leaves; marking
+    /// junk moves the thread out of the list, so it leaves too. Both
+    /// are asserted on the wire, since the screen after either one is
+    /// the same list.
+    func testTheThreadCanBeMarkedUnread() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["thread-subject"].waitForExistence(timeout: 10),
+                      "thread never opened")
+
+        app.buttons["More"].tap()
+        app.buttons["Mark as unread"].tap()
+
+        XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].waitForExistence(timeout: 10),
+                      "marking unread did not return to the list")
+        var writes: [String] = []
+        for _ in 0..<20 where writes.isEmpty {
+            writes = recordedWrites().filter { $0 == "POST /api/conversations/t1/unread" }
+            if writes.isEmpty { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        XCTAssertFalse(writes.isEmpty, "the unread verdict never reached the server")
+    }
+
+    func testTheThreadCanBeMarkedJunk() {
+        resetStub()
+        let app = launch(signedIn: true)
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["thread-subject"].waitForExistence(timeout: 10),
+                      "thread never opened")
+
+        app.buttons["More"].tap()
+        app.buttons["Mark as junk"].tap()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10),
+                      "the junked thread is still listed")
+        var writes: [String] = []
+        for _ in 0..<20 where writes.isEmpty {
+            writes = recordedWrites().filter { $0 == "POST /api/conversations/t1/mark-junk" }
+            if writes.isEmpty { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        XCTAssertFalse(writes.isEmpty, "the junk verdict never reached the server")
+    }
+
     /// Coming back to the app asks for the mail again.
     ///
     /// Until push is live this is the only thing that makes a return
