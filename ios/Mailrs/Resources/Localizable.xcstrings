@@ -241,6 +241,22 @@
         }
       }
     },
+    "Add Cc and Bcc": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cc と Bcc を追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加抄送与密送"
+          }
+        }
+      }
+    },
     "Add group": {
       "localizations": {
         "ja": {
@@ -449,6 +465,22 @@
         }
       }
     },
+    "Bcc": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bcc"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密送"
+          }
+        }
+      }
+    },
     "Built in": {
       "localizations": {
         "ja": {
@@ -477,6 +509,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
+          }
+        }
+      }
+    },
+    "Cc": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cc"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "抄送"
           }
         }
       }
@@ -781,6 +829,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已送达"
+          }
+        }
+      }
+    },
+    "Delivered to %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 宛て"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "寄至 %@"
           }
         }
       }
@@ -2224,6 +2288,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "多个地址用逗号分隔"
+          }
+        }
+      }
+    },
+    "blind@example.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blind@example.com"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blind@example.com"
+          }
+        }
+      }
+    },
+    "copy@example.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "copy@example.com"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "copy@example.com"
           }
         }
       }

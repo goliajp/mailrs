@@ -373,6 +373,7 @@ private struct MessageCard: View {
     let message: Wire.Message
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
+    @Environment(Session.self) private var session
     @State private var bodyHeight: CGFloat = 1
 
     /// Zero until the body has been measured — the card grows into its
@@ -402,11 +403,25 @@ private struct MessageCard: View {
                         Spacer(minLength: 4)
                         RowDateText(epochSeconds: message.internalDate, style: .stamp)
                     }
-                    Text("To: \(message.recipients)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    HStack(spacing: 6) {
+                        Text("To: \(message.recipients)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        AliasBadge(
+                            alias: AliasMark.arrivedVia(
+                                recipients: message.recipients,
+                                myAddress: session.myAddress,
+                                aliases: session.myAliases
+                            )
+                        )
+                        // The recipient list yields first: it is
+                        // already truncated and still readable, while a
+                        // half-truncated address in the mark answers
+                        // nothing at all.
+                        .layoutPriority(1)
+                    }
                 }
             }
             .contentShape(Rectangle())
@@ -494,6 +509,40 @@ private struct SenderTrustBadge: View {
                 .accessibilityLabel("Verified sender")
         default:
             EmptyView()
+        }
+    }
+}
+
+/// Which of my addresses this arrived at, when it was not the obvious
+/// one.
+///
+/// Mail to `sales@` and mail to `lihao@` land in the same mailbox and
+/// looked identical once they got there. The address a message was sent
+/// to is part of what it is: it decides whether to answer as a person
+/// or as a desk, and an address only one service was ever given makes
+/// mail arriving at it suspect on its own.
+///
+/// Same symbol as the Aliases screen, so the mark and the place you
+/// manage it are recognisably the same subject.
+struct AliasBadge: View {
+    let alias: String?
+
+    var body: some View {
+        if let alias {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(verbatim: alias)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Delivered to \(alias)")
         }
     }
 }

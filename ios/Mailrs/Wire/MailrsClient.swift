@@ -124,10 +124,11 @@ actor MailrsClient {
     /// `reply_to_thread_id`.
     @discardableResult
     func sendNew(
-        to recipients: [String], cc: [String] = [], subject: String, body: String
+        to recipients: [String], cc: [String] = [], bcc: [String] = [],
+        subject: String, body: String
     ) async throws -> Wire.SendResponse {
         try await post(Wire.SendRequest(
-            to: recipients, cc: cc, subject: subject, body: body,
+            to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: nil, forwardAttachmentsFrom: nil
         ))
@@ -137,13 +138,14 @@ actor MailrsClient {
     func sendReply(
         to recipients: [String],
         cc: [String] = [],
+        bcc: [String] = [],
         subject: String,
         body: String,
         inReplyTo: String?,
         threadId: String
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
-            to: recipients, cc: cc, subject: subject, body: body,
+            to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: inReplyTo, replyToThreadId: threadId,
             forwardMessageId: nil, forwardAttachmentsFrom: nil
         ))
@@ -156,6 +158,8 @@ actor MailrsClient {
     @discardableResult
     func sendMultipart(
         to recipients: [String],
+        cc: [String] = [],
+        bcc: [String] = [],
         subject: String,
         body: String,
         attachments: [MultipartForm.FilePart],
@@ -165,7 +169,11 @@ actor MailrsClient {
         forwardAttachmentsFrom: UInt32? = nil
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
+        // Repeated fields, one per address, exactly as `to` is — the
+        // handler pushes each occurrence onto its own vector.
         var fields: [(String, String)] = recipients.map { ("to", $0) }
+        fields += cc.map { ("cc", $0) }
+        fields += bcc.map { ("bcc", $0) }
         fields.append(("subject", subject))
         fields.append(("body", body))
         // Same optionality contract as the JSON route: absent, never
@@ -204,13 +212,15 @@ actor MailrsClient {
     @discardableResult
     func sendForward(
         to recipients: [String],
+        cc: [String] = [],
+        bcc: [String] = [],
         subject: String,
         body: String,
         forwardMessageId: String,
         forwardAttachmentsFrom: UInt32?
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
-            to: recipients, cc: [], subject: subject, body: body,
+            to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: forwardMessageId,
             forwardAttachmentsFrom: forwardAttachmentsFrom

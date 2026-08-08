@@ -186,6 +186,10 @@ enum Wire {
     struct SendRequest: Encodable {
         let to: [String]
         let cc: [String]
+        /// Blind copies. The handler has taken these since the composer
+        /// was written; the client simply never sent any, so a field the
+        /// server understood had no way to be filled.
+        let bcc: [String]
         let subject: String
         let body: String
         /// The Message-ID of the message being replied to.
@@ -210,6 +214,7 @@ enum Wire {
         enum CodingKeys: String, CodingKey {
             case to
             case cc
+            case bcc
             case subject
             case body
             case inReplyTo = "in_reply_to"

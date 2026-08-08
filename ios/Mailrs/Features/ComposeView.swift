@@ -13,6 +13,11 @@ struct ComposeView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var to = ""
+    @State private var cc = ""
+    @State private var bcc = ""
+    /// Cc and Bcc are folded away until a message needs them, and stay
+    /// open once a resumed draft turns out to have them.
+    @State private var showsCopies = false
     @State private var subject = ""
     @State private var body_ = ""
     @State private var sending = false
@@ -28,9 +33,7 @@ struct ComposeView: View {
     @State private var suggestions: [String] = []
     @State private var suggestionTask: Task<Void, Never>?
     @State private var attachments: [MultipartForm.FilePart] = []
-    @FocusState private var focus: Field?
-
-    private enum Field { case to, subject, body }
+    @FocusState private var focus: ComposerField?
 
     var body: some View {
         NavigationStack {
@@ -39,37 +42,15 @@ struct ComposeView: View {
             // once the keyboard was up, and the body is the only thing
             // anyone opened this to write.
             VStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    HStack(spacing: 6) {
-                        Text("To").foregroundStyle(.secondary)
-                        TextField("someone@example.com", text: $to)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .focused($focus, equals: .to)
-                    }
-                    .font(.subheadline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    Divider().padding(.leading, 12)
-                    if !suggestions.isEmpty {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ContactSuggestions(text: $to, suggestions: $suggestions)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 12)
-                        Divider().padding(.leading, 12)
-                    }
-                    HStack(spacing: 6) {
-                        Text("Subject").foregroundStyle(.secondary)
-                        TextField("Subject", text: $subject)
-                            .focused($focus, equals: .subject)
-                    }
-                    .font(.subheadline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    Divider()
+                ComposerHeader(
+                    to: .editable($to), cc: $cc, bcc: $bcc,
+                    subject: .editable($subject),
+                    showsCopies: $showsCopies, suggestions: $suggestions,
+                    focus: $focus
+                ) { text in
+                    suggestionTask = ContactSuggestions.schedule(
+                        replacing: suggestionTask, for: text, in: session
+                    ) { suggestions = $0 }
                 }
 
                 ComposerEditor(text: $body_, placeholder: "Message")
@@ -115,18 +96,19 @@ struct ComposeView: View {
             .onAppear {
                 if let resuming {
                     to = resuming.to
+                    cc = resuming.cc
+                    bcc = resuming.bcc
+                    // A draft that carried copies opens showing them —
+                    // folded-away fields with something in them are
+                    // words the writer cannot see they are about to send.
+                    showsCopies = !resuming.cc.isEmpty || !resuming.bcc.isEmpty
                     subject = resuming.subject
                     body_ = resuming.body
                     draftId = resuming.id
                 }
                 focus = .to
             }
-            .onChange(of: [to, subject, body_]) { _, _ in scheduleAutosave() }
-            .onChange(of: to) { _, text in
-                suggestionTask = ContactSuggestions.schedule(
-                    replacing: suggestionTask, for: text, in: session
-                ) { suggestions = $0 }
-            }
+            .onChange(of: [to, cc, bcc, subject, body_]) { _, _ in scheduleAutosave() }
             .onDisappear {
                 autosave?.cancel()
                 // Cancel is not "discard": closing the composer with
@@ -151,10 +133,12 @@ struct ComposeView: View {
     private func saveNow() {
         guard !didSend else { return }
         guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
-        let (recipients, title, text, id) = (to, subject, body_, draftId)
+        let (recipients, copies, blind) = (to, cc, bcc)
+        let (title, text, id) = (subject, body_, draftId)
         Task {
             _ = await session.saveDraft(
-                id: id, to: recipients, subject: title, body: text, replyToThreadId: nil
+                id: id, to: recipients, cc: copies, bcc: blind,
+                subject: title, body: text, replyToThreadId: nil
             )
             await session.loadDrafts()
         }
@@ -163,7 +147,8 @@ struct ComposeView: View {
     private func save() async {
         guard DraftRule.isWorthSaving(to: to, subject: subject, body: body_) else { return }
         draftId = await session.saveDraft(
-            id: draftId, to: to, subject: subject, body: body_, replyToThreadId: nil
+            id: draftId, to: to, cc: cc, bcc: bcc,
+            subject: subject, body: body_, replyToThreadId: nil
         )
     }
 
@@ -172,7 +157,8 @@ struct ComposeView: View {
         failure = nil
         do {
             try await session.sendNew(
-                to: AddressList.parse(to), subject: subject, body: body_,
+                to: AddressList.parse(to), cc: AddressList.parse(cc),
+                bcc: AddressList.parse(bcc), subject: subject, body: body_,
                 attachments: attachments
             )
             // Sent, so it is no longer a draft. Cancel the pending
