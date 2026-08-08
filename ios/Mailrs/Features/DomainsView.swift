@@ -28,7 +28,10 @@ struct DomainsView: View {
                         HStack {
                             Image(systemName: "globe")
                                 .foregroundStyle(.secondary)
-                            Text(domain.name).font(.subheadline)
+                            Text(domain.name)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                         .swipeActions {
                             Button(role: .destructive) {

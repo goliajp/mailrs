@@ -92,6 +92,29 @@ The list's title is inline, not large. A large title spends about
 fifty points of every screen restating a word the toolbar has room
 for, and this list is measured in rows.
 
+## A row that wraps is a defect
+
+Whatever it says. A header that spills onto a second line reads as
+broken before anyone finishes reading it, so every row with more than
+one piece of text bounds the variable ones to a single line, and says
+which yields: the name gives way before the date does, because a
+truncated name is still a name and a truncated timestamp is nothing.
+Addresses and filenames truncate in the middle, where the domain and
+the extension survive.
+
+State is a mark and a colour, not a sentence. "Unverified sender"
+spelled out beside a name and a time was two words too many for the
+line; it is an orange shield now, with the words kept as the
+accessibility label — read aloud rather than competing for width.
+
+## Typing belongs at the top
+
+Every screen with a field puts it in the upper half. A `Form` spends
+a section header, a card and two paddings on each of To and Subject,
+which put the editor three hundred points down — under the keyboard,
+which is where it is needed. Compose and reply use one compact line
+per field and give the editor everything that is left.
+
 ## The row (the unit everything multiplies)
 
 **Two lines, no preview.** The web made this exact call on 2026-07-17

@@ -79,59 +79,89 @@ struct ReplyView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            // Not a Form: a Form spends a section header, a card and
+            // two paddings on each of To and Subject, and the editor
+            // — the only thing anyone came here to touch — started
+            // three hundred points down, below the fold once the
+            // keyboard was up. These are one compact line each, and
+            // the editor takes everything that is left.
+            VStack(spacing: 0) {
                 Picker("Mode", selection: $mode) {
                     ForEach(Mode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
 
-                Section("To") {
+                VStack(spacing: 0) {
                     if mode == .forward {
-                        TextField("addresses, comma-separated", text: $forwardTo)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.emailAddress)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("forward-to")
-                        ContactSuggestions(text: $forwardTo, suggestions: $suggestions)
+                        HStack(spacing: 6) {
+                            Text("To").foregroundStyle(.secondary)
+                            TextField("addresses, comma-separated", text: $forwardTo)
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.emailAddress)
+                                .autocorrectionDisabled()
+                                .accessibilityIdentifier("forward-to")
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        Divider().padding(.leading, 12)
+                        if !suggestions.isEmpty {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ContactSuggestions(text: $forwardTo, suggestions: $suggestions)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            Divider().padding(.leading, 12)
+                        }
                     } else {
-                        // Shown as names, sent as addresses.
-                        Text(displayedRecipients)
-                            .foregroundStyle(.secondary)
+                        HeaderLine(label: "To", value: displayedRecipients)
+                        Divider().padding(.leading, 12)
                     }
+                    HeaderLine(label: "Subject", value: subject)
+                    Divider()
                 }
-                Section("Subject") {
-                    Text(subject).foregroundStyle(.secondary)
-                }
-                Section("Message") {
-                    TextEditor(text: $body_)
-                        .frame(minHeight: 180)
-                        .focused($bodyFocused)
-                }
-                if mode == .forward, replyingTo != nil {
-                    Section {
-                        // The original does not appear here because it
-                        // does not travel from here: the server appends
-                        // body and attachments from the stored .eml.
-                        Label("The original message and its attachments are included",
-                              systemImage: "paperclip")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+
+                TextEditor(text: $body_)
+                    .focused($bodyFocused)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 if !attachments.isEmpty {
-                    Section {
+                    Divider()
+                    VStack(spacing: 4) {
                         AttachmentRows(attachments: $attachments)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
+                if mode == .forward, replyingTo != nil {
+                    Divider()
+                    // The original does not appear here because it does
+                    // not travel from here: the server appends body and
+                    // attachments from the stored .eml.
+                    Label("The original message and its attachments are included",
+                          systemImage: "paperclip")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                 }
                 if let failure {
-                    Section {
-                        Text(failure).foregroundStyle(.red)
-                    }
+                    Divider()
+                    Text(failure)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                 }
             }
+            .padding(.top, 8)
             .navigationTitle(mode.rawValue)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -267,5 +297,29 @@ struct ReplyView: View {
             failure = error.localizedDescription
         }
         sending = false
+    }
+}
+
+/// A compose header row: the field's name, then its value, on one line.
+///
+/// Apple Mail's shape. A `Form` section per field spends a header, a
+/// card and two paddings to say the same thing, and every point it
+/// spends pushes the editor further under the keyboard.
+struct HeaderLine: View {
+    let label: LocalizedStringKey
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(verbatim: value)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
     }
 }

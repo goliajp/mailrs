@@ -34,34 +34,68 @@ struct ComposeView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("To") {
-                    TextField("someone@example.com", text: $to)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($focus, equals: .to)
-                    ContactSuggestions(text: $to, suggestions: $suggestions)
+            // Same shape as the reply sheet, for the same reason: a
+            // Form's section per field pushed the body below the fold
+            // once the keyboard was up, and the body is the only thing
+            // anyone opened this to write.
+            VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    HStack(spacing: 6) {
+                        Text("To").foregroundStyle(.secondary)
+                        TextField("someone@example.com", text: $to)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .focused($focus, equals: .to)
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    Divider().padding(.leading, 12)
+                    if !suggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ContactSuggestions(text: $to, suggestions: $suggestions)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        Divider().padding(.leading, 12)
+                    }
+                    HStack(spacing: 6) {
+                        Text("Subject").foregroundStyle(.secondary)
+                        TextField("Subject", text: $subject)
+                            .focused($focus, equals: .subject)
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    Divider()
                 }
-                Section("Subject") {
-                    TextField("Subject", text: $subject)
-                        .focused($focus, equals: .subject)
-                }
-                Section("Message") {
-                    TextEditor(text: $body_)
-                        .frame(minHeight: 200)
-                        .focused($focus, equals: .body)
-                }
+
+                TextEditor(text: $body_)
+                    .focused($focus, equals: .body)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 if !attachments.isEmpty {
-                    Section {
+                    Divider()
+                    VStack(spacing: 4) {
                         AttachmentRows(attachments: $attachments)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
                 }
                 if let failure {
-                    Section { Text(failure).foregroundStyle(.red) }
+                    Divider()
+                    Text(failure)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                 }
             }
+            .padding(.top, 8)
             .navigationTitle("New message")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

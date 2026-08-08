@@ -174,6 +174,7 @@ struct PermissionGroupDetailView: View {
                             Text(verbatim: permission)
                                 .font(.subheadline)
                                 .foregroundStyle(.primary)
+                                .lineLimit(1)
                             Spacer()
                             if granted.contains(permission) {
                                 Image(systemName: "checkmark")
@@ -196,7 +197,10 @@ struct PermissionGroupDetailView: View {
                     ForEach(members, id: \.self) { member in
                         HStack(spacing: 10) {
                             SenderAvatar(sender: member, size: 28)
-                            Text(verbatim: member).font(.subheadline)
+                            Text(verbatim: member)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                     }
                 }

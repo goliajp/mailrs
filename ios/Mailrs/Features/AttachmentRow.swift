@@ -34,6 +34,8 @@ struct AttachmentRow: View {
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(attachment.filename)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                         // Two lines, and truncating in the middle: the
                         // part of a filename that distinguishes it from
                         // its neighbours is usually the end, and

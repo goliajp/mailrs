@@ -181,6 +181,8 @@ struct EmailGroupDetailView: View {
                                 SenderAvatar(sender: member, size: 28)
                                 Text(SenderName.extractName(member))
                                     .font(.subheadline)
+                                    .lineLimit(1)
+                                    .layoutPriority(1)
                                 Spacer()
                                 Text(SenderName.extractEmail(member))
                                     .font(.caption)
