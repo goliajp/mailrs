@@ -37,7 +37,11 @@ final class SignInFlowTests: XCTestCase {
         // app answered in English. Pinning the app alone left the suite
         // half-translated.
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        app.launchArguments += signedIn ? ["-mailrsToken", "stub-token"] : ["-mailrsSignedOut"]
+        if signedIn {
+            app.launchArguments += ["-mailrsToken", "stub-token"]
+        } else {
+            app.launchArguments += ["-mailrsSignedOut"]
+        }
         if let folder { app.launchArguments += ["-mailrsFolder", folder] }
         app.launch()
         return app
@@ -461,6 +465,41 @@ final class SignInFlowTests: XCTestCase {
                        "both languages are on screen at once")
         XCTAssertTrue(app.buttons["写邮件"].exists,
                       "the compose button stayed English")
+    }
+
+    /// The queue answers the question a phone is for: is anything
+    /// stuck, and who has the sender given up on.
+    ///
+    /// The healthy job is the assertion that matters. Its blob has no
+    /// error, no attempts and no retry time — a client that required
+    /// them would decode nothing at exactly the moment the queue is
+    /// fine, and the screen would be empty with nothing to explain it.
+    func testQueueShowsStuckMailAndSuppressions() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Queue"].waitForExistence(timeout: 5), "no queue entry")
+        app.buttons["Queue"].tap()
+
+        XCTAssertTrue(app.staticTexts["stuck@example.com"].waitForExistence(timeout: 10),
+                      "the queue never decoded")
+        XCTAssertTrue(app.staticTexts["421 too many connections"].exists,
+                      "the server's own reason for the failure is not shown")
+        XCTAssertTrue(app.staticTexts["fresh@example.com"].exists,
+                      "a job with no error and no attempts failed to decode")
+        XCTAssertTrue(app.staticTexts["bounced@example.com"].exists,
+                      "the suppression list never decoded")
+
+        app.buttons["Clear all"].tap()
+        app.buttons["Clear"].tap()
+        XCTAssertTrue(app.staticTexts["No suppressed addresses"].waitForExistence(timeout: 10),
+                      "the suppressions were not cleared")
+        XCTAssertTrue(recordedWrites().contains("DELETE /api/admin/suppressions"),
+                      "the clear never reached the server")
     }
 
     /// Groups list, open, and take a member.

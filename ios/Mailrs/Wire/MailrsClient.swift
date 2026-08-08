@@ -356,6 +356,25 @@ actor MailrsClient {
         try await verb("DELETE", "/api/admin/email-groups/\(id)/members/\(encoded)")
     }
 
+    /// `GET /api/admin/queues`.
+    func queue() async throws -> [Wire.QueueJob] {
+        let list: Wire.QueueList = try await getJSON("/api/admin/queues")
+        return list.items
+    }
+
+    /// `GET /api/admin/suppressions`.
+    func suppressions() async throws -> [String] {
+        let list: Wire.SuppressionList = try await getJSON("/api/admin/suppressions")
+        return list.items
+    }
+
+    /// `DELETE /api/admin/suppressions` — clears the whole set. The
+    /// endpoint takes no address: it is all or nothing, which is why
+    /// the screen asks before calling it.
+    func clearSuppressions() async throws {
+        try await verb("DELETE", "/api/admin/suppressions")
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no
