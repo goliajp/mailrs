@@ -225,6 +225,103 @@ keys, so a row that reads one and not the other disagrees with itself.
 `Calendar.reader` assembles it once and the view does the reading, so a
 caller cannot forget.
 
+## What the mailbox actually contains
+
+Every rule below was measured against the real corpus on t02 — 31,501
+messages, sampled — rather than against what mail is supposed to look
+like. The census, from 900 messages:
+
+| | |
+|---|---|
+| declare a colour | 724 |
+| carry remote images | 711 |
+| have a tracking pixel | 610 |
+| declare a width ≥ 600px (max 1024) | 590 |
+| contain `<script>` | 150 |
+| contain `<form>` | 4 |
+| have **no body at all** | 9 |
+| carry an S/MIME signature part | 16 |
+
+## A delegate that was never called
+
+The navigation policy above was written twice. The first version was
+correct and did nothing, because `WKNavigationDelegate`'s
+completion-handler method takes a `WK_SWIFT_UI_ACTOR` closure — i.e.
+`@MainActor` — and the implementation here declared a plain
+`@escaping` one. That does not match the **optional** protocol
+requirement, so `@objc` is never inferred, WebKit never sees the
+method, and *nothing is reported*: no error, no warning at the call
+site, and a delegate that silently is not there.
+
+Link taps were never being intercepted either. It took a fixture with
+a `<meta http-equiv="refresh">`, a stub counting what arrived, and an
+`NSLog` that printed **nothing at all** to notice. The fix is the async
+spelling the SDK advertises (`WK_SWIFT_ASYNC(3)`), which has no
+attributes to get wrong.
+
+The lesson generalises: an optional ObjC protocol requirement that
+almost matches is indistinguishable from one that is absent. Anything
+security-relevant behind such a method needs a test that asserts the
+effect — here, a hit counter that must read zero.
+
+## A message body may not navigate
+
+The policy shipped until now refused link taps and **allowed everything
+else**, which is not a policy. A `<form action="https://…"
+method="post">` submits from inside the card; a `<meta
+http-equiv="refresh">` walks the reader off the message with no tap at
+all. Neither needs JavaScript, so having JavaScript off — which this
+app does — stops neither. Four of nine hundred messages carry a form.
+
+Inverted: the only navigation allowed is the one that put the document
+there (`about:blank`). A tapped link goes to Safari, which is also
+where the platform's *only* phishing protection lives — there is no
+fraudulent-content or safe-browsing API anywhere in the iOS SDK, so
+handing the URL over is the whole of what an app can do about a link.
+
+`allowsLinkPreview` is off for the same reason it exists: the peek
+**fetches the target** to build it. Its default is on, so until now a
+long press on a link in a message did the one thing the content-rule
+list exists to prevent — told a tracking domain the mail was open.
+
+## Two phishing signals, one built
+
+Both were measured before either was written.
+
+**Link text versus href** — 13,113 anchors across 851 HTML messages. 59
+messages (7%) had an anchor whose text was a domain differing from its
+target, and nearly every one was legitimate click tracking: Mailchimp
+wrapping qiita.com, Substack wrapping amazon.com, SES wrapping the
+sender's own site. A warning that fires on 7% of ordinary mail teaches
+people to tap through it. **Not built.**
+
+**Display name versus sending domain** — 1,500 From headers. 206 names
+contain a domain-like token; **8** disagree with the domain that
+actually sent the mail. Six are unmistakable: `Amazon.co.jp` from
+`mail07.jqjintaiyang.com`, and this deployment's own `golia.jp` from
+`exportesram-ems.cam`. Two are one company's second domain. **Built** —
+and it *states* rather than accuses: the badge names the real domain,
+which is useful even when the answer is innocent. That is what makes it
+safe to show on a signal that cannot be perfect, and what the link
+heuristic could never have been.
+
+It also closes a gap: the thread header showed a display name and never
+an address, so `Amazon.co.jp` read as Amazon no matter who sent it.
+
+## A message with nothing in it says so
+
+Nine messages in the sample have no body — a zip with nothing around
+it, a delivery report, a signature part with nothing this client can
+read. They opened as a blank card. They now say which of the two
+situations it is: nothing at all, or nothing but the attachments.
+
+An S/MIME signature is dropped from the file list — it is not a
+document, and `smime.p7s` does nothing when tapped. Nothing is claimed
+in its place: this client does not verify signatures, so a "Signed"
+badge would assert something nobody checked. The index travels with
+each surviving attachment, because the server takes position and
+nothing else — re-enumerating a filtered list downloads the wrong file.
+
 ## Which of my addresses did this arrive at
 
 `sales@` and `lihao@` land in the same mailbox and, once they got

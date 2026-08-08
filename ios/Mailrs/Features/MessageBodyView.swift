@@ -38,6 +38,13 @@ struct MessageBodyView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
+        // A long press on a link *fetches the target* to build the
+        // peek. That undoes the remote-content block for anyone whose
+        // thumb rests a moment too long, and for a tracking link it
+        // confirms the open to the sender — the exact thing the rule
+        // list above exists to prevent. Default is YES; mail is the
+        // wrong document for it.
+        webView.allowsLinkPreview = false
         webView.isOpaque = false
         // Clear, not white: the document paints its own paper, so the
         // card behind shows through for mail that follows the app.
@@ -147,19 +154,37 @@ struct MessageBodyView: UIViewRepresentable {
             }
         }
 
-        /// Links open in Safari; nothing navigates inside the message.
+        /// A message body may not navigate — see `WebNavigation`.
+        ///
+        /// The **async** spelling, which is the one the SDK advertises
+        /// (`WK_SWIFT_ASYNC(3)`), and the reason matters: the
+        /// completion-handler form takes a `WK_SWIFT_UI_ACTOR` closure,
+        /// i.e. `@MainActor`. Written without that attribute — as this
+        /// file did since it was created — the method does not match the
+        /// **optional** protocol requirement, so no `@objc` is inferred,
+        /// WebKit never sees it, and nothing is reported: no error, no
+        /// warning at the call site, and a delegate that silently does
+        /// not exist. Link taps were never being intercepted either; it
+        /// took a `<meta http-equiv="refresh">` in a fixture, and an
+        /// NSLog that printed nothing at all, to notice.
         func webView(
-            _ webView: WKWebView,
-            decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-        ) {
-            if navigationAction.navigationType == .linkActivated,
-               let url = navigationAction.request.url {
-                UIApplication.shared.open(url)
-                decisionHandler(.cancel)
-                return
+            _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction
+        ) async -> WKNavigationActionPolicy {
+            let url = navigationAction.request.url
+            switch WebNavigation.decide(
+                isLinkActivation: navigationAction.navigationType == .linkActivated, url: url
+            ) {
+            case .allow:
+                return .allow
+            case .openExternally:
+                // `open(_:)` has an async form now, and in an async
+                // context Swift picks it; the result is not interesting
+                // — Safari either takes the URL or it was not openable.
+                if let url { _ = await UIApplication.shared.open(url) }
+                return .cancel
+            case .refuse:
+                return .cancel
             }
-            decisionHandler(.allow)
         }
     }
 }

@@ -2100,6 +2100,38 @@
         }
       }
     },
+    "This message has no readable content.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメールに表示できる本文はありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这封邮件没有可显示的正文。"
+          }
+        }
+      }
+    },
+    "This message is its attachments.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本文はなく、添付ファイルだけです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这封邮件的内容就是附件本身。"
+          }
+        }
+      }
+    },
     "This will permanently delete all messages.": {
       "localizations": {
         "ja": {

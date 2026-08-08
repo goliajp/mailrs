@@ -386,6 +386,17 @@ private struct MessageCard: View {
     /// sender's images is not consent for the next one's.
     @State private var loadRemote = false
 
+    private var files: [(index: Int, attachment: Wire.Attachment)] {
+        MessageContent.listable(message.attachments)
+    }
+
+    /// Two sentences, because "no content" and "no content but here are
+    /// the files" are different situations for the reader.
+    private var emptyBodyMessage: LocalizedStringKey {
+        if files.isEmpty { return "This message has no readable content." }
+        return "This message is its attachments."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 8) {
@@ -403,6 +414,17 @@ private struct MessageCard: View {
                         Spacer(minLength: 4)
                         RowDateText(epochSeconds: message.internalDate, style: .stamp)
                     }
+                    // Its own line, not a third thing competing for the
+                    // name's: it is a whole sentence about where the
+                    // message came from, and it is the line worth
+                    // reading when it appears at all.
+                    SenderClaimBadge(
+                        actualDomain: SenderClaim.contradictedDomain(
+                            displayName: SenderName.extractName(message.sender),
+                            address: message.sender
+                        )
+                    )
+                    .padding(.top, 1)
                     HStack(spacing: 6) {
                         Text("To: \(message.recipients)")
                             .font(.caption2)
@@ -427,10 +449,10 @@ private struct MessageCard: View {
             .contentShape(Rectangle())
             .onTapGesture(perform: onHeaderTap)
 
-            if !message.attachments.isEmpty {
+            if !files.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(message.attachments.enumerated()), id: \.offset) { index, attachment in
-                        AttachmentRow(uid: message.uid, index: index, attachment: attachment)
+                    ForEach(files, id: \.index) { file in
+                        AttachmentRow(uid: message.uid, index: file.index, attachment: file.attachment)
                     }
                 }
                 .padding(.vertical, 4)
@@ -454,7 +476,8 @@ private struct MessageCard: View {
                 .accessibilityIdentifier("load-images")
             }
 
-            if let html = message.htmlBody, !html.isEmpty {
+            switch MessageContent.body(html: message.htmlBody, text: message.textBody) {
+            case .html(let html):
                 // Faded in once measured rather than popping at full
                 // size: until the height resolves the WebView is a
                 // 1pt sliver, and revealing it mid-measure shows a
@@ -467,10 +490,19 @@ private struct MessageCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .opacity(measuredOpacity)
                     .animation(.easeIn(duration: 0.15), value: bodyHeight > 1)
-            } else {
-                Text(message.textBody ?? "")
+            case .text(let text):
+                Text(verbatim: text)
                     .font(.callout)
                     .textSelection(.enabled)
+            case .empty:
+                // A zip with nothing around it, a delivery report, a
+                // signature with nothing this client can read: nine
+                // messages in a 900-message sample of real mail have no
+                // body, and they used to open as a blank card.
+                Label(emptyBodyMessage, systemImage: "doc.questionmark")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(12)
@@ -543,6 +575,43 @@ struct AliasBadge: View {
             .background(Color.accentColor.opacity(0.12), in: Capsule())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Delivered to \(alias)")
+        }
+    }
+}
+
+/// Where the message actually came from, when its sender's name says
+/// somewhere else.
+///
+/// The thread header shows a display name and never an address, which
+/// is precisely the gap brand impersonation lives in: `Amazon.co.jp`
+/// reads as Amazon whether it was sent by Amazon or by
+/// `mail07.jqjintaiyang.com`. Measured on this mailbox — 1,500 From
+/// headers, 206 names containing a domain, **8** disagreeing with the
+/// domain that sent them, six of those unmistakable — so it is rare
+/// enough to be worth interrupting for.
+///
+/// It states rather than accuses. "This came from X" is useful even
+/// when X turns out to be the same company's second domain, which is
+/// what makes it safe to show on a signal that cannot be perfect.
+struct SenderClaimBadge: View {
+    let actualDomain: String?
+
+    var body: some View {
+        if let actualDomain {
+            HStack(spacing: 3) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(verbatim: actualDomain)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.orange.opacity(0.14), in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Sent from \(actualDomain)")
         }
     }
 }
