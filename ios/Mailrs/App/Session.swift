@@ -620,6 +620,17 @@ final class Session {
         await refreshBadge()
     }
 
+    /// What a return to the app asks for.
+    ///
+    /// The list as it stands now, plus the badge. Not while a search is
+    /// on screen: the rows behind it are not what the reader is
+    /// looking at, and replacing them under a result set is a change
+    /// nobody asked for.
+    func refreshForeground() async {
+        guard case .signedIn = state, searchQuery == nil else { return }
+        await loadConversations()
+    }
+
     /// The icon's number, refreshed wherever the mailbox may have moved:
     /// after a list load, after marking read, after a delete. Server
     /// count, because the client only ever holds one page of one list.

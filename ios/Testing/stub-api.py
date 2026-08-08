@@ -136,6 +136,10 @@ WRITES = []
 # number may have moved".
 UNSEEN_FETCHES = [0]
 
+# How many times the conversation list has been asked for, so a test
+# can tell a refresh from a screen that merely came back.
+LIST_FETCHES = [0]
+
 # Milliseconds to sit on before answering the conversation list. The
 # empty-state test needs the first page to be observably in flight —
 # without a delay the stub answers faster than XCUITest can look.
@@ -266,6 +270,9 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/mail/drafts":
             self._send(sorted(DRAFTS.values(), key=lambda d: -d["updated_at"]))
             return
+        if self.path.split("?")[0] == "/debug/list-fetches":
+            self._send({"fetches": LIST_FETCHES[0]})
+            return
         if self.path.split("?")[0] == "/debug/writes":
             self._send({"writes": WRITES})
             return
@@ -282,6 +289,7 @@ class H(BaseHTTPRequestHandler):
                 time.sleep(LIST_DELAY_MS[0] / 1000)
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
+            LIST_FETCHES[0] += 1
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
             query = parse_qs(urlparse(self.path).query)
@@ -381,6 +389,7 @@ class H(BaseHTTPRequestHandler):
             DRAFT_POSTS.clear()
             WRITES.clear()
             UNSEEN_FETCHES[0] = 0
+            LIST_FETCHES[0] = 0
             LIST_DELAY_MS[0] = 0
             CONTACT_QUERIES.clear()
             self._send({"ok": True})
