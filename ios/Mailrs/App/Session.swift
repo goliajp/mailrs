@@ -311,6 +311,43 @@ final class Session {
         return try await client.auditLog(actionPrefix: actionPrefix)
     }
 
+    func permissionGroups() async throws -> [Wire.PermissionGroup] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.permissionGroups()
+    }
+
+    func createPermissionGroup(name: String, domain: String?, description: String) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.createPermissionGroup(
+            Wire.AddGroupRequest(name: name, domain: domain, description: description)
+        )
+    }
+
+    func deletePermissionGroup(id: Int64) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.deletePermissionGroup(id: id)
+    }
+
+    func permissionCatalogue() async throws -> [String] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.permissionCatalogue()
+    }
+
+    func groupPermissions(id: Int64) async throws -> [String] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.groupPermissions(id: id)
+    }
+
+    func setGroupPermissions(id: Int64, permissions: [String]) async throws {
+        guard let client else { throw MailrsError.badCredentials }
+        try await client.setGroupPermissions(id: id, permissions: permissions)
+    }
+
+    func groupMembers(id: Int64) async throws -> [String] {
+        guard let client else { throw MailrsError.badCredentials }
+        return try await client.groupMembers(id: id)
+    }
+
     /// A sender domain's brand icon, or nil when there is none.
     func icon(domain: String) async -> Data? {
         guard let client else { return nil }

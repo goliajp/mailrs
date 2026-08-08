@@ -467,6 +467,55 @@ final class SignInFlowTests: XCTestCase {
                       "the compose button stayed English")
     }
 
+    /// Permissions are granted by replacing the set, not by sending a
+    /// delta.
+    ///
+    /// The endpoint replaces, so a client that sent only the newly
+    /// ticked permission would grant that one and silently revoke
+    /// every other — which looks identical on screen. The assertion is
+    /// the body that reached the server: both the old grant and the
+    /// new one.
+    func testGrantingAPermissionSendsTheWholeSet() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        scrollTo(app, button: "Permissions")
+        app.buttons["Permissions"].tap()
+
+        XCTAssertTrue(app.staticTexts["Support"].waitForExistence(timeout: 10),
+                      "the group list never decoded")
+        XCTAssertTrue(app.staticTexts["Built in"].exists,
+                      "a builtin group is indistinguishable from an ordinary one")
+        // The row, not the words inside it: a NavigationLink's label is
+        // one button, and tapping a child static text does not always
+        // reach it.
+        app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Support")
+        ).firstMatch.tap()
+
+        // Buttons, not static texts: each permission row is one
+        // button whose label is the permission, and only the ticked
+        // one exposes a text of its own — so matching on text finds
+        // the checked rows and nothing else.
+        XCTAssertTrue(app.buttons["mail.send"].waitForExistence(timeout: 10),
+                      "the permission catalogue never loaded")
+        scrollTo(app, button: "admin.queue")
+        app.buttons["admin.queue"].tap()
+
+        var sent: [String] = []
+        for _ in 0..<20 where sent.isEmpty {
+            sent = groupGrants(id: 2)
+            if sent.count < 2 { sent = [] }
+            if sent.isEmpty { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        XCTAssertEqual(Set(sent), ["mail.read", "admin.queue"],
+                       "the grant replaced the set instead of extending it: \(sent)")
+    }
+
     /// The audit log shows what was done, and filters by family.
     ///
     /// The bare action is the shape worth pinning: the server writes
@@ -923,6 +972,27 @@ final class SignInFlowTests: XCTestCase {
         return result
     }
 
+    /// What the server currently holds for a group.
+    private func groupGrants(id: Int) -> [String] {
+        guard let url = URL(string: "http://localhost:6039/api/admin/groups/\(id)/permissions") else {
+            return []
+        }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer stub-token", forHTTPHeaderField: "Authorization")
+        var result: [String] = []
+        let done = expectation(description: "group grants")
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let permissions = json["permissions"] as? [String] {
+                result = permissions
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
+    }
+
     /// How many times the conversation list has been fetched.
     private func listFetches() -> Int {
         guard let url = URL(string: "http://localhost:6039/debug/list-fetches") else { return -1 }
@@ -993,12 +1063,16 @@ final class SignInFlowTests: XCTestCase {
     /// "no DMARC entry", as though the app had lost the screen.
     private func scrollTo(_ app: XCUIApplication, button name: String,
                           file: StaticString = #filePath, line: UInt = #line) {
-        let target = app.buttons[name]
-        for _ in 0..<5 {
-            if target.exists { return }
+        scrollTo(app, element: app.buttons[name], named: name, file: file, line: line)
+    }
+
+    private func scrollTo(_ app: XCUIApplication, element: XCUIElement, named: String,
+                          file: StaticString = #filePath, line: UInt = #line) {
+        for _ in 0..<6 {
+            if element.exists { return }
             app.swipeUp()
         }
-        XCTAssertTrue(target.exists, "never scrolled to \(name)", file: file, line: line)
+        XCTAssertTrue(element.exists, "never scrolled to \(named)", file: file, line: line)
     }
 
     private func resetStub() {

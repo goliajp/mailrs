@@ -487,6 +487,53 @@ enum Wire {
         let items: [AuditRow]
     }
 
+    /// Backend: `crates/core-api/src/method/admin/permissions.rs` —
+    /// `GroupWire`. A permission group, not an email group: this one
+    /// decides who may do things, the other decides where mail goes.
+    struct PermissionGroup: Decodable, Identifiable, Sendable {
+        let id: Int64
+        let name: String
+        /// Absent for the cross-domain builtins.
+        let domain: String?
+        let description: String
+        let isBuiltin: Bool
+        let createdAt: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case domain
+            case description
+            case isBuiltin = "is_builtin"
+            case createdAt = "created_at"
+        }
+    }
+
+    struct PermissionGroupList: Decodable, Sendable {
+        let items: [PermissionGroup]
+    }
+
+    /// Both the group's grants and the server's catalogue arrive under
+    /// `permissions` — the same key for two different questions, which
+    /// is worth naming rather than reusing one type for.
+    struct PermissionSet: Decodable, Sendable {
+        let permissions: [String]
+    }
+
+    struct GroupMembers: Decodable, Sendable {
+        let members: [String]
+    }
+
+    struct SetPermissionsRequest: Encodable, Sendable {
+        let permissions: [String]
+    }
+
+    struct AddGroupRequest: Encodable, Sendable {
+        let name: String
+        let domain: String?
+        let description: String
+    }
+
     struct AliasList: Decodable, Sendable {
         let items: [Alias]
     }
