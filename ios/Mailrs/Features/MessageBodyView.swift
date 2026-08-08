@@ -36,7 +36,14 @@ struct MessageBodyView: UIViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        webView.scrollView.isScrollEnabled = false
+        // Enabled, unlike before — but with no room to move vertically
+        // at fit scale, so the thread behind it keeps the vertical pan
+        // and the body keeps pinch and the horizontal one. A message
+        // wider than the phone used to be simply cut off at the right
+        // edge with no way to reach the rest.
+        webView.scrollView.isScrollEnabled = true
+        webView.scrollView.alwaysBounceVertical = false
+        webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.bounces = false
         // A long press on a link *fetches the target* to build the
         // peek. That undoes the remote-content block for anyone whose
@@ -136,8 +143,14 @@ struct MessageBodyView: UIViewRepresentable {
                 let contentHeight = pair[1]
                 let hostWidth = Double(webView.bounds.width)
                 let scale = FitToWidth.scale(contentWidth: contentWidth, hostWidth: hostWidth)
+                // Fit is where it starts, not where it is stuck. Both
+                // bounds used to be the fit scale, which pinned the
+                // zoom: a newsletter laid out at 1080px arrived at 0.33
+                // — legible only to someone who could enlarge it, and
+                // nobody could. Up to 1:1, or four times the fit,
+                // whichever is further.
                 webView.scrollView.minimumZoomScale = scale
-                webView.scrollView.maximumZoomScale = scale
+                webView.scrollView.maximumZoomScale = max(1, scale * 4)
                 webView.scrollView.zoomScale = scale
                 // A transform does not change layout, so the height the
                 // view needs is the scaled one — without this the row
