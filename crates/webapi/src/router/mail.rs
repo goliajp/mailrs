@@ -154,6 +154,10 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         .route("/api/queue", get(handlers::prefs::get_queue_stats))
         .route("/api/contacts", get(handlers::prefs::get_contacts))
         .route("/api/mail/feedback", post(handlers::prefs::submit_feedback))
+        .route(
+            "/api/mail/unsubscribe",
+            post(handlers::unsubscribe::unsubscribe),
+        )
         // v2.4.1 Phase 3 (RFC-B §3.5) — per-user sender allow/block
         .route(
             "/api/spam/whitelist",

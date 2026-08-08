@@ -106,3 +106,4 @@ POST /api/auth/identities:unlink          | ditto
 POST /api/mail/check-deliverability       | dormant lane only; nothing calls it
 POST /api/push/tokens          | ios push registration — fastcore lane only; the monolith has no push pipeline, and tokens nothing reads are worse than a 404
 DELETE /api/push/tokens/{token} | ios push unregistration — same
+POST /api/mail/unsubscribe                | RFC 8058 one-click; the header parsing is the stone (mailrs-clean::parse_unsubscribe), and the dormant lane gets no hand-written second copy of the glue

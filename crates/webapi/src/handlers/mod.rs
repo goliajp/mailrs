@@ -47,3 +47,4 @@ pub mod sends;
 pub mod spam_lists;
 pub mod system_config;
 pub mod totp_util;
+pub mod unsubscribe;
