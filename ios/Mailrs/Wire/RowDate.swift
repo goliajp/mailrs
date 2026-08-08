@@ -37,6 +37,12 @@ enum RowDate {
         let date = Date(timeIntervalSince1970: TimeInterval(epochSeconds))
         let formatter = DateFormatter()
         formatter.calendar = calendar
+        // The calendar carries the reader's zone and language, and the
+        // formatter has to be told both — left alone it renders in the
+        // phone's, so a chosen time zone would change which bucket a
+        // message fell into without changing the time printed on it.
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = calendar.locale ?? .autoupdatingCurrent
         switch bucket(for: date, now: now, calendar: calendar) {
         case .time:
             formatter.timeStyle = .short

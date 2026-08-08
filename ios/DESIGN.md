@@ -4,6 +4,27 @@ Benchmarks: Apple Mail (motion, gestures, dates), Gmail (triage speed),
 and the web client's own settled decisions — which win ties, because
 they are the same person's taste already paid for.
 
+## Tokens, not colours
+
+The palette is the web client's, ported value for value: mailrs's web
+UI runs the gds `zinc-neutral` preset, whose light and dark sets are
+written out as explicit hex rather than derived, so the two clients
+can hold the same colours instead of two interpretations of the same
+intent. `Theme` names roles (`surface`, `fgMuted`, `danger`), never
+literals, and the names match the CSS custom properties so a change
+on either side is greppable from the other. It is resolved once at
+the root from the effective colour scheme — no view asks which mode
+it is in, because asking is how one view ends up disagreeing with
+the next.
+
+Appearance is a choice: System, Light or Dark, persisted, applied as
+`preferredColorScheme` so following the system is the *absence* of an
+override rather than a value that has to track it. Language and time
+zone are choices too, in the same place, applied through the
+environment slots SwiftUI already has for them — which is why a
+chosen zone reaches the row dates and the message headers without any
+screen consulting a preference.
+
 ## Identity (the visual system)
 
 One blood-line with the web client. The accent is GOLIA blue
@@ -13,9 +34,11 @@ the web's exactly: 16 tailwind-500 colors picked by the same
 31-multiply hash over the address, so the same correspondent wears
 the same color on every client — the hash is unit-tested against
 values computed by the web's algorithm, wrapping like JS `| 0`.
-The app icon is drawn geometry (PIL, checked in as 1024px): the
-accent field, a white envelope, signal rings radiating from the
-flap. SF stays the typeface — on iOS the system font is the
+The app icon is the web client's, not a second one: the red gradient,
+white envelope and pink flap of `web/public/icon.svg`, redrawn
+full-bleed because iOS applies its own squircle mask and the SVG's
+own rounded corners would leave white showing at the mask's edge.
+SF stays the typeface — on iOS the system font is the
 professional choice, and identity lives in color and shape.
 
 Rows carry the web's grammar: avatar with the unread dot on its rim

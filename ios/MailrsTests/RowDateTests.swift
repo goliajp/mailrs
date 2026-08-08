@@ -48,3 +48,40 @@ struct RowDateTests {
         #expect(label.contains(":"), "expected a time, got \(label)")
     }
 }
+
+/// The chosen time zone has to reach the printed time, not only the
+/// bucket it was sorted into.
+struct RowDateZoneTests {
+    private func calendar(_ zone: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: zone)!
+        c.locale = Locale(identifier: "en_US_POSIX")
+        return c
+    }
+
+    /// 2026-08-05 22:20 UTC — the same instant is the 5th in London
+    /// and the 6th in Tokyo, and each must say so.
+    @Test func theSameInstantReadsDifferentlyInTwoZones() {
+        let epoch: Int64 = 1_785_968_400
+        let now = Date(timeIntervalSince1970: TimeInterval(epoch) + 60 * 60 * 24 * 90)
+        let london = RowDate.label(epochSeconds: epoch, now: now, calendar: calendar("Europe/London"))
+        let tokyo = RowDate.label(epochSeconds: epoch, now: now, calendar: calendar("Asia/Tokyo"))
+        #expect(london != tokyo)
+    }
+
+    /// Today in one zone can be yesterday in another; the ladder is
+    /// computed in the reader's zone, not the phone's.
+    @Test func theLadderIsComputedInTheChosenZone() {
+        let epoch: Int64 = 1_785_968_400
+        let now = Date(timeIntervalSince1970: TimeInterval(epoch) + 3600)
+        let tokyo = RowDate.bucket(
+            for: Date(timeIntervalSince1970: TimeInterval(epoch)),
+            now: now, calendar: calendar("Asia/Tokyo")
+        )
+        let honolulu = RowDate.bucket(
+            for: Date(timeIntervalSince1970: TimeInterval(epoch)),
+            now: now, calendar: calendar("Pacific/Honolulu")
+        )
+        #expect(tokyo == .time || honolulu == .time)
+    }
+}

@@ -10,6 +10,7 @@ struct ConversationListView: View {
     @State private var showingDrafts = false
     /// Multi-select state. `selection` only means anything while
     /// `editMode` is active; leaving select mode clears it.
+    @State private var showingSettings = false
     @State private var selection = Set<String>()
     @State private var editMode: EditMode = .inactive
     /// The batch a delete is waiting on confirmation for.
@@ -158,6 +159,7 @@ struct ConversationListView: View {
             }
             .sheet(isPresented: $composing) { ComposeView() }
             .sheet(isPresented: $showingDrafts) { DraftsView() }
+            .sheet(isPresented: $showingSettings) { SettingsView() }
             .searchable(text: $searchText, prompt: "Search mail")
             .onChange(of: searchText) { _, text in
                 // Debounced, and the previous request cancelled: a
@@ -227,8 +229,15 @@ struct ConversationListView: View {
                             Label("Drafts", systemImage: "doc.text")
                         }
                         Divider()
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Label("Settings", systemImage: "gearshape")
+                        }
                         // Sign-out moved off the bar when Select took
                         // its slot: triage is daily, sign-out is rare.
+                        // It lives in Settings too, which is where
+                        // someone looks for it first.
                         Button(role: .destructive) {
                             session.signOut()
                         } label: {
@@ -299,6 +308,19 @@ struct ConversationListView: View {
 struct ConversationRow: View {
     let conversation: Wire.Conversation
     @Environment(Session.self) private var session
+    @Environment(\.calendar) private var calendar
+    @Environment(\.timeZone) private var timeZone
+    @Environment(\.locale) private var locale
+
+    /// The environment's calendar carries the language but not the
+    /// chosen zone — they are separate keys, and a date read in the
+    /// phone's zone under a chosen one is the bug this avoids.
+    private var readerCalendar: Calendar {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+        calendar.locale = locale
+        return calendar
+    }
 
     private var sender: String {
         SenderName.rowFace(
@@ -381,7 +403,8 @@ struct ConversationRow: View {
                             .padding(.vertical, 1)
                             .background(Color(.tertiarySystemFill), in: Capsule())
                     }
-                    Text(RowDate.label(epochSeconds: conversation.lastDate))
+                    Text(RowDate.label(epochSeconds: conversation.lastDate,
+                                       calendar: readerCalendar))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
