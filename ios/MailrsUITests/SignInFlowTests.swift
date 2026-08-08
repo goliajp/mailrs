@@ -463,6 +463,73 @@ final class SignInFlowTests: XCTestCase {
                       "the compose button stayed English")
     }
 
+    /// Accounts are listed and created from the phone.
+    ///
+    /// The password is the part that matters: it has to reach the
+    /// server, which hashes it, and it must not be anywhere else. The
+    /// stub records that one arrived, never its value — a recorder
+    /// that kept it would put a real password in a debug endpoint the
+    /// moment this fixture met a real server.
+    func testAccountsCanBeListedAndCreated() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Accounts"].waitForExistence(timeout: 5), "no accounts entry")
+        app.buttons["Accounts"].tap()
+
+        XCTAssertTrue(app.staticTexts["Li Hao"].waitForExistence(timeout: 10),
+                      "the account list never decoded — check the items envelope")
+        XCTAssertTrue(app.staticTexts["Inactive"].exists,
+                      "an inactive account looks like a live one")
+
+        app.buttons["Add account"].tap()
+        let address = app.textFields["account-address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 5), "no add form")
+        address.tap()
+        address.typeText("press@golia.jp")
+        app.textFields["account-name"].tap()
+        app.textFields["account-name"].typeText("Press")
+        app.secureTextFields["account-password"].tap()
+        app.secureTextFields["account-password"].typeText("correct horse battery")
+        app.buttons["Add"].tap()
+
+        XCTAssertTrue(app.staticTexts["Press"].waitForExistence(timeout: 10),
+                      "the new account never came back from the server")
+        let posts = accountPosts()
+        XCTAssertEqual(posts.last?["address"] as? String, "press@golia.jp")
+        XCTAssertEqual(posts.last?["had_password"] as? Bool, true,
+                       "the account was created without a password")
+    }
+
+    /// Domains are listed and added.
+    func testDomainsCanBeListedAndAdded() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        app.buttons["Lists"].tap()
+        app.buttons["Settings"].tap()
+        app.buttons["Domains"].tap()
+
+        XCTAssertTrue(app.staticTexts["golia.jp"].waitForExistence(timeout: 10),
+                      "the domain list never decoded")
+        app.buttons["Add domain"].tap()
+        let field = app.textFields["golia.jp"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no add prompt")
+        field.typeText("golia.example")
+        app.buttons["Add"].tap()
+
+        XCTAssertTrue(app.staticTexts["golia.example"].waitForExistence(timeout: 10),
+                      "the new domain never came back")
+        XCTAssertTrue(recordedWrites().contains("POST /api/admin/domains"),
+                      "the domain was not created on the server")
+    }
+
     /// Aliases are listed, added and removed from the phone.
     ///
     /// The request shape is the assertion. The admin list arrives in an
@@ -697,6 +764,24 @@ final class SignInFlowTests: XCTestCase {
             if app.navigationBars[mode].waitForExistence(timeout: 2) { return }
         }
         XCTFail("the \(mode) segment never switched the sheet")
+    }
+
+    /// What reached the account-creation endpoint: the address, and
+    /// whether a password came with it.
+    private func accountPosts() -> [[String: Any]] {
+        guard let url = URL(string: "http://localhost:6039/debug/account-posts") else { return [] }
+        var result: [[String: Any]] = []
+        let done = expectation(description: "debug/account-posts")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let posts = json["posts"] as? [[String: Any]] {
+                result = posts
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return result
     }
 
     /// How many times the conversation list has been fetched.

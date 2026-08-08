@@ -264,6 +264,52 @@ actor MailrsClient {
         try await verb("DELETE", "/api/admin/aliases/\(id)")
     }
 
+    /// `GET /api/admin/accounts`.
+    func accounts() async throws -> [Wire.Account] {
+        let list: Wire.AccountList = try await getJSON("/api/admin/accounts")
+        return list.items
+    }
+
+    /// `POST /api/admin/accounts`.
+    func addAccount(_ request: Wire.AddAccountRequest) async throws {
+        let (_, response) = try await send(
+            "POST", "/api/admin/accounts",
+            body: try JSONEncoder().encode(request), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `DELETE /api/admin/accounts/{address}`.
+    func deleteAccount(address: String) async throws {
+        let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? address
+        try await verb("DELETE", "/api/admin/accounts/\(encoded)")
+    }
+
+    /// `GET /api/admin/domains`.
+    func domains() async throws -> [Wire.Domain] {
+        let list: Wire.DomainList = try await getJSON("/api/admin/domains")
+        return list.items
+    }
+
+    /// `POST /api/admin/domains`.
+    func addDomain(name: String) async throws {
+        let (_, response) = try await send(
+            "POST", "/api/admin/domains",
+            body: try JSONEncoder().encode(Wire.AddDomainRequest(name: name)), authorized: true
+        )
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    /// `DELETE /api/admin/domains/{name}`.
+    func deleteDomain(name: String) async throws {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        try await verb("DELETE", "/api/admin/domains/\(encoded)")
+    }
+
     /// `GET /api/icon/{domain}` — the sender-avatar cascade.
     /// Backend: `crates/webapi/src/handlers/icon.rs`. Bytes on a hit,
     /// **204 on a miss** rather than 404, so "this domain has no
