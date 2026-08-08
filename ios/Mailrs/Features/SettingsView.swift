@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var showingDomains = false
     @State private var showingGroups = false
     @State private var showingQueue = false
+    @State private var showingKeys = false
     @State private var showingDmarc = false
     @State private var showingAudit = false
     @State private var showingPermissions = false
@@ -38,6 +39,14 @@ struct SettingsView: View {
                 Section("Account") {
                     LabeledContent("Signed in as", value: session.myAddress)
                     LabeledContent("Server", value: session.baseURL.host() ?? "—")
+                    // Not under Administration: a key acts as *this*
+                    // account, and revoking one is the account holder's
+                    // business rather than an operator's.
+                    Button {
+                        showingKeys = true
+                    } label: {
+                        Label("API keys", systemImage: "key")
+                    }
                 }
 
                 Section("Appearance") {
@@ -135,6 +144,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingDomains) { DomainsView() }
             .sheet(isPresented: $showingGroups) { EmailGroupsView() }
             .sheet(isPresented: $showingQueue) { QueueView() }
+            .sheet(isPresented: $showingKeys) { AgentKeysView() }
             .sheet(isPresented: $showingDmarc) { DmarcView() }
             .sheet(isPresented: $showingAudit) { AuditLogView() }
             .sheet(isPresented: $showingPermissions) { PermissionGroupsView() }

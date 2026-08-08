@@ -308,6 +308,28 @@ heuristic could never have been.
 It also closes a gap: the thread header showed a display name and never
 an address, so `Amazon.co.jp` read as Amazon no matter who sent it.
 
+## A secret that exists once
+
+Creating an API key answers `{id, secret}` and the server keeps the
+first **eight characters** of that secret and nothing else. So the
+screen has one job: there is exactly one moment in which the secret
+exists, and if it is missed the only remedy is to revoke the key and
+make another.
+
+It gets a sheet of its own rather than a row in the list, because the
+list is where it will *not* be afterwards. Copy is the primary action,
+the text is selectable as well, and the words say plainly that this is
+the end of it. Afterwards a key is recognised by its prefix, shown
+monospaced and ending in an ellipsis rather than pretending to be the
+whole thing.
+
+The scope picker is the server's own permission catalogue, fetched —
+the same one the permission groups use. A second hardcoded list of
+scope strings is a second thing to keep in step, and it would drift.
+
+Revoking asks, and names what stops: it is the one action on that
+screen that breaks something already running.
+
 ## The pictures a message brings with it
 
 `multipart/related` mail carries its images and points at them by
