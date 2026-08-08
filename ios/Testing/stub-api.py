@@ -112,7 +112,10 @@ FETCHED = []
 # Aliases, in the `{items: [...]}` envelope the admin endpoint uses —
 # deliberately unlike /api/conversations, which is a bare array.
 ALIASES = [
-    {"id": 1, "source_address": "sales@golia.jp", "target_address": "lihao@golia.jp",
+    # Targets the signed-in address, so mail sent to it arrived *via an
+    # alias* — the case the thread has to mark. The second targets
+    # somebody else and must never be marked as mine.
+    {"id": 1, "source_address": "sales@golia.jp", "target_address": "me@golia.jp",
      "domain": "golia.jp", "alias_type": "alias", "active": True, "created_at": 1754400000},
     {"id": 2, "source_address": "info@golia.ai", "target_address": "lihao@golia.jp",
      "domain": "golia.ai", "alias_type": "alias", "active": False, "created_at": 1754400001},
@@ -279,6 +282,13 @@ def msg(uid, sender, trust, html):
 
 MESSAGES = [msg(1, "Alice Smith <alice@example.com>", "verified", WIDE),
             msg(2, "spoofed@example.com", "suspicious", "<p>Short reply, narrow body.</p>")]
+
+# The second thread arrived at an alias, which is its whole purpose
+# here: the direct address is absent, so the client has to work out that
+# sales@ is one of mine and say so.
+ALIAS_THREAD = [dict(msg(5, "keiri <keiri@example.co.jp>", "verified",
+                         "<p>\u8acb\u6c42\u66f8\u3092\u304a\u9001\u308a\u3057\u307e\u3059\u3002</p>"),
+                     recipients="Sales <sales@golia.jp>")]
 
 class H(BaseHTTPRequestHandler):
     def _send(self, obj, status=200):
@@ -458,6 +468,9 @@ class H(BaseHTTPRequestHandler):
             # a window in which only a cache could have painted them.
             if LIST_DELAY_MS[0]:
                 time.sleep(LIST_DELAY_MS[0] / 1000)
+            if self.path.split("?")[0] == "/api/conversations/t2":
+                self._send(ALIAS_THREAD)
+                return
             self._send(MESSAGES)
         elif self.path.startswith("/api/conversations"):
             LIST_FETCHES[0] += 1
@@ -627,7 +640,7 @@ class H(BaseHTTPRequestHandler):
             CONTACT_QUERIES.clear()
             ALIASES[:] = [
                 {"id": 1, "source_address": "sales@golia.jp",
-                 "target_address": "lihao@golia.jp", "domain": "golia.jp",
+                 "target_address": "me@golia.jp", "domain": "golia.jp",
                  "alias_type": "alias", "active": True, "created_at": 1754400000},
                 {"id": 2, "source_address": "info@golia.ai",
                  "target_address": "lihao@golia.jp", "domain": "golia.ai",

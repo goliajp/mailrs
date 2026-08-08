@@ -120,6 +120,7 @@ final class Session {
             // exactly how the real cold launch below shipped a badge
             // that never updated.
             await loadConversations()
+            await loadMyAliases()
             return
         }
         guard let token = TokenStore.load() else { return }
@@ -129,6 +130,7 @@ final class Session {
         do {
             conversations = try await client.conversations(axes: axes)
             await refreshBadge()
+            await loadMyAliases()
         } catch {
             // The stored token no longer works — clear it rather than
             // leaving a credential that fails on every launch.
@@ -139,7 +141,8 @@ final class Session {
     }
 
     func sendReply(
-        to recipients: [String], subject: String, body: String,
+        to recipients: [String], cc: [String] = [], bcc: [String] = [],
+        subject: String, body: String,
         inReplyTo: String?, threadId: String,
         attachments: [MultipartForm.FilePart] = []
     ) async throws {
@@ -147,14 +150,14 @@ final class Session {
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendReply(
-                    to: recipients, subject: subject, body: body,
+                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                     inReplyTo: inReplyTo, threadId: threadId
                 )
             }
             // The multipart route, with both threading fields riding
             // along — a reply that lost them arrives detached.
             return try await client.sendMultipart(
-                to: recipients, subject: subject, body: body,
+                to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
                 inReplyTo: inReplyTo, replyToThreadId: threadId
             )
@@ -162,7 +165,8 @@ final class Session {
     }
 
     func sendForward(
-        to recipients: [String], subject: String, body: String,
+        to recipients: [String], cc: [String] = [], bcc: [String] = [],
+        subject: String, body: String,
         forwardMessageId: String, forwardAttachmentsFrom: UInt32?,
         attachments: [MultipartForm.FilePart] = []
     ) async throws {
@@ -170,7 +174,7 @@ final class Session {
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendForward(
-                    to: recipients, subject: subject, body: body,
+                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                     forwardMessageId: forwardMessageId,
                     forwardAttachmentsFrom: forwardAttachmentsFrom
                 )
@@ -179,7 +183,7 @@ final class Session {
             // list (inline_forward_content), so the added files and
             // the forwarded ones coexist.
             return try await client.sendMultipart(
-                to: recipients, subject: subject, body: body,
+                to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
                 forwardMessageId: forwardMessageId,
                 forwardAttachmentsFrom: forwardAttachmentsFrom
@@ -192,6 +196,26 @@ final class Session {
     func aliases() async throws -> [Wire.Alias] {
         guard let client else { throw MailrsError.badCredentials }
         return try await client.aliases()
+    }
+
+    /// The aliases that deliver to the signed-in address.
+    ///
+    /// Held so a thread can say which of my addresses a message actually
+    /// arrived at. Loaded once per session and not refreshed: aliases
+    /// change on the order of never, and a mail app that polls the
+    /// directory is spending someone's battery on it.
+    private(set) var myAliases: [Wire.Alias] = []
+
+    func loadMyAliases() async {
+        guard myAliases.isEmpty, let client else { return }
+        // Swallowed on purpose, and the only swallow in this file with a
+        // defensible silence: the endpoint is admin-adjacent, a user
+        // without the permission gets a 403, and the honest consequence
+        // is no marks — not an error banner about the directory on top
+        // of somebody's mail.
+        let all = (try? await client.aliases()) ?? []
+        let mine = myAddress
+        myAliases = all.filter { $0.targetAddress.lowercased() == mine }
     }
 
     /// The domain travels as its own field because the handler takes
@@ -707,11 +731,12 @@ final class Session {
     /// one session upserts one draft. Posting without it on every
     /// autosave would leave a new draft per tick.
     func saveDraft(
-        id: Int64?, to: String, subject: String, body: String, replyToThreadId: String?
+        id: Int64?, to: String, cc: String = "", bcc: String = "",
+        subject: String, body: String, replyToThreadId: String?
     ) async -> Int64? {
         guard let client else { return nil }
         let request = Wire.SaveDraftRequest(
-            id: id, to: to, cc: "", bcc: "", subject: subject, body: body,
+            id: id, to: to, cc: cc, bcc: bcc, subject: subject, body: body,
             replyToThreadId: replyToThreadId
         )
         return try? await client.saveDraft(request)
@@ -735,20 +760,22 @@ final class Session {
     /// would file a new message inside an existing conversation, which
     /// is the mirror of the bug that made replies arrive unthreaded.
     func sendNew(
-        to recipients: [String], subject: String, body: String,
+        to recipients: [String], cc: [String] = [], bcc: [String] = [],
+        subject: String, body: String,
         attachments: [MultipartForm.FilePart] = []
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendNew(
-                    to: recipients, subject: subject, body: body
+                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body
                 )
             }
             // Files ride the multipart route; the JSON route has no
             // field for them.
             return try await client.sendMultipart(
-                to: recipients, subject: subject, body: body, attachments: attachments
+                to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
+                attachments: attachments
             )
         }
     }
@@ -780,6 +807,7 @@ final class Session {
             state = .signedIn(address: login.address, displayName: login.displayName)
             PushRegistrar.requestAndRegister()
             await loadConversations()
+            await loadMyAliases()
         } catch MailrsError.needsTotp {
             needsTotp = true
             state = .signedOut

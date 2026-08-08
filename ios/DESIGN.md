@@ -225,6 +225,52 @@ keys, so a row that reads one and not the other disagrees with itself.
 `Calendar.reader` assembles it once and the view does the reading, so a
 caller cannot forget.
 
+## Which of my addresses did this arrive at
+
+`sales@` and `lihao@` land in the same mailbox and, once they got
+there, looked identical. But the address a message was sent to is part
+of what the message *is*: it decides whether to answer as a person or
+as a desk, and an address only one service was ever given makes mail
+arriving at it suspect on its own.
+
+So a message that came via an alias says so, in the accent colour and
+with the Aliases screen's own symbol — the mark and the place you
+manage it should be recognisably the same subject.
+
+The rule is deliberately narrow (`AliasMark`). It marks only when the
+direct address is **absent**: a message addressed to both is addressed
+to me, and "via" is not an answer to a question nobody asked. It marks
+only aliases pointing at me, so somebody else's alias in the recipient
+list stays somebody else's. And a catch-all names the address the
+sender actually used rather than the `@domain` pattern that routed it,
+because "via @golia.jp" is a rule and the reader wants to know which of
+their addresses is in circulation.
+
+## The label column is a column
+
+Every row in a composer header used to size its own label, so `To` and
+`Subject` pushed their fields to different x-positions — and that
+ragged left edge is the one the eye follows down the form. It is a
+`Grid` now: one label column, sized to the longest, which also survives
+translation. `件名` is not `Subject`, and a hard-coded width that fits
+one clips the other.
+
+Cc and Bcc were not missing by design; they were simply never built,
+while the wire had carried both since the composer was written. They
+fold away behind a chip on the To row, because most messages do not use
+them and two empty rows above the subject push the body — the thing
+being written — down the screen. A resumed draft that has copies opens
+showing them: folded-away fields with addresses in them are people the
+writer cannot see they are about to write to.
+
+The reply sheet shares the same header, with To and Subject as *values*
+rather than fields — it derives both, and a text field the writer
+cannot change is a lie about who can change it. Its Cc is typed, not
+derived: the wire carries the original's To line and nothing else, so
+the Cc of the message being answered is not knowable here, and building
+one out of the To line would copy people the sender had merely written
+to.
+
 ## A status word that repeats the screen's title is not information
 
 The queue row said "Waiting", which is what the word *queue* had

@@ -1894,6 +1894,33 @@ final class SignInFlowTests: XCTestCase {
                        "the spinner outlived the load")
     }
 
+    /// Mail that arrived at an alias says which one.
+    ///
+    /// `sales@` and the signed-in address land in the same mailbox and
+    /// looked identical once they got there, so a message written to a
+    /// role address gave no sign of it — and that is the fact deciding
+    /// whether to answer as a person or as a desk.
+    func testMailToAnAliasIsMarkedWithTheAliasItArrivedAt() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15), "inbox never listed")
+
+        // The thread addressed to me directly wears no mark: "via" is
+        // only an answer when the direct address is absent.
+        app.staticTexts["Quarterly report and the follow-up notes"].tap()
+        XCTAssertTrue(app.staticTexts["To: me@golia.jp, Bob <bob@example.com>"]
+            .waitForExistence(timeout: 10), "thread never opened")
+        XCTAssertFalse(app.staticTexts["sales@golia.jp"].exists,
+                       "a directly addressed message claimed to have come via an alias")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        app.staticTexts["請求書のご送付につきまして"].tap()
+        XCTAssertTrue(app.staticTexts["To: Sales <sales@golia.jp>"].waitForExistence(timeout: 10),
+                      "the alias-addressed thread never opened")
+        XCTAssertTrue(app.staticTexts["sales@golia.jp"].exists,
+                      "mail that arrived at an alias did not name it")
+    }
+
     /// The same claim, in the sheet that did not inherit it.
     ///
     /// Drafts was written after the mail lists and had no loading gate:
@@ -2035,7 +2062,7 @@ final class SignInFlowTests: XCTestCase {
         app.buttons["Reply"].tap()
 
         switchReplyMode(app, to: "Forward")
-        let toField = app.textFields["forward-to"]
+        let toField = app.textFields["composer-to"]
         XCTAssertTrue(toField.waitForExistence(timeout: 5), "no forward To field")
         toField.tap()
         toField.typeText("third@example.com")
@@ -2165,7 +2192,7 @@ final class SignInFlowTests: XCTestCase {
         app.buttons["Reply"].tap()
 
         switchReplyMode(app, to: "Forward")
-        let toField = app.textFields["forward-to"]
+        let toField = app.textFields["composer-to"]
         XCTAssertTrue(toField.waitForExistence(timeout: 5), "no forward To field")
         toField.tap()
         toField.typeText("third@example.com")

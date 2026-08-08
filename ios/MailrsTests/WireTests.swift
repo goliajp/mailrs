@@ -110,12 +110,17 @@ struct WireTests {
     /// assertion that keeps the pair together.
     @Test func sendsBothThreadingFieldsOnAReply() throws {
         let request = Wire.SendRequest(
-            to: ["alice@example.com"], cc: [], subject: "Re: Q3", body: "Noted.",
+            to: ["alice@example.com"], cc: ["carol@example.com"], bcc: [],
+            subject: "Re: Q3", body: "Noted.",
             inReplyTo: "<m1@x>", replyToThreadId: "t1",
             forwardMessageId: nil, forwardAttachmentsFrom: nil
         )
         let text = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
         #expect(text.contains("\"in_reply_to\":\"<m1@x>\""))
+        // Copies travel as their own array, not folded into `to` — the
+        // difference is visible to every recipient.
+        #expect(text.contains("\"cc\":[\"carol@example.com\"]"))
+        #expect(text.contains("\"to\":[\"alice@example.com\"]"))
         #expect(text.contains("\"reply_to_thread_id\":\"t1\""))
         // Optionals must vanish when nil, not encode as null — the
         // handler treats a present-but-null forward differently from an
@@ -127,7 +132,8 @@ struct WireTests {
     /// A forward carries the reference and neither threading field.
     @Test func aForwardCarriesTheReferenceAndNoThreading() throws {
         let request = Wire.SendRequest(
-            to: ["x@example.com"], cc: [], subject: "Fwd: Q3", body: "FYI.",
+            to: ["x@example.com"], cc: [], bcc: ["quiet@example.com"],
+            subject: "Fwd: Q3", body: "FYI.",
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: "<m2@x>", forwardAttachmentsFrom: 2
         )
@@ -136,6 +142,7 @@ struct WireTests {
         #expect(text.contains("\"forward_attachments_from\":2"))
         #expect(!text.contains("in_reply_to"))
         #expect(!text.contains("reply_to_thread_id"))
+        #expect(text.contains("\"bcc\":[\"quiet@example.com\"]"))
     }
 
     /// `crates/webapi/src/handlers/compose.rs` — `SendResponse`. The

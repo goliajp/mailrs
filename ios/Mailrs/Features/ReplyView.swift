@@ -43,7 +43,15 @@ struct ReplyView: View {
     @State private var draftId: Int64?
     @State private var autosave: Task<Void, Never>?
     @State private var attachments: [MultipartForm.FilePart] = []
-    @FocusState private var bodyFocused: Bool
+    /// Copies the writer adds. A reply cannot derive them: the wire
+    /// carries the original's To line and nothing else, so the Cc of the
+    /// message being answered is not knowable here — inventing one from
+    /// the To line would address people the sender had merely written to,
+    /// not copied.
+    @State private var cc = ""
+    @State private var bcc = ""
+    @State private var showsCopies = false
+    @FocusState private var focus: ComposerField?
 
     /// The addr-specs, not the display forms: the server takes bare
     /// addresses, and "Alice Smith <alice@…>" as a recipient entry is
@@ -71,6 +79,13 @@ struct ReplyView: View {
         ReplyRecipients.subject(thread.subject, forwarding: mode == .forward)
     }
 
+    /// Forward types its own recipients; the other two modes derive
+    /// them, and a field would invite an edit that goes nowhere.
+    private var toSlot: ComposerSlot {
+        if mode == .forward { return .editable($forwardTo) }
+        return .fixed(displayedRecipients)
+    }
+
     private var sendDisabled: Bool {
         if sending { return true }
         if body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
@@ -95,38 +110,19 @@ struct ReplyView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
 
-                VStack(spacing: 0) {
-                    if mode == .forward {
-                        HStack(spacing: 6) {
-                            Text("To").foregroundStyle(.secondary)
-                            TextField("addresses, comma-separated", text: $forwardTo)
-                                .textInputAutocapitalization(.never)
-                                .keyboardType(.emailAddress)
-                                .autocorrectionDisabled()
-                                .accessibilityIdentifier("forward-to")
-                        }
-                        .font(.subheadline)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        Divider().padding(.leading, 12)
-                        if !suggestions.isEmpty {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ContactSuggestions(text: $forwardTo, suggestions: $suggestions)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 12)
-                            Divider().padding(.leading, 12)
-                        }
-                    } else {
-                        HeaderLine(label: "To", value: displayedRecipients)
-                        Divider().padding(.leading, 12)
-                    }
-                    HeaderLine(label: "Subject", value: subject)
-                    Divider()
+                ComposerHeader(
+                    to: toSlot, cc: $cc, bcc: $bcc,
+                    subject: .fixed(subject),
+                    showsCopies: $showsCopies, suggestions: $suggestions,
+                    focus: $focus
+                ) { text in
+                    suggestionTask = ContactSuggestions.schedule(
+                        replacing: suggestionTask, for: text, in: session
+                    ) { suggestions = $0 }
                 }
 
                 ComposerEditor(text: $body_, placeholder: "Message")
-                    .focused($bodyFocused)
+                    .focused($focus, equals: .body)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if !attachments.isEmpty {
@@ -183,12 +179,7 @@ struct ReplyView: View {
                     await session.loadDrafts()
                     restoreDraft()
                 }
-                bodyFocused = true
-            }
-            .onChange(of: forwardTo) { _, text in
-                suggestionTask = ContactSuggestions.schedule(
-                    replacing: suggestionTask, for: text, in: session
-                ) { suggestions = $0 }
+                focus = .body
             }
             .onChange(of: body_) { _, _ in scheduleAutosave() }
             .onDisappear {
@@ -220,6 +211,12 @@ struct ReplyView: View {
             .max { $0.updatedAt < $1.updatedAt }
         guard let mine else { return }
         body_ = mine.body
+        cc = mine.cc
+        bcc = mine.bcc
+        // Copies that came back with the draft are shown, not hidden:
+        // folded-away fields with addresses in them are people the
+        // writer cannot see they are about to write to.
+        showsCopies = !mine.cc.isEmpty || !mine.bcc.isEmpty
         draftId = mine.id
     }
 
@@ -239,6 +236,7 @@ struct ReplyView: View {
         draftId = await session.saveDraft(
             id: draftId,
             to: recipients.joined(separator: ", "),
+            cc: cc, bcc: bcc,
             subject: subject,
             body: body_,
             replyToThreadId: thread.threadId
@@ -250,9 +248,11 @@ struct ReplyView: View {
         guard DraftRule.isWorthSaving(to: "", subject: "", body: body_) else { return }
         let (title, text, id, tid, addrs) =
             (subject, body_, draftId, thread.threadId, recipients.joined(separator: ", "))
+        let (copies, blind) = (cc, bcc)
         Task {
             _ = await session.saveDraft(
-                id: id, to: addrs, subject: title, body: text, replyToThreadId: tid
+                id: id, to: addrs, cc: copies, bcc: blind,
+                subject: title, body: text, replyToThreadId: tid
             )
             await session.loadDrafts()
         }
@@ -266,6 +266,8 @@ struct ReplyView: View {
             case .reply, .replyAll:
                 try await session.sendReply(
                     to: recipients,
+                    cc: AddressList.parse(cc),
+                    bcc: AddressList.parse(bcc),
                     subject: subject,
                     body: body_,
                     inReplyTo: replyingTo?.messageId,
@@ -276,6 +278,8 @@ struct ReplyView: View {
                 guard let replyingTo else { return }
                 try await session.sendForward(
                     to: recipients,
+                    cc: AddressList.parse(cc),
+                    bcc: AddressList.parse(bcc),
                     subject: subject,
                     body: body_,
                     forwardMessageId: replyingTo.messageId,
