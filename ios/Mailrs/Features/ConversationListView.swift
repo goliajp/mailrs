@@ -128,20 +128,13 @@ struct ConversationListView: View {
                     .refreshable { await session.loadConversations() }
                 }
             }
-            // While selecting, the title is the count — Apple Mail's
-            // pattern, and it spares the bottom bar a cramped pill.
-            .navigationTitle(
-                editMode == .active
-                    ? "\(selection.count) selected"
-                    : session.activeList.title
-            )
+            .navigationTitle(navigationTitle)
             // The undo snackbar. Bottom-anchored but lifted above the
             // search field, which iOS 26 also puts at the bottom.
             .overlay(alignment: .bottom) {
                 if session.pendingUndo != nil {
                     HStack(spacing: 12) {
-                        let count = session.pendingUndo?.rows.count ?? 1
-                        Text(count > 1 ? "Archived ×\(count)" : "Archived")
+                        Text(undoLabel)
                             .foregroundStyle(.white)
                         Button("Undo") {
                             Task { await session.undoArchive() }
@@ -293,6 +286,19 @@ struct ConversationListView: View {
             }
             .environment(\.editMode, $editMode)
         }
+    }
+
+    /// While selecting, the title is the count — Apple Mail's pattern,
+    /// and it spares the bottom bar a cramped pill.
+    private var undoLabel: LocalizedStringKey {
+        let count = session.pendingUndo?.rows.count ?? 1
+        if count > 1 { return "Archived ×\(count)" }
+        return "Archived"
+    }
+
+    private var navigationTitle: LocalizedStringKey {
+        if editMode == .active { return "\(selection.count) selected" }
+        return session.activeList.title
     }
 
     private var selectedConversations: [Wire.Conversation] {

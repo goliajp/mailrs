@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Mailrs
@@ -7,9 +8,28 @@ import Testing
 struct MailListTests {
     @Test func everyListSaysWhatItIsAndWhatEmptyMeans() {
         for list in MailList.allCases {
-            #expect(!list.title.isEmpty)
-            #expect(!list.emptyMessage.isEmpty)
+            #expect(!list.titleKey.isEmpty)
+            #expect(!list.emptyMessageKey.isEmpty)
             #expect(!list.systemImage.isEmpty)
+        }
+    }
+
+    /// Every list is translated, not only the ones someone remembered.
+    ///
+    /// A new list added without catalog entries shows English in the
+    /// middle of a Chinese screen, and nothing else would catch it:
+    /// the app still builds, and the missing key renders as itself.
+    @Test func everyListIsInTheCatalog() throws {
+        let app = Bundle(for: Session.self)
+        let path = try #require(app.path(forResource: "zh-Hans", ofType: "lproj"),
+                                "the app shipped no Chinese localization")
+        let zh = try #require(Bundle(path: path))
+        for list in MailList.allCases {
+            #expect(zh.localizedString(forKey: list.titleKey, value: list.titleKey, table: nil)
+                    != list.titleKey, "untranslated title: \(list.titleKey)")
+            #expect(zh.localizedString(forKey: list.emptyMessageKey,
+                                       value: list.emptyMessageKey, table: nil)
+                    != list.emptyMessageKey, "untranslated empty state: \(list.emptyMessageKey)")
         }
     }
 
