@@ -122,10 +122,15 @@ struct MessageCard: View {
                     )
                     .padding(.top, 1)
                     HStack(spacing: 6) {
+                        // Middle truncation keeps both ends of one
+                        // address readable, which is the right trade on
+                        // one line. At the accessibility sizes one line
+                        // holds about six characters and the result was
+                        // "me…ple.com>" — so there, it wraps instead.
                         Text("To: \(message.recipients)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(RowLayout.recipientLines(typeSize))
                             .truncationMode(.middle)
                         AliasBadge(
                             alias: AliasMark.arrivedVia(
@@ -220,26 +225,61 @@ struct MessageCard: View {
 /// the full card.
 struct CollapsedMessageRow: View {
     let message: Wire.Message
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Who, a breath of what, when.
+    ///
+    /// One line while they fit. At the accessibility sizes they do not:
+    /// the name came out as "Alice…" and the snippet as a single
+    /// character, with the paperclip and the date taking the rest — a
+    /// folded row that says nothing is worse than no folded row.
+    @ViewBuilder
+    private var layout: some View {
+        if RowLayout.stacksHeader(typeSize) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(SenderName.extractName(message.sender))
+                    .font(.subheadline)
+                    .lineLimit(RowLayout.senderLines(typeSize))
+                Text(ThreadCollapse.snippet(message.textBody))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    paperclip
+                    RowDateText(epochSeconds: message.internalDate)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(SenderName.extractName(message.sender))
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                Text(ThreadCollapse.snippet(message.textBody))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                paperclip
+                RowDateText(epochSeconds: message.internalDate)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var paperclip: some View {
+        if !message.attachments.isEmpty {
+            Image(systemName: "paperclip")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Has attachments")
+        }
+    }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(SenderName.extractName(message.sender))
-                .font(.subheadline)
-                .lineLimit(1)
-                .layoutPriority(1)
-            Text(ThreadCollapse.snippet(message.textBody))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if !message.attachments.isEmpty {
-                Image(systemName: "paperclip")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Has attachments")
-            }
-            RowDateText(epochSeconds: message.internalDate)
-        }
+        layout
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color(.secondarySystemGroupedBackground).opacity(0.6),

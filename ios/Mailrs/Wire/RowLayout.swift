@@ -34,6 +34,29 @@ enum RowLayout {
         return 1
     }
 
+    /// How many lines the thread's own subject may take, at the top of
+    /// the thread screen.
+    ///
+    /// Three is enough for the long subjects mail actually carries, and
+    /// bounded so the messages are still on screen when a thread opens.
+    /// At the accessibility sizes three lines held four words —
+    /// "Quarterly report and the follow-up no…" — and the subject is the
+    /// one thing you opened the thread to read.
+    static func threadSubjectLines(_ size: DynamicTypeSize) -> Int {
+        if size.isAccessibilitySize { return 6 }
+        return 3
+    }
+
+    /// How many lines the recipient list may take.
+    ///
+    /// One, middle-truncated, while that shows both ends of an address.
+    /// At the accessibility sizes one line held about six characters —
+    /// `To: me…ple.com>` — which shows neither.
+    static func recipientLines(_ size: DynamicTypeSize) -> Int {
+        if size.isAccessibilitySize { return 3 }
+        return 1
+    }
+
     /// Where the avatar and the chevron sit against the text.
     ///
     /// Centred while the row is two short lines. Once the subject wraps

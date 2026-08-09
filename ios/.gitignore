@@ -5,3 +5,4 @@ Mailrs.xcodeproj/
 DerivedData/
 *.xcuserstate
 .DS_Store
+.shots/

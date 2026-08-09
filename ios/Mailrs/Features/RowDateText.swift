@@ -34,6 +34,7 @@ struct RowDateText: View {
     @Environment(\.calendar) private var calendar
     @Environment(\.timeZone) private var timeZone
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         Text(verbatim: text)
@@ -46,7 +47,14 @@ struct RowDateText: View {
             // this app does not ship, and a stamp has no useful
             // truncation, so it takes its width and the rest yields.
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
+            // …but only while its width is something the row can pay.
+            // At the accessibility sizes the full stamp is wider than
+            // the phone, and a view that refuses to shrink does not
+            // truncate — it runs off the right edge and is cut by the
+            // screen. Seen on the thread card at
+            // accessibility-extra-extra-extra-large: "Aug 5, 2025 at
+            // 10:" and then nothing.
+            .fixedSize(horizontal: !typeSize.isAccessibilitySize, vertical: false)
     }
 
     private var text: String {

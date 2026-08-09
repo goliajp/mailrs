@@ -1,0 +1,92 @@
+import XCTest
+
+/// Screens, photographed, at whatever text size the run asks for.
+///
+/// Not assertions — a screenshot cannot fail. This exists because the
+/// conversation row was broken at the accessibility sizes for the whole
+/// life of the app and nothing said so: every test passed, because the
+/// tests read labels and a label is still there when it renders as
+/// "A…". The only instrument that sees it is an eye, and the only way
+/// to get an eye onto the thread screen is to drive the app there.
+///
+/// Run through `scripts/ios-shots.sh`, which sets the size and pulls the
+/// attachments back out of the result bundle. Skipped in the ordinary
+/// suite — `MAILRS_SHOTS` is how the script says it means it — so a
+/// normal run does not spend a minute taking pictures nobody asked for.
+final class LayoutShotTests: MailrsUITestCase {
+
+    override func setUpWithError() throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["MAILRS_SHOTS"] == "1",
+            "screenshot lane — run scripts/ios-shots.sh"
+        )
+    }
+
+    func testWalksTheReadingPathTakingPictures() {
+        let app = launch(signedIn: true)
+
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 15),
+            "inbox never listed"
+        )
+        shoot(app, "01-list")
+
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "no tappable row")
+        row.tap()
+        XCTAssertTrue(
+            app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "To:"))
+                .firstMatch.waitForExistence(timeout: 10),
+            "thread never opened"
+        )
+        shoot(app, "02-thread")
+
+        // Scrolled, because the message card's own header is what the
+        // accessibility fix changed and it sits under the thread's.
+        app.swipeUp()
+        shoot(app, "03-thread-scrolled")
+    }
+
+    func testPhotographsComposeAndSettings() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 15),
+            "inbox never listed"
+        )
+
+        app.buttons["New message"].tap()
+        XCTAssertTrue(
+            app.textFields["someone@example.com"].waitForExistence(timeout: 10),
+            "composer never opened"
+        )
+        shoot(app, "04-compose")
+        app.buttons["Cancel"].firstMatch.tap()
+
+        app.buttons["Lists"].tap()
+        // Scrolled to, not tapped blind: at the accessibility sizes the
+        // sheet's rows are tall enough that Settings is below the fold,
+        // and a List does not build a cell it has not shown.
+        scrollTo(app, button: "Settings")
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Signed in as"].waitForExistence(timeout: 10),
+            "settings never opened"
+        )
+        shoot(app, "05-settings")
+        app.swipeUp()
+        shoot(app, "06-settings-scrolled")
+    }
+
+    /// `.keepAlways`, or the bundle throws away everything that passed —
+    /// which is every run of this file.
+    private func shoot(_ app: XCUIApplication, _ name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+}
