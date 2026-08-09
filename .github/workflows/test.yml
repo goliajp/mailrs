@@ -13,7 +13,7 @@ name: test
 # since 2026-07-21, when staging left the release path (it shares t01 with
 # other projects, and a busy neighbour was failing releases on noise). So
 # the gate for everyday work is local and lives in scripts/direct-deploy.sh:
-# mcp + rest parity, cargo fmt --check, clippy -D warnings, the full test
+# mcp parity + core contract, cargo fmt --check, clippy -D warnings, the full test
 # suite --no-fail-fast, and perf-gates.sh. Nothing else stands behind it —
 # skipping it means shipping unbuilt work to prod.
 #

@@ -6,9 +6,7 @@
 //! is deliberately dumb storage: what "should be pushed" is decided
 //! where mail arrives, not where tokens are filed.
 //!
-//! Fastcore-lane only (`.claude/rest-parity-allow.txt`): the monolith has
-//! no push pipeline, and a registration endpoint whose tokens nothing
-//! ever reads would be worse than a 404.
+//! Fastcore only, and permanently: the monolith is not coming back.
 
 use std::sync::Arc;
 
