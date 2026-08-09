@@ -83,6 +83,18 @@ final class Session {
     let cache = MailCache.bootstrap()
 
     /// The query the visible rows answer, or nil when they are the list.
+    /// A request that failed while signed in.
+    ///
+    /// Not `state = .failed`: `RootView` shows `SignInView` for every
+    /// state that is not `.signedIn`, so a refused search or a failed
+    /// star threw the reader out of the mailbox and printed the error
+    /// on the sign-in form as a red button. Reported from the phone as
+    /// searching sometimes logging you out, and as a red button on the
+    /// login page saying something had been cancelled. Signing in is
+    /// the one failure that belongs on that screen; the rest belong
+    /// over the mailbox they happened in.
+    var banner: String?
+
     var searchQuery: String?
 
     var searchResults: [Wire.Conversation] = []
@@ -305,7 +317,7 @@ final class Session {
             // mail, not a broken app — the error state would replace a
             // readable mailbox with an apology.
             if conversations.isEmpty {
-                state = .failed(error.localizedDescription)
+                banner = error.localizedDescription
             }
         }
         initialLoading = false
@@ -395,7 +407,7 @@ final class Session {
             guard searchQuery == query else { return }
             withAnimation { searchResults = hits }
         } catch {
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
     }
 
@@ -425,7 +437,7 @@ final class Session {
         } catch {
             // A failed page is not the end of the mailbox; leave the flag
             // alone so pulling again retries.
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
     }
 }

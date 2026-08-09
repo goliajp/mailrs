@@ -13,6 +13,11 @@ struct ConversationListView: View {
     @State private var showingSettings = false
     @State private var selection = Set<String>()
     @State private var editMode: EditMode = .inactive
+
+    private var allSelected: Bool {
+        !session.visibleConversations.isEmpty
+            && selection.count == session.visibleConversations.count
+    }
     /// The batch a delete is waiting on confirmation for.
     @State private var pendingBatchDelete: [Wire.Conversation]?
 
@@ -138,6 +143,26 @@ struct ConversationListView: View {
             // points of every screen restating a word the toolbar has
             // room for, and this list is measured in rows.
             .navigationBarTitleDisplayMode(.inline)
+            // A failed request, over the mailbox it happened in.
+            .overlay(alignment: .top) {
+                if let banner = session.banner {
+                    Text(banner)
+                        .font(.footnote)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.92), in: Capsule())
+                        .padding(.top, 6)
+                        .accessibilityIdentifier("error-banner")
+                        .onTapGesture { session.banner = nil }
+                        .task {
+                            try? await Task.sleep(for: .seconds(4))
+                            session.banner = nil
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: session.banner)
             // The undo snackbar. Bottom-anchored but lifted above the
             // search field, which iOS 26 also puts at the bottom.
             .overlay(alignment: .bottom) {
@@ -221,7 +246,15 @@ struct ConversationListView: View {
                     Menu {
                         Picker("List", selection: Binding(
                             get: { session.activeList },
-                            set: { list in Task { await session.select(list) } }
+                            set: { list in
+                                // Selection belongs to the rows it was
+                                // made over. Carried into another list
+                                // it selects nothing visible and the
+                                // batch bar acts on rows that are no
+                                // longer on screen.
+                                leaveSelectMode()
+                                Task { await session.select(list) }
+                            }
                         )) {
                             ForEach(MailList.allCases) { list in
                                 Label(list.title, systemImage: list.systemImage).tag(list)
@@ -278,6 +311,20 @@ struct ConversationListView: View {
                                 withAnimation { editMode = .active }
                             }
                         }
+                    }
+                }
+                if editMode == .active {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(allSelected ? "None" : "All") {
+                            withAnimation {
+                                if allSelected {
+                                    selection.removeAll()
+                                } else {
+                                    selection = Set(session.visibleConversations.map(\.threadId))
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("select-all")
                     }
                 }
                 // The batch bar. `bottomBar` keeps it clear of the
