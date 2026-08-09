@@ -17,6 +17,54 @@
         }
       }
     },
+    "%@ — its members keep their own mailboxes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — メンバー自身のメールボックスはそのまま残ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ —— 成员各自的邮箱不受影响。"
+          }
+        }
+      }
+    },
+    "%@ — its members lose every permission it granted.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — メンバーはこのグループが与えていた権限をすべて失います。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ —— 其成员将失去这个组授予的全部权限。"
+          }
+        }
+      }
+    },
+    "%@ — mail to every address on it will stop being accepted.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — このドメインのすべてのアドレス宛のメールは受信されなくなります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ —— 该域名下所有地址的邮件都将不再被接收。"
+          }
+        }
+      }
+    },
     "%lld attempts": {
       "localizations": {
         "ja": {

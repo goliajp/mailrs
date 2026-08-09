@@ -70,6 +70,10 @@ print(here[0]['identifier'] if here else '')
     exit 0
 fi
 
+# Costs milliseconds and compiles nothing, so it runs before the build
+# rather than after a ten-minute suite.
+../scripts/check-ios-l10n.sh
+
 echo "==> [1/3] xcodegen"
 xcodegen generate --spec project.yml
 

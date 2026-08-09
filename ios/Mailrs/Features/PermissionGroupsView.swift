@@ -79,7 +79,10 @@ struct PermissionGroupsView: View {
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
             } message: { group in
-                Text(verbatim: "\(group.name) — its members lose every permission it granted.")
+                // Not `verbatim`: this is the sentence telling someone
+                // what deleting will do, and it was the one string on
+                // the screen that stayed English in every language.
+                Text("\(group.name) — its members lose every permission it granted.")
             }
             .task { await load() }
         }
