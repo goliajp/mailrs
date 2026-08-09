@@ -1700,6 +1700,38 @@
         }
       }
     },
+    "Mark as notification": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知として分類"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为通知"
+          }
+        }
+      }
+    },
+    "Mark as promotion": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロモーションとして分類"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标为推广"
+          }
+        }
+      }
+    },
     "Mark as unread": {
       "localizations": {
         "ja": {
@@ -1792,6 +1824,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "更多"
+          }
+        }
+      }
+    },
+    "Move to Inbox": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信トレイに移動"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移到收件箱"
           }
         }
       }
@@ -2756,6 +2804,22 @@
         }
       }
     },
+    "Sign in to your mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールにサインインします"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录你的邮箱"
+          }
+        }
+      }
+    },
     "Sign out": {
       "localizations": {
         "ja": {
@@ -3232,6 +3296,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "发件人未通过验证"
+          }
+        }
+      }
+    },
+    "Use password instead": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードで入力する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用密码登录"
           }
         }
       }
