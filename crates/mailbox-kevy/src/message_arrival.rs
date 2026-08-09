@@ -85,17 +85,29 @@ impl KevyMailboxStore {
                 // it has to move in lockstep with the three fields it
                 // concatenates or search goes stale for this thread.
                 if !m.is_own || !have_display {
+                    // An empty preview means the caller has none, not
+                    // that the preview is empty — the maildir self-heal
+                    // re-announces every message it finds with no body
+                    // in hand. Written through, one sweep erased the
+                    // line the drain had computed from the body and the
+                    // list went blank with nothing in the log to say so.
+                    let kept_preview = if preview.is_empty() {
+                        ctx.hget(thread_key.as_bytes(), b"latest_preview")?
+                            .unwrap_or_default()
+                    } else {
+                        preview.clone()
+                    };
                     let blob = keys::search_blob(
                         m.subject,
                         &String::from_utf8_lossy(&merged_senders),
-                        m.latest_preview,
+                        &String::from_utf8_lossy(&kept_preview),
                     )
                     .into_bytes();
                     let pairs: &[(&[u8], &[u8])] = &[
                         (b"subject", &subj),
                         (b"senders_csv", &merged_senders),
                         (b"latest_date", &date_s),
-                        (b"latest_preview", &preview),
+                        (b"latest_preview", &kept_preview),
                         (b"category", &category),
                         (keys::THREAD_SEARCH_FIELD, &blob),
                     ];
@@ -581,5 +593,28 @@ mod tests {
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.latest_date, 1000);
         assert_eq!(total_count(&s, u), 1);
+    }
+
+    /// An empty preview means "I do not have one", not "the preview is
+    /// empty".
+    ///
+    /// The maildir self-heal re-announces every message it finds and has
+    /// no body in hand, so it passes "". Written straight through, one
+    /// sweep erases the preview the drain computed from the body — and
+    /// the conversation list goes blank again with nothing in the logs
+    /// to say why.
+    #[test]
+    fn an_empty_preview_does_not_erase_the_one_already_there() {
+        let s = store();
+        let mut first = arr("t1", "u@x.z", "Subj", 100, true);
+        first.latest_preview = "Please review the figures";
+        s.record_message_arrival(&first).unwrap();
+
+        let mut sweep = arr("t1", "u@x.z", "Subj", 101, true);
+        sweep.latest_preview = "";
+        s.record_message_arrival(&sweep).unwrap();
+
+        let row = s.get_thread("t1").unwrap().unwrap();
+        assert_eq!(row.latest_preview, "Please review the figures");
     }
 }

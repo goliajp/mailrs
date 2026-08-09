@@ -343,13 +343,23 @@ pub(crate) fn ingest_delivered_file(
     } else {
         crate::bayes_train::classify_triage(state, body).unwrap_or("inbox")
     };
+    // The line under the subject in every row of the list. Passed as ""
+    // until 2026-08-09, so every *received* thread showed nothing —
+    // only the outbound send and an importer ever wrote one. The MIME
+    // parse below is the same one the search index already pays for,
+    // hoisted so both readings come out of it.
+    let body_text = body_text_for_search(body);
+    let preview = body_text
+        .as_deref()
+        .map(|t| mailrs_clean::preview_line(t, 120))
+        .unwrap_or_default();
     let arrival = mailrs_mailbox_kevy::MessageArrival {
         thread_id: &root,
         user: addr,
         subject: &subject,
         senders_csv: &from,
         latest_date: date,
-        latest_preview: "",
+        latest_preview: &preview,
         category,
         unread,
         is_own,
@@ -429,9 +439,48 @@ pub(crate) fn ingest_delivered_file(
     // Index the body for full-text search. Costs one MIME parse on a
     // path that already has the bytes in hand, and it is what makes
     // search cover message contents rather than just headers.
-    if let Some(text) = body_text_for_search(body)
-        && let Err(e) = state.mailbox.index_message_text(&message_id, &root, &text)
+    if let Some(text) = body_text.as_deref()
+        && let Err(e) = state.mailbox.index_message_text(&message_id, &root, text)
     {
         tracing::warn!(error = %e, %addr, %message_id, "index_message_text failed");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::fresh_state;
+
+    const MESSAGE: &[u8] = b"From: Alice <alice@example.com>\r\n\
+To: bob@golia.jp\r\n\
+Subject: Quarterly report\r\n\
+Message-ID: <m1@example.com>\r\n\
+Date: Tue, 5 Aug 2026 09:00:00 +0900\r\n\
+Content-Type: text/plain; charset=utf-8\r\n\
+\r\n\
+Please review the attached figures before Friday. The numbers moved.\r\n";
+
+    /// The line under the subject in every row of the conversation list.
+    ///
+    /// The drain — the path every received message takes — passed an
+    /// empty string for it, so the most-read surface in the client had
+    /// nothing to read. Only two paths ever wrote a real one: the
+    /// outbound send, and an importer.
+    #[test]
+    fn a_received_message_leaves_a_preview_on_the_thread() {
+        let state = fresh_state();
+        ingest_delivered_file(&state, "bob@golia.jp", "m1.eml", MESSAGE, "INBOX");
+
+        let row = state
+            .mailbox
+            .get_thread("m1@example.com")
+            .expect("thread read")
+            .expect("the thread exists");
+        assert!(
+            row.latest_preview
+                .starts_with("Please review the attached figures"),
+            "preview was {:?}",
+            row.latest_preview
+        );
     }
 }

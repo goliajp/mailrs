@@ -37,6 +37,7 @@ pub(crate) async fn backfill_decode_headers_route(
     let mut blobs_added = 0u64;
     let mut bodies_indexed = 0u64;
     let mut trust_stamped = 0u64;
+    let mut previews_filled = 0u64;
     for user in &users {
         // Declared rows; `user_threads_by_activity` is legacy and unwritten.
         let tids = state
@@ -48,6 +49,7 @@ pub(crate) async fn backfill_decode_headers_route(
             let Ok(Some(mut row)) = state.mailbox.get_thread(tid) else {
                 continue;
             };
+            let mut newest: Option<(i64, String)> = None;
             let senders = mailrs_rfc2047::decode(row.senders_csv.as_bytes()).into_owned();
             let subject = mailrs_rfc2047::decode(row.subject.as_bytes()).into_owned();
             let preview = mailrs_rfc2047::decode(row.latest_preview.as_bytes()).into_owned();
@@ -137,13 +139,36 @@ pub(crate) async fn backfill_decode_headers_route(
                         }
                     }
                 }
-                if let Some(text) = crate::body_text_for_search(&raw)
+                let text = crate::body_text_for_search(&raw);
+                if let Some(text) = text.as_deref()
                     && state
                         .mailbox
-                        .index_message_text(&w.message_id, tid, &text)
+                        .index_message_text(&w.message_id, tid, text)
                         .is_ok()
                 {
                     bodies_indexed += 1;
+                }
+                // The newest message's opening line is the row's
+                // preview. Tracked by date rather than by position:
+                // `thread_messages_for_maintenance` promises no order,
+                // and the last one read is not the last one sent.
+                if let Some(text) = text.as_deref()
+                    && newest.as_ref().is_none_or(|(d, _)| w.internal_date >= *d)
+                {
+                    newest = Some((w.internal_date, mailrs_clean::preview_line(text, 120)));
+                }
+            }
+            // Only when there is nothing there. Every received thread
+            // written before 2026-08-09 has an empty one — the drain
+            // passed "" — and a thread that already has a line does not
+            // need this sweep's opinion of it.
+            if row.latest_preview.is_empty()
+                && let Some((_, preview)) = newest
+                && !preview.is_empty()
+            {
+                row.latest_preview = preview;
+                if state.mailbox.upsert_thread(user, &row).is_ok() {
+                    previews_filled += 1;
                 }
             }
         }
@@ -153,6 +178,7 @@ pub(crate) async fn backfill_decode_headers_route(
         rows_decoded,
         blobs_added,
         bodies_indexed,
+        previews_filled,
         trust_stamped,
         contacts_repaired,
         "backfill-decode-headers complete"
@@ -161,6 +187,7 @@ pub(crate) async fn backfill_decode_headers_route(
         "rows_decoded": rows_decoded,
         "search_blobs_added": blobs_added,
         "bodies_indexed": bodies_indexed,
+        "previews_filled": previews_filled,
         "trust_stamped": trust_stamped,
         "contacts_repaired": contacts_repaired,
     }))

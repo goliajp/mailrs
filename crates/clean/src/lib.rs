@@ -16,6 +16,8 @@
 //!   to demote mailing-list traffic in inbox sorting.
 //! - [`parse_unsubscribe`] — the same header read for what it says:
 //!   where unsubscribing goes, and whether RFC 8058 one-click applies.
+//! - [`preview_line`] — the one line under the subject in a list, with
+//!   the preheader padding real senders use taken out of it.
 //! - [`is_automated_sender`] — local-part pattern check for
 //!   `no-reply@`, `notification@`, etc.
 //! - [`split_quoted_content`] — separate a fresh reply from its quoted
@@ -142,6 +144,7 @@ pub fn clean_email_html(html: &str) -> CleanResult {
 
 /// detect tracking pixels in raw html
 mod html;
+mod preview;
 mod quote;
 mod sender;
 mod unsubscribe;
@@ -150,6 +153,7 @@ use html::{
     count_pattern, detect_tracking_pixels, html_to_clean_text, remove_template_chrome,
     remove_tracking_and_hidden, remove_unsafe_elements,
 };
+pub use preview::preview_line;
 pub use quote::split_quoted_content;
 pub use sender::{detect_bulk_sender, is_automated_sender};
 pub use unsubscribe::{Unsubscribe, parse_unsubscribe};
