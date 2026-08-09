@@ -60,6 +60,22 @@ final class LayoutShotTests: MailrsUITestCase {
         // accessibility fix changed and it sits under the thread's.
         app.swipeUp()
         shoot(app, "03-thread-scrolled")
+
+        // The wide message — a 760px newsletter table, which is the
+        // shape most real mail has and the one the fit-to-width path
+        // exists for. It opens folded, so no shot had ever contained
+        // it until a reader said on the phone that wide mail arrives
+        // needing a pinch.
+        let folded = app.buttons["collapsed-1"].firstMatch
+        if folded.waitForExistence(timeout: 5) {
+            folded.tap()
+            // Waited for, not slept past: the card animates open and
+            // the body lands after its own measure pass, so the first
+            // shot caught a half-expanded card with no message in it.
+            // The images offer only appears once the body is up.
+            _ = app.buttons["load-images"].waitForExistence(timeout: 10)
+            shoot(app, "07-wide-body")
+        }
     }
 
     func testPhotographsComposeAndSettings() {

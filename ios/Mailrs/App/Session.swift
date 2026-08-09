@@ -346,12 +346,26 @@ final class Session {
         clearUndo()
         guard list != activeList else { return }
         activeList = list
-        conversations = []
+        // The new list's cached rows, in the same breath as clearing the
+        // old ones — and `initialLoading` set here rather than inside
+        // the load.
+        //
+        // `loadConversations` is awaited, and the await yields: for that
+        // frame the rows were empty and nothing said a load was running,
+        // so SwiftUI drew the empty state. Every switch to an uncached
+        // list flashed "All caught up" at a mailbox that was about to
+        // fill. Reported from the phone as loading and empty being
+        // confused, which is what it is — the view was asked a question
+        // it did not yet have the evidence to answer.
+        let cached = cache.readConversations(list: list.rawValue) ?? []
+        conversations = cached
+        initialLoading = cached.isEmpty
         searchResults = []
         searchQuery = nil
         reachedEnd = false
         sendRows = []
         if list == .send {
+            initialLoading = true
             await loadSendRows()
         } else {
             await loadConversations()

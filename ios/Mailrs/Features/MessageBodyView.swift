@@ -61,6 +61,15 @@ struct MessageBodyView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        // A width this view has not been fitted against yet — the first
+        // layout pass, a rotation, a split view. Re-fitting is cheap and
+        // not re-fitting leaves the message at whatever scale it had
+        // when it was one width narrower.
+        let width = webView.bounds.width
+        if width > 0, context.coordinator.fittedWidth != width {
+            context.coordinator.fittedWidth = width
+            context.coordinator.fit(webView)
+        }
         // Every input that changes what is painted: the mail, the
         // appearance, and whether the reader has asked for the remote
         // half of it.
@@ -111,9 +120,17 @@ struct MessageBodyView: UIViewRepresentable {
         <style>
           :root { color-scheme: \(scheme); }
           html, body { margin: 0; padding: 0; background: \(background); color: \(text); }
-          body { padding: 12px; font: 15px/1.6 -apple-system, 'Hiragino Sans', sans-serif;
+          /* No padding of our own. The card around this view already
+             insets by 12, so a second inset cost the message 24pt of a
+             358pt screen — and a newsletter laid out at 600px pays for
+             that twice, once in the fit scale and once in the reading. */
+          body { font: 15px/1.6 -apple-system, 'Hiragino Sans', sans-serif;
                  word-wrap: break-word; overflow-wrap: break-word; }
-          img { max-width: 100%; height: auto; }
+          /* `!important`, because senders put the width in an attribute
+             (`<img width="600">`) or an inline style, and both beat a
+             plain rule. Without it a 600px logo pushes the document out
+             to 600px and the whole message scales down to fit it. */
+          img { max-width: 100% !important; height: auto !important; }
           a { color: \(link); }
           pre { overflow-x: auto; }
           blockquote { border-left: 3px solid \(rule); padding-left: 12px;
@@ -128,20 +145,55 @@ struct MessageBodyView: UIViewRepresentable {
         var loadedHTML: String?
         var loadedDark = false
         var loadedBlocked = true
+        /// The width the current scale was computed for.
+        var fittedWidth: CGFloat = 0
 
         init(_ parent: MessageBodyView) {
             self.parent = parent
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Measure the width the content wants, then scale to the width
-            // it has — `scrollWidth` is the only thing that knows about a
-            // `<table width="700">` nested six levels down.
-            webView.evaluateJavaScript("[document.documentElement.scrollWidth, document.body.scrollHeight]") { result, _ in
+            fit(webView)
+        }
+
+        /// Measure what the message wants, then scale it to what it has.
+        ///
+        /// Split out of `didFinish` so it can run again: the first
+        /// measurement happens while SwiftUI may still be laying the
+        /// card out, and a web view whose bounds are still zero yields
+        /// no usable scale. Reported from the phone as wide mail
+        /// arriving unscaled — needing a pinch and a sideways drag —
+        /// which is exactly what a fit computed against a width of 0
+        /// looks like.
+        func fit(_ webView: WKWebView, attempt: Int = 0) {
+            // Several answers to "how wide is this", and the widest one
+            // is the truth. `documentElement.scrollWidth` alone misses a
+            // wide child inside a container that does not itself
+            // overflow.
+            let js = """
+            (function () {
+              var d = document.documentElement, b = document.body;
+              var w = Math.max(d.scrollWidth, d.offsetWidth,
+                               b ? b.scrollWidth : 0, b ? b.offsetWidth : 0);
+              var h = Math.max(d.scrollHeight, b ? b.scrollHeight : 0);
+              return [w, h];
+            })()
+            """
+            webView.evaluateJavaScript(js) { result, _ in
                 guard let pair = result as? [Double], pair.count == 2 else { return }
                 let contentWidth = pair[0]
                 let contentHeight = pair[1]
                 let hostWidth = Double(webView.bounds.width)
+                // Laid out later than this ran. Ask again rather than
+                // fit to nothing — bounded, so a view that never gets a
+                // width does not spin.
+                guard hostWidth > 0 else {
+                    guard attempt < 5 else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        self.fit(webView, attempt: attempt + 1)
+                    }
+                    return
+                }
                 let scale = FitToWidth.scale(contentWidth: contentWidth, hostWidth: hostWidth)
                 // Fit is where it starts, not where it is stuck. Both
                 // bounds used to be the fit scale, which pinned the
@@ -149,21 +201,43 @@ struct MessageBodyView: UIViewRepresentable {
                 // — legible only to someone who could enlarge it, and
                 // nobody could. Up to 1:1, or four times the fit,
                 // whichever is further.
-                webView.scrollView.minimumZoomScale = scale
-                webView.scrollView.maximumZoomScale = max(1, scale * 4)
-                webView.scrollView.zoomScale = scale
-                // A transform does not change layout, so the height the
-                // view needs is the scaled one — without this the row
-                // keeps the unscaled height and leaves a blank band.
+                // `pageZoom`, not `scrollView.zoomScale`.
                 //
-                // Animated, because this lands after first paint: the
-                // card grows from its placeholder to the measured height,
-                // and without the animation the whole thread lurches by
-                // the body's full height in one frame — the jump Apple
-                // Mail never shows.
-                withAnimation(.easeOut(duration: 0.2)) {
-                    self.parent.height = CGFloat(contentHeight * scale)
+                // The scale was right all along — a 782px newsletter
+                // against a 358pt card measures 0.46 — and setting it on
+                // the scroll view did nothing, because WKWebView owns
+                // its own zoom and overrides what is written there. Wide
+                // mail therefore arrived at 1:1 needing a pinch and a
+                // sideways drag, which is how it was reported from the
+                // phone. `pageZoom` is the supported control, and it
+                // reflows rather than scaling a bitmap, so the text
+                // stays sharp at 0.46.
+                guard scale < 1 else {
+                    self.height(of: webView, scale: 1, measured: contentHeight)
+                    return
                 }
+                webView.pageZoom = CGFloat(scale)
+                // Re-measured after the zoom: the layout viewport is now
+                // wider in CSS pixels, so the height from before it is
+                // the wrong document's height.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    webView.evaluateJavaScript(js) { again, _ in
+                        let zoomed = (again as? [Double])?.last ?? contentHeight
+                        self.height(of: webView, scale: scale, measured: zoomed)
+                    }
+                }
+            }
+        }
+
+        /// The card's height: what the document needs, at the zoom it
+        /// is being shown at.
+        ///
+        /// Animated, because this lands after first paint — the card
+        /// grows from its placeholder rather than the whole thread
+        /// lurching by the body's full height in one frame.
+        func height(of webView: WKWebView, scale: Double, measured: Double) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                self.parent.height = CGFloat(measured * scale)
             }
         }
 

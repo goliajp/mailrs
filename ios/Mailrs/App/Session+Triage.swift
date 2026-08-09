@@ -77,6 +77,30 @@ extension Session {
 
     /// Replace one row in whichever collection is on screen.
     ///
+    /// Take rows off **both** stores.
+    ///
+    /// `conversations` and `searchResults` hold the same rows twice —
+    /// the web has one array and cannot have this bug, which is the
+    /// same argument `frontend/no-rq-mirror` makes about mirroring a
+    /// query into state. Until there is one store here, every removal
+    /// has to say so twice, and archive and delete only ever said it
+    /// once: archiving a thread while a search was on screen left the
+    /// row sitting in the results, and tapping it opened a thread that
+    /// was no longer in the list behind it.
+    ///
+    /// Returns what left the list, with the positions undo needs.
+    private func removeRows(_ ids: Set<String>) -> [UndoableRow] {
+        let removed = conversations.enumerated()
+            .filter { ids.contains($0.element.threadId) }
+            .map { UndoableRow(conversation: $0.element, index: $0.offset) }
+        withAnimation {
+            conversations.removeAll { ids.contains($0.threadId) }
+            searchResults.removeAll { ids.contains($0.threadId) }
+        }
+        return removed
+    }
+
+
     /// Both, not whichever is showing: a row can be in the list and in
     /// the search results at once, and patching only the visible one
     /// leaves the other holding the old value for when the search is
@@ -173,10 +197,7 @@ extension Session {
     func archiveAll(_ selected: [Wire.Conversation]) async {
         guard let client, !selected.isEmpty else { return }
         let ids = Set(selected.map(\.threadId))
-        let rows = conversations.enumerated()
-            .filter { ids.contains($0.element.threadId) }
-            .map { UndoableRow(conversation: $0.element, index: $0.offset) }
-        withAnimation { conversations.removeAll { ids.contains($0.threadId) } }
+        let rows = removeRows(ids)
         // The undo slot opens with the optimistic removal, so the toast
         // is there the moment the rows leave. Archiving from the
         // Archived list is the one place undo would un-archive into the
@@ -304,7 +325,7 @@ extension Session {
         guard let client else { return }
         do {
             try await client.delete(threadId: conversation.threadId)
-            withAnimation { conversations.removeAll { $0.threadId == conversation.threadId } }
+            _ = removeRows([conversation.threadId])
         } catch {
             state = .failed(error.localizedDescription)
         }
