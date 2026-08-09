@@ -139,10 +139,12 @@ final class LayoutShotTests: MailrsUITestCase {
         scrollTo(app, button: "open-settings")
         app.buttons["open-settings"].tap()
         XCTAssertTrue(
-            // The signed-in address, which is data and not a word the
-            // catalog translates — unlike "Signed in as", which this
-            // waited on until the Japanese run could not find it.
-            app.staticTexts["me@golia.jp"].waitForExistence(timeout: 10),
+            // The sheet's own Done button, by identity. Waiting on the
+            // signed-in address instead was language-independent but
+            // still flaky — a `LabeledContent` value is not reliably a
+            // queryable element while the sheet is settling, and the
+            // run left a pile of debug attachments saying so.
+            app.buttons["settings-done"].waitForExistence(timeout: 10),
             "settings never opened"
         )
         shoot(app, "05-settings")
