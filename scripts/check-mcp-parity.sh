@@ -40,7 +40,7 @@ print('\n'.join(sorted(set(names))))
 PY
 }
 
-# Found, not named — for the reason recorded in check-rest-parity.sh: a
+# Found, not named — for the reason recorded in check-core-contract.sh: a
 # `*.rs` glob stops at the directory it names, so the first tool moved into
 # a subdirectory would leave this comparing against a lane it can no longer
 # fully see, and report parity.

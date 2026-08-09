@@ -8,7 +8,7 @@ Prod is the 4-process fastcore stack on `t02.golia.jp`.
 ./scripts/direct-deploy.sh <X.Y.Z>
 ```
 
-It runs the whole gate (mcp + rest parity, `cargo fmt --check`, `clippy
+It runs the whole gate (mcp parity + core contract, `cargo fmt --check`, `clippy
 -D warnings`, the full suite `--no-fail-fast`, `perf-gates.sh`), builds
 arm64, ships the image and the compose file to t02, rolls the four roles,
 then verifies: `/v1/healthz` 200, the version on `:3103`, a 27-route probe,

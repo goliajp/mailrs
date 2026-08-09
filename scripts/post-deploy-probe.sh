@@ -28,7 +28,7 @@ BASE="${1:-localhost:3103}"
 # METHOD path expected — one per line.
 #
 # Keep this to routes whose absence is user-visible. It is a smoke test, not
-# a second copy of the router; check-rest-parity.sh is what compares the full
+# a second copy of the router; check-core-contract.sh is what compares the full
 # tables. Every entry below is a route that has broken, or the reads the
 # mailbox cannot work without.
 #

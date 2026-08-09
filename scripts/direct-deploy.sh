@@ -76,12 +76,19 @@ fi
 if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     echo "==> [0/6] gate: parity + fmt + clippy + test + perf"
 
-    # Two lanes serve one client, so a route or MCP tool on one and not the
-    # other is a feature that works or 405s depending on which is deployed.
-    # Neither check compiles anything, so both run first — a parity break is
+    # webapi and fastcore are two processes talking over the core RPC
+    # contract, and the client spells every path again in a `format!` —
+    # a typo on either side is a 404 nothing else catches.
+    #
+    # This replaced check-rest-parity.sh, which compared production
+    # against `crates/server`. The monolith is not coming back, so that
+    # gate had become 51 allow-list lines of paperwork for routes that
+    # were never going to exist twice.
+    #
+    # Neither check compiles anything, so both run first — a break is
     # cheaper to learn about before a ten-minute test run than after.
     ./scripts/check-mcp-parity.sh
-    ./scripts/check-rest-parity.sh
+    ./scripts/check-core-contract.sh
 
     # A crate in this repo depended on by version alone resolves to the
     # published copy, so both end up in the binary and edits to the local
