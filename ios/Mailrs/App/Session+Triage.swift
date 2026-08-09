@@ -56,7 +56,7 @@ extension Session {
             try await client.setRead(threadId: conversation.threadId, markRead)
         } catch {
             conversations = previous
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
     }
 
@@ -70,7 +70,7 @@ extension Session {
             try await client.setStarred(threadId: conversation.threadId, starred)
         } catch {
             conversations = previous
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
     }
 
@@ -136,7 +136,7 @@ extension Session {
             try await client.setRead(threadId: conversation.threadId, false)
         } catch {
             conversations = previous
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
         await refreshBadge()
     }
@@ -173,7 +173,7 @@ extension Session {
                 conversations = previous
                 searchResults = previousResults
             }
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
     }
 
@@ -219,7 +219,7 @@ extension Session {
             // would un-archive rows that were never archived.
             clearUndo()
             withAnimation { conversations = Session.reinserted(failed, into: conversations) }
-            state = .failed("archive failed for \(failed.count) of \(rows.count)")
+            banner = "archive failed for \(failed.count) of \(rows.count)"
         }
     }
 
@@ -236,7 +236,7 @@ extension Session {
                 withAnimation {
                     patch(conversation.threadId) { $0.unreadCount = conversation.unreadCount }
                 }
-                state = .failed(error.localizedDescription)
+                banner = error.localizedDescription
             }
         }
         await refreshBadge()
@@ -310,7 +310,7 @@ extension Session {
                 withAnimation {
                     conversations.removeAll { $0.threadId == row.conversation.threadId }
                 }
-                state = .failed(error.localizedDescription)
+                banner = error.localizedDescription
             }
         }
     }
@@ -327,7 +327,7 @@ extension Session {
             try await client.delete(threadId: conversation.threadId)
             _ = removeRows([conversation.threadId])
         } catch {
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
     }
 

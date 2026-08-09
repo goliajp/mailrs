@@ -152,7 +152,7 @@ extension Session {
             let rows = SendJoin.join(messages: try await messages, sends: try await sends)
             withAnimation { sendRows = rows }
         } catch {
-            state = .failed(error.localizedDescription)
+            banner = error.localizedDescription
         }
         initialLoading = false
     }

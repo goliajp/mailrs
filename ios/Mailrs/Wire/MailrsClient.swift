@@ -90,10 +90,41 @@ actor MailrsClient {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw MailrsError.decoding("\(path) — \(error)")
+            // With the key path *and* what actually arrived. A GitHub
+            // notification would not open on the phone and the message
+            // said only "the server sent something unexpected", which
+            // names neither the field nor the value — so the next
+            // occurrence is a report you can act on rather than a
+            // reproduction you have to hunt for.
+            let head = String(decoding: data.prefix(240), as: UTF8.self)
+            throw MailrsError.decoding("\(path) — \(error) — got: \(head)")
         }
     }
 
+
+    /// One path segment, safe to interpolate.
+    ///
+    /// A thread id is a Message-ID and can hold anything a sender put
+    /// there — GitHub's are
+    /// `goliajp/kevy/check-suites/CS_kw…/1786297239@github.com`, four
+    /// slashes deep. Interpolated raw they became four path segments,
+    /// the request reached some other route, and what came back decoded
+    /// into nothing: "the server sent something unexpected" on every
+    /// GitHub notification. The web client had always encoded them.
+    /// `baseURL` + an already-encoded path.
+    ///
+    /// Not `appendingPathComponent`, which treats its argument as a
+    /// literal component and escapes the `%` — turning the `%2F` of an
+    /// encoded thread id into `%252F` and breaking it a second way.
+    nonisolated func url(_ encodedPath: String) -> URL {
+        URL(string: baseURL.absoluteString + encodedPath) ?? baseURL
+    }
+
+    static func segment(_ raw: String) -> String {
+        raw.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(
+            CharacterSet(charactersIn: "-._~")
+        )) ?? raw
+    }
 
     func verb(_ method: String, _ path: String) async throws {
         let (_, response) = try await send(method, path, body: nil, authorized: true)
@@ -109,7 +140,7 @@ actor MailrsClient {
     func send(
         _ method: String, _ path: String, body: Data?, authorized: Bool
     ) async throws -> (Data, URLResponse) {
-        try await send(method, url: baseURL.appendingPathComponent(path), body: body, authorized: authorized)
+        try await send(method, url: url(path), body: body, authorized: authorized)
     }
 
 

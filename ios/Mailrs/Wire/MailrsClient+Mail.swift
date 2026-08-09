@@ -36,7 +36,7 @@ extension MailrsClient {
 
     /// `GET /api/conversations/{thread_id}` — a bare array, like the list.
     func messages(threadId: String) async throws -> [Wire.Message] {
-        let url = baseURL.appendingPathComponent("/api/conversations/\(threadId)")
+        let url = url("/api/conversations/\(MailrsClient.segment(threadId))")
         let (data, response) = try await send("GET", url: url, body: nil, authorized: true)
         guard let http = response as? HTTPURLResponse else {
             throw MailrsError.transport("No HTTP response.")
@@ -172,7 +172,7 @@ extension MailrsClient {
     func setJunk(threadId: String, _ junk: Bool) async throws {
         var verbName = "mark-not-junk"
         if junk { verbName = "mark-junk" }
-        try await verb("POST", "/api/conversations/\(threadId)/\(verbName)")
+        try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/\(verbName)")
     }
 
 
@@ -180,7 +180,7 @@ extension MailrsClient {
     func setRead(threadId: String, _ read: Bool) async throws {
         var verbName = "unread"
         if read { verbName = "read" }
-        try await verb("POST", "/api/conversations/\(threadId)/\(verbName)")
+        try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/\(verbName)")
     }
 
 
@@ -188,19 +188,19 @@ extension MailrsClient {
     func setStarred(threadId: String, _ starred: Bool) async throws {
         var verbName = "unstar"
         if starred { verbName = "star" }
-        try await verb("POST", "/api/conversations/\(threadId)/\(verbName)")
+        try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/\(verbName)")
     }
 
 
     /// `POST /api/conversations/{id}/archive` — 204, no body.
     func archive(threadId: String) async throws {
-        try await verb("POST", "/api/conversations/\(threadId)/archive")
+        try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/archive")
     }
 
 
     /// `POST /api/conversations/{id}/unarchive`.
     func unarchive(threadId: String) async throws {
-        try await verb("POST", "/api/conversations/\(threadId)/unarchive")
+        try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/unarchive")
     }
 
 
@@ -210,7 +210,7 @@ extension MailrsClient {
     /// clearing the kevy rows — there is no trash and nothing to restore
     /// from — which is why every caller of this asks first.
     func delete(threadId: String) async throws {
-        try await verb("DELETE", "/api/conversations/\(threadId)")
+        try await verb("DELETE", "/api/conversations/\(MailrsClient.segment(threadId))")
     }
 
 
