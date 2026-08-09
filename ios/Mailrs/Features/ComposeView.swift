@@ -81,6 +81,7 @@ struct ComposeView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("composer-cancel")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     AttachMenu(attachments: $attachments)

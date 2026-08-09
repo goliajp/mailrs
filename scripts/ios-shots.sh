@@ -8,6 +8,7 @@
 #
 #   ./scripts/ios-shots.sh                       # default size, dark
 #   ./scripts/ios-shots.sh large light           # default size, light
+#   ./scripts/ios-shots.sh large dark ja         # Japanese
 #   ./scripts/ios-shots.sh accessibility-extra-extra-extra-large
 #
 # Writes PNGs to ios/.shots/ (gitignored — they are pictures of a stub,
@@ -19,6 +20,10 @@ SIZE="${1:-large}"
 # Light is half the users and had never been looked at. Second argument
 # rather than a second script: the walk is the same walk.
 APPEARANCE="${2:-dark}"
+# The catalog being complete says nothing about whether the layout
+# survives the translations — 件名 is not Subject, and a row that fits
+# one may not fit the other.
+LANGUAGE="${3:-en}"
 SIM_NAME="sim-mailrs"
 STUB_PORT=6039
 OUT="$PWD/.shots"
@@ -63,7 +68,8 @@ RESULT=$(mktemp -d)/shots.xcresult
 # xcodebuild strips the prefix and passes the rest through to the
 # runner. Set plainly, the class skipped and the run reported success
 # with nothing in the output directory.
-TEST_RUNNER_MAILRS_SHOTS=1 TEST_RUNNER_MAILRS_SHOTS_APPEARANCE="$APPEARANCE" xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
+TEST_RUNNER_MAILRS_SHOTS=1 TEST_RUNNER_MAILRS_SHOTS_APPEARANCE="$APPEARANCE" \
+  TEST_RUNNER_MAILRS_SHOTS_LANGUAGE="$LANGUAGE" xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
   -destination "id=$UDID" \
   -only-testing:MailrsUITests/LayoutShotTests \
   -resultBundlePath "$RESULT" \
@@ -103,5 +109,5 @@ if [ "$COUNT" -eq 0 ]; then
     echo "!! no shots — did LayoutShotTests skip? it needs TEST_RUNNER_MAILRS_SHOTS=1"
     exit 1
 fi
-echo "==> $COUNT shots at content_size=$SIZE appearance=$APPEARANCE in ios/.shots/"
+echo "==> $COUNT shots — size=$SIZE appearance=$APPEARANCE language=$LANGUAGE — in ios/.shots/"
 ls "$OUT"

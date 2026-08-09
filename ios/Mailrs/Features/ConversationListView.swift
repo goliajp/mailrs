@@ -234,6 +234,11 @@ struct ConversationListView: View {
                         } label: {
                             Label("Settings", systemImage: "gearshape")
                         }
+                        // Named so a test reaches it by identity rather
+                        // than by the word on it. The Japanese run of
+                        // the screenshot lane could not find "Settings",
+                        // because on that phone it says 設定.
+                        .accessibilityIdentifier("open-settings")
                         // Sign-out moved off the bar when Select took
                         // its slot: triage is daily, sign-out is rare.
                         // It lives in Settings too, which is where
@@ -246,6 +251,7 @@ struct ConversationListView: View {
                     } label: {
                         Label("Lists", systemImage: "line.3.horizontal.decrease.circle")
                     }
+                    .accessibilityIdentifier("open-lists")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -253,6 +259,7 @@ struct ConversationListView: View {
                     } label: {
                         Label("New message", systemImage: "square.and.pencil")
                     }
+                    .accessibilityIdentifier("new-message")
                 }
                 if session.activeList != .send, !session.visibleConversations.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
