@@ -30,6 +30,8 @@ struct ThreadHeader: View {
         return names.joined(separator: ", ")
     }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     /// Two keys rather than one with a plural rule: the catalog holds
     /// the singular and the count form separately, which is what lets
     /// a language that counts differently say so.
@@ -48,10 +50,7 @@ struct ThreadHeader: View {
                     // anywhere on it — the list behind a push can still
                     // answer yes.
                     .accessibilityIdentifier("thread-subject")
-                    // Three lines: enough for the long ones mail
-                    // actually carries, bounded so the messages are
-                    // still on screen when the thread opens.
-                    .lineLimit(3)
+                    .lineLimit(RowLayout.threadSubjectLines(typeSize))
                     .fixedSize(horizontal: false, vertical: true)
                 if conversation.flagged {
                     Image(systemName: "star.fill")
@@ -60,17 +59,23 @@ struct ThreadHeader: View {
                         .accessibilityLabel("Starred")
                 }
             }
-            HStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(countLabel)
                     .layoutPriority(1)
                 if !participants.isEmpty {
+                    // Wraps at the accessibility sizes rather than
+                    // ending at "· Alic…", which names nobody. The
+                    // frame is what keeps the second line left: without
+                    // it the wrapped text centres in what the HStack
+                    // gave it, and the tail sat against the right edge
+                    // with a gap in front of it.
                     Text(verbatim: "· \(participants)")
-                        .lineLimit(1)
+                        .lineLimit(RowLayout.senderLines(typeSize))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)

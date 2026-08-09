@@ -20,6 +20,8 @@ struct RowLayoutTests {
             #expect(!RowLayout.stacksHeader(size), "\(size)")
             #expect(RowLayout.senderLines(size) == 1, "\(size)")
             #expect(RowLayout.subjectLines(size) == 1, "\(size)")
+            #expect(RowLayout.recipientLines(size) == 1, "\(size)")
+            #expect(RowLayout.threadSubjectLines(size) == 3, "\(size)")
             #expect(RowLayout.gutterAlignment(size) == .center, "\(size)")
         }
     }
@@ -34,6 +36,8 @@ struct RowLayoutTests {
             #expect(RowLayout.stacksHeader(size), "\(size)")
             #expect(RowLayout.senderLines(size) == 2, "\(size)")
             #expect(RowLayout.subjectLines(size) == 3, "\(size)")
+            #expect(RowLayout.recipientLines(size) == 3, "\(size)")
+            #expect(RowLayout.threadSubjectLines(size) == 6, "\(size)")
             #expect(RowLayout.gutterAlignment(size) == .top, "\(size)")
         }
     }
