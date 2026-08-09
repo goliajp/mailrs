@@ -116,6 +116,14 @@ struct ThreadView: View {
                     .padding(.vertical, 8)
                 }
                 .softScrollEdges()
+                // Room for the floating bar. It hovers over the scroll
+                // view rather than taking space from it, so without this
+                // the last message's final lines sit under the star and
+                // the bin permanently — reported from the phone as the
+                // bottom of some mail being covered. `contentMargins`
+                // adds it to the scrolled content only, so the glass
+                // still has content passing beneath it.
+                .contentMargins(.bottom, 64, for: .scrollContent)
                 .background(Color(.systemGroupedBackground))
             }
         }

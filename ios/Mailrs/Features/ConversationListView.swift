@@ -122,6 +122,11 @@ struct ConversationListView: View {
                     }
                     .listStyle(.plain)
                     .softScrollEdges()
+                    // Room for the search field iOS 26 pins to the
+                    // bottom. It floats over the rows, so the last one
+                    // sat under it and the row you scrolled to reach was
+                    // the row you could not read.
+                    .contentMargins(.bottom, 64, for: .scrollContent)
                     // On the List, not the Group: `refreshable` attaches
                     // to the nearest scrollable view, and a Group is not
                     // one.
