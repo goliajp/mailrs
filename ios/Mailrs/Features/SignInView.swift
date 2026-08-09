@@ -163,6 +163,13 @@ struct SignInView: View {
                 // not do.
                 guard let last = CredentialStore.lastAddress else { return }
                 address = last
+                // A driven launch always types its password. The Face ID
+                // sheet is a system prompt no test can answer, and a
+                // credential left on the simulator by an earlier run
+                // otherwise hides the field the sign-in test types into.
+                guard !ProcessInfo.processInfo.arguments.contains("-mailrsBaseURL") else {
+                    return
+                }
                 showsPassword = !(BiometricLock.isAvailable
                     && CredentialStore.has(address: last))
             }

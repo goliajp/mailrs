@@ -44,6 +44,15 @@ final class LayoutShotTests: MailrsUITestCase {
         )
         shoot(app, "01-list")
 
+        // Select mode, with something chosen. Reported from the phone
+        // as not being able to tell which rows were picked.
+        app.buttons["Select"].tap()
+        app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch.tap()
+        shoot(app, "01b-selection")
+        app.buttons["Done"].tap()
+
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
