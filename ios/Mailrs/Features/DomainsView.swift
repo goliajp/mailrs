@@ -77,7 +77,7 @@ struct DomainsView: View {
             } message: { domain in
                 // Named, and with its consequence: removing a domain
                 // stops mail for every address under it.
-                Text(verbatim: "\(domain.name) — mail to every address on it will stop being accepted.")
+                Text("\(domain.name) — mail to every address on it will stop being accepted.")
             }
             .task { await load() }
         }

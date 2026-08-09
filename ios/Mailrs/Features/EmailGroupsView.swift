@@ -77,7 +77,7 @@ struct EmailGroupsView: View {
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
             } message: { group in
-                Text(verbatim: "\(group.address) — its members keep their own mailboxes.")
+                Text("\(group.address) — its members keep their own mailboxes.")
             }
             .task { await load() }
         }
