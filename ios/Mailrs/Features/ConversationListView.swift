@@ -321,6 +321,7 @@ struct ConversationListView: View {
 struct ConversationRow: View {
     let conversation: Wire.Conversation
     @Environment(Session.self) private var session
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// Read rows recede, the web's `muted`. Unread already carries the
     /// dot and the weight; dimming what is done is what makes a long
@@ -377,7 +378,7 @@ struct ConversationRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: RowLayout.gutterAlignment(typeSize), spacing: 10) {
             // The avatar wears the unread state as a badge on its rim —
             // the dot keeps its VoiceOver label ("Unread"), because a
             // colour is not a label.
@@ -395,39 +396,12 @@ struct ConversationRow: View {
                 }
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text(sender)
-                        .font(.subheadline.weight(senderWeight))
-                        .lineLimit(1)
-                    if extraParticipants > 0 {
-                        Text("+\(extraParticipants)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if conversation.importanceLevel == "critical"
-                        || conversation.importanceLevel == "important" {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(importanceColor)
-                            .accessibilityLabel(importanceLabel)
-                    }
-                    Spacer(minLength: 4)
-                    if let countLabel {
-                        Text(countLabel)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color(.tertiarySystemFill), in: Capsule())
-                    }
-                    RowDateText(epochSeconds: conversation.lastDate)
-                }
+                header
                 HStack(spacing: 4) {
                     ValueOrPlaceholder(value: conversation.subject, placeholder: "(no subject)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(RowLayout.subjectLines(typeSize))
                     if conversation.flagged {
                         Image(systemName: "star.fill")
                             .font(.caption2)
@@ -440,5 +414,68 @@ struct ConversationRow: View {
         }
         .padding(.vertical, 2)
         .opacity(rowOpacity)
+    }
+
+    /// Name, who else is on it, how many messages, when.
+    ///
+    /// One line while they fit; stacked once the reader's text size
+    /// means they cannot. Side by side at accessibility sizes the name
+    /// lost to the date — see `RowLayout`.
+    @ViewBuilder
+    private var header: some View {
+        if RowLayout.stacksHeader(typeSize) {
+            VStack(alignment: .leading, spacing: 2) {
+                name
+                HStack(spacing: 6) {
+                    countChip
+                    RowDateText(epochSeconds: conversation.lastDate)
+                    Spacer(minLength: 0)
+                }
+            }
+        } else {
+            HStack(spacing: 6) {
+                name
+                Spacer(minLength: 4)
+                countChip
+                RowDateText(epochSeconds: conversation.lastDate)
+            }
+        }
+    }
+
+    /// The sender, and the two marks that belong beside the name rather
+    /// than beside the date: how many other people are on the thread,
+    /// and whether it was judged important.
+    @ViewBuilder
+    private var name: some View {
+        HStack(spacing: 6) {
+            Text(sender)
+                .font(.subheadline.weight(senderWeight))
+                .lineLimit(RowLayout.senderLines(typeSize))
+            if extraParticipants > 0 {
+                Text("+\(extraParticipants)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if conversation.importanceLevel == "critical"
+                || conversation.importanceLevel == "important" {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(importanceColor)
+                    .accessibilityLabel(importanceLabel)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var countChip: some View {
+        if let countLabel {
+            Text(countLabel)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color(.tertiarySystemFill), in: Capsule())
+        }
     }
 }
