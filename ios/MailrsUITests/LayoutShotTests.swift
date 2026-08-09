@@ -15,6 +15,12 @@ import XCTest
 /// normal run does not spend a minute taking pictures nobody asked for.
 final class LayoutShotTests: MailrsUITestCase {
 
+    /// The theme the shots run asks for, if it asked. `system` follows
+    /// the simulator's own appearance, which is what the script sets.
+    private var appearance: String? {
+        ProcessInfo.processInfo.environment["MAILRS_SHOTS_APPEARANCE"]
+    }
+
     override func setUpWithError() throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["MAILRS_SHOTS"] == "1",
@@ -23,7 +29,7 @@ final class LayoutShotTests: MailrsUITestCase {
     }
 
     func testWalksTheReadingPathTakingPictures() {
-        let app = launch(signedIn: true)
+        let app = launch(signedIn: true, appearance: appearance)
 
         XCTAssertTrue(
             app.staticTexts["Quarterly report and the follow-up notes"]
@@ -51,7 +57,7 @@ final class LayoutShotTests: MailrsUITestCase {
     }
 
     func testPhotographsComposeAndSettings() {
-        let app = launch(signedIn: true)
+        let app = launch(signedIn: true, appearance: appearance)
         XCTAssertTrue(
             app.staticTexts["Quarterly report and the follow-up notes"]
                 .waitForExistence(timeout: 15),

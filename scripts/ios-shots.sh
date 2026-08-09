@@ -6,7 +6,8 @@
 # label and a label is still there when it renders as "A…". The only
 # instrument that sees that is an eye; this puts screens in front of one.
 #
-#   ./scripts/ios-shots.sh                       # default text size
+#   ./scripts/ios-shots.sh                       # default size, dark
+#   ./scripts/ios-shots.sh large light           # default size, light
 #   ./scripts/ios-shots.sh accessibility-extra-extra-extra-large
 #
 # Writes PNGs to ios/.shots/ (gitignored — they are pictures of a stub,
@@ -15,6 +16,9 @@ set -euo pipefail
 cd "$(dirname "$0")/../ios"
 
 SIZE="${1:-large}"
+# Light is half the users and had never been looked at. Second argument
+# rather than a second script: the walk is the same walk.
+APPEARANCE="${2:-dark}"
 SIM_NAME="sim-mailrs"
 STUB_PORT=6039
 OUT="$PWD/.shots"
@@ -25,6 +29,12 @@ UDID=$(xcrun simctl list devices -j \
 
 xcodegen generate >/dev/null
 
+# `test`, not `test-without-building`. The faster verb runs whatever
+# bundle was built last, so an edit to the test code — a new launch
+# argument, a new stop on the walk — silently does not apply, and the
+# pictures come back looking exactly like pictures. Light mode was
+# photographed dark twice this way.
+
 # The stub the tests read. Killed on the way out whatever happens: a
 # leftover listener makes the next run look like it passed against
 # yesterday's data.
@@ -34,6 +44,7 @@ STUB_PID=$!
 cleanup() {
     kill "$STUB_PID" 2>/dev/null || true
     xcrun simctl ui "$UDID" content_size large >/dev/null 2>&1 || true
+    xcrun simctl ui "$UDID" appearance dark >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -44,6 +55,7 @@ done
 
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl ui "$UDID" content_size "$SIZE"
+xcrun simctl ui "$UDID" appearance "$APPEARANCE"
 
 RESULT=$(mktemp -d)/shots.xcresult
 # `TEST_RUNNER_` prefix, not a bare variable. The tests run in a process
@@ -51,11 +63,11 @@ RESULT=$(mktemp -d)/shots.xcresult
 # xcodebuild strips the prefix and passes the rest through to the
 # runner. Set plainly, the class skipped and the run reported success
 # with nothing in the output directory.
-TEST_RUNNER_MAILRS_SHOTS=1 xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
+TEST_RUNNER_MAILRS_SHOTS=1 TEST_RUNNER_MAILRS_SHOTS_APPEARANCE="$APPEARANCE" xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
   -destination "id=$UDID" \
   -only-testing:MailrsUITests/LayoutShotTests \
   -resultBundlePath "$RESULT" \
-  test-without-building 2>/dev/null \
+  test 2>/dev/null \
   | grep -E "✔|✘|error:|\*\* TEST" || true
 
 rm -rf "$OUT" && mkdir -p "$OUT"
@@ -91,5 +103,5 @@ if [ "$COUNT" -eq 0 ]; then
     echo "!! no shots — did LayoutShotTests skip? it needs TEST_RUNNER_MAILRS_SHOTS=1"
     exit 1
 fi
-echo "==> $COUNT shots at content_size=$SIZE in ios/.shots/"
+echo "==> $COUNT shots at content_size=$SIZE appearance=$APPEARANCE in ios/.shots/"
 ls "$OUT"

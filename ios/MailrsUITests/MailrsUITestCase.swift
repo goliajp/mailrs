@@ -17,7 +17,7 @@ import XCTest
 class MailrsUITestCase: XCTestCase {
     func launch(
         signedIn: Bool = false, folder: String? = nil, listDelayMs: Int = 0,
-        keepCache: Bool = false, language: String? = nil
+        keepCache: Bool = false, language: String? = nil, appearance: String? = nil
     ) -> XCUIApplication {
         resetStub()
         if listDelayMs > 0 { setStubListDelay(listDelayMs) }
@@ -37,6 +37,14 @@ class MailrsUITestCase: XCTestCase {
         // no difference, and the moment it did, half the suite went
         // looking for English words on a Chinese screen.
         app.launchArguments += ["-mailrs.language", language ?? "en"]
+        // The app's own theme wins over the simulator's appearance —
+        // `preferredColorScheme` is an override, and this simulator has
+        // "Dark" stored from an earlier run. So `simctl ui appearance
+        // light` alone photographed a dark screen. Passing the
+        // preference is what actually asks for a light one.
+        if let appearance {
+            app.launchArguments += ["-mailrs.appearance", appearance]
+        }
         // And the process's own language, which is what the system
         // components inside it follow: Quick Look's Done button and the
         // search field's clear button are drawn by iOS, not by this
