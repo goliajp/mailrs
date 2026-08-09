@@ -16,6 +16,7 @@ struct MessageCard: View {
     let onHeaderTap: () -> Void
     @Environment(Session.self) private var session
     @Environment(\.theme) private var theme
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var bodyHeight: CGFloat = 1
 
     /// Zero until the body has been measured — the card grows into its
@@ -71,23 +72,44 @@ struct MessageCard: View {
         return "This message is its attachments."
     }
 
+    /// Who it is from, whether they are who they say, and when.
+    ///
+    /// Stacked at the accessibility sizes for the reason the list row
+    /// is (`RowLayout`): side by side, the name loses to a timestamp.
+    @ViewBuilder
+    private var senderLine: some View {
+        if RowLayout.stacksHeader(typeSize) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(SenderName.extractName(message.sender))
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(RowLayout.senderLines(typeSize))
+                    SenderTrustBadge(verdict: message.senderTrust)
+                }
+                RowDateText(epochSeconds: message.internalDate, style: .stamp)
+            }
+        } else {
+            HStack(spacing: 6) {
+                Text(SenderName.extractName(message.sender))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    // The name yields before the date does: a truncated
+                    // name is still a name, and a truncated timestamp is
+                    // nothing.
+                    .layoutPriority(1)
+                SenderTrustBadge(verdict: message.senderTrust)
+                Spacer(minLength: 4)
+                RowDateText(epochSeconds: message.internalDate, style: .stamp)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: RowLayout.gutterAlignment(typeSize), spacing: 8) {
                 SenderAvatar(sender: message.sender, size: 32)
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
-                        Text(SenderName.extractName(message.sender))
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                            // The name yields before the date does: a
-                            // truncated name is still a name, and a
-                            // truncated timestamp is nothing.
-                            .layoutPriority(1)
-                        SenderTrustBadge(verdict: message.senderTrust)
-                        Spacer(minLength: 4)
-                        RowDateText(epochSeconds: message.internalDate, style: .stamp)
-                    }
+                    senderLine
                     // Its own line, not a third thing competing for the
                     // name's: it is a whole sentence about where the
                     // message came from, and it is the line worth
