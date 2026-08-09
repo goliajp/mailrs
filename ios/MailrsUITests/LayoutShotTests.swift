@@ -78,6 +78,44 @@ final class LayoutShotTests: MailrsUITestCase {
         }
     }
 
+    /// Every real message the stub was given, opened and photographed.
+    ///
+    /// `MAILRS_STUB_REAL` points the stub at mail captured from a live
+    /// mailbox — 600px marketing tables, CJK newsletters, cid images.
+    /// The hand-written fixture is one 760px table; what a reader
+    /// actually gets is more varied than that, and the width fix was
+    /// verified against the fixture alone.
+    func testPhotographsRealMail() {
+        let app = launch(signedIn: true, appearance: appearance)
+        guard app.staticTexts["Quarterly report and the follow-up notes"]
+            .waitForExistence(timeout: 15) else { return }
+
+        // Matched on the subject, not the stub's key for it: the list
+        // row draws sender, date and subject and no snippet, so the key
+        // never reaches the accessibility label.
+        let mail = [
+            // Not "配送": that subject carries zero-width characters
+            // between its glyphs — the preheader padding 4% of real
+            // HTML mail uses — so a plain substring never matches.
+            ("cid", "完了"), ("cjk", "お部屋探し"), ("darkaware", "Shu Wang"),
+            ("pdf", "Alignment"), ("textonly", "Pixel-7"), ("wide", "OpenClaw"),
+        ]
+        for (key, subject) in mail {
+            let row = app.buttons.containing(
+                NSPredicate(format: "label CONTAINS %@", subject)
+            ).firstMatch
+            guard row.waitForExistence(timeout: 5) else { continue }
+            row.tap()
+            _ = app.staticTexts.containing(
+                NSPredicate(format: "label BEGINSWITH %@", "To:")
+            ).firstMatch.waitForExistence(timeout: 10)
+            shoot(app, "real-\(key)")
+            app.navigationBars.buttons.firstMatch.tap()
+            _ = app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 10)
+        }
+    }
+
     func testPhotographsComposeAndSettings() {
         let app = launch(signedIn: true, language: language, appearance: appearance)
         XCTAssertTrue(

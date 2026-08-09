@@ -44,7 +44,7 @@ xcodegen generate >/dev/null
 # leftover listener makes the next run look like it passed against
 # yesterday's data.
 pkill -f "Testing/stub-api.py" 2>/dev/null || true
-python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-shots-stub.log 2>&1 &
+MAILRS_STUB_REAL="${MAILRS_STUB_REAL:-}" python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-shots-stub.log 2>&1 &
 STUB_PID=$!
 cleanup() {
     kill "$STUB_PID" 2>/dev/null || true
