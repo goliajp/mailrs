@@ -15,6 +15,7 @@ struct MessageCard: View {
     /// Tapping the header folds the card back to its line.
     let onHeaderTap: () -> Void
     @Environment(Session.self) private var session
+    @Environment(\.theme) private var theme
     @State private var bodyHeight: CGFloat = 1
 
     /// Zero until the body has been measured — the card grows into its
@@ -166,9 +167,13 @@ struct MessageCard: View {
                     .opacity(measuredOpacity)
                     .animation(.easeIn(duration: 0.15), value: bodyHeight > 1)
             case .text(let text):
-                Text(verbatim: text)
+                // Not `Text(verbatim:)`: 70% of real plain-text mail has
+                // a URL in it, and that spelling renders every one of
+                // them as characters you can read and not follow.
+                Text(PlainTextLinks.attributed(text))
                     .font(.callout)
                     .textSelection(.enabled)
+                    .tint(theme.accent)
             case .empty:
                 // A zip with nothing around it, a delivery report, a
                 // signature with nothing this client can read: nine
