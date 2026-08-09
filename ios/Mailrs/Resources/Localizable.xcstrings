@@ -332,7 +332,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "账号"
+            "value": "账户"
           }
         }
       }
@@ -396,7 +396,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "添加账号"
+            "value": "添加账户"
           }
         }
       }
@@ -940,7 +940,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法加载账号"
+            "value": "无法加载账户"
           }
         }
       }
@@ -1839,7 +1839,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新建账号"
+            "value": "新建账户"
           }
         }
       }
