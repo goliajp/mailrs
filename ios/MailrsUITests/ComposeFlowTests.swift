@@ -196,8 +196,8 @@ final class ComposeFlowTests: MailrsUITestCase {
 
         to.tap()
         to.typeText("someone@example.com")
-        app.textFields["Subject"].tap()
-        app.textFields["Subject"].typeText("Hello")
+        app.textFields["composer-subject"].tap()
+        app.textFields["composer-subject"].typeText("Hello")
         app.textViews.firstMatch.tap()
         app.textViews.firstMatch.typeText("First contact.")
 
@@ -242,8 +242,8 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
         to.typeText("later@example.com")
-        app.textFields["Subject"].tap()
-        app.textFields["Subject"].typeText("Half written")
+        app.textFields["composer-subject"].tap()
+        app.textFields["composer-subject"].typeText("Half written")
 
         app.buttons["Cancel"].tap()
 
@@ -253,7 +253,7 @@ final class ComposeFlowTests: MailrsUITestCase {
                       "the cancelled compose was not kept")
 
         app.staticTexts["Half written"].tap()
-        let resumedSubject = app.textFields["Subject"]
+        let resumedSubject = app.textFields["composer-subject"]
         XCTAssertTrue(resumedSubject.waitForExistence(timeout: 5), "the draft did not reopen")
         XCTAssertEqual(resumedSubject.value as? String, "Half written",
                        "the draft reopened without its subject")
@@ -275,8 +275,8 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
         to.typeText("later@example.com")
-        app.textFields["Subject"].tap()
-        app.textFields["Subject"].typeText("Worth keeping")
+        app.textFields["composer-subject"].tap()
+        app.textFields["composer-subject"].typeText("Worth keeping")
         app.buttons["Cancel"].tap()
 
         app.buttons["Lists"].tap()
@@ -317,7 +317,7 @@ final class ComposeFlowTests: MailrsUITestCase {
             .waitForExistence(timeout: 15), "inbox never listed")
 
         app.buttons["New message"].tap()
-        let subject = app.textFields["Subject"]
+        let subject = app.textFields["composer-subject"]
         XCTAssertTrue(app.textFields["someone@example.com"].waitForExistence(timeout: 5))
         subject.tap()
         subject.typeText("One")
@@ -375,8 +375,8 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(to.waitForExistence(timeout: 5), "compose never opened")
         to.tap()
         to.typeText("later@example.com")
-        app.textFields["Subject"].tap()
-        app.textFields["Subject"].typeText("Slow to arrive")
+        app.textFields["composer-subject"].tap()
+        app.textFields["composer-subject"].typeText("Slow to arrive")
         app.buttons["Cancel"].tap()
 
         // Relaunched, because the flash only happens on a *cold* open:

@@ -27,7 +27,13 @@ enum ComposerField: Hashable {
         case .to: return "someone@example.com"
         case .cc: return "copy@example.com"
         case .bcc: return "blind@example.com"
-        case .subject: return "Subject"
+        // Nothing for the subject: `label(_:)` below returns the very
+        // same word, and the two together read "Subject  Subject" — at
+        // every text size, not only the large ones. The addresses keep
+        // theirs because `someone@example.com` says something the word
+        // "To" does not: the shape it wants.
+        case .subject: return ""
+        // The body has no label row; this is the only thing naming it.
         case .body: return "Message"
         }
     }
@@ -71,6 +77,7 @@ struct ComposerHeader: View {
     @Binding var suggestions: [String]
 
     let focus: FocusState<ComposerField?>.Binding
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// Called when an address field changes, with its text — the owner
     /// decides whether to ask the server for contacts.
     var onAddressEdit: (String) -> Void = { _ in }
@@ -170,12 +177,29 @@ struct ComposerHeader: View {
         @ViewBuilder trailing: () -> Trailing = { EmptyView() }
     ) -> some View {
         GridRow {
-            Text(label(field))
-                .foregroundStyle(.secondary)
-                .gridColumnAlignment(.leading)
-            HStack(spacing: 6) {
-                content(field, slot: slot)
-                trailing()
+            if RowLayout.stacksHeader(typeSize) {
+                // One cell across both columns, stacked. Side by side at
+                // the accessibility sizes the label took a third of the
+                // width and the address field showed "someone@exa…" — a
+                // field you cannot read back what you typed into it is
+                // not a field.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label(field))
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        content(field, slot: slot)
+                        trailing()
+                    }
+                }
+                .gridCellColumns(2)
+            } else {
+                Text(label(field))
+                    .foregroundStyle(.secondary)
+                    .gridColumnAlignment(.leading)
+                HStack(spacing: 6) {
+                    content(field, slot: slot)
+                    trailing()
+                }
             }
         }
         .font(.subheadline)
