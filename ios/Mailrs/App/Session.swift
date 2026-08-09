@@ -268,6 +268,12 @@ final class Session {
             self.client = client
             TokenStore.save(login.token)
             TokenStore.saveAddress(login.address)
+            // Remembered for the next sign-in: who it was, and behind
+            // Face ID, what to send. Kept on the address the server
+            // answered with rather than the one that was typed, so a
+            // login by alias stores itself under the account it reached.
+            CredentialStore.lastAddress = login.address
+            CredentialStore.save(password: password, address: login.address)
             state = .signedIn(address: login.address, displayName: login.displayName)
             // The badge only — see `PushRegistrar`.
             PushRegistrar.requestBadgeAuthorization()

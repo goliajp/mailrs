@@ -158,6 +158,28 @@ extension Session {
     }
 
 
+    /// Move a thread to another bucket, and take the row off this list.
+    ///
+    /// Optimistic like junk is, and for the same reason: the row is
+    /// leaving a list it no longer belongs to, and a refusal puts it
+    /// back.
+    func move(_ conversation: Wire.Conversation, to bucket: MailBucket) async {
+        guard let client else { return }
+        let previous = conversations
+        let previousResults = searchResults
+        _ = removeRows([conversation.threadId])
+        do {
+            try await client.moveTo(threadId: conversation.threadId, bucket: bucket)
+        } catch {
+            withAnimation {
+                conversations = previous
+                searchResults = previousResults
+            }
+            banner = error.localizedDescription
+        }
+    }
+
+
     func setJunk(_ conversation: Wire.Conversation, junk: Bool) async {
         guard let client else { return }
         let previous = conversations

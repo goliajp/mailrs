@@ -50,8 +50,19 @@ struct ConversationListView: View {
                         NavigationLink {
                             ThreadView(conversation: conversation)
                         } label: {
-                            ConversationRow(conversation: conversation)
+                            ConversationRow(conversation: conversation,
+                                            isSelecting: editMode == .active)
                         }
+                        // A tint under the chosen rows. The system's own
+                        // selection mark is a small circle at the left
+                        // edge; on a dense list of mostly-grey rows it
+                        // is not enough to see at a glance which ones
+                        // the batch bar is about to act on.
+                        .listRowBackground(
+                            selection.contains(conversation.threadId)
+                                ? Color.accentColor.opacity(0.18)
+                                : Color(.systemBackground)
+                        )
                         .contextMenu {
                             // Junk lives in the long-press menu, not the
                             // swipe rows — those are full, and a verdict
@@ -65,6 +76,21 @@ struct ConversationListView: View {
                                     Label("Not junk", systemImage: "checkmark.shield")
                                 }
                             } else {
+                                // Where it belongs. The classifier puts
+                                // mail in Inbox, Notifications or
+                                // Promotions and gets it wrong often
+                                // enough that there has to be a way to
+                                // say so — the server always had the
+                                // verbs; nothing on the phone reached
+                                // them.
+                                ForEach(MailBucket.offered(from: session.activeList)) { bucket in
+                                    Button {
+                                        Task { await session.move(conversation, to: bucket) }
+                                    } label: {
+                                        Label(bucket.label, systemImage: bucket.systemImage)
+                                    }
+                                }
+                                Divider()
                                 Button(role: .destructive) {
                                     Task { await session.setJunk(conversation, junk: true) }
                                 } label: {

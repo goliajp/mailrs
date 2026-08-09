@@ -7,6 +7,8 @@ import SwiftUI
 
 struct ConversationRow: View {
     let conversation: Wire.Conversation
+    /// True while the list is in select mode.
+    var isSelecting = false
     @Environment(Session.self) private var session
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -28,7 +30,12 @@ struct ConversationRow: View {
         return "Important"
     }
 
+    /// Read rows recede — except while choosing, when every row is a
+    /// target and dimming half of them makes the choice harder to see.
+    /// Reported from the phone as not being able to tell what was
+    /// selected.
     private var rowOpacity: Double {
+        if isSelecting { return 1 }
         if conversation.unreadCount > 0 { return 1 }
         return 0.7
     }

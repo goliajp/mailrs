@@ -192,6 +192,19 @@ extension MailrsClient {
     }
 
 
+    /// Where a thread belongs: Inbox, Notifications or Promotions.
+    ///
+    /// The server has had `mark-notification`, `mark-promotion` and
+    /// `move-to-inbox` all along and this client reached none of them —
+    /// so a thread the classifier put in the wrong bucket stayed there,
+    /// with no gesture on the phone that could move it.
+    func moveTo(threadId: String, bucket: MailBucket) async throws {
+        try await verb(
+            "POST",
+            "/api/conversations/\(MailrsClient.segment(threadId))/\(bucket.verb)")
+    }
+
+
     /// `POST /api/conversations/{id}/archive` — 204, no body.
     func archive(threadId: String) async throws {
         try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/archive")

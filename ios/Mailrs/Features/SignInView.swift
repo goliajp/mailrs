@@ -5,6 +5,32 @@ struct SignInView: View {
     @State private var address = ""
     @State private var password = ""
     @State private var totpCode = ""
+    /// The password field appears unless Face ID can answer for it.
+    @State private var showsPassword = true
+
+    /// Sign in with the stored credential.
+    ///
+    /// Three ways back to the password field, and all three are the
+    /// same sentence: this cannot answer for you right now. Nothing
+    /// stored, the look not passed, or the server refusing what was
+    /// stored — the last one also forgets it, because a password that
+    /// has changed will not start working again.
+    private func signInWithBiometrics() async {
+        let account = CredentialStore.lastAddress ?? address
+        guard !account.isEmpty,
+              let stored = CredentialStore.password(
+                for: account, reason: String(localized: "Sign in to your mail"))
+        else {
+            showsPassword = true
+            return
+        }
+        address = account
+        await session.signIn(address: account, password: stored, totpCode: submittedTotp)
+        if case .failed = session.state {
+            CredentialStore.remove(address: account)
+            showsPassword = true
+        }
+    }
 
     /// Absent rather than empty: the server reads an empty code as a
     /// wrong one, and "I have no code" is a different claim.
@@ -50,12 +76,32 @@ struct SignInView: View {
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField("Password", text: $password)
-                        .textContentType(.password)
+                    // Hidden while Face ID can stand in for it, and
+                    // back the moment it cannot: no stored credential,
+                    // one the server refused, or a look that did not
+                    // pass.
+                    if showsPassword {
+                        SecureField("Password", text: $password)
+                            .textContentType(.password)
+                    }
                     if session.needsTotp {
                         TextField("Six-digit code", text: $totpCode)
                             .textContentType(.oneTimeCode)
                             .keyboardType(.numberPad)
+                    }
+                }
+
+                if !showsPassword {
+                    Section {
+                        Button {
+                            Task { await signInWithBiometrics() }
+                        } label: {
+                            LucideRow(title: BiometricLock.kind().label,
+                                      icon: BiometricLock.kind().symbol)
+                        }
+                        .accessibilityIdentifier("sign-in-biometric")
+                        Button("Use password instead") { showsPassword = true }
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -110,6 +156,16 @@ struct SignInView: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                // Who it was last time, and whether the phone can answer
+                // for them. A form that has forgotten the account on
+                // every launch is the one thing a sign-in screen should
+                // not do.
+                guard let last = CredentialStore.lastAddress else { return }
+                address = last
+                showsPassword = !(BiometricLock.isAvailable
+                    && CredentialStore.has(address: last))
+            }
         }
     }
 }
