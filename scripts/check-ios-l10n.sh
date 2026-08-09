@@ -17,6 +17,7 @@ cd "$(dirname "$0")/../ios"
 
 python3 - <<'PYEOF'
 import glob
+import json
 import re
 import sys
 
@@ -32,9 +33,57 @@ for path in glob.glob("Mailrs/**/*.swift", recursive=True):
             if len(words) >= 2:
                 found.append((path, line_no, m.group(1)[:70]))
 
-if not found:
-    print("iOS l10n OK — no English sentence bypasses the catalog")
+# The other half, and the bigger one. The first version of this check
+# asked whether every catalog entry had a ja and a zh-Hans value — it
+# did, all 180 of them, and the Japanese settings screen still said
+# "Accounts" in English. A string the catalog never received cannot be
+# missing a translation; it is simply absent, and shows in English.
+# Twenty-six were.
+CATALOG = json.load(open("Mailrs/Resources/Localizable.xcstrings"))["strings"]
+KEYED = re.compile(
+    r'(?:Text|Label|Button|Section|Toggle|Picker|LabeledContent|ContentUnavailableView)\(\s*"([^"\\]{2,})"'
+    r'|title:\s*"([^"\\]{2,})"'
+    r'|navigationTitle\(\s*"([^"\\]{2,})"'
+    r'|placeholder:\s*"([^"\\]{2,})"'
+)
+absent = []
+for path in glob.glob("Mailrs/**/*.swift", recursive=True):
+    for line_no, line in enumerate(open(path), 1):
+        if "verbatim:" in line:
+            continue
+        for m in KEYED.finditer(line):
+            key = next(g for g in m.groups() if g)
+            if key not in CATALOG:
+                absent.append((path, line_no, key))
+
+# And the half it did ask about: an entry with no value for a language
+# the app ships. "Mailrs" is the app's name and has none on purpose.
+untranslated = []
+for key, entry in CATALOG.items():
+    if key == "Mailrs":
+        continue
+    for lang in ("ja", "zh-Hans"):
+        if not entry.get("localizations", {}).get(lang, {}).get("stringUnit", {}).get("value"):
+            untranslated.append((key, lang))
+
+if not found and not absent and not untranslated:
+    print(f"iOS l10n OK — {len(CATALOG)} strings, ja and zh-Hans complete")
     sys.exit(0)
+
+if absent:
+    print("!! used in the app, never reached the catalog — these show in English:")
+    for path, line_no, key in absent:
+        print(f"    {path}:{line_no}  {key[:60]}")
+    print()
+
+if untranslated:
+    print("!! in the catalog with no value for a language the app ships:")
+    for key, lang in untranslated:
+        print(f"    [{lang}] {key[:60]}")
+    print()
+
+if not found:
+    sys.exit(1)
 
 print("!! these read in English whatever language the phone is in:")
 for path, line_no, text in found:

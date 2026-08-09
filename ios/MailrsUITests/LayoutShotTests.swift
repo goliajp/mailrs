@@ -21,6 +21,12 @@ final class LayoutShotTests: MailrsUITestCase {
         ProcessInfo.processInfo.environment["MAILRS_SHOTS_APPEARANCE"]
     }
 
+    /// The language the shots run asks for; the suite's own default is
+    /// English so the walk finds its buttons.
+    private var language: String? {
+        ProcessInfo.processInfo.environment["MAILRS_SHOTS_LANGUAGE"]
+    }
+
     override func setUpWithError() throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["MAILRS_SHOTS"] == "1",
@@ -29,7 +35,7 @@ final class LayoutShotTests: MailrsUITestCase {
     }
 
     func testWalksTheReadingPathTakingPictures() {
-        let app = launch(signedIn: true, appearance: appearance)
+        let app = launch(signedIn: true, language: language, appearance: appearance)
 
         XCTAssertTrue(
             app.staticTexts["Quarterly report and the follow-up notes"]
@@ -57,29 +63,32 @@ final class LayoutShotTests: MailrsUITestCase {
     }
 
     func testPhotographsComposeAndSettings() {
-        let app = launch(signedIn: true, appearance: appearance)
+        let app = launch(signedIn: true, language: language, appearance: appearance)
         XCTAssertTrue(
             app.staticTexts["Quarterly report and the follow-up notes"]
                 .waitForExistence(timeout: 15),
             "inbox never listed"
         )
 
-        app.buttons["New message"].tap()
+        app.buttons["new-message"].tap()
         XCTAssertTrue(
-            app.textFields["someone@example.com"].waitForExistence(timeout: 10),
+            app.textFields["composer-to"].waitForExistence(timeout: 10),
             "composer never opened"
         )
         shoot(app, "04-compose")
-        app.buttons["Cancel"].firstMatch.tap()
+        app.buttons["composer-cancel"].tap()
 
-        app.buttons["Lists"].tap()
+        app.buttons["open-lists"].tap()
         // Scrolled to, not tapped blind: at the accessibility sizes the
         // sheet's rows are tall enough that Settings is below the fold,
         // and a List does not build a cell it has not shown.
-        scrollTo(app, button: "Settings")
-        app.buttons["Settings"].tap()
+        scrollTo(app, button: "open-settings")
+        app.buttons["open-settings"].tap()
         XCTAssertTrue(
-            app.staticTexts["Signed in as"].waitForExistence(timeout: 10),
+            // The signed-in address, which is data and not a word the
+            // catalog translates — unlike "Signed in as", which this
+            // waited on until the Japanese run could not find it.
+            app.staticTexts["me@golia.jp"].waitForExistence(timeout: 10),
             "settings never opened"
         )
         shoot(app, "05-settings")

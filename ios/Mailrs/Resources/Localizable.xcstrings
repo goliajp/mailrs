@@ -321,6 +321,22 @@
         }
       }
     },
+    "Accounts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウント"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号"
+          }
+        }
+      }
+    },
     "Accounts are the mailboxes this server hosts.": {
       "localizations": {
         "ja": {
@@ -333,6 +349,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "账户就是这台服务器托管的邮箱。"
+          }
+        }
+      }
+    },
+    "Add": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加"
           }
         }
       }
@@ -353,6 +385,54 @@
         }
       }
     },
+    "Add account": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加账号"
+          }
+        }
+      }
+    },
+    "Add alias": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアスを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加别名"
+          }
+        }
+      }
+    },
+    "Add domain": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドメインを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加域名"
+          }
+        }
+      }
+    },
     "Add group": {
       "localizations": {
         "ja": {
@@ -365,6 +445,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "新建群组"
+          }
+        }
+      }
+    },
+    "Add member": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メンバーを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加成员"
+          }
+        }
+      }
+    },
+    "Address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址"
           }
         }
       }
@@ -397,6 +509,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "管理操作发生时会即时出现在这里。"
+          }
+        }
+      }
+    },
+    "Alias": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "别名"
+          }
+        }
+      }
+    },
+    "Aliases": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "别名"
           }
         }
       }
@@ -557,6 +701,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加附件"
+          }
+        }
+      }
+    },
+    "Attach sample file": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サンプルファイルを添付"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加示例文件"
           }
         }
       }
@@ -765,6 +925,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法加载 DMARC"
+          }
+        }
+      }
+    },
+    "Could not load accounts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载账号"
+          }
+        }
+      }
+    },
+    "Could not load aliases": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エイリアスを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载别名"
+          }
+        }
+      }
+    },
+    "Could not load domains": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドメインを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载域名"
           }
         }
       }
@@ -1041,6 +1249,22 @@
         }
       }
     },
+    "Delivers to": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配送先"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "投递至"
+          }
+        }
+      }
+    },
     "Directory": {
       "localizations": {
         "ja": {
@@ -1053,6 +1277,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "目录"
+          }
+        }
+      }
+    },
+    "Display name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示名称"
+          }
+        }
+      }
+    },
+    "Domains": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドメイン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "域名"
           }
         }
       }
@@ -1185,6 +1441,22 @@
         }
       }
     },
+    "Groups": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グループ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "组"
+          }
+        }
+      }
+    },
     "Has attachments": {
       "localizations": {
         "ja": {
@@ -1213,6 +1485,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "重要"
+          }
+        }
+      }
+    },
+    "Inactive": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無効"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停用"
           }
         }
       }
@@ -1313,6 +1601,22 @@
         }
       }
     },
+    "List": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リスト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表"
+          }
+        }
+      }
+    },
     "Lists": {
       "localizations": {
         "ja": {
@@ -1341,6 +1645,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "加载图片"
+          }
+        }
+      }
+    },
+    "Mail to this address goes nowhere.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアドレス宛のメールはどこにも届きません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发往这个地址的邮件不会送到任何地方。"
           }
         }
       }
@@ -1444,6 +1764,22 @@
         }
       }
     },
+    "Mode": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モード"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
     "More": {
       "localizations": {
         "ja": {
@@ -1472,6 +1808,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知与推广"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名称"
+          }
+        }
+      }
+    },
+    "New account": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいアカウント"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建账号"
+          }
+        }
+      }
+    },
+    "New alias": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいエイリアス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建别名"
           }
         }
       }
@@ -1792,6 +2176,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有待发送的邮件"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
           }
         }
       }
@@ -2288,6 +2688,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 发送"
+          }
+        }
+      }
+    },
+    "Sent once and hashed by the server. It is not stored on this device.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一度だけ送信され、サーバーでハッシュ化されます。この端末には保存されません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只发送一次，由服务器哈希处理，不会保存在本机。"
           }
         }
       }
