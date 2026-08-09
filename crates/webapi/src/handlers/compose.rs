@@ -329,12 +329,12 @@ pub(crate) fn build_preview(parts: &ComposeParts) -> String {
     } else {
         String::new()
     };
-    let cleaned = src.replace(['\r', '\n'], " ");
-    if cleaned.chars().count() <= 120 {
-        cleaned
-    } else {
-        cleaned.chars().take(120).collect::<String>() + "…"
-    }
+    // The same rule the inbound drain uses. This used to replace CR and
+    // LF with spaces and cut at 120, which on html2text output — blank
+    // lines, non-breaking spaces — could spend the whole line on
+    // whitespace, and left a sent thread reading differently from a
+    // received one in the same list.
+    mailrs_clean::preview_line(&src, 120)
 }
 
 /// Extract the addr-spec (`user@host`) from an RFC 5322 mailbox token.
