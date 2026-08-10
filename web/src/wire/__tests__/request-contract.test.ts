@@ -105,6 +105,12 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('signature-save'))
   })
 
+  it('sender list add', async () => {
+    const { wireAddSender } = await import('../endpoints/settings')
+    const body = await bodyOf(() => wireAddSender('whitelist', 'friend@example.com'))
+    expect(body).toEqual(fixture('sender-list-add'))
+  })
+
   it('key upload', async () => {
     const { wireUploadKey } = await import('../endpoints/settings')
     const body = await bodyOf(() =>

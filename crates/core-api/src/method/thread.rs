@@ -115,7 +115,8 @@ pub struct SentMessagesResponse {
 /// Request body for `PUT /v1/users/{user}/threads/{thread_id}/snooze`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SnoozeRequest {
-    /// Epoch-seconds when to wake the thread up. `0` = "indefinitely until cleared".
+    /// Epoch seconds to wake the thread up at. `0` brings it back now,
+    /// which is what `unsnooze` sends.
     pub snoozed_until: i64,
 }
 

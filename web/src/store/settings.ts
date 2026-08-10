@@ -3,8 +3,6 @@ import { atom } from 'jotai'
 const PAGE_SIZE_KEY = 'mailrs_page_size'
 const NOTIFICATIONS_KEY = 'mailrs_notifications'
 const NOTIFICATION_SOUND_KEY = 'mailrs_notification_sound'
-const SIGNATURE_KEY = 'mailrs_signature'
-const SIGNATURE_ENABLED_KEY = 'mailrs_signature_enabled'
 
 const DEFAULT_PAGE_SIZE = 50
 
@@ -61,37 +59,13 @@ export const notificationSoundAtom = atom(
   }
 )
 
-// --- signature ---
-
-function loadSignature(): string {
-  return localStorage.getItem(SIGNATURE_KEY) ?? ''
-}
-
-function loadSignatureEnabled(): boolean {
-  const raw = localStorage.getItem(SIGNATURE_ENABLED_KEY)
-  if (raw === null) return false
-  return raw === 'true'
-}
-
-const baseSignatureAtom = atom<string>(loadSignature())
-
-export const signatureAtom = atom(
-  (get) => get(baseSignatureAtom),
-  (_get, set, value: string) => {
-    localStorage.setItem(SIGNATURE_KEY, value)
-    set(baseSignatureAtom, value)
-  }
-)
-
-const baseSignatureEnabledAtom = atom<boolean>(loadSignatureEnabled())
-
-export const signatureEnabledAtom = atom(
-  (get) => get(baseSignatureEnabledAtom),
-  (_get, set, value: boolean) => {
-    localStorage.setItem(SIGNATURE_ENABLED_KEY, String(value))
-    set(baseSignatureEnabledAtom, value)
-  }
-)
+// The signature lives on the server, not here.
+//
+// Two atoms used to hold it in `localStorage`, read by the composer
+// and written by no UI anywhere — so what the composer appended was
+// permanently empty, while Settings → Signatures saved one through
+// `/api/mail/signatures` that nothing ever read. `useDefaultSignature`
+// is the one source now.
 
 // standard email signature separator
 const SIG_SEPARATOR = '\n\n-- \n'

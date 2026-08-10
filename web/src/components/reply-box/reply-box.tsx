@@ -9,12 +9,12 @@ import { AutosaveWarning } from '@/components/autosave-warning'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useCurrentThreadMessages } from '@/hooks/use-current-list'
+import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom } from '@/store/auth'
-import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import { wirePolishText, wireReplySuggest } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
 
@@ -60,8 +60,12 @@ export function ReplyBox({
   threadId,
 }: ReplyBoxProps) {
   const auth = useAtomValue(authAtom)
-  const signature = useAtomValue(signatureAtom)
-  const signatureEnabled = useAtomValue(signatureEnabledAtom)
+  // From the server, not from `localStorage`: the atom that used to
+  // feed this was written by no UI anywhere, so the composer's
+  // signature was permanently empty while Settings → Signatures saved
+  // one to the server that nothing ever read.
+  const { html: signature } = useDefaultSignature()
+  const signatureEnabled = signature.trim().length > 0
   // v2.1 phase-5d: read thread messages from RQ but pin the value into
   // a ref so the suggest() callback reads the latest without subscribing
   // the whole component to every WS refetch of the open thread (which

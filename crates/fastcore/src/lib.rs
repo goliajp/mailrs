@@ -43,6 +43,7 @@ mod pop3;
 mod push;
 mod router;
 mod routes;
+mod snooze_wake;
 use headers::*;
 use ingest::*;
 use maildir_scan::*;

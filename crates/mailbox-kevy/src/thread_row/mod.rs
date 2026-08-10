@@ -48,6 +48,13 @@ pub struct ThreadRow {
     pub has_action: bool,
     pub sent_count: i64,
     pub starred: bool,
+    /// Epoch seconds this reader put the thread away until, or 0.
+    ///
+    /// Per reader, like `starred` and `archived` beside it — a snooze
+    /// used to be written to the shared thread hash, where putting a
+    /// conversation away would have done it for everyone who could
+    /// see it, if anything had read the field at all.
+    pub snoozed_until: i64,
 }
 
 impl ThreadRow {
@@ -173,6 +180,10 @@ impl ThreadRow {
             has_action,
             sent_count,
             starred,
+            // The shared hash, which has no user segment: a snooze is
+            // one reader's, and lives on their membership row. Reading
+            // it here would be reading somebody's else's.
+            snoozed_until: 0,
         })
     }
 }
@@ -210,6 +221,7 @@ impl ThreadRow {
             has_action: false,
             sent_count: 0,
             starred: false,
+            snoozed_until: 0,
         };
         for (k, v) in pairs {
             let (Ok(kk), Ok(vv)) = (std::str::from_utf8(k), std::str::from_utf8(v)) else {
@@ -234,6 +246,7 @@ impl ThreadRow {
                 "archived" => row.archived = vv == "1",
                 "has_action" => row.has_action = vv == "1",
                 "starred" => row.starred = vv == "1",
+                "snoozed_until" => row.snoozed_until = vv.parse().unwrap_or(0),
                 _ => {}
             }
         }
@@ -246,12 +259,22 @@ impl ThreadRow {
 ///
 /// Each is written by its own mutator against the membership row.
 /// `thread_user_pairs` leaves them alone; a fresh row gets them at zero.
-pub(crate) const PER_USER_FLAGS: [&str; 5] =
-    ["starred", "archived", "pinned", "unread", "has_action"];
+pub(crate) const PER_USER_FLAGS: [&str; 6] = [
+    "starred",
+    "archived",
+    "pinned",
+    "unread",
+    "has_action",
+    // Not a flag, but planted with them for the same reason: a
+    // `FILTER snoozed_until <= now` drops every row that does not
+    // carry the field at all, so a row without it would vanish from
+    // the inbox rather than stay in it.
+    "snoozed_until",
+];
 
 /// `1` / `0` as the stored bytes for a boolean column. i64-typed in the
 /// declaration so `FILTER flag EQ 1` coerces cleanly.
-fn flag(v: bool) -> &'static [u8] {
+pub(crate) fn flag(v: bool) -> &'static [u8] {
     if v { b"1" } else { b"0" }
 }
 
@@ -537,6 +560,7 @@ mod tests {
             has_action: true,
             sent_count: 1,
             starred: false,
+            snoozed_until: 0,
         }
     }
 

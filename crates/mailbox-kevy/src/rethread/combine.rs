@@ -48,6 +48,14 @@ pub(crate) fn combine_rows(
         has_action: a.has_action || b.has_action,
         sent_count: a.sent_count + b.sent_count,
         starred: a.starred || b.starred,
+        // The sooner of the two, and never a sleep the merge invents:
+        // `archived` above is `a && b`, so a merge of one snoozed
+        // thread with a live one comes back to the inbox, and the
+        // wake time has to come back with it.
+        snoozed_until: match (a.snoozed_until, b.snoozed_until) {
+            (0, _) | (_, 0) => 0,
+            (x, y) => x.min(y),
+        },
     }
 }
 
@@ -82,6 +90,7 @@ mod search_tests {
             has_action: false,
             sent_count: 0,
             starred: false,
+            snoozed_until: 0,
         }
     }
 

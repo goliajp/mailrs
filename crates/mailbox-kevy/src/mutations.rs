@@ -188,33 +188,99 @@ impl KevyMailboxStore {
             .map_err(std::io::Error::other)
     }
 
-    /// Set `snoozed_until` (epoch seconds; `0` = unsnooze) on the
-    /// thread. No dedicated index zset — snoozed threads still appear
-    /// in activity/category zsets; the webapi filters by comparing
-    /// `snoozed_until > now` when the user selects the "hide snoozed"
-    /// view.
+    /// Put a thread away until an epoch second, or `0` to bring it
+    /// back.
+    ///
+    /// On **this user's** membership row, not the shared thread hash.
+    /// It used to be the hash, which had two consequences: putting a
+    /// thread away did it for everyone who could see it, and — because
+    /// nothing anywhere parsed the field — it did it for nobody. The
+    /// list read now filters `snoozed_until <= now` off the declared
+    /// column, so a thread comes back when its time passes with
+    /// nothing sweeping it awake.
     ///
     /// Returns `true` when the row existed.
-    pub fn set_snoozed(
-        &self,
-        _user: &str,
-        thread_id: &str,
-        snoozed_until: i64,
-    ) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
+    pub fn set_snoozed(&self, user: &str, thread_id: &str, snoozed_until: i64) -> io::Result<bool> {
+        let key = keys::thread_user(user, thread_id);
         let val = snoozed_until.to_string();
+        // Away is `archived`, and the time is beside it.
+        //
+        // Not a predicate of its own on the list read: the page comes
+        // from an ORDERPATH and the total from `idx_count`, and only
+        // the page can carry a FILTER — a snooze predicate on one and
+        // not the other is a list and a badge that disagree, which is
+        // the failure `scoped_clause` exists to prevent. `archived` is
+        // an equality column both already share, so every axis, count
+        // and cursor keeps working with nothing new to keep in step.
+        let away = snoozed_until > 0;
         self.store()
             .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                if !ctx.hexists(key.as_bytes(), b"tid")? {
                     return Ok(false);
                 }
                 ctx.hset(
-                    thread_key.as_bytes(),
-                    &[(b"snoozed_until" as &[u8], val.as_bytes())],
+                    key.as_bytes(),
+                    &[
+                        (b"snoozed_until" as &[u8], val.as_bytes()),
+                        (b"archived", crate::thread_row::flag(away)),
+                    ],
                 )?;
                 Ok(true)
             })
             .map_err(std::io::Error::other)
+    }
+
+    /// Bring back every thread whose time has come.
+    ///
+    /// Returns how many woke — a number that is 0 on the overwhelming
+    /// majority of calls, and costs an empty range scan to produce:
+    /// the index is keyed on `snoozed_until`, every ordinary row
+    /// stores `0`, and this asks for `[1, now]`. Nothing is written
+    /// when nothing is due, which is what
+    /// `periodic-work-must-converge` asks of anything on a timer.
+    pub fn wake_snoozed(&self, now: i64) -> io::Result<usize> {
+        let (rows, _) = self
+            .store()
+            .idx_query(
+                b"threaduser.snoozed_until",
+                &kevy_embedded::IndexValue::I64(1),
+                &kevy_embedded::IndexValue::I64(now),
+                None,
+                500,
+            )
+            .map_err(io::Error::other)?;
+        let mut woken = 0usize;
+        for (key, _) in rows {
+            let key = String::from_utf8(key).map_err(io::Error::other)?;
+            let changed = self
+                .store()
+                .atomic(|ctx| {
+                    // Re-read inside the transaction: the row may have
+                    // been unsnoozed, or snoozed further out, between
+                    // the query and here.
+                    let due = ctx
+                        .hget(key.as_bytes(), b"snoozed_until")?
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .and_then(|v| v.parse::<i64>().ok())
+                        .unwrap_or(0);
+                    if due == 0 || due > now {
+                        return Ok(false);
+                    }
+                    ctx.hset(
+                        key.as_bytes(),
+                        &[
+                            (b"snoozed_until" as &[u8], b"0" as &[u8]),
+                            (b"archived", b"0"),
+                        ],
+                    )?;
+                    Ok(true)
+                })
+                .map_err(io::Error::other)?;
+            if changed {
+                woken += 1;
+            }
+        }
+        Ok(woken)
     }
 
     /// Hard-delete `thread_id` for `user`. Removes the row hash + drops
@@ -620,5 +686,192 @@ mod tests {
         let s = store();
         assert!(!s.set_archived("u@x.com", "nope", true).unwrap());
         assert!(!s.set_pinned("u@x.com", "nope", true).unwrap());
+    }
+
+    /// Snoozing takes a thread out of the inbox, and time puts it back.
+    ///
+    /// Before this, `set_snoozed` wrote `snoozed_until` to the shared
+    /// thread hash and nothing anywhere parsed it: the web's snooze
+    /// dropped the row optimistically and the next refetch brought it
+    /// straight back. The feature had never done anything, on either
+    /// client, and every layer looked right on its own.
+    #[test]
+    fn a_snoozed_thread_leaves_the_inbox_and_comes_back_by_itself() {
+        let s = store();
+        let u = "alice@x.com";
+        s.record_message_arrival(&MessageArrival {
+            thread_id: "t-nap",
+            user: u,
+            subject: "Later",
+            senders_csv: "bob@y.com",
+            latest_date: 100,
+            latest_preview: "p",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        })
+        .unwrap();
+        let inbox = || {
+            s.list_thread_ids_by_bucket_via_table(
+                u,
+                "inbox",
+                crate::table_query::ArchiveScope::Live,
+                50,
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            inbox(),
+            vec!["t-nap".to_string()],
+            "not in the inbox to begin with"
+        );
+
+        assert!(s.set_snoozed(u, "t-nap", 5_000).unwrap());
+        assert!(inbox().is_empty(), "snoozed and still in the inbox");
+
+        // Nothing is due yet, and asking costs no writes.
+        assert_eq!(s.wake_snoozed(4_999).unwrap(), 0);
+        assert!(inbox().is_empty(), "woke early");
+
+        assert_eq!(
+            s.wake_snoozed(5_000).unwrap(),
+            1,
+            "the due row did not wake"
+        );
+        assert_eq!(
+            inbox(),
+            vec!["t-nap".to_string()],
+            "woke, but not back in the inbox"
+        );
+        // And waking is idempotent: a second sweep has nothing to do.
+        assert_eq!(s.wake_snoozed(9_999).unwrap(), 0);
+    }
+
+    /// The count and the list answer the same question.
+    ///
+    /// They are built from one equality prefix precisely so they
+    /// cannot disagree; a snooze predicate that applied to the page
+    /// and not to `idx_count` would be a list with nothing in it above
+    /// a badge that says three.
+    #[test]
+    fn the_bucket_count_follows_the_list_when_a_thread_naps() {
+        let s = store();
+        let u = "alice@x.com";
+        for (i, tid) in ["t1", "t2", "t3"].iter().enumerate() {
+            s.record_message_arrival(&MessageArrival {
+                thread_id: tid,
+                user: u,
+                subject: "s",
+                senders_csv: "bob@y.com",
+                latest_date: 100 + i as i64,
+                latest_preview: "p",
+                category: "inbox",
+                unread: true,
+                is_own: false,
+            })
+            .unwrap();
+        }
+        let count = || {
+            s.count_thread_ids_by_bucket_via_table(
+                u,
+                "inbox",
+                crate::table_query::ArchiveScope::Live,
+            )
+            .unwrap()
+        };
+        assert_eq!(count(), 3);
+        s.set_snoozed(u, "t2", 5_000).unwrap();
+        assert_eq!(
+            count(),
+            2,
+            "the badge still counts a thread the list will not show"
+        );
+        s.wake_snoozed(5_000).unwrap();
+        assert_eq!(count(), 3);
+    }
+
+    /// Unsnoozing by hand is setting the time to zero, and it must put
+    /// the thread back rather than leaving it filed away for good.
+    #[test]
+    fn unsnoozing_returns_the_thread() {
+        let s = store();
+        let u = "alice@x.com";
+        s.record_message_arrival(&MessageArrival {
+            thread_id: "t-nap",
+            user: u,
+            subject: "s",
+            senders_csv: "bob@y.com",
+            latest_date: 100,
+            latest_preview: "p",
+            category: "inbox",
+            unread: false,
+            is_own: false,
+        })
+        .unwrap();
+        s.set_snoozed(u, "t-nap", 5_000).unwrap();
+        assert!(s.set_snoozed(u, "t-nap", 0).unwrap());
+        assert_eq!(
+            s.list_thread_ids_by_bucket_via_table(
+                u,
+                "inbox",
+                crate::table_query::ArchiveScope::Live,
+                50
+            )
+            .unwrap(),
+            vec!["t-nap".to_string()]
+        );
+    }
+
+    /// A thread nobody has a row for cannot be snoozed, and says so
+    /// rather than creating one.
+    #[test]
+    fn snoozing_a_thread_with_no_row_reports_it() {
+        let s = store();
+        assert!(!s.set_snoozed("alice@x.com", "nope", 5_000).unwrap());
+    }
+
+    /// A snooze survives the next message.
+    ///
+    /// `upsert_thread` derives the membership row from the shared
+    /// aggregate, which has no user segment — when it emitted the
+    /// per-user flags, an arrival for one owner rewrote every owner's
+    /// state with whatever the last one had. `starred` was fixed that
+    /// way and `snoozed_until` joins it: mail arriving in a thread
+    /// somebody put away must not drag it back out.
+    #[test]
+    fn an_arrival_does_not_cancel_a_snooze() {
+        let s = store();
+        let u = "alice@x.com";
+        let arrive = |date: i64| {
+            s.record_message_arrival(&MessageArrival {
+                thread_id: "t-nap",
+                user: u,
+                subject: "s",
+                senders_csv: "bob@y.com",
+                latest_date: date,
+                latest_preview: "p",
+                category: "inbox",
+                unread: true,
+                is_own: false,
+            })
+            .unwrap();
+        };
+        arrive(100);
+        s.set_snoozed(u, "t-nap", 5_000).unwrap();
+        arrive(200);
+
+        let row = s.get_thread_for_user(u, "t-nap").unwrap().expect("row");
+        assert_eq!(row.snoozed_until, 5_000, "the arrival cancelled the snooze");
+        assert!(
+            s.list_thread_ids_by_bucket_via_table(
+                u,
+                "inbox",
+                crate::table_query::ArchiveScope::Live,
+                50
+            )
+            .unwrap()
+            .is_empty(),
+            "the arrival dragged a put-away thread back into the inbox"
+        );
     }
 }

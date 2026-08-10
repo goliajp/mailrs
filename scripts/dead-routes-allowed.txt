@@ -1,0 +1,27 @@
+# Routes that are registered and deliberately have no client.
+#
+# Read by scripts/check-dead-routes.sh. A route here is not a defect;
+# a route here without a reason is. Say what serves the same need, or
+# why nothing needs to.
+#
+# Anything NOT listed here and not called by a client fails the gate,
+# which is how `POST /api/scheduled/{id}/cancel` was found: a
+# scheduled send could be created and never cancelled, from any
+# interface, on the day iOS learned to create one.
+
+# ---- measurement and one-shot migrations ----
+
+/api/mail/sends:shadow          # a shadow route: it exists to be compared against, per measure-before-you-cut-over. A client would defeat the point.
+/api/agent/keys:migrate-legacy  # one-shot migration, run by hand once. Kept so a rollback can re-run it.
+
+# ---- an operator's view of a self-service store ----
+
+/api/admin/webhook-subscriptions            # the same `families::webhooks` store `/api/agent/webhooks` serves, addressed by account instead of by caller. No operator UI has been asked for; the self-service one is wired.
+/api/admin/webhook-subscriptions/{id}       # as above
+/api/admin/accounts/{address}/webhook-subscriptions  # as above
+
+# ---- served, but by a different shape of the same data ----
+
+/api/admin/audit/conversations/{thread_id}  # the audit page reads `/{thread_id}/messages`, which is the level it displays. The bare thread route returns the same rows unfiltered.
+/api/admin/audit-log/export                 # the audit page lists with `?limit=`; nobody has asked to download the log. Left because an export that has to be re-added later is worse than one that waits.
+/api/mail/sends/{send_id}/source            # `message/rfc822` bytes of a send. Web reaches `/redraft` and `/resend`, which are what the Send view offers; raw source has no UI on either client.

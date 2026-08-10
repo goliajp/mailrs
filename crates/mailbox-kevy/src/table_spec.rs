@@ -228,6 +228,7 @@ pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
         "pinned",
         "unread",
         "has_action",
+        "snoozed_until",
     ]
     .iter()
     .map(|c| c.as_bytes().to_vec())
@@ -251,6 +252,14 @@ pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
             col("pinned", ValType::I64),
             col("unread", ValType::I64),
             col("has_action", ValType::I64),
+            // Epoch seconds this person put the thread away until, or
+            // 0. A stored value rather than an index of its own: the
+            // read filters `snoozed_until <= now`, so a row comes back
+            // when its time passes and nothing has to sweep it awake.
+            // A flag would need that sweep, and a sweep that flips one
+            // bit per thread per minute is the shape
+            // `periodic-work-must-converge` exists to refuse.
+            col("snoozed_until", ValType::I64),
         ],
         // The boolean predicates, each keyed on its own flag with
         // `user` and `activity` stored alongside. Unlike the bucket
@@ -267,6 +276,12 @@ pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
             // The Sent axis has the same shape: key on the flag,
             // filter to the user, sort by recency.
             "is_sender",
+            // Not a flag: keyed on the epoch second a thread is due
+            // back. Every ordinary row stores 0, so asking for
+            // `[1, now]` is an empty scan until something is actually
+            // due — which is what makes waking cost nothing on the
+            // calls where nothing has to happen.
+            "snoozed_until",
         ]
         .iter()
         .map(|c| TableIndex {
@@ -442,6 +457,7 @@ mod table_spec_tests {
             has_action: false,
             sent_count: 0,
             starred: false,
+            snoozed_until: 0,
         };
         // The union of the two writers: the derived fields, plus the
         // per-user flags a fresh row is planted with. They are apart on

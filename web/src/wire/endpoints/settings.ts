@@ -15,6 +15,7 @@ import {
   createdAgentKeySchema,
   createdWebhookSchema,
   keyStatusSchema,
+  senderListSchema,
   signatureListSchema,
   webhookListSchema,
   type WireAgentKey,
@@ -197,11 +198,55 @@ export async function wireListWebhooks(): Promise<readonly WireWebhook[]> {
 export const wireGetKeyStatus = (): Promise<WireKeyStatus> =>
   wireFetch(keyStatusSchema, { path: '/mail/keys/status' })
 
+export type SenderListName = 'blacklist' | 'whitelist'
+
+export async function wireAddSender(list: SenderListName, address: string): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    body: { address },
+    method: 'POST',
+    path: list === 'whitelist' ? '/spam/whitelist' : '/spam/blacklist',
+  })
+}
+
+// ── sender lists ─────────────────────────────────────────────────
+//
+// `spam:{user}:whitelist` is live: marking a conversation *not junk*
+// adds its sender, and the inbound pipeline reads the set on every
+// delivery. These four routes have existed since before either client
+// did and neither ever called them — so the list could only ever
+// grow, and nobody could see what was on it.
+//
+// Backend: `crates/webapi/src/handlers/spam_lists.rs` —
+// `{"entries": [...]}` on GET, `AddRequest { address }` on POST.
+
 export async function wireDeleteKey(type: string): Promise<void> {
   await wireFetch(emptyResponseSchema, {
     allowEmpty: true,
     method: 'DELETE',
     path: `/mail/keys/${encodeURIComponent(type)}`,
+  })
+}
+
+export async function wireListSenders(list: SenderListName): Promise<readonly string[]> {
+  // Spelled out rather than interpolated. `/spam/${list}` is the same
+  // request and is invisible to `check-dead-routes.sh`, which can only
+  // see the literals a file holds — a route that *is* called looking
+  // like one nobody calls is exactly the report that gate exists to
+  // give.
+  const path = list === 'whitelist' ? '/spam/whitelist' : '/spam/blacklist'
+  const raw = await wireFetch(senderListSchema, { path })
+  return raw.entries
+}
+
+export async function wireRemoveSender(list: SenderListName, address: string): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    method: 'DELETE',
+    path:
+      list === 'whitelist'
+        ? `/spam/whitelist/${encodeURIComponent(address)}`
+        : `/spam/blacklist/${encodeURIComponent(address)}`,
   })
 }
 

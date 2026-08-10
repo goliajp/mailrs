@@ -262,6 +262,14 @@ pub struct ConversationSummary {
     /// — i.e. things the user sent themselves. The UI uses this together
     /// with `message_count` to render "x received · y sent" on the card.
     pub sent_count: u32,
+    /// epoch seconds this reader put the thread away until, or 0.
+    ///
+    /// Carried so a client can say *Snoozed until Tuesday* instead of
+    /// showing a thread that has quietly left the inbox. Per reader:
+    /// it used to live on the shared thread row, where putting a
+    /// conversation away would have done it for everyone who could
+    /// see it — had anything read the field at all.
+    pub snoozed_until: i64,
 }
 
 /// AI analysis result stored in email_analysis table

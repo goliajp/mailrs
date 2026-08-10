@@ -75,6 +75,7 @@ vi.mock('@/hooks/use-mail-mutations', () => ({
   useStarMutation: stubMutation,
   useUnarchiveMutation: stubMutation,
   useUnpinMutation: stubMutation,
+  useUnsnoozeMutation: stubMutation,
   useUnstarMutation: stubMutation,
 }))
 

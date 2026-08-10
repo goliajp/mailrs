@@ -92,6 +92,15 @@ pub struct ConversationSummaryWire {
     pub importance_score: f32,
     pub requires_action: bool,
     pub sent_count: u32,
+    /// Epoch seconds this reader put the thread away until, or `0`.
+    ///
+    /// On the row so a client can say *Snoozed until Tuesday* rather
+    /// than showing a thread that has silently left the inbox. It is
+    /// per-reader: the field used to live on the shared thread hash,
+    /// where putting a conversation away would have done it for
+    /// everyone who could see it — had anything read it at all.
+    #[serde(default)]
+    pub snoozed_until: i64,
 }
 
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
@@ -112,6 +121,7 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             importance_score: s.importance_score,
             requires_action: s.requires_action,
             sent_count: s.sent_count,
+            snoozed_until: s.snoozed_until,
         }
     }
 }
@@ -224,6 +234,7 @@ mod tests {
             importance_score: 0.8,
             requires_action: true,
             sent_count: 0,
+            snoozed_until: 0,
         };
         let s = serde_json::to_string(&w).unwrap();
         let back: ConversationSummaryWire = serde_json::from_str(&s).unwrap();

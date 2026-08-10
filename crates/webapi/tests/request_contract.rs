@@ -85,6 +85,18 @@ fn signature_save_body_matches() {
     assert_eq!(v.html, "<p>Regards</p>");
 }
 
+/// The address the client sends is the field the handler reads.
+///
+/// `spam:{user}:whitelist` is live — marking a conversation *not junk*
+/// adds a sender and the inbound pipeline reads the set on delivery —
+/// and until v2.55 no client called these routes at all, so nothing
+/// had ever checked the shape either.
+#[test]
+fn sender_list_add_body_matches() {
+    let v: handlers::spam_lists::AddRequest = parse("sender-list-add");
+    assert_eq!(v.address, "friend@example.com");
+}
+
 #[test]
 fn key_upload_body_matches() {
     let v: handlers::keys::SetKeyRequest = parse("key-upload");
@@ -437,6 +449,7 @@ fn every_fixture_has_a_test() {
         "reset-password",
         "send",
         "send-redraft",
+        "sender-list-add",
         "signature-save",
         "snooze",
         "system-config-set",

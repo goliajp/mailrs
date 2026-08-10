@@ -319,6 +319,7 @@ mod tests {
                 .trim()
                 .to_string(),
             sent_count: 0,
+            snoozed_until: 0,
         }
     }
 

@@ -304,6 +304,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             delete(handlers::messages::cancel_pending_send),
         )
         // G13.3 scheduled outbound queue control
+        .route("/api/scheduled", get(handlers::messages::list_scheduled))
         .route(
             "/api/scheduled/{id}/cancel",
             post(handlers::messages::cancel_scheduled),

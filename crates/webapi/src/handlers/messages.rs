@@ -497,6 +497,66 @@ fn content_disposition(filename: &str) -> String {
     format!("inline; filename=\"{ascii}\"; {encoded}")
 }
 
+/// `GET /api/scheduled` — the caller's own future-dated sends.
+///
+/// Cancel and reschedule have existed since G13.3 and no client has
+/// ever called either, because nothing could list what there was to
+/// cancel: the listing existed only as an MCP tool. A phone that can
+/// schedule a message and not un-schedule it is worse than one that
+/// cannot schedule at all.
+pub async fn list_scheduled(
+    State(_state): State<Arc<WebState>>,
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let ids = crate::handlers::kevy_util::with_kevy(|c| {
+        c.zrange(SCHEDULED_IDX, 0, -1)
+            .map_err(std::io::Error::other)
+    })
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let items = crate::handlers::kevy_util::with_kevy(move |c| {
+        let mut out: Vec<serde_json::Value> = Vec::new();
+        for member in ids {
+            let Ok(id) = String::from_utf8(member.clone()) else {
+                continue;
+            };
+            let hkey = format!("mailrs:outbound:job:{id}");
+            let Some(blob) = c
+                .hget(hkey.as_bytes(), b"blob")
+                .map_err(std::io::Error::other)?
+            else {
+                continue;
+            };
+            let Ok(env) = serde_json::from_slice::<serde_json::Value>(&blob) else {
+                continue;
+            };
+            // Somebody else's scheduled mail is not this caller's to
+            // see or to cancel; the cancel route makes the same check
+            // against the same field.
+            if env.get("sender").and_then(|v| v.as_str()) != Some(user.as_str()) {
+                continue;
+            }
+            let scheduled_at = c
+                .zscore(SCHEDULED_IDX, &member)
+                .map_err(std::io::Error::other)?
+                .unwrap_or(0.0) as i64;
+            out.push(serde_json::json!({
+                "id": id,
+                "scheduled_at": scheduled_at,
+                "recipient": env.get("recipient").and_then(|v| v.as_str()).unwrap_or(""),
+                "subject": env.get("subject").and_then(|v| v.as_str()).unwrap_or(""),
+            }));
+        }
+        // Soonest first: the one about to go is the one you came to
+        // stop.
+        out.sort_by_key(|v| v.get("scheduled_at").and_then(|s| s.as_i64()).unwrap_or(0));
+        Ok(out)
+    })
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
 #[cfg(test)]
 mod tests {
     use super::blob_ref_location;

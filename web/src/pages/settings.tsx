@@ -25,6 +25,12 @@ const EncryptionKeysSection = lazy(() =>
 const SecuritySection = lazy(() =>
   import('@/components/settings/security-section').then((m) => ({ default: m.SecuritySection }))
 )
+const SendersSection = lazy(() =>
+  import('@/components/settings/senders-section').then((m) => ({
+    default: m.SendersSection,
+  }))
+)
+
 const SignaturesSection = lazy(() =>
   import('@/components/settings/signatures-section').then((m) => ({
     default: m.SignaturesSection,
@@ -41,6 +47,7 @@ type Category =
   | 'calendar-feeds'
   | 'keys'
   | 'security'
+  | 'senders'
   | 'signatures'
   | 'webhooks'
 
@@ -48,6 +55,7 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'account', label: 'Account' },
   { key: 'security', label: 'Security' },
   { key: 'signatures', label: 'Signatures' },
+  { key: 'senders', label: 'Senders' },
   { key: 'keys', label: 'Encryption Keys' },
   { key: 'api-keys', label: 'API Keys' },
   { key: 'webhooks', label: 'Webhooks' },
@@ -128,6 +136,7 @@ export function Settings() {
               {active === 'account' && <AccountSection />}
               {active === 'security' && <SecuritySection />}
               {active === 'signatures' && <SignaturesSection />}
+              {active === 'senders' && <SendersSection />}
               {active === 'keys' && <EncryptionKeysSection />}
               {active === 'api-keys' && <ApiKeysSection />}
               {active === 'webhooks' && <WebhooksSection />}

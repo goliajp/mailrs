@@ -15,4 +15,4 @@ export type JunkAction =
   | 'mark-notification'
   | 'mark-promotion'
   | 'move-to-inbox'
-export type SingleAction = 'pin' | 'snooze' | 'unpin' | BatchAction | JunkAction
+export type SingleAction = 'pin' | 'snooze' | 'unpin' | 'unsnooze' | BatchAction | JunkAction
