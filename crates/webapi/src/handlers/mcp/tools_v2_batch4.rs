@@ -8,6 +8,7 @@ use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
+use mailrs_core_sidestate::families::outbound::SCHEDULED_IDX;
 
 #[tool_router(router = tool_router_v2_batch4, vis = "pub")]
 impl MailrsMcpService {
@@ -40,7 +41,7 @@ impl MailrsMcpService {
     async fn list_own_scheduled(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         let raw = with_kevy(|c| {
-            c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1)
+            c.zrange(SCHEDULED_IDX, 0, -1)
                 .map_err(std::io::Error::other)
         })
         .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
@@ -65,7 +66,7 @@ impl MailrsMcpService {
                     continue;
                 }
                 let score = c
-                    .zscore(b"mailrs:outbound:scheduled-idx", &m)
+                    .zscore(SCHEDULED_IDX, &m)
                     .map_err(std::io::Error::other)?
                     .unwrap_or(0.0) as i64;
                 out.push(serde_json::json!({

@@ -65,9 +65,22 @@ fn job_key(id: i64) -> String {
     format!("mailrs:outbound:job:{id}")
 }
 
-const PENDING_IDX: &[u8] = b"mailrs:outbound:pending-idx";
+/// The queue the sender pops from.
+///
+/// `pub` alongside [`SCHEDULED_IDX`] so the sender names the same
+/// bytes rather than its own copy of the string — see below.
+pub const PENDING_IDX: &[u8] = b"mailrs:outbound:pending-idx";
 
-const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
+/// Where a future-dated send waits, scored by its send time.
+///
+/// `pub` because the sender's due-sweep had a second constant of its
+/// own — `mailrs:outbound:scheduled`, without the suffix — and swept
+/// that instead. Nothing has written that key since the queue moved to
+/// the `-idx` names in v2.5.3, so a scheduled message was enqueued
+/// here, never promoted, and never left. Both prod zsets were empty
+/// when this was found, so no mail was lost; the feature had simply
+/// never run. One exported name, and the two cannot drift again.
+pub const SCHEDULED_IDX: &[u8] = b"mailrs:outbound:scheduled-idx";
 
 const DONE_IDX: &[u8] = b"mailrs:outbound:done-idx";
 
@@ -392,4 +405,22 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
         failed: cnt_at(&replies, 2),
         bounced: cnt_at(&replies, 3),
     })
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    /// The suffix is the whole bug.
+    ///
+    /// The sender's due-sweep carried its own copy of this name without
+    /// the `-idx`, so it walked a zset nothing writes: a scheduled send
+    /// was enqueued here and never promoted. Asserting the bytes is
+    /// weak on its own — what makes it hold is that every reader now
+    /// imports these two constants and no file spells them again.
+    #[test]
+    fn the_queue_names_are_the_ones_every_reader_imports() {
+        assert_eq!(PENDING_IDX, b"mailrs:outbound:pending-idx");
+        assert_eq!(SCHEDULED_IDX, b"mailrs:outbound:scheduled-idx");
+    }
 }

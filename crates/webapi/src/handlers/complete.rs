@@ -14,6 +14,7 @@ use axum::{
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
+use mailrs_core_sidestate::families::outbound::PENDING_IDX;
 
 // Split by subject on 2026-08-02 — 1,687 lines holding password recovery,
 // TOTP, system config, groups, audit and the agent surface. Re-exported so
@@ -304,9 +305,7 @@ pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
     // been dead since Phase 8.1 (see stone outbound.rs), so the old
     // read returned only stuck ghosts.
     let ids = with_kevy(|c| {
-        let pending = c
-            .lrange(b"mailrs:outbound:pending-idx", 0, 99)
-            .unwrap_or_default();
+        let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
         let inflight = c
             .lrange(b"mailrs:outbound:inflight", 0, 99)
             .unwrap_or_default();

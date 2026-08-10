@@ -8,6 +8,7 @@ use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
+use mailrs_core_sidestate::families::outbound::PENDING_IDX;
 
 #[tool_router(router = tool_router_v2_batch6, vis = "pub")]
 impl MailrsMcpService {
@@ -18,9 +19,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         let (pending_ids, inflight_ids): (Vec<Vec<u8>>, Vec<Vec<u8>>) = with_kevy(|c| {
-            let pending = c
-                .lrange(b"mailrs:outbound:pending-idx", 0, 99)
-                .unwrap_or_default();
+            let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
             let inflight = c
                 .lrange(b"mailrs:outbound:inflight", 0, 99)
                 .unwrap_or_default();
