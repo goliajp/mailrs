@@ -75,6 +75,24 @@ extension Session {
     }
 
 
+    /// Pin, or unpin.
+    ///
+    /// Optimistic like the star, and it moves the row: `PinOrder`
+    /// arranges at render, so the patch is what lifts it.
+    func togglePinned(_ conversation: Wire.Conversation) async {
+        guard let client else { return }
+        let pinned = !conversation.pinned
+        let previous = conversations
+        withAnimation { patch(conversation.threadId) { $0.pinned = pinned } }
+        do {
+            try await client.setPinned(threadId: conversation.threadId, pinned)
+        } catch {
+            conversations = previous
+            banner = error.localizedDescription
+        }
+    }
+
+
     /// Replace one row in whichever collection is on screen.
     ///
     /// Take rows off **both** stores.

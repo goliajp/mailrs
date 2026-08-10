@@ -51,6 +51,19 @@ enum StarToggle {
     }
 }
 
+/// The pin, in the two states it has.
+enum PinLabel {
+    static func title(pinned: Bool) -> LocalizedStringKey {
+        if pinned { return "Unpin" }
+        return "Pin to top"
+    }
+
+    static func icon(pinned: Bool) -> String {
+        if pinned { return "pin.slash" }
+        return "pin"
+    }
+}
+
 /// A `TextEditor` that says what it is for while it is empty.
 ///
 /// SwiftUI's has no placeholder, so an empty composer is an unlabelled

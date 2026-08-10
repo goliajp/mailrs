@@ -192,6 +192,19 @@ extension MailrsClient {
     }
 
 
+    /// Pin a thread to the top of the list, or let it back down.
+    ///
+    /// `pinned` is a declared column with an axis of its own and the
+    /// web has drawn pinned rows first since it had rows; this client
+    /// decoded the field and ignored it, so a thread pinned at the desk
+    /// was buried on the phone. Same shape as star: POST, no body, 204.
+    func setPinned(threadId: String, _ pinned: Bool) async throws {
+        var verbName = "unpin"
+        if pinned { verbName = "pin" }
+        try await verb("POST", "/api/conversations/\(MailrsClient.segment(threadId))/\(verbName)")
+    }
+
+
     /// Where a thread belongs: Inbox, Notifications or Promotions.
     ///
     /// The server has had `mark-notification`, `mark-promotion` and

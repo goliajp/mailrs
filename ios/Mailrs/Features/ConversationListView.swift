@@ -66,6 +66,21 @@ struct ConversationListView: View {
                                 : Color(.systemBackground)
                         )
                         .contextMenu {
+                            // Pinning is a long-press: it is done once
+                            // and read for weeks, unlike the swipes,
+                            // which are the fifty-a-day gestures. The
+                            // list already came back with this field —
+                            // the phone simply had no way to set it and
+                            // did not draw the ones the desk had.
+                            Button {
+                                Task { await session.togglePinned(conversation) }
+                            } label: {
+                                Label(
+                                    PinLabel.title(pinned: conversation.pinned),
+                                    systemImage: PinLabel.icon(pinned: conversation.pinned)
+                                )
+                            }
+                            Divider()
                             // Junk lives in the long-press menu, not the
                             // swipe rows — those are full, and a verdict
                             // that trains the filter deserves a deliberate

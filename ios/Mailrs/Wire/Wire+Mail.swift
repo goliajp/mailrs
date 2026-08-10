@@ -127,7 +127,9 @@ extension Wire {
         /// `var` for the same reason as `unreadCount` — the star toggle.
         var flagged: Bool
         let snippet: String
-        let pinned: Bool
+        /// `var` for the same reason as `flagged` — the pin toggle
+        /// writes it before the server has answered.
+        var pinned: Bool
         let archived: Bool
         let importanceLevel: String
         let importanceScore: Double
