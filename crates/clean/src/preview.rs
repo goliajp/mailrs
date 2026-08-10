@@ -56,6 +56,12 @@ pub fn preview_line(text: &str, max: usize) -> String {
 
 /// Characters that occupy no width and carry no meaning in a preview.
 ///
+/// **Not** the zero-width joiner. It occupies no width either, and
+/// dropping it looked consistent — but joining is its whole job:
+/// `👨‍👩‍👧` is three people and two joiners, and without them a preview
+/// shows three separate emoji. One real subject in the corpus is built
+/// that way.
+///
 /// The soft hyphen is here for the same reason as the rest: it is a
 /// hint about where a word *may* break, and a preview that keeps it
 /// shows a hyphen in the middle of a word on the one line where it will
@@ -66,7 +72,7 @@ fn is_zero_width(ch: char) -> bool {
         '\u{00AD}' // soft hyphen
             | '\u{200B}' // zero-width space
             | '\u{200C}' // zero-width non-joiner
-            | '\u{200D}' // zero-width joiner
+
             | '\u{2060}' // word joiner
             | '\u{FEFF}' // zero-width no-break space / BOM
     )
@@ -127,6 +133,17 @@ mod tests {
     #[test]
     fn a_body_exactly_at_the_limit_is_not_marked() {
         assert_eq!(preview_line("abcd", 4), "abcd");
+    }
+
+    /// A family is one glyph made of three people and two joiners.
+    /// Dropping the joiners as "zero width" turns it into three.
+    #[test]
+    fn a_joined_emoji_stays_joined() {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        assert_eq!(
+            preview_line(&format!("Sale {family} today"), 120),
+            format!("Sale {family} today")
+        );
     }
 
     #[test]
