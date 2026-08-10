@@ -87,11 +87,25 @@ struct ComposeView: View {
                     AttachMenu(attachments: $attachments)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Send") { Task { await send() } }
-                        // A subject or a body may be empty — plenty of
-                        // real mail is one line with no subject — but a
-                        // message with nowhere to go is not a message.
-                        .disabled(!AddressList.isSendable(to) || sending)
+                    // A menu, not a plain button: a long press for
+                    // "send later" would be a gesture nobody finds, and
+                    // the server has taken `scheduled_at` all along.
+                    Menu {
+                        ForEach(SendSchedule.allCases) { option in
+                            Button(option.label) {
+                                Task { await send(schedule: option) }
+                            }
+                        }
+                    } label: {
+                        Text("Send")
+                    } primaryAction: {
+                        Task { await send(schedule: .now) }
+                    }
+                    // A subject or a body may be empty — plenty of
+                    // real mail is one line with no subject — but a
+                    // message with nowhere to go is not a message.
+                    .disabled(!AddressList.isSendable(to) || sending)
+                    .accessibilityIdentifier("composer-send")
                 }
             }
             .onAppear {
@@ -153,7 +167,7 @@ struct ComposeView: View {
         )
     }
 
-    private func send() async {
+    private func send(schedule: SendSchedule) async {
         sending = true
         failure = nil
         do {
@@ -161,7 +175,8 @@ struct ComposeView: View {
                 to: AddressList.parse(to), cc: AddressList.parse(cc),
                 bcc: AddressList.parse(bcc), subject: subject,
                 body: MailSignature.append(body: body_, signature: session.signature),
-                attachments: attachments
+                attachments: attachments,
+                scheduledAt: schedule.fireDate(after: Date(), calendar: .current)
             )
             // Sent, so it is no longer a draft. Cancel the pending
             // autosave first or it recreates the one just deleted.
