@@ -157,3 +157,44 @@ extension Session {
         initialLoading = false
     }
 }
+
+
+/// The signature, from the account rather than from the device.
+@MainActor
+extension Session {
+    /// Read it at sign-in. The default one, or the first if the server
+    /// has several and marked none — a phone edits one signature, and
+    /// picking nothing would mean signing with nothing.
+    func loadSignature() async {
+        guard let client else { return }
+        guard let list = try? await client.signatures() else { return }
+        var chosen = list.first(where: \.isDefault)
+        if chosen == nil { chosen = list.first }
+        guard let chosen else { return }
+        signature = chosen.textContent
+        signatureId = chosen.id
+    }
+
+    /// Save what was typed, dropping the row it replaces.
+    ///
+    /// Clearing the text deletes the signature outright rather than
+    /// storing an empty one — "no signature" is the absence of a row,
+    /// not a row that says nothing.
+    func saveSignature(_ text: String) async {
+        guard let client else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            if trimmed.isEmpty {
+                if let signatureId { try await client.deleteSignature(id: signatureId) }
+                signature = ""
+                signatureId = nil
+                return
+            }
+            signatureId = try await client.replaceDefaultSignature(
+                text: trimmed, replacing: signatureId)
+            signature = trimmed
+        } catch {
+            banner = error.localizedDescription
+        }
+    }
+}

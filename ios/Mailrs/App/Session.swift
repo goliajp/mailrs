@@ -130,6 +130,14 @@ final class Session {
     // in Session+Directory / +Triage / +Compose / +Operations.
 
 
+    /// The signature this account signs with, and the row it lives in.
+    ///
+    /// From the server, not from the device: a signature kept locally
+    /// belongs to a phone rather than to a person, which is how the web
+    /// ended up signing differently in every browser.
+    var signature = ""
+    var signatureId: Int64?
+
     var drafts: [Wire.Draft] = []
 
 
@@ -199,6 +207,7 @@ final class Session {
             // that never updated.
             await loadConversations()
             await loadMyAliases()
+            await loadSignature()
             return
         }
         guard let token = TokenStore.load() else { return }
@@ -209,6 +218,7 @@ final class Session {
             conversations = try await client.conversations(axes: axes)
             await refreshBadge()
             await loadMyAliases()
+            await loadSignature()
         } catch {
             // The stored token no longer works — clear it rather than
             // leaving a credential that fails on every launch.
@@ -285,6 +295,7 @@ final class Session {
             PushRegistrar.requestBadgeAuthorization()
             await loadConversations()
             await loadMyAliases()
+            await loadSignature()
         } catch MailrsError.needsTotp {
             needsTotp = true
             state = .signedOut

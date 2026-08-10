@@ -465,6 +465,22 @@
         }
       }
     },
+    "Added to mail sent from this account, above any quoted text.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントから送信するメールに、引用文の上に追加されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将添加到此账号发出的邮件中，位于引用内容之上。"
+          }
+        }
+      }
+    },
     "Address": {
       "localizations": {
         "ja": {
@@ -2804,6 +2820,22 @@
         }
       }
     },
+    "Sent from my phone": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone から送信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自我的手机"
+          }
+        }
+      }
+    },
     "Sent once and hashed by the server. It is not stored on this device.": {
       "localizations": {
         "ja": {
@@ -2896,6 +2928,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出登录"
+          }
+        }
+      }
+    },
+    "Signature": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "署名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "签名"
           }
         }
       }

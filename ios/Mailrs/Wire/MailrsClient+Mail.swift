@@ -287,3 +287,48 @@ extension MailrsClient {
         }
     }
 }
+
+
+/// The signature the account signs with.
+///
+/// `GET /api/mail/signatures`, `POST` and `DELETE /{id}` have been
+/// live the whole time and nothing called them: the web keeps its
+/// signature in `localStorage`, so it belongs to a browser rather than
+/// to a person, and mail from the phone went out unsigned.
+extension MailrsClient {
+    func signatures() async throws -> [Wire.Signature] {
+        try await getJSON("/api/mail/signatures")
+    }
+
+    /// Save, then drop what it replaced.
+    ///
+    /// `POST` always allocates a fresh id — the handler takes no id and
+    /// calls `next_id` unconditionally — so saving twice without this
+    /// leaves a trail of signatures behind, one per edit.
+    func replaceDefaultSignature(text: String, replacing previous: Int64?) async throws -> Int64 {
+        let body = try JSONEncoder().encode(
+            Wire.SaveSignatureRequest(name: "Mobile", textContent: text, isDefault: true))
+        let (data, response) = try await send(
+            "POST", "/api/mail/signatures", body: body, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        let saved: Wire.SaveSignatureResponse
+        do {
+            saved = try JSONDecoder().decode(Wire.SaveSignatureResponse.self, from: data)
+        } catch {
+            throw MailrsError.decoding("signature save — \(error)")
+        }
+        if let previous, previous != saved.id {
+            try await deleteSignature(id: previous)
+        }
+        return saved.id
+    }
+
+    func deleteSignature(id: Int64) async throws {
+        try await verb("DELETE", "/api/mail/signatures/\(id)")
+    }
+}

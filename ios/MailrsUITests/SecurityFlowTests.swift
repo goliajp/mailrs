@@ -28,7 +28,10 @@ final class SecurityFlowTests: MailrsUITestCase {
 
         app.buttons["Lists"].tap()
         app.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["Aliases"].waitForExistence(timeout: 5), "no admin section")
+        // Scrolled to, not asserted where it happens to sit: the
+        // settings form scrolls, and this row's position moves every
+        // time a section is added above it.
+        scrollTo(app, button: "Aliases")
         app.buttons["Aliases"].tap()
 
         XCTAssertTrue(app.staticTexts["sales@golia.jp"].waitForExistence(timeout: 10),
