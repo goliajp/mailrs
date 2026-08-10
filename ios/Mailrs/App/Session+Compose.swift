@@ -70,20 +70,22 @@ extension Session {
     func sendNew(
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
         subject: String, body: String,
-        attachments: [MultipartForm.FilePart] = []
+        attachments: [MultipartForm.FilePart] = [],
+        scheduledAt: Int64? = nil
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendNew(
-                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body
+                    to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
+                    scheduledAt: scheduledAt
                 )
             }
             // Files ride the multipart route; the JSON route has no
             // field for them.
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                attachments: attachments
+                attachments: attachments, scheduledAt: scheduledAt
             )
         }
     }

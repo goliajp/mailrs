@@ -17,12 +17,13 @@ extension MailrsClient {
     @discardableResult
     func sendNew(
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
-        subject: String, body: String
+        subject: String, body: String, scheduledAt: Int64? = nil
     ) async throws -> Wire.SendResponse {
         try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
-            forwardMessageId: nil, forwardAttachmentsFrom: nil
+            forwardMessageId: nil, forwardAttachmentsFrom: nil,
+            scheduledAt: scheduledAt
         ))
     }
 
@@ -40,7 +41,8 @@ extension MailrsClient {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: inReplyTo, replyToThreadId: threadId,
-            forwardMessageId: nil, forwardAttachmentsFrom: nil
+            forwardMessageId: nil, forwardAttachmentsFrom: nil,
+            scheduledAt: nil
         ))
     }
 
@@ -60,7 +62,8 @@ extension MailrsClient {
         inReplyTo: String? = nil,
         replyToThreadId: String? = nil,
         forwardMessageId: String? = nil,
-        forwardAttachmentsFrom: UInt32? = nil
+        forwardAttachmentsFrom: UInt32? = nil,
+        scheduledAt: Int64? = nil
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
         // Repeated fields, one per address, exactly as `to` is — the
@@ -79,6 +82,11 @@ extension MailrsClient {
         if let forwardAttachmentsFrom {
             fields.append(("forward_attachments_from", String(forwardAttachmentsFrom)))
         }
+        // Epoch seconds. An empty field means "not scheduling" and
+        // anything unparseable is a 400 — which is the fix for the web
+        // having posted ISO 8601 here and had every scheduled send go
+        // out at once.
+        if let scheduledAt { fields.append(("scheduled_at", String(scheduledAt))) }
         let form = MultipartForm.encode(fields: fields, files: attachments, boundary: boundary)
         let url = baseURL.appendingPathComponent("/api/mail/send-multipart")
         let (data, response) = try await send(
@@ -118,7 +126,8 @@ extension MailrsClient {
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: forwardMessageId,
-            forwardAttachmentsFrom: forwardAttachmentsFrom
+            forwardAttachmentsFrom: forwardAttachmentsFrom,
+            scheduledAt: nil
         ))
     }
 

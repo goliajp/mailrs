@@ -113,7 +113,7 @@ struct WireTests {
             to: ["alice@example.com"], cc: ["carol@example.com"], bcc: [],
             subject: "Re: Q3", body: "Noted.",
             inReplyTo: "<m1@x>", replyToThreadId: "t1",
-            forwardMessageId: nil, forwardAttachmentsFrom: nil
+            forwardMessageId: nil, forwardAttachmentsFrom: nil, scheduledAt: nil
         )
         let text = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
         #expect(text.contains("\"in_reply_to\":\"<m1@x>\""))
@@ -135,7 +135,7 @@ struct WireTests {
             to: ["x@example.com"], cc: [], bcc: ["quiet@example.com"],
             subject: "Fwd: Q3", body: "FYI.",
             inReplyTo: nil, replyToThreadId: nil,
-            forwardMessageId: "<m2@x>", forwardAttachmentsFrom: 2
+            forwardMessageId: "<m2@x>", forwardAttachmentsFrom: 2, scheduledAt: nil
         )
         let text = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
         #expect(text.contains("\"forward_message_id\":\"<m2@x>\""))

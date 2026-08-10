@@ -103,6 +103,14 @@ extension Wire {
         let forwardMessageId: String?
         /// The uid whose attachments ride along on a forward.
         let forwardAttachmentsFrom: UInt32?
+        /// Hold the message until this epoch second, or absent for now.
+        ///
+        /// Epoch **seconds**, as an integer. The web composer sent an
+        /// ISO 8601 string here for as long as scheduling existed and
+        /// the handler read anything unparseable as "not scheduling":
+        /// every scheduled send went out immediately and nothing said
+        /// so. It is a 400 now — hence an `Int64`, never a date string.
+        let scheduledAt: Int64?
 
         enum CodingKeys: String, CodingKey {
             case to
@@ -114,6 +122,7 @@ extension Wire {
             case replyToThreadId = "reply_to_thread_id"
             case forwardMessageId = "forward_message_id"
             case forwardAttachmentsFrom = "forward_attachments_from"
+            case scheduledAt = "scheduled_at"
         }
     }
 
