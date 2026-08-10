@@ -381,3 +381,35 @@ extension Session {
         }
     }
 }
+
+
+/// Putting a conversation away until later.
+@MainActor
+extension Session {
+    /// Snooze, or wake.
+    ///
+    /// The row leaves the list at once, because on the server it
+    /// leaves too: a snooze files the thread away and records when it
+    /// is due back. Before v2.55 the field was written to the shared
+    /// thread row and read by nobody, so both clients dropped the row
+    /// optimistically and the next refresh brought it back.
+    func snooze(_ conversation: Wire.Conversation, until: Int64?) async {
+        guard let client else { return }
+        let previous = conversations
+        let previousResults = searchResults
+        // Off both stores: `conversations` and `searchResults` hold
+        // the same rows twice, and every removal that said it once
+        // left the row sitting in whichever list was not on screen.
+        withAnimation {
+            conversations.removeAll { $0.threadId == conversation.threadId }
+            searchResults.removeAll { $0.threadId == conversation.threadId }
+        }
+        do {
+            try await client.setSnoozed(threadId: conversation.threadId, until: until)
+        } catch {
+            conversations = previous
+            searchResults = previousResults
+            banner = error.localizedDescription
+        }
+    }
+}

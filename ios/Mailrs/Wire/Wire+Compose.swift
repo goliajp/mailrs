@@ -140,3 +140,40 @@ extension Wire {
         }
     }
 }
+
+extension Wire {
+    /// Backend: `crates/webapi/src/handlers/messages.rs` —
+    /// `list_scheduled` answers `{"items": [...]}` with the caller's
+    /// own future-dated sends, soonest first.
+    struct ScheduledListResponse: Decodable, Sendable {
+        let items: [ScheduledSend]
+    }
+
+    struct ScheduledSend: Decodable, Identifiable, Sendable {
+        let id: String
+        let scheduledAt: Int64
+        let recipient: String
+        let subject: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case scheduledAt = "scheduled_at"
+            case recipient
+            case subject
+        }
+    }
+}
+
+extension Wire {
+    /// Backend: `RescheduleRequest { scheduled_at: i64 }`. Epoch
+    /// seconds and in the future — the handler answers 400 for a time
+    /// that has already passed.
+    struct RescheduleRequest: Encodable {
+        let scheduledAt: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case scheduledAt = "scheduled_at"
+        }
+    }
+}
+

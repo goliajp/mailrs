@@ -131,6 +131,13 @@ extension Wire {
         /// writes it before the server has answered.
         var pinned: Bool
         let archived: Bool
+        /// Epoch seconds this reader put the thread away until, or 0.
+        ///
+        /// Absent from every server before v2.55, where the field was
+        /// written to the shared thread row and parsed by nothing —
+        /// so snoozing did nothing at all. Optional here because a
+        /// client may be talking to an older one.
+        var snoozedUntil: Int64?
         let importanceLevel: String
         let importanceScore: Double
         let requiresAction: Bool
@@ -151,6 +158,7 @@ extension Wire {
             case snippet
             case pinned
             case archived
+            case snoozedUntil = "snoozed_until"
             case importanceLevel = "importance_level"
             case importanceScore = "importance_score"
             case requiresAction = "requires_action"
@@ -241,3 +249,29 @@ extension Wire {
         let id: Int64
     }
 }
+
+extension Wire {
+    /// Backend: `SnoozeBody { snoozed_until: i64 }`. Epoch **seconds**
+    /// and an integer — the web posted an ISO 8601 string here for as
+    /// long as scheduling existed and every request 422'd.
+    struct SnoozeRequest: Encodable {
+        let snoozedUntil: Int64
+
+        enum CodingKeys: String, CodingKey {
+            case snoozedUntil = "snoozed_until"
+        }
+    }
+}
+
+extension Wire {
+    /// Backend: `crates/webapi/src/handlers/spam_lists.rs` —
+    /// `{"entries": [...]}`, and `AddRequest { address }`.
+    struct SenderListResponse: Decodable, Sendable {
+        let entries: [String]
+    }
+
+    struct AddSenderRequest: Encodable {
+        let address: String
+    }
+}
+

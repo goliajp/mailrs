@@ -20,7 +20,7 @@ struct SendListSection: View {
     }
 
     var body: some View {
-        if rows.isEmpty {
+        if rows.isEmpty && session.scheduledSends.isEmpty {
             if session.initialLoading {
                 ProgressView()
             } else {
@@ -30,11 +30,28 @@ struct SendListSection: View {
                 )
             }
         } else {
-            List(rows) { row in
-                SendRowView(row: row)
+            List {
+                // Above what has already gone: this is the only screen
+                // that can stop a scheduled message, and it is worth
+                // nothing below fifty delivered ones.
+                if !session.scheduledSends.isEmpty {
+                    Section("Scheduled") {
+                        ForEach(session.scheduledSends) { pending in
+                            ScheduledRowView(send: pending)
+                        }
+                    }
+                }
+                Section {
+                    ForEach(rows) { row in
+                        SendRowView(row: row)
+                    }
+                }
             }
             .listStyle(.plain)
-            .refreshable { await session.loadSendRows() }
+            .refreshable {
+                await session.loadSendRows()
+                await session.loadScheduled()
+            }
         }
     }
 }
@@ -143,5 +160,50 @@ private extension View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(tint.opacity(0.12), in: Capsule())
+    }
+}
+
+
+/// One message that has not left yet.
+private struct ScheduledRowView: View {
+    @Environment(Session.self) private var session
+    let send: Wire.ScheduledSend
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "clock")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                ValueOrPlaceholder(value: send.subject, placeholder: "(no subject)")
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                Text(
+                    RowDate.stamp(epochSeconds: send.scheduledAt)
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .swipeActions {
+            Button(role: .destructive) {
+                Task { await session.cancelScheduled(send) }
+            } label: {
+                Label("Cancel", systemImage: "xmark")
+            }
+        }
+        .contextMenu {
+            // Changing the time, rather than cancelling and writing it
+            // again: the message is already composed, and re-typing it
+            // is not what "an hour later would be better" means.
+            ForEach(SendSchedule.allCases.filter { $0 != .now }) { option in
+                Button(option.label) {
+                    guard let when = option.fireDate(after: Date(), calendar: .current) else {
+                        return
+                    }
+                    Task { await session.rescheduleScheduled(send, to: when) }
+                }
+            }
+        }
     }
 }

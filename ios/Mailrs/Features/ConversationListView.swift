@@ -80,6 +80,32 @@ struct ConversationListView: View {
                                     systemImage: PinLabel.icon(pinned: conversation.pinned)
                                 )
                             }
+                            // Away until later. A submenu rather than
+                            // four more rows: snoozing is one idea with
+                            // four answers, and the menu already holds
+                            // the pin, the buckets and the junk verdict.
+                            if SnoozeState.isAsleep(conversation, now: Date()) {
+                                Button {
+                                    Task { await session.snooze(conversation, until: nil) }
+                                } label: {
+                                    Label("Wake now", systemImage: "bell")
+                                }
+                            } else {
+                                Menu {
+                                    ForEach(SnoozeChoice.allCases) { choice in
+                                        Button(choice.label) {
+                                            Task {
+                                                await session.snooze(
+                                                    conversation,
+                                                    until: choice.fireDate(
+                                                        after: Date(), calendar: .current))
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Label("Snooze", systemImage: "clock")
+                                }
+                            }
                             Divider()
                             // Junk lives in the long-press menu, not the
                             // swipe rows — those are full, and a verdict

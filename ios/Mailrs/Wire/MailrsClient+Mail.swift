@@ -332,3 +332,60 @@ extension MailrsClient {
         try await verb("DELETE", "/api/mail/signatures/\(id)")
     }
 }
+
+
+/// Putting a conversation away until later.
+///
+/// `PUT /api/conversations/{id}/snooze` with epoch seconds, `DELETE`
+/// to bring it back. Both have existed for as long as snoozing has;
+/// what did not exist until v2.55 was any effect — the server wrote
+/// the field to the shared thread row and no reader parsed it, so the
+/// web's snooze dropped the row locally and the next refresh returned
+/// it.
+extension MailrsClient {
+    func setSnoozed(threadId: String, until: Int64?) async throws {
+        let path = "/api/conversations/\(MailrsClient.segment(threadId))/snooze"
+        guard let until else {
+            try await verb("DELETE", path)
+            return
+        }
+        let body = try JSONEncoder().encode(Wire.SnoozeRequest(snoozedUntil: until))
+        let (_, response) = try await send("PUT", path, body: body, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+    }
+}
+
+
+/// The two lists that decide what bypasses the filter, and what never
+/// arrives.
+///
+/// `spam:{user}:whitelist` is live: marking a thread *not junk* adds
+/// its sender, and the inbound pipeline reads the set on every
+/// delivery. The four routes that show and edit it have existed all
+/// along with no client on any platform — so the list could only ever
+/// grow, and nobody could see what was on it.
+extension MailrsClient {
+    func senderList(_ kind: SenderListKind) async throws -> [String] {
+        let wrapper: Wire.SenderListResponse = try await getJSON(kind.listPath)
+        return wrapper.entries
+    }
+
+    func addToSenderList(_ kind: SenderListKind, address: String) async throws {
+        let body = try JSONEncoder().encode(Wire.AddSenderRequest(address: address))
+        let (_, response) = try await send("POST", kind.listPath, body: body, authorized: true)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode)
+        else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
+    func removeFromSenderList(_ kind: SenderListKind, address: String) async throws {
+        try await verb("DELETE", "\(kind.listPath)/\(MailrsClient.segment(address))")
+    }
+}

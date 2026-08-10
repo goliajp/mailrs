@@ -227,7 +227,10 @@ final class AdminFlowTests: MailrsUITestCase {
 
         app.buttons["Lists"].tap()
         app.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["Accounts"].waitForExistence(timeout: 5), "no accounts entry")
+        // Scrolled to, not asserted where it happens to sit: the
+        // settings form scrolls, and every row below moves each
+        // time a section is added above it.
+        scrollTo(app, button: "Accounts")
         app.buttons["Accounts"].tap()
 
         XCTAssertTrue(app.staticTexts["Li Hao"].waitForExistence(timeout: 10),

@@ -401,6 +401,22 @@
         }
       }
     },
+    "Add address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレスを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加地址"
+          }
+        }
+      }
+    },
     "Add alias": {
       "localizations": {
         "ja": {
@@ -605,6 +621,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "全部处理完毕"
+          }
+        }
+      }
+    },
+    "Always allowed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に許可"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "始终允许"
+          }
+        }
+      }
+    },
+    "Always blocked": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常にブロック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "始终拦截"
           }
         }
       }
@@ -1601,6 +1649,22 @@
         }
       }
     },
+    "Later today": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天晚些"
+          }
+        }
+      }
+    },
     "Light": {
       "localizations": {
         "ja": {
@@ -1661,6 +1725,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "加载图片"
+          }
+        }
+      }
+    },
+    "Mail from these addresses is treated as junk on arrival.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これらのアドレスからのメールは受信時に迷惑メールとして扱われます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自这些地址的邮件在收信时会被当作垃圾邮件。"
           }
         }
       }
@@ -1764,6 +1844,22 @@
         }
       }
     },
+    "Marking a conversation as not junk adds its sender here. Mail from these addresses skips the spam filter.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "迷惑メールではないと指定すると、その差出人がここに追加されます。これらのアドレスからのメールはスパムフィルターを通過します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将会话标记为「非垃圾」会把其发件人加到这里。来自这些地址的邮件会跳过垃圾邮件过滤。"
+          }
+        }
+      }
+    },
     "Members": {
       "localizations": {
         "ja": {
@@ -1824,6 +1920,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "模式"
+          }
+        }
+      }
+    },
+    "Monday morning": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "月曜の朝"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "周一早上"
           }
         }
       }
@@ -2036,6 +2148,22 @@
         }
       }
     },
+    "Next week": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来週"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下周"
+          }
+        }
+      }
+    },
     "No API keys": {
       "localizations": {
         "ja": {
@@ -2048,6 +2176,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有 API 密钥"
+          }
+        }
+      }
+    },
+    "No addresses": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレスなし"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有地址"
           }
         }
       }
@@ -2516,6 +2660,22 @@
         }
       }
     },
+    "Remove": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "削除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        }
+      }
+    },
     "Reply": {
       "localizations": {
         "ja": {
@@ -2772,6 +2932,54 @@
         }
       }
     },
+    "Send later": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "後で送信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍后发送"
+          }
+        }
+      }
+    },
+    "Send now": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ送信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即发送"
+          }
+        }
+      }
+    },
+    "Senders": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差出人"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发件人"
+          }
+        }
+      }
+    },
     "Sending": {
       "localizations": {
         "ja": {
@@ -2980,6 +3188,22 @@
         }
       }
     },
+    "Snooze": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スヌーズ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍后处理"
+          }
+        }
+      }
+    },
     "Star": {
       "localizations": {
         "ja": {
@@ -3140,6 +3364,22 @@
         }
       }
     },
+    "This weekend": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今週末"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周末"
+          }
+        }
+      }
+    },
     "This will permanently delete all messages.": {
       "localizations": {
         "ja": {
@@ -3216,6 +3456,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "收件人"
+          }
+        }
+      }
+    },
+    "Tomorrow morning": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明日の朝"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明天早上"
           }
         }
       }
@@ -3476,6 +3732,22 @@
         }
       }
     },
+    "Wake now": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ戻す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即唤醒"
+          }
+        }
+      }
+    },
     "What it may do": {
       "localizations": {
         "ja": {
@@ -3536,6 +3808,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "copy@example.com"
+          }
+        }
+      }
+    },
+    "someone@example.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "someone@example.com"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "someone@example.com"
           }
         }
       }
