@@ -403,4 +403,41 @@ final class ComposeFlowTests: MailrsUITestCase {
         app.terminate()
         setStubListDelay(0)
     }
+    /// Send is a button, and "send later" is somewhere else.
+    ///
+    /// It was briefly a `Menu(primaryAction:)` labelled "Send": a
+    /// button to a person, a menu to anything driving the app. Every
+    /// test that taps Send then waited out its timeout for a message
+    /// the menu had swallowed, and a suite that had been taking ten
+    /// minutes stopped finishing at all.
+    func testSendIsATapAndSchedulingIsItsOwnControl() {
+        resetStub()
+        let app = launch(signedIn: true)
+        XCTAssertTrue(
+            app.staticTexts["Quarterly report and the follow-up notes"]
+                .waitForExistence(timeout: 15), "inbox never listed")
+        app.buttons["New message"].tap()
+
+        let to = app.textFields["someone@example.com"]
+        XCTAssertTrue(to.waitForExistence(timeout: 10), "composer never opened")
+        to.tap()
+        to.typeText("alice@example.com")
+
+        XCTAssertTrue(app.buttons["Send later"].exists,
+                      "no way to schedule — send later has no control of its own")
+        app.buttons["Send"].tap()
+
+        // Sent, not menued: the stub records the body, and a menu that
+        // opened instead would leave nothing here.
+        var sent: [[String: Any]] = []
+        for _ in 0..<20 {
+            sent = sentMessages()
+            if !sent.isEmpty { break }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        XCTAssertEqual(sent.count, 1, "tapping Send did not send")
+        XCTAssertNil(sent.first?["scheduled_at"],
+                     "an ordinary send carried a schedule")
+    }
+
 }

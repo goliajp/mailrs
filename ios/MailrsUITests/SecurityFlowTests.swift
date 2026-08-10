@@ -76,6 +76,10 @@ final class SecurityFlowTests: MailrsUITestCase {
 
         app.buttons["Lists"].tap()
         app.buttons["Settings"].tap()
+        // Scrolled to, not asserted where it happens to sit: the
+        // settings form scrolls, and every row below moves each
+        // time a section is added above it.
+        scrollTo(app, button: "API keys")
         app.buttons["API keys"].tap()
         XCTAssertTrue(app.staticTexts["Scheduler"].waitForExistence(timeout: 10),
                       "the key list never decoded")

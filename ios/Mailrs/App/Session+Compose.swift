@@ -200,3 +200,48 @@ extension Session {
         }
     }
 }
+
+
+/// Mail that has not left yet.
+@MainActor
+extension Session {
+    func loadScheduled() async {
+        guard let client else { return }
+        guard let items = try? await client.scheduledSends() else { return }
+        scheduledSends = items
+    }
+
+    /// Stop one before it goes.
+    ///
+    /// Off the list first, then the wire — and back if the wire
+    /// refuses. A row that lingers after Cancel reads as a message
+    /// that is still going out, which is the one thing this screen
+    /// exists to answer.
+    /// Move one to a different time.
+    ///
+    /// The list is re-read rather than patched: the server sorts by
+    /// when, so a row whose time changed belongs somewhere else, and
+    /// a locally-edited row would sit in the old position until the
+    /// next refresh.
+    func rescheduleScheduled(_ send: Wire.ScheduledSend, to when: Int64) async {
+        guard let client else { return }
+        do {
+            try await client.rescheduleScheduled(id: send.id, to: when)
+            await loadScheduled()
+        } catch {
+            banner = error.localizedDescription
+        }
+    }
+
+    func cancelScheduled(_ send: Wire.ScheduledSend) async {
+        guard let client else { return }
+        let previous = scheduledSends
+        withAnimation { scheduledSends.removeAll { $0.id == send.id } }
+        do {
+            try await client.cancelScheduled(id: send.id)
+        } catch {
+            scheduledSends = previous
+            banner = error.localizedDescription
+        }
+    }
+}

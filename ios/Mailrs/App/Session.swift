@@ -138,6 +138,9 @@ final class Session {
     var signature = ""
     var signatureId: Int64?
 
+    /// Mail that has not left yet — the only way to stop one.
+    var scheduledSends: [Wire.ScheduledSend] = []
+
     var drafts: [Wire.Draft] = []
 
 
@@ -399,9 +402,14 @@ final class Session {
         searchQuery = nil
         reachedEnd = false
         sendRows = []
+        scheduledSends = []
         if list == .send {
             initialLoading = true
             await loadSendRows()
+            // In the same breath: this screen is the only place a
+            // scheduled message can be stopped, and one that loads a
+            // beat later is one the reader has already scrolled past.
+            await loadScheduled()
         } else {
             await loadConversations()
         }

@@ -86,26 +86,36 @@ struct ComposeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     AttachMenu(attachments: $attachments)
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    // A menu, not a plain button: a long press for
-                    // "send later" would be a gesture nobody finds, and
-                    // the server has taken `scheduled_at` all along.
+                // Its own `ToolbarItem`, not sharing one with Send.
+                // Two controls inside a single item are composed into
+                // one element, and `buttons["Send"]` — which ten tests
+                // use — then matches nothing at all.
+                ToolbarItem(placement: .topBarTrailing) {
+                    // Two controls, not one menu with a primary
+                    // action: a `Menu(primaryAction:)` labelled "Send"
+                    // is a button to a person and a menu to anything
+                    // driving the app, and every test that taps Send
+                    // sat waiting for a message the menu had swallowed.
                     Menu {
-                        ForEach(SendSchedule.allCases) { option in
+                        ForEach(SendSchedule.allCases.filter { $0 != .now }) { option in
                             Button(option.label) {
                                 Task { await send(schedule: option) }
                             }
                         }
                     } label: {
-                        Text("Send")
-                    } primaryAction: {
-                        Task { await send(schedule: .now) }
+                        Label("Send later", systemImage: "clock")
                     }
-                    // A subject or a body may be empty — plenty of
-                    // real mail is one line with no subject — but a
-                    // message with nowhere to go is not a message.
                     .disabled(!AddressList.isSendable(to) || sending)
-                    .accessibilityIdentifier("composer-send")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    // No `accessibilityIdentifier`: it *replaces* the
+                    // label as the element's identity, and adding one
+                    // here made `buttons["Send"]` match nothing.
+                    Button("Send") { Task { await send(schedule: .now) } }
+                        // A subject or a body may be empty — plenty of
+                        // real mail is one line with no subject — but a
+                        // message with nowhere to go is not a message.
+                        .disabled(!AddressList.isSendable(to) || sending)
                 }
             }
             .onAppear {

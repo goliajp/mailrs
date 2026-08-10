@@ -12,6 +12,7 @@ struct SettingsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     @State private var showingSignature = false
+    @State private var showingSenders = false
     @State private var signatureDraft = ""
     @State private var showingAliases = false
     @State private var showingAccounts = false
@@ -58,6 +59,11 @@ struct SettingsView: View {
                         showingSignature = true
                     } label: {
                         LucideRow(title: "Signature", icon: Lucide.penLine)
+                    }
+                    Button {
+                        showingSenders = true
+                    } label: {
+                        LucideRow(title: "Senders", icon: Lucide.shieldCheck)
                     }
                 }
 
@@ -178,6 +184,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingSignature) {
                 SignatureEditor(text: $signatureDraft)
             }
+            .sheet(isPresented: $showingSenders) { SenderListsView() }
             .sheet(isPresented: $showingAudit) { AuditLogView() }
             .sheet(isPresented: $showingPermissions) { PermissionGroupsView() }
             .task {

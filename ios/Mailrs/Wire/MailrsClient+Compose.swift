@@ -199,3 +199,40 @@ extension MailrsClient {
         try await verb("DELETE", "/api/mail/drafts/\(id)")
     }
 }
+
+
+/// Mail that has not left yet.
+///
+/// `POST /api/scheduled/{id}/cancel` and `/reschedule` have existed
+/// since G13.3 with no caller anywhere, because nothing could list
+/// what there was to cancel — the listing was an MCP tool. A phone
+/// that can schedule a message and not un-schedule it is worse than
+/// one that cannot schedule at all.
+extension MailrsClient {
+    func scheduledSends() async throws -> [Wire.ScheduledSend] {
+        let wrapper: Wire.ScheduledListResponse = try await getJSON("/api/scheduled")
+        return wrapper.items
+    }
+
+    func cancelScheduled(id: String) async throws {
+        try await verb("POST", "/api/scheduled/\(MailrsClient.segment(id))/cancel")
+    }
+
+    /// Move a scheduled send to a different time.
+    ///
+    /// The handler refuses a time that has already passed with a 400,
+    /// which is why the choices offered are all in the future — a
+    /// "later today" at 11pm has to be three hours on, never an
+    /// evening clock time that has been and gone.
+    func rescheduleScheduled(id: String, to when: Int64) async throws {
+        let body = try JSONEncoder().encode(Wire.RescheduleRequest(scheduledAt: when))
+        let (_, response) = try await send(
+            "POST", "/api/scheduled/\(MailrsClient.segment(id))/reschedule",
+            body: body, authorized: true)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode)
+        else {
+            throw MailrsError.server(status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+}
