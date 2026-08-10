@@ -13,6 +13,8 @@ struct ConversationListView: View {
     @State private var showingSettings = false
     @State private var selection = Set<String>()
     @State private var editMode: EditMode = .inactive
+    /// The thread whose bucket is being chosen, from the swipe.
+    @State private var pendingMove: Wire.Conversation?
 
     private var allSelected: Bool {
         !session.visibleConversations.isEmpty
@@ -131,6 +133,19 @@ struct ConversationListView: View {
                                 )
                             }
                             .tint(.blue)
+                            // Reachable by swipe, not only by a long
+                            // press. Reported from the phone as looking
+                            // for it on the swipes and not finding it —
+                            // which is the right place to look, and a
+                            // menu nobody can see is a menu nobody has.
+                            if !MailBucket.offered(from: session.activeList).isEmpty {
+                                Button {
+                                    pendingMove = conversation
+                                } label: {
+                                    Label("Move", systemImage: "tray.and.arrow.down")
+                                }
+                                .tint(.indigo)
+                            }
                             Button {
                                 Task { await session.toggleStarred(conversation) }
                             } label: {
@@ -163,6 +178,21 @@ struct ConversationListView: View {
                     // one.
                     .refreshable { await session.loadConversations() }
                 }
+            }
+            .confirmationDialog(
+                "Move to",
+                isPresented: Binding(
+                    get: { pendingMove != nil },
+                    set: { if !$0 { pendingMove = nil } }),
+                presenting: pendingMove
+            ) { conversation in
+                ForEach(MailBucket.offered(from: session.activeList)) { bucket in
+                    Button(bucket.label) {
+                        Task { await session.move(conversation, to: bucket) }
+                        pendingMove = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingMove = nil }
             }
             .navigationTitle(navigationTitle)
             // Inline, not large: the large title spends about fifty
