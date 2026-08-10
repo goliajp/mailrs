@@ -159,7 +159,8 @@ struct ComposeView: View {
         do {
             try await session.sendNew(
                 to: AddressList.parse(to), cc: AddressList.parse(cc),
-                bcc: AddressList.parse(bcc), subject: subject, body: body_,
+                bcc: AddressList.parse(bcc), subject: subject,
+                body: MailSignature.append(body: body_, signature: session.signature),
                 attachments: attachments
             )
             // Sent, so it is no longer a draft. Cancel the pending

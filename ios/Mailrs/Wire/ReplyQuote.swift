@@ -48,13 +48,17 @@ enum ReplyQuote {
         var kept: [String] = []
         var used = 0
         var truncated = false
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+        // `isNewline` rather than the literal `"\n"`: a CRLF is one
+        // `Character` in Swift and does not equal it, so a message from
+        // a Windows client is one line to `split(separator:)` and would
+        // be quoted as a single unbroken paragraph.
+        for line in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
             if used + line.count > limit {
                 truncated = true
                 break
             }
             used += line.count + 1
-            kept.append("> " + line.trimmingCharacters(in: CharacterSet(charactersIn: "\r")))
+            kept.append("> " + line)
         }
         if truncated { kept.append("> […]") }
         return kept.joined(separator: "\n")

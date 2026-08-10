@@ -11,6 +11,8 @@ struct SettingsView: View {
     @Environment(Preferences.self) private var preferences
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @State private var showingSignature = false
+    @State private var signatureDraft = ""
     @State private var showingAliases = false
     @State private var showingAccounts = false
     @State private var showingDomains = false
@@ -46,6 +48,16 @@ struct SettingsView: View {
                         showingKeys = true
                     } label: {
                         LucideRow(title: "API keys", icon: Lucide.keyRound)
+                    }
+                    // A row rather than an editor in the form: a
+                    // `TextEditor` inside a `Form` takes the scroll
+                    // gesture over its own area, and a 72pt one here
+                    // pushed everything below it out of the rendered
+                    // window — the admin rows stopped existing.
+                    Button {
+                        showingSignature = true
+                    } label: {
+                        LucideRow(title: "Signature", icon: Lucide.penLine)
                     }
                 }
 
@@ -163,8 +175,17 @@ struct SettingsView: View {
             .sheet(isPresented: $showingQueue) { QueueView() }
             .sheet(isPresented: $showingKeys) { AgentKeysView() }
             .sheet(isPresented: $showingDmarc) { DmarcView() }
+            .sheet(isPresented: $showingSignature) {
+                SignatureEditor(text: $signatureDraft)
+            }
             .sheet(isPresented: $showingAudit) { AuditLogView() }
             .sheet(isPresented: $showingPermissions) { PermissionGroupsView() }
+            .task {
+                // Seeded from what the account already carries, not
+                // from a blank field — an editor that starts empty
+                // looks like "you have no signature" and saves that.
+                signatureDraft = session.signature
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -210,5 +231,42 @@ struct SettingsView: View {
     private var zoneBinding: Binding<String?> {
         Binding(get: { preferences.timeZoneIdentifier },
                 set: { preferences.timeZoneIdentifier = $0 })
+    }
+
+}
+
+/// The signature, on a screen of its own.
+///
+/// Not a field in the settings form: a `TextEditor` inside a `Form`
+/// claims the scroll gesture over its own area, and one tall enough to
+/// write in pushed the rows below it out of the rendered window
+/// entirely — the admin section stopped existing.
+struct SignatureEditor: View {
+    @Environment(Session.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    @Binding var text: String
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    ComposerEditor(text: $text, placeholder: "Sent from my phone")
+                        .frame(minHeight: 160)
+                } footer: {
+                    Text("Added to mail sent from this account, above any quoted text.")
+                }
+            }
+            .navigationTitle("Signature")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        Task { await session.saveSignature(text) }
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("signature-done")
+                }
+            }
+        }
     }
 }

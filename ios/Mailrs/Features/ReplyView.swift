@@ -263,9 +263,13 @@ struct ReplyView: View {
     /// Forward carries the original from the server's stored .eml, so it
     /// is left alone; a reply had nothing at all.
     private var quotedBody: String {
-        guard let replyingTo else { return body_ }
+        // Above the quote, not beneath it: the signature belongs to what
+        // was just written, and under the quoted text it reads as the
+        // other person having signed with your name.
+        let signed = MailSignature.append(body: body_, signature: session.signature)
+        guard let replyingTo else { return signed }
         return ReplyQuote.body(
-            typed: body_,
+            typed: signed,
             from: SenderName.extractName(replyingTo.sender),
             date: RowDate.stamp(epochSeconds: replyingTo.internalDate),
             // The plain half, never the HTML: a reply quoting a
@@ -298,7 +302,7 @@ struct ReplyView: View {
                     cc: AddressList.parse(cc),
                     bcc: AddressList.parse(bcc),
                     subject: subject,
-                    body: body_,
+                    body: MailSignature.append(body: body_, signature: session.signature),
                     forwardMessageId: replyingTo.messageId,
                     forwardAttachmentsFrom: replyingTo.uid,
                     attachments: attachments
