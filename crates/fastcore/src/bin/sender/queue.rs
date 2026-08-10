@@ -306,7 +306,7 @@ pub(super) fn dual_write_pending(c: &mut kevy_client::Connection, id: &str) -> s
             now.as_bytes(),
         ]);
         p.cmd(&[b"HDEL", job_k.as_bytes(), b"claimed_at"]);
-        p.cmd(&[b"LPUSH", b"mailrs:outbound:pending-idx", id.as_bytes()]);
+        p.cmd(&[b"LPUSH", PENDING_IDX, id.as_bytes()]);
     });
     Ok(())
 }

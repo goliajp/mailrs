@@ -11,6 +11,7 @@ use axum::http::StatusCode;
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
 use crate::handlers::prefs::{now_secs, with_kevy};
+use mailrs_core_sidestate::families::outbound::PENDING_IDX;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct FeedbackRequest {
@@ -144,7 +145,7 @@ pub(crate) async fn get_queue_stats(
     Extension(AuthedUser(_user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let out = with_kevy(|c| {
-        let pending = c.llen(b"mailrs:outbound:pending-idx").unwrap_or(0) as i64;
+        let pending = c.llen(PENDING_IDX).unwrap_or(0) as i64;
         let inflight = c.llen(b"mailrs:outbound:inflight").unwrap_or(0) as i64;
         let suppression = c.scard(b"mailrs:outbound:suppression").unwrap_or(0) as i64;
         Ok(serde_json::json!({

@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
+use mailrs_core_sidestate::families::outbound::SCHEDULED_IDX;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct EmailGroupIdParams {
@@ -67,7 +68,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
         let raw = with_kevy(|c| {
-            c.zrange(b"mailrs:outbound:scheduled-idx", 0, -1)
+            c.zrange(SCHEDULED_IDX, 0, -1)
                 .map_err(std::io::Error::other)
         })
         .map_err(|_| McpError::internal_error("scheduled zset read", None))?;
@@ -80,7 +81,7 @@ impl MailrsMcpService {
                     continue;
                 };
                 let score = c
-                    .zscore(b"mailrs:outbound:scheduled-idx", &m)
+                    .zscore(SCHEDULED_IDX, &m)
                     .map_err(std::io::Error::other)?
                     .unwrap_or(0.0);
                 out.push(serde_json::json!({ "id": id, "scheduled_at": score as i64 }));

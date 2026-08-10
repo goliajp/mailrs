@@ -16,6 +16,7 @@ use mailrs_message_store::MessageStore;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
+use mailrs_core_sidestate::families::outbound::{PENDING_IDX, SCHEDULED_IDX};
 
 fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -253,7 +254,7 @@ pub async fn cancel_pending_send(
         // sender no longer produces, so cancel-pending walked an empty
         // list and never matched anything real.
         let ids = c
-            .lrange(b"mailrs:outbound:pending-idx", 0, -1)
+            .lrange(PENDING_IDX, 0, -1)
             .map_err(std::io::Error::other)?;
         let mut removed = 0u32;
         let mut keep = Vec::new();
@@ -303,17 +304,16 @@ pub async fn cancel_pending_send(
                 keep.push(id_bytes);
             }
         }
-        c.del(&[b"mailrs:outbound:pending-idx".as_slice()])
-            .map_err(std::io::Error::other)?;
+        c.del(&[PENDING_IDX]).map_err(std::io::Error::other)?;
         for id in keep {
-            c.lpush(b"mailrs:outbound:pending-idx", &[id.as_slice()])
+            c.lpush(PENDING_IDX, &[id.as_slice()])
                 .map_err(std::io::Error::other)?;
         }
         // also sweep the scheduled zset — a scheduled send hasn't reached
         // the pending list yet, so cancelling it must look here too (G13).
         // v2 scheduled key is `scheduled-idx` (see stone outbound.rs).
         let sched = c
-            .zrange(b"mailrs:outbound:scheduled-idx", 0, -1)
+            .zrange(SCHEDULED_IDX, 0, -1)
             .map_err(std::io::Error::other)?;
         for id_bytes in sched {
             let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
@@ -341,7 +341,7 @@ pub async fn cancel_pending_send(
                 .unwrap_or_default();
             let header = format!("Message-ID: <{target}>\r\n");
             if sender == user_c && md.contains(&header) {
-                c.zrem(b"mailrs:outbound:scheduled-idx", &[id_bytes.as_slice()])
+                c.zrem(SCHEDULED_IDX, &[id_bytes.as_slice()])
                     .map_err(std::io::Error::other)?;
                 c.del(&[hkey.as_bytes()]).map_err(std::io::Error::other)?;
                 removed += 1;
@@ -377,7 +377,7 @@ pub async fn update_flags(
 
 // ── G13.3 · scheduled cancel / reschedule ─────────────────────────
 
-const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled-idx";
+const SCHEDULED_KEY: &[u8] = SCHEDULED_IDX;
 
 /// POST /api/scheduled/{id}/cancel — G13.3. Removes the outbound
 /// entry from the scheduled zset and drops its envelope blob. Only

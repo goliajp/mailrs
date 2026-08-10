@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
+use mailrs_core_sidestate::families::outbound::SCHEDULED_IDX;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ScheduledIdParams {
@@ -29,7 +30,7 @@ pub struct RescheduleParams {
     pub scheduled_at: i64,
 }
 
-const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled-idx";
+const SCHEDULED_KEY: &[u8] = SCHEDULED_IDX;
 
 #[tool_router(router = tool_router_v2_batch3, vis = "pub")]
 impl MailrsMcpService {

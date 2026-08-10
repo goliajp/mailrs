@@ -15,6 +15,7 @@ use rmcp::{tool, tool_router};
 use super::MailrsMcpService;
 use super::ok_result;
 use super::params::*;
+use mailrs_core_sidestate::families::outbound::PENDING_IDX;
 
 #[tool_router(router = tool_router_v1_read, vis = "pub")]
 impl MailrsMcpService {
@@ -406,8 +407,7 @@ impl MailrsMcpService {
     async fn get_queue(&self) -> Result<CallToolResult, McpError> {
         let _user = self.require_user()?;
         let pending = crate::handlers::kevy_util::with_kevy(|c| {
-            c.llen(b"mailrs:outbound:pending-idx")
-                .map_err(std::io::Error::other)
+            c.llen(PENDING_IDX).map_err(std::io::Error::other)
         })
         .map_err(|_| McpError::internal_error("queue read failed", None))?;
         Ok(CallToolResult::success(vec![Content::text(

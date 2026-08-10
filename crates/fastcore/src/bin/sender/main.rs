@@ -40,7 +40,18 @@ use queue::*;
 // Phase 8.2 drops the legacy write path. Duplicate ids in
 // pending-idx (from Phase 6.2/7 LPUSH-without-RPOP semantics) are
 // filtered by the WATCH+CAS state=pending check in `pop_next`.
-const PENDING_IDX_KEY: &[u8] = b"mailrs:outbound:pending-idx";
+/// The queue and the schedule, named by the crate that writes them.
+///
+/// Both were local copies of the strings here. The scheduled one had
+/// drifted: this file said `mailrs:outbound:scheduled` while every
+/// writer, the cancel route and the MCP listing all said
+/// `mailrs:outbound:scheduled-idx`, so the due-sweep walked a zset
+/// nothing has written since v2.5.3 and no scheduled send was ever
+/// promoted. Importing removes the second copy rather than correcting
+/// it.
+use mailrs_core_sidestate::families::outbound::{PENDING_IDX, SCHEDULED_IDX};
+
+const PENDING_IDX_KEY: &[u8] = PENDING_IDX;
 const FAILED_KEY: &[u8] = b"mailrs:outbound:failed";
 
 impl Cfg {
@@ -83,7 +94,7 @@ fn now_secs() -> i64 {
 /// Move scheduled outbound whose send time has arrived into pending.
 /// The scheduled zset is score-ordered by send-at epoch, so we walk
 /// from the front and stop at the first future item.
-const SCHEDULED_KEY: &[u8] = b"mailrs:outbound:scheduled";
+const SCHEDULED_KEY: &[u8] = SCHEDULED_IDX;
 
 /// Process one dequeued id. Never panics — logs everything.
 async fn process_one(cfg: Cfg, id: String) {
