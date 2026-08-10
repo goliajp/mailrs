@@ -216,7 +216,12 @@ struct ConversationListView: View {
                         .padding(.top, 6)
                         .accessibilityIdentifier("error-banner")
                         .onTapGesture { session.banner = nil }
-                        .task {
+                        // Keyed on the message: `.task` alone is tied to
+                        // the view's identity, which does not change when
+                        // the string does, so a second error inherited
+                        // the first one's remaining time and could
+                        // vanish almost at once.
+                        .task(id: banner) {
                             try? await Task.sleep(for: .seconds(4))
                             session.banner = nil
                         }
