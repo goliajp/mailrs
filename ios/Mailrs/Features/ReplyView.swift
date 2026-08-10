@@ -258,6 +258,23 @@ struct ReplyView: View {
         }
     }
 
+    /// What was typed, with the message being answered beneath it.
+    ///
+    /// Forward carries the original from the server's stored .eml, so it
+    /// is left alone; a reply had nothing at all.
+    private var quotedBody: String {
+        guard let replyingTo else { return body_ }
+        return ReplyQuote.body(
+            typed: body_,
+            from: SenderName.extractName(replyingTo.sender),
+            date: RowDate.stamp(epochSeconds: replyingTo.internalDate),
+            // The plain half, never the HTML: a reply quoting a
+            // newsletter's markup would carry its tables and its
+            // colours back to the sender.
+            original: replyingTo.textBody ?? ""
+        )
+    }
+
     private func send() async {
         sending = true
         failure = nil
@@ -269,7 +286,7 @@ struct ReplyView: View {
                     cc: AddressList.parse(cc),
                     bcc: AddressList.parse(bcc),
                     subject: subject,
-                    body: body_,
+                    body: quotedBody,
                     inReplyTo: replyingTo?.messageId,
                     threadId: thread.threadId,
                     attachments: attachments
