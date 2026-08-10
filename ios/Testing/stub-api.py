@@ -319,6 +319,10 @@ NEWSLETTER = [
 # What the server was asked to unsubscribe from, and whether it agreed.
 # `/debug/unsubscribed` is how a test proves the request carried the
 # message's identity and not a URL from the client.
+# Every thread verb the client has posted, in order: "<verb> <thread>".
+VERBS = []
+# Verbs the stub should refuse, set by `/debug/refuse-verb`.
+VERB_REFUSE = set()
 UNSUBSCRIBED = []
 UNSUB_REFUSE = [False]
 
@@ -592,6 +596,9 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/sent":
             self._send({"sent": SENT})
             return
+        if self.path.split("?")[0] == "/debug/verbs":
+            self._send({"verbs": VERBS})
+            return
         if self.path.split("?")[0] == "/debug/unsubscribed":
             self._send({"unsubscribed": UNSUBSCRIBED})
             return
@@ -855,21 +862,36 @@ class H(BaseHTTPRequestHandler):
             GROUP_COUNTER[0] = 1
             SUPPRESSED[:] = ["bounced@example.com", "closed@example.com"]
             UNSUBSCRIBED.clear()
+            VERBS.clear()
+            VERB_REFUSE.clear()
             UNSUB_REFUSE[0] = False
             GROUP_GRANTS.clear()
             GROUP_GRANTS.update({1: ["admin.accounts", "admin.aliases"], 2: ["mail.read"]})
             self._send({"ok": True})
             return
         if re.match(
-            r"^/api/conversations/[\w-]+/(read|unread|star|unstar|archive|unarchive|mark-junk|mark-not-junk)$",
+            r"^/api/conversations/[\w%.@-]+/(read|unread|star|unstar|archive|unarchive"
+            r"|mark-junk|mark-not-junk|mark-notification|mark-promotion|move-to-inbox)$",
             self.path.split("?")[0],
         ):
+            parts = self.path.split("?")[0].split("/")
+            VERBS.append(f"{parts[-1]} {parts[-2]}")
+            # A verb the test asked to be refused, so the client's
+            # failure path can be looked at rather than reasoned about.
+            if parts[-1] in VERB_REFUSE:
+                self.send_response(500)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self.send_response(204)
             self.send_header("Content-Length", "0")
             self.end_headers()
         elif self.path.startswith("/api/auth/login"):
             self._send({"address": "me@golia.jp", "display_name": "Me",
                         "permissions": [], "token": "stub-token"})
+        elif self.path.split("?")[0].startswith("/debug/refuse-verb/"):
+            VERB_REFUSE.add(self.path.rsplit("/", 1)[-1])
+            self._send({"ok": True})
         elif self.path.split("?")[0] == "/debug/unsubscribe-refuse":
             UNSUB_REFUSE[0] = True
             self._send({"ok": True})
