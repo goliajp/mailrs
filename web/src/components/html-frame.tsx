@@ -38,8 +38,14 @@ function injectCjkFonts(html: string): string {
   })
 }
 
-// Rewrite external link hrefs to route through /api/proxy/link so click-time
-// spam-domain / phishing checks can fire. Image URLs are NOT proxied —
+// Rewrite external link hrefs to route through /api/proxy/link.
+//
+// It was written for click-time spam-domain checks and the handler has
+// never done one: `proxy_link` in crates/webapi validates the scheme and
+// 302s to the URL, nothing more. What the hop actually buys today is
+// that the destination does not appear in the browser's referrer or
+// status bar until it is followed — worth knowing before anyone relies
+// on it as a filter. Left in place; the claim is what changed. Image URLs are NOT proxied —
 // the Shadow DOM mount sets `referrerpolicy="no-referrer"` on every <img>,
 // the browser fetches the external URL directly in parallel (5-10× faster
 // than serialising through /api/proxy/image), and `stripTrackingPixels`
