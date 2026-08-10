@@ -1,21 +1,16 @@
 import SwiftUI
 import UserNotifications
 
-/// What this app asks the system for, and what it does not.
+/// What this app asks the system for.
 ///
-/// **Only the badge.** The unread count on the icon needs badge
-/// authorization and nothing else — no server, no APNs key, no portal
-/// step. Alerts and sounds are not requested, because push is not
-/// wanted here, and iOS asks once: spending that one prompt on a
-/// capability nobody wants and nothing can deliver is how an app gets
-/// its notifications declined forever.
+/// Alerts, sounds and the badge — asked for together, once, after
+/// sign-in. iOS asks **once ever**: a declined prompt cannot be raised
+/// again from inside the app, only from Settings, which is why this
+/// waited until there was a server able to send something. There is
+/// one now.
 ///
-/// The token plumbing below is left intact and unused. Turning push on
-/// later is one call — `registerForRemoteNotifications()` — plus the
-/// APNs key and App ID capability, which are portal steps.
-///
-/// The prompt still waits for sign-in rather than launch, and is
-/// skipped under the UI-test flags: it is a system alert over the whole
+/// The prompt waits for sign-in rather than launch, and is skipped
+/// under the UI-test flags: it is a system alert over the whole
 /// screen, the same shape as the save-password sheet that once made
 /// every row untappable, and no test can dismiss it.
 @MainActor
@@ -25,10 +20,21 @@ enum PushRegistrar {
         return arguments.contains("-mailrsSignedOut") || arguments.contains("-mailrsToken")
     }
 
-    static func requestBadgeAuthorization() {
+    /// Ask, then register — in that order, and only if asking
+    /// succeeded.
+    ///
+    /// `registerForRemoteNotifications()` would hand back a token even
+    /// with notifications refused, and the server would then push into
+    /// silence and count it as delivered. Registering only after a
+    /// granted prompt keeps "has a token" meaning "can be told".
+    static func requestAuthorization() {
         guard !isUnderTest else { return }
         Task {
-            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.badge])
+            let granted =
+                (try? await UNUserNotificationCenter.current()
+                    .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            guard granted else { return }
+            UIApplication.shared.registerForRemoteNotifications()
         }
     }
 }

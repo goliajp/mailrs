@@ -294,8 +294,9 @@ final class Session {
             CredentialStore.lastAddress = login.address
             CredentialStore.save(password: password, address: login.address)
             state = .signedIn(address: login.address, displayName: login.displayName)
-            // The badge only — see `PushRegistrar`.
-            PushRegistrar.requestBadgeAuthorization()
+            // Alerts, sound and the badge — one prompt, once ever,
+            // and only now that a server exists that can send something.
+            PushRegistrar.requestAuthorization()
             await loadConversations()
             await loadMyAliases()
             await loadSignature()
