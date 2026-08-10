@@ -53,6 +53,16 @@ final class LayoutShotTests: MailrsUITestCase {
         shoot(app, "01b-selection")
         app.buttons["Done"].tap()
 
+        // The move choice, from the swipe it now lives on.
+        let target = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Quarterly report")
+        ).firstMatch
+        swipeAndTap(app, row: target, edge: .leading, action: "Move")
+        if app.buttons["Mark as notification"].waitForExistence(timeout: 5) {
+            shoot(app, "01c-move")
+            app.buttons["Cancel"].tap()
+        }
+
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
