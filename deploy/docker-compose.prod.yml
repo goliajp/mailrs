@@ -127,8 +127,17 @@ services:
       - /apps/mailrs/certs:/certs:ro
       # The APNs key. Read-only, and the reason `MAILRS_APNS_KEY_PATH`
       # was inert before: the variable named /secrets and nothing
-      # mounted it, so a fully configured push would have logged
-      # "key file unreadable — push disabled" and looked like a bad key.
+      # mounted it, so a fully configured push logged "key file
+      # unreadable — push disabled" and looked like a bad key.
+      #
+      # The host directory must be owned by **10001:10001** — the
+      # `mailrs` user this image runs as. Left as root:root 600 it is
+      # unreadable inside the container and says exactly the same thing
+      # a wrong key does:
+      #
+      #   chown -R 10001:10001 /apps/mailrs/secrets
+      #   chmod 500 /apps/mailrs/secrets
+      #   chmod 400 /apps/mailrs/secrets/AuthKey_*.p8
       - /apps/mailrs/secrets:/secrets:ro
     restart: unless-stopped
 
