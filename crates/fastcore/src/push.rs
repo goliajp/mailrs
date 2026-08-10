@@ -52,6 +52,20 @@ fn client() -> Option<Arc<ApnsClient>> {
         .clone()
 }
 
+/// Resolve the key at boot rather than at the first delivery.
+///
+/// `client()` is a `OnceLock`, so without this the key is first read
+/// when a message arrives — a typo in the path or a rejected key would
+/// announce itself in the middle of the night, in a log line nobody is
+/// reading, on the one delivery that needed it. Called from `boot`; it
+/// costs one file read and answers "is push on" at the moment someone
+/// is looking.
+pub(crate) fn warm() {
+    if client().is_none() {
+        tracing::info!("apns: not configured — push disabled");
+    }
+}
+
 /// Announce one delivered message to the recipient's devices.
 ///
 /// `is_own` and the spam category are excluded here rather than at the
