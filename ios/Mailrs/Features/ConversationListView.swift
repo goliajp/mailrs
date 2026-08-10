@@ -179,7 +179,12 @@ struct ConversationListView: View {
                     .refreshable { await session.loadConversations() }
                 }
             }
-            .confirmationDialog(
+            // `.alert`, not `.confirmationDialog` — the same lesson this
+            // file already carries for delete: the dialog renders as a
+            // popover here and SwiftUI drops the `.cancel` button in
+            // that presentation, so the sheet came up with no visible
+            // way out but tapping past it.
+            .alert(
                 "Move to",
                 isPresented: Binding(
                     get: { pendingMove != nil },
