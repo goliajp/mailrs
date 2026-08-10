@@ -112,7 +112,13 @@ final class Session {
 
 
     var visibleConversations: [Wire.Conversation] {
-        if searchQuery == nil { return conversations }
+        // Pinned first, here rather than in the store: undo restores a
+        // row to the index it left from, and that index belongs to the
+        // order the server sent. The web draws the same division at
+        // render for the same reason.
+        if searchQuery == nil { return PinOrder.arrange(conversations, pinned: \.pinned) }
+        // Not in search: results come back ranked, and lifting a set out
+        // of a relevance order answers a question nobody asked.
         return searchResults
     }
 

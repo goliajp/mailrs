@@ -102,6 +102,16 @@ struct ConversationRow: View {
                             .foregroundStyle(.yellow)
                             .accessibilityLabel("Starred")
                     }
+                    // Why this row is at the top. Without it a pinned
+                    // thread reads as the newest one, and the next
+                    // arrival that does not displace it looks like a
+                    // list that has stopped sorting.
+                    if conversation.pinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Pinned")
+                    }
                     Spacer(minLength: 0)
                 }
             }
