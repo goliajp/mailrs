@@ -47,7 +47,10 @@ struct MessageCard: View {
     /// The body as it will be drawn: the message's own pictures folded
     /// in, nothing fetched from the network.
     private func resolvedHTML(_ html: String) -> String {
-        InlineImages.inline(html: html, parts: inlineParts)
+        // Beacons out first, whatever the reader has consented to:
+        // "Load images" is a decision about pictures, not about being
+        // counted. 71% of real HTML mail carries at least one.
+        InlineImages.inline(html: TrackingPixels.strip(html: html), parts: inlineParts)
     }
 
     private func loadInlineParts(_ html: String) async {
