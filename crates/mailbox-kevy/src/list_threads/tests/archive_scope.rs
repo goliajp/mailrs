@@ -39,6 +39,7 @@ fn row(tid: &str, activity: i64, category: &str) -> ThreadRow {
         has_action: false,
         sent_count: 0,
         starred: false,
+        snoozed_until: 0,
     }
 }
 

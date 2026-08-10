@@ -96,6 +96,25 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # 2026-08-03, two at different versions. Costs nothing to check.
     ./scripts/check-workspace-deps.sh
 
+    # Three checks for one failure mode: a capability that exists on
+    # one side of the wire and nowhere on the other, with nothing
+    # saying so. Each was written on 2026-08-10 after finding its own
+    # instance by reading, and each found more the moment it ran.
+    #
+    #   dead-routes   — a registered route no client calls. Found
+    #                   `POST /api/scheduled/{id}/cancel` with no
+    #                   caller anywhere, on the day iOS learned to
+    #                   *create* a scheduled send.
+    #   inert-fields  — a field written to a thread hash that no reader
+    #                   parses. That was `snoozed_until`: snoozing did
+    #                   nothing at all, on both clients, for months.
+    #   outbound-keys — a queue key spelled instead of imported. The
+    #                   sender's due-sweep had drifted to a key nothing
+    #                   writes, so no scheduled message ever left.
+    ./scripts/check-dead-routes.sh
+    ./scripts/check-inert-fields.sh
+    ./scripts/check-outbound-keys.sh
+
     # The 500-line limit, as a ratchet: a new file over it fails, and a
     # file already on the baseline may only shrink. 51 files were over it
     # with no gate at all, because the copy of `file-size.md` this repo

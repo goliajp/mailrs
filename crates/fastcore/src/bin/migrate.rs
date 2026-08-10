@@ -97,6 +97,7 @@ impl From<ThreadRowJson> for ThreadRow {
             has_action: j.has_action,
             sent_count: j.sent_count,
             starred: j.starred,
+            snoozed_until: 0,
         }
     }
 }

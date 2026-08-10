@@ -423,5 +423,9 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         importance_score: r.importance_score as f32,
         requires_action: r.requires_action,
         sent_count: r.sent_count.max(0) as u32,
+        // The reader's own, off their membership row — this is the
+        // row a client draws, and a zero here would mean no client
+        // could ever say a thread is asleep.
+        snoozed_until: r.snoozed_until,
     }
 }

@@ -210,3 +210,13 @@ export const calendarFeedListSchema = z.union([
   z.object({ items: z.array(calendarFeedSchema) }),
   z.array(calendarFeedSchema).transform((items) => ({ items })),
 ])
+
+// ── sender lists ─────────────────────────────────────────────────
+//
+// Backend: crates/webapi/src/handlers/spam_lists.rs:83 —
+// `list_whitelist` / `list_blacklist` answer
+// `Json({"entries": [String]})`. Verified against the handler on
+// 2026-08-10, per frontend/wire-schema-verification.
+export const senderListSchema = z.object({
+  entries: z.array(z.string()).default([]),
+})

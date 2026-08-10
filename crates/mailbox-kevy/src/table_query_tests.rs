@@ -30,6 +30,7 @@ mod orderpath_read_tests {
             has_action: false,
             sent_count: 0,
             starred: false,
+            snoozed_until: 0,
         }
     }
 
@@ -130,6 +131,7 @@ mod flag_axis_tests {
             has_action: false,
             sent_count: 0,
             starred,
+            snoozed_until: 0,
         }
     }
 

@@ -84,6 +84,11 @@ export type ConversationSummary = {
   requires_action: boolean
   sent_count: number
   snippet: string
+  // Epoch seconds this reader put the thread away until, or 0.
+  // Absent until v2.55: the field was written to the shared thread
+  // hash and parsed by nothing, so snoozing dropped the row here and
+  // the next refetch brought it straight back.
+  snoozed_until?: number
   subject: string
   thread_id: string
   unread_count: number

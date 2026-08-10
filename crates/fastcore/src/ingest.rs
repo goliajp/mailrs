@@ -217,6 +217,12 @@ pub(crate) async fn run_ingest_once(
                 has_action: s.requires_action,
                 sent_count: s.sent_count as i64,
                 starred: s.flagged,
+                // Not carried by an arrival: `upsert_thread` derives
+                // the membership row from the shared aggregate, and a
+                // snooze is one reader's — writing it from here would
+                // reset it on the next message. `thread_user_pairs`
+                // omits it for the same reason it omits `starred`.
+                snoozed_until: 0,
             };
             if let Err(e) = state.mailbox.upsert_thread(user, &row) {
                 tracing::warn!(error = %e, %user, tid = %s.thread_id, "upsert_thread failed");

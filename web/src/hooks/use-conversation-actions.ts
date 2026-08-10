@@ -18,6 +18,7 @@ import {
   useStarMutation,
   useUnarchiveMutation,
   useUnpinMutation,
+  useUnsnoozeMutation,
   useUnstarMutation,
 } from '@/hooks/use-mail-mutations'
 
@@ -51,6 +52,7 @@ export function useConversationActions(): ConversationActions {
   const archiveMutation = useArchiveMutation()
   const unarchiveMutation = useUnarchiveMutation()
   const snoozeMutation = useSnoozeMutation()
+  const unsnoozeMutation = useUnsnoozeMutation()
   const deleteMutation = useDeleteMutation()
   const markJunkMutation = useMarkJunkMutation()
   const markNotJunkMutation = useMarkNotJunkMutation()
@@ -143,6 +145,15 @@ export function useConversationActions(): ConversationActions {
         case 'unread':
           markUnreadMutation.mutate({ threadId }, { onError })
           break
+        case 'unsnooze':
+          // The way back out. A snooze files the thread away, so
+          // without this the only route back is finding it in Archived
+          // and unarchiving it, which does not clear the wake time.
+          unsnoozeMutation.mutate(
+            { threadId },
+            { onError, onSuccess: () => toast.success('Back in your inbox') }
+          )
+          break
         case 'unstar':
           unstarMutation.mutate({ threadId }, { onError })
           break
@@ -159,6 +170,7 @@ export function useConversationActions(): ConversationActions {
       moveToInboxMutation,
       pinMutation,
       snoozeMutation,
+      unsnoozeMutation,
       starMutation,
       unarchiveMutation,
       unpinMutation,

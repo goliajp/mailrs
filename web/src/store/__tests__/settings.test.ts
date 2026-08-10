@@ -6,8 +6,6 @@ import {
   notificationsAtom,
   notificationSoundAtom,
   pageSizeAtom,
-  signatureAtom,
-  signatureEnabledAtom,
 } from '../settings'
 
 function makeLocalStorageMock(): Storage {
@@ -113,67 +111,6 @@ describe('notificationsAtom', () => {
   })
 })
 
-describe('signatureAtom', () => {
-  let mockStorage: Storage
-
-  beforeEach(() => {
-    mockStorage = makeLocalStorageMock()
-    vi.stubGlobal('localStorage', mockStorage)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('persists signature text to localStorage', () => {
-    const store = createStore()
-    store.set(signatureAtom, 'Best regards,\nAlice')
-    expect(store.get(signatureAtom)).toBe('Best regards,\nAlice')
-    expect(mockStorage.getItem('mailrs_signature')).toBe('Best regards,\nAlice')
-  })
-
-  it('persists empty string', () => {
-    const store = createStore()
-    store.set(signatureAtom, '')
-    expect(store.get(signatureAtom)).toBe('')
-    expect(mockStorage.getItem('mailrs_signature')).toBe('')
-  })
-
-  it('updates value when set multiple times', () => {
-    const store = createStore()
-    store.set(signatureAtom, 'first')
-    store.set(signatureAtom, 'second')
-    expect(store.get(signatureAtom)).toBe('second')
-  })
-})
-
-describe('signatureEnabledAtom', () => {
-  let mockStorage: Storage
-
-  beforeEach(() => {
-    mockStorage = makeLocalStorageMock()
-    vi.stubGlobal('localStorage', mockStorage)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('persists enabled state to localStorage', () => {
-    const store = createStore()
-    store.set(signatureEnabledAtom, true)
-    expect(store.get(signatureEnabledAtom)).toBe(true)
-    expect(mockStorage.getItem('mailrs_signature_enabled')).toBe('true')
-  })
-
-  it('persists disabled state to localStorage', () => {
-    const store = createStore()
-    store.set(signatureEnabledAtom, false)
-    expect(store.get(signatureEnabledAtom)).toBe(false)
-    expect(mockStorage.getItem('mailrs_signature_enabled')).toBe('false')
-  })
-})
-
 describe('notificationSoundAtom', () => {
   let mockStorage: Storage
 
@@ -272,24 +209,6 @@ describe('settings module load behavior', () => {
     const { notificationSoundAtom: fresh } = await importFresh()
     const store = createStore()
     expect(store.get(fresh)).toBe(false)
-  })
-
-  it('defaults signatureEnabled to false when nothing stored', async () => {
-    vi.resetModules()
-    vi.stubGlobal('localStorage', makeLocalStorageMock())
-    const { signatureEnabledAtom: fresh } = await importFresh()
-    const store = createStore()
-    expect(store.get(fresh)).toBe(false)
-  })
-
-  it('reads stored signatureEnabled=true', async () => {
-    vi.resetModules()
-    const storage = makeLocalStorageMock()
-    storage.setItem('mailrs_signature_enabled', 'true')
-    vi.stubGlobal('localStorage', storage)
-    const { signatureEnabledAtom: fresh } = await importFresh()
-    const store = createStore()
-    expect(store.get(fresh)).toBe(true)
   })
 })
 

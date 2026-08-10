@@ -310,6 +310,9 @@ impl PgMailboxStore {
                 requires_action: r.13,
                 last_sender: r.14,
                 sent_count: r.15 as u32,
+                // The dormant pg lane has no per-user snooze column;
+                // snoozing is served by the kevy lane production runs.
+                snoozed_until: 0,
             })
             .collect())
     }
@@ -450,6 +453,9 @@ impl PgMailboxStore {
                     requires_action: r.13,
                     last_sender: r.14,
                     sent_count: r.15 as u32,
+                    // The dormant pg lane has no per-user snooze column;
+                    // snoozing is served by the kevy lane production runs.
+                    snoozed_until: 0,
                 };
                 (tid, cs)
             })

@@ -2,7 +2,7 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import type { SingleAction } from '@/components/conversation-actions'
 import type { ConversationSummary } from '@/lib/types'
 
-import { Check, Mail, Pin, Star } from 'lucide-react'
+import { Check, Clock, Mail, Pin, Star } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
@@ -63,6 +63,11 @@ export const ConversationItem = memo(function ConversationItem({
   const isFlagged = convo.flagged
   const isPinned = convo.pinned
   const isArchived = convo.archived
+  // A thread that is asleep is filed away, so it shows up in Archived
+  // and nowhere else. Without saying when it comes back, that reads as
+  // an ordinary archived thread and the way out is not obvious.
+  const snoozedUntil = convo.snoozed_until ?? 0
+  const isSnoozed = snoozedUntil > Date.now() / 1000
 
   const ctx = useContextMenu()
 
@@ -88,10 +93,15 @@ export const ConversationItem = memo(function ConversationItem({
         label: isArchived ? 'Unarchive' : 'Archive',
         onClick: () => onContextAction(convo.thread_id, isArchived ? 'unarchive' : 'archive'),
       },
-      {
-        label: 'Snooze until tomorrow',
-        onClick: () => onContextAction(convo.thread_id, 'snooze'),
-      },
+      isSnoozed
+        ? {
+            label: 'Wake now',
+            onClick: () => onContextAction(convo.thread_id, 'unsnooze'),
+          }
+        : {
+            label: 'Snooze until tomorrow',
+            onClick: () => onContextAction(convo.thread_id, 'snooze'),
+          },
       // v2.9 triage — bucket moves, contextual to the current view:
       //   Junk view  → "Mark as not junk" (back to Inbox)
       //   N & P view → "Move to Inbox" + "Mark as junk"
@@ -141,6 +151,7 @@ export const ConversationItem = memo(function ConversationItem({
       isFlagged,
       isPinned,
       isArchived,
+      isSnoozed,
       isJunkView,
       isNpView,
       onContextAction,
@@ -227,6 +238,18 @@ export const ConversationItem = memo(function ConversationItem({
                 </span>
               )}
               {isPinned && <Pin className="text-accent h-3 w-3" />}
+              {isSnoozed && (
+                <span
+                  className="bg-bg-secondary text-fg-muted md:text-tiny flex items-center gap-0.5 rounded px-1 py-px text-xs"
+                  title={`Snoozed until ${new Date(snoozedUntil * 1000).toLocaleString()}`}
+                >
+                  <Clock className="h-3 w-3" />
+                  {new Date(snoozedUntil * 1000).toLocaleDateString(undefined, {
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                </span>
+              )}
               {/* mobile: always show action buttons; desktop: show on hover
                   (group-hover, no useState — keeps the row out of the
                   re-render path for hover changes). */}

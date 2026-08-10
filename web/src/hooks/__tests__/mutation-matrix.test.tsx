@@ -42,6 +42,7 @@ import {
   useStarMutation,
   useUnarchiveMutation,
   useUnpinMutation,
+  useUnsnoozeMutation,
   useUnstarMutation,
 } from '../use-mail-mutations'
 
@@ -66,7 +67,7 @@ vi.mock('@/lib/api', () => ({
   unsnoozeConversation: vi.fn(),
 }))
 
-import { snoozeConversation } from '@/lib/api'
+import { snoozeConversation, unsnoozeConversation } from '@/lib/api'
 import * as wire from '@/wire/endpoints/mutations'
 
 function makeConvo(id: string, over: Partial<ConversationSummary> = {}): ConversationSummary {
@@ -298,6 +299,19 @@ describe('mutation matrix — optimistic patch reaches every screen', () => {
       expect(findRow(row.keeps, 'bystander-right')).toBeDefined()
     })
   }
+
+  /// Waking is the way back out, and it has to put the row back on
+  /// every screen the snooze took it off — a thread that woke on the
+  /// server and stayed missing here is indistinguishable from one that
+  /// never woke.
+  it('unsnooze: asks the server to bring the thread back', async () => {
+    seedAllScreens('t-target')
+    vi.mocked(unsnoozeConversation).mockResolvedValue(undefined as never)
+    const { result } = renderHook(() => useUnsnoozeMutation(), { wrapper })
+    result.current.mutate({ threadId: 't-target' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(unsnoozeConversation).toHaveBeenCalledWith('t-target')
+  })
 
   it('snooze: drops the row from all three screen caches', async () => {
     seedAllScreens('t-target')

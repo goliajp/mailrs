@@ -10,6 +10,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
+import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { formatFullDate } from '@/lib/format'
@@ -18,7 +19,6 @@ import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { epochSecondsFromLocalInput, parseAddressList, sendMail } from '@/lib/send-mail'
 import { authAtom, getToken } from '@/store/auth'
-import { signatureAtom, signatureEnabledAtom } from '@/store/settings'
 import {
   composeDraftSourceAtom,
   composeRedraftSourceAtom,
@@ -40,8 +40,12 @@ const StructuredCompose = lazy(() =>
 
 export function NewConversation() {
   const auth = useAtomValue(authAtom)
-  const signature = useAtomValue(signatureAtom)
-  const signatureEnabled = useAtomValue(signatureEnabledAtom)
+  // From the server, not from `localStorage`: the atom that used to
+  // feed this was written by no UI anywhere, so the composer's
+  // signature was permanently empty while Settings → Signatures saved
+  // one to the server that nothing ever read.
+  const { html: signature } = useDefaultSignature()
+  const signatureEnabled = signature.trim().length > 0
   const setComposingNew = useSetAtom(composingNewAtom)
   const replySource = useAtomValue(composeReplySourceAtom)
   const setReplySource = useSetAtom(composeReplySourceAtom)

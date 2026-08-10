@@ -245,6 +245,7 @@ mod backfill_source_tests {
             has_action: false,
             sent_count: 0,
             starred: false,
+            snoozed_until: 0,
         };
         st.upsert_thread(u, &row).unwrap();
 
