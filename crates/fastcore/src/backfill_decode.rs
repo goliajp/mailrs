@@ -38,6 +38,16 @@ pub(crate) async fn backfill_decode_headers_route(
     let mut bodies_indexed = 0u64;
     let mut trust_stamped = 0u64;
     let mut previews_filled = 0u64;
+    // What it walked, not only what it changed. `previews_filled: 0`
+    // alone cannot tell "every row already had one" from "there were
+    // no rows" — and a number that cannot come out zero for a good
+    // reason is not a verification.
+    let mut threads_walked = 0u64;
+    // Rows that already carried a preview. Without it, `previews_filled:
+    // 0` cannot distinguish "they all had one" from "the fill never
+    // fires", and 31,763 bodies were walked for a zero nobody could
+    // read.
+    let mut previews_present = 0u64;
     for user in &users {
         // Declared rows; `user_threads_by_activity` is legacy and unwritten.
         let tids = state
@@ -45,6 +55,7 @@ pub(crate) async fn backfill_decode_headers_route(
             .all_thread_ids_for_user(user)
             .unwrap_or_default();
         for tid in &tids {
+            threads_walked += 1;
             let tid = tid.as_str();
             let Ok(Some(mut row)) = state.mailbox.get_thread(tid) else {
                 continue;
@@ -162,6 +173,9 @@ pub(crate) async fn backfill_decode_headers_route(
             // written before 2026-08-09 has an empty one — the drain
             // passed "" — and a thread that already has a line does not
             // need this sweep's opinion of it.
+            if !row.latest_preview.is_empty() {
+                previews_present += 1;
+            }
             if row.latest_preview.is_empty()
                 && let Some((_, preview)) = newest
                 && !preview.is_empty()
@@ -175,6 +189,8 @@ pub(crate) async fn backfill_decode_headers_route(
     }
     let contacts_repaired = scrub_contact_hashes(&users);
     tracing::info!(
+        threads_walked,
+        previews_present,
         rows_decoded,
         blobs_added,
         bodies_indexed,
@@ -184,6 +200,8 @@ pub(crate) async fn backfill_decode_headers_route(
         "backfill-decode-headers complete"
     );
     Json(serde_json::json!({
+        "threads_walked": threads_walked,
+        "previews_present": previews_present,
         "rows_decoded": rows_decoded,
         "search_blobs_added": blobs_added,
         "bodies_indexed": bodies_indexed,
