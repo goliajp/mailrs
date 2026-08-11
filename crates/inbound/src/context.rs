@@ -63,6 +63,9 @@ pub struct ReceiveContext {
     /// Recipient's per-user blacklist. Populated by the caller with a
     /// snapshot of `spam:{user}:blacklist` for `recipient`.
     pub recipient_blacklist: std::collections::HashSet<String>,
+    /// The domains this server is the mail host for — see
+    /// [`PipelineInput::local_domains`](crate::PipelineInput).
+    pub local_domains: std::collections::HashSet<String>,
 }
 
 impl ReceiveContext {
@@ -93,7 +96,16 @@ impl ReceiveContext {
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
+            local_domains: std::collections::HashSet::new(),
         }
+    }
+
+    /// The domains this server hosts, so mail that really comes from
+    /// one of them is not scored as a stranger's.
+    #[must_use]
+    pub fn with_local_domains(mut self, domains: impl IntoIterator<Item = String>) -> Self {
+        self.local_domains = domains.into_iter().map(|d| d.to_lowercase()).collect();
+        self
     }
 
     /// Materialize a [`PipelineInput`] from the accumulated signals, ready
@@ -111,6 +123,7 @@ impl ReceiveContext {
             hostname: self.hostname.clone(),
             from_addr: self.from_addr.clone(),
             recipient_whitelist: self.recipient_whitelist.clone(),
+            local_domains: self.local_domains.clone(),
             recipient_blacklist: self.recipient_blacklist.clone(),
         }
     }

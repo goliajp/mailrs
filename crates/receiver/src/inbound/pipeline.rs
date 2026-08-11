@@ -114,7 +114,12 @@ mod tests {
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
+            local_domains: std::collections::HashSet::new(),
         }
+    }
+
+    fn ours() -> std::collections::HashSet<String> {
+        ["golia.jp".to_string()].into_iter().collect()
     }
 
     #[test]
@@ -956,5 +961,77 @@ mod tests {
             }
             other => panic!("expected Junk, got {other:?}"),
         }
+    }
+    /// A colleague's message is not junk.
+    ///
+    /// Content scoring is tuned for strangers, and a message that
+    /// really did come from one of our own domains — through a
+    /// forward, a list, or a device sending via the MX — should not
+    /// be graded on that curve.
+    #[test]
+    fn our_own_domain_is_accepted_when_the_claim_is_proven() {
+        let mut input = default_input();
+        input.local_domains = ours();
+        input.from_addr = "colleague@golia.jp".into();
+        input.content_score = 99.0; // would be Junk many times over
+        input.auth.spf = "pass".into();
+        assert!(
+            matches!(
+                make_delivery_decision(&input),
+                DeliveryDecision::Accept { .. }
+            ),
+            "a proven colleague was scored as a stranger"
+        );
+    }
+
+    /// And the half that matters more: a `From:` header costs nothing
+    /// to write. "Anything claiming our domain is trusted" is the one
+    /// rule an attacker would most like us to install.
+    #[test]
+    fn claiming_our_domain_without_passing_earns_nothing() {
+        let mut input = default_input();
+        input.local_domains = ours();
+        input.from_addr = "ceo@golia.jp".into();
+        input.content_score = 99.0;
+        input.auth.spf = "fail".into();
+        input.auth.dkim = "fail".into();
+        assert!(
+            matches!(
+                make_delivery_decision(&input),
+                DeliveryDecision::Junk { .. }
+            ),
+            "an unproven claim on our own domain bypassed scoring"
+        );
+    }
+
+    /// DKIM alone is enough — a forwarded message loses SPF and keeps
+    /// its signature, which is the whole reason DKIM survives relays.
+    #[test]
+    fn dkim_alone_proves_it() {
+        let mut input = default_input();
+        input.local_domains = ours();
+        input.from_addr = "colleague@golia.jp".into();
+        input.content_score = 99.0;
+        input.auth.spf = "fail".into();
+        input.auth.dkim = "pass".into();
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+
+    /// An empty list disables the rule. It must not read as "every
+    /// domain is ours" — which is how `is_local_domain` behaves in the
+    /// receiver, for recipients, where the opposite default is right.
+    #[test]
+    fn no_configured_domains_trusts_nobody() {
+        let mut input = default_input();
+        input.from_addr = "stranger@example.com".into();
+        input.content_score = 99.0;
+        input.auth.spf = "pass".into();
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Junk { .. }
+        ));
     }
 }

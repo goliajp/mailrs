@@ -110,6 +110,19 @@ pub struct PipelineInput {
     ///
     /// v2.4.1 Phase 3 (RFC-B) addition.
     pub recipient_blacklist: std::collections::HashSet<String>,
+    /// The domains this server is the mail host for, lowercased.
+    ///
+    /// A colleague's message is not junk. Mail that genuinely comes
+    /// from one of these domains — genuinely, meaning SPF or DKIM
+    /// verified it — takes the same Accept as a whitelisted sender,
+    /// and for the same reason: the score path is tuned for strangers.
+    ///
+    /// Empty disables the rule rather than matching everything, which
+    /// is the opposite of `is_local_domain`'s convention in the
+    /// receiver — there an empty list means "accept every recipient
+    /// domain", and carrying that meaning here would trust every
+    /// sender on earth.
+    pub local_domains: std::collections::HashSet<String>,
 }
 
 /// Pure policy combiner. Order of precedence (high → low):
@@ -180,6 +193,35 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         // scoring path. Do NOT log the ignored whitelist here; the
         // score / DMARC-quarantine decision that follows is the
         // authoritative one.
+    }
+
+    // Our own people are not strangers.
+    //
+    // Same shape as the whitelist above and the same auth condition,
+    // because the failure it prevents is the same one and worse: a
+    // `From:` header costs nothing to write, and "anything claiming
+    // our domain is trusted" is the single most useful rule an
+    // attacker could ask us to install. SPF-or-DKIM is what makes the
+    // claim true.
+    //
+    // Mail our own users *send* never reaches here at all — the
+    // receiver runs this pipeline only for unauthenticated sessions
+    // (`if !is_authenticated && ctx.antispam_enabled`). This is for
+    // the other case: a message arriving on port 25 that really did
+    // come from one of our domains, by way of a forward, a mailing
+    // list, or a device sending through the MX.
+    if !input.local_domains.is_empty()
+        && let Some((_, domain)) = input.from_addr.rsplit_once('@')
+        && input.local_domains.contains(&domain.to_lowercase())
+    {
+        let spf_pass = input.auth.spf.eq_ignore_ascii_case("pass");
+        let dkim_pass = input.auth.dkim.eq_ignore_ascii_case("pass");
+        if spf_pass || dkim_pass {
+            return DeliveryDecision::Accept { auth_header };
+        }
+        // Claimed but unproven — fall through to scoring. Nothing is
+        // logged here for the same reason the whitelist logs nothing:
+        // the decision that follows is the authoritative one.
     }
 
     // v2.4.1 Phase 3 (RFC-B §D4) — recipient blacklist. Straight to
@@ -313,6 +355,7 @@ mod tests {
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
+            local_domains: std::collections::HashSet::new(),
         }
     }
 
