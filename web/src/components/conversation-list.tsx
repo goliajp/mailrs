@@ -18,9 +18,11 @@ import { useCurrentMailFilters } from '@/hooks/use-current-mail-filters'
 import { dateGroupLabel } from '@/lib/format'
 import { listIdentity } from '@/lib/list-identity'
 import { persistScroll, readSavedScroll } from '@/lib/list-scroll'
+import { threadAxesOf } from '@/lib/mail-lists'
 import { queryClient } from '@/lib/query-client'
-import { patchAllInfiniteLists } from '@/reducers/snapshot'
 import { authAtom } from '@/store/auth'
+import { conversationKeys } from '@/store/query-keys-v21'
+import { activeListAtom } from '@/store/ui'
 import {
   batchModeAtom,
   composeReplySourceAtom,
@@ -219,6 +221,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
 
   const setSortOrder = useSetAtom(sortOrderAtom)
   const quickFilter = useAtomValue(quickFilterAtom)
+  const activeList = useAtomValue(activeListAtom)
   const folder = useAtomValue(folderAtom)
   const [stickyUnread, setStickyUnread] = useAtom(stickyUnreadIdsAtom)
 
@@ -299,11 +302,17 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
             className="text-fg-muted hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-150"
             onClick={async () => {
               try {
-                const resp = await wireMarkAllRead()
-                // v2.1 phase-5c — patch the RQ cache directly. Every
-                // reader subscribing to `conversationKeys.infinites()`
-                // sees `unread_count = 0` on the next paint.
-                patchAllInfiniteLists(queryClient, (c) => ({ ...c, unread_count: 0 }))
+                // Scoped to the list on screen, with the same axes the
+                // list read sends — "mark all as read" pressed inside
+                // Notifications must not silence the inbox.
+                const resp = await wireMarkAllRead(threadAxesOf(activeList) ?? undefined)
+                // Refetched, not patched. The old code zeroed every
+                // cached list, which was right when this marked the
+                // whole mailbox and is a lie now: the server touched
+                // one list, and rows this client has never loaded, so
+                // the only honest local state is the one it asks for
+                // again.
+                await queryClient.invalidateQueries({ queryKey: conversationKeys.infinites() })
                 toast.success(`Marked ${resp.flipped ?? 0} as read`)
               } catch {
                 toast.error('Failed')
