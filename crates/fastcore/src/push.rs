@@ -74,10 +74,15 @@ pub(crate) fn warm() {
 /// filter pointless.
 pub(crate) fn maybe_notify(addr: &str, sender: &str, subject: &str, category: &str, is_own: bool) {
     if is_own || category == "spam" || category == "scam" {
+        tracing::debug!(%addr, %category, is_own, "apns: not news, no push");
         return;
     }
-    let Some(apns) = client() else { return };
+    let Some(apns) = client() else {
+        tracing::debug!("apns: no client, no push");
+        return;
+    };
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        tracing::warn!(%addr, "apns: no runtime handle, no push");
         // The drain always runs inside the runtime; if that ever stops
         // being true, a missed push is the right failure mode.
         return;
@@ -103,9 +108,21 @@ pub(crate) fn maybe_notify(addr: &str, sender: &str, subject: &str, category: &s
                 return;
             }
         };
+        if tokens.is_empty() {
+            // Not an error — most accounts have no phone. Said out
+            // loud because the alternative is silence, and silence is
+            // also what a working push looks like from the log.
+            tracing::info!(%user, "apns: nothing registered for this account");
+        }
         for token in tokens {
             match apns.send_alert(&token, &title, &body).await {
-                Ok(Outcome::Sent) => {}
+                Ok(Outcome::Sent) => {
+                    // The success path used to log nothing, so a push
+                    // that worked and a push that never happened read
+                    // identically — and the only way to tell them
+                    // apart was to hold the phone.
+                    tracing::info!(%user, "apns: delivered to Apple");
+                }
                 Ok(Outcome::Unregistered) => {
                     tracing::info!(%user, "apns: pruning dead token");
                     let user = user.clone();

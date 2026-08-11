@@ -20,13 +20,26 @@ enum PushRegistrar {
         return arguments.contains("-mailrsSignedOut") || arguments.contains("-mailrsToken")
     }
 
-    /// Ask, then register — in that order, and only if asking
-    /// succeeded.
+    /// Ask if nobody has been asked, then register if the answer was
+    /// yes — on every signed-in launch, not only on the launch where
+    /// somebody typed a password.
     ///
-    /// `registerForRemoteNotifications()` would hand back a token even
-    /// with notifications refused, and the server would then push into
-    /// silence and count it as delivered. Registering only after a
-    /// granted prompt keeps "has a token" meaning "can be told".
+    /// Two reasons it runs every time. A session restored from the
+    /// stored token never passes through sign-in, so a phone that
+    /// stays logged in would never have registered at all. And a
+    /// device token is not permanent: iOS reissues it on restore, on
+    /// reinstall, and occasionally for its own reasons, and the server
+    /// only learns the new one if the app offers it.
+    ///
+    /// `requestAuthorization` is not a prompt when the answer is
+    /// already recorded — iOS asks **once ever** — so this is a
+    /// no-op after the first time rather than a dialog on every
+    /// launch.
+    ///
+    /// Registering only after a granted answer keeps "has a token"
+    /// meaning "can be told": the API hands back a token even with
+    /// notifications refused, and the server would then push into
+    /// silence and count it delivered.
     static func requestAuthorization() {
         guard !isUnderTest else { return }
         Task {
@@ -55,9 +68,39 @@ enum AppBadge {
 }
 
 /// The UIKit half: token callbacks have no SwiftUI surface.
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     /// Set by `MailrsApp` so the token can reach the session's client.
     static weak var session: Session?
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Without a delegate, iOS delivers a notification that arrives
+        // while the app is open and shows **nothing** — Apple accepts
+        // the push, the phone receives it, and the reader sees no
+        // banner. Which is indistinguishable from a server that never
+        // sent one.
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    /// Mail that arrives while the app is open is still mail.
+    ///
+    /// A banner over the list is the honest answer: this app shows one
+    /// mailbox at a time, and a message landing in another one is
+    /// exactly what the reader would want to be told about.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler:
+            @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        // The completion-handler form, not the `async` one: under
+        // Swift 6 concurrency the async overload takes non-Sendable
+        // parameters across an actor hop and does not compile.
+        completionHandler([.banner, .sound, .badge])
+    }
 
     func application(
         _ application: UIApplication,
