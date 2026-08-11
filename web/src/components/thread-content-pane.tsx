@@ -25,6 +25,7 @@ import { Copyable } from '@/components/copy-button'
 import { InviteCard } from '@/components/invite-card'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
+import { MessageSource } from '@/components/message-source'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
@@ -354,6 +355,7 @@ export function ThreadContentPane({
                       uid={selectedMsg.uid}
                     />
                     <div className="px-4 pb-3">
+                      <MessageSource uid={selectedMsg.uid} />
                       <UnsubscribeFooter
                         header={selectedMsg.unsubscribe}
                         threadId={threadId ?? ''}
