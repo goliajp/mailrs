@@ -41,6 +41,17 @@ enum PlainTextLinks {
             else { continue }
             result[range].link = url
         }
+        // Numbers and addresses, after the links and never over them: a
+        // URL with a phone-shaped run inside it is a URL, and the two
+        // detectors run on the same text without knowing about each
+        // other. `BodyDetections` says what is worth a tap and why —
+        // measured over 897 real bodies rather than guessed.
+        for hit in BodyDetections.hits(in: text) {
+            guard let range = attributedRange(of: hit.range, in: text, within: result),
+                  result[range].link == nil
+            else { continue }
+            result[range].link = hit.url
+        }
         return result
     }
 

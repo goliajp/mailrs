@@ -33,6 +33,16 @@ struct MessageBodyView: UIViewRepresentable {
         config.websiteDataStore = .nonPersistent()
         config.defaultWebpagePreferences.allowsContentJavaScript = false
         config.suppressesIncrementalRendering = true
+        // Phone numbers and postal addresses, tappable, the way every
+        // other iOS app renders them. 42% of real message bodies carry
+        // an address and 10% a phone number; without this they are
+        // characters you can read and not act on.
+        //
+        // Not `.all`: that adds dates, and `NSDataDetector` returns the
+        // single character 今 as one. A page of ordinary Japanese prose
+        // would come back speckled with tappable nothing, and a date
+        // has no unambiguous action anyway — see `BodyDetections`.
+        config.dataDetectorTypes = [.phoneNumber, .address]
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
