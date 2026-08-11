@@ -211,6 +211,11 @@ final class Session {
             await loadConversations()
             await loadMyAliases()
             await loadSignature()
+            // Every signed-in path, not only the one where a password
+            // was typed: a restored session never passes through
+            // sign-in, so a phone that stays logged in would never
+            // register for push at all.
+            PushRegistrar.requestAuthorization()
             return
         }
         guard let token = TokenStore.load() else { return }
@@ -222,6 +227,11 @@ final class Session {
             await refreshBadge()
             await loadMyAliases()
             await loadSignature()
+            // Every signed-in path, not only the one where a password
+            // was typed: a restored session never passes through
+            // sign-in, so a phone that stays logged in would never
+            // register for push at all.
+            PushRegistrar.requestAuthorization()
         } catch {
             // The stored token no longer works — clear it rather than
             // leaving a credential that fails on every launch.
@@ -294,12 +304,14 @@ final class Session {
             CredentialStore.lastAddress = login.address
             CredentialStore.save(password: password, address: login.address)
             state = .signedIn(address: login.address, displayName: login.displayName)
-            // Alerts, sound and the badge — one prompt, once ever,
-            // and only now that a server exists that can send something.
-            PushRegistrar.requestAuthorization()
             await loadConversations()
             await loadMyAliases()
             await loadSignature()
+            // Every signed-in path, not only the one where a password
+            // was typed: a restored session never passes through
+            // sign-in, so a phone that stays logged in would never
+            // register for push at all.
+            PushRegistrar.requestAuthorization()
         } catch MailrsError.needsTotp {
             needsTotp = true
             state = .signedOut
