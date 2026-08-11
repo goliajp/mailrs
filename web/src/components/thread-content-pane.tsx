@@ -378,7 +378,13 @@ export function ThreadContentPane({
                     </div>
                   </div>
                 )}
-                <AttachmentPreview attachments={selectedMsg.attachments} uid={selectedMsg.uid} />
+                {/* The whole html, not the split body: a forward's
+                    inline images are referenced from the quoted half. */}
+                <AttachmentPreview
+                  attachments={selectedMsg.attachments}
+                  html={selectedMsg.html_body}
+                  uid={selectedMsg.uid}
+                />
               </>
             ) : loadingThread ? null : (
               <div className="text-fg-muted flex h-full flex-col items-center justify-center gap-2 py-12 text-sm">
