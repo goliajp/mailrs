@@ -297,6 +297,18 @@ export type ThreadMessage = {
   summary: string
   text_body: null | string
   uid: number
+  /**
+   * Where this message says unsubscribing goes, from its own
+   * `List-Unsubscribe` header. Absent when the header is missing or
+   * unparseable — and absent from this type until 2026-08-11, so the
+   * wire decoded it and the next layer dropped it: iOS offered the
+   * button and this client did not.
+   */
+  unsubscribe?: null | {
+    http?: readonly string[]
+    mailto?: readonly string[]
+    one_click?: boolean
+  }
 }
 
 // flag constants

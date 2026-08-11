@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
 import {
   useConversationRows,
   useCurrentThreadMessages,
@@ -324,6 +325,13 @@ function MobileThreadView() {
                 textBody={selectedMsg.text_body}
                 uid={selectedMsg.uid}
               />
+              <div className="px-4 pb-2">
+                <UnsubscribeFooter
+                  header={selectedMsg.unsubscribe}
+                  threadId={selectedId ?? ''}
+                  uid={selectedMsg.uid}
+                />
+              </div>
             </div>
 
             {/* conversation hint */}

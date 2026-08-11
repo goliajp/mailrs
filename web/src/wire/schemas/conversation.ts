@@ -142,6 +142,23 @@ export const wireMessageSchema = z.object({
   summary: z.string().default(''),
   text_body: z.string().nullable().default(''),
   uid: z.number().int().min(0),
+  // Where this message says unsubscribing goes.
+  //
+  // Backend: `UnsubscribeWire` in
+  // crates/webapi/src/handlers/conversation_body.rs:71 — built from
+  // the message's own `List-Unsubscribe` header, and absent when the
+  // header is missing or unparseable. Both arrays are omitted when
+  // empty, which is why they default rather than being required.
+  //
+  // The server has sent this since 2026-08-09 and the web dropped it
+  // on the floor: iOS offered the button and this client did not.
+  unsubscribe: z
+    .object({
+      http: z.array(z.string()).default([]),
+      mailto: z.array(z.string()).default([]),
+      one_click: z.boolean().default(false),
+    })
+    .nullish(),
 })
 
 export type WireMessage = z.infer<typeof wireMessageSchema>

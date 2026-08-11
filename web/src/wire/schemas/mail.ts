@@ -166,3 +166,14 @@ export const reactionsListSchema = z
  *  endpoint returns a flat list including `message_uid` per row.
  *  Callers group by `message_uid` client-side if needed. */
 export const threadReactionsSchema = reactionsListSchema
+
+/**
+ * Backend: `UnsubscribeResult` in
+ * crates/webapi/src/handlers/unsubscribe.rs:32 — `ok` always, `status`
+ * and `message` only when the request reached the sender's endpoint.
+ */
+export const unsubscribeResultSchema = z.object({
+  message: z.string().optional(),
+  ok: z.boolean(),
+  status: z.number().optional(),
+})
