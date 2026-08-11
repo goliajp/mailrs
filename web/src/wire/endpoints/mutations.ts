@@ -101,10 +101,34 @@ export async function wireDeleteThread(threadId: string): Promise<void> {
   })
 }
 
-export function wireMarkAllRead(): Promise<WireMarkAllReadResponse> {
+/**
+ * Mark read what the current list is showing.
+ *
+ * The axes go in the query string — the same ones the conversation
+ * list sends — and the server marks exactly what that query returns,
+ * including the rows this client has not scrolled to. Called with no
+ * axes it is the whole mailbox, which is what this did before the
+ * route learned to scope (2026-08-12) and what the name still says.
+ *
+ * Scoped server-side rather than by sending thread ids: a client can
+ * only name the page it has loaded, and marking 50 of 1,458 would look
+ * finished and do a fraction.
+ */
+export function wireMarkAllRead(axes?: {
+  archived?: boolean
+  folder?: null | string
+  starred?: boolean
+  unread?: boolean
+}): Promise<WireMarkAllReadResponse> {
+  const query = new URLSearchParams()
+  if (axes?.folder) query.set('folder', axes.folder)
+  if (axes?.archived) query.set('archived', 'true')
+  if (axes?.starred) query.set('starred', 'true')
+  if (axes?.unread) query.set('unread', 'true')
+  const suffix = query.size > 0 ? `?${query}` : ''
   return wireFetch(markAllReadResponseSchema, {
     body: {},
     method: 'POST',
-    path: '/conversations/mark-all-read',
+    path: `/conversations/mark-all-read${suffix}`,
   })
 }
