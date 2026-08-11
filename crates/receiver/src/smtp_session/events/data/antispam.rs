@@ -71,6 +71,12 @@ pub(super) async fn run_antispam(
         receive_ctx.recipient_whitelist = wl;
         receive_ctx.recipient_blacklist = bl;
     }
+    // A colleague's message is not junk. Mail that really comes from
+    // one of our own domains — proven by SPF or DKIM, never by the
+    // `From:` header alone — takes the same Accept as a whitelisted
+    // sender. Mail our own users *send* never reaches here: this whole
+    // function runs only for unauthenticated sessions.
+    receive_ctx.local_domains = ctx.local_domains.iter().map(|d| d.to_lowercase()).collect();
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;

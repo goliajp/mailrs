@@ -44,6 +44,7 @@ fn default_input() -> PipelineInput {
         from_addr: String::new(),
         recipient_whitelist: std::collections::HashSet::new(),
         recipient_blacklist: std::collections::HashSet::new(),
+        local_domains: std::collections::HashSet::new(),
     }
 }
 
