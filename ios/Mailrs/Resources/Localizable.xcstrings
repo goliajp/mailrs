@@ -625,6 +625,22 @@
         }
       }
     },
+    "Always allow": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常に許可"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久允许"
+          }
+        }
+      }
+    },
     "Always allowed": {
       "localizations": {
         "ja": {
@@ -637,6 +653,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "始终允许"
+          }
+        }
+      }
+    },
+    "Always block": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常にブロック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久拦截"
           }
         }
       }
@@ -957,6 +989,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "复制"
+          }
+        }
+      }
+    },
+    "Copy address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレスをコピー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制地址"
           }
         }
       }
@@ -2960,6 +3008,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "搜索邮件"
+          }
+        }
+      }
+    },
+    "Search this sender": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この差出人を検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索此发件人"
           }
         }
       }
