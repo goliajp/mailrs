@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { redraftSchema, sendsSchema } from '../schemas/sends'
+import { redraftSchema, scheduledListSchema, sendsSchema } from '../schemas/sends'
 
 /**
  * Captured verbatim from prod 2.18.14 on 2026-07-30:
@@ -135,5 +135,45 @@ describe('redraftSchema', () => {
     expect(parsed.attachments[0].filename).toBe(parsed.attachments[1].filename)
     expect(parsed.attachments[0].index).not.toBe(parsed.attachments[1].index)
     expect(parsed.bcc).toEqual(['blind@x.com'])
+  })
+})
+
+describe('scheduledListSchema', () => {
+  /**
+   * Captured from `list_scheduled` on 2026-08-11 — the handler builds
+   * each item with `serde_json::json!` from the queued envelope, and
+   * `scheduled_at` is the zset score cast to i64.
+   */
+  it('reads the handler shape and renames to the UI form', () => {
+    const raw = {
+      items: [
+        {
+          id: '42',
+          recipient: 'alice@example.com',
+          scheduled_at: 1_786_500_000,
+          subject: 'Later',
+        },
+      ],
+    }
+    expect(scheduledListSchema.parse(raw).items).toEqual([
+      {
+        id: '42',
+        recipient: 'alice@example.com',
+        scheduledAt: 1_786_500_000,
+        subject: 'Later',
+      },
+    ])
+  })
+
+  /** Nothing scheduled is the common case, and it is not an error. */
+  it('an empty answer parses to an empty list', () => {
+    expect(scheduledListSchema.parse({ items: [] }).items).toEqual([])
+    expect(scheduledListSchema.parse({}).items).toEqual([])
+  })
+
+  /** The handler defaults a missing subject or recipient to `""`. */
+  it('a message with no subject still lists', () => {
+    const parsed = scheduledListSchema.parse({ items: [{ id: '7' }] })
+    expect(parsed.items[0]).toEqual({ id: '7', recipient: '', scheduledAt: 0, subject: '' })
   })
 })
