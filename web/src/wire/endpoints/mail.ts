@@ -21,6 +21,7 @@ import {
   sentMessagesSchema,
   snoozeResultSchema,
   threadReactionsSchema,
+  unsubscribeResultSchema,
   type WireDeleteDraftResult,
   type WireDraft,
   type WireFeedbackResult,
@@ -218,4 +219,26 @@ export async function wireToggleReaction(
     path: `/conversations/${encodeURIComponent(threadId)}/messages/${uid}/reactions`,
   })
   return raw.reactions
+}
+
+/**
+ * `POST /api/mail/unsubscribe` — take the sender at their word.
+ *
+ * The server reads the URL out of the message's own `List-Unsubscribe`
+ * header rather than taking one from this body, which is what stops
+ * the endpoint being a request forwarder pointed at any URL a caller
+ * names. So the request identifies the message, not the destination.
+ *
+ * Backend: `UnsubscribeRequest { thread_id, uid }` in
+ * crates/webapi/src/handlers/unsubscribe.rs:24.
+ */
+export async function wireUnsubscribe(
+  threadId: string,
+  uid: number
+): Promise<{ message?: string; ok: boolean; status?: number }> {
+  return wireFetch(unsubscribeResultSchema, {
+    body: { thread_id: threadId, uid },
+    method: 'POST',
+    path: '/mail/unsubscribe',
+  })
 }

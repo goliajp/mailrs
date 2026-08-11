@@ -30,6 +30,8 @@ import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, HdrBtn, SmBtn } from '@/components/thread-view-bubble'
 import { formatRecipients } from '@/components/thread-view-helpers'
+import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
+import { useSelectedThreadId } from '@/hooks/use-current-list'
 import { MPane } from '@/layouts/pane'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
@@ -101,6 +103,10 @@ export function ThreadContentPane({
   subject,
   timelineCollapsed,
 }: ContentPaneProps) {
+  // The thread this pane is showing — `POST /api/mail/unsubscribe`
+  // names the message by (thread, uid) rather than by URL, which is
+  // what stops it being a request forwarder.
+  const threadId = useSelectedThreadId()
   return (
     <>
       {/* content panel — full width on mobile, flex-[2] on desktop */}
@@ -347,6 +353,13 @@ export function ThreadContentPane({
                       textBody={null}
                       uid={selectedMsg.uid}
                     />
+                    <div className="px-4 pb-3">
+                      <UnsubscribeFooter
+                        header={selectedMsg.unsubscribe}
+                        threadId={threadId ?? ''}
+                        uid={selectedMsg.uid}
+                      />
+                    </div>
                   </div>
                 )}
                 {!selectedMsg.html_body && (

@@ -105,6 +105,17 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('signature-save'))
   })
 
+  it('unsubscribe', async () => {
+    const { wireUnsubscribe } = await import('../endpoints/mail')
+    const body = await bodyOf(() => wireUnsubscribe('a48529b44b1b190f@golia.jp', 41))
+    // The message, not the destination: the server takes the URL from
+    // that message's own `List-Unsubscribe` header, which is what stops
+    // the endpoint being a request forwarder pointed anywhere. The
+    // fixture is the one the Rust side has been checking since the
+    // route shipped — this client simply never sent it.
+    expect(body).toEqual(fixture('unsubscribe'))
+  })
+
   it('sender list add', async () => {
     const { wireAddSender } = await import('../endpoints/settings')
     const body = await bodyOf(() => wireAddSender('whitelist', 'friend@example.com'))
