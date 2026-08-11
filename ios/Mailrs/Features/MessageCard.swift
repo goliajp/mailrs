@@ -19,6 +19,7 @@ struct MessageCard: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var bodyHeight: CGFloat = 1
     @State private var showingSource = false
+    @State private var showingQuoted = false
 
     /// Zero until the body has been measured — the card grows into its
     /// height rather than flashing a half-laid-out page.
@@ -198,13 +199,36 @@ struct MessageCard: View {
                     .opacity(measuredOpacity)
                     .animation(.easeIn(duration: 0.15), value: bodyHeight > 1)
             case .text(let text):
+                let split = QuotedHistory.split(text)
                 // Not `Text(verbatim:)`: 70% of real plain-text mail has
                 // a URL in it, and that spelling renders every one of
                 // them as characters you can read and not follow.
-                Text(PlainTextLinks.attributed(text))
+                Text(PlainTextLinks.attributed(split.body))
                     .font(.callout)
                     .textSelection(.enabled)
                     .tint(theme.accent)
+                if let quoted = split.quoted {
+                    // Folded, never dropped. Where a reply carries
+                    // history at all it is a median 81% of the body,
+                    // and the reader has read it once already.
+                    Button {
+                        withAnimation { showingQuoted.toggle() }
+                    } label: {
+                        Label(
+                            showingQuoted ? "Hide quoted text" : "Show quoted text",
+                            systemImage: showingQuoted ? "chevron.up" : "ellipsis")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    if showingQuoted {
+                        Text(PlainTextLinks.attributed(quoted))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .tint(theme.accent)
+                    }
+                }
             case .empty:
                 // A zip with nothing around it, a delivery report, a
                 // signature with nothing this client can read: nine

@@ -1569,6 +1569,22 @@
         }
       }
     },
+    "Hide quoted text": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引用文を隠す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏引用内容"
+          }
+        }
+      }
+    },
     "Important": {
       "localizations": {
         "ja": {
@@ -3152,6 +3168,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享"
+          }
+        }
+      }
+    },
+    "Show quoted text": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引用文を表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示引用内容"
           }
         }
       }
