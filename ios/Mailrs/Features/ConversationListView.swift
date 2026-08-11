@@ -8,6 +8,7 @@ struct ConversationListView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
     @State private var showingDrafts = false
+    @State private var confirmingMarkAllRead = false
     /// Multi-select state. `selection` only means anything while
     /// `editMode` is active; leaving select mode clears it.
     @State private var showingSettings = false
@@ -225,6 +226,22 @@ struct ConversationListView: View {
             // popover here and SwiftUI drops the `.cancel` button in
             // that presentation, so the sheet came up with no visible
             // way out but tapping past it.
+            // An alert, not a `confirmationDialog`: on a phone that
+            // one renders as a popover and drops what it is given —
+            // twice in this app already. And a confirmation at all
+            // because this cannot be undone and reaches rows the
+            // reader cannot see.
+            .alert(
+                "Mark all as read?",
+                isPresented: $confirmingMarkAllRead
+            ) {
+                Button("Mark all as read") {
+                    Task { await session.markListRead() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Every conversation in \(session.activeList.title) will be marked read.")
+            }
             .alert(
                 "Move to",
                 isPresented: Binding(
@@ -368,6 +385,16 @@ struct ConversationListView: View {
                             }
                         }
                         Divider()
+                        // The whole mailbox, behind a confirmation: it
+                        // is one tap, it cannot be undone, and the
+                        // count it reports is the only evidence
+                        // afterwards that it did anything.
+                        Button {
+                            confirmingMarkAllRead = true
+                        } label: {
+                            Label("Mark all as read", systemImage: "envelope.open")
+                        }
+                        .disabled(session.activeList == .send)
                         Button {
                             showingDrafts = true
                         } label: {

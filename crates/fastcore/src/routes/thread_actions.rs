@@ -50,6 +50,56 @@ pub(crate) async fn mark_all_read_route(
     Json(serde_json::json!({ "ok": true, "flipped": flipped }))
 }
 
+/// Mark read everything **this list** is showing.
+///
+/// The mailbox-wide version above is the wrong answer when somebody is
+/// looking at one folder: "mark all as read" from inside Notifications
+/// should not silence the inbox. This takes the same
+/// `ConversationFilter` the list read takes and marks exactly what
+/// that query returns — one reading of the filter, shared with
+/// `list_conversations`, so the set marked and the set on screen
+/// cannot be different sets.
+///
+/// Not paged: the point is the whole list, including the rows the
+/// client has not scrolled to. A client marking only its loaded page
+/// would look finished and do a fraction, which is the failure this
+/// route exists to avoid.
+pub(crate) async fn mark_list_read_route(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+    Json(req): Json<conv::ListConversationsRequest>,
+) -> Json<serde_json::Value> {
+    let filter = crate::routes::reads::threads_filter(&req.filter);
+    // Whatever the list would show, ignoring the page size the caller
+    // sent — 100_000 is the same ceiling `mark_all_seen` uses.
+    let (rows, _total) = match state
+        .mailbox
+        .list_threads_by_activity(&user, &filter, 0, 100_000)
+    {
+        Ok(page) => page,
+        Err(e) => {
+            tracing::warn!(%user, error = %e, "mark-list-read: list failed");
+            return Json(serde_json::json!({ "ok": false, "flipped": 0 }));
+        }
+    };
+    let mut flipped = 0u32;
+    for row in &rows {
+        // Only the ones that were unread: `mark_seen` answers whether
+        // the row existed, not whether anything changed, and a count
+        // that includes already-read threads would report work it did
+        // not do.
+        if row.unread_count > 0
+            && state
+                .mailbox
+                .mark_seen(&user, &row.thread_id)
+                .unwrap_or(false)
+        {
+            flipped += 1;
+        }
+    }
+    Json(serde_json::json!({ "ok": true, "flipped": flipped }))
+}
+
 pub(crate) async fn pin_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,

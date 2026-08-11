@@ -30,6 +30,9 @@ pub const PATH_LIST_SENT_MESSAGES: &str = "/v1/users/{user}/sent-messages";
 pub const PATH_MARK_READ: &str = "/v1/users/{user}/threads/{thread_id}/read";
 pub const PATH_MARK_UNREAD: &str = "/v1/users/{user}/threads/{thread_id}/unread";
 pub const PATH_MARK_ALL_READ: &str = "/v1/users/{user}/conversations:mark-all-read";
+/// Mark read everything one list is showing — same filter the list
+/// read takes, so the set marked is the set on screen.
+pub const PATH_MARK_LIST_READ: &str = "/v1/users/{user}/conversations:mark-list-read";
 pub const PATH_STAR: &str = "/v1/users/{user}/threads/{thread_id}/star";
 pub const PATH_UNSTAR: &str = "/v1/users/{user}/threads/{thread_id}/unstar";
 pub const PATH_PIN: &str = "/v1/users/{user}/threads/{thread_id}/pin";

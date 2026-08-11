@@ -11,14 +11,17 @@ use axum::Json;
 use axum::extract::{Path, State};
 
 use crate::*;
-
-/// `POST /v1/users/{user}/conversations:list`.
-pub(crate) async fn list_conversations(
-    State(state): State<Arc<FastcoreState>>,
-    Path(user): Path<String>,
-    Json(req): Json<conv::ListConversationsRequest>,
-) -> Json<conv::ListConversationsResponse> {
-    let f = &req.filter;
+/// One reading of a conversation filter, shared by everything that has
+/// to agree with the list.
+///
+/// "Mark all as read" marks whatever this list is showing, so it has
+/// to ask the same question the list asked. Two copies of this
+/// mapping is two chances to answer differently — and a mark-all that
+/// marks a slightly different set than the rows on screen is a
+/// feature that looks like it worked.
+pub(crate) fn threads_filter(
+    f: &mailrs_core_api::types::ConversationFilter,
+) -> ListThreadsFilter<'_> {
     // Archived is a tab, not a predicate inside the current folder —
     // the UI's own tab resolver returns 'archived' ahead of the folder
     // it was opened from. The client keeps sending that folder, so
@@ -29,7 +32,7 @@ pub(crate) async fn list_conversations(
     } else {
         f.folder.as_deref()
     };
-    let filter = ListThreadsFilter {
+    ListThreadsFilter {
         category: f.category.as_deref(),
         folder,
         pinned: false,
@@ -38,7 +41,17 @@ pub(crate) async fn list_conversations(
         has_action: false,
         starred: f.starred.unwrap_or(false),
         before_ts: f.before_ts,
-    };
+    }
+}
+
+/// `POST /v1/users/{user}/conversations:list`.
+pub(crate) async fn list_conversations(
+    State(state): State<Arc<FastcoreState>>,
+    Path(user): Path<String>,
+    Json(req): Json<conv::ListConversationsRequest>,
+) -> Json<conv::ListConversationsResponse> {
+    let f = &req.filter;
+    let filter = threads_filter(f);
     let limit = if f.limit == 0 { 50 } else { f.limit as usize };
     // An error here reads as an empty mailbox, which is the one answer
     // the caller cannot tell from a real one — so say it happened. The
