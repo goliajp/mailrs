@@ -9,6 +9,8 @@
  * is planned for §D).
  */
 
+import { getToken } from '@/store/auth'
+
 import { wireFetch } from '../client'
 import {
   deleteDraftResultSchema,
@@ -186,6 +188,32 @@ export const wireRecordFeedback = (
   })
 
 // ── reactions ────────────────────────────────────────────────────
+
+/**
+ * `GET /api/mail/messages/{uid}/raw` — the message as it arrived.
+ *
+ * `message/rfc822`, not JSON, so it does not go through `wireFetch`:
+ * that parses a body through a Zod schema and there is no schema for
+ * "the bytes a sender sent". The headers a client normally hides are
+ * the point — `Authentication-Results` is where the answer lives when
+ * a message landed in Junk or claims to be from someone it is not.
+ *
+ * The route has been live since before this client existed and no web
+ * page has ever called it; iOS gained a viewer for it this week.
+ */
+export async function wireGetMessageSource(uid: number): Promise<string> {
+  // `getToken()`, not a localStorage key spelled again here — the
+  // store owns where the token lives, and a second spelling is a
+  // second thing to get wrong the day it moves.
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`/api/mail/messages/${encodeURIComponent(String(uid))}/raw`, {
+    headers,
+  })
+  if (!res.ok) throw new Error(`The server answered ${res.status}`)
+  return res.text()
+}
 
 /**
  * Backend `get_thread_reactions` returns a flat
