@@ -199,7 +199,12 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
       setBatchLoading(true)
       try {
         const result = await wireBatchMutation(action, ids)
-        const msg = result.message ?? (result.success ? 'Done' : 'Some operations failed')
+        // How many, not "some": the route reports which ids it could
+        // not do, and a message that cannot count is one the reader
+        // has to go and check for themselves.
+        const refused = result.failed_thread_ids.length || result.failed
+        const msg =
+          result.message ?? (result.success ? 'Done' : `${refused} of ${ids.length} failed`)
         if (result.success) {
           toast.success(msg)
         } else {

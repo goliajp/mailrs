@@ -29,6 +29,16 @@ export const emptyResponseSchema = z.undefined()
  */
 export const batchMutationResponseSchema = z.object({
   failed: z.number().int().min(0),
+  /**
+   * Which ones did not go through.
+   *
+   * The route has always known — it is a per-thread loop — and used to
+   * report only a count, so a caller that removed fifty rows
+   * optimistically learned that three failed and not which three, and
+   * could roll back everything or nothing. Added 2026-08-12; omitted
+   * from the JSON when empty, hence the default.
+   */
+  failed_thread_ids: z.array(z.string()).default([]),
   message: z.string().optional(),
   processed: z.number().int().min(0),
   success: z.boolean(),
