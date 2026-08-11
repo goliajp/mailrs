@@ -76,23 +76,19 @@ targets:
     platform: iOS
     sources:
       - path: Mailrs
-    entitlements:
-      # The contents belong here, not in the file: XcodeGen *generates*
-      # what `path` names, and a path with no `properties` generates an
-      # empty dict — which silently overwrote a hand-written
-      # `aps-environment` on every build. The app then installed, ran,
-      # and never received a notification.
-      path: Mailrs/Mailrs.entitlements
-      properties:
-        # `development`, which is what an app installed from Xcode is
-        # signed for; a TestFlight or App Store build needs
-        # `production`. This value and the server's
-        # MAILRS_APNS_ENDPOINT must agree: a development token pushed
-        # at the production gateway answers BadDeviceToken, which the
-        # sender treats as unregistered and prunes — so every device
-        # would quietly unsubscribe itself.
-        aps-environment: development
     settings:
+      configs:
+        # The one difference between a build from Xcode and a build for
+        # TestFlight, and the reason both files are hand-written rather
+        # than generated: XcodeGen's `entitlements:` key writes one file
+        # for every configuration, which both flattened this
+        # distinction *and* rewrote the file as an empty dict on every
+        # build — `aps-environment` disappeared each time, and an app
+        # without it installs, runs, and silently receives nothing.
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: Mailrs/Mailrs.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Mailrs/Mailrs.release.entitlements
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.golia.mailrs
         INFOPLIST_KEY_CFBundleDisplayName: Mailrs

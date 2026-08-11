@@ -123,3 +123,24 @@ struct PlainTextLinksTests {
         #expect(String(PlainTextLinks.attributed("").characters).isEmpty)
     }
 }
+
+@Suite("Plain text carries more than links")
+struct PlainTextDetectionTests {
+    /// A URL that happens to contain a phone-shaped run is a URL. The
+    /// two detectors run over the same text without knowing about each
+    /// other, so the link claim has to win.
+    @Test("a link is never overwritten by a number inside it")
+    func linkWins() {
+        let text = "See https://example.com/order/03-3964-2611 for details"
+        let attributed = PlainTextLinks.attributed(text)
+        let links = attributed.runs.compactMap(\.link?.absoluteString)
+        #expect(links.allSatisfy { $0.hasPrefix("https://") }, "got \(links)")
+    }
+
+    @Test("a phone number in prose becomes dialable")
+    func numberInProse() {
+        let attributed = PlainTextLinks.attributed("Reception is on 03-3964-2611.")
+        let links = attributed.runs.compactMap(\.link?.absoluteString)
+        #expect(links == ["tel:0339642611"])
+    }
+}

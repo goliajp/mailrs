@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Release only. A TestFlight or App Store build is signed for the
+	     production APNs gateway; a Debug build from Xcode is not, and
+	     takes Mailrs.entitlements instead.
+
+	     Hand-written rather than generated: XcodeGen's `entitlements`
+	     key generates exactly one file per target, so the second one
+	     is a plain file the Release configuration points at. It is
+	     therefore NOT regenerated on every build — which is the whole
+	     reason the first one kept losing its contents.
+
+	     The server must agree. `MAILRS_APNS_ENDPOINT` is unset in
+	     deploy/docker-compose.prod.yml, which means sandbox, which is
+	     right while the only install is from Xcode. The day a
+	     TestFlight build exists, set it to
+	     https://api.push.apple.com — one gateway serves one kind of
+	     token, so the two cannot overlap, and a development token
+	     pushed at production answers BadDeviceToken, which the sender
+	     reads as unregistered and prunes. -->
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>
