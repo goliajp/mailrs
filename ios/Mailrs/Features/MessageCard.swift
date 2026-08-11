@@ -18,6 +18,7 @@ struct MessageCard: View {
     @Environment(\.theme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var bodyHeight: CGFloat = 1
+    @State private var showingSource = false
 
     /// Zero until the body has been measured — the card grows into its
     /// height rather than flashing a half-laid-out page.
@@ -220,6 +221,30 @@ struct MessageCard: View {
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: 12))
+        // Long press, which is where every other iOS app keeps the
+        // things you do to one item. The thread's own bar has reply,
+        // archive and the junk verdict — those act on the whole
+        // conversation. These three act on *this message*, and none of
+        // them had anywhere to live.
+        .contextMenu {
+            Button {
+                UIPasteboard.general.string = MessageActions.plainText(message)
+            } label: {
+                Label("Copy text", systemImage: "doc.on.doc")
+            }
+            ShareLink(item: MessageActions.shareable(message)) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            Divider()
+            Button {
+                showingSource = true
+            } label: {
+                Label("View source", systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+        }
+        .sheet(isPresented: $showingSource) {
+            MessageSourceSheet(uid: message.uid)
+        }
     }
 }
 

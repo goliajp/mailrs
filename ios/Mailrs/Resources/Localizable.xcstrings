@@ -961,6 +961,22 @@
         }
       }
     },
+    "Copy text": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本文をコピー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制正文"
+          }
+        }
+      }
+    },
     "Copy this key now": {
       "localizations": {
         "ja": {
@@ -1149,6 +1165,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法打开这个会话"
+          }
+        }
+      }
+    },
+    "Could not read the source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ソースを読み込めませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取原文"
           }
         }
       }
@@ -1888,6 +1920,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "正文"
+          }
+        }
+      }
+    },
+    "Message source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メッセージのソース"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件原文"
           }
         }
       }
@@ -3092,6 +3140,22 @@
         }
       }
     },
+    "Share": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享"
+          }
+        }
+      }
+    },
     "Sign in": {
       "localizations": {
         "ja": {
@@ -3712,6 +3776,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "发件人已验证"
+          }
+        }
+      }
+    },
+    "View source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ソースを表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看原文"
           }
         }
       }

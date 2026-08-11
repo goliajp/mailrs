@@ -389,3 +389,28 @@ extension MailrsClient {
         try await verb("DELETE", "\(kind.listPath)/\(MailrsClient.segment(address))")
     }
 }
+
+
+/// The message as it arrived.
+///
+/// `GET /api/mail/messages/{uid}/raw` answers the RFC 5322 bytes — the
+/// headers a client normally hides, which is the only way to answer
+/// "who really sent this" or "why did it land in Junk" from the phone
+/// instead of walking to a desk.
+extension MailrsClient {
+    func messageSource(uid: UInt32) async throws -> String {
+        let (data, response) = try await send(
+            "GET", "/api/mail/messages/\(uid)/raw", body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        // Not UTF-8 by contract: a message carries whatever encoding
+        // its sender chose, and a header can be raw ISO-8859-1 beside a
+        // UTF-8 body. Lossy is right here — this is for reading, and a
+        // replacement character is more use than an error.
+        return String(decoding: data, as: UTF8.self)
+    }
+}
