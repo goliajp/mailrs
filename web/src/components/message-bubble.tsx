@@ -35,6 +35,7 @@ export const MessageBubble = memo(function MessageBubble({
   uid: number
 }) {
   const hasAttachments = attachments.length > 0
+  const [showQuoted, setShowQuoted] = useState(false)
   // Defer the body inputs through `useDeferredValue` so that clicking a new
   // conversation commits the shell (header, attachments row) at user-input
   // priority and the heavy `splitEmail` work — `new DOMParser()` over a
@@ -68,6 +69,34 @@ export const MessageBubble = memo(function MessageBubble({
           }`}
         >
           <TextContent body={parts.body} isOwn={isOwn} />
+        </div>
+      )}
+
+      {/* The quoted history, folded — never dropped.
+          `splitEmail` cuts a forwarded chain off at Outlook's
+          `#divRplyFwdMsg`, and this component used to render `body`
+          and discard `quoted` with no way to ask for it: a forward
+          arrived showing the covering note and none of the message it
+          was forwarding. Reported 2026-08-12, with the same mail
+          readable in full on iOS, which folds it behind a toggle. */}
+      {parts.quoted && (
+        <div className="mt-1">
+          <button
+            className="text-fg-muted hover:text-fg text-xs underline"
+            onClick={() => setShowQuoted((v) => !v)}
+          >
+            {showQuoted ? 'Hide quoted text' : 'Show quoted text'}
+          </button>
+          {showQuoted &&
+            (isHtml ? (
+              <div className="border-border mt-1 border bg-white select-text">
+                <HtmlFrame attachments={attachments} html={parts.quoted} uid={uid} />
+              </div>
+            ) : (
+              <div className="bg-surface text-fg-muted mt-1 px-4 py-2.5 select-text">
+                <TextContent body={parts.quoted} isOwn={false} />
+              </div>
+            ))}
         </div>
       )}
 
