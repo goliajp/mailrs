@@ -114,6 +114,22 @@ struct ConversationRow: View {
                     }
                     Spacer(minLength: 0)
                 }
+                // The line that answers "do I need to open this".
+                //
+                // The server has sent it all along — 31,182 of 31,335
+                // rows on prod carry one — and this client drew the
+                // subject and stopped. A subject says what a message is
+                // filed under; the first line says what it wants.
+                //
+                // Hidden at accessibility sizes, where the subject
+                // already takes three lines and a fourth would push the
+                // next row off the screen entirely.
+                if !typeSize.isAccessibilitySize, !conversation.snippet.isEmpty {
+                    Text(conversation.snippet)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.vertical, 2)
