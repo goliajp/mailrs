@@ -81,6 +81,42 @@ struct MessageCard: View {
     ///
     /// Stacked at the accessibility sizes for the reason the list row
     /// is (`RowLayout`): side by side, the name loses to a timestamp.
+    /// What a reader can do with the person who sent this.
+    ///
+    /// A long press on the name, because the name is what they are
+    /// looking at when the question occurs to them — "who is this",
+    /// "what else have they sent me", "make this stop". Every answer
+    /// here is built from something the app already has: the search
+    /// this client already runs, and the sender lists the server has
+    /// always kept and no client offered until this week.
+    @ViewBuilder
+    private var senderActions: some View {
+        let address = SenderName.extractEmail(message.sender)
+        if !address.isEmpty {
+            Button {
+                Task { await session.search(text: address) }
+            } label: {
+                Label("Search this sender", systemImage: "magnifyingglass")
+            }
+            Button {
+                UIPasteboard.general.string = address
+            } label: {
+                Label("Copy address", systemImage: "doc.on.doc")
+            }
+            Divider()
+            Button {
+                Task { await session.addSender(address, to: .blocked) }
+            } label: {
+                Label("Always block", systemImage: "hand.raised")
+            }
+            Button {
+                Task { await session.addSender(address, to: .allowed) }
+            } label: {
+                Label("Always allow", systemImage: "checkmark.shield")
+            }
+        }
+    }
+
     @ViewBuilder
     private var senderLine: some View {
         if RowLayout.stacksHeader(typeSize) {
@@ -93,6 +129,7 @@ struct MessageCard: View {
                 }
                 RowDateText(epochSeconds: message.internalDate, style: .stamp)
             }
+            .contextMenu { senderActions }
         } else {
             HStack(spacing: 6) {
                 Text(SenderName.extractName(message.sender))
@@ -106,6 +143,7 @@ struct MessageCard: View {
                 Spacer(minLength: 4)
                 RowDateText(epochSeconds: message.internalDate, style: .stamp)
             }
+            .contextMenu { senderActions }
         }
     }
 

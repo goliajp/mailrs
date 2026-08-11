@@ -413,3 +413,27 @@ extension Session {
         }
     }
 }
+
+
+/// The two lists that decide what bypasses the filter, and what never
+/// arrives.
+@MainActor
+extension Session {
+    /// Put a sender on one of them.
+    ///
+    /// Adding is all this offers: the Settings screen is where the
+    /// lists can be *read*, and a menu that adds without showing what
+    /// is already there is how a list nobody can see grows forever —
+    /// which is exactly what the whitelist did for months.
+    func addSender(_ address: String, to kind: SenderListKind) async {
+        guard let client else { return }
+        do {
+            try await client.addToSenderList(kind, address: address)
+            banner = kind == .blocked
+                ? String(localized: "Blocked \(address)")
+                : String(localized: "Always allowing \(address)")
+        } catch {
+            banner = error.localizedDescription
+        }
+    }
+}
