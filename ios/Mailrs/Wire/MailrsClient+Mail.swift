@@ -414,3 +414,45 @@ extension MailrsClient {
         return String(decoding: data, as: UTF8.self)
     }
 }
+
+
+/// A whole list, at once.
+///
+/// `POST /api/conversations/mark-all-read` carrying the current list's
+/// own query axes — the mailbox-wide form is the wrong answer when
+/// someone is looking at one folder, and marking all read from inside
+/// Notifications should not silence the inbox.
+///
+/// One request, not a loop: the batch bar's per-thread version is
+/// right for a handful of selected rows and wrong for a list of 1,458
+/// threads, which would be 1,458 round trips the reader watches go
+/// by.
+///
+/// The count matters. "Marked as read" over a mailbox that had none
+/// unread is a different sentence from one that had four hundred, and
+/// a client that cannot tell them apart cannot say either.
+extension MailrsClient {
+    func markListRead(axes: MailListAxes) async throws -> Int {
+        struct Answer: Decodable {
+            let flipped: Int
+        }
+        // The same query the list read sends. Marking is scoped
+        // server-side by exactly the axes that chose the rows, so the
+        // set marked is the set on screen — including the rows this
+        // client has not scrolled to, which is the half a client
+        // cannot do for itself.
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/conversations/mark-all-read"),
+            resolvingAgainstBaseURL: false)
+        components?.queryItems = axes.queryItems
+        guard let url = components?.url else { throw MailrsError.transport("Bad URL.") }
+        let (data, response) = try await send("POST", url: url, body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        return (try? JSONDecoder().decode(Answer.self, from: data).flipped) ?? 0
+    }
+}

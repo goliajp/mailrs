@@ -51,6 +51,7 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             .route(th::PATH_DELIVER_MESSAGE, post(deliver_message))
             .route(th::PATH_MARK_READ, post(mark_read))
             .route(th::PATH_MARK_ALL_READ, post(mark_all_read_route))
+            .route(th::PATH_MARK_LIST_READ, post(mark_list_read_route))
             .route(th::PATH_MARK_UNREAD, post(mark_unread_route))
             .route(th::PATH_SNOOZE, put(snooze_thread_route))
             .route(th::PATH_UNSNOOZE, delete(unsnooze_thread_route))

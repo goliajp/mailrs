@@ -130,6 +130,28 @@ impl Client {
         Ok(v.get("flipped").and_then(|f| f.as_u64()).unwrap_or(0) as u32)
     }
 
+    /// POST /v1/users/{user}/conversations:mark-list-read — flip every
+    /// unread thread **this list is showing**, using the same filter
+    /// the list read takes. Returns the count that was flipped.
+    ///
+    /// The mailbox-wide version above is the wrong answer when someone
+    /// is looking at one folder: marking all read from inside
+    /// Notifications should not silence the inbox.
+    pub async fn mark_list_conversations_read(
+        &self,
+        user: &str,
+        filter: &crate::types::ConversationFilter,
+    ) -> ApiResult<u32> {
+        let path = format!("/v1/users/{}/conversations:mark-list-read", Self::enc(user));
+        let body = crate::method::conversation::ListConversationsRequest {
+            filter: filter.clone(),
+        };
+        let v: serde_json::Value = self
+            .post_authed_json(path, &body, "mark_list_conversations_read")
+            .await?;
+        Ok(v.get("flipped").and_then(|f| f.as_u64()).unwrap_or(0) as u32)
+    }
+
     /// POST /v1/users/{user}/threads/{thread_id}/unread
     pub async fn mark_thread_unread(
         &self,

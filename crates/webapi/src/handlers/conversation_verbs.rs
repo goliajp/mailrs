@@ -1,6 +1,7 @@
 //! The verbs the conversation list issues: read, star, pin, archive,
 //! snooze, the triage moves, and the batch form of each.
 
+use axum::extract::Query;
 use std::sync::Arc;
 
 use axum::{
@@ -86,15 +87,47 @@ pub async fn mark_thread_read(
 /// batching the currently-loaded pagination slice; with 99+ unread
 /// spread across pages the tail stayed untouched. This endpoint fixes
 /// that by walking the has_unread zset server-side.
+/// `POST /api/conversations/mark-all-read`
+///
+/// With no query parameters this is the whole mailbox, which is what
+/// the web has always called and what the name says. With the *same*
+/// query the conversation list takes — `folder`, `unread`, `starred`,
+/// `archived` — it marks that list instead, because "mark all as
+/// read" pressed inside Notifications should not silence the inbox.
+///
+/// Scoped server-side rather than by sending thread ids: a client can
+/// only name the page it has loaded, and marking 50 of 1,458 would
+/// look finished and do a fraction.
 pub async fn mark_all_read(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Query(q): Query<crate::handlers::conversations::ListQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let flipped = state
-        .core
-        .mark_all_conversations_read(&user)
-        .await
-        .map_err(map_err)?;
+    let scoped = q.folder.is_some() || q.unread.is_some() || q.starred.is_some() || q.archived;
+    let flipped = if scoped {
+        let filter = mailrs_core_api::types::ConversationFilter {
+            limit: 0,
+            before_ts: None,
+            category: q.category,
+            domains: None,
+            archived: q.archived,
+            folder: q.folder,
+            unread: q.unread,
+            starred: q.starred,
+            section: q.section,
+        };
+        state
+            .core
+            .mark_list_conversations_read(&user, &filter)
+            .await
+            .map_err(map_err)?
+    } else {
+        state
+            .core
+            .mark_all_conversations_read(&user)
+            .await
+            .map_err(map_err)?
+    };
     Ok(Json(
         serde_json::json!({ "success": true, "flipped": flipped }),
     ))

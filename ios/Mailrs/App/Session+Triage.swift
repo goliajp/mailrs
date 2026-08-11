@@ -437,3 +437,30 @@ extension Session {
         }
     }
 }
+
+
+/// The list on screen, in one request.
+@MainActor
+extension Session {
+    /// Mark read everything this list is showing.
+    ///
+    /// One call, not a loop, and scoped by the list's own axes: the
+    /// batch bar's per-thread version is right for the rows someone
+    /// selected and wrong for a list of 1,458. The list is re-read
+    /// afterwards rather than patched — the server flipped rows this
+    /// client has never loaded, and patching only what is on screen
+    /// would leave the badge and the rows below disagreeing.
+    func markListRead() async {
+        guard let client else { return }
+        do {
+            let flipped = try await client.markListRead(axes: axes)
+            banner = flipped == 0
+                ? String(localized: "Nothing was unread")
+                : String(localized: "Marked \(flipped) as read")
+            await loadConversations()
+            await refreshBadge()
+        } catch {
+            banner = error.localizedDescription
+        }
+    }
+}

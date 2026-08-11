@@ -1876,6 +1876,38 @@
         }
       }
     },
+    "Mark all as read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべて既読にする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部标记为已读"
+          }
+        }
+      }
+    },
+    "Mark all as read?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべて既読にしますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部标记为已读？"
+          }
+        }
+      }
+    },
     "Mark as junk": {
       "localizations": {
         "ja": {
@@ -2528,6 +2560,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有待发送的邮件"
+          }
+        }
+      }
+    },
+    "Nothing was unread": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未読はありませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有未读邮件"
           }
         }
       }
