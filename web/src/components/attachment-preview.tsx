@@ -6,31 +6,36 @@ import { useState } from 'react'
 import { Copyable, CopyButton } from '@/components/copy-button'
 import { MobileModal } from '@/components/mobile-modal'
 import { formatSize } from '@/lib/format'
+import { visibleAttachments } from '@/lib/inline-attachments'
 import { getToken } from '@/store/auth'
 
 const IMAGE_EXTENSIONS = new Set(['bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'])
 
 export function AttachmentPreview({
   attachments,
+  html,
   uid,
 }: {
   attachments: AttachmentInfo[]
+  /**
+   * The body about to be rendered. Inline images this HTML already
+   * draws are the sender's decoration, not the reader's attachments —
+   * see `visibleAttachments`.
+   */
+  html?: null | string
   uid: number
 }) {
-  if (attachments.length === 0) return null
+  const visible = visibleAttachments(attachments, html)
+  if (visible.length === 0) return null
 
-  const images = attachments
-    .map((att, i) => ({ att, index: i }))
-    .filter(({ att }) => isImageAttachment(att))
-  const others = attachments
-    .map((att, i) => ({ att, index: i }))
-    .filter(({ att }) => !isImageAttachment(att))
+  const images = visible.filter(({ att }) => isImageAttachment(att))
+  const others = visible.filter(({ att }) => !isImageAttachment(att))
 
   return (
     <div className="border-border border-t px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-fg-muted text-xs font-medium tracking-wide uppercase select-none">
-          Attachments ({attachments.length})
+          Attachments ({visible.length})
         </span>
         <div className="bg-border h-px flex-1" />
       </div>
