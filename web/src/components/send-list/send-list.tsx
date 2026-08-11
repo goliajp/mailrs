@@ -23,6 +23,7 @@ import {
 import { wireGetRedraft } from '@/wire/endpoints/sends'
 
 import { FailureDetail } from './failure-detail'
+import { ScheduledSection } from './scheduled-section'
 import { needsAttention } from './send-model'
 import { StatusBadge } from './status-badge'
 import { StatusFilter } from './status-filter'
@@ -108,6 +109,7 @@ export function SendList() {
     }
     return (
       <div className="flex flex-col">
+        <ScheduledSection />
         {groupByDate(visible).map((item) => {
           if (item.type === 'divider') {
             return <DateDivider key={`d:${item.label}`} label={item.label} />

@@ -94,3 +94,30 @@ export const resendResultSchema = z.object({
 })
 
 export type WireResendResult = z.infer<typeof resendResultSchema>
+
+// ── scheduled ────────────────────────────────────────────────────
+//
+// Backend: crates/webapi/src/handlers/scheduled.rs — `list_scheduled`
+// builds each item with `serde_json::json!` from the queued envelope:
+// `id` (String), `scheduled_at` (i64), `recipient` and `subject`
+// (&str, defaulted to ""). Verified against the handler on 2026-08-11.
+export const scheduledListSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.string(),
+        recipient: z.string().default(''),
+        scheduled_at: z.number().default(0),
+        subject: z.string().default(''),
+      })
+    )
+    .default([])
+    .transform((rows) =>
+      rows.map((r) => ({
+        id: r.id,
+        recipient: r.recipient,
+        scheduledAt: r.scheduled_at,
+        subject: r.subject,
+      }))
+    ),
+})
