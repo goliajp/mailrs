@@ -60,9 +60,26 @@ print(here[0]['identifier'] if here else '')
         exit 1
     fi
     echo "==> device $DEVICE"
-    xcodebuild -project Mailrs.xcodeproj -scheme Mailrs \
+    # `-allowProvisioningUpdates` so Xcode may fetch a profile that
+    # matches the entitlements, instead of signing with whatever it
+    # cached. Without it the first push-enabled build installed happily
+    # and silently *without* `aps-environment`: the profile predated the
+    # capability, and an app missing that entitlement does not fail —
+    # it just never receives a notification.
+    xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -allowProvisioningUpdates \
       -destination "platform=iOS,id=$DEVICE" -derivedDataPath /tmp/mailrs-device build \
-      | grep -E "error:|Signing Identity|\*\* BUILD" || true
+      | grep -E "error:|warning: .*[Pp]rovisioning|Signing Identity|\*\* BUILD" || true
+    # What was actually signed, not what was asked for. The entitlement
+    # is the whole feature; a build without it is indistinguishable from
+    # a server that is not sending.
+    if ! codesign -d --entitlements - \
+        /tmp/mailrs-device/Build/Products/Debug-iphoneos/Mailrs.app 2>/dev/null \
+        | grep -q "aps-environment"; then
+        echo "!! signed without aps-environment — push will not arrive."
+        echo "!! The App ID needs the Push Notifications capability, and"
+        echo "!! Xcode needs a profile issued after it was added."
+        exit 1
+    fi
     APP=/tmp/mailrs-device/Build/Products/Debug-iphoneos/Mailrs.app
     [ -d "$APP" ] || { echo "!! no built app at $APP"; exit 1; }
     xcrun devicectl device install app --device "$DEVICE" "$APP" | grep -E "bundleID|Error"
