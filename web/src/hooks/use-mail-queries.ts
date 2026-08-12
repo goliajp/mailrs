@@ -76,6 +76,23 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       // domain `ThreadSummary` shape and drop the cast.
       return parsed.items as unknown as ConversationSummary[]
     },
+    // The one query where being wrong is visible at a glance, so it
+    // gets the safety net the global default gives up.
+    //
+    // `refetchOnWindowFocus` is false for every query (see
+    // `query-client.ts`): freshness is meant to arrive over the
+    // WebSocket. That holds for anything this app does to itself, and
+    // not at all for a change it did not make — another device, the
+    // iOS client, or a server-side repair, none of which emit an event
+    // this tab will hear. On 2026-08-12 a maintenance sweep corrected
+    // seven conversations' dates and the open tab went on showing the
+    // old order indefinitely: the server was right, the list was
+    // wrong, and nothing short of a reload would say so.
+    //
+    // Not a thundering herd: `staleTime` is 30s, so a focus only
+    // refetches a list that is already stale, and only this one.
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
   })
 }
 
