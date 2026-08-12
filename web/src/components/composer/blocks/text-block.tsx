@@ -1,23 +1,10 @@
 import type { TextBlockData } from '../types'
 
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { uploadInlineImage } from '@/components/rich-editor'
 
-// the markdown-preview pipeline (react-markdown + remark-* + rehype-highlight)
-// is ~150-200 kB. preview is opt-in via the "Preview" tab — most send paths
-// only ever see the edit textarea — so lazy-load it to keep the chat hot
 // path lean.
-const MarkdownPreview = lazy(() => import('@/components/composer/blocks/markdown-preview'))
 
 type Props = {
   data: TextBlockData
@@ -27,17 +14,10 @@ type Props = {
   placeholder?: string
 }
 
-const PREVIEW_PROSE_CLASS =
-  'prose prose-sm prose-fg max-w-none px-3 py-2 ' +
-  'prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-md ' +
-  'prose-code:before:content-none prose-code:after:content-none ' +
-  'prose-p:my-0 prose-headings:my-2 prose-p:leading-6'
-
 const MIN_HEIGHT_PX = 240
 
 export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [tab, setTab] = useState<'edit' | 'preview'>('edit')
 
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {
@@ -54,7 +34,7 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
 
   useLayoutEffect(() => {
     resize()
-  }, [data.content, resize, tab])
+  }, [data.content, resize])
 
   const emitChange = useCallback(() => {
     const el = textareaRef.current
@@ -155,33 +135,23 @@ export function TextBlock({ data, disabled, onChange, onSubmit, placeholder }: P
   return (
     <div className="flex flex-col">
       <div className="border-border flex shrink-0 items-center gap-1 border-b px-3 py-1.5">
-        <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
-          Write
-        </TabButton>
-        <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
-          Preview
-        </TabButton>
         <span className="text-fg-muted text-mini ml-auto">Markdown · Cmd+Enter to send</span>
       </div>
 
-      {tab === 'edit' ? (
-        <textarea
-          className="text-fg placeholder:text-fg-muted block w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 outline-none"
-          disabled={disabled}
-          onChange={handleChange}
-          onDrop={handleDrop}
-          onInput={resize}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={placeholder ?? 'Write your message in markdown…'}
-          ref={textareaRef}
-          spellCheck
-          style={{ minHeight: `${MIN_HEIGHT_PX}px` }}
-          value={data.content}
-        />
-      ) : (
-        <PreviewBody content={data.content} />
-      )}
+      <textarea
+        className="text-fg placeholder:text-fg-muted block w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 outline-none"
+        disabled={disabled}
+        onChange={handleChange}
+        onDrop={handleDrop}
+        onInput={resize}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        placeholder={placeholder ?? 'Write your message in markdown…'}
+        ref={textareaRef}
+        spellCheck
+        style={{ minHeight: `${MIN_HEIGHT_PX}px` }}
+        value={data.content}
+      />
     </div>
   )
 }
@@ -197,32 +167,6 @@ function insertAtCursor(el: HTMLTextAreaElement | null, text: string) {
   el.selectionStart = el.selectionEnd = caret
 }
 
-// match the textarea's vertical rhythm: each blank line in the source becomes
-// a &nbsp; paragraph in the rendered output. N consecutive newlines means
-// (N-1) blank lines between paragraphs, so we emit (N-1) &nbsp; paragraphs
-// flanked by the surrounding paragraph break.
-function preserveBlankLines(md: string): string {
-  return md.replace(/\n{2,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 1))
-}
-
-function PreviewBody({ content }: { content: string }) {
-  const processed = useMemo(() => preserveBlankLines(content), [content])
-  if (!content.trim()) {
-    return (
-      <div className={`${PREVIEW_PROSE_CLASS} min-h-[240px]`}>
-        <p className="text-fg-muted text-sm">Nothing to preview yet.</p>
-      </div>
-    )
-  }
-  return (
-    <div className={`${PREVIEW_PROSE_CLASS} min-h-[240px]`}>
-      <Suspense fallback={<p className="text-fg-muted text-sm">Loading preview…</p>}>
-        <MarkdownPreview content={processed} />
-      </Suspense>
-    </div>
-  )
-}
-
 function replaceRange(el: HTMLTextAreaElement | null, start: number, end: number, text: string) {
   if (!el) return
   const before = el.value.slice(0, start)
@@ -230,28 +174,4 @@ function replaceRange(el: HTMLTextAreaElement | null, start: number, end: number
   el.value = before + text + after
   const caret = start + text.length
   el.selectionStart = el.selectionEnd = caret
-}
-
-function TabButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean
-  children: React.ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button
-      className={
-        active
-          ? 'bg-bg-secondary text-fg rounded-md px-2 py-0.5 text-xs font-medium'
-          : 'text-fg-muted hover:bg-bg-secondary hover:text-fg rounded-md px-2 py-0.5 text-xs'
-      }
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
-  )
 }
