@@ -39,6 +39,12 @@ pub(crate) struct Report {
     pub sent_only: u64,
     /// Threads whose messages could not be read, so nothing is claimed.
     pub unreadable: u64,
+    /// Rows where the shared hash and the membership row disagree about
+    /// the date. They are the same fact under two names; a repair that
+    /// writes one and not the other reads as fixed from whichever side
+    /// it wrote, which is how the first version of this reported
+    /// success while the conversation list had not moved.
+    pub hash_and_row_disagree: u64,
     /// A few examples, worth more than the count when deciding to repair.
     pub samples: Vec<String>,
 }
@@ -88,6 +94,13 @@ pub(crate) async fn thread_date_audit_route(
                 // no inbound message to be ahead of.
                 report.sent_only += 1;
                 continue;
+            }
+            // Both structures, because either one alone can be right
+            // while the reader still sees the other.
+            if let Ok(Some(mine)) = state.mailbox.get_thread_for_user(user, &tid)
+                && mine.latest_date != row.latest_date
+            {
+                report.hash_and_row_disagree += 1;
             }
             let want = display["internal_date"].as_i64().unwrap_or(0);
             if want <= 0 || row.latest_date <= want {
