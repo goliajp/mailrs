@@ -81,10 +81,7 @@ pub(crate) fn combine_rows(
 /// Fresher wins, except that a sent-only side yields to one with
 /// inbound mail regardless of dates. Two sent-only sides — or two with
 /// inbound — fall back to fresher, which is the old behaviour.
-fn display_side_is_a(
-    a: &crate::thread_row::ThreadRow,
-    b: &crate::thread_row::ThreadRow,
-) -> bool {
+fn display_side_is_a(a: &crate::thread_row::ThreadRow, b: &crate::thread_row::ThreadRow) -> bool {
     let a_sent_only = is_sent_only(a);
     let b_sent_only = is_sent_only(b);
     if a_sent_only != b_sent_only {
@@ -149,12 +146,22 @@ mod search_tests {
     /// two days after the last thing that actually arrived.
     #[test]
     fn my_own_reply_does_not_re_date_the_conversation() {
-        let mut inbound = row("t-inbound", "Payment rejection", "them@qti.example", "hello");
+        let mut inbound = row(
+            "t-inbound",
+            "Payment rejection",
+            "them@qti.example",
+            "hello",
+        );
         inbound.count = 3;
         inbound.sent_count = 1;
         inbound.latest_date = 1_786_361_580; // the last thing they sent
 
-        let mut mine = row("t-mine", "PO 4300078149 / Updated Banking", "me@golia.jp", "");
+        let mut mine = row(
+            "t-mine",
+            "PO 4300078149 / Updated Banking",
+            "me@golia.jp",
+            "",
+        );
         mine.count = 1;
         mine.sent_count = 1; // sent-only: nothing arrived here
         mine.latest_date = 1_786_541_659; // two days newer
@@ -197,7 +204,10 @@ mod search_tests {
         newer.sent_count = 1;
         newer.latest_date = 900;
         let merged = combine_rows("t1", older, newer);
-        assert_eq!(merged.latest_date, 900, "a sent-only pair has no inbound to prefer");
+        assert_eq!(
+            merged.latest_date, 900,
+            "a sent-only pair has no inbound to prefer"
+        );
         assert_eq!(merged.subject, "newer");
     }
 

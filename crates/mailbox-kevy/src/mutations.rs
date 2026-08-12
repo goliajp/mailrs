@@ -408,7 +408,12 @@ impl KevyMailboxStore {
     ///
     /// Conditional: a value already correct is not rewritten, so a
     /// repair sweep that finds nothing does nothing.
-    pub fn set_thread_display_date(&self, user: &str, thread_id: &str, date: i64) -> io::Result<bool> {
+    pub fn set_thread_display_date(
+        &self,
+        user: &str,
+        thread_id: &str,
+        date: i64,
+    ) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let tu_key = keys::thread_user(user, thread_id);
         let want = date.to_string();
@@ -420,7 +425,8 @@ impl KevyMailboxStore {
                 let row_cur = ctx
                     .hget(tu_key.as_bytes(), b"activity")?
                     .and_then(|v| String::from_utf8(v).ok());
-                if cur.as_deref() == Some(want.as_str()) && row_cur.as_deref() == Some(want.as_str())
+                if cur.as_deref() == Some(want.as_str())
+                    && row_cur.as_deref() == Some(want.as_str())
                 {
                     return Ok(false);
                 }
@@ -428,7 +434,10 @@ impl KevyMailboxStore {
                     thread_key.as_bytes(),
                     &[(b"latest_date" as &[u8], want.as_bytes())],
                 )?;
-                ctx.hset(tu_key.as_bytes(), &[(b"activity" as &[u8], want.as_bytes())])?;
+                ctx.hset(
+                    tu_key.as_bytes(),
+                    &[(b"activity" as &[u8], want.as_bytes())],
+                )?;
                 Ok(true)
             })
             .map_err(io::Error::other)

@@ -13,8 +13,7 @@
 use super::*;
 
 pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<FastcoreState>> {
-    r
-        .route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
+    r.route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
         // Ops endpoint — one-shot pre-P6 legacy keyspace sweep
         // (Phase 11.2 embedded half). In-process so no AOF
         // double-open OOM; idempotent.
