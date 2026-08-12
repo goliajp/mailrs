@@ -23,6 +23,7 @@ import { AttachmentBlock } from '@/components/composer/blocks/attachment-block'
 import { DividerBlock } from '@/components/composer/blocks/divider-block'
 import { QuoteBlock } from '@/components/composer/blocks/quote-block'
 import { TextBlock } from '@/components/composer/blocks/text-block'
+import { EmailPreview } from '@/components/composer/email-preview'
 import { useBlockComposer } from '@/components/composer/use-block-composer'
 import { renderMarkdownToHtml } from '@/lib/render-markdown'
 
@@ -203,6 +204,11 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
     // drag-and-drop attachment support (non-image files; image drops inside
     // the textarea convert to markdown and stop propagation, so they never
     // reach this handler)
+    // Whole-mail preview. It belongs here rather than in the text block
+    // because only the composer knows every block — and a preview of one
+    // block is what made the old one lie.
+    const [previewing, setPreviewing] = useState(false)
+
     const [dragging, setDragging] = useState(false)
     const dragCounter = useRef(0)
     const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -350,14 +356,18 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
             <p className="text-accent text-sm font-medium">Drop files to attach</p>
           </div>
         )}
-        {/* block content area */}
-        <div
-          className={`flex min-h-0 flex-1 cursor-text flex-col overflow-x-hidden overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}
-          onClick={handleAreaClick}
-          ref={scrollAreaRef}
-        >
-          {blocks.map((block, i) => renderBlock(block, i))}
-        </div>
+        {/* block content area — or the whole mail, as it will arrive */}
+        {previewing ? (
+          <EmailPreview blocks={blocks} />
+        ) : (
+          <div
+            className={`flex min-h-0 flex-1 cursor-text flex-col overflow-x-hidden overflow-y-auto ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+            onClick={handleAreaClick}
+            ref={scrollAreaRef}
+          >
+            {blocks.map((block, i) => renderBlock(block, i))}
+          </div>
+        )}
 
         {/* add block bar */}
         <div className="border-border flex shrink-0 items-center border-t px-4 py-1.5">
@@ -369,6 +379,13 @@ export const StructuredCompose = forwardRef<StructuredComposeHandle, Props>(
             ref={fileInputRef}
             type="file"
           />
+          <button
+            className="text-fg-muted hover:text-fg ml-auto text-xs underline"
+            onClick={() => setPreviewing((v) => !v)}
+            type="button"
+          >
+            {previewing ? 'Back to editing' : 'Preview'}
+          </button>
         </div>
       </div>
     )
