@@ -131,12 +131,30 @@ pub(crate) fn heal_membership_rows(
         // sent copy as newer truth — that exact write undid the
         // backfill repair every 30 s. Sent-only threads keep the plain
         // max.
-        let bucket_max = bucket
+        // Only the inbound messages **in this scan window**, which is
+        // not the same as the thread's inbound messages: the sweep is
+        // incremental, so a thread whose only recent file is the user's
+        // own reply arrives here with every inbound message out of
+        // view.
+        //
+        // This used to fall back to the plain max when the filter came
+        // up empty, on the reasoning that a sent-only thread still
+        // needs a date. The fallback cannot tell "this thread is
+        // sent-only" from "this window only saw my own message", and
+        // for the second case it did exactly what the display rule
+        // forbids: it re-dated the conversation to the user's own reply
+        // and moved it to the top of Inbox, every sweep, undoing the
+        // repair each time (2026-08-12).
+        //
+        // `None` now means "no inbound evidence here" and the decision
+        // moves inside the closure, where the thread's own counters can
+        // answer whether it is genuinely sent-only.
+        let inbound_max = bucket
             .iter()
             .filter(|m| !mailrs_mailbox_kevy::senders_csv_contains_user(&m.from, user))
             .map(|m| m.date)
-            .max()
-            .unwrap_or_else(|| bucket.iter().map(|m| m.date).max().unwrap_or(0));
+            .max();
+        let window_max = bucket.iter().map(|m| m.date).max().unwrap_or(0);
         let tu_key = mailrs_mailbox_kevy::keys::thread_user(user, root);
         // Every write below is conditional, and the closure reports
         // whether it actually changed anything. A self-heal that
@@ -154,8 +172,10 @@ pub(crate) fn heal_membership_rows(
                     .and_then(|v| String::from_utf8(v).ok())
                     .and_then(|s| s.parse::<i64>().ok())
                     .unwrap_or(0);
-                let agg_latest = std::cmp::max(stored_latest, bucket_max);
-                if agg_latest > stored_latest {
+                let count = read_i64(ctx, &thread_key, b"count")?;
+                let sent = read_i64(ctx, &thread_key, b"sent_count")?;
+                let raised = healed_date(inbound_max, window_max, stored_latest, count, sent);
+                if let Some(agg_latest) = raised {
                     ctx.hset(
                         thread_key.as_bytes(),
                         &[(b"latest_date" as &[u8], agg_latest.to_string().as_bytes())],
@@ -209,4 +229,93 @@ pub(crate) fn heal_membership_rows(
         );
     }
     (rows_healed, created)
+}
+
+/// One numeric field of a hash, or 0 when it is absent or unparseable.
+fn read_i64(
+    ctx: &mut kevy_embedded::AtomicCtx<'_>,
+    key: &str,
+    field: &[u8],
+) -> Result<i64, kevy_embedded::KevyError> {
+    Ok(ctx
+        .hget(key.as_bytes(), field)?
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(0))
+}
+
+/// The date this sweep should write, or `None` to leave it alone.
+///
+/// `inbound_max` is the newest message in **this scan window** that the
+/// user did not send — not the thread's newest inbound message, because
+/// the sweep is incremental and a window can hold only the user's own
+/// reply.
+///
+/// The rule the whole codebase holds to is that a conversation's row
+/// follows its last inbound message. This sweep may only ever raise a
+/// date, so its job is to notice an inbound message the row has not
+/// caught up with; it must never volunteer the user's own send as that
+/// evidence. A thread that genuinely has nothing but the user's own
+/// messages is the one exception, and its counters say so.
+fn healed_date(
+    inbound_max: Option<i64>,
+    window_max: i64,
+    stored: i64,
+    count: i64,
+    sent_count: i64,
+) -> Option<i64> {
+    let sent_only = count > 0 && sent_count >= count;
+    let candidate = match inbound_max {
+        Some(d) => d,
+        None if sent_only => window_max,
+        // No inbound message in view and the thread has inbound mail in
+        // it somewhere: this window cannot say what the date should be.
+        None => return None,
+    };
+    if candidate > stored {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::healed_date;
+
+    /// The bug, in the shape it was reported: a reply lands, the next
+    /// incremental sweep sees only that one file, and the fallback
+    /// re-dated the whole conversation to it — every 30 seconds, undoing
+    /// each repair.
+    #[test]
+    fn a_window_holding_only_my_own_reply_leaves_the_date_alone() {
+        // 4 messages, 2 of them mine, so the thread is not sent-only.
+        assert_eq!(healed_date(None, 1_786_541_659, 1_786_376_013, 4, 2), None);
+    }
+
+    #[test]
+    fn an_inbound_message_the_row_has_not_caught_up_with_still_raises() {
+        assert_eq!(
+            healed_date(Some(1_786_541_659), 1_786_541_659, 1_786_376_013, 4, 2),
+            Some(1_786_541_659)
+        );
+    }
+
+    #[test]
+    fn a_thread_of_nothing_but_my_own_sends_keeps_using_its_own_date() {
+        assert_eq!(healed_date(None, 900, 100, 3, 3), Some(900));
+    }
+
+    #[test]
+    fn a_date_already_current_is_not_rewritten() {
+        assert_eq!(healed_date(Some(900), 900, 900, 4, 1), None);
+        assert_eq!(healed_date(Some(100), 900, 900, 4, 1), None);
+    }
+
+    /// `count == 0` is a row whose messages were never indexed. That is
+    /// missing information, not proof of a sent-only thread.
+    #[test]
+    fn a_countless_row_is_not_treated_as_sent_only() {
+        assert_eq!(healed_date(None, 900, 100, 0, 0), None);
+    }
 }
