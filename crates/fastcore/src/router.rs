@@ -144,6 +144,10 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 post(threadrow_shadow_route),
             )
             .route(
+                "/v1/admin/maintenance:thread-date-audit",
+                post(crate::maintenance::thread_date_audit::thread_date_audit_route),
+            )
+            .route(
                 "/v1/admin/maintenance:strip-shared-per-user-fields",
                 post(strip_shared_per_user_fields_route),
             )

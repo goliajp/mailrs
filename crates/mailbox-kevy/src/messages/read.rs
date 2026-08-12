@@ -91,7 +91,10 @@ impl KevyMailboxStore {
         self.thread_messages_unscoped(thread_id)
     }
 
-    pub(crate) fn thread_messages_unscoped(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
+    // `pub` rather than `pub(crate)`: the thread-date audit in
+    // fastcore reads a thread's messages to work out what the row
+    // should say. Widening this beats a second way to read them.
+    pub fn thread_messages_unscoped(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
         let zset = keys::thread_messages(thread_id);
         let entries = self
             .store()
