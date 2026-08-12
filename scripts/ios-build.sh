@@ -122,7 +122,20 @@ if ! curl -fsS -o /dev/null "http://127.0.0.1:$STUB_PORT/api/conversations"; the
     exit 1
 fi
 
-xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" test \
+# An optional second argument narrows the run:
+#   ./scripts/ios-build.sh test MailrsUITests/TriageFlowTests
+# Isolating a failure is how you tell a real one from a flake, and the
+# way to do that is *through this script* — it owns the stub's lifetime
+# and the simulator's. Reaching for `xcodebuild` directly to run one
+# test is what left CoreSimulatorService dead and the simulator
+# unusable on 2026-08-11.
+ONLY=""
+if [ -n "${2:-}" ]; then
+    ONLY="-only-testing:$2"
+    echo "    (only $2)"
+fi
+# shellcheck disable=SC2086 # ONLY is one flag or nothing, not a word list
+xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" $ONLY test \
   | grep -E "✔|✘|error:|\*\* TEST" || true
 
 if [ "${1:-}" = "run" ]; then

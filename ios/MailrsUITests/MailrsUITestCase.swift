@@ -429,4 +429,50 @@ class MailrsUITestCase: XCTestCase {
         wait(for: [done], timeout: 10)
         return result
     }
+
+    /// Long-press `element` and wait for `item` to appear in the menu
+    /// it opens, pressing again if the first one did not take.
+    ///
+    /// A long press is a wall-clock gesture, and the whole suite runs
+    /// against one simulator: under that load the recogniser can miss a
+    /// 1-second press, or the menu can take longer to present than a
+    /// five-second wait allows. `TriageFlowTests` failed exactly this
+    /// way in a full run on 2026-08-11 and passed on its own, which is
+    /// the signature — but "known flake" is a habit of ignoring red,
+    /// so the retry lives here instead of in anyone's memory.
+    ///
+    /// It retries the *gesture*, never the assertion: if the menu opens
+    /// and the item is genuinely absent, this still fails.
+    @discardableResult
+    func longPress(_ element: XCUIElement, until item: XCUIElement) -> Bool {
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "nothing to long-press")
+        for attempt in 0..<2 {
+            element.press(forDuration: 1.0)
+            if item.waitForExistence(timeout: attempt == 0 ? 5 : 10) { return true }
+        }
+        return false
+    }
+
+    /// Which verbs reached the server, in order.
+    ///
+    /// A selection goes out as one `/conversations/batch` request, so
+    /// the path alone no longer names the thread it acted on — the
+    /// stub records `"archive t1"` either way, which is the behaviour
+    /// rather than the transport.
+    func postedVerbs() -> [String] {
+        guard let url = URL(string: "http://localhost:6039/debug/verbs") else { return [] }
+        var out: [String] = []
+        let done = expectation(description: "debug/verbs")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let verbs = json["verbs"] as? [String] {
+                out = verbs
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return out
+    }
+
 }

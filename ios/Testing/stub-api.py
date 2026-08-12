@@ -869,6 +869,26 @@ class H(BaseHTTPRequestHandler):
             GROUP_GRANTS.update({1: ["admin.accounts", "admin.aliases"], 2: ["mail.read"]})
             self._send({"ok": True})
             return
+        if self.path.split("?")[0] == "/api/conversations/batch":
+            # One request for many threads, answering *which* ids it
+            # could not do. The count-only answer this replaced is why
+            # the client used to send one request per row: a batch that
+            # half-worked has to put back its own half.
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            action = body.get("action", "")
+            ids = body.get("thread_ids", [])
+            refused = [tid for tid in ids if action in VERB_REFUSE]
+            for tid in ids:
+                if tid not in refused:
+                    VERBS.append(f"{action} {tid}")
+            self._send({
+                "failed": len(refused),
+                "failed_thread_ids": refused,
+                "processed": len(ids) - len(refused),
+                "success": not refused,
+            })
+            return
         if re.match(
             r"^/api/conversations/[\w%.@-]+/(read|unread|star|unstar|archive|unarchive"
             r"|mark-junk|mark-not-junk|mark-notification|mark-promotion|move-to-inbox)$",

@@ -180,9 +180,13 @@ final class ThreadFlowTests: MailrsUITestCase {
                       "still on the thread, or the row survived the archive")
         XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].waitForExistence(timeout: 10),
                       "did not return to the list")
-        let writes = recordedWrites()
-        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/archive") },
-                      "the archive never reached the server: \(writes)")
+        // On the verb, not the path: archiving one thread goes through
+        // the same batch call a selection does — one route for one row
+        // and for fifty — so the request no longer names the thread in
+        // its URL.
+        let verbs = postedVerbs()
+        XCTAssertTrue(verbs.contains("archive t1"),
+                      "the archive never reached the server: \(verbs)")
     }
 
 
