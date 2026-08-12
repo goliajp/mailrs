@@ -101,7 +101,12 @@ pub(crate) async fn thread_date_audit_route(
                     row.latest_date - want
                 ));
             }
-            if req.repair && state.mailbox.set_thread_display_date(user, &tid, want).is_ok() {
+            if req.repair
+                && state
+                    .mailbox
+                    .set_thread_display_date(user, &tid, want)
+                    .is_ok()
+            {
                 report.repaired += 1;
             }
         }
