@@ -52,6 +52,7 @@ GET  /api/conversations                         401
 GET  /api/conversations/categories              401
 GET  /api/conversations/unseen-count            401
 POST /api/conversations/mark-all-read           401
+POST /api/conversations/batch                   401
 GET  /api/mail/drafts                           401
 POST /api/mail/drafts                           401
 GET  /api/mail/sends                            401
