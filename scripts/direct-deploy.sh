@@ -183,9 +183,40 @@ docker save "$GHCR" | gzip -1 | ssh "$PROD" 'gunzip | docker load'
 # default) never reaches the containers while the version number and
 # the image both look correct. That is exactly how MAILRS_DKIM_KEYS sat
 # unread in .env while every domain signed with the wrong d= — see
-# v2.10.0. A timestamped backup stays on the host for rollback.
-ssh "$PROD" "cd /apps/mailrs && cp docker-compose.yml docker-compose.yml.bak-\$(date +%Y%m%d-%H%M%S)"
+# v2.10.0.
+#
+# The old line here kept a timestamped copy on every deploy, and by
+# 2026-08-12 that was 126 files nobody had ever opened. A backup taken
+# unconditionally is not a safety net: this file is derived from
+# `deploy/docker-compose.prod.yml`, so every one of those copies was a
+# worse duplicate of something git already had, and the one case that
+# genuinely could not be recovered — someone editing the host copy by
+# hand — was buried in the churn.
+#
+# So the copy is conditional, and it converges: the host file is
+# compared against the exact bytes the last deploy wrote, kept beside
+# it. Equal means nothing is at risk and nothing is written. Different
+# means the host was edited by hand and that edit is about to be
+# overwritten — worth a timestamped copy *and* saying so, because the
+# person who made it is not necessarily the person deploying.
+#
+# `.prev` is a single overwritten file for "put it back right now";
+# anything older is a git checkout away.
+ssh "$PROD" 'cd /apps/mailrs || exit 1
+if [ -f docker-compose.yml.deployed ] && ! cmp -s docker-compose.yml docker-compose.yml.deployed; then
+    keep="docker-compose.yml.bak-$(date +%Y%m%d-%H%M%S)"
+    cp docker-compose.yml "$keep"
+    echo "    !! host compose was edited by hand since the last deploy — kept $keep"
+    diff docker-compose.yml.deployed docker-compose.yml | head -20 | sed "s/^/       /"
+fi
+cp docker-compose.yml docker-compose.yml.prev 2>/dev/null || true
+# Bound the hand-edit copies too. They should be rare; a runaway here
+# would just be the old problem wearing a condition.
+ls -t docker-compose.yml.bak-20* 2>/dev/null | tail -n +11 | xargs -r rm -f'
 scp -q deploy/docker-compose.prod.yml "$PROD:/apps/mailrs/docker-compose.yml"
+# Record what we wrote, so the next deploy can tell our own bytes from
+# someone else's edit.
+ssh "$PROD" "cd /apps/mailrs && cp docker-compose.yml docker-compose.yml.deployed"
 ssh "$PROD" "cd /apps/mailrs \
   && sed -i 's/^MAILRS_VERSION=.*/MAILRS_VERSION=$VERSION/' .env \
   && docker compose up -d --pull never --no-deps receiver fastcore webapi-fc fastcore-sender"
