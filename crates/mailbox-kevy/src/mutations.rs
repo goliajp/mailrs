@@ -397,50 +397,36 @@ impl KevyMailboxStore {
 }
 
 impl KevyMailboxStore {
-    /// Set a thread's display date on both structures that hold it.
+    /// Set a thread's display date.
     ///
-    /// The shared hash calls it `latest_date` and the membership row
-    /// calls it `activity`; every axis sorts on the row's copy while the
-    /// date shown beside the conversation comes from the hash. Writing
-    /// one without the other moves the pill and leaves the order it is
-    /// meant to explain, so this is the only way either should be set
-    /// after the fact.
+    /// Goes through `upsert_thread` rather than writing the two fields
+    /// directly, and that is the whole point. The shared hash calls
+    /// this `latest_date` and the membership row calls it `activity`,
+    /// but the row belongs to a **declared table**: its ordering is
+    /// derived from the row when the row is written the way the table
+    /// expects. Poking `activity` with a bare `hset` updated the field
+    /// — `get_thread` and a by-id lookup both reported the new value —
+    /// and left the index sorting on the old one, so the conversation
+    /// list went on showing the date and the position that had just
+    /// been repaired.
     ///
-    /// Conditional: a value already correct is not rewritten, so a
-    /// repair sweep that finds nothing does nothing.
+    /// Returns whether anything changed, so a sweep with nothing to do
+    /// does nothing.
     pub fn set_thread_display_date(
         &self,
         user: &str,
         thread_id: &str,
         date: i64,
     ) -> io::Result<bool> {
-        let thread_key = keys::thread(thread_id);
-        let tu_key = keys::thread_user(user, thread_id);
-        let want = date.to_string();
-        self.store()
-            .atomic(|ctx| {
-                let cur = ctx
-                    .hget(thread_key.as_bytes(), b"latest_date")?
-                    .and_then(|v| String::from_utf8(v).ok());
-                let row_cur = ctx
-                    .hget(tu_key.as_bytes(), b"activity")?
-                    .and_then(|v| String::from_utf8(v).ok());
-                if cur.as_deref() == Some(want.as_str())
-                    && row_cur.as_deref() == Some(want.as_str())
-                {
-                    return Ok(false);
-                }
-                ctx.hset(
-                    thread_key.as_bytes(),
-                    &[(b"latest_date" as &[u8], want.as_bytes())],
-                )?;
-                ctx.hset(
-                    tu_key.as_bytes(),
-                    &[(b"activity" as &[u8], want.as_bytes())],
-                )?;
-                Ok(true)
-            })
-            .map_err(io::Error::other)
+        let Some(mut row) = self.get_thread(thread_id)? else {
+            return Ok(false);
+        };
+        if row.latest_date == date {
+            return Ok(false);
+        }
+        row.latest_date = date;
+        self.upsert_thread(user, &row)?;
+        Ok(true)
     }
 }
 
