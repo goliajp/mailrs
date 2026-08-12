@@ -86,11 +86,17 @@ final class ListFlowTests: MailrsUITestCase {
                       "undo did not bring the row back")
         XCTAssertFalse(undo.exists, "toast outlived the undo")
 
-        let writes = recordedWrites()
-        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/archive") },
-                      "archive never reached the server: \(writes)")
-        XCTAssertTrue(writes.contains { $0.hasSuffix("/t1/unarchive") },
-                      "undo was local only — the server still has t1 archived: \(writes)")
+        // Asserted as verbs rather than URLs. A one-row swipe now takes
+        // the same road as a fifty-row selection — one `/batch` request,
+        // one undo slot, one refusal path — so the path no longer names
+        // the thread. What must hold is that the server was told to
+        // archive t1 and then told to put it back; that is true of
+        // either transport, and it is the thing the reader depends on.
+        let verbs = postedVerbs()
+        XCTAssertTrue(verbs.contains("archive t1"),
+                      "archive never reached the server: \(verbs)")
+        XCTAssertTrue(verbs.contains("unarchive t1"),
+                      "undo was local only — the server still has t1 archived: \(verbs)")
     }
 
 

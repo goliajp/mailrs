@@ -22,10 +22,8 @@ final class TriageFlowTests: MailrsUITestCase {
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Quarterly report")
         ).firstMatch
-        row.press(forDuration: 1.0)
-
         let item = app.buttons["Mark as notification"]
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "no bucket in the row menu")
+        XCTAssertTrue(longPress(row, until: item), "no bucket in the row menu")
         item.tap()
 
         var sent: [String] = []
@@ -69,21 +67,6 @@ final class TriageFlowTests: MailrsUITestCase {
                        "a refused request threw the reader back to sign-in")
     }
 
-    private func postedVerbs() -> [String] {
-        guard let url = URL(string: "http://localhost:6039/debug/verbs") else { return [] }
-        var out: [String] = []
-        let done = expectation(description: "debug/verbs")
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let verbs = json["verbs"] as? [String] {
-                out = verbs
-            }
-            done.fulfill()
-        }.resume()
-        wait(for: [done], timeout: 10)
-        return out
-    }
 
     private func refuseVerb(_ verb: String) {
         guard let url = URL(string: "http://localhost:6039/debug/refuse-verb/\(verb)")

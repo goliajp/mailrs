@@ -93,12 +93,20 @@ final class MailFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["請求書のご送付につきまして"].exists,
                       "second row not restored")
 
-        let writes = recordedWrites()
+        // Asserted on the verbs, not on the paths: a selection now
+        // goes out as one `/conversations/batch` request rather than
+        // one request per row, and a test that spells the old
+        // transport fails on a change that kept every promise it
+        // makes to the reader.
+        let verbs = postedVerbs()
         for tid in ["t1", "t2"] {
-            XCTAssertTrue(writes.contains { $0.hasSuffix("/\(tid)/archive") },
-                          "\(tid) never archived on the wire: \(writes)")
-            XCTAssertTrue(writes.contains { $0.hasSuffix("/\(tid)/unarchive") },
-                          "\(tid) never unarchived on the wire: \(writes)")
+            XCTAssertTrue(verbs.contains("archive \(tid)"),
+                          "\(tid) never archived on the wire: \(verbs)")
+            // Undo still goes per row — it restores each into the
+            // position it left from, which is a different job from
+            // acting on a set.
+            XCTAssertTrue(recordedWrites().contains { $0.hasSuffix("/\(tid)/unarchive") },
+                          "\(tid) never unarchived on the wire")
         }
     }
 

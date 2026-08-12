@@ -245,13 +245,18 @@ extension Session {
         if activeList != .archived {
             offerUndo(rows)
         }
+        // One request for the batch, and the ids it could not do — a
+        // row per request was fifty round trips for a fifty-row
+        // selection, and the loop existed only because the route used
+        // to report a count without saying which ones.
         var failed: [UndoableRow] = []
-        for row in rows {
-            do {
-                try await client.archive(threadId: row.conversation.threadId)
-            } catch {
-                failed.append(row)
-            }
+        do {
+            let refused = try await client.batch(
+                action: "archive", threadIds: rows.map(\.conversation.threadId))
+            failed = rows.filter { refused.contains($0.conversation.threadId) }
+        } catch {
+            // The request itself did not land, so nothing was archived.
+            failed = rows
         }
         if !failed.isEmpty {
             // The rows the server kept come back; the ones it archived
@@ -268,16 +273,36 @@ extension Session {
     /// the server call exists to change something.
     func markAllRead(_ selected: [Wire.Conversation]) async {
         guard let client else { return }
-        for conversation in selected where conversation.unreadCount > 0 {
+        // Only the ones that are unread: the call exists to change
+        // something, and a request for a thread already read is a
+        // round trip that reports success for work it did not do.
+        let targets = selected.filter { $0.unreadCount > 0 }
+        guard !targets.isEmpty else { return }
+        for conversation in targets {
             withAnimation { patch(conversation.threadId) { $0.unreadCount = 0 } }
-            do {
-                try await client.setRead(threadId: conversation.threadId, true)
-            } catch {
+        }
+        do {
+            let refused = try await client.batch(
+                action: "read", threadIds: targets.map(\.threadId))
+            // Exactly the ones the server refused go back to what they
+            // were — a batch that half-worked has to put back its own
+            // half, and until the route said which ids failed this
+            // client sent one request per row to find out.
+            for conversation in targets where refused.contains(conversation.threadId) {
                 withAnimation {
                     patch(conversation.threadId) { $0.unreadCount = conversation.unreadCount }
                 }
-                banner = error.localizedDescription
             }
+            if !refused.isEmpty {
+                banner = String(localized: "\(refused.count) could not be marked read")
+            }
+        } catch {
+            for conversation in targets {
+                withAnimation {
+                    patch(conversation.threadId) { $0.unreadCount = conversation.unreadCount }
+                }
+            }
+            banner = error.localizedDescription
         }
         await refreshBadge()
     }
@@ -376,8 +401,21 @@ extension Session {
     /// reason the single delete is: rows leave only as the server
     /// confirms each one is gone.
     func deleteAll(_ selected: [Wire.Conversation]) async {
-        for conversation in selected {
-            await delete(conversation)
+        guard let client, !selected.isEmpty else { return }
+        // One request, and rows leave only once the server says they
+        // are gone — the same order the single delete uses, because a
+        // row that reappears on the next refresh is worse than one
+        // that takes a moment to go.
+        do {
+            let refused = try await client.batch(
+                action: "delete", threadIds: selected.map(\.threadId))
+            let gone = selected.map(\.threadId).filter { !refused.contains($0) }
+            _ = removeRows(Set(gone))
+            if !refused.isEmpty {
+                banner = String(localized: "\(refused.count) could not be deleted")
+            }
+        } catch {
+            banner = error.localizedDescription
         }
     }
 }

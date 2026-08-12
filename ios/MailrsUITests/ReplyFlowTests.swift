@@ -54,9 +54,8 @@ final class ReplyFlowTests: MailrsUITestCase {
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "inbox never listed")
 
-        row.press(forDuration: 1.0)
         let markJunk = app.buttons["Mark as junk"]
-        XCTAssertTrue(markJunk.waitForExistence(timeout: 5), "no junk item in the menu")
+        XCTAssertTrue(longPress(row, until: markJunk), "no junk item in the menu")
         markJunk.tap()
 
         XCTAssertTrue(row.waitForNonExistence(timeout: 10),
@@ -85,8 +84,7 @@ final class ReplyFlowTests: MailrsUITestCase {
         ).firstMatch
         XCTAssertTrue(junkRow.waitForExistence(timeout: 10), "junk list never loaded")
 
-        junkRow.press(forDuration: 1.0)
-        XCTAssertTrue(app.buttons["Not junk"].waitForExistence(timeout: 5),
+        XCTAssertTrue(longPress(junkRow, until: app.buttons["Not junk"]),
                       "the Junk list did not offer the rescue")
         XCTAssertFalse(app.buttons["Mark as junk"].exists,
                        "the Junk list offered junking what is already junk")

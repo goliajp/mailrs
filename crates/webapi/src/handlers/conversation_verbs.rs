@@ -27,6 +27,18 @@ pub struct BatchResponse {
     pub message: Option<String>,
     pub processed: u32,
     pub success: bool,
+    /// Which ones did not go through.
+    ///
+    /// The loop below has always known this and reported only a count,
+    /// so a caller that removed fifty rows optimistically could learn
+    /// that three failed and not which three — leaving it to roll back
+    /// everything or nothing. iOS avoided the route entirely for that
+    /// reason and sent fifty separate requests instead.
+    ///
+    /// Empty on success, and omitted from the JSON when empty so the
+    /// shape older clients parse does not change.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub failed_thread_ids: Vec<String>,
 }
 
 /// POST /api/conversations/batch — apply the same mutation across many
@@ -41,6 +53,7 @@ pub async fn batch_mutation(
     let action = req.action.as_str();
     let mut processed = 0u32;
     let mut failed = 0u32;
+    let mut failed_ids: Vec<String> = Vec::new();
     for tid in &req.thread_ids {
         let f = &state.core;
         let r = match action {
@@ -57,11 +70,15 @@ pub async fn batch_mutation(
         };
         match r {
             Ok(_) => processed += 1,
-            Err(_) => failed += 1,
+            Err(_) => {
+                failed += 1;
+                failed_ids.push(tid.clone());
+            }
         }
     }
     Ok(Json(BatchResponse {
         failed,
+        failed_thread_ids: failed_ids,
         message: None,
         processed,
         success: failed == 0,
