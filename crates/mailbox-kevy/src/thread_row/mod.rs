@@ -46,10 +46,12 @@ pub fn display_message(wires: &[Vec<u8>], user: &str) -> Option<serde_json::Valu
         .iter()
         .filter_map(|w| serde_json::from_slice(w).ok())
         .collect();
+    // Searched from the back: the newest inbound message is the last
+    // one that matches, and scanning a long conversation forwards to
+    // find it is work for nothing.
     let inbound = parsed
         .iter()
-        .filter(|w| !senders_csv_contains_user(w["sender"].as_str().unwrap_or(""), user))
-        .last()
+        .rfind(|w| !senders_csv_contains_user(w["sender"].as_str().unwrap_or(""), user))
         .cloned();
     inbound.or_else(|| parsed.last().cloned())
 }
