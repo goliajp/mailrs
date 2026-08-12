@@ -396,6 +396,45 @@ impl KevyMailboxStore {
     }
 }
 
+impl KevyMailboxStore {
+    /// Set a thread's display date on both structures that hold it.
+    ///
+    /// The shared hash calls it `latest_date` and the membership row
+    /// calls it `activity`; every axis sorts on the row's copy while the
+    /// date shown beside the conversation comes from the hash. Writing
+    /// one without the other moves the pill and leaves the order it is
+    /// meant to explain, so this is the only way either should be set
+    /// after the fact.
+    ///
+    /// Conditional: a value already correct is not rewritten, so a
+    /// repair sweep that finds nothing does nothing.
+    pub fn set_thread_display_date(&self, user: &str, thread_id: &str, date: i64) -> io::Result<bool> {
+        let thread_key = keys::thread(thread_id);
+        let tu_key = keys::thread_user(user, thread_id);
+        let want = date.to_string();
+        self.store()
+            .atomic(|ctx| {
+                let cur = ctx
+                    .hget(thread_key.as_bytes(), b"latest_date")?
+                    .and_then(|v| String::from_utf8(v).ok());
+                let row_cur = ctx
+                    .hget(tu_key.as_bytes(), b"activity")?
+                    .and_then(|v| String::from_utf8(v).ok());
+                if cur.as_deref() == Some(want.as_str()) && row_cur.as_deref() == Some(want.as_str())
+                {
+                    return Ok(false);
+                }
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[(b"latest_date" as &[u8], want.as_bytes())],
+                )?;
+                ctx.hset(tu_key.as_bytes(), &[(b"activity" as &[u8], want.as_bytes())])?;
+                Ok(true)
+            })
+            .map_err(io::Error::other)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

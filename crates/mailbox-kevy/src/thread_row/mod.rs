@@ -25,6 +25,35 @@ pub fn senders_csv_contains_user(senders_csv: &str, user: &str) -> bool {
     mailrs_rfc5322::list_contains(senders_csv, user)
 }
 
+/// The message a thread's row should describe: the newest one the user
+/// did not send.
+///
+/// The row follows the last **inbound** message (2026-07-18). A reply
+/// is the user telling themselves something they already know; letting
+/// it re-date the row moves a conversation to the top of Inbox for no
+/// arrival, and re-titling it replaces the correspondent's subject with
+/// the user's own.
+///
+/// A thread of nothing but the user's own sends still needs a date and
+/// a subject, so with no inbound message the newest own one is used —
+/// which is what makes a sent-only thread show its send time rather
+/// than 1970.
+///
+/// `wires` is the thread's messages in date order, as
+/// `thread_messages_unscoped` returns them.
+pub fn display_message(wires: &[Vec<u8>], user: &str) -> Option<serde_json::Value> {
+    let parsed: Vec<serde_json::Value> = wires
+        .iter()
+        .filter_map(|w| serde_json::from_slice(w).ok())
+        .collect();
+    let inbound = parsed
+        .iter()
+        .filter(|w| !senders_csv_contains_user(w["sender"].as_str().unwrap_or(""), user))
+        .last()
+        .cloned();
+    inbound.or_else(|| parsed.last().cloned())
+}
+
 /// Aggregated thread state — one row in `mailrs:thread:<tid>`.
 ///
 /// Stable on-the-wire field names: the kevy hash uses these exact

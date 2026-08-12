@@ -170,10 +170,14 @@ impl KevyMailboxStore {
                 row.count = count;
                 row.unread_count = unread;
                 row.sent_count = sent;
-                // display fields follow the (new) latest message
-                if let Some(last) = self.thread_messages_unscoped(&old_tid)?.last()
-                    && let Ok(w) = serde_json::from_slice::<serde_json::Value>(last)
-                {
+                // Display fields follow the (new) latest INBOUND
+                // message. Taking the last message outright let the
+                // user's own send re-date and re-title the row, which
+                // is the same defect `record_message_arrival` and the
+                // maildir self-heal each guard against — a rule worth
+                // stating once, in `thread_row::display_message`.
+                let msgs = self.thread_messages_unscoped(&old_tid)?;
+                if let Some(w) = crate::thread_row::display_message(&msgs, user) {
                     row.latest_date = w["internal_date"].as_i64().unwrap_or(row.latest_date);
                     row.subject = w["subject"].as_str().unwrap_or(&row.subject).to_string();
                 }
