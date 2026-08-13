@@ -63,6 +63,11 @@ CREATE TABLE messages (
     message_id TEXT NOT NULL DEFAULT '',
     in_reply_to TEXT NOT NULL DEFAULT '',
     thread_id TEXT NOT NULL DEFAULT '',
+    -- Sender-authentication verdict folded from this message's own
+    -- Authentication-Results at ingest: 'verified' / 'suspicious' /
+    -- 'unverified', or '' for mail that predates the field. Read with the
+    -- row and never filtered on, so no index. See migrate-050.
+    sender_trust TEXT NOT NULL DEFAULT '',
     modseq BIGINT NOT NULL DEFAULT 0,
     pinned BOOLEAN NOT NULL DEFAULT false,
     archived BOOLEAN NOT NULL DEFAULT false,
@@ -139,7 +144,11 @@ CREATE TABLE outbound_queue (
     message_id TEXT,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
-    is_forwarded BOOLEAN NOT NULL DEFAULT false
+    is_forwarded BOOLEAN NOT NULL DEFAULT false,
+    -- Epoch seconds a future-dated send is due; NULL means send now.
+    -- BIGINT to match next_retry / created_at / updated_at above.
+    -- See migrate-050.
+    scheduled_at BIGINT
 );
 CREATE INDEX idx_queue_pending ON outbound_queue(status, next_retry)
     WHERE status = 'pending';
@@ -149,6 +158,13 @@ CREATE INDEX idx_queue_pending ON outbound_queue(status, next_retry)
 -- See migrate-049.
 CREATE INDEX idx_outbound_sender_recipient ON outbound_queue(sender, recipient)
     WHERE status = 'delivered';
+-- Serves the due sweep: "what is ready to go out", a range over
+-- scheduled_at. Partial on NOT NULL because almost nothing is scheduled,
+-- so a full index would be one entry per queue row to answer a question
+-- about a handful — and it would sit on the pending churn the queue
+-- worker rewrites constantly. See migrate-050.
+CREATE INDEX idx_outbound_scheduled_at ON outbound_queue(scheduled_at)
+    WHERE scheduled_at IS NOT NULL;
 
 CREATE TABLE dmarc_results (
     id BIGSERIAL PRIMARY KEY,
