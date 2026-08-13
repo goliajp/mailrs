@@ -30,7 +30,7 @@ const SCHEMA_SQL: &str = include_str!(concat!(
     "/../../scripts/init-schema.sql"
 ));
 
-async fn spawn_pg_core() -> String {
+pub(super) async fn spawn_pg_core() -> String {
     let pool = spg_sqlx::SpgPool::connect_in_memory()
         .await
         .expect("open in-memory spg");
@@ -66,7 +66,12 @@ async fn spawn_pg_core() -> String {
     format!("http://{addr}")
 }
 
-fn deliver_req(message_id: &str, uid: u32, thread_id: &str, user: &str) -> DeliverMessageRequest {
+pub(super) fn deliver_req(
+    message_id: &str,
+    uid: u32,
+    thread_id: &str,
+    user: &str,
+) -> DeliverMessageRequest {
     let wire = serde_json::json!({
         "id": 0, "mailbox_id": 0, "uid": uid,
         "blob_ref": format!("{message_id}.host"),
@@ -128,7 +133,7 @@ async fn pg_core_ingest_reads_back_and_is_idempotent() {
 // production switch axis (kevy↔pg), which the kevy↔kevy roundtrip
 // test could not cover.
 
-fn spawn_fastcore() -> String {
+pub(super) fn spawn_fastcore() -> String {
     use std::sync::Arc as StdArc;
     let store = StdArc::new(kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap());
     let state = StdArc::new(mailrs_fastcore::FastcoreState::new(
