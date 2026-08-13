@@ -3362,6 +3362,7 @@ dependencies = [
  "mailrs-mime",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
+ "mailrs-test-docker",
  "memchr",
  "proptest",
  "reqwest 0.12.28",
@@ -3378,6 +3379,7 @@ dependencies = [
  "chrono",
  "criterion 0.8.2",
  "mailrs-maildir",
+ "mailrs-test-docker",
  "memchr",
  "serde",
  "serde_json",
@@ -3715,6 +3717,7 @@ dependencies = [
  "mailrs-smtp-proto",
  "mailrs-spf",
  "mailrs-srs",
+ "mailrs-test-docker",
  "mailrs-tls-reload",
  "mailrs-tls-rpt",
  "mailrs-triage",
@@ -3851,6 +3854,13 @@ dependencies = [
 [[package]]
 name = "mailrs-syscall"
 version = "0.1.0"
+
+[[package]]
+name = "mailrs-test-docker"
+version = "0.0.0"
+dependencies = [
+ "tokio",
+]
 
 [[package]]
 name = "mailrs-tls-reload"

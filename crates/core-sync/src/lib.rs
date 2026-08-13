@@ -42,6 +42,17 @@ pub struct SyncOpts {
     /// real hash is written via `set_account_password`. Never authenticates
     /// (immediately overwritten).
     pub account_placeholder_pw: String,
+    /// Read the source and the destination, write nothing, and report what a
+    /// real run would move.
+    ///
+    /// The point is not caution for its own sake. `measure-before-you-cut-over`
+    /// is about the first number: a shadow read that reports a large difference
+    /// is usually reporting a backfill gap rather than a defect, and the way to
+    /// tell is to look at what the difference *consists of* before acting on it.
+    /// A count of 19,779 differing rows on this repo's last such migration
+    /// converged to 74 once two backfills had run, and cutting over on the
+    /// first figure would have shipped a worse fault than the one being fixed.
+    pub dry_run: bool,
 }
 
 impl Default for SyncOpts {
@@ -50,11 +61,17 @@ impl Default for SyncOpts {
             page_size: 200,
             include_archived: true,
             account_placeholder_pw: "sync-placeholder-never-used".to_string(),
+            dry_run: false,
         }
     }
 }
 
 /// Tallies from a completed run.
+///
+/// Under `dry_run` the same fields answer "would": `messages_delivered` is what
+/// a real run would deliver and `messages_skipped_dupe` is what the destination
+/// already holds. `accounts_only_on_dst` is only ever populated by a dry run,
+/// because a real one has no reason to look.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyncReport {
     pub accounts: u64,
@@ -62,6 +79,19 @@ pub struct SyncReport {
     pub threads: u64,
     pub messages_delivered: u64,
     pub messages_skipped_dupe: u64,
+    /// Accounts the destination has and the source does not.
+    ///
+    /// Reported because a switch is not only "does everything arrive" — an
+    /// account that exists only on the destination is mail somebody can log in
+    /// to and read on one core and not the other, and the sync has no reason to
+    /// notice it while copying in one direction.
+    pub accounts_only_on_dst: u64,
+    /// Threads whose message-id set is identical on both sides already.
+    ///
+    /// Separated from `threads` so a dry run can say how much of the difference
+    /// is a genuine gap rather than a total. A number that cannot come out zero
+    /// is not a measurement, and "threads examined" is that number.
+    pub threads_already_identical: u64,
 }
 
 /// Run a full mail-store sync `src` → `dst`. Idempotent.
@@ -85,7 +115,9 @@ pub async fn sync(src: &Client, dst: &Client, opts: &SyncOpts) -> Result<SyncRep
             ) else {
                 continue;
             };
-            dst.upsert_local_alias(source, target).await?;
+            if !opts.dry_run {
+                dst.upsert_local_alias(source, target).await?;
+            }
             report.aliases += 1;
         }
     }
@@ -93,6 +125,23 @@ pub async fn sync(src: &Client, dst: &Client, opts: &SyncOpts) -> Result<SyncRep
     // ── 3. per-user threads + messages ───────────────────────────────
     for a in &accounts.items {
         sync_user_threads(src, dst, &a.address, opts, &mut report).await?;
+    }
+
+    // ── 4. what the destination has and the source does not (dry run) ──
+    //
+    // A one-directional copy has no reason to look, and a switch is not only
+    // "does everything arrive": an account only the destination knows is mail
+    // somebody can read on one core and not the other. Only under `dry_run`,
+    // because a real run is being told to make the destination match and this
+    // would be noise.
+    if opts.dry_run {
+        let on_src: HashSet<&str> = accounts.items.iter().map(|a| a.address.as_str()).collect();
+        let dst_accounts = dst.list_accounts().await?;
+        report.accounts_only_on_dst = dst_accounts
+            .items
+            .iter()
+            .filter(|a| !on_src.contains(a.address.as_str()))
+            .count() as u64;
     }
 
     Ok(report)
@@ -109,6 +158,10 @@ async fn sync_account(
     opts: &SyncOpts,
 ) -> Result<(), CoreApiError> {
     use mailrs_core_api::method::admin::{AddAccountRequest, SetPasswordRequest};
+
+    if opts.dry_run {
+        return Ok(());
+    }
 
     dst.add_account(&AddAccountRequest {
         address: address.to_string(),
@@ -150,10 +203,11 @@ async fn sync_user_threads(
             break;
         }
         let mut before_ts: Option<i64> = None;
+        let mut limit = opts.page_size;
         loop {
             let req = ListConversationsRequest {
                 filter: ConversationFilter {
-                    limit: opts.page_size,
+                    limit,
                     before_ts,
                     category: None,
                     domains: None,
@@ -166,27 +220,80 @@ async fn sync_user_threads(
                 break;
             }
             let mut min_ts = i64::MAX;
+            let mut fresh = 0u32;
             for summary in &page.items {
                 min_ts = min_ts.min(summary.last_date);
                 if !seen_threads.insert(summary.thread_id.clone()) {
                     continue; // already handled (tie across pages / both passes)
                 }
+                fresh += 1;
                 sync_thread(
                     src,
                     dst,
                     user,
                     &summary.thread_id,
                     &summary.category,
+                    opts,
                     report,
                 )
                 .await?;
                 report.threads += 1;
             }
-            if page.items.len() < opts.page_size as usize {
+            if page.items.len() < limit as usize {
                 break;
             }
-            // advance the cursor; `before_ts` is strict-less-than on both cores
-            before_ts = Some(min_ts);
+
+            // `min_ts + 1`, so the cursor means `last_date <= min_ts` and the
+            // next page overlaps this one by exactly the threads sharing its
+            // oldest second. `seen_threads` drops the repeats.
+            //
+            // It used to advance to `min_ts` itself, and `before_ts` is
+            // STRICTLY less than — so a page ending in the middle of a group of
+            // threads that share one second excluded the rest of that group
+            // from every later page. Those threads were never enumerated and so
+            // never migrated, and the dedup set could not recover them because
+            // they were never seen. `report.threads` simply came out lower,
+            // which is not a number anybody could recognise as wrong.
+            //
+            // `last_date` is whole seconds and prod measured 929 ties over 30k
+            // rows against a default page of 200, so a boundary landing inside
+            // a tie is ordinary rather than exotic.
+            if fresh > 0 {
+                before_ts = Some(min_ts + 1);
+                limit = opts.page_size;
+                continue;
+            }
+
+            // A full page with nothing new in it means one second holds more
+            // threads than the page does: the overlap re-reads the same rows
+            // forever, because the query has no offset to move past them.
+            //
+            // A single-column second-granular cursor cannot page through a tie
+            // group larger than one page — the contract would need the
+            // tie-break column alongside the timestamp. So widen the window
+            // instead, and if that is not enough, FAIL.
+            //
+            // Failing rather than warning, because this is a migration. A
+            // warning that some conversations were not enumerated is a warning
+            // that some mail did not come across, and the operator is about to
+            // flip a switch on that basis. `min_ts` here would have silently
+            // dropped four of seven threads in the test that found this.
+            const MAX_LIMIT: u32 = 10_000;
+            if limit >= MAX_LIMIT {
+                return Err(CoreApiError::Internal(format!(
+                    "sync cannot enumerate {user}: more than {MAX_LIMIT} threads share \
+                     second {min_ts}, and the page cursor is that second. Every one of \
+                     them past the first {MAX_LIMIT} would be left behind, so this run \
+                     is refusing rather than reporting a lower count."
+                )));
+            }
+            limit = (limit.saturating_mul(8)).min(MAX_LIMIT);
+            tracing::info!(
+                user,
+                second = min_ts,
+                limit,
+                "sync: one second holds more threads than the page; widening"
+            );
         }
     }
     Ok(())
@@ -199,9 +306,11 @@ async fn sync_thread(
     user: &str,
     thread_id: &str,
     category: &str,
+    opts: &SyncOpts,
     report: &mut SyncReport,
 ) -> Result<(), CoreApiError> {
     let src_msgs = src.list_thread_messages(user, thread_id).await?;
+    let before = report.messages_delivered;
 
     // client-side dedup keyed on blob_ref — the maildir filename is the
     // physically-unique per-message key the store dedupes on
@@ -239,8 +348,13 @@ async fn sync_thread(
             uid: wire.uid,
             payload_wire_json,
         };
-        dst.deliver_message(user, thread_id, &req).await?;
+        if !opts.dry_run {
+            dst.deliver_message(user, thread_id, &req).await?;
+        }
         report.messages_delivered += 1;
+    }
+    if report.messages_delivered == before {
+        report.threads_already_identical += 1;
     }
     Ok(())
 }
