@@ -76,7 +76,10 @@ PG_PORT="${PG_PORT:-54329}"
 KEVY_PORT="${KEVY_PORT:-63791}"
 PG_CONTAINER="mailrs-bench-pg-$$"
 KEVY_CONTAINER="mailrs-bench-kevy-$$"
-SPG_IMAGE="${SPG_IMAGE:-goliakk/spg:latest}"
+# Pinned, not floating. A column whose engine version can change between runs
+# is not a measurement, and `:latest` was 7.37.16 only by coincidence of the day
+# — `spg version` is what says so (`--version` answers "unknown command").
+SPG_IMAGE="${SPG_IMAGE:-goliakk/spg:7.37.16}"
 KEVY_IMAGE="${KEVY_IMAGE:-ghcr.io/goliajp/kevy:3.18.0}"
 SECRET="bench-core-secret"
 BASE="http://127.0.0.1:${PORT}"
