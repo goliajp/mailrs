@@ -37,6 +37,8 @@ mod message_store;
 mod message_util;
 mod outbound_tls_rpt;
 mod pg;
+#[cfg(feature = "core-rpc")]
+mod pg_core_boot;
 mod pop3_session;
 mod quota_store;
 mod rbl_monitor;
@@ -440,7 +442,15 @@ pub async fn run() {
                 .ok()
                 .filter(|s| !s.is_empty()),
         });
-        core_rpc::spawn_core_rpc(core_rpc_state, shutdown_rx.clone());
+        // Detached on purpose. The monolith has no lock to release that this
+        // task holds — its own shutdown path covers that — so the handle is
+        // dropped rather than awaited. `drop` and not `let _ =`: a JoinHandle
+        // is a future, and `let _ =` on one reads as "ignore the result" while
+        // actually detaching it (clippy::let_underscore_future).
+        drop(core_rpc::spawn_core_rpc(
+            core_rpc_state,
+            shutdown_rx.clone(),
+        ));
     }
 
     // keep main alive — exit on SIGINT (interactive ctrl+c) or
@@ -466,3 +476,6 @@ pub async fn run() {
     tracing::info!("shutting down");
     let _ = shutdown_tx.send(true);
 }
+
+#[cfg(feature = "core-rpc")]
+pub use pg_core_boot::run_pg_core;

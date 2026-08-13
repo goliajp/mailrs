@@ -162,3 +162,14 @@ kevy-embedded = { workspace = true }
 name = "smtp_load"
 harness = false
 path = "benches/smtp_load/main.rs"
+
+[[bin]]
+name = "mailrs-server"
+path = "src/main.rs"
+
+# The SQL core on its own. Only exists on the `core-rpc` axis, so the default
+# build — and the everyday `cargo test --workspace` — is unaffected.
+[[bin]]
+name = "mailrs-pg-core"
+path = "src/bin/pg_core.rs"
+required-features = ["core-rpc"]
