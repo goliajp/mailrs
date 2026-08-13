@@ -14,6 +14,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use testcontainers::ImageExt;
 use testcontainers::{
     GenericImage,
     core::{IntoContainerPort, WaitFor},
@@ -27,6 +28,22 @@ use mailrs_server::kevy_net::KevyNetClient;
 use mailrs_server::kevy_notify::{KevyEventPublisher, NOTIFY_CHANNEL, spawn_kevy_notify_bridge};
 use mailrs_server::{EventBus, SmtpEvent};
 
+/// Which kevy-server these run against.
+///
+/// It was `latest`, and that hid the pair production would actually run. The
+/// workspace is on kevy-client 2.2; `deploy/docker-compose.prod.yml` pins
+/// kevy-server **3.18.0**. Shipping the Rust side without moving the container
+/// puts client 2.2 against server 3.18 into production — a combination the
+/// benchmark's two columns do not cover either (column A is client 2.0 against
+/// 3.18, column B is client 2.2 against 5.1) and which `latest` silently
+/// declined to test.
+///
+/// `MAILRS_TEST_KEVY_TAG` overrides it, so the same suite can be pointed at the
+/// version prod runs and the version prod is going to.
+fn kevy_tag() -> String {
+    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "3.18.0".to_string())
+}
+
 /// Start a kevy-server container and return its `kevy://host:port` URL.
 /// The container handle must stay alive for the duration of the test.
 async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) {
@@ -36,9 +53,22 @@ async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) 
     // turns neighbours into failures. Startup only — running against a
     // live container in parallel is fine.
     let _startup = mailrs_test_docker::startup_lock().await;
-    let container = GenericImage::new("ghcr.io/goliajp/kevy", "latest")
+    let tag = kevy_tag();
+    // Configured the way production is, not the way the default is.
+    //
+    // The change feed is OFF by default on every kevy version — `feed_tail`
+    // answers `ERR feed disabled (start with feed_enabled or replication on)` —
+    // and there is no CLI flag or env var for it, only the TOML. Production
+    // mounts `/apps/mailrs/kevy.toml` with `[feed] enabled = true` for exactly
+    // this reason, and without that file a test would conclude the feed is
+    // broken on a server where it works.
+    //
+    // Copied in rather than assumed, so what is under test is the pair
+    // production runs: this client against that server, configured as deployed.
+    let container = GenericImage::new("ghcr.io/goliajp/kevy", &tag)
         .with_wait_for(WaitFor::message_on_stderr("starting:"))
         .with_exposed_port(6379.tcp())
+        .with_copy_to("/etc/kevy/kevy.toml", b"[feed]\nenabled = true\n".to_vec())
         .start()
         .await
         .expect("start kevy container");
@@ -170,4 +200,55 @@ async fn notify_bridge_delivers_over_tcp() {
         .expect("bridge should deliver within timeout")
         .expect("recv ok");
     assert!(matches!(got.event, SmtpEvent::NewMessage { .. }));
+}
+
+/// The web UI's event stream works against the server this deploy will meet.
+///
+/// `webapi/src/handlers/events.rs` drives the WebSocket feed with
+/// `conn.feed_read(...)` — the one command in the whole network-kevy surface
+/// that is newer than the rest. Every other call site here uses commands kevy
+/// has had for a long time.
+///
+/// That makes this the one place the untested pair could break. The workspace
+/// is on kevy-client 2.2; production pins kevy-server **3.18.0**; shipping the
+/// Rust side without moving the container puts those together, and neither
+/// column of the benchmark covers it. If 3.18 does not know `FEED.READ`, the
+/// event stream stops and the UI stops updating — quietly, because the loop
+/// logs and retries.
+///
+/// Run against both:
+///
+/// ```text
+/// MAILRS_TEST_KEVY_TAG=3.18.0 cargo test -p mailrs-server --test kevy_network
+/// MAILRS_TEST_KEVY_TAG=5.1.0  cargo test -p mailrs-server --test kevy_network
+/// ```
+#[tokio::test]
+async fn the_change_feed_answers_on_this_server() {
+    let (_c, url) = setup_kevy().await;
+    let mut conn = kevy_client::Connection::connect(&url).expect("connect");
+
+    // Where the consumer starts, exactly as `events.rs` does it: the shard's
+    // tail, then read forward from there.
+    let (generation, offset) = conn
+        .feed_tail(0)
+        .unwrap_or_else(|e| panic!("FEED.TAIL rejected by this server: {e}"));
+
+    // An empty feed is a fine answer; an unknown verb is not. What is being
+    // asked is whether the server implements the command, not whether anything
+    // has happened yet.
+    let batch = conn
+        .feed_read(0, generation, offset, Some(16), &[b"mailrs:" as &[u8]])
+        .unwrap_or_else(|e| {
+            panic!(
+                "FEED.READ rejected by this server: {e}\n\
+                 The web UI's event stream is built on this call. If the server \
+                 under test is the one production runs, this deploy stops the \
+                 stream."
+            )
+        });
+    assert!(
+        batch.frames.len() <= 16,
+        "a bounded read must respect its bound; got {}",
+        batch.frames.len()
+    );
 }
