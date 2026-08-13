@@ -400,10 +400,6 @@ fn latest_inbound_raw(
     user: &str,
     thread_id: &str,
 ) -> Option<(String, Vec<u8>)> {
-    let (local, domain) = user.split_once('@')?;
-    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    let base = std::path::PathBuf::from(&root).join(domain).join(local);
-
     let wires = state
         .mailbox
         .thread_messages_for_maintenance(thread_id)
@@ -420,27 +416,21 @@ fn latest_inbound_raw(
         let Some(blob_ref) = v.get("blob_ref").and_then(|x| x.as_str()) else {
             continue;
         };
-        if let Some(raw) = read_maildir_file(&base, blob_ref) {
+        // Through the shared helper, which resolves a `blob_ref` via
+        // `mailrs_maildir::locate` and therefore finds a message whatever
+        // flag suffix it now carries.
+        //
+        // This used to be a local copy that joined `cur`/`new` and the
+        // bare `blob_ref` by hand — an exact filename match. Maildir puts
+        // an unread arrival in `new/` with no suffix and moves it to
+        // `cur/<id>:2,S` when it is read, so the local copy found a
+        // message right up until somebody read it and never again.
+        // Importance is recomputed on engagement, i.e. **exactly when the
+        // message has just been read**, so this silently returned `None`
+        // for the case it exists to serve. `maildir_scan::files` says it
+        // in its own header: callers must not rebuild a filename by hand.
+        if let Some(raw) = crate::maildir_scan::read_maildir_file(user, blob_ref) {
             return Some((first_address(sender), raw));
-        }
-    }
-    None
-}
-
-/// Read one maildir file by `blob_ref` — a Maildir++ subfolder path or a
-/// bare INBOX filename tried under `cur/` then `new/`.
-fn read_maildir_file(base: &std::path::Path, blob_ref: &str) -> Option<Vec<u8>> {
-    if let Some((sub, file)) = blob_ref.split_once('/') {
-        for leaf in ["cur", "new"] {
-            if let Ok(b) = std::fs::read(base.join(sub).join(leaf).join(file)) {
-                return Some(b);
-            }
-        }
-        return std::fs::read(base.join(sub).join(file)).ok();
-    }
-    for leaf in ["cur", "new"] {
-        if let Ok(b) = std::fs::read(base.join(leaf).join(blob_ref)) {
-            return Some(b);
         }
     }
     None
@@ -449,6 +439,36 @@ fn read_maildir_file(base: &std::path::Path, blob_ref: &str) -> Option<Vec<u8>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// This file must not resolve a maildir path itself.
+    ///
+    /// It used to, with an exact filename match, and that is invisible in
+    /// the worst possible way: an unread arrival sits in `new/` with no
+    /// suffix and matches, then reading it moves it to `cur/<id>:2,S` and
+    /// it stops matching forever. Importance is recomputed *on* a read, so
+    /// the local copy failed precisely when it was needed and returned
+    /// `None`, which reads as "no inbound message" rather than as an error.
+    ///
+    /// Source-level because that is what the mistake looks like: someone
+    /// joins `cur` and a `blob_ref` because it is two lines and obviously
+    /// right. The one way in is `maildir_scan::read_maildir_file`, which
+    /// goes through `mailrs_maildir::locate`.
+    #[test]
+    fn this_file_does_not_build_maildir_paths_by_hand() {
+        let src = include_str!("importance.rs");
+        let body = src
+            .split_once("#[cfg(test)]")
+            .map(|(before, _)| before)
+            .unwrap_or(src);
+        for needle in ["join(\"cur\")", "join(\"new\")", "MAILRS_MAILDIR"] {
+            assert!(
+                !body.contains(needle),
+                "{needle} in importance.rs — resolve blob_refs through \
+                 maildir_scan::read_maildir_file, which handles the :2,FLAGS \
+                 suffix a read message carries"
+            );
+        }
+    }
 
     #[test]
     fn engagement_attributes_to_the_correspondent_not_the_user() {
