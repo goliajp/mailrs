@@ -140,6 +140,7 @@ jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_r
 rsa = { version = "0.9", features = ["pem"] }
 
 [dev-dependencies]
+mailrs-test-docker = { path = "../test-docker" }
 # Receiving-path e2e regression baseline (tests/e2e_receiving.rs) spins up
 # a real pgvector container — same image + version the mailbox crate's
 # fixtures use. Pre-pulled in CI's test.yml. tokio / sqlx / tempfile /

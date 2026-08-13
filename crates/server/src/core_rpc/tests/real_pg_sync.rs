@@ -38,6 +38,12 @@ const SCHEMA_SQL: &str = include_str!(concat!(
 ));
 
 async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
+    // One container start at a time, workspace-wide: `cargo test
+    // --workspace` runs every test binary in parallel and six fixtures
+    // each start their own, which times out the wait-for-ready and
+    // turns neighbours into failures. Startup only — running against a
+    // live container in parallel is fine.
+    let _startup = mailrs_test_docker::startup_lock().await;
     let container = GenericImage::new("pgvector/pgvector", "pg18")
         .with_wait_for(WaitFor::message_on_stderr(
             "database system is ready to accept connections",

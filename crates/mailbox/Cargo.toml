@@ -33,6 +33,7 @@ mailrs-maildir = { path = "../storage-maildir", version = "1" }
 spg = ["dep:spg-sqlx"]
 
 [dev-dependencies]
+mailrs-test-docker = { path = "../test-docker" }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 tempfile = "3.27.0"
 testcontainers = "0.27"
