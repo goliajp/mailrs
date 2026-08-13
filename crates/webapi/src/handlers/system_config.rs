@@ -3,7 +3,7 @@
 
 use axum::{Json, extract::Path, http::StatusCode};
 
-use crate::handlers::complete::*;
+use crate::handlers::kevy_util::with_kevy;
 
 /// GET /api/auth/oidc/config — OIDC providers list. Empty → login
 /// page hides the "Sign in with X" buttons cleanly.
