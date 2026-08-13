@@ -91,6 +91,21 @@ pub(crate) fn provision_if_account(
     true
 }
 
+/// The form of a recipient address that every lookup here expects.
+///
+/// Maildir paths, `mailrs:account:` keys and `mailrs:alias:v2:` keys are
+/// all written lowercase, so a recipient has to be folded once before any
+/// of them is consulted. RFC 5321 §2.4 makes the domain case-insensitive
+/// outright and urges hosts to treat the mailbox the same way; every
+/// writer in this tree already does.
+///
+/// ASCII folding, not `to_lowercase`: addresses are ASCII or punycode
+/// here, and Unicode folding has locale-shaped surprises (the Turkish
+/// dotless i) that would map two distinct mailboxes onto one key.
+pub(crate) fn canonical_recipient(addr: &str) -> String {
+    addr.to_ascii_lowercase()
+}
+
 /// Quick recipient-existence probe used before choosing between direct
 /// delivery and alias resolution. Splits `addr@dom`, checks the
 /// per-user `new/` dir exists. Returns false for malformed addresses.
@@ -234,6 +249,95 @@ mod tests {
         assert!(!spool_file.exists());
         let landed = user_base.join("new").join("1000000.M1P1Q1.host");
         assert_eq!(std::fs::read(&landed).unwrap(), body);
+    }
+
+    /// An uppercase envelope recipient must still reach its mailbox.
+    ///
+    /// Reproduces a production file that sat in `.spool/incoming/new`
+    /// from 2026-08-06 to 2026-08-14 with
+    /// `fwd_paths=["CONTACT@GOLIA.JP"]`. All three resolution attempts
+    /// used the address verbatim — the maildir path, the
+    /// `mailrs:account:` key and the alias key — and everything on the
+    /// other side of them is stored lowercase, so the message was
+    /// accepted at SMTP with a 250 and then never delivered. RFC 5321
+    /// §2.4 makes the domain case-insensitive outright and urges the
+    /// same for the mailbox, which is what the rest of this system
+    /// already assumes.
+    ///
+    /// **This resolves through the kevy account key on purpose, and
+    /// deliberately does not pre-create the maildir.** A version that
+    /// created `golia.jp/contact/` and relied on the path lookup passes
+    /// on macOS whatever the code does, because APFS is case-insensitive
+    /// by default — measured: `/tmp/x/GOLIA.JP/CONTACT/new` resolves here
+    /// and does not on t02's ext4. Such a test is worse than none: green
+    /// on every dev machine, red only in production. kevy keys are bytes,
+    /// so this one fails on both until the address is canonicalised.
+    #[test]
+    fn an_uppercase_recipient_reaches_the_lowercase_mailbox() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spool_new = tmp.path().join("spool").join("incoming").join("new");
+        std::fs::create_dir_all(&spool_new).unwrap();
+        let maildir_root = tmp.path().join("maildir");
+        std::fs::create_dir_all(&maildir_root).unwrap();
+
+        let st = state();
+        st.mailbox
+            .upsert_account(
+                "contact@golia.jp",
+                r#"{"address":"contact@golia.jp","domain":"golia.jp","display_name":"C",
+                    "active":true,"created_at":1748000000,"quota_bytes":0}"#,
+            )
+            .unwrap();
+
+        let body = b"From: alice@example.com\r\nSubject: hi\r\n\r\nhello\r\n";
+        let blob = encode_spool_blob(&envelope(&["CONTACT@GOLIA.JP"]), body);
+        let spool_file = spool_new.join("1000001.M1P1Q1.host");
+        std::fs::write(&spool_file, &blob).unwrap();
+
+        let (delivered, _) = drain_once(&spool_new, maildir_root.to_str().unwrap(), &st);
+        assert_eq!(delivered, 1, "uppercase recipient was left in the spool");
+        assert!(!spool_file.exists());
+        assert_eq!(
+            std::fs::read(
+                maildir_root
+                    .join("golia.jp")
+                    .join("contact")
+                    .join("new")
+                    .join("1000001.M1P1Q1.host")
+            )
+            .unwrap(),
+            body,
+            "delivered somewhere other than the canonical mailbox"
+        );
+    }
+
+    /// Folding an SRS address destroys it, which is why the SRS branch
+    /// in `drain_once` reads the raw envelope value and not the folded one.
+    ///
+    /// `reverse` strips a literal uppercase `SRS0=` prefix, and the HMAC it
+    /// checks is computed over the original domain and local part carried
+    /// in the address — so folding breaks it twice over. Had the fold
+    /// reached that branch, bounces for mail we forwarded would have
+    /// stopped being relayed to the original sender and would have gone to
+    /// `unresolved` instead, sitting in the spool: the very defect the fold
+    /// was added to remove.
+    #[test]
+    fn folding_an_srs_address_destroys_it() {
+        let secret = "srs-test-secret";
+        let srs = mailrs_srs::rewrite("Alice@Origin.Example", "fwd.golia.jp", secret);
+        let window = mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS;
+
+        assert_eq!(
+            mailrs_srs::reverse(&srs, secret, window).as_deref(),
+            Some("Alice@Origin.Example"),
+            "the raw form must reverse"
+        );
+        assert_eq!(
+            mailrs_srs::reverse(&canonical_recipient(&srs), secret, window),
+            None,
+            "if the folded form ever reverses, re-check whether the SRS \
+             branch may use it after all"
+        );
     }
 
     #[test]
