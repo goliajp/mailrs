@@ -14,6 +14,8 @@ mod backfill_messages;
 mod backfill_threading;
 mod census;
 mod cleanup;
+mod idx_advice;
+pub(crate) use idx_advice::idx_advice_route;
 mod shadow_legacy;
 mod shadow_messages;
 mod shadow_projection;

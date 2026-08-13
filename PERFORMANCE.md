@@ -21,7 +21,7 @@ quietly starts at B is not.
 | | engine | status |
 |---|---|---|
 | **A** | kevy-embedded 4.1.1 + kevy-server 3.18.0 | **measured 2026-08-13** |
-| **B** | kevy-embedded 5.1.0 + kevy-server 5.1.0 | pending the upgrade |
+| **B** | kevy-embedded 5.1.0 + kevy-server 5.1.0 | **measured 2026-08-13** |
 | **C** | spg-embedded 7.37.16 via pg-core | pending the lane's reactivation |
 
 ### Method
@@ -88,6 +88,61 @@ nothing.
 `unseen-count` at 6.3 ms is the endpoint form of the badge count that
 `crates/mailbox-kevy/BUDGETS.md` records at 2.95 ms in-process. It is the
 measured target for kevy 5.1's `idx_count_claused`.
+
+### Column B — kevy-embedded 5.1.0, kevy-server 5.1.0
+
+Commit `e1e41119`, host load 1.68 / 1.76 / 1.82 (13 samples) — the same band
+Column A was taken in, which is the evidence the two are comparable.
+
+**B is the engine upgrade *and* the harvest that shipped with it**, not the
+engine alone: the badge count moved to `idx_count_claused`, and webapi's
+kevy connections went from one-per-call (plus, on most paths, an OS thread
+per call) to a pool of eight. Both land on endpoints in this panel. The badge
+change was attributed separately — see below — so the rest is pooling plus the
+engine.
+
+Annotated against A, and **only where the difference exceeds the two cells'
+pooled spread**. Everything else prints as noise, which is most of it:
+
+| Endpoint | A p50 | B p50 | |
+|---|---:|---:|---|
+| `GET /api/conversations?limit=50` | 1.8 ±0.1 | 1.8 ±0.1 | noise |
+| `GET /api/conversations/{thread}` | 0.7 ±0.1 | 0.6 ±0.0 | **−16%** |
+| `GET …/search?q=invoice` | 15.5 ±0.3 | 15.3 ±0.3 | noise |
+| `GET …/categories` | 0.9 ±0.1 | 0.8 ±0.0 | noise at p50, **−18%** at p99 |
+| `GET /api/mail/stats` | 9.3 ±0.2 | 6.6 ±0.3 | **−29%** |
+| `GET …/unseen-count` | 6.3 ±0.3 | 4.6 ±0.5 | **−28%** |
+| `POST …/star` | 0.9 ±0.1 | 0.8 ±0.0 | noise |
+| `POST …/unstar` | 0.8 ±0.1 | 0.6 ±0.0 | **−23%** |
+| `POST …/read` | 0.8 ±0.0 | 0.7 ±0.1 | **−10%** |
+| 4 parallel inbox reads | 22.0 ±2.7 | 19.1 ±1.7 | noise |
+
+| Footprint | A | B | |
+|---|---:|---:|---|
+| RSS peak, both processes | 408.6 MB | 394.2 MB | −3.5% |
+| CPU peak, summed | 100.2 % | 92.0 % | |
+| kevy `used_memory` | 111.6 MB | 107.7 MB | −3.5% |
+| kevy data directory | 56.8 MB | 56.8 MB | — |
+| kevy keys | 142,641 | 142,641 | — (the corroborating witness) |
+
+**At p95 and p99 the two biggest p50 wins are not claimable.** B's spread on
+`mail/stats` (±6.4) and `unseen-count` (±4.3) is wider than the gap, because
+one round in five carried an outlier. The p50 improvement is solid; a tail
+claim is not, and `--compare` says so rather than printing a percentage.
+
+**What is attributable to what.** `idx_count_claused` was isolated with three
+interleaved A/B pairs on one engine version, same tree, same machine: the
+in-process badge count went 2.796 ms → 2.315 ms, **−17%**, the three pairs
+within 1.3 points of each other. Worth doing that rather than trusting a
+single pair — the first pair read −19% and the absolutes then drifted 20%
+between runs, so one pair would have reported machine state as a result. Not
+an order of magnitude either: `idx_count_claused` still walks the matching
+entries, so it removes the materialization and hydration, not the scan.
+
+The broad, small improvement across nearly every row is the connection pool.
+It sits on **every authenticated request** — resolving a session token used to
+open a TCP connection to the shared store, and seven of the eight `with_kevy`
+copies also spawned an OS thread to do it on.
 
 **Note on comparability with older figures in this file.** The seeder's
 analysis categories now come from a pre-pass keyed by message id, so both

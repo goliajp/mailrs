@@ -14,6 +14,13 @@ use super::*;
 
 pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<FastcoreState>> {
     r.route("/v1/admin/maintenance:rewrite-aof", post(rewrite_aof_route))
+        // Read-only. Answers "is a query running with no declared path" and
+        // "is a declared path carrying no queries" — neither of which this
+        // store could answer before kevy 5.1.
+        .route(
+            "/v1/admin/maintenance:idx-advice",
+            post(crate::maintenance::idx_advice_route),
+        )
         // Ops endpoint — one-shot pre-P6 legacy keyspace sweep
         // (Phase 11.2 embedded half). In-process so no AOF
         // double-open OOM; idempotent.
