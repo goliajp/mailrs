@@ -330,7 +330,20 @@ async fn sync_thread(
             report.messages_skipped_dupe += 1;
             continue;
         }
-        let unread = !senders_csv_contains_user(&wire.sender, user);
+        // From the message's own `\Seen` bit, not from who sent it.
+        //
+        // This asked `!senders_csv_contains_user(sender, user)` — kevy's rule
+        // for mail ARRIVING, where "the user sent it, so it is not unread" is
+        // right and there is no prior read state to consult. In a migration
+        // there is: the flag is right there in the payload being copied. Using
+        // the arrival heuristic instead meant every message somebody else sent
+        // came across unread, so a switch turned the whole mailbox bold — read
+        // state was not transported at all, it was re-derived, wrongly.
+        //
+        // Found by the round-trip rehearsal: a thread marked read on the source
+        // reported flags [1, 1] there and [0, 0] on the destination.
+        const SEEN: u32 = 1;
+        let unread = wire.flags & SEEN == 0;
         let payload_wire_json = serde_json::to_string(wire)
             .map_err(|e| CoreApiError::Internal(format!("serialize wire: {e}")))?;
         let req = DeliverMessageRequest {
@@ -359,25 +372,9 @@ async fn sync_thread(
     Ok(())
 }
 
-/// Whether the user's own address appears in the comma-joined sender list
-/// (mirrors kevy's `senders_csv_contains_user` — a message the user sent
-/// is not "unread").
-fn senders_csv_contains_user(senders_csv: &str, user: &str) -> bool {
-    let u = user.to_lowercase();
-    senders_csv
-        .split(',')
-        .any(|s| s.trim().to_lowercase().contains(&u))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn senders_csv_membership() {
-        assert!(senders_csv_contains_user("Alice <a@x.y>, b@x.y", "a@x.y"));
-        assert!(!senders_csv_contains_user("b@x.y, c@x.y", "a@x.y"));
-    }
 
     #[test]
     fn default_opts_are_sane() {
