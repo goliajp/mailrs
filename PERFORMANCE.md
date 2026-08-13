@@ -25,16 +25,28 @@ quietly starts at B is not.
 | **C** | spg-embedded 7.37.16 via pg-core | lane reactivated; **blocked on seeding** |
 
 Column C is blocked on getting its dataset into an spg catalog, not on the lane.
-`spg import` was given the same 98 MB the PostgreSQL arm feeds `psql` — 114
-INSERT statements of 500 tuples each — and after **40 minutes** was at 99.8 %
-CPU and **3.85 GB** resident with the catalog and WAL both unchanged at 23 KB
-and 32 KB. It was killed there, so whether it would finish is unknown. Written
-up in `.claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md` §3b.
+The same 98 MB the PostgreSQL arm loads in **10.9 s** (24,304 rows, count
+verified) left spg at 99.8 % CPU and **3.85 GB** resident after **40 minutes**,
+with the catalog at 23 KB and the WAL at 32 KB, both unchanged since the first
+minute. Killed there, so the true ratio past **220×** is unknown.
+
+Located, after two framings of mine that were wrong. It is **not** row count and
+**not** row size: spg does 5,000 synthetic rows in 0.5 s, and 3,500 rows carrying
+3.8 KB bodies — a 26 MB file — also in 0.5 s. The variable is the **text**.
+`init-schema.sql` runs four `to_tsvector` calls per row through a plpgsql trigger
+with a GIN index behind them; the synthetic control's body was one character
+repeated, so it produced one token and the index barely grew, while real bodies
+produce hundreds each. spg's per-row cost roughly doubles between 1,500 and 3,500
+rows (1.40 → 1.33 → 2.83 ms) where PostgreSQL's full-file time says its own stays
+flat. Controls, prefix timings and a reproduction in
+`.claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md` §3b.
 
 The way through is to seed the SQL arm the way the kevy arm is seeded — through
 the contract's `deliver_message` — which both cores serve and which makes the
-two arms' seeding identical rather than merely equivalent. That is the next
-step, and it is a detour rather than a workaround: bulk SQL import is what a
+two arms' seeding identical rather than merely equivalent. **Note the prediction
+it makes**: that path fires the same trigger 24,304 times, so if the trigger is
+the cost it will not be faster — being measured, not assumed. It is a detour
+rather than a workaround: bulk SQL import is what a
 consumer would reach for, and it is what did not work.
 
 **A pair none of these columns covers, and production would run it.** Column A
