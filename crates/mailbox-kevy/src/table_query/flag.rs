@@ -73,23 +73,20 @@ impl KevyMailboxStore {
                 value: val.as_bytes(),
             });
         }
-        let page = self
-            .store
-            .idx_query_claused(
-                index.as_bytes(),
-                &IndexValue::I64(1),
-                &IndexValue::I64(1),
-                None,
-                limit,
-                ScalarQueryOpts {
-                    filters: &filters,
-                    sort: Some((b"activity", true)),
-                    distinct: None,
-                    facets: &[],
-                    offset,
-                },
-            )
-            .map_err(io::Error::other)?;
+        let page = self.store.idx_query_claused(
+            index.as_bytes(),
+            &IndexValue::I64(1),
+            &IndexValue::I64(1),
+            None,
+            limit,
+            ScalarQueryOpts {
+                filters: &filters,
+                sort: Some((b"activity", true)),
+                distinct: None,
+                facets: &[],
+                offset,
+            },
+        )?;
         let prefix_len = keys::thread_user(user, "").len();
         Ok(page
             .rows
@@ -146,15 +143,12 @@ impl KevyMailboxStore {
                 value: val.as_bytes(),
             });
         }
-        let n = self
-            .store
-            .idx_count_claused(
-                index.as_bytes(),
-                &IndexValue::I64(1),
-                &IndexValue::I64(1),
-                &filters,
-            )
-            .map_err(io::Error::other)?;
+        let n = self.store.idx_count_claused(
+            index.as_bytes(),
+            &IndexValue::I64(1),
+            &IndexValue::I64(1),
+            &filters,
+        )?;
         Ok(usize::try_from(n).unwrap_or(usize::MAX))
     }
 }

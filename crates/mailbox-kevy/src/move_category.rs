@@ -50,7 +50,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(true)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 }
 

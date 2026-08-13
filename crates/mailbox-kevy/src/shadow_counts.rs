@@ -119,8 +119,7 @@ impl KevyMailboxStore {
         let read = |field: &[u8]| -> io::Result<i64> {
             Ok(self
                 .store()
-                .hget(key.as_bytes(), field)
-                .map_err(std::io::Error::other)?
+                .hget(key.as_bytes(), field)?
                 .and_then(|v| String::from_utf8(v).ok())
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0))
@@ -139,8 +138,7 @@ impl KevyMailboxStore {
         for account in accounts {
             if self
                 .store()
-                .exists(&[keys::thread_user(account, tid).as_bytes()])
-                .map_err(std::io::Error::other)?
+                .exists(&[keys::thread_user(account, tid).as_bytes()])?
                 > 0
             {
                 seen += 1;

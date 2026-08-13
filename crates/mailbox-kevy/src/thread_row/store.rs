@@ -24,12 +24,8 @@ impl KevyMailboxStore {
     ) -> io::Result<bool> {
         let key = keys::thread_user(user, &row.thread_id);
         let want = thread_user_pairs(user, row);
-        let have: std::collections::HashMap<Vec<u8>, Vec<u8>> = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?
-            .into_iter()
-            .collect();
+        let have: std::collections::HashMap<Vec<u8>, Vec<u8>> =
+            self.store().hgetall(key.as_bytes())?.into_iter().collect();
         // A flag the row does not carry is not the same as a flag set to
         // zero. `archived` is an equality component of every ORDERPATH
         // prefix, so a row missing it is in none of them — invisible in
@@ -53,9 +49,7 @@ impl KevyMailboxStore {
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
-        self.store()
-            .hset(key.as_bytes(), &refs)
-            .map_err(std::io::Error::other)?;
+        self.store().hset(key.as_bytes(), &refs)?;
         if !missing.is_empty() {
             self.plant_thread_user_defaults(&key, &missing)?;
         }
@@ -82,9 +76,7 @@ impl KevyMailboxStore {
             .iter()
             .map(|f| (f.as_bytes(), b"0".as_slice()))
             .collect();
-        self.store()
-            .hset(key.as_bytes(), &zeros)
-            .map_err(std::io::Error::other)?;
+        self.store().hset(key.as_bytes(), &zeros)?;
         Ok(())
     }
 
@@ -136,17 +128,14 @@ impl KevyMailboxStore {
 
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Read a single thread row back. Returns `None` if the hash is
     /// empty (deleted or never existed).
     pub fn get_thread(&self, thread_id: &str) -> io::Result<Option<ThreadRow>> {
         let key = keys::thread(thread_id);
-        let pairs = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?;
+        let pairs = self.store().hgetall(key.as_bytes())?;
         Ok(ThreadRow::from_pairs(thread_id.to_string(), &pairs))
     }
 
@@ -162,10 +151,7 @@ impl KevyMailboxStore {
         thread_id: &str,
     ) -> io::Result<Option<ThreadRow>> {
         let key = keys::thread_user(user, thread_id);
-        let pairs = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?;
+        let pairs = self.store().hgetall(key.as_bytes())?;
         Ok(ThreadRow::from_user_pairs(thread_id.to_string(), &pairs))
     }
 }

@@ -114,7 +114,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(true)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Common path: hset the boolean field on **this user's** membership
@@ -148,7 +148,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(true)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Flip a thread back to unread. Mirrors `mark_seen` in the
@@ -185,7 +185,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(true)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Put a thread away until an epoch second, or `0` to bring it
@@ -227,7 +227,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(true)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Bring back every thread whose time has come.
@@ -239,43 +239,39 @@ impl KevyMailboxStore {
     /// when nothing is due, which is what
     /// `periodic-work-must-converge` asks of anything on a timer.
     pub fn wake_snoozed(&self, now: i64) -> io::Result<usize> {
-        let (rows, _) = self
-            .store()
-            .idx_query(
-                b"threaduser.snoozed_until",
-                &kevy_embedded::IndexValue::I64(1),
-                &kevy_embedded::IndexValue::I64(now),
-                None,
-                500,
-            )
-            .map_err(io::Error::other)?;
+        let (rows, _) = self.store().idx_query(
+            b"threaduser.snoozed_until",
+            &kevy_embedded::IndexValue::I64(1),
+            &kevy_embedded::IndexValue::I64(now),
+            None,
+            500,
+        )?;
         let mut woken = 0usize;
         for (key, _) in rows {
-            let key = String::from_utf8(key).map_err(io::Error::other)?;
-            let changed = self
-                .store()
-                .atomic(|ctx| {
-                    // Re-read inside the transaction: the row may have
-                    // been unsnoozed, or snoozed further out, between
-                    // the query and here.
-                    let due = ctx
-                        .hget(key.as_bytes(), b"snoozed_until")?
-                        .and_then(|v| String::from_utf8(v).ok())
-                        .and_then(|v| v.parse::<i64>().ok())
-                        .unwrap_or(0);
-                    if due == 0 || due > now {
-                        return Ok(false);
-                    }
-                    ctx.hset(
-                        key.as_bytes(),
-                        &[
-                            (b"snoozed_until" as &[u8], b"0" as &[u8]),
-                            (b"archived", b"0"),
-                        ],
-                    )?;
-                    Ok(true)
-                })
-                .map_err(io::Error::other)?;
+            // not a KevyError, so it does not go through the engine's
+            // ErrorKind mapping — this one stays an explicit `other`.
+            let key = String::from_utf8(key).map_err(std::io::Error::other)?;
+            let changed = self.store().atomic(|ctx| {
+                // Re-read inside the transaction: the row may have
+                // been unsnoozed, or snoozed further out, between
+                // the query and here.
+                let due = ctx
+                    .hget(key.as_bytes(), b"snoozed_until")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .and_then(|v| v.parse::<i64>().ok())
+                    .unwrap_or(0);
+                if due == 0 || due > now {
+                    return Ok(false);
+                }
+                ctx.hset(
+                    key.as_bytes(),
+                    &[
+                        (b"snoozed_until" as &[u8], b"0" as &[u8]),
+                        (b"archived", b"0"),
+                    ],
+                )?;
+                Ok(true)
+            })?;
             if changed {
                 woken += 1;
             }
@@ -305,18 +301,14 @@ impl KevyMailboxStore {
         // Enumerate messages OUTSIDE the atomic block: AtomicCtx has no
         // `zrange`, and every blob is a plain `get` — one round trip
         // per message on a typical thread (< 20 hops).
-        let members = store
-            .zrange(msgs_zset.as_bytes(), 0, -1)
-            .map_err(std::io::Error::other)?;
+        let members = store.zrange(msgs_zset.as_bytes(), 0, -1)?;
         let mut per_msg: Vec<(String, Option<u32>, Option<String>)> =
             Vec::with_capacity(members.len());
         for (mid_bytes, _score) in &members {
             let Ok(mid) = std::str::from_utf8(mid_bytes) else {
                 continue;
             };
-            let blob = store
-                .get(keys::message_blob(mid).as_bytes())
-                .map_err(std::io::Error::other)?;
+            let blob = store.get(keys::message_blob(mid).as_bytes())?;
             let (uid, blob_ref) = match blob.as_deref() {
                 Some(bytes) => {
                     let v: serde_json::Value =
@@ -346,52 +338,50 @@ impl KevyMailboxStore {
         let msg_by_uid_key = keys::user_msg_by_uid(user);
         let uid_by_mid_key = keys::user_uid_by_mid(user);
 
-        let existed = store
-            .atomic(|ctx| {
-                // The category used to pick which per-category zset to
-                // clean; all this asks now is whether the thread is
-                // there at all.
-                if !ctx.hexists(thread_key.as_bytes(), b"category")? {
-                    return Ok(false);
+        let existed = store.atomic(|ctx| {
+            // The category used to pick which per-category zset to
+            // clean; all this asks now is whether the thread is
+            // there at all.
+            if !ctx.hexists(thread_key.as_bytes(), b"category")? {
+                return Ok(false);
+            }
+
+            // Per-message cleanup — msg blob, RFC Message-ID → thread
+            // pointer, and both directions of the uid ↔ message-id map.
+            // Any of these left behind kept the message reachable via
+            // find_by_message_id / by_uid lookups even after the row
+            // vanished from the thread aggregate.
+            for (mid, uid, _blob_ref) in &per_msg {
+                ctx.del(&[keys::message_blob(mid).as_bytes()]);
+                ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
+                if let Some(u) = uid {
+                    let uid_s = u.to_string();
+                    ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
                 }
+                ctx.hdel(uid_by_mid_key.as_bytes(), &[mid.as_bytes()])?;
+            }
 
-                // Per-message cleanup — msg blob, RFC Message-ID → thread
-                // pointer, and both directions of the uid ↔ message-id map.
-                // Any of these left behind kept the message reachable via
-                // find_by_message_id / by_uid lookups even after the row
-                // vanished from the thread aggregate.
-                for (mid, uid, _blob_ref) in &per_msg {
-                    ctx.del(&[keys::message_blob(mid).as_bytes()]);
-                    ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
-                    if let Some(u) = uid {
-                        let uid_s = u.to_string();
-                        ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
-                    }
-                    ctx.hdel(uid_by_mid_key.as_bytes(), &[mid.as_bytes()])?;
-                }
+            // The thread's own message-index zset.
+            ctx.del(&[msgs_zset.as_bytes()]);
 
-                // The thread's own message-index zset.
-                ctx.del(&[msgs_zset.as_bytes()]);
+            // Thread aggregate fields.
+            ctx.hdel(thread_key.as_bytes(), fields)?;
 
-                // Thread aggregate fields.
-                ctx.hdel(thread_key.as_bytes(), fields)?;
-
-                // The membership row is the thread's presence on every
-                // axis the table serves, so deleting the thread has to
-                // delete it too — otherwise the row outlives the data
-                // and every axis keeps listing a thread that is gone.
-                //
-                // This replaced a twelve-key zrem sweep: one row now
-                // carries what twelve indexes used to, and the list of
-                // keys to remember to clean out is gone with them. That
-                // list had been wrong twice — the folder zsets were
-                // missing from it until v2.8.2, then the two new
-                // buckets until v2.9, each time leaving orphans behind
-                // on every delete.
-                ctx.del(&[keys::thread_user(user, thread_id).as_bytes()]);
-                Ok(true)
-            })
-            .map_err(std::io::Error::other)?;
+            // The membership row is the thread's presence on every
+            // axis the table serves, so deleting the thread has to
+            // delete it too — otherwise the row outlives the data
+            // and every axis keeps listing a thread that is gone.
+            //
+            // This replaced a twelve-key zrem sweep: one row now
+            // carries what twelve indexes used to, and the list of
+            // keys to remember to clean out is gone with them. That
+            // list had been wrong twice — the folder zsets were
+            // missing from it until v2.8.2, then the two new
+            // buckets until v2.9, each time leaving orphans behind
+            // on every delete.
+            ctx.del(&[keys::thread_user(user, thread_id).as_bytes()]);
+            Ok(true)
+        })?;
         Ok((existed, blob_refs))
     }
 }

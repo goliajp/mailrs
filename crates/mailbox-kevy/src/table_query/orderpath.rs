@@ -101,7 +101,7 @@ impl KevyMailboxStore {
                 &kevy_embedded::IndexValue::Str(hi),
             )
             .map(|n| n as usize)
-            .map_err(io::Error::other)
+            .map_err(io::Error::from)
     }
 
     /// The cursor page: threads on this axis older than `max_activity`.
@@ -191,7 +191,7 @@ impl KevyMailboxStore {
                 &kevy_embedded::IndexValue::Str(hi),
             )
             .map(|n| n as usize)
-            .map_err(io::Error::other)
+            .map_err(io::Error::from)
     }
 
     fn unsent_clause(
@@ -239,7 +239,7 @@ impl KevyMailboxStore {
                 &kevy_embedded::IndexValue::Str(hi),
             )
             .map(|n| n as usize)
-            .map_err(io::Error::other)
+            .map_err(io::Error::from)
     }
 
     /// The cursor page of the category axis.
@@ -312,6 +312,6 @@ impl KevyMailboxStore {
                 &kevy_embedded::IndexValue::Str(hi),
             )
             .map(|n| n as usize)
-            .map_err(io::Error::other)
+            .map_err(io::Error::from)
     }
 }

@@ -118,8 +118,7 @@ impl KevyMailboxStore {
             scanned += 1;
             let have: std::collections::HashSet<Vec<u8>> = self
                 .store
-                .hgetall(&key)
-                .map_err(io::Error::other)?
+                .hgetall(&key)?
                 .into_iter()
                 .map(|(f, _)| f)
                 .collect();
@@ -135,7 +134,7 @@ impl KevyMailboxStore {
                 .iter()
                 .map(|f| (f.as_bytes(), b"0".as_slice()))
                 .collect();
-            self.store.hset(&key, &zeros).map_err(io::Error::other)?;
+            self.store.hset(&key, &zeros)?;
             planted += 1;
         }
         Ok((scanned, planted))

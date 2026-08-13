@@ -44,21 +44,19 @@ impl KevyMailboxStore {
         let key = keys::thread(thread_id);
         let tu_key = keys::thread_user(user, thread_id);
         let score_s = score.to_string();
-        self.store()
-            .atomic(|ctx| {
-                let pairs: [(&[u8], &[u8]); 2] = [
-                    (b"importance_level", level.as_bytes()),
-                    (b"importance_score", score_s.as_bytes()),
-                ];
-                ctx.hset(key.as_bytes(), &pairs)?;
-                // Only when the user already has a row: this must not
-                // conjure membership out of a verdict.
-                if ctx.hexists(tu_key.as_bytes(), b"tid")? {
-                    ctx.hset(tu_key.as_bytes(), &pairs)?;
-                }
-                Ok(())
-            })
-            .map_err(std::io::Error::other)?;
+        self.store().atomic(|ctx| {
+            let pairs: [(&[u8], &[u8]); 2] = [
+                (b"importance_level", level.as_bytes()),
+                (b"importance_score", score_s.as_bytes()),
+            ];
+            ctx.hset(key.as_bytes(), &pairs)?;
+            // Only when the user already has a row: this must not
+            // conjure membership out of a verdict.
+            if ctx.hexists(tu_key.as_bytes(), b"tid")? {
+                ctx.hset(tu_key.as_bytes(), &pairs)?;
+            }
+            Ok(())
+        })?;
         Ok(())
     }
 }

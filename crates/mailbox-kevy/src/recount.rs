@@ -82,10 +82,7 @@ impl KevyMailboxStore {
             (b"sent_count", sent.to_string().into_bytes()),
         ];
         let per_user_agrees = want.iter().try_fold(true, |acc, (field, value)| {
-            let have = self
-                .store()
-                .hget(tu_key.as_bytes(), field)
-                .map_err(std::io::Error::other)?;
+            let have = self.store().hget(tu_key.as_bytes(), field)?;
             Ok::<bool, io::Error>(acc && have.as_deref() == Some(value.as_slice()))
         })?;
 
@@ -97,9 +94,7 @@ impl KevyMailboxStore {
 
         if !per_user_agrees {
             let pairs: Vec<(&[u8], &[u8])> = want.iter().map(|(f, v)| (*f, v.as_slice())).collect();
-            self.store()
-                .hset(tu_key.as_bytes(), &pairs)
-                .map_err(std::io::Error::other)?;
+            self.store().hset(tu_key.as_bytes(), &pairs)?;
         }
         if !shared_agrees {
             row.count = count;
@@ -182,12 +177,7 @@ impl KevyMailboxStore {
         let mut seen = 0;
         for account in accounts {
             let key = keys::thread_user(account, tid);
-            if self
-                .store()
-                .exists(&[key.as_bytes()])
-                .map_err(std::io::Error::other)?
-                > 0
-            {
+            if self.store().exists(&[key.as_bytes()])? > 0 {
                 seen += 1;
                 if seen > 1 {
                     return Ok(true);
