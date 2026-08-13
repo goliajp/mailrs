@@ -88,6 +88,13 @@ def main() -> int:
 
     thin = [ep for ep, rs in latency.items() if len(rs) < 3]
 
+    # The witness has to have fired. It is sampled once a second for the whole
+    # run, so zero samples means the sampler died or never started — and a
+    # missing witness reads exactly like a quiet machine. One column was
+    # recorded as "pinned, load observed" off a run that was neither, because
+    # nothing here objected to its absence.
+    no_witness = "host loadavg" not in resource
+
     head = f"{'endpoint':<30} {'p50 ms':>16} {'p95 ms':>16} {'p99 ms':>16}"
     print(head)
     print("-" * len(head))
@@ -139,6 +146,13 @@ def main() -> int:
             print(f"{label:<30} {kb / 1024:>16.1f} MB")
         for label, value in engine:
             print(f"{label:<30} {value:>16}")
+
+    if no_witness:
+        print()
+        print("NOT REPORTABLE — no host-load samples in this run.")
+        print("The witness is sampled every second; none means it never ran, and")
+        print("an absent witness is indistinguishable from a quiet machine.")
+        return 1
 
     if thin:
         print()

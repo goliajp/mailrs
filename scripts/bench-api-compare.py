@@ -115,6 +115,15 @@ def main() -> int:
         print("backends. Re-seed from one bench-api-seed.py run and re-measure.")
         return 1
 
+    # Same check the per-arm reducer makes, because a column can arrive here
+    # without ever having passed through it.
+    blind = [a for a in arms if "host loadavg" not in runs[a]["res"]]
+    if blind:
+        print()
+        print(f"!! no host-load witness in: {', '.join(blind)}")
+        print("An absent witness is indistinguishable from a quiet machine. Re-run those arms.")
+        return 1
+
     if len(set(hosts.values())) > 1:
         print()
         print("!! arms measured on different hosts — the numbers are not comparable")
