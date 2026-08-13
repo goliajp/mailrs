@@ -292,12 +292,34 @@ pub async fn run() {
         _ = sigterm.recv() => {
             tracing::info!("SIGTERM — flushing kevy before exit");
             flush_kevy(&shutdown_state);
+            exit_after_flush();
         }
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("SIGINT — flushing kevy before exit");
             flush_kevy(&shutdown_state);
+            exit_after_flush();
         }
     }
+}
+
+/// Leave, now that the store is sealed.
+///
+/// Returning from here instead would drop the runtime, and dropping a
+/// runtime waits for its blocking tasks — of which this process has
+/// several that loop forever on a bounded `BRPOP`, by design. So the
+/// process flushed, said so, and then never exited: measured still alive
+/// 40 s after SIGTERM whenever `MAILRS_KEVY_URL` was set, which is the
+/// production configuration. Every deploy was waiting out `docker stop`'s
+/// grace period and taking a SIGKILL.
+///
+/// This is safe precisely because `flush_kevy` ran first: kevy's
+/// `shutdown()` fsyncs every shard's AOF and then refuses further writes
+/// with `KevyError::Closed`, so there is no write left in flight for a
+/// skipped destructor to lose. Maildir writes are closed files. The
+/// network kevy is somebody else's process.
+fn exit_after_flush() -> ! {
+    tracing::info!("exiting");
+    std::process::exit(0);
 }
 
 /// Flush and seal the store on the way out.
