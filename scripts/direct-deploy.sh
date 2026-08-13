@@ -89,6 +89,12 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # cheaper to learn about before a ten-minute test run than after.
     ./scripts/check-mcp-parity.sh
     ./scripts/check-core-contract.sh
+    # The two cores must serve one contract: pg-core ⊆ fastcore hard, and
+    # the reverse as a ratchet (that set is the pg-core reactivation debt).
+    # Replaces core_rpc/tests/parity.rs, which named both router files by
+    # path — both had moved, one to a path that never existed — and only
+    # compiled under a feature nothing built, so none of it ever fired.
+    ./scripts/check-core-parity.sh
 
     # A crate in this repo depended on by version alone resolves to the
     # published copy, so both end up in the binary and edits to the local
@@ -131,6 +137,26 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
 
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    # The dormant pg/spg lane, which nothing above reaches: features are off
+    # by default, so `--workspace --all-targets` never sees the code behind
+    # `spg` or `core-rpc`, and test.yml — the only thing that did build them
+    # — runs on master/release/hotfix, whose tip predates develop by weeks.
+    #
+    # It had been broken since the 2026-08-02 file split, in 23 places. All
+    # of them one root cause: that commit moved these files a directory
+    # deeper and nothing that referenced position followed — relative
+    # `include_str!` paths, `super::*` globs, and a re-export widened past
+    # its own visibility. Plus a `cfg` with two comma-separated predicates,
+    # which is malformed, so that file had never compiled at all.
+    #
+    # `--all-targets` matters and both axes matter: the lane's two test files
+    # sit on opposite sides of the `spg` switch (the in-memory pg-core suite
+    # needs it, the real-Postgres bidirectional sync test needs it off), so
+    # a single invocation type-checks exactly one of them. Test-only rot is
+    # the kind this lane had.
+    # ~19s cold for the spg dependency tree, seconds warm.
+    cargo check -p mailrs-server --features core-rpc,spg --all-targets
+    cargo check -p mailrs-server --features core-rpc --all-targets
     # --no-fail-fast: cargo stops at the first failing test binary, which
     # hides every red behind it. Three separate failures were found this
     # way on 2026-07-29, each only after the previous one was fixed.

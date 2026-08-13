@@ -27,15 +27,15 @@
 
 mod handlers;
 mod router;
-pub(crate) use router::build_full_router;
+// Not re-exported wider than it is: `build_full_router` is `pub(super)` in
+// `router.rs`, which already reaches this module and the `tests` submodules
+// that call it. A `pub(crate) use` here widens past that and is E0364.
+use router::build_full_router;
 
 #[cfg(test)]
 mod tests;
 
 use std::sync::Arc;
-
-use axum::Router;
-use axum::routing::{delete, get, post, put};
 
 use mailrs_core_api::server::Handler;
 use mailrs_core_api::types::{BackendKind, HealthResponse};

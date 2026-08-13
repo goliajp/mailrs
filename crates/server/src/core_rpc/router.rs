@@ -17,7 +17,7 @@ use super::*;
 ///
 /// Healthz/readyz remain unauthenticated (LB/orchestrator probes).
 /// Empty `secret` disables auth entirely — dev-only mode.
-fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
+pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Router {
     use mailrs_core_api::method::admin as adm_paths;
     use mailrs_core_api::method::analysis as analysis_paths;
     use mailrs_core_api::method::contact as contact_paths;

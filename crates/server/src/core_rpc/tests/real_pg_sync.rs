@@ -7,9 +7,19 @@
 //! Requires docker; runs on the default (non-spg) axis with
 //! `--features core-rpc`. Serialized via its own container.
 
-#![cfg(feature = "core-rpc", not(feature = "spg"))]
+// `cfg` takes one predicate, so two comma-separated ones is malformed and
+// the file never compiled — under any feature combination, since a broken
+// attribute is a parse error rather than a false condition. Nothing noticed
+// because nothing built `--features core-rpc` after 2026-08-02.
+#![cfg(all(feature = "core-rpc", not(feature = "spg")))]
 
-use super::*;
+// Crate-rooted rather than through `super`: this file moved down one level
+// on 2026-08-02, which left `super` pointing at `core_rpc::tests` — a module
+// holding only `mod` declarations. See the note in `pg_core.rs`.
+use std::sync::Arc;
+
+use crate::core_rpc::{CoreRpcState, build_full_router};
+
 use mailrs_core_api::client::Client;
 use mailrs_core_api::method::admin::AddAccountRequest;
 use mailrs_core_api::method::thread::DeliverMessageRequest;
@@ -20,7 +30,12 @@ use testcontainers::{
     runners::AsyncRunner,
 };
 
-const SCHEMA_SQL: &str = include_str!("../../../../scripts/init-schema.sql");
+// Anchored to the crate directory, not this file's depth — the same move
+// left the old path resolving to `crates/scripts/init-schema.sql`.
+const SCHEMA_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../scripts/init-schema.sql"
+));
 
 async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
     let container = GenericImage::new("pgvector/pgvector", "pg18")

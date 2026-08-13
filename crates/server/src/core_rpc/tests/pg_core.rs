@@ -6,13 +6,29 @@
 
 #![cfg(feature = "spg")]
 
-use super::*;
+// Named, and addressed from the crate root rather than through `super`.
+// These tests were inline in `core_rpc/mod.rs` until 2026-08-02, where
+// `super::*` reached `core_rpc`; moving them into `tests/` shifted `super`
+// one level down onto `core_rpc::tests`, which holds nothing but the module
+// declarations — so the glob resolved to nothing and every name here went
+// missing. A crate-rooted path cannot be broken by moving this file again.
+use std::sync::Arc;
+
+use crate::core_rpc::{CoreRpcState, build_full_router};
+
 use mailrs_core_api::client::Client;
 use mailrs_core_api::method::admin::AddAccountRequest;
 use mailrs_core_api::method::thread::DeliverMessageRequest;
 use spg_sqlx::SpgPoolExt;
 
-const SCHEMA_SQL: &str = include_str!("../../../../scripts/init-schema.sql");
+// Anchored to the crate directory, not to this file's own depth. The same
+// 2026-08-02 move left this path one `..` short and it read as
+// `crates/scripts/init-schema.sql`. `request_contract.rs` in webapi reaches
+// the same repo-level fixtures this way for the same reason.
+const SCHEMA_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../scripts/init-schema.sql"
+));
 
 async fn spawn_pg_core() -> String {
     let pool = spg_sqlx::SpgPool::connect_in_memory()
