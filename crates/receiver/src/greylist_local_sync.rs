@@ -56,15 +56,29 @@ fn parse_entries(flat: &[Vec<u8>]) -> GreylistLocalLists {
         let Ok(entry) = serde_json::from_slice::<serde_json::Value>(value) else {
             continue;
         };
-        let addr = entry
-            .get("address_or_domain")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let list_type = entry
-            .get("list_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        classify(&mut lists, addr, list_type);
+        // Two shapes are stored under this key, and both are real.
+        //
+        // The not-junk path in webapi writes `{address_or_domain,
+        // list_type}` — all 22 entries in production are these. The admin
+        // API writes `{value, list}`, which is the contract its UI was
+        // built against and reads back. This loader looked only for the
+        // first pair, so `get()` missed twice, `classify` saw two empty
+        // strings and returned, and every entry made through the admin UI
+        // was silently ignored. Accepting both leaves the live data and
+        // the UI's contract alone.
+        let field = |a: &str, b: &str| {
+            entry
+                .get(a)
+                .or_else(|| entry.get(b))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+        classify(
+            &mut lists,
+            &field("address_or_domain", "value"),
+            &field("list_type", "list"),
+        );
     }
     lists
 }
@@ -145,6 +159,45 @@ mod tests {
         assert!(l.black_domains.contains("spammer.example"));
         assert_eq!(l.white_count(), 2);
         assert_eq!(l.black_count(), 2);
+    }
+
+    /// The admin API's own shape has to be understood too.
+    ///
+    /// `webapi::create_greylist_entry` stores `{kind, list, value, note}`
+    /// — that is the contract the admin UI was built against and reads
+    /// back. This loader only ever looked for `{address_or_domain,
+    /// list_type}`, so both `get()`s missed, `classify` saw two empty
+    /// strings and returned, and **every entry created through the admin
+    /// UI was silently ignored**. Production has 22 entries and all of
+    /// them came from the not-junk path, which happens to write the names
+    /// this loader wanted; that is why nobody noticed.
+    ///
+    /// Read side widened rather than the write side changed: the 22 live
+    /// entries are in the older shape, and the newer names are the UI's
+    /// HTTP contract. Both stay valid.
+    #[test]
+    fn the_admin_apis_field_names_are_understood() {
+        let admin_entry = |value: &str, list: &str| {
+            serde_json::to_vec(&serde_json::json!({
+                "id": 7, "kind": "domain", "list": list,
+                "value": value, "note": serde_json::Value::Null,
+                "created_at": 0,
+            }))
+            .unwrap()
+        };
+        let flat = vec![
+            b"1".to_vec(),
+            admin_entry("nuget.org", "whitelist"),
+            b"2".to_vec(),
+            admin_entry("Spammer.Example", "blacklist"),
+        ];
+        let l = parse_entries(&flat);
+        assert!(
+            l.white_domains.contains("nuget.org"),
+            "an admin-created whitelist entry was dropped"
+        );
+        assert!(l.black_domains.contains("spammer.example"));
+        assert_eq!(l.total(), 2);
     }
 
     #[test]
