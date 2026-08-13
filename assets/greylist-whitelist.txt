@@ -55,6 +55,17 @@ microsoft.com
 office365.com
 onmicrosoft.com
 exchangelabs.com
+# A Microsoft property that sends from its own domain, so the entries
+# above do not cover it. Added 2026-08-14 after a sign-up confirmation
+# never arrived: four attempts inside seven minutes, each from a different
+# 40.93.x.x outbound address, so each one was a fresh (ip, from, to)
+# triplet and every one was deferred as a first delivery. A sender whose
+# retry pool rotates can never satisfy an IP-keyed greylist however many
+# times it tries.
+#
+# This file is only consulted when MAILRS_GREYLIST_ENABLED=1, which is not
+# the default since 2026-08-14 — see crates/receiver/src/run.rs.
+nuget.org
 
 # Apple
 icloud.com
