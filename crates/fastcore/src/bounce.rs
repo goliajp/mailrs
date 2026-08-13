@@ -272,8 +272,23 @@ pub fn compose_dsn(
 /// empty for the whole 10 s window, at which point the task loops
 /// straight back into another blocking `BRPOP`. No wall-clock
 /// budget spent on polling an empty queue.
+///
+/// The loop runs on `spawn_blocking`, not on a runtime worker.
+/// `drain_one` is synchronous and blocks for up to 10 s with no `.await`
+/// anywhere in the loop, so a plain `tokio::spawn` pinned one worker
+/// thread for the life of the process and never gave it back — a quarter
+/// of the async capacity on a four-core host. It also made shutdown
+/// impossible: a worker parked in a blocking syscall with no yield point
+/// never observes the runtime's shutdown, so the process flushed kevy on
+/// SIGTERM, logged that it had, and then sat there. Measured before this
+/// change: 0.55 s to exit with no `MAILRS_KEVY_URL`, still alive after
+/// 40 s with one set — which is the production configuration, so every
+/// deploy was waiting out `docker stop`'s grace period and being killed.
+///
+/// `kevy/no-blocking-pop-wrap` already required this, and already listed
+/// this call site as one of its compliant callers.
 pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
+    tokio::task::spawn_blocking(move || {
         let Some(url) = crate::live_sync::network_kevy_url() else {
             tracing::info!("no network kevy — bounce drain disabled");
             return;
