@@ -14,6 +14,24 @@
 //! (a dep upgrade that ships 5× slower without our noticing), not
 //! micro-perf swings. Per-stone micro-perf is covered by each crate's
 //! own `tests/perf_gate.rs` + `benches/`.
+//!
+//! # Release only
+//!
+//! Every budget here was derived from an optimised build, so asserting it
+//! in a dev build measures the host rather than the code. Twenty other
+//! `perf_gate.rs` files already carry this guard for that reason; this one
+//! was missed, and `rfc5322_lookup_chain_under_budget` was the file's
+//! zero-margin case. Its budget went 5 µs → 10 µs in 2026-05 to stop a
+//! flake, but debug is roughly twice release, so the loosening cancelled
+//! out exactly: measured **10.0 µs against a 10 µs budget**, failing one
+//! run in three *in isolation, single-threaded* — a coin flip with no load
+//! involved. The same test passes 5/5 in release.
+//!
+//! The numbers are deliberately left alone. `./scripts/perf-gates.sh`
+//! runs `cargo test --release --workspace --test perf_gate`, and that
+//! script is part of the deploy gate, so nothing here stops being checked
+//! — it is checked in the profile the budgets belong to.
+#![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};
 
