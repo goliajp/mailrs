@@ -22,3 +22,11 @@ dhat-heap.json
 # reading /tmp/claude-501/). Always deleted post-release; ignored as belt+braces.
 .tmp-release/
 .smix/
+
+# Per-arm output of scripts/bench-api-e2e.sh, reduced by `--compare`. The
+# numbers that survive go into PERFORMANCE.md with their reproduce command;
+# these are the raw samples behind them, and they are machine-specific.
+bench-results/
+
+# py_compile leaves these beside the gate scripts.
+__pycache__/
