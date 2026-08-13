@@ -33,11 +33,18 @@ impl KevyMailboxStore {
     /// FILTER over a path that already exists rather than a third
     /// composite.
     ///
-    /// NOTE: `kevy-index` is imported directly because `kevy-embedded`
-    /// 4.0.0 does not re-export `TableSpec` / `TableIndex` /
-    /// `OrderPath`, which makes its own `Store::table_declare`
-    /// uncallable through the facade. Drop this dependency once the
-    /// re-export lands upstream.
+    /// NOTE: `kevy-index` stays a direct dependency, pinned to the same
+    /// version as `kevy-embedded` so the two cannot end up a generation
+    /// apart in one binary.
+    ///
+    /// The reason has changed twice and the old note was wrong on both
+    /// counts. `TableSpec` / `TableIndex` / `OrderPath` have been
+    /// re-exported since 4.1.1, and those now come through the facade.
+    /// What still needs the direct dependency is `WhereClause`,
+    /// `CompositeCol` and `composite_bounds` — this crate computes an
+    /// ORDERPATH's composite bounds itself (see `table_query/`), because
+    /// the facade offers no typed way to ask for an equality prefix plus
+    /// one range. Re-checked against 5.1: still the case.
     pub fn ensure_thread_table(&self) {
         let spec = thread_user_spec();
 
@@ -51,7 +58,13 @@ impl KevyMailboxStore {
             .into_iter()
             .find(|t| t.name == spec.name);
         match current {
-            Some(ref existing) if *existing == spec => {
+            // `sans_auto()`, not `==`: `auto_added` is runtime provenance, and
+            // comparing it would read every engine-declared path as drift —
+            // dropping and rebuilding the whole table on each boot. Upstream
+            // says ENSURE-style comparisons go through this method, and with
+            // `autodeclare: 0` there is nothing there today; the form is right
+            // regardless, and the failure it prevents is a boot loop.
+            Some(ref existing) if existing.sans_auto() == spec => {
                 tracing::debug!("threaduser table already matches");
                 return;
             }
@@ -196,8 +209,8 @@ impl KevyMailboxStore {
 /// agreement can be asserted in a test: kevy panics rather than
 /// returning an error when an ORDERPATH names a column the table
 /// never declared, and that panic happens at boot.
-pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
-    use kevy_index::{IndexKind, OrderPath, TableIndex, TableSpec, ValType};
+pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
+    use kevy_embedded::{IndexKind, IndexValType as ValType, OrderPath, TableIndex, TableSpec};
 
     fn col(name: &str, t: ValType) -> (Vec<u8>, ValType) {
         (name.as_bytes().to_vec(), t)
@@ -238,6 +251,24 @@ pub(crate) fn thread_user_spec() -> kevy_index::TableSpec {
         name: b"threaduser".to_vec(),
         prefix: keys::THREAD_USER_PREFIX.to_vec(),
         pk: b"tid".to_vec(),
+        // New in kevy-index 5.1, all three declared explicitly rather than
+        // defaulted, because two of them change what this table is.
+        //
+        // `window`: no sliding hot window. Conversations do not age out of
+        // relevance on a timer — a five-year-old thread is a legitimate
+        // search hit — and a windowed table moves rows below the boundary
+        // into cold segments, which 5.0 spent a release making correct.
+        //
+        // `autodeclare: 0`: the engine may not declare paths for us. The
+        // whole point of this table is that a query axis is declared and
+        // therefore reviewable (`kevy/declare-dont-maintain`); a path that
+        // appeared because a query was refused once is a path nobody chose.
+        // Off is also the upstream default.
+        window: None,
+        autodeclare: 0,
+        // Runtime provenance, empty by construction here. It must never be
+        // part of a "same declaration?" comparison — see `ensure_thread_table`.
+        auto_added: Vec::new(),
         columns: vec![
             col("user", ValType::Str),
             col("tid", ValType::Str),

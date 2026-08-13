@@ -148,7 +148,13 @@ impl KevyMailboxStore {
                 })
             })
             .collect::<io::Result<_>>()?;
-        composite_bounds(&cols, clause).map_err(io::Error::other)
+        // `now` is new in kevy-index 5.1 and is consulted only when a bound
+        // starts with `@` (a time expression like `@now-7d`). Every bound here
+        // is a concrete i64 or byte string, so it changes nothing today — but
+        // a real clock is the correct argument, and a zero would silently
+        // resolve any future `@` bound to the epoch.
+        let now = chrono::Utc::now().timestamp();
+        composite_bounds(&cols, clause, now).map_err(io::Error::other)
     }
 
     fn run_orderpath(

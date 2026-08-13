@@ -20,7 +20,12 @@ tracing = "0.1"
 async-trait = "0.1"
 thiserror = "2"
 chrono = { workspace = true }
-kevy-index = "4.0"
+# Pinned to kevy-embedded's version, deliberately: two generations of
+# kevy-index in one binary is the same duplication check-workspace-deps.sh
+# exists to catch. Only `WhereClause` / `CompositeCol` / `composite_bounds`
+# come from here — everything else goes through the facade. See
+# `src/table_spec.rs`.
+kevy-index = "5.1"
 
 [dev-dependencies]
 criterion = { workspace = true }
