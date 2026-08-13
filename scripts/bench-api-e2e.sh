@@ -201,8 +201,11 @@ wait_http() {
     return 1
 }
 
+# NDJSON only. Every arm is seeded through `deliver_message` now, so the 98 MB
+# SQL form has no reader — the generator still emits it (`--format sql`) and it
+# is what reproduces the spg import finding, but writing it on every run is 98 MB
+# and a minute nobody spends.
 echo "== seed: generating the dataset (deterministic) =="
-python3 scripts/bench-api-seed.py > "$WORK/seed.sql"
 python3 scripts/bench-api-seed.py --format ndjson > "$WORK/seed.ndjson"
 
 # ── boot ────────────────────────────────────────────────────────────────
@@ -234,21 +237,17 @@ case "$ARM" in
         done
         docker exec -i "$PG_CONTAINER" psql -q -U postgres -d mailrs_bench -v ON_ERROR_STOP=1 \
           < scripts/init-schema.sql
-        echo "== seed: importing (~100 MB of INSERTs) =="
-        docker exec -i "$PG_CONTAINER" psql -q -U postgres -d mailrs_bench -v ON_ERROR_STOP=1 \
-          < "$WORK/seed.sql"
         DB_URL="postgres://postgres:bench@127.0.0.1:${PG_PORT}/mailrs_bench"
         FEATURES=""
         DISK_LABEL=""
     else
         echo "== backend: spg-embedded ($SPG_IMAGE) =="
         mkdir -p "$WORK/spg"
+        # Schema only. The DATA goes in over the contract after the core is up
+        # — see the note where the seeding happens.
         docker run --rm -v "$WORK/spg:/work" -v "$ROOT/scripts:/scripts:ro" \
           --entrypoint spg "$SPG_IMAGE" \
           import --db /work/mailrs.spg --file /scripts/init-schema.sql
-        docker run --rm -v "$WORK/spg:/work" -v "$WORK:/seed:ro" \
-          --entrypoint spg "$SPG_IMAGE" \
-          import --db /work/mailrs.spg --file /seed/seed.sql
         chmod -R u+rw "$WORK/spg" 2>/dev/null || true
         DB_URL="spg://$WORK/spg/mailrs.spg"
         FEATURES="--features spg"
@@ -292,6 +291,22 @@ case "$ARM" in
 
     wait_http "http://127.0.0.1:$CORE_PORT/v1/healthz" 200 180 || {
         echo "pg-core never came up:"; tail -20 "$WORK/pg-core.log"; exit 1; }
+
+    # Seed through the contract, the same `deliver_message` the kevy arm's
+    # migrate tool uses — so the two arms are seeded identically rather than
+    # merely equivalently.
+    #
+    # It used to be bulk SQL: 98 MB of batched INSERTs handed to `psql` or to
+    # `spg import`. spg could not do it — forty minutes at 99.8% CPU and 3.85 GB
+    # resident with the catalog and WAL both untouched, killed there. Written up
+    # in .claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md §3b.
+    #
+    # Seeding is not timed. The panel starts after the fingerprint check, and
+    # the fingerprint is what proves the arms hold the same rows however they
+    # arrived.
+    echo "== seed: over the contract (deliver_message) =="
+    python3 "$ROOT/scripts/bench-seed-over-contract.py" \
+      --base "http://127.0.0.1:$CORE_PORT" --secret "$SECRET" < "$WORK/seed.ndjson"
 
     env -i PATH="$PATH" HOME="$HOME" \
       MAILRS_CORE_RPC_BASE="http://127.0.0.1:$CORE_PORT" \
