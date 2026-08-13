@@ -49,9 +49,27 @@ done
 # dependency. `mailrs-mmalloc -> mailrs-syscall` was written without one
 # and was unpublishable until 2026-08-04 — invisible until the day
 # someone tried.
+#
+# Except when the dependency itself is `publish = false`. Cargo strips a
+# path-only dev-dependency when packaging, so there is nothing left to
+# resolve and nothing to point at — verified with `cargo package -p
+# mailrs-mailbox`, which succeeds with exactly such a dependency. Demanding
+# a version there would mean writing `version = "1"` for a crate that has no
+# published version and never will, which is a manifest that lies.
+#
+# This is narrow on purpose. A *runtime* dependency on a local crate still
+# needs its version, and the check above — the one that catches a dep
+# resolving to the published copy — does not care about any of this.
+unpublished=$(
+    for ct in crates/*/Cargo.toml; do
+        grep -q '^publish = false' "$ct" || continue
+        sed -n 's/^name = "\(.*\)"$/\1/p' "$ct" | head -1
+    done
+)
 for ct in crates/*/Cargo.toml; do
     grep -q '^publish = false' "$ct" && continue
     while IFS= read -r dep; do
+        printf '%s\n' "$unpublished" | grep -qx "$dep" && continue
         echo "  $(dirname "$ct")/Cargo.toml: $dep has a path but no version, so it cannot be published"
         bad=$((bad + 1))
     done < <(grep -E '^mailrs-[a-z0-9-]+ = \{ *path = "[^"]*" *\}' "$ct" | sed 's/ *=.*//')

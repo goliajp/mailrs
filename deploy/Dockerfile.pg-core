@@ -1,8 +1,16 @@
-# PG-core variant: mailrs-server WITHOUT the spg feature, so
-# BackendPool = sqlx::PgPool (real PostgreSQL). Used ONLY for the v2
-# two-mode staging validation — the main image ships the spg build.
-# Reuses cargo-chef so external deps are cached; only the workspace
-# recompiles for the non-spg feature set.
+# The SQL core — fastcore's peer, on either SQL backend.
+#
+# FEATURES picks which:
+#   core-rpc,spg   spg-embedded, no database container (the default, and what
+#                  the reactivated lane runs)
+#   core-rpc       real PostgreSQL via sqlx, needs a postgres service
+#
+# Both are the same code over the same `PgMailboxStore`; sqlx is the seam.
+# Build one with:
+#   ./scripts/build-pg-core.sh [--features core-rpc] [--push]
+#
+# Reuses cargo-chef so external deps are cached; only the workspace recompiles
+# when the feature set changes.
 
 FROM rust:1-trixie AS chef
 RUN cargo install cargo-chef --locked --version ^0.1
@@ -21,18 +29,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo chef cook --release --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
-# non-spg: real PostgreSQL backend + the core-api surface, and nothing else.
+ARG FEATURES=core-rpc,spg
+# `mailrs-pg-core`, not `mailrs-server`.
 #
-# `mailrs-pg-core`, not `mailrs-server --features core-rpc`. This used to build
-# the whole monolith and rename it — which starts SMTP, IMAP, POP3,
-# ManageSieve, CalDAV, ACME and the web tier alongside the RPC server, all of
-# which have their own processes in this topology. Reviving the fat process is
-# what `.claude/rfcs/20260722-monolith-out-of-image.md` explicitly ruled out;
-# the thin binary is the shape it asked for.
+# Same boot sequence either way — the difference is the role set. `run()` turns
+# every role on, which is what made that binary "the monolith" and is what
+# `.claude/rfcs/20260722-monolith-out-of-image.md` ruled out. `mailrs-pg-core`
+# selects: the core-api contract, the spool drain that indexes arrivals, and
+# IMAP / POP3 / ManageSieve, and leaves SMTP, the web tier, outbound delivery
+# and the RBL monitor to the processes that own them.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-pg-core --features core-rpc \
+    cargo build --release --bin mailrs-pg-core --features "$FEATURES" \
     && cargo build --release -p mailrs-core-sync \
     && cp /build/target/release/mailrs-pg-core /usr/local/bin/mailrs-pg-core \
     && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
