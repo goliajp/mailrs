@@ -47,6 +47,13 @@
 # than curl and is tracked separately rather than half-wired.
 
 set -euo pipefail
+
+# Empty arrays and `set -u`: bash 3.2 — still what macOS ships — errors on
+# `"${arr[@]}"` when `arr` is empty, so every optional-argument array below is
+# expanded as `${arr[@]+"${arr[@]}"}`, which is nothing when empty and the
+# elements otherwise. The kevy arm carried this latently for as long as it has
+# existed and never tripped it, because it had only ever been run on the Linux
+# box where bash is 5.x. The SQL arm hit it on the first local smoke.
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
@@ -207,7 +214,7 @@ case "$ARM" in
     docker rm -f "$KEVY_CONTAINER" >/dev/null 2>&1 || true
     KEVY_CPUS=()
     [ -n "$BENCH_CPUS" ] && KEVY_CPUS=(--cpuset-cpus "$BENCH_CPUS")
-    docker run -d --name "$KEVY_CONTAINER" "${KEVY_CPUS[@]}" \
+    docker run -d --name "$KEVY_CONTAINER" ${KEVY_CPUS[@]+"${KEVY_CPUS[@]}"} \
       -p "$KEVY_PORT:6379" "$KEVY_IMAGE" >/dev/null
     KEVY_URL="kevy://127.0.0.1:${KEVY_PORT}"
 
@@ -277,7 +284,7 @@ case "$ARM" in
       MAILRS_DNSBL_ENABLED=false \
       MAILRS_ANTISPAM_ENABLED=false \
       MAILRS_AI_ANALYSIS_ENABLED=false \
-      "${PIN[@]}" "$TARGET/release/mailrs-pg-core" > "$WORK/pg-core.log" 2>&1 &
+      ${PIN[@]+"${PIN[@]}"} "$TARGET/release/mailrs-pg-core" > "$WORK/pg-core.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-pg-core")
 
     wait_http "http://127.0.0.1:$CORE_PORT/v1/healthz" 200 180 || {
@@ -289,7 +296,7 @@ case "$ARM" in
       MAILRS_WEB_BIND="127.0.0.1:$PORT" \
       MAILRS_KEVY_URL="$KEVY_URL" \
       MAILRS_AI_ANALYSIS_ENABLED=false \
-      "${PIN[@]}" "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
+      ${PIN[@]+"${PIN[@]}"} "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-webapi")
     ;;
 
@@ -298,7 +305,7 @@ case "$ARM" in
     docker rm -f "$KEVY_CONTAINER" >/dev/null 2>&1 || true
     KEVY_CPUS=()
     [ -n "$BENCH_CPUS" ] && KEVY_CPUS=(--cpuset-cpus "$BENCH_CPUS")
-    docker run -d --name "$KEVY_CONTAINER" "${KEVY_CPUS[@]}" \
+    docker run -d --name "$KEVY_CONTAINER" ${KEVY_CPUS[@]+"${KEVY_CPUS[@]}"} \
       -p "$KEVY_PORT:6379" "$KEVY_IMAGE" >/dev/null
     KEVY_URL="kevy://127.0.0.1:${KEVY_PORT}"
 
@@ -320,7 +327,7 @@ case "$ARM" in
       MAILRS_CORE_API_SECRET="$SECRET" \
       MAILRS_KEVY_URL="$KEVY_URL" \
       MAILRS_MAILDIR="$WORK/maildir" \
-      "${PIN[@]}" "$TARGET/release/mailrs-fastcore" > "$WORK/fastcore.log" 2>&1 &
+      ${PIN[@]+"${PIN[@]}"} "$TARGET/release/mailrs-fastcore" > "$WORK/fastcore.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-fastcore")
 
     wait_http "http://127.0.0.1:$CORE_PORT/v1/healthz" 200 120 || {
@@ -332,7 +339,7 @@ case "$ARM" in
       MAILRS_WEB_BIND="127.0.0.1:$PORT" \
       MAILRS_KEVY_URL="$KEVY_URL" \
       MAILRS_AI_ANALYSIS_ENABLED=false \
-      "${PIN[@]}" "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
+      ${PIN[@]+"${PIN[@]}"} "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-webapi")
 
     DISK_LABEL="kevy data dir"
