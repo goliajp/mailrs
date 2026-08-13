@@ -96,45 +96,44 @@ fn agent_scopes_allow(scopes: &[String], method: &axum::http::Method, path: &str
 /// Emits a debug-level reason on every rejection branch so a 401 in
 /// prod is diagnosable from logs (`agent_key_miss` /
 /// `agent_key_legacy_index` / `agent_key_revoked`).
-async fn resolve_agent_key(kevy_url: String, token: String) -> Option<AgentAuth> {
+async fn resolve_agent_key(token: String) -> Option<AgentAuth> {
+    // Pooled: this ran on every request carrying an `mk_` key and opened a
+    // TCP connection each time. `crate::kevy_pool` keeps eight and hands one
+    // out; the URL lives in the pool, so it is no longer threaded in here.
     tokio::task::spawn_blocking(move || -> std::io::Result<Option<AgentAuth>> {
-        let mut client =
-            kevy_client::Connection::connect(&kevy_url).map_err(std::io::Error::other)?;
-        let index_key = format!("{AGENT_KEY_INDEX_PREFIX}{token}");
-        let Some(raw) = client
-            .get(index_key.as_bytes())
-            .map_err(std::io::Error::other)?
-        else {
-            tracing::debug!(reason = "agent_key_miss", "agent key rejected");
-            return Ok(None);
-        };
-        let index = match serde_json::from_slice::<AgentKeyIndex>(&raw) {
-            Ok(i) => i,
-            Err(_) => {
-                // legacy index format (bare id, pre user-mapping) —
-                // cannot resolve an owner, treat as invalid;
-                // re-creating the key migrates it
-                tracing::debug!(reason = "agent_key_legacy_index", "agent key rejected");
+        crate::kevy_pool::with_conn(move |client| {
+            let index_key = format!("{AGENT_KEY_INDEX_PREFIX}{token}");
+            let Some(raw) = client.get(index_key.as_bytes())? else {
+                tracing::debug!(reason = "agent_key_miss", "agent key rejected");
                 return Ok(None);
-            }
-        };
-        // revocation check: the key is valid only while its record is
-        // still present in the owner's hash (delete_agent_key removes it)
-        let hash_key = format!("agent:keys:{}", index.user);
-        let Some(record) = client
-            .hget(hash_key.as_bytes(), index.id.to_string().as_bytes())
-            .map_err(std::io::Error::other)?
-        else {
-            tracing::debug!(reason = "agent_key_revoked", user = %index.user, "agent key rejected");
-            return Ok(None);
-        };
-        let scopes = serde_json::from_slice::<AgentKeyRecord>(&record)
-            .map(|r| r.scopes)
-            .unwrap_or_default();
-        Ok(Some(AgentAuth {
-            user: index.user,
-            scopes,
-        }))
+            };
+            let index = match serde_json::from_slice::<AgentKeyIndex>(&raw) {
+                Ok(i) => i,
+                Err(_) => {
+                    // legacy index format (bare id, pre user-mapping) —
+                    // cannot resolve an owner, treat as invalid;
+                    // re-creating the key migrates it
+                    tracing::debug!(reason = "agent_key_legacy_index", "agent key rejected");
+                    return Ok(None);
+                }
+            };
+            // revocation check: the key is valid only while its record is
+            // still present in the owner's hash (delete_agent_key removes it)
+            let hash_key = format!("agent:keys:{}", index.user);
+            let Some(record) =
+                client.hget(hash_key.as_bytes(), index.id.to_string().as_bytes())?
+            else {
+                tracing::debug!(reason = "agent_key_revoked", user = %index.user, "agent key rejected");
+                return Ok(None);
+            };
+            let scopes = serde_json::from_slice::<AgentKeyRecord>(&record)
+                .map(|r| r.scopes)
+                .unwrap_or_default();
+            Ok(Some(AgentAuth {
+                user: index.user,
+                scopes,
+            }))
+        })
     })
     .await
     .ok()?
@@ -151,20 +150,21 @@ async fn resolve_agent_key(kevy_url: String, token: String) -> Option<AgentAuth>
 /// to populate its per-session task-local. Returns `None` on any
 /// auth failure — the caller decides how to react.
 pub async fn resolve_user_from_headers(headers: &HeaderMap) -> Option<String> {
-    let kevy_url = std::env::var(KEVY_URL_ENV).ok();
-    let Some(kevy_url) = kevy_url else {
+    // The pool owns the URL now, so this asks whether one is configured
+    // rather than reading it. Same branch, same dev fallback.
+    if !crate::kevy_pool::configured() {
         // Dev fallback matches session_auth_middleware.
         return headers
             .get("X-Mailrs-User")
             .and_then(|h| h.to_str().ok())
             .map(|s| s.to_string());
-    };
+    }
     let uri = axum::http::Uri::from_static("/mcp");
     let token = extract_token(headers, &uri)?;
     if token.starts_with(AGENT_KEY_PREFIX) {
-        return resolve_agent_key(kevy_url, token).await.map(|a| a.user);
+        return resolve_agent_key(token).await.map(|a| a.user);
     }
-    let session = resolve_session(kevy_url, token).await?;
+    let session = resolve_session(token).await?;
     Some(session.address)
 }
 
@@ -226,20 +226,24 @@ const SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
 /// Look up the session in kevy. Runs the blocking kevy-client call on a
 /// dedicated blocking thread so the axum runtime isn't pinned. On hit,
 /// renews the kevy TTL to `SESSION_TTL_SECS`.
-async fn resolve_session(kevy_url: String, token: String) -> Option<SessionBlob> {
-    let token_clone = token.clone();
+async fn resolve_session(token: String) -> Option<SessionBlob> {
+    // Pooled, and this is the one that mattered most: it is the per-request
+    // cost on **every authenticated call** in the API. Reading one session key
+    // used to open a TCP connection to the shared store, and most callers of
+    // the old `with_kevy` copies also spawned an OS thread to do it on.
+    // `crate::kevy_pool` keeps eight connections and round-robins them.
     let raw = tokio::task::spawn_blocking(move || -> std::io::Result<Option<Vec<u8>>> {
-        let mut client =
-            kevy_client::Connection::connect(&kevy_url).map_err(std::io::Error::other)?;
-        let key = format!("{SESSION_KEY_PREFIX}{token_clone}");
-        let bytes = client.get(key.as_bytes()).map_err(std::io::Error::other)?;
-        if bytes.is_some() {
-            let _ = client.expire(
-                key.as_bytes(),
-                std::time::Duration::from_secs(SESSION_TTL_SECS),
-            );
-        }
-        Ok(bytes)
+        crate::kevy_pool::with_conn(move |client| {
+            let key = format!("{SESSION_KEY_PREFIX}{token}");
+            let bytes = client.get(key.as_bytes())?;
+            if bytes.is_some() {
+                let _ = client.expire(
+                    key.as_bytes(),
+                    std::time::Duration::from_secs(SESSION_TTL_SECS),
+                );
+            }
+            Ok(bytes)
+        })
     })
     .await
     .ok()?
@@ -273,7 +277,6 @@ pub async fn session_auth_middleware(
             None => return Err(StatusCode::UNAUTHORIZED),
         }
     }
-    let kevy_url = kevy_url.expect("checked above");
     let _ = &state; // reserved for future enrichment via core_client
 
     let token = match extract_token(req.headers(), req.uri()) {
@@ -286,7 +289,7 @@ pub async fn session_auth_middleware(
 
     // agent API key (mk_…) — machine callers with no browser session
     if token.starts_with(AGENT_KEY_PREFIX) {
-        let auth = match resolve_agent_key(kevy_url, token).await {
+        let auth = match resolve_agent_key(token).await {
             Some(a) => a,
             None => return Err(StatusCode::UNAUTHORIZED),
         };
@@ -307,7 +310,7 @@ pub async fn session_auth_middleware(
         return Ok(next.run(req).await);
     }
 
-    let session = match resolve_session(kevy_url, token).await {
+    let session = match resolve_session(token).await {
         Some(s) => s,
         None => {
             tracing::debug!(reason = "session_miss", path = %req.uri().path(), "request rejected");

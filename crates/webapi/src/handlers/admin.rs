@@ -18,23 +18,6 @@ pub(crate) fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// Blocking kevy helper. Same pattern as `handlers::prefs::with_kevy`.
-pub(crate) fn with_kevy<F, T>(f: F) -> Result<T, StatusCode>
-where
-    F: FnOnce(&mut kevy_client::Connection) -> std::io::Result<T> + Send + 'static,
-    T: Send + 'static,
-{
-    let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
-        f(&mut c)
-    });
-    handle
-        .join()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
 pub(crate) fn hgetall_values(
     c: &mut kevy_client::Connection,
     key: &str,

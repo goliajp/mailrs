@@ -106,17 +106,15 @@ pub fn with_kevy<F, T>(f: F) -> Result<T, StatusCode>
 where
     F: FnOnce(&mut kevy_client::Connection) -> std::io::Result<T>,
 {
-    let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // block_in_place is only valid inside a multi-thread runtime — it
-    // panics under the current_thread runtime used by some tests. In
-    // that case we just run the closure directly.
-    let inner = |url: String, f: F| -> Result<T, StatusCode> {
-        let mut c = kevy_client::Connection::connect(&url).map_err(|e| {
-            tracing::warn!(err = %e, "with_kevy: kevy connect failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-        f(&mut c).map_err(|e| {
-            tracing::warn!(err = %e, "with_kevy: kevy IO error");
+    // Pooled — see `crate::kevy_pool`. This used to open a connection per
+    // call, and the seven copies of this function that other handler modules
+    // carried also spawned and joined an OS thread per call.
+    //
+    // block_in_place is only valid inside a multi-thread runtime — it panics
+    // under the current_thread runtime some tests use. There, run directly.
+    let run = || {
+        crate::kevy_pool::with_conn(f).map_err(|e| {
+            tracing::warn!(err = %e, "with_kevy: kevy op failed");
             StatusCode::INTERNAL_SERVER_ERROR
         })
     };
@@ -127,8 +125,8 @@ where
                 tokio::runtime::RuntimeFlavor::MultiThread
             ) =>
         {
-            tokio::task::block_in_place(|| inner(url, f))
+            tokio::task::block_in_place(run)
         }
-        _ => inner(url, f),
+        _ => run(),
     }
 }

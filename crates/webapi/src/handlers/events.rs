@@ -10,6 +10,11 @@
 //! stack, so a missing/invalid session gets a 401 before the WS
 //! upgrade completes.
 //!
+//! These connections are deliberately **not pooled**. A feed consumer holds
+//! one for the life of the process and blocks on it; handing it back to a
+//! round-robin pool between reads would let another caller desync the stream
+//! mid-frame, and there is nothing to amortize — the connect happens once.
+//!
 //! Fan-out: one feed_read loop per kevy shard (see
 //! `spawn_kevy_feed_consumers`); each WS client gets its own tokio
 //! mpsc to the shared broadcast bus. Clean up on disconnect.

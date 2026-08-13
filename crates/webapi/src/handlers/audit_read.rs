@@ -15,8 +15,8 @@ use axum::{
 };
 
 use crate::WebState;
-use crate::handlers::complete::*;
 use crate::handlers::conversations::AuthedUser;
+use crate::handlers::kevy_util::with_kevy;
 
 /// GET /api/admin/audit/accounts — return the registered accounts
 /// shaped for the audit panel.

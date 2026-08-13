@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use crate::handlers::kevy_util::with_kevy;
 use axum::{
     Json,
     extract::{Extension, Multipart, Path, State},
@@ -18,22 +19,6 @@ use axum::{
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-
-fn with_kevy<F, T>(f: F) -> Result<T, StatusCode>
-where
-    F: FnOnce(&mut kevy_client::Connection) -> std::io::Result<T> + Send + 'static,
-    T: Send + 'static,
-{
-    let url = std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let handle = std::thread::spawn(move || -> std::io::Result<T> {
-        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
-        f(&mut c)
-    });
-    handle
-        .join()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
 
 fn random_id() -> String {
     let mut bytes = [0u8; 16];

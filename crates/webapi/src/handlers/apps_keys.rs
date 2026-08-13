@@ -8,6 +8,7 @@ use axum::{
 
 use crate::handlers::complete::*;
 use crate::handlers::conversations::AuthedUser;
+use crate::handlers::kevy_util::with_kevy;
 
 pub async fn list_apps() -> Result<Json<serde_json::Value>, StatusCode> {
     let vals = with_kevy(|c| hgetall_values(c, APPS_KEY))?;

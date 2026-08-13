@@ -24,6 +24,7 @@
 pub mod handlers;
 mod router;
 use router::build_router;
+pub mod kevy_pool;
 pub mod session;
 
 use std::sync::Arc;

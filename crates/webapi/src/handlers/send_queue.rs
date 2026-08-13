@@ -11,7 +11,8 @@ use crate::WebState;
 use axum::http::StatusCode;
 
 use crate::handlers::compose::*;
-use crate::handlers::prefs::{now_secs, with_kevy};
+use crate::handlers::kevy_util::with_kevy;
+use crate::handlers::prefs::now_secs;
 
 /// Send mail from the system itself — no user compose, no Send row.
 ///
