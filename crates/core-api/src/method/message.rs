@@ -26,10 +26,21 @@ pub const PATH_EXPUNGE: &str = "/v1/mailboxes/{id}/expunge";
 pub const PATH_COPY_MESSAGE: &str = "/v1/users/{user}/mailboxes/{src_id}/messages/{uid}/copy";
 pub const PATH_MOVE_MESSAGE: &str = "/v1/users/{user}/mailboxes/{src_id}/messages/{uid}/move";
 pub const PATH_SET_FLAGS: &str = "/v1/mailboxes/{id}/messages/{uid}/flags";
+
 pub const PATH_FLAGS_IF_UNCHANGED: &str = "/v1/mailboxes/{id}/messages/{uid}/condstore";
 pub const PATH_CHANGED_SINCE: &str = "/v1/mailboxes/{id}/changed-since/{modseq}";
 pub const PATH_INVITE_PAYLOAD: &str = "/v1/messages/{id}/invite-payload";
 pub const PATH_GET_INVITE_METHODS: &str = "/v1/invites/by-message-ids";
+
+/// What the bits of [`MessageWire::flags`] mean.
+///
+/// Re-exported from the stone that defines them rather than restated, so
+/// both lanes and every consumer read one definition. Without this the
+/// kevy lane cannot reach them at all — it does not depend on
+/// `mailrs-mailbox` — and the alternative is what was there before: a
+/// `let seen_bit = 0b0000_0001u32;` spelled out again at the call site,
+/// which is how a bitmask ends up meaning two different things.
+pub use mailrs_mailbox::types::{FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_SEEN};
 
 // ── wire types ──────────────────────────────────────────────────────
 
@@ -78,7 +89,7 @@ pub struct MessageWire {
     pub internal_date: i64,
     /// Size in bytes.
     pub size: u32,
-    /// Flag bitmask. See `mailrs_mailbox::types::FLAG_*` constants.
+    /// Flag bitmask. The bit meanings are re-exported below as `FLAG_*`.
     pub flags: u32,
     /// RFC 5322 `Message-ID:` (no angle brackets).
     pub message_id: String,
