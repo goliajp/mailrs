@@ -2,7 +2,8 @@
 //! between two mailrs cores over the `mailrs-core-api` contract.
 //!
 //! Usage:
-//!   mailrs-core-sync --from <SRC_RPC_BASE> --to <DST_RPC_BASE>
+//!   mailrs-core-sync --from <SRC_RPC_BASE> --to <DST_RPC_BASE> [--dry-run]
+//!                    [--page-size <N>]
 //!
 //! Env:
 //!   MAILRS_CORE_API_SECRET   bearer secret shared by both cores (required)
@@ -28,13 +29,37 @@ async fn main() -> ExitCode {
 
     let mut from: Option<String> = None;
     let mut to: Option<String> = None;
+    let mut dry_run = false;
+    let mut page_size: Option<u32> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--from" => from = args.next(),
             "--to" => to = args.next(),
+            "--dry-run" => dry_run = true,
+            "--page-size" => {
+                page_size = match args.next().as_deref().map(str::parse) {
+                    Some(Ok(n)) if n > 0 => Some(n),
+                    _ => {
+                        eprintln!("--page-size needs a positive integer");
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
             "-h" | "--help" => {
-                eprintln!("usage: mailrs-core-sync --from <SRC_RPC_BASE> --to <DST_RPC_BASE>");
+                eprintln!(
+                    "usage: mailrs-core-sync --from <SRC> --to <DST> [--dry-run] \
+                     [--page-size N]\n\
+                     \n\
+                     --dry-run   read both sides, write nothing, report what a real\n\
+                     \x20            run would move. Do this first: a large difference\n\
+                     \x20            is usually a backfill gap rather than a defect,\n\
+                     \x20            and the way to tell is to look at what it consists\n\
+                     \x20            of before acting on it.\n\
+                     --page-size enumeration page size (default 200). Raise it if a run\n\
+                     \x20            refuses because one second holds more threads than\n\
+                     \x20            a page."
+                );
                 return ExitCode::SUCCESS;
             }
             other => {
@@ -66,8 +91,18 @@ async fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    tracing::info!(%from, %to, "core-sync starting");
-    match sync(&src, &dst, &SyncOpts::default()).await {
+    let opts = SyncOpts {
+        dry_run,
+        ..page_size
+            .map(|n| SyncOpts {
+                page_size: n,
+                ..SyncOpts::default()
+            })
+            .unwrap_or_default()
+    };
+
+    tracing::info!(%from, %to, dry_run, "core-sync starting");
+    match sync(&src, &dst, &opts).await {
         Ok(report) => {
             tracing::info!(
                 accounts = report.accounts,
@@ -77,14 +112,39 @@ async fn main() -> ExitCode {
                 skipped_dupe = report.messages_skipped_dupe,
                 "core-sync complete"
             );
+            // Two verbs, because the same numbers mean different things: a real
+            // run reports what it did, a dry run what it would do.
+            let verb = if dry_run { "would move" } else { "moved" };
             println!(
-                "done: accounts={} aliases={} threads={} delivered={} skipped_dupe={}",
+                "{verb}: accounts={} aliases={} threads={} messages={} \
+                 already_present={}",
                 report.accounts,
                 report.aliases,
                 report.threads,
                 report.messages_delivered,
                 report.messages_skipped_dupe
             );
+            // The gap, separated from the total. "threads examined" cannot come
+            // out zero and so is not a measurement of anything; "threads whose
+            // message set already matches" can.
+            println!(
+                "  of those threads, {} already match on both sides ({} differ)",
+                report.threads_already_identical,
+                report.threads - report.threads_already_identical,
+            );
+            if dry_run {
+                println!(
+                    "  accounts only on the destination: {}",
+                    report.accounts_only_on_dst
+                );
+                if report.accounts_only_on_dst > 0 {
+                    println!(
+                        "  NOTE: those accounts exist on the destination and not the \
+                         source. A one-directional copy will not remove them, so after \
+                         a switch their mail is readable on one core and not the other."
+                    );
+                }
+            }
             ExitCode::SUCCESS
         }
         Err(e) => {
