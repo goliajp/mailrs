@@ -321,3 +321,51 @@ fn locate_then_fetch_finds_a_message_in_either_leaf() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+// --- flags_of ---
+
+#[test]
+fn flags_of_reads_what_is_on_the_file() {
+    let tmp = tmpdir();
+    let md = Maildir::create(tmp.path().join("mail")).unwrap();
+    let id = md.deliver(b"msg").unwrap();
+
+    // Still in new/: no suffix, so no flags — and that is `Some(vec![])`,
+    // not `None`. A caller that conflated the two would treat an unread
+    // arrival as a missing file.
+    assert_eq!(md.flags_of(&id).unwrap(), Some(Vec::new()));
+
+    md.mark_processed(&id, &[Flag::Seen, Flag::Passed]).unwrap();
+    let got = md.flags_of(&id).unwrap().unwrap();
+    assert!(got.contains(&Flag::Seen));
+    assert!(got.contains(&Flag::Passed));
+
+    assert_eq!(
+        md.flags_of(&crate::MessageId("absent".into())).unwrap(),
+        None
+    );
+}
+
+/// The reason `flags_of` exists: a `u32` bitmask has no bit for `P`, so a
+/// caller that rebuilds a file's flag set from one drops it. Reading first
+/// is what lets the caller change only the bits it owns.
+#[test]
+fn a_bitmask_round_trip_would_lose_passed() {
+    let tmp = tmpdir();
+    let md = Maildir::create(tmp.path().join("mail")).unwrap();
+    let id = md.deliver(b"msg").unwrap();
+    md.mark_processed(&id, &[Flag::Passed]).unwrap();
+
+    let before = md.flags_of(&id).unwrap().unwrap();
+    assert_eq!(before, vec![Flag::Passed]);
+
+    // What a naive "replace from the mask" would write, given a mask that
+    // says Seen: Passed is gone, and nothing reported a loss.
+    md.mark_processed(&id, &[Flag::Seen]).unwrap();
+    assert_eq!(md.flags_of(&id).unwrap().unwrap(), vec![Flag::Seen]);
+
+    // What a caller must do instead: keep what it cannot represent.
+    md.mark_processed(&id, &[Flag::Passed, Flag::Seen]).unwrap();
+    let after = md.flags_of(&id).unwrap().unwrap();
+    assert!(after.contains(&Flag::Passed) && after.contains(&Flag::Seen));
+}

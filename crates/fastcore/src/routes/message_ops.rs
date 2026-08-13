@@ -364,49 +364,96 @@ pub(crate) async fn set_message_flags_route(
         Ok(v) => v,
         Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
-    if let Err(e) = state.mailbox.upsert_user_message(
-        user.as_str(),
+
+    // The file name first, the index second, and that order is the whole
+    // durability argument. A crash between them leaves the index behind
+    // the truth, which a reindex fixes. The reverse leaves the index
+    // *ahead* of it, which nothing can fix, because the fact was never
+    // recorded anywhere.
+    //
+    // Until this landed the route wrote only the index, so `\Seen` set from
+    // the web never reached the file name — and the file name is what an
+    // IMAP client reads. Measured on production before the fix: 14,704
+    // messages the index called read and the maildir called unseen, and
+    // zero the other way round.
+    //
+    // A message with no file (an empty `blob_ref`; 215 rows on production)
+    // is `Ok(false)`, not an error — nothing to rename. Only real I/O
+    // failure stops the request, and it must, or the index would move
+    // without the fact.
+    match crate::maildir_scan::apply_flag_bitmask(&user, &wire.blob_ref, new_flags) {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(err = %e, %user, %uid, "flag rename failed; index left alone");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
+
+    if let Err(e) = sync_index_to_flags(&state, &user, &wire, &json, old_flags) {
+        tracing::error!(err = %e, %user, %uid, "index sync failed");
+        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    axum::http::StatusCode::NO_CONTENT.into_response()
+}
+
+/// Bring the index in line with a message's new flags: the per-user row,
+/// the thread's read state, and the engagement signal.
+///
+/// The tier-2 half of a flag change, extracted so the IMAP `STORE` path can
+/// run **the same code** rather than a second copy of it. It had a second
+/// copy in effect — none at all: `STORE` renamed the file and stopped, so
+/// nothing it did reached the index, including the engagement record whose
+/// own comment says why that would be a hole. It was, for as long as that
+/// comment has existed.
+///
+/// `wire.flags` is the new value; `old_flags` is what it was, and the
+/// difference is what decides whether this is a genuine unread → read
+/// transition. Re-applying an unchanged flag records nothing.
+pub(crate) fn sync_index_to_flags(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    wire: &mailrs_core_api::method::message::MessageWire,
+    json: &[u8],
+    old_flags: u32,
+) -> std::io::Result<()> {
+    // Imported, not spelled out. This read `0b0000_0001` until the constant
+    // became reachable from this lane — and a bitmask restated at a call
+    // site is how one bit ends up meaning two things.
+    use mailrs_core_api::method::message::FLAG_SEEN;
+
+    state.mailbox.upsert_user_message(
+        user,
         &wire.thread_id,
         &wire.message_id,
         wire.date,
-        &json,
+        json,
         &mailrs_mailbox_kevy::UserMessageFacts {
             blob_ref: &wire.blob_ref,
             uid: wire.uid,
             flags: wire.flags,
             modseq: wire.modseq,
         },
-    ) {
-        tracing::error!(err = %e, %user, %uid, "upsert_message failed");
-        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-    // Imported, not spelled out. This read `0b0000_0001` until the constant
-    // became reachable from this lane — and a bitmask restated at a call
-    // site is how one bit ends up meaning two things.
-    use mailrs_core_api::method::message::FLAG_SEEN;
+    )?;
+
     let was_seen = (old_flags & FLAG_SEEN) != 0;
-    let is_seen = (new_flags & FLAG_SEEN) != 0;
+    let is_seen = (wire.flags & FLAG_SEEN) != 0;
     if was_seen != is_seen && !wire.thread_id.is_empty() {
         let _ = if is_seen {
-            state.mailbox.mark_seen(&user, &wire.thread_id)
+            state.mailbox.mark_seen(user, &wire.thread_id)
         } else {
-            state.mailbox.mark_unread(&user, &wire.thread_id)
+            state.mailbox.mark_unread(user, &wire.thread_id)
         };
         // Reading over IMAP is still reading. Without this, engagement
         // would only ever be recorded for the web UI, and a user on
         // Apple Mail or Thunderbird would look like they never open
         // anything — a systematic hole in the data the ranker learns
         // from, invisible until the learner started producing nonsense.
-        //
-        // `was_seen != is_seen` already makes this a genuine unread ->
-        // read transition, so re-syncing an unchanged flag records
-        // nothing.
         if is_seen {
-            let event = crate::importance::read_event(&state, &wire.thread_id, now_secs());
-            crate::importance::record_engagement(&state, &user, &wire.thread_id, event);
+            let event = crate::importance::read_event(state, &wire.thread_id, now_secs());
+            crate::importance::record_engagement(state, user, &wire.thread_id, event);
         }
     }
-    axum::http::StatusCode::NO_CONTENT.into_response()
+    Ok(())
 }
 
 pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {

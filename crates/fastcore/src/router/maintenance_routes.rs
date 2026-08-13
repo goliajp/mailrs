@@ -77,6 +77,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:read-state-shadow",
             post(read_state_shadow_route),
         )
+        // Writes. `?dry_run=true` reports without changing. A second run
+        // must report `changed: 0`.
+        .route(
+            "/v1/admin/maintenance:read-state-backfill",
+            post(read_state_backfill_route),
+        )
         // Ops endpoint — where mail forging one of our own domains
         // actually ended up.
         .route(

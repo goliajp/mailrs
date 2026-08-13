@@ -25,6 +25,57 @@ pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
     dir.fetch(&id).ok().flatten()
 }
 
+/// Apply a `u32` flag bitmask to a message's file, keeping the flags the
+/// mask cannot express. `Ok(false)` means the file already said this, or
+/// there is no file — nothing was renamed.
+///
+/// **Not a replacement of the flag set.** `maildir_flags_to_bitmask` maps
+/// `P` (passed / forwarded) to `0`, so a mask can neither carry it nor
+/// distinguish "not passed" from "cannot say". Writing the mask's flags
+/// outright would delete a `P` that is on the file, and nothing would
+/// report the loss — `mailrs_maildir`'s own
+/// `a_bitmask_round_trip_would_lose_passed` demonstrates it. So: read what
+/// is there, set the bits this caller owns, keep the rest.
+///
+/// The boolean matters to callers that report progress: a backfill has to
+/// tell "changed 14,704" from "walked 32,445 and everything already
+/// agreed", or its counter cannot come out zero.
+pub(crate) fn apply_flag_bitmask(user: &str, blob_ref: &str, bits: u32) -> std::io::Result<bool> {
+    use mailrs_core_api::method::message::bitmask_to_maildir_flags;
+    use mailrs_maildir::Flag;
+
+    let Some((local, domain)) = user.split_once('@') else {
+        return Ok(false);
+    };
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    let base = std::path::PathBuf::from(root).join(domain).join(local);
+    let Some((dir, id)) = mailrs_maildir::locate(&base, blob_ref) else {
+        return Ok(false);
+    };
+    let Some(current) = dir.flags_of(&id)? else {
+        return Ok(false);
+    };
+
+    let mut want = bitmask_to_maildir_flags(bits);
+    // Every flag the mask has no bit for stays exactly as the file has it.
+    for f in &current {
+        if matches!(f, Flag::Passed) && !want.contains(f) {
+            want.push(*f);
+        }
+    }
+    want.sort();
+    want.dedup();
+
+    let mut now = current;
+    now.sort();
+    now.dedup();
+    if now == want {
+        return Ok(false);
+    }
+    dir.mark_processed(&id, &want)?;
+    Ok(true)
+}
+
 /// Read the full References chain of a message from its maildir file
 /// (the kevy wire only stores In-Reply-To). Returns [] when the blob_ref
 /// is empty or the file is gone — the caller just gets fewer edges.

@@ -216,6 +216,20 @@ pub(super) fn store_response(
             {
                 backend::set_file_modseq(state, &user_owned, base, m);
             }
+            // The file name is written; now the index, in that order.
+            //
+            // This half did not exist. `STORE` renamed the file and stopped,
+            // so a message read in an IMAP client stayed unread in the
+            // conversation list and the badge, and the engagement signal the
+            // ranker learns from was never recorded for it — which is
+            // exactly the hole `sync_index_to_flags` carries a comment
+            // about, open for as long as the comment has been there.
+            //
+            // Best-effort: a failure here leaves the index behind the file
+            // name, which is the recoverable direction and which a reindex
+            // fixes. Failing the IMAP command instead would leave the client
+            // believing the store did not happen when the file says it did.
+            sync_index_after_store(state, &user_owned, &msg, &merged);
         }
         if !action_upper.ends_with(".SILENT") {
             let flags_str = flags_to_imap(&merged);
@@ -305,4 +319,41 @@ pub(super) fn expunge(
     *messages = backend::list_messages(state, user, mailbox);
     out.push(format_ok(tag, "EXPUNGE completed"));
     out
+}
+
+/// Carry an IMAP `STORE` through to the index, using the same code the
+/// core-api flags route runs.
+///
+/// Separate function rather than inline so the shared call is obvious and
+/// so the `STORE` loop stays readable. Every failure is logged and
+/// swallowed: the file name — the authoritative copy — is already written,
+/// and the index being behind it is the direction a reindex repairs.
+fn sync_index_after_store(
+    state: &std::sync::Arc<crate::FastcoreState>,
+    user: &str,
+    msg: &ImapMessage,
+    merged: &[Flag],
+) {
+    use mailrs_core_api::method::message::{MessageWire, maildir_flags_to_bitmask};
+
+    let Ok(Some(bytes)) = state.mailbox.get_message_by_uid(user, msg.uid) else {
+        return;
+    };
+    let Ok(mut wire) = serde_json::from_slice::<MessageWire>(&bytes) else {
+        tracing::warn!(%user, uid = msg.uid, "STORE: wire parse failed; index left behind");
+        return;
+    };
+    let old_flags = wire.flags;
+    wire.flags = maildir_flags_to_bitmask(merged);
+    if wire.flags == old_flags {
+        return;
+    }
+    let Ok(json) = serde_json::to_vec(&wire) else {
+        return;
+    };
+    if let Err(e) =
+        crate::routes::message_ops::sync_index_to_flags(state, user, &wire, &json, old_flags)
+    {
+        tracing::warn!(err = %e, %user, uid = msg.uid, "STORE: index sync failed");
+    }
 }

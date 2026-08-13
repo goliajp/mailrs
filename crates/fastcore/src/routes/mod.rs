@@ -11,7 +11,7 @@
 //! list issues), `reads` (lists, search, counts, contents).
 
 mod account;
-mod message_ops;
+pub(crate) mod message_ops;
 mod reads;
 mod thread_actions;
 
