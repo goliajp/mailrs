@@ -157,6 +157,15 @@ def main() -> int:
                     row += f"{render(v, sd, base, base_sd):>22}"
             print(row)
 
+    print()
+    print(
+        "—  this arm did not measure that endpoint. Either it does not serve it "
+        "(the SQL core\n"
+        "   does not serve conversations:search — see "
+        ".claude/two-lane-known-diff.txt) or the row\n"
+        "   is arm-specific by construction. It is never a zero and never a tie."
+    )
+
     # ── footprint ───────────────────────────────────────────────────────
     print()
     head = f"{'footprint':<30}" + "".join(f"{a:>22}" for a in arms)
