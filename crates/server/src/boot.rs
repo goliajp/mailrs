@@ -411,6 +411,38 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         spawn_rbl_monitor(&ctx.resolver, &cfg.hostname, &kevy_embedded_store);
     }
 
+    // Bring back the threads whose time has come.
+    //
+    // A snooze files the thread away — `archived` with the time beside it, the
+    // same shape the kevy lane uses — so something has to un-archive it. A
+    // predicate on the read cannot: the row is archived, and "archived because
+    // asleep, and no longer asleep" is not a state the list can tell from
+    // "archived on purpose".
+    //
+    // A minute is the resolution, matching the kevy side. A thread asked back
+    // "tomorrow morning" arriving at 08:00:37 is the same promise kept, and a
+    // second-accurate wake would cost sixty times the ticks to say nothing sixty
+    // times as often.
+    //
+    // Logged only when something happened. A line every minute saying zero is
+    // the shape that turned the maildir sweep's own idle report into the noise
+    // hiding it (`rules/periodic-work-must-converge.md`).
+    if let Some(mb) = mailbox_store.clone() {
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+            tick.tick().await; // the first tick is immediate; skip it
+            loop {
+                tick.tick().await;
+                match mb.wake_snoozed().await {
+                    Ok(0) => {}
+                    Ok(n) => tracing::info!(woken = n, "snoozed threads returned"),
+                    Err(e) => tracing::warn!(error = %e, "snooze wake failed"),
+                }
+            }
+        });
+        tracing::info!(event = "subsystem_started", subsystem = "snooze_wake");
+    }
+
     // Phase 2 — optional core RPC server (only compiled with --features core-rpc).
     // Default build excludes this entirely; production artifact is byte-identical.
     #[cfg(feature = "core-rpc")]
