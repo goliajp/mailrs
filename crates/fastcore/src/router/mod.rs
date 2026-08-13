@@ -269,8 +269,19 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route(
                 adm::PATH_GET_GROUP_PERMISSIONS,
+                // PUT as well as GET. Both handlers are the shared family's
+                // and both reach the same network kevy, so this lane could
+                // read a group's permissions but not set them while pg-core
+                // could do both — the contract differed by a verb, which is
+                // a 405 rather than a 404 and so does not show up in any
+                // count of paths.
                 get(
                     mailrs_core_sidestate::families::groups_admin::get_group_permissions::<
+                        FastcoreState,
+                    >,
+                )
+                .put(
+                    mailrs_core_sidestate::families::groups_admin::set_group_permissions::<
                         FastcoreState,
                     >,
                 ),
@@ -279,6 +290,11 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 adm::PATH_LIST_GROUP_MEMBERS,
                 get(
                     mailrs_core_sidestate::families::groups_admin::list_group_members::<
+                        FastcoreState,
+                    >,
+                )
+                .post(
+                    mailrs_core_sidestate::families::groups_admin::add_account_to_group::<
                         FastcoreState,
                     >,
                 ),
@@ -313,7 +329,13 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
             )
             .route(
                 adm::PATH_GET_SIEVE,
-                get(mailrs_core_sidestate::families::groups_admin::get_sieve::<FastcoreState>),
+                get(mailrs_core_sidestate::families::groups_admin::get_sieve::<FastcoreState>)
+                    .post(
+                        mailrs_core_sidestate::families::groups_admin::set_sieve::<FastcoreState>,
+                    )
+                    .delete(
+                        mailrs_core_sidestate::families::groups_admin::delete_sieve::<FastcoreState>,
+                    ),
             )
             // mailbox CRUD — reuse the maildir IMAP backend
             .route(mb::PATH_GET_MAILBOX, get(routes::mailbox::get_mailbox))

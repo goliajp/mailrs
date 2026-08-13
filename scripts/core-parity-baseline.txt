@@ -1,13 +1,11 @@
-PATH_BACKFILL_THREADING
-PATH_DELIVER_MESSAGE
-PATH_FIND_THREAD_BY_MESSAGE_ID
-PATH_LIST_SENT_MESSAGES
-PATH_MARK_ALL_READ
-PATH_MARK_JUNK
-PATH_MARK_LIST_READ
-PATH_MARK_NOTIFICATION
-PATH_MARK_NOT_JUNK
-PATH_MARK_PROMOTION
-PATH_MOVE_TO_INBOX
-PATH_SEARCH_CONVERSATIONS
-PATH_UPDATE_ACCOUNT
+GET /v1/users/{user}/sent-messages
+GET /v1/users/{user}/threads/by-message-id/{message_id}
+POST /v1/admin/backfill-threading
+POST /v1/users/{user}/conversations:mark-all-read
+POST /v1/users/{user}/conversations:mark-list-read
+POST /v1/users/{user}/conversations:search
+POST /v1/users/{user}/threads/{thread_id}/mark-junk
+POST /v1/users/{user}/threads/{thread_id}/mark-not-junk
+POST /v1/users/{user}/threads/{thread_id}/mark-notification
+POST /v1/users/{user}/threads/{thread_id}/mark-promotion
+POST /v1/users/{user}/threads/{thread_id}/move-to-inbox

@@ -225,9 +225,16 @@ pub(super) fn build_full_router(state: Arc<CoreRpcState>, secret: String) -> Rou
         // sieve
         .route(
             adm_paths::PATH_GET_SIEVE,
+            // All three verbs from the shared family, so the write lands in
+            // the `sieve:<address>` key this URL's own GET reads. The two
+            // local handlers this replaced wrote PG `sieve_scripts`, which no
+            // reader of this URL — and no delivery path in this topology —
+            // ever consults.
             get(mailrs_core_sidestate::families::groups_admin::get_sieve::<CoreRpcState>)
-                .post(handlers::admin::set_sieve)
-                .delete(handlers::admin::delete_sieve),
+                .post(mailrs_core_sidestate::families::groups_admin::set_sieve::<CoreRpcState>)
+                .delete(
+                    mailrs_core_sidestate::families::groups_admin::delete_sieve::<CoreRpcState>,
+                ),
         )
         // audit log
         .route(
