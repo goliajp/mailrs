@@ -30,17 +30,21 @@ const USER: &str = "bob@x.com";
 const TID: &str = "t-1@x.com";
 const MID: &str = "m-1@x.com";
 
-/// The message file for `USER`, whatever flag suffix it now carries.
+/// The message file for `USER`, whatever flag suffix it now carries and
+/// whichever of `new/` or `cur/` it has moved to.
+///
+/// There is exactly one message in this fixture, so the first entry found
+/// is it — but the search has to cover both directories, because marking a
+/// message read is precisely what moves it between them.
 fn file_name(root: &std::path::Path) -> String {
-    for leaf in ["new", "cur"] {
-        let dir = root.join("x.com").join("bob").join(leaf);
-        if let Ok(rd) = std::fs::read_dir(&dir) {
-            for e in rd.flatten() {
-                return e.file_name().to_string_lossy().into_owned();
-            }
-        }
-    }
-    String::new()
+    let box_dir = root.join("x.com").join("bob");
+    ["new", "cur"]
+        .iter()
+        .filter_map(|leaf| std::fs::read_dir(box_dir.join(leaf)).ok())
+        .flat_map(|rd| rd.flatten())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .next()
+        .unwrap_or_default()
 }
 
 #[tokio::test]
