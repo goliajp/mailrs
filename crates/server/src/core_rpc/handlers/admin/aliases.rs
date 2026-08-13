@@ -19,16 +19,10 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use chrono::TimeZone;
 
 use mailrs_core_api::method::admin as wire;
 
 use crate::core_rpc::CoreRpcState;
-
-// ── api keys ────────────────────────────────────────────────────────
-
-// ── effective permissions ───────────────────────────────────────────
-use super::*;
 
 /// GET /v1/admin/aliases
 pub async fn list_aliases(
