@@ -206,6 +206,24 @@ impl PgMailboxStore {
         // Sent-only threads fall back to the plain max.
         let display_date_expr = "COALESCE(MAX(CASE WHEN mb.name != 'Sent' THEN m.internal_date END), MAX(m.internal_date))";
 
+        // The sort ends on `m.thread_id` so that it is TOTAL.
+        //
+        // `internal_date` is whole seconds, so threads that arrive in the same
+        // second tie, and the order between tied rows was whatever the planner
+        // happened to produce — undefined between two calls with the same
+        // arguments. A paged reader sees that as a row skipped or repeated at a
+        // boundary, intermittently, which is the defect
+        // `rules/kevy-patterns.md` → `kevy/total-order-or-paging-breaks`
+        // describes; the kevy lane closed it with a folded-hash `ord` column
+        // after measuring 929 collisions over 30k rows on prod, and this side
+        // had no tie-break at all. Found by the cross-lane comparison: the two
+        // cores agreed on every row and every field, and disagreed only *within*
+        // a same-second group.
+        //
+        // `thread_id` rather than a hash of it: kevy needs the hash because a
+        // composite index there drops any row whose string component exceeds
+        // 255 bytes, and SQL has no such limit.
+
         let sql = format!(
             "SELECT m.thread_id, MAX(m.subject), string_agg(DISTINCT m.sender, ','),
                     {count_expr}, {unread_expr}, {display_date_expr},
@@ -235,7 +253,8 @@ impl PgMailboxStore {
                   LEFT JOIN email_analysis ea ON ea.message_id = m.id
              WHERE {where_clause}
              GROUP BY m.thread_id HAVING {having_clause}
-             ORDER BY BOOL_OR(m.pinned) DESC, {display_date_expr} DESC LIMIT ${limit_idx}"
+             ORDER BY BOOL_OR(m.pinned) DESC, {display_date_expr} DESC, m.thread_id
+             LIMIT ${limit_idx}"
         );
 
         // bind parameters in order

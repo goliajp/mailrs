@@ -239,6 +239,30 @@ pub async fn deliver_message(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    // `req.unread` wins over the payload's `\Seen` bit.
+    //
+    // The request carries the read state twice and the two copies do not agree
+    // for most of a mailbox: `core-sync` computes `unread` as "the user is not
+    // among the senders", while `payload_wire_json` carries the IMAP flags,
+    // where bit 1 is `\Seen`. So every already-read message somebody else sent
+    // arrives with `unread: true` and `\Seen` set.
+    //
+    // kevy stores the summary field; this side counted `flags & 1`, so the two
+    // cores reported opposite unread counts for the same mail — found by
+    // `core_rpc/tests/two_lane.rs`, which is what a switch would have shipped:
+    // an inbox whose badge and bold rows all invert.
+    //
+    // The summary field is the authority because it is the one the sender-based
+    // rule produced deliberately, and because the flag in a migrated payload is
+    // the *source* store's flag, which this store's own uid space no longer
+    // refers to.
+    const SEEN: u32 = 1;
+    let flags = if req.unread {
+        wire.flags & !SEEN
+    } else {
+        wire.flags | SEEN
+    };
+
     let input = InsertMessage {
         user: &user,
         mailbox_name: MAILBOX,
@@ -252,12 +276,44 @@ pub async fn deliver_message(
         message_id: &req.message_id,
         in_reply_to: &wire.in_reply_to,
         thread_id: &thread_id,
-        flags: wire.flags,
+        flags,
     };
-    state.mailbox.insert_message(input).await.map_err(|e| {
+    let inserted = state.mailbox.insert_message(input).await.map_err(|e| {
         tracing::warn!(error = %e, user = %user, thread_id = %thread_id, "deliver_message: insert failed");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Keep `req.category`, which this lane otherwise discards.
+    //
+    // `list_conversations` reads a thread's category from `email_analysis`,
+    // defaulting to `'general'` when no row is there — and nothing on an ingest
+    // path ever wrote one. So the field arrived, was dropped, and every
+    // migrated thread came back `general`: a switch to this core collapsed
+    // inbox / promotions / notifications / spam into one tab, silently, because
+    // `general` is a plausible answer rather than an error.
+    //
+    // Only the category column is written. The rest of the row is genuinely
+    // absent — no summary, no risk score, no embedding — and a placeholder
+    // would claim this message had been analysed.
+    if !req.category.is_empty()
+        && let Err(e) = sqlx::query(
+            "INSERT INTO email_analysis (message_id, category) VALUES ($1, $2) \
+             ON CONFLICT (message_id) DO UPDATE SET category = EXCLUDED.category",
+        )
+        .bind(inserted.id)
+        .bind(&req.category)
+        .execute(&state.pool)
+        .await
+    {
+        // Not fatal: the message is delivered and readable. Losing the
+        // category puts the thread in the default tab, which is worth a
+        // line in the log and not worth rejecting the mail for.
+        tracing::warn!(
+            error = %e, user = %user, thread_id = %thread_id,
+            category = %req.category,
+            "deliver_message: category not recorded"
+        );
+    }
 
     Ok(Json(wire::DeliverMessageResponse {
         thread_id,
