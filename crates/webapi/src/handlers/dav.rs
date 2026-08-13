@@ -171,7 +171,7 @@ pub async fn calendars_collection(
 async fn calendar_report_response(user: &str) -> axum::response::Response {
     let key = format!("caldav:{user}:events:default");
     let flat = match crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hgetall(key.as_bytes()).map_err(std::io::Error::other)
+        c.hgetall(key.as_bytes()).map_err(std::io::Error::from)
     }) {
         Ok(v) => v,
         Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
@@ -267,7 +267,7 @@ pub async fn addressbooks_collection(
 async fn addressbook_report_response(user: &str) -> axum::response::Response {
     let key = format!("carddav:{user}:contacts:default");
     let flat = match crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hgetall(key.as_bytes()).map_err(std::io::Error::other)
+        c.hgetall(key.as_bytes()).map_err(std::io::Error::from)
     }) {
         Ok(v) => v,
         Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
@@ -311,8 +311,7 @@ pub async fn put_calendar_event(
     let uid_c = uid.clone();
     let body_c = body.to_vec();
     let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(uid_c.as_bytes(), body_c.as_slice())])
-            .map_err(std::io::Error::other)?;
+        c.hset(key.as_bytes(), &[(uid_c.as_bytes(), body_c.as_slice())])?;
         Ok(())
     });
     StatusCode::CREATED
@@ -326,7 +325,7 @@ pub async fn get_calendar_event(
     let key = format!("caldav:{user}:events:{cal}");
     let bytes = match crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(key.as_bytes(), uid.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }) {
         Ok(Some(v)) => v,
         _ => return StatusCode::NOT_FOUND.into_response(),
@@ -349,8 +348,7 @@ pub async fn delete_calendar_event(
 ) -> StatusCode {
     let key = format!("caldav:{user}:events:{cal}");
     let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[uid.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[uid.as_bytes()])?;
         Ok(())
     });
     StatusCode::NO_CONTENT
@@ -366,8 +364,7 @@ pub async fn put_contact(
     let uid_c = uid.clone();
     let body_c = body.to_vec();
     let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(uid_c.as_bytes(), body_c.as_slice())])
-            .map_err(std::io::Error::other)?;
+        c.hset(key.as_bytes(), &[(uid_c.as_bytes(), body_c.as_slice())])?;
         Ok(())
     });
     StatusCode::CREATED
@@ -381,7 +378,7 @@ pub async fn get_contact(
     let key = format!("carddav:{user}:contacts:{book}");
     let bytes = match crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(key.as_bytes(), uid.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }) {
         Ok(Some(v)) => v,
         _ => return StatusCode::NOT_FOUND.into_response(),
@@ -404,8 +401,7 @@ pub async fn delete_contact(
 ) -> StatusCode {
     let key = format!("carddav:{user}:contacts:{book}");
     let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[uid.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[uid.as_bytes()])?;
         Ok(())
     });
     StatusCode::NO_CONTENT

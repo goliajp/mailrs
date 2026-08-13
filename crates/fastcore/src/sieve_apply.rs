@@ -276,10 +276,8 @@ fn enqueue_vacation_outbound(conn: &mut Connection, to: &str, body: &[u8]) -> st
     conn.hset(
         key.as_bytes(),
         &[(b"blob".as_slice(), envelope.to_string().as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
-    conn.lpush(b"mailrs:outbound:pending", &[id.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    )?;
+    conn.lpush(b"mailrs:outbound:pending", &[id.as_bytes()])?;
     Ok(())
 }
 

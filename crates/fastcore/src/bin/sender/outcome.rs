@@ -99,10 +99,8 @@ pub(super) async fn enqueue_bounce_dsn(
                 (b"recipient" as &[u8], sender.as_bytes()),
                 (b"blob", b64.as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
-        c.lpush(mailrs_fastcore::bounce::BOUNCE_PENDING, &[id.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        )?;
+        c.lpush(mailrs_fastcore::bounce::BOUNCE_PENDING, &[id.as_bytes()])?;
         Ok::<(), std::io::Error>(())
     })
     .await;

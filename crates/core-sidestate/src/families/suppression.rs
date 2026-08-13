@@ -111,24 +111,19 @@ pub fn add(
             (b"reason".as_slice(), reason.as_bytes()),
             (b"added_at".as_slice(), now_s.as_bytes()),
         ],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     match source.ttl() {
-        Some(ttl) => conn
-            .expire(k.as_bytes(), ttl)
-            .map_err(std::io::Error::other)?,
+        Some(ttl) => conn.expire(k.as_bytes(), ttl)?,
         // Clear any TTL a previous hard-bounce entry left behind, so a
         // complaint genuinely never expires.
-        None => conn.persist(k.as_bytes()).map_err(std::io::Error::other)?,
+        None => conn.persist(k.as_bytes())?,
     };
     Ok(())
 }
 
 /// Take `email` off the list. Returns whether an entry was present.
 pub fn remove(conn: &mut kevy_client::Connection, email: &str) -> std::io::Result<bool> {
-    let removed = conn
-        .del(&[key(email).as_bytes()])
-        .map_err(std::io::Error::other)?;
+    let removed = conn.del(&[key(email).as_bytes()])?;
     Ok(removed > 0)
 }
 

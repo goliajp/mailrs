@@ -51,9 +51,7 @@ pub(crate) fn current_status(
     user: &str,
     send_id: &str,
 ) -> std::io::Result<Option<Status>> {
-    let raw = conn
-        .hget(send_key(user, send_id).as_bytes(), b"status")
-        .map_err(std::io::Error::other)?;
+    let raw = conn.hget(send_key(user, send_id).as_bytes(), b"status")?;
     Ok(raw
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|s| Status::parse(&s)))
@@ -65,8 +63,7 @@ pub(crate) fn created_at(
     send_id: &str,
 ) -> std::io::Result<i64> {
     Ok(conn
-        .hget(send_key(user, send_id).as_bytes(), b"created_at")
-        .map_err(std::io::Error::other)?
+        .hget(send_key(user, send_id).as_bytes(), b"created_at")?
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or(0))
@@ -78,9 +75,7 @@ pub fn read_recipients(
     user: &str,
     send_id: &str,
 ) -> std::io::Result<Vec<RecipientState>> {
-    let flat = conn
-        .hgetall(rcpt_key(user, send_id).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let flat = conn.hgetall(rcpt_key(user, send_id).as_bytes())?;
     let mut out = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -102,9 +97,7 @@ pub fn read_send(
     user: &str,
     send_id: &str,
 ) -> std::io::Result<BTreeMap<String, String>> {
-    let flat = conn
-        .hgetall(send_key(user, send_id).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let flat = conn.hgetall(send_key(user, send_id).as_bytes())?;
     let mut out = BTreeMap::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -157,9 +150,7 @@ pub fn repoint_threads(
     if merged.is_empty() {
         return Ok(0);
     }
-    let ids = conn
-        .zrange(index_key(user).as_bytes(), 0, -1)
-        .map_err(std::io::Error::other)?;
+    let ids = conn.zrange(index_key(user).as_bytes(), 0, -1)?;
     let mut changed = 0u64;
     for raw in ids {
         let Ok(send_id) = String::from_utf8(raw) else {
@@ -167,8 +158,7 @@ pub fn repoint_threads(
         };
         let key = send_key(user, &send_id);
         let current = conn
-            .hget(key.as_bytes(), b"thread_id")
-            .map_err(std::io::Error::other)?
+            .hget(key.as_bytes(), b"thread_id")?
             .and_then(|v| String::from_utf8(v).ok());
         let Some(current) = current else {
             continue;
@@ -179,8 +169,7 @@ pub fn repoint_threads(
         conn.hset(
             key.as_bytes(),
             &[(b"thread_id" as &[u8], canonical.as_bytes())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         changed += 1;
     }
     Ok(changed)

@@ -53,7 +53,7 @@ pub async fn forgot_password(
     let rate_key = format!("pwreset:ratelimit:{}", req.address);
     let rate_key_c = rate_key.clone();
     let now = now_secs();
-    let recent = with_kevy(move |c| c.get(rate_key_c.as_bytes()).map_err(std::io::Error::other))?
+    let recent = with_kevy(move |c| c.get(rate_key_c.as_bytes()).map_err(std::io::Error::from))?
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(0);
@@ -95,8 +95,7 @@ pub async fn forgot_password(
                 (b"address" as &[u8], addr_c.as_bytes()),
                 (b"issued_at", now.to_string().as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         let _ = c.expire(
             format!("pwreset:{token}").as_bytes(),
             std::time::Duration::from_secs(3600),
@@ -104,16 +103,14 @@ pub async fn forgot_password(
         c.set(
             format!("pwreset_by_addr:{addr}").as_bytes(),
             token.as_bytes(),
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         // Bump rate-limit stamp with a matching TTL so the entry
         // self-clears after 5 minutes without cluttering kevy.
         c.set_with_ttl(
             rate_key.as_bytes(),
             now.to_string().as_bytes(),
             std::time::Duration::from_secs(300),
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
 
@@ -180,7 +177,7 @@ pub async fn reset_password(
     let token = req.token.clone();
     let addr_bytes = with_kevy(move |c| {
         c.hget(format!("pwreset:{token}").as_bytes(), b"address")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let Some(addr_bytes) = addr_bytes else {
         return Err(StatusCode::UNAUTHORIZED);
@@ -215,8 +212,7 @@ pub async fn reset_password(
     });
     let tok = req.token;
     with_kevy(move |c| {
-        c.del(&[format!("pwreset:{tok}").as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.del(&[format!("pwreset:{tok}").as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -301,7 +297,7 @@ pub async fn totp_status(
     let key_c = key.clone();
     let enabled = with_kevy(move |c| {
         c.hget(key_c.as_bytes(), b"enabled")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .ok()
     .flatten()
@@ -335,8 +331,7 @@ pub async fn totp_setup(
                 (b"enabled", b"0"),
                 (b"recovery_codes", r.as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({
@@ -354,7 +349,7 @@ pub async fn totp_enable(
     let key_r = key.clone();
     let secret = with_kevy(move |c| {
         c.hget(key_r.as_bytes(), b"secret")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?
     .and_then(|v| String::from_utf8(v).ok())
     .ok_or(StatusCode::BAD_REQUEST)?;
@@ -362,7 +357,7 @@ pub async fn totp_enable(
         let k = key.clone();
         move |c| {
             c.hget(k.as_bytes(), b"enabled")
-                .map_err(std::io::Error::other)
+                .map_err(std::io::Error::from)
         }
     })?
     .map(|v| v == b"1")
@@ -374,8 +369,7 @@ pub async fn totp_enable(
         return Err(StatusCode::UNAUTHORIZED);
     }
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(b"enabled" as &[u8], b"1")])
-            .map_err(std::io::Error::other)?;
+        c.hset(key.as_bytes(), &[(b"enabled" as &[u8], b"1")])?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({ "success": true })))
@@ -389,14 +383,14 @@ pub async fn totp_disable(
     let key_r = key.clone();
     let secret = with_kevy(move |c| {
         c.hget(key_r.as_bytes(), b"secret")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?
     .and_then(|v| String::from_utf8(v).ok())
     .ok_or(StatusCode::BAD_REQUEST)?;
     let enabled_key = key.clone();
     let enabled = with_kevy(move |c| {
         c.hget(enabled_key.as_bytes(), b"enabled")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?
     .map(|v| v == b"1")
     .unwrap_or(false);
@@ -407,7 +401,7 @@ pub async fn totp_disable(
         return Err(StatusCode::UNAUTHORIZED);
     }
     with_kevy(move |c| {
-        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
+        c.del(&[key.as_bytes()])?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({ "success": true })))
@@ -417,7 +411,7 @@ pub async fn keys_status(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("pgp_keys:{user}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let count = flat.len() / 2;
     Ok(Json(serde_json::json!({
         "configured": count > 0,

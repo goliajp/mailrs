@@ -51,9 +51,7 @@ pub fn account_for(
     issuer: &str,
     subject: &str,
 ) -> std::io::Result<Option<String>> {
-    let raw = conn
-        .get(link_key(issuer, subject).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let raw = conn.get(link_key(issuer, subject).as_bytes())?;
     Ok(raw.and_then(|b| String::from_utf8(b).ok()))
 }
 
@@ -74,11 +72,9 @@ pub fn link(
         }
         return Ok(LinkOutcome::TakenByAnotherAccount);
     }
-    conn.set(link_key(issuer, subject).as_bytes(), address.as_bytes())
-        .map_err(std::io::Error::other)?;
+    conn.set(link_key(issuer, subject).as_bytes(), address.as_bytes())?;
     let m = member(issuer, subject);
-    conn.sadd(links_key(address).as_bytes(), &[m.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    conn.sadd(links_key(address).as_bytes(), &[m.as_bytes()])?;
     Ok(LinkOutcome::Linked)
 }
 
@@ -106,19 +102,15 @@ pub fn unlink(
     if existing.as_deref() != Some(address) {
         return Ok(false);
     }
-    conn.del(&[link_key(issuer, subject).as_bytes()])
-        .map_err(std::io::Error::other)?;
+    conn.del(&[link_key(issuer, subject).as_bytes()])?;
     let m = member(issuer, subject);
-    conn.srem(links_key(address).as_bytes(), &[m.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    conn.srem(links_key(address).as_bytes(), &[m.as_bytes()])?;
     Ok(true)
 }
 
 /// Every identity linked to an account, as `(issuer, subject)`.
 pub fn links_for(conn: &mut Connection, address: &str) -> std::io::Result<Vec<(String, String)>> {
-    let members = conn
-        .smembers(links_key(address).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let members = conn.smembers(links_key(address).as_bytes())?;
     Ok(members
         .into_iter()
         .filter_map(|m| String::from_utf8(m).ok())
@@ -148,12 +140,10 @@ pub fn unlink_all(conn: &mut Connection, address: &str) -> std::io::Result<usize
     let all = links_for(conn, address)?;
     let mut removed = 0usize;
     for (issuer, subject) in &all {
-        conn.del(&[link_key(issuer, subject).as_bytes()])
-            .map_err(std::io::Error::other)?;
+        conn.del(&[link_key(issuer, subject).as_bytes()])?;
         removed += 1;
     }
-    conn.del(&[links_key(address).as_bytes()])
-        .map_err(std::io::Error::other)?;
+    conn.del(&[links_key(address).as_bytes()])?;
     Ok(removed)
 }
 
@@ -172,7 +162,7 @@ pub fn park_pending(
         identity_json.as_bytes(),
         PENDING_TTL,
     )
-    .map_err(std::io::Error::other)
+    .map_err(std::io::Error::from)
 }
 
 /// Take a parked identity, if the handle names one.
@@ -183,9 +173,9 @@ pub fn park_pending(
 /// for anyone holding the cookie.
 pub fn claim_pending(conn: &mut Connection, handle: &str) -> std::io::Result<Option<String>> {
     let key = format!("{PENDING_PREFIX}{handle}");
-    let raw = conn.get(key.as_bytes()).map_err(std::io::Error::other)?;
+    let raw = conn.get(key.as_bytes())?;
     if raw.is_some() {
-        conn.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
+        conn.del(&[key.as_bytes()])?;
     }
     Ok(raw.and_then(|b| String::from_utf8(b).ok()))
 }

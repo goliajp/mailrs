@@ -30,7 +30,7 @@ pub(crate) fn hgetall_values(
     c: &mut kevy_client::Connection,
     key: &str,
 ) -> std::io::Result<Vec<Vec<u8>>> {
-    let flat = c.hgetall(key.as_bytes()).map_err(std::io::Error::other)?;
+    let flat = c.hgetall(key.as_bytes())?;
     Ok(flat
         .into_iter()
         .enumerate()
@@ -50,8 +50,7 @@ pub(crate) fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std
     // write race. Prior get + parse + set could let two concurrent
     // /api/prefs writes both read the same current value and both
     // set the same next id, losing one row.
-    c.incr(counter_key.as_bytes())
-        .map_err(std::io::Error::other)
+    c.incr(counter_key.as_bytes()).map_err(std::io::Error::from)
 }
 
 pub(crate) fn random_hex(bytes: usize) -> String {
@@ -265,8 +264,7 @@ pub async fn create_greylist_entry(
         c.hset(
             GL_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(g))
@@ -274,8 +272,7 @@ pub async fn create_greylist_entry(
 
 pub async fn delete_greylist_entry(Path(id): Path<i64>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
-        c.hdel(GL_KEY.as_bytes(), &[id.to_string().as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(GL_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -304,7 +301,7 @@ pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
             let key_c = key.clone();
             let blob = with_kevy(move |c| {
                 c.hget(key_c.as_bytes(), b"blob")
-                    .map_err(std::io::Error::other)
+                    .map_err(std::io::Error::from)
             })?;
             if let Some(b) = blob
                 && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b)

@@ -65,7 +65,7 @@ impl GreylistStage {
         tokio::task::spawn_blocking(move || {
             c.with_conn(|conn| {
                 conn.hget(key.as_bytes(), field.as_bytes())
-                    .map_err(std::io::Error::other)
+                    .map_err(std::io::Error::from)
             })
         })
         .await

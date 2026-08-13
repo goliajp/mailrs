@@ -75,15 +75,13 @@ pub fn list_sends(
     // The network client has no zrevrange and its zrange returns members
     // without scores, so newest-first is a tail slice reversed here. Same
     // shape the DMARC report list uses for the same reason.
-    let card = conn.zcard(key.as_bytes()).map_err(std::io::Error::other)? as i64;
+    let card = conn.zcard(key.as_bytes())? as i64;
     if card == 0 || offset >= card {
         return Ok(Vec::new());
     }
     let want_end = card - offset;
     let want_start = (want_end - limit.max(0)).max(0);
-    let ids = conn
-        .zrange(key.as_bytes(), want_start, want_end - 1)
-        .map_err(std::io::Error::other)?;
+    let ids = conn.zrange(key.as_bytes(), want_start, want_end - 1)?;
 
     let mut out = Vec::with_capacity(ids.len());
     for raw in ids.into_iter().rev() {
@@ -103,9 +101,7 @@ pub fn read_one(
     user: &str,
     send_id: &str,
 ) -> std::io::Result<Option<SendListItem>> {
-    let flat = conn
-        .hgetall(send_key(user, send_id).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let flat = conn.hgetall(send_key(user, send_id).as_bytes())?;
     if flat.is_empty() {
         return Ok(None);
     }
@@ -172,17 +168,13 @@ pub fn shadow_report(
 ) -> std::io::Result<SendShadowReport> {
     let mut report = SendShadowReport {
         axis_threads: axis.len() as u64,
-        projection_sends: conn
-            .zcard(index_key(user).as_bytes())
-            .map_err(std::io::Error::other)? as u64,
+        projection_sends: conn.zcard(index_key(user).as_bytes())? as u64,
         ..Default::default()
     };
 
     // Thread ids the projection covers. Read once; the alternative is a
     // lookup per axis entry, and this axis runs to a few hundred rows.
-    let ids = conn
-        .zrange(index_key(user).as_bytes(), 0, -1)
-        .map_err(std::io::Error::other)?;
+    let ids = conn.zrange(index_key(user).as_bytes(), 0, -1)?;
     let mut covered = std::collections::HashSet::new();
     for raw in ids {
         let Ok(send_id) = String::from_utf8(raw) else {

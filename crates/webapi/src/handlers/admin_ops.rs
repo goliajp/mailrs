@@ -76,7 +76,7 @@ pub async fn get_account_sieve(
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = mailrs_core_sidestate::sieve_key(&address);
-    let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::other))?;
+    let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::from))?;
     Ok(Json(serde_json::json!({
         "script": val.and_then(|v| String::from_utf8(v).ok()).unwrap_or_default(),
     })))
@@ -96,8 +96,7 @@ pub async fn set_account_sieve(
     let key = mailrs_core_sidestate::sieve_key(&address);
     super::audit::record(&actor, "sieve.update", &address, "");
     with_kevy(move |c| {
-        c.set(key.as_bytes(), req.script.as_bytes())
-            .map_err(std::io::Error::other)?;
+        c.set(key.as_bytes(), req.script.as_bytes())?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -110,7 +109,7 @@ pub async fn delete_account_sieve(
 ) -> Result<StatusCode, StatusCode> {
     let key = mailrs_core_sidestate::sieve_key(&address);
     with_kevy(move |c| {
-        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
+        c.del(&[key.as_bytes()])?;
         Ok(())
     })?;
     super::audit::record(&actor, "sieve.delete", &address, "");
@@ -217,7 +216,7 @@ pub async fn list_suppressions(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let ids = with_kevy(|c| {
         c.smembers(b"mailrs:outbound:suppression")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let items: Vec<String> = ids
         .into_iter()
@@ -231,8 +230,7 @@ pub async fn clear_suppressions(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
 ) -> Result<StatusCode, StatusCode> {
     with_kevy(|c| {
-        c.del(&[b"mailrs:outbound:suppression".as_slice()])
-            .map_err(std::io::Error::other)?;
+        c.del(&[b"mailrs:outbound:suppression".as_slice()])?;
         Ok(())
     })?;
     super::audit::record(&actor, "suppressions.clear", "", "");
@@ -257,7 +255,7 @@ pub async fn get_rbl_status(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let val = with_kevy(|c| c.get(b"admin:rbl:status").map_err(std::io::Error::other))?;
+    let val = with_kevy(|c| c.get(b"admin:rbl:status").map_err(std::io::Error::from))?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({ "status": "unknown", "checked_at": null }));
@@ -270,7 +268,7 @@ pub async fn get_reputation(
     State(_state): State<Arc<WebState>>,
     Extension(_user): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let val = with_kevy(|c| c.get(b"admin:reputation").map_err(std::io::Error::other))?;
+    let val = with_kevy(|c| c.get(b"admin:reputation").map_err(std::io::Error::from))?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({ "score": null, "signals": [] }));
@@ -304,7 +302,7 @@ pub async fn get_spam_feedback_stats(
             continue;
         };
         let key = format!("spam_feedback:{addr_s}");
-        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
             .unwrap_or_default();
         let mut spam = 0u64;
         let mut ham = 0u64;
@@ -343,8 +341,7 @@ pub async fn set_app_scopes(
     let joined = req.scopes.join(",");
     let joined_c = joined.clone();
     with_kevy(move |c| {
-        c.set(key.as_bytes(), joined_c.as_bytes())
-            .map_err(std::io::Error::other)?;
+        c.set(key.as_bytes(), joined_c.as_bytes())?;
         Ok(())
     })?;
     super::audit::record(&actor, "app.scopes_update", &app_id, &joined);

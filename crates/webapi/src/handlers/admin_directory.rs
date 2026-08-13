@@ -329,7 +329,7 @@ pub async fn get_account_quota(
     let key = format!("mailrs:account:{address}");
     let cur = with_kevy(move |c| {
         c.hget(key.as_bytes(), b"blob")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let Some(cur) = cur else {
         return Ok(Json(serde_json::json!({ "quota_bytes": null })));
@@ -383,7 +383,7 @@ pub async fn list_account_groups(
     let addr_c = address.clone();
     // Read the account's own membership set: admin:account:<addr>:groups
     let key = format!("admin:account:{addr_c}:groups");
-    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))?;
+    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))?;
     let groups: Vec<String> = members
         .into_iter()
         .filter_map(|v| String::from_utf8(v).ok())
@@ -397,7 +397,7 @@ pub async fn get_account_overrides(
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("admin:account:{address}:overrides");
-    let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::other))?;
+    let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::from))?;
     let parsed: serde_json::Value = val
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_else(|| serde_json::json!({}));
@@ -414,8 +414,7 @@ pub async fn set_account_overrides(
     let payload = serde_json::to_vec(&req).map_err(|_| StatusCode::BAD_REQUEST)?;
     let payload_c = payload.clone();
     with_kevy(move |c| {
-        c.set(key.as_bytes(), &payload_c)
-            .map_err(std::io::Error::other)?;
+        c.set(key.as_bytes(), &payload_c)?;
         Ok(())
     })?;
     super::audit::record(
@@ -433,7 +432,7 @@ pub async fn list_email_group_members(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let key = format!("admin:email-group:{id}:members");
-    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))?;
+    let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))?;
     let items: Vec<String> = members
         .into_iter()
         .filter_map(|v| String::from_utf8(v).ok())
@@ -456,8 +455,7 @@ pub async fn add_email_group_member(
     let addr = req.address;
     let addr_c = addr.clone();
     with_kevy(move |c| {
-        c.sadd(key.as_bytes(), &[addr_c.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.sadd(key.as_bytes(), &[addr_c.as_bytes()])?;
         Ok(())
     })?;
     super::audit::record(&actor, "email_group.member_add", &id, &addr);
@@ -472,8 +470,7 @@ pub async fn remove_email_group_member(
     let key = format!("admin:email-group:{id}:members");
     let address_c = address.clone();
     with_kevy(move |c| {
-        c.srem(key.as_bytes(), &[address_c.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.srem(key.as_bytes(), &[address_c.as_bytes()])?;
         Ok(())
     })?;
     super::audit::record(&actor, "email_group.member_remove", &id, &address);

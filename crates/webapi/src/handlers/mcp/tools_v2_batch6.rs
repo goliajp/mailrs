@@ -34,7 +34,7 @@ impl MailrsMcpService {
                 let key_c = key.clone();
                 let blob = match with_kevy(move |c| {
                     c.hget(key_c.as_bytes(), b"blob")
-                        .map_err(std::io::Error::other)
+                        .map_err(std::io::Error::from)
                 }) {
                     Ok(v) => v,
                     Err(_) => continue,
@@ -64,7 +64,7 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         let raw = with_kevy(|c| {
             c.smembers(b"mailrs:outbound:failed")
-                .map_err(std::io::Error::other)
+                .map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("failed set read", None))?;
         let ids: Vec<String> = raw

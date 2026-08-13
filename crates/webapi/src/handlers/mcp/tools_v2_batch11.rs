@@ -98,8 +98,7 @@ impl MailrsMcpService {
         let key = group_members_key(params.group_id);
         let addr = params.address.clone();
         with_kevy(move |c| {
-            c.sadd(key.as_bytes(), &[addr.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.sadd(key.as_bytes(), &[addr.as_bytes()])?;
             Ok(())
         })
         .map_err(|_| McpError::internal_error("group member add failed", None))?;
@@ -122,8 +121,7 @@ impl MailrsMcpService {
         let key = group_members_key(params.group_id);
         let addr = params.address.clone();
         with_kevy(move |c| {
-            c.srem(key.as_bytes(), &[addr.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.srem(key.as_bytes(), &[addr.as_bytes()])?;
             Ok(())
         })
         .map_err(|_| McpError::internal_error("group member remove failed", None))?;

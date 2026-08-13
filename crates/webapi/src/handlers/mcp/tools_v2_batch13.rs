@@ -190,8 +190,7 @@ impl MailrsMcpService {
         self.require_admin(&user).await?;
         let key = params.key.clone();
         with_kevy(move |c| {
-            c.hdel(b"admin:system-config", &[key.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.hdel(b"admin:system-config", &[key.as_bytes()])?;
             Ok(())
         })
         .map_err(|_| McpError::internal_error("system config reset failed", None))?;

@@ -246,8 +246,7 @@ pub fn write_send(
             row.resent_from.as_deref().unwrap_or("").as_bytes(),
         ),
     ];
-    conn.hset(key.as_bytes(), &fields)
-        .map_err(std::io::Error::other)?;
+    conn.hset(key.as_bytes(), &fields)?;
 
     if !states.is_empty() {
         let encoded: Vec<(String, String)> = states
@@ -258,21 +257,18 @@ pub fn write_send(
             .iter()
             .map(|(r, v)| (r.as_bytes(), v.as_bytes()))
             .collect();
-        conn.hset(rcpt_key(user, &row.send_id).as_bytes(), &pairs)
-            .map_err(std::io::Error::other)?;
+        conn.hset(rcpt_key(user, &row.send_id).as_bytes(), &pairs)?;
     }
 
     let score = row.created_at as f64;
     conn.zadd(
         index_key(user).as_bytes(),
         &[(score, row.send_id.as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     conn.zadd(
         by_status_key(user, status).as_bytes(),
         &[(score, row.send_id.as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     Ok(())
 }
 
@@ -296,8 +292,7 @@ pub fn update_recipient(
     conn.hset(
         rcpt_key(user, send_id).as_bytes(),
         &[(state.recipient.as_bytes(), state.encode().as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
 
     let mut after: Vec<RecipientState> = before
         .into_iter()
@@ -314,17 +309,14 @@ pub fn update_recipient(
     conn.hset(
         send_key(user, send_id).as_bytes(),
         &[(b"status" as &[u8], status.as_str().as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     if let Some(old) = old_status {
-        conn.zrem(by_status_key(user, old).as_bytes(), &[send_id.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        conn.zrem(by_status_key(user, old).as_bytes(), &[send_id.as_bytes()])?;
     }
     conn.zadd(
         by_status_key(user, status).as_bytes(),
         &[(created as f64, send_id.as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     Ok(status)
 }
 
@@ -343,7 +335,6 @@ pub fn set_envelope_ref(
     conn.hset(
         send_key(user, send_id).as_bytes(),
         &[(b"envelope_ref" as &[u8], envelope_ref.as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     Ok(())
 }

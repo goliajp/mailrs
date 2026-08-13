@@ -58,10 +58,8 @@ pub async fn ws_events(
         std::env::var("MAILRS_KEVY_URL").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = format!("session:{token}");
     let has_session = tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
-        let mut c = kevy_client::Connection::connect(&kevy_url).map_err(std::io::Error::other)?;
-        Ok(c.get(key.as_bytes())
-            .map_err(std::io::Error::other)?
-            .is_some())
+        let mut c = kevy_client::Connection::connect(&kevy_url)?;
+        Ok(c.get(key.as_bytes())?.is_some())
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?

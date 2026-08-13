@@ -97,7 +97,7 @@ pub async fn verify_credentials(
     let totp_key = format!("totp:{}", req.address);
     let totp_required = crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(totp_key.as_bytes(), b"enabled")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .ok()
     .flatten()
@@ -146,7 +146,7 @@ pub async fn verify_totp(
     let key_r = key.clone();
     let secret = match crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(key_r.as_bytes(), b"secret")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }) {
         Ok(Some(v)) => String::from_utf8(v).unwrap_or_default(),
         _ => {
@@ -160,7 +160,7 @@ pub async fn verify_totp(
     let enabled_key = key.clone();
     let enabled = crate::handlers::kevy_util::with_kevy(move |c| {
         c.hget(enabled_key.as_bytes(), b"enabled")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .ok()
     .flatten()
@@ -183,8 +183,7 @@ pub async fn verify_totp(
         let code_owned = req.code.clone();
         crate::handlers::kevy_util::with_kevy(move |c| {
             let recovery_str = c
-                .hget(rc_key.as_bytes(), b"recovery_codes")
-                .map_err(std::io::Error::other)?
+                .hget(rc_key.as_bytes(), b"recovery_codes")?
                 .and_then(|v| String::from_utf8(v).ok())
                 .unwrap_or_default();
             let mut codes: Vec<&str> = recovery_str.split(',').filter(|s| !s.is_empty()).collect();
@@ -196,8 +195,7 @@ pub async fn verify_totp(
             c.hset(
                 rc_key.as_bytes(),
                 &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-            )
-            .map_err(std::io::Error::other)?;
+            )?;
             Ok(true)
         })
         .unwrap_or(false)

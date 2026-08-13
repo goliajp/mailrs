@@ -55,8 +55,8 @@ impl QuotaStage {
         let c = client.clone();
         let pair = tokio::task::spawn_blocking(move || {
             c.with_conn(|conn| {
-                let limit = conn.get(lk.as_bytes()).map_err(std::io::Error::other)?;
-                let used = conn.get(uk.as_bytes()).map_err(std::io::Error::other)?;
+                let limit = conn.get(lk.as_bytes())?;
+                let used = conn.get(uk.as_bytes())?;
                 Ok((limit, used))
             })
         })

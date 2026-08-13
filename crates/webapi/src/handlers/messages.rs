@@ -253,9 +253,7 @@ pub async fn cancel_pending_send(
         // legacy `pending` list + `mailrs:outbound:{id}` blob, which
         // sender no longer produces, so cancel-pending walked an empty
         // list and never matched anything real.
-        let ids = c
-            .lrange(PENDING_IDX, 0, -1)
-            .map_err(std::io::Error::other)?;
+        let ids = c.lrange(PENDING_IDX, 0, -1)?;
         let mut removed = 0u32;
         let mut keep = Vec::new();
         for id_bytes in ids {
@@ -264,9 +262,7 @@ pub async fn cancel_pending_send(
                 continue;
             };
             let hkey = format!("mailrs:outbound:job:{id_str}");
-            let blob = c
-                .hget(hkey.as_bytes(), b"blob")
-                .map_err(std::io::Error::other)?;
+            let blob = c.hget(hkey.as_bytes(), b"blob")?;
             // Strict JSON compare: parse the envelope, match on the
             // sender field AND the Message-ID header extracted from
             // message_data. Prior contains-in-string version would
@@ -297,33 +293,27 @@ pub async fn cancel_pending_send(
                     matched = true;
                     // Drop the job hash so a re-drain of pending-idx
                     // sees try_claim's state check fail.
-                    c.del(&[hkey.as_bytes()]).map_err(std::io::Error::other)?;
+                    c.del(&[hkey.as_bytes()])?;
                 }
             }
             if !matched {
                 keep.push(id_bytes);
             }
         }
-        c.del(&[PENDING_IDX]).map_err(std::io::Error::other)?;
+        c.del(&[PENDING_IDX])?;
         for id in keep {
-            c.lpush(PENDING_IDX, &[id.as_slice()])
-                .map_err(std::io::Error::other)?;
+            c.lpush(PENDING_IDX, &[id.as_slice()])?;
         }
         // also sweep the scheduled zset — a scheduled send hasn't reached
         // the pending list yet, so cancelling it must look here too (G13).
         // v2 scheduled key is `scheduled-idx` (see stone outbound.rs).
-        let sched = c
-            .zrange(SCHEDULED_IDX, 0, -1)
-            .map_err(std::io::Error::other)?;
+        let sched = c.zrange(SCHEDULED_IDX, 0, -1)?;
         for id_bytes in sched {
             let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
                 continue;
             };
             let hkey = format!("mailrs:outbound:job:{id_str}");
-            let Some(bytes) = c
-                .hget(hkey.as_bytes(), b"blob")
-                .map_err(std::io::Error::other)?
-            else {
+            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
                 continue;
             };
             let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -341,9 +331,8 @@ pub async fn cancel_pending_send(
                 .unwrap_or_default();
             let header = format!("Message-ID: <{target}>\r\n");
             if sender == user_c && md.contains(&header) {
-                c.zrem(SCHEDULED_IDX, &[id_bytes.as_slice()])
-                    .map_err(std::io::Error::other)?;
-                c.del(&[hkey.as_bytes()]).map_err(std::io::Error::other)?;
+                c.zrem(SCHEDULED_IDX, &[id_bytes.as_slice()])?;
+                c.del(&[hkey.as_bytes()])?;
                 removed += 1;
             }
         }

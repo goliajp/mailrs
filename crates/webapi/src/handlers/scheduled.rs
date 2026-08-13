@@ -35,10 +35,7 @@ pub async fn cancel_scheduled(
     let id_c = id.clone();
     let user_c = user.clone();
     let removed = crate::handlers::kevy_util::with_kevy(move |c| {
-        let Some(bytes) = c
-            .hget(hkey_c.as_bytes(), b"blob")
-            .map_err(std::io::Error::other)?
-        else {
+        let Some(bytes) = c.hget(hkey_c.as_bytes(), b"blob")? else {
             return Ok(false);
         };
         let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -47,9 +44,8 @@ pub async fn cancel_scheduled(
         if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
             return Ok(false);
         }
-        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])
-            .map_err(std::io::Error::other)?;
-        c.del(&[hkey_c.as_bytes()]).map_err(std::io::Error::other)?;
+        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
+        c.del(&[hkey_c.as_bytes()])?;
         Ok(true)
     })
     .unwrap_or(false);
@@ -87,10 +83,7 @@ pub async fn reschedule_scheduled(
     let id_c = id.clone();
     let new_score = req.scheduled_at;
     let rescheduled = crate::handlers::kevy_util::with_kevy(move |c| {
-        let Some(bytes) = c
-            .hget(hkey.as_bytes(), b"blob")
-            .map_err(std::io::Error::other)?
-        else {
+        let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
             return Ok(false);
         };
         let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -99,10 +92,8 @@ pub async fn reschedule_scheduled(
         if env.get("sender").and_then(|v| v.as_str()) != Some(user_c.as_str()) {
             return Ok(false);
         }
-        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])
-            .map_err(std::io::Error::other)?;
-        c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])
-            .map_err(std::io::Error::other)?;
+        c.zrem(SCHEDULED_KEY, &[id_c.as_bytes()])?;
+        c.zadd(SCHEDULED_KEY, &[(new_score as f64, id_c.as_bytes())])?;
         Ok(true)
     })
     .unwrap_or(false);
@@ -125,8 +116,7 @@ pub async fn list_scheduled(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let ids = crate::handlers::kevy_util::with_kevy(|c| {
-        c.zrange(SCHEDULED_IDX, 0, -1)
-            .map_err(std::io::Error::other)
+        c.zrange(SCHEDULED_IDX, 0, -1).map_err(std::io::Error::from)
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -137,10 +127,7 @@ pub async fn list_scheduled(
                 continue;
             };
             let hkey = format!("mailrs:outbound:job:{id}");
-            let Some(blob) = c
-                .hget(hkey.as_bytes(), b"blob")
-                .map_err(std::io::Error::other)?
-            else {
+            let Some(blob) = c.hget(hkey.as_bytes(), b"blob")? else {
                 continue;
             };
             let Ok(env) = serde_json::from_slice::<serde_json::Value>(&blob) else {
@@ -152,10 +139,7 @@ pub async fn list_scheduled(
             if env.get("sender").and_then(|v| v.as_str()) != Some(user.as_str()) {
                 continue;
             }
-            let scheduled_at = c
-                .zscore(SCHEDULED_IDX, &member)
-                .map_err(std::io::Error::other)?
-                .unwrap_or(0.0) as i64;
+            let scheduled_at = c.zscore(SCHEDULED_IDX, &member)?.unwrap_or(0.0) as i64;
             out.push(serde_json::json!({
                 "id": id,
                 "scheduled_at": scheduled_at,

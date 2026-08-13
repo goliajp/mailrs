@@ -126,8 +126,7 @@ fn fetch_counts(
 
 fn hget_i64(conn: &mut kevy_client::Connection, key: &[u8], field: &[u8]) -> std::io::Result<i64> {
     Ok(conn
-        .hget(key, field)
-        .map_err(std::io::Error::other)?
+        .hget(key, field)?
         .and_then(|v| String::from_utf8(v).ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or(0))
@@ -140,13 +139,11 @@ fn hmget_counts(
     key: &[u8],
     tokens: &[String],
 ) -> std::io::Result<Vec<i64>> {
-    let replies = conn
-        .pipeline(|p| {
-            for t in tokens {
-                p.cmd(&[b"HGET", key, t.as_bytes()]);
-            }
-        })
-        .map_err(std::io::Error::other)?;
+    let replies = conn.pipeline(|p| {
+        for t in tokens {
+            p.cmd(&[b"HGET", key, t.as_bytes()]);
+        }
+    })?;
     Ok(replies
         .into_iter()
         .map(|r| match r {

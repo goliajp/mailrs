@@ -118,7 +118,7 @@ pub async fn audit_conversation_detail(
     // Best we can do without a user context: read thread aggregate
     // directly from network kevy. Fastcore's per-user RPCs need a user.
     let key = format!("mailrs:thread:{thread_id}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     if flat.is_empty() {
         return Ok(Json(
             serde_json::json!({ "thread_id": thread_id, "found": false }),

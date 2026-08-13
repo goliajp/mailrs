@@ -160,16 +160,12 @@ fn sanitize(s: &str) -> String {
 /// rather than rewritten, so a receiver re-sending the same report
 /// costs one read and no writes.
 pub fn store_report(kevy_url: &str, report: &AggregateReport) -> std::io::Result<StoreOutcome> {
-    let mut conn = kevy_client::Connection::connect(kevy_url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(kevy_url)?;
     let sid = storage_id(report);
     let report_key = format!("{REPORT_PREFIX}{sid}");
 
     // Conditional write — see module docs. Receivers do re-send.
-    if conn
-        .hget(report_key.as_bytes(), b"report_id")
-        .map_err(std::io::Error::other)?
-        .is_some()
-    {
+    if conn.hget(report_key.as_bytes(), b"report_id")?.is_some() {
         return Ok(StoreOutcome::Duplicate);
     }
 
@@ -178,8 +174,7 @@ pub fn store_report(kevy_url: &str, report: &AggregateReport) -> std::io::Result
         .iter()
         .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
         .collect();
-    conn.hset(report_key.as_bytes(), &pairs)
-        .map_err(std::io::Error::other)?;
+    conn.hset(report_key.as_bytes(), &pairs)?;
 
     let rows_key = format!("{ROWS_PREFIX}{sid}");
     let row_blobs: Vec<String> = report.records.iter().map(row_json).collect();
@@ -190,8 +185,7 @@ pub fn store_report(kevy_url: &str, report: &AggregateReport) -> std::io::Result
         .map(|(rec, blob)| (rec.row.count as f64, blob.as_bytes()))
         .collect();
     if !members.is_empty() {
-        conn.zadd(rows_key.as_bytes(), &members)
-            .map_err(std::io::Error::other)?;
+        conn.zadd(rows_key.as_bytes(), &members)?;
     }
 
     conn.zadd(
@@ -200,8 +194,7 @@ pub fn store_report(kevy_url: &str, report: &AggregateReport) -> std::io::Result
             report.report_metadata.date_range.begin as f64,
             sid.as_bytes(),
         )],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
 
     Ok(StoreOutcome::Stored)
 }

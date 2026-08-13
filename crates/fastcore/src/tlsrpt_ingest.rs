@@ -156,16 +156,12 @@ pub fn totals(report: &Report) -> (u64, u64) {
 
 /// Persist a parsed report. Returns whether it was new.
 fn store_report(kevy_url: &str, report: &Report) -> std::io::Result<bool> {
-    let mut conn = kevy_client::Connection::connect(kevy_url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(kevy_url)?;
     let sid = storage_id(report);
     let report_key = format!("{REPORT_PREFIX}{sid}");
 
     // Conditional write — reporters do re-send.
-    if conn
-        .hget(report_key.as_bytes(), b"report_id")
-        .map_err(std::io::Error::other)?
-        .is_some()
-    {
+    if conn.hget(report_key.as_bytes(), b"report_id")?.is_some() {
         return Ok(false);
     }
 
@@ -192,8 +188,7 @@ fn store_report(kevy_url: &str, report: &Report) -> std::io::Result<bool> {
             (b"successful".as_slice(), ok_s.as_bytes()),
             (b"failed".as_slice(), failed_s.as_bytes()),
         ],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
 
     // Failure detail, highest-count first when read back.
     let blobs: Vec<(f64, String)> = report
@@ -218,8 +213,7 @@ fn store_report(kevy_url: &str, report: &Report) -> std::io::Result<bool> {
         .collect();
     if !blobs.is_empty() {
         let members: Vec<(f64, &[u8])> = blobs.iter().map(|(c, b)| (*c, b.as_bytes())).collect();
-        conn.zadd(format!("{FAILURES_PREFIX}{sid}").as_bytes(), &members)
-            .map_err(std::io::Error::other)?;
+        conn.zadd(format!("{FAILURES_PREFIX}{sid}").as_bytes(), &members)?;
     }
 
     // Index score is the window start as a unix timestamp. RFC 8460
@@ -228,8 +222,7 @@ fn store_report(kevy_url: &str, report: &Report) -> std::io::Result<bool> {
     let score = chrono::DateTime::parse_from_rfc3339(&begin)
         .map(|d| d.timestamp() as f64)
         .unwrap_or(0.0);
-    conn.zadd(INDEX_KEY, &[(score, sid.as_bytes())])
-        .map_err(std::io::Error::other)?;
+    conn.zadd(INDEX_KEY, &[(score, sid.as_bytes())])?;
     Ok(true)
 }
 

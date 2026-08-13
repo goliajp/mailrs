@@ -66,7 +66,7 @@ pub async fn load_recipient_lists_async(
 
 fn read_lowercase_set(client: &KevyNetClient, key: &str) -> Option<HashSet<String>> {
     let bytes = client
-        .with_conn(|c| c.smembers(key.as_bytes()).map_err(std::io::Error::other))
+        .with_conn(|c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))
         .ok()?;
     let mut out = HashSet::with_capacity(bytes.len());
     for b in bytes {
@@ -102,13 +102,13 @@ mod tests {
         client
             .with_conn(|c| {
                 c.sadd(b"spam:u@example.com:whitelist", &[b"Friend@GOLIA.jp"])
-                    .map_err(std::io::Error::other)
+                    .map_err(std::io::Error::from)
             })
             .expect("sadd whitelist");
         client
             .with_conn(|c| {
                 c.sadd(b"spam:u@example.com:blacklist", &[b"spammer@EVIL.com"])
-                    .map_err(std::io::Error::other)
+                    .map_err(std::io::Error::from)
             })
             .expect("sadd blacklist");
 

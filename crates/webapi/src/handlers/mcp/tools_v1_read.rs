@@ -362,7 +362,7 @@ impl MailrsMcpService {
         let q = params.q.to_lowercase();
         let limit = params.limit as usize;
         let flat = crate::handlers::kevy_util::with_kevy(move |c| {
-            c.hgetall(key.as_bytes()).map_err(std::io::Error::other)
+            c.hgetall(key.as_bytes()).map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("contacts read failed", None))?;
         // hgetall is flat [field, value, ...] — field = email, value = display
@@ -390,7 +390,7 @@ impl MailrsMcpService {
         let user = self.require_user()?.to_string();
         let key = format!("signatures:{user}");
         let flat = crate::handlers::kevy_util::with_kevy(move |c| {
-            c.hgetall(key.as_bytes()).map_err(std::io::Error::other)
+            c.hgetall(key.as_bytes()).map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("signatures read failed", None))?;
         let items: Vec<serde_json::Value> = flat
@@ -407,7 +407,7 @@ impl MailrsMcpService {
     async fn get_queue(&self) -> Result<CallToolResult, McpError> {
         let _user = self.require_user()?;
         let pending = crate::handlers::kevy_util::with_kevy(|c| {
-            c.llen(PENDING_IDX).map_err(std::io::Error::other)
+            c.llen(PENDING_IDX).map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("queue read failed", None))?;
         Ok(CallToolResult::success(vec![Content::text(
