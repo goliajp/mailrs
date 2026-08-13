@@ -380,9 +380,12 @@ pub(crate) async fn set_message_flags_route(
         tracing::error!(err = %e, %user, %uid, "upsert_message failed");
         return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    let seen_bit = 0b0000_0001u32;
-    let was_seen = (old_flags & seen_bit) != 0;
-    let is_seen = (new_flags & seen_bit) != 0;
+    // Imported, not spelled out. This read `0b0000_0001` until the constant
+    // became reachable from this lane — and a bitmask restated at a call
+    // site is how one bit ends up meaning two things.
+    use mailrs_core_api::method::message::FLAG_SEEN;
+    let was_seen = (old_flags & FLAG_SEEN) != 0;
+    let is_seen = (new_flags & FLAG_SEEN) != 0;
     if was_seen != is_seen && !wire.thread_id.is_empty() {
         let _ = if is_seen {
             state.mailbox.mark_seen(&user, &wire.thread_id)

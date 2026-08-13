@@ -19,6 +19,7 @@ pub(crate) use idx_advice::idx_advice_route;
 mod shadow_legacy;
 mod shadow_messages;
 mod shadow_projection;
+mod shadow_read_state;
 
 pub(crate) use backfill_admin::*;
 pub(crate) use backfill_messages::*;
@@ -28,6 +29,7 @@ pub(crate) use cleanup::*;
 pub(crate) use shadow_legacy::*;
 pub(crate) use shadow_messages::*;
 pub(crate) use shadow_projection::*;
+pub(crate) use shadow_read_state::*;
 
 /// What every handler in here needs, in one place.
 ///

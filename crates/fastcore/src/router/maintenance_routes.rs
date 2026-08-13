@@ -70,6 +70,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:usermsg-shadow",
             post(usermsg_shadow_route),
         )
+        // Read-only: the maildir's flags against the index's belief about
+        // them. Step 1 of `20260814-the-maildir-is-the-store.md`, run before
+        // anything writes either side.
+        .route(
+            "/v1/admin/maintenance:read-state-shadow",
+            post(read_state_shadow_route),
+        )
         // Ops endpoint — where mail forging one of our own domains
         // actually ended up.
         .route(
