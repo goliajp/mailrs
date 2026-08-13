@@ -122,8 +122,16 @@ impl Handler for CoreRpcState {
 /// authenticated routes. Empty secret means **no auth**, intended for
 /// local dev only — production deploys MUST set it.
 ///
-/// Returns immediately; the server runs in a background tokio task.
-pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch::Receiver<bool>) {
+/// Returns immediately — the server runs in a background tokio task, and its
+/// `JoinHandle` comes back so a caller that has to release
+/// something after the last request can wait for the task to end. The
+/// monolith ignores it; `run_pg_core` awaits it, because on the spg backend
+/// the catalog lock is only released when the final pool clone drops and the
+/// server task holds one.
+pub fn spawn_core_rpc(
+    state: Arc<CoreRpcState>,
+    shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) -> tokio::task::JoinHandle<()> {
     let addr = std::env::var("MAILRS_CORE_RPC_ADDR")
         .unwrap_or_else(|_| format!("0.0.0.0:{}", mailrs_core_api::DEFAULT_CORE_RPC_PORT));
 
@@ -159,5 +167,5 @@ pub fn spawn_core_rpc(state: Arc<CoreRpcState>, shutdown_rx: tokio::sync::watch:
         if let Err(e) = server.await {
             tracing::error!(error = %e, "core RPC server exited with error");
         }
-    });
+    })
 }
