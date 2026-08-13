@@ -206,7 +206,18 @@ services:
 
   kevy-server:
     container_name: mailrs-kevy
-    image: ghcr.io/goliajp/kevy:3.18.0
+    # 5.1.0 since 2026-08-14. It replays a 3.18 AOF cleanly and reads it
+    # identically — same per-shard command counts, same 13 prefix counts on
+    # the same bytes. Rehearsed on a copy first; see
+    # .claude/plans/1D-kevy-server-3.18-to-5.1.md for the numbers.
+    #
+    # Rolling back is a binary swap ONLY until the first BGREWRITEAOF. That
+    # rewrite flips the on-disk format v1 -> v2, and 3.18 against a v2 file
+    # does not refuse: it starts, calls each shard corrupt, drops the trailing
+    # bytes and comes up with 1 key instead of 33,636. Nothing on disk is lost
+    # unless it is then written to. After a rewrite, the only rollback is
+    # restoring the data directory.
+    image: ghcr.io/goliajp/kevy:5.1.0
     pull_policy: always
     mem_limit: 1g
     volumes:
