@@ -116,6 +116,11 @@ def main() -> int:
 
         print(f"{ep:<30} {cell(p50s):>16} {cell(p95s):>16} {cell(p99s):>16}")
 
+    # The host-load witness is not a process and must not be read as one: in
+    # the process table it renders as 0.0 MB resident, which invites a reader
+    # to skip the row. It gets its own line.
+    witness = resource.pop("host loadavg", None)
+
     if resource:
         print()
         rhead = f"{'process':<30} {'RSS MB peak':>16} {'RSS MB mean':>16} {'CPU % peak':>16}"
@@ -139,6 +144,18 @@ def main() -> int:
             # process against a pair understates the pair, so the sum is the
             # comparable figure and gets its own line.
             print(f"{'— all processes, summed':<30} {total_peak:>16.1f}")
+
+    if witness and witness["cpu_pct"]:
+        la = witness["cpu_pct"]
+        print()
+        print(
+            f"{'host load average':<30} {min(la):>16.2f} {statistics.mean(la):>16.2f} "
+            f"{max(la):>16.2f}   (min / mean / max over {len(la)} samples)"
+        )
+        print(
+            "  A witness with nothing to do with the store: a percentile that moved"
+        )
+        print("  while this moved is not a finding.")
 
     if disk or engine:
         print()

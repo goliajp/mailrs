@@ -12,6 +12,90 @@ honestly measured and which are still open. When in doubt, default to
 the latest column ("Measured?") here — not to whatever a commit message
 or marketing material says.
 
+## Storage-engine comparison, three columns (2026-08-13 → in-flight)
+
+Column A is taken. B and C are not, and the rows below say so rather than
+being left out — a table with a column missing is legible; a table that
+quietly starts at B is not.
+
+| | engine | status |
+|---|---|---|
+| **A** | kevy-embedded 4.1.1 + kevy-server 3.18.0 | **measured 2026-08-13** |
+| **B** | kevy-embedded 5.1.0 + kevy-server 5.1.0 | pending the upgrade |
+| **C** | spg-embedded 7.37.16 via pg-core | pending the lane's reactivation |
+
+### Method
+
+```bash
+BENCH_COMMIT=<sha> BENCH_CPUS=0-3 HOSTLABEL=lx64-x86_64-pin0-3 \
+  ROUNDS=5 N=30 ./scripts/bench-api-e2e.sh fastcore
+./scripts/bench-api-e2e.sh --compare        # once more than one arm is in
+```
+
+Five rounds of thirty requests per endpoint. Each round's percentiles are
+computed separately and the **median across rounds** is reported with its
+sample deviation, because a number without its spread cannot be compared to
+another number. A difference smaller than the two cells' pooled spread is
+noise, and `--compare` prints it as such rather than as a percentage.
+
+- **Host**: lx64, Linux 6.12 x86_64, 16 cores / 62 GB, **pinned to CPUs 0-3**
+  (`--cpuset-cpus` for the container). Four is the core count prod runs on, so
+  the numbers describe a topology that exists. Prod is arm64; this is x86_64.
+- The host is **not idle** — it runs eight unrelated containers. Hence the
+  pinning, and hence the load-average witness below: a percentile that moved
+  while the load moved is not a finding. A run with no witness samples is
+  refused by both reducers.
+- **Dataset**: `scripts/bench-api-seed.py`, 24,304 messages / 23,508 threads,
+  emitted as SQL or NDJSON from the same generated rows so the arms are fed
+  the same work. Fingerprint `50:06f386ffaed5ee3a` — the first conversation
+  page as (thread_id, subject, count) **in order**, hashed. `--compare`
+  refuses to print if the arms' fingerprints differ. The same fingerprint came
+  back on macOS arm64, so the seed reproduces across architectures.
+- **Not in the panel**: IMAP SELECT + FETCH. Both lanes serve it; it needs a
+  raw-socket client rather than curl.
+
+### Column A — kevy-embedded 4.1.1, kevy-server 3.18.0
+
+Commit `47f53919`, host load 1.68 / 1.76 / 1.87 (min / mean / max, 14 samples).
+
+| Endpoint | p50 ms | p95 ms | p99 ms |
+|---|---:|---:|---:|
+| `GET /api/conversations?limit=50` | 1.8 ±0.1 | 2.1 ±0.5 | 2.1 ±0.5 |
+| `GET /api/conversations/{thread}` | 0.7 ±0.1 | 1.0 ±1.4 | 1.0 ±1.4 |
+| `GET /api/conversations/search?q=invoice` | 15.5 ±0.3 | 16.3 ±0.7 | 16.3 ±2.5 |
+| `GET /api/conversations/categories` | 0.9 ±0.1 | 1.2 ±0.1 | 1.2 ±0.1 |
+| `GET /api/mail/stats` | 9.3 ±0.2 | 10.6 ±0.9 | 11.2 ±1.2 |
+| `GET /api/conversations/unseen-count` | 6.3 ±0.3 | 9.1 ±2.4 | 9.4 ±2.2 |
+| `POST …/{thread}/star` | 0.9 ±0.1 | 1.2 ±0.1 | 1.2 ±0.1 |
+| `POST …/{thread}/unstar` | 0.8 ±0.1 | 0.9 ±0.1 | 0.9 ±0.1 |
+| `POST …/{thread}/read` | 0.8 ±0.0 | 1.0 ±0.1 | 1.0 ±0.2 |
+| 4 parallel inbox reads, wall clock | 22.0 ±2.7 | | |
+
+| Footprint | |
+|---|---:|
+| RSS peak, `mailrs-fastcore` | 393.0 MB |
+| RSS peak, `mailrs-webapi` | 15.6 MB |
+| **RSS peak, both processes** | **408.6 MB** |
+| CPU peak, `mailrs-fastcore` | 92.3 % |
+| kevy data directory | 56.8 MB |
+| kevy keys | 142,641 |
+| kevy AOF | 56.7 MB |
+
+The key count is the corroborating witness for the disk figure: a directory
+that grew while the key count did not would mean one of the two is measuring
+nothing.
+
+`unseen-count` at 6.3 ms is the endpoint form of the badge count that
+`crates/mailbox-kevy/BUDGETS.md` records at 2.95 ms in-process. It is the
+measured target for kevy 5.1's `idx_count_claused`.
+
+**Note on comparability with older figures in this file.** The seeder's
+analysis categories now come from a pre-pass keyed by message id, so both
+output formats can carry the same category per message. That changed which
+categories the SQL output emits, so any pg/spg number recorded here before
+2026-08-13 was taken against a different dataset and does not belong in a
+table beside these. All three columns are measured fresh.
+
 ## v2.0.0 kevy 3.17 refactor (2026-07-06 → in-flight)
 
 Following the kevy-embedded 1.15 → 3.17.2 upgrade in v1.9.0, Stage
