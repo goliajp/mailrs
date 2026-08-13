@@ -201,13 +201,20 @@ impl PgMailboxStore {
     /// "Unread N" without specifying messages vs threads, and threads are
     /// what the user actually sees in the list
     pub async fn count_unseen(&self, user: &str) -> Result<i64, sqlx::Error> {
-        // TEMP(SPG): spg 7.30.3 can't parse two standard-SQL shapes this
-        // query originally used — a FROM-clause derived table (round-31)
-        // and the aggregate FILTER clause (round-29). rewritten to the
-        // equivalent CTE + COUNT(CASE ...) forms (both also standard SQL,
-        // both parse on spg). owner-authorized so the unread badge works
-        // now; revert to the plainer derived-table + FILTER form when the
-        // engine supports them.
+        // Both shapes spg 7.30.3 refused now parse — the aggregate `FILTER`
+        // clause and a FROM-clause derived table, measured against 7.37.16 by
+        // `tests/spg_sql_shapes.rs`, which keeps asking so this note cannot go
+        // stale the way its predecessor did.
+        //
+        // `FILTER` is taken back, because `COUNT(CASE WHEN … THEN 1 END)` says
+        // the same thing less clearly. The CTE stays: a derived table is no
+        // improvement on it, and this is the unread badge — its result was once
+        // swallowed to 0 on error and the homepage read zero on full mailboxes
+        // (2026-06-13), so it gets changed for legibility and not for
+        // symmetry with a form nobody prefers.
+        //
+        // `count_unseen_counts_unread_threads` in tests/smoke.rs is the guard,
+        // on both backend axes.
         let row: Result<(i64,), _> = sqlx::query_as(
             "WITH unread_threads AS (
                SELECT m.thread_id
@@ -227,7 +234,7 @@ impl PgMailboxStore {
                  )
                GROUP BY m.thread_id
                HAVING BOOL_OR(m.archived) = false
-                  AND COUNT(CASE WHEN (m.flags & 1) = 0 THEN 1 END) > 0
+                  AND COUNT(*) FILTER (WHERE (m.flags & 1) = 0) > 0
                   AND LOWER(COALESCE((SELECT m_last.sender FROM messages m_last WHERE m_last.thread_id = m.thread_id ORDER BY m_last.internal_date DESC LIMIT 1), '')) NOT LIKE '%' || LOWER($1) || '%'
              )
              SELECT COUNT(*) FROM unread_threads",
