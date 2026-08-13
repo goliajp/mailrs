@@ -3304,6 +3304,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "chrono",
+ "criterion 0.8.2",
  "kevy-embedded",
  "kevy-index",
  "mailrs-alias-store",
