@@ -153,7 +153,16 @@ pub(crate) fn drain_once(
         };
         let mut delivered_here = 0usize;
         let mut unresolved: Vec<String> = Vec::new();
-        for fwd in &env.forward_paths {
+        for raw_fwd in &env.forward_paths {
+            // Fold once, before anything is looked up. Maildir paths and
+            // both kevy key families are written lowercase, so an
+            // uppercase RCPT TO used verbatim misses all three and the
+            // message is accepted at SMTP and then never delivered — one
+            // file sat here from 2026-08-06 to 2026-08-14 for exactly
+            // that reason. Everything downstream (delivery, sieve, DSN,
+            // logging) gets the canonical form too, so the address a
+            // human reads in a log is the one the lookups used.
+            let fwd = &canonical_recipient(raw_fwd);
             // 1. Resolve the addressable recipient — direct maildir, or
             //    the alias table (`mailrs:alias:<addr>` → target). Both
             //    cases return the address we'll actually deliver TO.
@@ -167,6 +176,7 @@ pub(crate) fn drain_once(
             } else {
                 let via_alias = state.alias_store.resolve(fwd).ok().flatten();
                 via_alias.and_then(|a| {
+                    let a = canonical_recipient(&a);
                     if has_maildir(maildir_root, &a)
                         || provision_if_account(state, maildir_root, &a)
                     {
@@ -181,17 +191,28 @@ pub(crate) fn drain_once(
             // SRS0=...@<our-domain> is the return path for mail we
             // forwarded. Reverse it to the original sender and relay
             // the bounce outward — never deliver it locally.
-            if fwd.to_ascii_uppercase().starts_with("SRS0=")
+            //
+            // This one reads `raw_fwd`, not the folded form. An SRS local
+            // part is `SRS0=<hmac>=<tt>=<domain>=<local>`, and both halves
+            // of it are case-sensitive: `reverse` strips the literal
+            // `SRS0=` prefix, and the HMAC is computed over the domain and
+            // local part it carries. Folding the address would make the
+            // prefix strip fail and, past that, produce a different hash —
+            // so bounces for mail we forwarded would stop being relayed and
+            // would instead land in `unresolved` and sit in the spool. That
+            // is the same defect this fold exists to remove, so the fold
+            // must not reach here.
+            if raw_fwd.to_ascii_uppercase().starts_with("SRS0=")
                 && let Ok(secret) = std::env::var("MAILRS_SRS_SECRET")
                 && let Some(original) =
-                    mailrs_srs::reverse(fwd, &secret, mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS)
+                    mailrs_srs::reverse(raw_fwd, &secret, mailrs_srs::DEFAULT_TIMESTAMP_WINDOW_DAYS)
             {
                 match enqueue_outbound(&original, "", body) {
                     Ok(()) => {
-                        tracing::info!(srs = %fwd, %original, "SRS bounce relayed");
+                        tracing::info!(srs = %raw_fwd, %original, "SRS bounce relayed");
                         delivered_here += 1;
                     }
-                    Err(e) => tracing::warn!(srs = %fwd, error = %e, "SRS relay failed"),
+                    Err(e) => tracing::warn!(srs = %raw_fwd, error = %e, "SRS relay failed"),
                 }
                 continue;
             }
