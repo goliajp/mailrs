@@ -277,13 +277,26 @@ impl PgMailboxStore {
         Ok(result.rows_affected() as u32)
     }
 
-    /// snooze a conversation until a given time
+    /// Put a conversation to sleep until a given time.
+    ///
+    /// Away **is** archived, with the time recorded beside it. That is not this
+    /// lane's invention — it is what the kevy side does (`set_snoozed` writes
+    /// `archived` and `snoozed_until` in one atomic hset) and what the client
+    /// expects: *"a thread that is asleep is filed away, so it shows up in
+    /// Archived and nowhere else"*, with a "Snoozed until <date>" badge on the
+    /// row so it is not mistaken for an ordinary archived thread.
+    ///
+    /// This wrote only the `snoozed_conversations` row, so the thread was
+    /// archived nowhere and the list excluded it from every view — a
+    /// conversation put away for a week was, for that week, in no view at all.
+    /// `tests/snooze_reachable.rs` is the guard, on both backend axes.
     pub async fn snooze_thread(
         &self,
         user: &str,
         thread_id: &str,
         until: chrono::DateTime<chrono::Utc>,
     ) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO snoozed_conversations (thread_id, account_address, snoozed_until)
              VALUES ($1, $2, $3)
@@ -292,23 +305,82 @@ impl PgMailboxStore {
         .bind(thread_id)
         .bind(user)
         .bind(until)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
-        Ok(())
+        // One transaction, because the two halves are one fact. Recorded but not
+        // archived leaves the thread unreachable; archived but not recorded
+        // leaves it away forever with nothing to bring it back.
+        sqlx::query(
+            "UPDATE messages m SET archived = true
+             FROM mailboxes mb
+             WHERE m.mailbox_id = mb.id AND mb.user_address = $1 AND m.thread_id = $2",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await
     }
 
-    /// unsnooze a conversation
+    /// Wake it now: clear the record and bring it back from Archived.
     pub async fn unsnooze_thread(&self, user: &str, thread_id: &str) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
         sqlx::query(
             "DELETE FROM snoozed_conversations WHERE thread_id = $1 AND account_address = $2",
         )
         .bind(thread_id)
         .bind(user)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
-        Ok(())
+        sqlx::query(
+            "UPDATE messages m SET archived = false
+             FROM mailboxes mb
+             WHERE m.mailbox_id = mb.id AND mb.user_address = $1 AND m.thread_id = $2",
+        )
+        .bind(user)
+        .bind(thread_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await
+    }
+
+    /// Bring back every conversation whose time has come. Returns how many.
+    ///
+    /// The counterpart of kevy's `wake_snoozed`, and needed for the same reason:
+    /// once a snooze archives the thread, something has to un-archive it, and a
+    /// predicate on the read cannot — the row is archived, and "archived because
+    /// asleep, and no longer asleep" is not a state the list can distinguish
+    /// from "archived on purpose".
+    ///
+    /// Writes nothing when nothing is due: the `DELETE … RETURNING` matches no
+    /// rows and the `UPDATE` has nothing to join to, which is what
+    /// `rules/periodic-work-must-converge.md` asks of anything on a timer — the
+    /// idle tick must be free, not merely idempotent.
+    pub async fn wake_snoozed(&self) -> Result<u64, sqlx::Error> {
+        let due: Vec<(String, String)> = sqlx::query_as(
+            "DELETE FROM snoozed_conversations
+             WHERE snoozed_until <= NOW()
+             RETURNING account_address, thread_id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        for (user, thread_id) in &due {
+            sqlx::query(
+                "UPDATE messages m SET archived = false
+                 FROM mailboxes mb
+                 WHERE m.mailbox_id = mb.id AND mb.user_address = $1 AND m.thread_id = $2",
+            )
+            .bind(user)
+            .bind(thread_id)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(due.len() as u64)
     }
 
     /// delete all mailbox entries for a thread belonging to a user
