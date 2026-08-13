@@ -30,7 +30,7 @@ use mailrs_core_api::types::{ConversationFilter, ConversationSummaryWire};
 
 use super::pg_core::{deliver_req, spawn_fastcore, spawn_pg_core};
 
-const USER: &str = "two-lane@test";
+pub(super) const USER: &str = "two-lane@test";
 
 /// Seven threads, and three of them share one `latest_date` second.
 ///
@@ -42,7 +42,7 @@ const USER: &str = "two-lane@test";
 const THREADS: usize = 7;
 const TIE_SECOND: i64 = 1_700_000_500;
 
-async fn seed(c: &Client) {
+pub(super) async fn seed(c: &Client) {
     c.add_account(&AddAccountRequest {
         address: USER.into(),
         display_name: "Two Lane".into(),
@@ -79,8 +79,16 @@ async fn seed(c: &Client) {
             // exactly like the SQL lane sorting oldest-first, and is not.
             // core-sync sends both, so a real migration is unaffected; a test
             // that sets one is measuring its own mistake.
+            // `flags: 0` with `unread: true` — a coherent arrival. The shared
+            // `deliver_req` says `"flags": 1`, i.e. `\Seen`, while also
+            // claiming the message is unread, and a seed that contradicts
+            // itself measures whichever copy the code under test happens to
+            // read. That contradiction is what made the round-trip rehearsal
+            // report every thread as differing once `core-sync` started taking
+            // the read state from the flag instead of from the sender.
             req.payload_wire_json = req
                 .payload_wire_json
+                .replace("\"flags\":1", "\"flags\":0")
                 .replace("\"date\":1700000000", &format!("\"date\":{date}"))
                 .replace(
                     "\"internal_date\":1700000000",
@@ -94,7 +102,11 @@ async fn seed(c: &Client) {
     }
 }
 
-async fn page(c: &Client, limit: u32, before_ts: Option<i64>) -> Vec<ConversationSummaryWire> {
+pub(super) async fn page(
+    c: &Client,
+    limit: u32,
+    before_ts: Option<i64>,
+) -> Vec<ConversationSummaryWire> {
     c.list_conversations(
         USER,
         &ListConversationsRequest {
@@ -239,7 +251,7 @@ fn tie_groups(rows: &[ConversationSummaryWire]) -> Vec<(i64, std::collections::B
 /// exists to produce the whole list — the difference between "subject differs"
 /// and "subject and senders differ on rows written before the display payload
 /// existed" is the difference between a bug and a backfill gap.
-fn diffs(
+pub(super) fn diffs(
     kevy: &[ConversationSummaryWire],
     pg: &[ConversationSummaryWire],
     what: &str,
