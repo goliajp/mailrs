@@ -36,6 +36,27 @@ mod backend {
     /// and return both the container handle (must stay alive!) and a
     /// connected pool.
     pub async fn setup_pg() -> (TestHandle, PgPool) {
+        // One container at a time comes UP, repo-wide.
+        //
+        // Per-test containers are deliberate and stay that way — the isolation
+        // is the point. What is not deliberate is a dozen of them starting at
+        // the same instant: `cargo test --workspace` runs every test binary in
+        // parallel, and there are ~17 tests across three files here that each
+        // start their own. Under that spike the wait-for-ready times out and
+        // the tests go red while passing one at a time, which is the exact
+        // signature recorded for this fixture already.
+        //
+        // A red test that is red because of its neighbours is worse than no
+        // test: it teaches the reader that red does not mean broken. So the
+        // startup — and only the startup — is serialised. Once a container is
+        // up, running against it in parallel is fine.
+        //
+        // Shared with every other fixture that starts one, in
+        // `mailrs-test-docker` — six of them across four crates, and a lock
+        // that only covered this file would move the contention rather than
+        // remove it. Which is what the first version of this did.
+        let _guard = mailrs_test_docker::startup_lock().await;
+
         let container = GenericImage::new("pgvector/pgvector", "pg18")
             .with_wait_for(WaitFor::message_on_stderr(
                 "database system is ready to accept connections",

@@ -30,6 +30,12 @@ use mailrs_server::{EventBus, SmtpEvent};
 /// Start a kevy-server container and return its `kevy://host:port` URL.
 /// The container handle must stay alive for the duration of the test.
 async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) {
+    // One container start at a time, workspace-wide: `cargo test
+    // --workspace` runs every test binary in parallel and six fixtures
+    // each start their own, which times out the wait-for-ready and
+    // turns neighbours into failures. Startup only — running against a
+    // live container in parallel is fine.
+    let _startup = mailrs_test_docker::startup_lock().await;
     let container = GenericImage::new("ghcr.io/goliajp/kevy", "latest")
         .with_wait_for(WaitFor::message_on_stderr("starting:"))
         .with_exposed_port(6379.tcp())

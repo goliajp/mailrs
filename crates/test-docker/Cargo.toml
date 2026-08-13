@@ -1,0 +1,13 @@
+[package]
+name = "mailrs-test-docker"
+version = "0.0.0"
+edition = "2024"
+description = "Test-only: serialise docker container startup across the workspace."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["time"] }

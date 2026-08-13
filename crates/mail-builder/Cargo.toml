@@ -27,6 +27,7 @@ chrono = { workspace = true }
 memchr = "2"
 
 [dev-dependencies]
+mailrs-test-docker = { path = "../test-docker" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 mailrs-mime = { path = "../mime", version = "2" }
 mail-parser = "0.11"  # differential parse oracle (ckpt 2.2)

@@ -30,6 +30,12 @@ async fn start_mailpit() -> (
     String, // SMTP host:port
     String, // HTTP base URL
 ) {
+    // One container start at a time, workspace-wide: `cargo test
+    // --workspace` runs every test binary in parallel and six fixtures
+    // each start their own, which times out the wait-for-ready and
+    // turns neighbours into failures. Startup only — running against a
+    // live container in parallel is fine.
+    let _startup = mailrs_test_docker::startup_lock().await;
     let image = GenericImage::new("axllent/mailpit", "latest")
         .with_exposed_port(MAILPIT_SMTP_PORT.tcp())
         .with_exposed_port(MAILPIT_HTTP_PORT.tcp())
