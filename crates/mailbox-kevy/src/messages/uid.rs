@@ -13,8 +13,7 @@ impl KevyMailboxStore {
         let idx_key = keys::user_msg_by_uid(user);
         let mid_bytes = self
             .store()
-            .hget(idx_key.as_bytes(), uid.to_string().as_bytes())
-            .map_err(std::io::Error::other)?;
+            .hget(idx_key.as_bytes(), uid.to_string().as_bytes())?;
         let Some(mid_bytes) = mid_bytes else {
             return Ok(None);
         };
@@ -70,17 +69,15 @@ impl KevyMailboxStore {
                 }
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     pub fn index_uid(&self, user: &str, uid: u32, message_id: &str) -> io::Result<()> {
         let idx_key = keys::user_msg_by_uid(user);
-        self.store()
-            .hset(
-                idx_key.as_bytes(),
-                &[(uid.to_string().as_bytes(), message_id.as_bytes())],
-            )
-            .map_err(std::io::Error::other)?;
+        self.store().hset(
+            idx_key.as_bytes(),
+            &[(uid.to_string().as_bytes(), message_id.as_bytes())],
+        )?;
         Ok(())
     }
 
@@ -121,6 +118,6 @@ impl KevyMailboxStore {
                 )?;
                 Ok(uid)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 }

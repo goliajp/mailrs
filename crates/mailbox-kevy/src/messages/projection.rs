@@ -39,7 +39,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Write a message *as one user's copy of it*.
@@ -104,7 +104,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Clear the per-user fields off the shared blobs of one thread —
@@ -139,8 +139,7 @@ impl KevyMailboxStore {
                 continue;
             }
             self.store()
-                .set(keys::message_blob(mid).as_bytes(), &stripped)
-                .map_err(io::Error::other)?;
+                .set(keys::message_blob(mid).as_bytes(), &stripped)?;
             rewritten += 1;
         }
         Ok((seen, rewritten))
@@ -153,10 +152,7 @@ impl KevyMailboxStore {
         message_id: &str,
     ) -> io::Result<Option<OwnedUserMessageFacts>> {
         let key = keys::user_message(user, message_id);
-        let flat = self
-            .store()
-            .hgetall(key.as_bytes())
-            .map_err(std::io::Error::other)?;
+        let flat = self.store().hgetall(key.as_bytes())?;
         if flat.is_empty() {
             return Ok(None);
         }
@@ -226,10 +222,7 @@ impl KevyMailboxStore {
     /// The message ids one user has in one thread, oldest first.
     pub fn user_thread_message_ids(&self, user: &str, thread_id: &str) -> io::Result<Vec<String>> {
         let key = keys::thread_user_messages(user, thread_id);
-        let members = self
-            .store()
-            .zrange(key.as_bytes(), 0, -1)
-            .map_err(std::io::Error::other)?;
+        let members = self.store().zrange(key.as_bytes(), 0, -1)?;
         Ok(members
             .into_iter()
             .filter_map(|(m, _)| String::from_utf8(m).ok())

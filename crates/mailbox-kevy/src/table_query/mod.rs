@@ -154,6 +154,8 @@ impl KevyMailboxStore {
         // a real clock is the correct argument, and a zero would silently
         // resolve any future `@` bound to the epoch.
         let now = chrono::Utc::now().timestamp();
+        // `composite_bounds` reports a String, not a KevyError, so there is
+        // no ErrorKind to preserve here.
         composite_bounds(&cols, clause, now).map_err(io::Error::other)
     }
 
@@ -165,16 +167,13 @@ impl KevyMailboxStore {
         limit: usize,
     ) -> io::Result<Vec<String>> {
         let (lo, hi) = self.composite_bounds_for(index, clause)?;
-        let (rows, _cursor) = self
-            .store
-            .idx_query(
-                index,
-                &kevy_embedded::IndexValue::Str(lo),
-                &kevy_embedded::IndexValue::Str(hi),
-                None,
-                limit,
-            )
-            .map_err(io::Error::other)?;
+        let (rows, _cursor) = self.store.idx_query(
+            index,
+            &kevy_embedded::IndexValue::Str(lo),
+            &kevy_embedded::IndexValue::Str(hi),
+            None,
+            limit,
+        )?;
 
         // The row key is `mailrs:threaduser:{user}:{tid}`; the tid can
         // itself contain colons (it is a Message-ID), so split off the

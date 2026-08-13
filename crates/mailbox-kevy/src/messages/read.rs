@@ -12,7 +12,7 @@ impl KevyMailboxStore {
         let key = keys::message_blob(message_id);
         self.store()
             .get(key.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// List all messages in `thread_id` in chronological order
@@ -75,7 +75,7 @@ impl KevyMailboxStore {
     pub(crate) fn is_thread_participant(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         self.store()
             .hexists(keys::thread_user(user, thread_id).as_bytes(), b"tid")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Unfiltered read for in-process maintenance sweeps — self-heal,
@@ -96,10 +96,7 @@ impl KevyMailboxStore {
     // should say. Widening this beats a second way to read them.
     pub fn thread_messages_unscoped(&self, thread_id: &str) -> io::Result<Vec<Vec<u8>>> {
         let zset = keys::thread_messages(thread_id);
-        let entries = self
-            .store()
-            .zrange(zset.as_bytes(), 0, -1)
-            .map_err(std::io::Error::other)?;
+        let entries = self.store().zrange(zset.as_bytes(), 0, -1)?;
         self.store()
             .atomic(|ctx| {
                 let mut out = Vec::with_capacity(entries.len());
@@ -114,7 +111,7 @@ impl KevyMailboxStore {
                 }
                 Ok(out)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 }
 

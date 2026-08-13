@@ -41,10 +41,7 @@ impl KevyMailboxStore {
         let mut hit_any = false;
         while hops < MAX_HOPS {
             let key_v2 = keys::alias_v2(&current);
-            let mut target = self
-                .store()
-                .hget(key_v2.as_bytes(), b"target")
-                .map_err(std::io::Error::other)?;
+            let mut target = self.store().hget(key_v2.as_bytes(), b"target")?;
             // Domain catch-all. An entry keyed `@example.com` answers for
             // every local-part in that domain that has no explicit alias
             // and no mailbox of its own. Without it, mail to an address
@@ -61,10 +58,7 @@ impl KevyMailboxStore {
                 && let Some((_, domain)) = current.rsplit_once('@')
             {
                 let key = keys::alias_v2(&format!("@{domain}"));
-                target = self
-                    .store()
-                    .hget(key.as_bytes(), b"target")
-                    .map_err(std::io::Error::other)?;
+                target = self.store().hget(key.as_bytes(), b"target")?;
             }
             let Some(raw) = target else {
                 return Ok(if hit_any { Some(current) } else { None });
@@ -101,7 +95,7 @@ impl KevyMailboxStore {
                 )?;
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Drop an alias entry entirely.
@@ -112,7 +106,7 @@ impl KevyMailboxStore {
                 ctx.del(&[key_v2.as_bytes()]);
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Enumerate every alias for admin listing.
@@ -127,16 +121,13 @@ impl KevyMailboxStore {
         let mut out = Vec::new();
         let mut cursor = None;
         loop {
-            let (rows, next) = self
-                .store()
-                .idx_query(
-                    keys::IDX_ALIASES_BY_DOMAIN,
-                    &IndexValue::Str(Vec::new()),
-                    &IndexValue::Str(vec![0xff, 0xff]),
-                    cursor.as_ref(),
-                    10_000,
-                )
-                .map_err(std::io::Error::other)?;
+            let (rows, next) = self.store().idx_query(
+                keys::IDX_ALIASES_BY_DOMAIN,
+                &IndexValue::Str(Vec::new()),
+                &IndexValue::Str(vec![0xff, 0xff]),
+                cursor.as_ref(),
+                10_000,
+            )?;
             for (key, _domain_val) in rows {
                 let Some(addr_bytes) = key.strip_prefix(keys::ALIAS_V2_PREFIX) else {
                     continue;
@@ -144,11 +135,7 @@ impl KevyMailboxStore {
                 let Ok(addr) = std::str::from_utf8(addr_bytes) else {
                     continue;
                 };
-                let Some(target_bytes) = self
-                    .store()
-                    .hget(&key, b"target")
-                    .map_err(std::io::Error::other)?
-                else {
+                let Some(target_bytes) = self.store().hget(&key, b"target")? else {
                     continue;
                 };
                 let Ok(target) = String::from_utf8(target_bytes) else {
@@ -185,7 +172,7 @@ impl AliasStore for KevyMailboxStore {
                 let removed = ctx.del(&[key_v2.as_bytes()]);
                 Ok(removed > 0)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     fn list(&self) -> io::Result<Vec<(String, String)>> {

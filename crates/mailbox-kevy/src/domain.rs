@@ -29,7 +29,7 @@ impl KevyMailboxStore {
                 }
                 Ok(())
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// Remove a domain. Returns whether it existed.
@@ -41,7 +41,7 @@ impl KevyMailboxStore {
                 ctx.del(&[key_v2.as_bytes()]);
                 Ok(existed)
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 
     /// List every domain as `(name, created_at)`, sorted by name.
@@ -54,16 +54,13 @@ impl KevyMailboxStore {
         let mut out = Vec::new();
         let mut cursor = None;
         loop {
-            let (rows, next) = self
-                .store()
-                .idx_query(
-                    keys::IDX_DOMAINS_BY_CREATED,
-                    &IndexValue::I64(i64::MIN),
-                    &IndexValue::I64(i64::MAX),
-                    cursor.as_ref(),
-                    10_000,
-                )
-                .map_err(std::io::Error::other)?;
+            let (rows, next) = self.store().idx_query(
+                keys::IDX_DOMAINS_BY_CREATED,
+                &IndexValue::I64(i64::MIN),
+                &IndexValue::I64(i64::MAX),
+                cursor.as_ref(),
+                10_000,
+            )?;
             for (key, val) in rows {
                 let Some(name_bytes) = key.strip_prefix(keys::DOMAIN_V2_PREFIX) else {
                     continue;

@@ -148,3 +148,35 @@ fn deleting_an_account_that_has_permissions_also_clears_the_index() {
         "nothing should be listed after the only account was deleted, got {after:?}"
     );
 }
+
+/// A failure must arrive at the caller with its category intact.
+///
+/// This crate used to wrap every engine call in
+/// `.map_err(std::io::Error::other)`, which flattens all nine `KevyError`
+/// variants into `ErrorKind::Other` — a caller could not tell a timeout from
+/// a missing index from a wrong-type read. The engine has carried
+/// `impl From<KevyError> for io::Error` with a per-variant kind since 4.1.0,
+/// so `?` alone now does the conversion *and* keeps the category.
+///
+/// The assertion that matters is the second one: it fails if someone
+/// reintroduces the wrapper, which would compile and pass every other test.
+#[test]
+fn an_engine_failure_keeps_its_category_through_the_io_boundary() {
+    let st = Store::open(Config::default()).expect("open in-memory kevy");
+    st.set(b"a-string", b"not-a-hash").expect("set");
+
+    // Read it as a hash: a wrong-type error, produced by a real op rather
+    // than constructed, so this also pins that the engine still reports it.
+    fn read_as_hash(st: &Store) -> std::io::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        Ok(st.hgetall(b"a-string")?)
+    }
+    let err = read_as_hash(&st).expect_err("hgetall on a string must fail");
+
+    assert_ne!(
+        err.kind(),
+        std::io::ErrorKind::Other,
+        "the engine's category was flattened — someone re-added \
+         .map_err(io::Error::other) on this path"
+    );
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}

@@ -55,152 +55,150 @@ impl KevyMailboxStore {
         let category = m.category.as_bytes().to_vec();
         let tu_key = keys::thread_user(m.user, m.thread_id);
 
-        self.store()
-            .atomic(|ctx| {
-                // senders_csv is the participant UNION, not "latest sender" —
-                // blindly overwriting meant a user's own reply erased every
-                // other participant and the Inbox row flipped to "Me"
-                // (2026-07-18). Merge case-insensitively, newest appended.
-                let merged_senders: Vec<u8> = {
-                    let existing = ctx
-                        .hget(thread_key.as_bytes(), b"senders_csv")?
-                        .and_then(|v| String::from_utf8(v).ok())
-                        .unwrap_or_default();
-                    let mut out: Vec<String> = Vec::new();
-                    for part in existing.split(',').chain(m.senders_csv.split(',')) {
-                        let p = part.trim();
-                        if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
-                            out.push(p.to_string());
-                        }
+        self.store().atomic(|ctx| {
+            // senders_csv is the participant UNION, not "latest sender" —
+            // blindly overwriting meant a user's own reply erased every
+            // other participant and the Inbox row flipped to "Me"
+            // (2026-07-18). Merge case-insensitively, newest appended.
+            let merged_senders: Vec<u8> = {
+                let existing = ctx
+                    .hget(thread_key.as_bytes(), b"senders_csv")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
+                let mut out: Vec<String> = Vec::new();
+                for part in existing.split(',').chain(m.senders_csv.split(',')) {
+                    let p = part.trim();
+                    if !p.is_empty() && !out.iter().any(|s| s.eq_ignore_ascii_case(p)) {
+                        out.push(p.to_string());
                     }
-                    out.join(",").into_bytes()
-                };
-                // The row's display fields + list position follow the last
-                // INBOUND message only. The user's own reply must not
-                // re-date or re-title the Inbox row (2026-07-18) — an own
-                // write only seeds the fields when the thread is brand new
-                // (sent-only thread, nothing to preserve).
-                let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
-                // `search_blob` is the field the full-text index reads;
-                // it has to move in lockstep with the three fields it
-                // concatenates or search goes stale for this thread.
-                if !m.is_own || !have_display {
-                    // An empty preview means the caller has none, not
-                    // that the preview is empty — the maildir self-heal
-                    // re-announces every message it finds with no body
-                    // in hand. Written through, one sweep erased the
-                    // line the drain had computed from the body and the
-                    // list went blank with nothing in the log to say so.
-                    let kept_preview = if preview.is_empty() {
-                        ctx.hget(thread_key.as_bytes(), b"latest_preview")?
-                            .unwrap_or_default()
-                    } else {
-                        preview.clone()
-                    };
-                    let blob = keys::search_blob(
-                        m.subject,
-                        &String::from_utf8_lossy(&merged_senders),
-                        &String::from_utf8_lossy(&kept_preview),
-                    )
-                    .into_bytes();
-                    let pairs: &[(&[u8], &[u8])] = &[
-                        (b"subject", &subj),
-                        (b"senders_csv", &merged_senders),
-                        (b"latest_date", &date_s),
-                        (b"latest_preview", &kept_preview),
-                        (b"category", &category),
-                        (keys::THREAD_SEARCH_FIELD, &blob),
-                    ];
-                    ctx.hset(thread_key.as_bytes(), pairs)?;
+                }
+                out.join(",").into_bytes()
+            };
+            // The row's display fields + list position follow the last
+            // INBOUND message only. The user's own reply must not
+            // re-date or re-title the Inbox row (2026-07-18) — an own
+            // write only seeds the fields when the thread is brand new
+            // (sent-only thread, nothing to preserve).
+            let have_display = ctx.hexists(thread_key.as_bytes(), b"latest_date")?;
+            // `search_blob` is the field the full-text index reads;
+            // it has to move in lockstep with the three fields it
+            // concatenates or search goes stale for this thread.
+            if !m.is_own || !have_display {
+                // An empty preview means the caller has none, not
+                // that the preview is empty — the maildir self-heal
+                // re-announces every message it finds with no body
+                // in hand. Written through, one sweep erased the
+                // line the drain had computed from the body and the
+                // list went blank with nothing in the log to say so.
+                let kept_preview = if preview.is_empty() {
+                    ctx.hget(thread_key.as_bytes(), b"latest_preview")?
+                        .unwrap_or_default()
                 } else {
-                    // own send: only the participant union changed, but the
-                    // blob embeds it, so refresh both.
-                    let cur_subject = ctx
-                        .hget(thread_key.as_bytes(), b"subject")?
-                        .and_then(|v| String::from_utf8(v).ok())
-                        .unwrap_or_default();
-                    let cur_preview = ctx
-                        .hget(thread_key.as_bytes(), b"latest_preview")?
-                        .and_then(|v| String::from_utf8(v).ok())
-                        .unwrap_or_default();
-                    let blob = keys::search_blob(
-                        &cur_subject,
-                        &String::from_utf8_lossy(&merged_senders),
-                        &cur_preview,
-                    )
-                    .into_bytes();
-                    ctx.hset(
-                        thread_key.as_bytes(),
-                        &[
-                            (b"senders_csv" as &[u8], merged_senders.as_slice()),
-                            (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
-                        ],
-                    )?;
-                }
-                // Atomic counters. The membership row is derived from
-                // the thread hash afterwards, so these no longer need
-                // to be read back here — but every increment still has
-                // to happen.
-                ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
-                if m.is_own {
-                    ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
-                }
-                if m.unread && !m.is_own {
-                    ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?;
-                }
-
-                // The same three counters again, on this user's row.
-                //
-                // The thread hash has no user segment, so the block
-                // above counts every local recipient's delivery of the
-                // same message into one total: devops@golia.jp sending
-                // to lihao@golia.jp reaches two maildirs, runs this
-                // twice, and leaves count=2 next to a message index
-                // holding one message — plus a sent_count from the
-                // sender's own copy that lihao then reads as their own.
-                // These are per-user quantities and this is where they
-                // belong (RFC 20260730 S1).
-                //
-                // Undeclared by the TableSpec on purpose: nothing
-                // indexes, orders or filters on them, so they ride
-                // along as payload and the spec never changes — see
-                // `undeclared_fields_ride_along_without_disturbing_the_indexes`.
-                // They are also kept out of `thread_user_pairs`, whose
-                // hset would otherwise overwrite these increments with
-                // the global row's values on the very next line.
-                // All three unconditionally, with a zero delta where
-                // there is nothing to add, so the fields exist from the
-                // row's first write. An absent field and a zero one are
-                // not the same thing: `mark_seen` carries a comment
-                // about a missing `unread_count` letting a later
-                // `hincrby` count from 0 and relight a thread the user
-                // had read. Planting explicit zeros is what closed
-                // that, and the same reasoning applies here.
-                ctx.hincrby(tu_key.as_bytes(), b"count", 1)?;
-                ctx.hincrby(tu_key.as_bytes(), b"sent_count", i64::from(m.is_own))?;
-                ctx.hincrby(
-                    tu_key.as_bytes(),
-                    b"unread_count",
-                    i64::from(m.unread && !m.is_own),
+                    preview.clone()
+                };
+                let blob = keys::search_blob(
+                    m.subject,
+                    &String::from_utf8_lossy(&merged_senders),
+                    &String::from_utf8_lossy(&kept_preview),
+                )
+                .into_bytes();
+                let pairs: &[(&[u8], &[u8])] = &[
+                    (b"subject", &subj),
+                    (b"senders_csv", &merged_senders),
+                    (b"latest_date", &date_s),
+                    (b"latest_preview", &kept_preview),
+                    (b"category", &category),
+                    (keys::THREAD_SEARCH_FIELD, &blob),
+                ];
+                ctx.hset(thread_key.as_bytes(), pairs)?;
+            } else {
+                // own send: only the participant union changed, but the
+                // blob embeds it, so refresh both.
+                let cur_subject = ctx
+                    .hget(thread_key.as_bytes(), b"subject")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
+                let cur_preview = ctx
+                    .hget(thread_key.as_bytes(), b"latest_preview")?
+                    .and_then(|v| String::from_utf8(v).ok())
+                    .unwrap_or_default();
+                let blob = keys::search_blob(
+                    &cur_subject,
+                    &String::from_utf8_lossy(&merged_senders),
+                    &cur_preview,
+                )
+                .into_bytes();
+                ctx.hset(
+                    thread_key.as_bytes(),
+                    &[
+                        (b"senders_csv" as &[u8], merged_senders.as_slice()),
+                        (keys::THREAD_SEARCH_FIELD, blob.as_slice()),
+                    ],
                 )?;
-                // The declared `unread` flag alongside the counter it
-                // describes, because this is the writer of that fact.
-                // It used to be derived from the shared hash's
-                // `unread_count` by `thread_user_pairs` — which counts
-                // every local recipient's delivery, so one owner reading
-                // their copy could not clear it while another had not,
-                // and an arrival for one relit it for the other.
-                //
-                // Only ever set: `mark_seen` is what clears it, and an
-                // arrival that is the user's own send has no bearing on
-                // whether they have read the thread.
-                if m.unread && !m.is_own {
-                    ctx.hset(tu_key.as_bytes(), &[(b"unread" as &[u8], b"1" as &[u8])])?;
-                }
+            }
+            // Atomic counters. The membership row is derived from
+            // the thread hash afterwards, so these no longer need
+            // to be read back here — but every increment still has
+            // to happen.
+            ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
+            if m.is_own {
+                ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
+            }
+            if m.unread && !m.is_own {
+                ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?;
+            }
 
-                Ok(())
-            })
-            .map_err(std::io::Error::other)?;
+            // The same three counters again, on this user's row.
+            //
+            // The thread hash has no user segment, so the block
+            // above counts every local recipient's delivery of the
+            // same message into one total: devops@golia.jp sending
+            // to lihao@golia.jp reaches two maildirs, runs this
+            // twice, and leaves count=2 next to a message index
+            // holding one message — plus a sent_count from the
+            // sender's own copy that lihao then reads as their own.
+            // These are per-user quantities and this is where they
+            // belong (RFC 20260730 S1).
+            //
+            // Undeclared by the TableSpec on purpose: nothing
+            // indexes, orders or filters on them, so they ride
+            // along as payload and the spec never changes — see
+            // `undeclared_fields_ride_along_without_disturbing_the_indexes`.
+            // They are also kept out of `thread_user_pairs`, whose
+            // hset would otherwise overwrite these increments with
+            // the global row's values on the very next line.
+            // All three unconditionally, with a zero delta where
+            // there is nothing to add, so the fields exist from the
+            // row's first write. An absent field and a zero one are
+            // not the same thing: `mark_seen` carries a comment
+            // about a missing `unread_count` letting a later
+            // `hincrby` count from 0 and relight a thread the user
+            // had read. Planting explicit zeros is what closed
+            // that, and the same reasoning applies here.
+            ctx.hincrby(tu_key.as_bytes(), b"count", 1)?;
+            ctx.hincrby(tu_key.as_bytes(), b"sent_count", i64::from(m.is_own))?;
+            ctx.hincrby(
+                tu_key.as_bytes(),
+                b"unread_count",
+                i64::from(m.unread && !m.is_own),
+            )?;
+            // The declared `unread` flag alongside the counter it
+            // describes, because this is the writer of that fact.
+            // It used to be derived from the shared hash's
+            // `unread_count` by `thread_user_pairs` — which counts
+            // every local recipient's delivery, so one owner reading
+            // their copy could not clear it while another had not,
+            // and an arrival for one relit it for the other.
+            //
+            // Only ever set: `mark_seen` is what clears it, and an
+            // arrival that is the user's own send has no bearing on
+            // whether they have read the thread.
+            if m.unread && !m.is_own {
+                ctx.hset(tu_key.as_bytes(), &[(b"unread" as &[u8], b"1" as &[u8])])?;
+            }
+
+            Ok(())
+        })?;
 
         // Membership row for the declared table. This is the main
         // ingest path and it does not go through `upsert_thread`, so

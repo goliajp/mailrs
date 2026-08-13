@@ -358,6 +358,6 @@ impl KevyMailboxStore {
                 }
                 Ok((out, total))
             })
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }
 }
