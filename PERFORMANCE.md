@@ -22,15 +22,49 @@ quietly starts at B is not.
 |---|---|---|
 | **A** | kevy-embedded 4.1.1 + kevy-server 3.18.0 | **measured 2026-08-13** |
 | **B** | kevy-embedded 5.1.0 + kevy-server 5.1.0 | **measured 2026-08-13** |
-| **C** | spg-embedded 7.37.16 via pg-core | pending the lane's reactivation |
+| **C** | spg-embedded 7.37.16 via pg-core | lane reactivated; **blocked on seeding** |
+
+Column C is blocked on getting its dataset into an spg catalog, not on the lane.
+`spg import` was given the same 98 MB the PostgreSQL arm feeds `psql` — 114
+INSERT statements of 500 tuples each — and after **40 minutes** was at 99.8 %
+CPU and **3.85 GB** resident with the catalog and WAL both unchanged at 23 KB
+and 32 KB. It was killed there, so whether it would finish is unknown. Written
+up in `.claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md` §3b.
+
+The way through is to seed the SQL arm the way the kevy arm is seeded — through
+the contract's `deliver_message` — which both cores serve and which makes the
+two arms' seeding identical rather than merely equivalent. That is the next
+step, and it is a detour rather than a workaround: bulk SQL import is what a
+consumer would reach for, and it is what did not work.
+
+**A pair none of these columns covers, and production would run it.** Column A
+is client 2.0 against server 3.18; Column B is client 2.2 against server 5.1.
+Shipping the Rust side without also moving the container puts **client 2.2
+against server 3.18** into production, and that combination is measured by
+neither column and exercised by no test — `crates/server/tests/kevy_network.rs`
+pulls `:latest`. Either upgrade the container in the same change or measure the
+pair first; deploying it unmeasured is the one step in this table that has no
+evidence behind it at all.
 
 ### Method
 
 ```bash
+# Column A — the harness defaults to kevy-server 3.18.0, so A needs no override
 BENCH_COMMIT=<sha> BENCH_CPUS=0-3 HOSTLABEL=lx64-x86_64-pin0-3 \
   ROUNDS=5 N=30 ./scripts/bench-api-e2e.sh fastcore
+
+# Column B — the server version is NOT implied by the embedded one, and the
+# command above would have quietly given B a 3.18 server
+KEVY_IMAGE=ghcr.io/goliajp/kevy:5.1.0 \
+BENCH_COMMIT=<sha> BENCH_CPUS=0-3 HOSTLABEL=lx64-x86_64-pin0-3 \
+  ROUNDS=5 N=30 ./scripts/bench-api-e2e.sh fastcore
+
 ./scripts/bench-api-e2e.sh --compare        # once more than one arm is in
 ```
+
+Each run records the image it used as an `engine` line in its NDJSON, which is
+how the versions in the table above are verified rather than remembered —
+`grep engine bench-results/*.ndjson`.
 
 Five rounds of thirty requests per endpoint. Each round's percentiles are
 computed separately and the **median across rounds** is reported with its
