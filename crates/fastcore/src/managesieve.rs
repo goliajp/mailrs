@@ -281,20 +281,26 @@ fn kevy() -> Option<Connection> {
 
 fn store_script(user: &str, body: &str) -> bool {
     let Some(mut c) = kevy() else { return false };
-    c.set(format!("sieve:{user}").as_bytes(), body.as_bytes())
-        .is_ok()
+    c.set(
+        mailrs_core_sidestate::sieve_key(user).as_bytes(),
+        body.as_bytes(),
+    )
+    .is_ok()
 }
 
 fn load_script(user: &str) -> Option<String> {
     let mut c = kevy()?;
-    let raw = c.get(format!("sieve:{user}").as_bytes()).ok().flatten()?;
+    let raw = c
+        .get(mailrs_core_sidestate::sieve_key(user).as_bytes())
+        .ok()
+        .flatten()?;
     let s = String::from_utf8(raw).ok()?;
     (!s.trim().is_empty()).then_some(s)
 }
 
 fn delete_script(user: &str) {
     if let Some(mut c) = kevy() {
-        let _ = c.del(&[format!("sieve:{user}").as_bytes()]);
+        let _ = c.del(&[mailrs_core_sidestate::sieve_key(user).as_bytes()]);
     }
 }
 

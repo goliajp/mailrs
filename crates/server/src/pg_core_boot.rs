@@ -1,114 +1,46 @@
-//! The `mailrs-pg-core` entry point.
-//!
-//! Its own file because `lib.rs` reached 572 lines with it inline and the
-//! limit is 500 (`rules/common/file-size.md`) — and because it is a second
-//! way to start this crate, which is worth being able to find by name rather
-//! than by scrolling past the monolith's boot.
+//! The `mailrs-pg-core` entry point — fastcore's peer on a SQL backend.
 //!
 //! `pub(crate)` on the module, `pub` on the one function: the binary in
 //! `src/bin/pg_core.rs` is a separate crate and can only reach `pub` items,
-//! and this is the only one it needs. `core_rpc` stays private.
+//! and this is the only one it needs. `boot` and `core_rpc` stay private.
 
 #![cfg(feature = "core-rpc")]
 
-use crate::{core_rpc, domain_store, health, pg};
-
-/// Boot the SQL core and nothing else.
+/// Boot the SQL core as the peer of `mailrs-fastcore`.
 ///
-/// The pg-core process serves the core-api contract from the SQL backend and
-/// leaves every protocol to the processes that already own it — SMTP to
-/// `mailrs-receiver`, the web API to `mailrs-webapi`, outbound to
-/// `mailrs-fastcore-sender`. `.claude/rfcs/20260722-monolith-out-of-image.md`
-/// set that shape: reviving the fat process was explicitly not the goal, and
-/// the switch it enables is `webapi`'s `MAILRS_CORE_RPC_BASE` pointing here
-/// instead of at fastcore.
+/// **This used to boot the contract and nothing else**, on the reading that
+/// the roles wrapped around `core_rpc/` all have their own processes in the
+/// fastcore stack so none of them come along. That is true of four of them and
+/// false of the rest, and the difference matters: fastcore and this process are
+/// two branches of one switch, not a front and a store behind it. Either one
+/// runs, whole. A contract-only process would have served every read the web UI
+/// makes and indexed no arriving mail — receiver spools, and on this side
+/// nothing would have drained it, so the inbox would simply stop growing.
+/// (`fastcore`'s own `MAILRS_CORE_RPC_BASE` runs the other way: it *polls* a
+/// remote core and mirrors threads in, the monolith-era cutover path. There has
+/// never been a way for fastcore to write into another core.)
 ///
-/// One entry point rather than `pub mod core_rpc`, so the module stays private
-/// and the binary can reach exactly this.
+/// So this is `run_with_roles` with the peer's role set, over the same boot
+/// sequence `run()` uses. On:
 ///
-/// Env, all of it: `MAILRS_PG_URL` (required — there is no degraded mode worth
-/// having for a process whose only job is the SQL backend), `MAILRS_MAILDIR`,
-/// `MAILRS_KEVY_URL` for the shared side-state families, and the two
-/// `spawn_core_rpc` reads itself, `MAILRS_CORE_RPC_ADDR` and
-/// `MAILRS_CORE_API_SECRET`.
+/// - the core-api contract, which webapi's `MAILRS_CORE_RPC_BASE` points at;
+/// - the spool drain, so arrivals index into this backend;
+/// - IMAP / IMAPS / POP3 / POP3S / ManageSieve — mailbox contents come off the
+///   shared maildir either way, so what this side supplies is the credential
+///   check and the uid/flag bookkeeping;
+/// - the periodic subsystems both cores want: webhook delivery, TLS-RPT,
+///   calendar feeds, DMARC aggregate reports.
+///
+/// Off, because another process owns each: SMTP (`mailrs-receiver`), the web
+/// tier (`mailrs-webapi`), outbound delivery (`mailrs-fastcore-sender`), and
+/// the RBL monitor. Selecting roles is the whole difference between this and
+/// the fat process `.claude/rfcs/20260722-monolith-out-of-image.md` ruled out —
+/// that one's defining property was starting all of them at once.
+///
+/// Env: everything `ServerConfig::from_env()` reads, which includes
+/// `MAILRS_PG_URL` and `MAILRS_MAILDIR`, plus `MAILRS_KEVY_URL` for the shared
+/// side-state families and the two `spawn_core_rpc` reads itself,
+/// `MAILRS_CORE_RPC_ADDR` and `MAILRS_CORE_API_SECRET`.
 pub async fn run_pg_core() {
-    use std::sync::Arc;
-
-    let pg_url = std::env::var("MAILRS_PG_URL")
-        .expect("MAILRS_PG_URL is required — pg-core has no other backend");
-    let maildir_root =
-        std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".to_string());
-    let net_url = std::env::var("MAILRS_KEVY_URL")
-        .ok()
-        .filter(|s| !s.is_empty());
-    if net_url.is_none() {
-        // Not fatal, and worth saying out loud: the fifteen core-sidestate
-        // families are mounted from the same source as fastcore's and read the
-        // shared network store. Without a URL they answer as though nothing is
-        // there — drafts, signatures, webhooks and the audit trail all empty.
-        tracing::warn!("MAILRS_KEVY_URL unset — the shared side-state families will read empty");
-    }
-
-    // Five minutes, matching the monolith: it covers the WAL-replay boot race
-    // that had this lane coming up degraded, with headroom.
-    let pool = pg::connect_pool_with_retry(&pg_url, std::time::Duration::from_secs(300))
-        .await
-        .expect("pg-core could not open its backend");
-
-    let health = health::HealthState::new();
-    let state = Arc::new(core_rpc::CoreRpcState {
-        mailbox: Arc::new(mailrs_mailbox::PgMailboxStore::new(pool.clone())),
-        domain: Arc::new(domain_store::DomainStore::new(
-            Some(pool.clone()),
-            None,
-            health.clone(),
-        )),
-        pool: pool.clone(),
-        maildir_root,
-        net_url,
-    });
-
-    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-    let server = core_rpc::spawn_core_rpc(state, shutdown_rx);
-    tracing::info!("mailrs-pg-core serving the core-api contract (backend=pg)");
-
-    #[cfg(unix)]
-    {
-        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler");
-        tokio::select! {
-            r = tokio::signal::ctrl_c() => r.expect("failed to listen for ctrl+c"),
-            _ = sigterm.recv() => {}
-        }
-    }
-    #[cfg(not(unix))]
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to listen for ctrl+c");
-
-    tracing::info!("shutting down");
-    let _ = shutdown_tx.send(true);
-
-    // Order matters here, and the two halves pull against each other.
-    //
-    // The pool must be dropped: on the spg backend its `Drop` releases the
-    // embedded catalog lock, and dying without it leaves `/data/spg/*.lock`
-    // behind — which since spg 7.27 a replacement container reads as a
-    // foreign-namespace lock and refuses to open, the exact reason the
-    // v1.7.150 deploy came up degraded.
-    //
-    // And then the process must actually leave. `mailrs-fastcore` flushed its
-    // store on SIGTERM, logged that it had, and sat there for want of this —
-    // 40 s and counting, on every deploy (see its `exit_after_flush`). Nothing
-    // here holds a blocking task the way that did, but relying on that is how
-    // the same bug arrives twice.
-    // Await the server first. It holds an `Arc<CoreRpcState>`, which holds a
-    // pool clone, and the lock releases when the *last* clone drops — so
-    // dropping only this one would be a race rather than a release. The task
-    // ends on the signal above (`with_graceful_shutdown`), which is why
-    // `spawn_core_rpc` hands its handle back.
-    let _ = server.await;
-    drop(pool);
-    tracing::info!("backend released — exiting");
-    std::process::exit(0);
+    crate::boot::run_with_roles(crate::boot::Roles::peer()).await;
 }

@@ -21,9 +21,10 @@ impl AccountStore for DomainStore {
     }
 
     async fn sieve_script(&self, address: &str) -> Result<Option<String>, AccountStoreError> {
-        self.get_sieve_script(address)
-            .await
-            .map_err(|e| AccountStoreError::Backend(e.to_string()))
+        // Not off `self`: a Sieve script is not SQL data. It lives in the
+        // shared network store, which is where every other reader looks —
+        // see `crate::sieve_store`.
+        crate::sieve_store::get(address).map_err(|e| AccountStoreError::Backend(e.to_string()))
     }
 
     async fn quota(&self, address: &str) -> Result<Option<i64>, AccountStoreError> {

@@ -287,7 +287,7 @@ fn enqueue_vacation_outbound(conn: &mut Connection, to: &str, body: &[u8]) -> st
 fn fetch_script(address: &str) -> Option<String> {
     let url = std::env::var("MAILRS_KEVY_URL").ok()?;
     let mut conn = Connection::connect(&url).ok()?;
-    let key = format!("sieve:{address}");
+    let key = mailrs_core_sidestate::sieve_key(address);
     let raw = conn.get(key.as_bytes()).ok().flatten()?;
     let script = String::from_utf8(raw).ok()?;
     if script.trim().is_empty() {
