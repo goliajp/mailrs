@@ -64,7 +64,7 @@ fi
 ARM="${1:?usage: bench-api-e2e.sh pg|spg|fastcore   (or --compare)}"
 
 PORT="${PORT:-3209}"          # the arm's public web API
-CORE_PORT="${CORE_PORT:-3211}"  # fastcore's core-api
+CORE_PORT="${CORE_PORT:-3211}"  # whichever core the arm runs
 PG_PORT="${PG_PORT:-54329}"
 KEVY_PORT="${KEVY_PORT:-63791}"
 PG_CONTAINER="mailrs-bench-pg-$$"
@@ -198,6 +198,19 @@ python3 scripts/bench-api-seed.py --format ndjson > "$WORK/seed.ndjson"
 # ── boot ────────────────────────────────────────────────────────────────
 case "$ARM" in
   pg|spg)
+    # The shared network kevy, which BOTH lanes use in the real topology for
+    # the fifteen side-state families (drafts, signatures, webhooks, the audit
+    # trail, contacts…). The kevy arm below starts one; without it here the SQL
+    # arm answers those routes empty, and an arm serving less is not a faster
+    # arm — it is a different one.
+    echo "== shared side-state: $KEVY_IMAGE on :$KEVY_PORT =="
+    docker rm -f "$KEVY_CONTAINER" >/dev/null 2>&1 || true
+    KEVY_CPUS=()
+    [ -n "$BENCH_CPUS" ] && KEVY_CPUS=(--cpuset-cpus "$BENCH_CPUS")
+    docker run -d --name "$KEVY_CONTAINER" "${KEVY_CPUS[@]}" \
+      -p "$KEVY_PORT:6379" "$KEVY_IMAGE" >/dev/null
+    KEVY_URL="kevy://127.0.0.1:${KEVY_PORT}"
+
     if [ "$ARM" = pg ]; then
         echo "== backend: postgres (pgvector/pgvector:pg18 on :$PG_PORT) =="
         docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
@@ -233,9 +246,22 @@ case "$ARM" in
         DISK_DIR="$WORK/spg"
     fi
 
-    echo "== build: mailrs-server --release ${FEATURES:-} =="
+    # The PEER, plus the web tier — the same two-process shape the kevy arm
+    # runs, because that is what this lane serves.
+    #
+    # This started `mailrs-server`, the all-roles binary, which also binds SMTP
+    # on three ports, runs ACME, the RBL monitor and its own web tier. Summing
+    # memory across processes (which this script does) makes the process COUNT
+    # comparable; it does not make the WORK comparable, and an arm doing four
+    # jobs the other arm does not is not a measurement of the same thing.
+    #
+    # `mailrs-pg-core` plays the peer's roles — the contract, the spool drain,
+    # IMAP/POP3/ManageSieve — and leaves SMTP, the web tier, outbound and the
+    # RBL monitor to the processes that own them, exactly as fastcore does.
+    echo "== build: mailrs-pg-core + webapi --release ${FEATURES:-} =="
     # shellcheck disable=SC2086 — FEATURES is intentionally word-split
-    cargo build --release -p mailrs-server $FEATURES 2>&1 | tail -1
+    cargo build --release -p mailrs-server -p mailrs-webapi \
+      --bin mailrs-pg-core --bin mailrs-webapi --features core-rpc $FEATURES 2>&1 | tail -1
     TARGET="$(cargo metadata --format-version 1 --no-deps \
       | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")"
 
@@ -243,15 +269,28 @@ case "$ARM" in
     env -i PATH="$PATH" HOME="$HOME" \
       MAILRS_HOSTNAME=localhost \
       MAILRS_MAILDIR="$WORK/maildir" \
-      MAILRS_WEB_PORT="$PORT" \
       MAILRS_PG_URL="$DB_URL" \
+      MAILRS_CORE_RPC_ADDR="127.0.0.1:$CORE_PORT" \
+      MAILRS_CORE_API_SECRET="$SECRET" \
+      MAILRS_KEVY_URL="$KEVY_URL" \
       MAILRS_LOCAL_DOMAINS=bench.local \
       MAILRS_DNSBL_ENABLED=false \
       MAILRS_ANTISPAM_ENABLED=false \
       MAILRS_AI_ANALYSIS_ENABLED=false \
-      MAILRS_SMTP_PORT=0 MAILRS_SUBMISSION_PORT=0 MAILRS_IMAP_PORT=0 \
-      "${PIN[@]}" "$TARGET/release/mailrs-server" > "$WORK/server.log" 2>&1 &
-    PROC_PIDS+=($!); PROC_NAMES+=("mailrs-server")
+      "${PIN[@]}" "$TARGET/release/mailrs-pg-core" > "$WORK/pg-core.log" 2>&1 &
+    PROC_PIDS+=($!); PROC_NAMES+=("mailrs-pg-core")
+
+    wait_http "http://127.0.0.1:$CORE_PORT/v1/healthz" 200 180 || {
+        echo "pg-core never came up:"; tail -20 "$WORK/pg-core.log"; exit 1; }
+
+    env -i PATH="$PATH" HOME="$HOME" \
+      MAILRS_CORE_RPC_BASE="http://127.0.0.1:$CORE_PORT" \
+      MAILRS_CORE_API_SECRET="$SECRET" \
+      MAILRS_WEB_BIND="127.0.0.1:$PORT" \
+      MAILRS_KEVY_URL="$KEVY_URL" \
+      MAILRS_AI_ANALYSIS_ENABLED=false \
+      "${PIN[@]}" "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
+    PROC_PIDS+=($!); PROC_NAMES+=("mailrs-webapi")
     ;;
 
   fastcore)
@@ -337,7 +376,22 @@ add_ep() { EP_NAME+=("$1"); EP_URL+=("$2"); EP_METHOD+=("${3:-GET}"); }
 
 add_ep "conversations?limit=50"   "$BASE/api/conversations?limit=50"
 add_ep "conversations/{thread}"   "$BASE/api/conversations/$THREAD_ID"
-add_ep "search?q=invoice"         "$BASE/api/conversations/search?q=invoice&limit=50"
+# Search is a kevy-arm row. The SQL core does not serve
+# `conversations:search` — the store has full-text search, but the contract's
+# request carries the tab filters (folder / unread / starred / archived) and
+# the store's search takes none of them, so mounting it would answer a wider
+# question than the one asked: searching from Inbox would return Junk and Sent
+# threads. That is one of the eleven in scripts/core-parity-baseline.txt and it
+# is left there deliberately, with the reasoning in
+# .claude/two-lane-known-diff.txt.
+#
+# Timing an endpoint one arm 404s produces a number that looks like speed and
+# is absence, so the row is simply not added. The comparison renders the empty
+# cell as an em dash and says underneath what that means, because a blank in a
+# latency table reads as a tie.
+if [ "$ARM" = fastcore ]; then
+    add_ep "search?q=invoice"     "$BASE/api/conversations/search?q=invoice&limit=50"
+fi
 add_ep "conversations/categories" "$BASE/api/conversations/categories"
 add_ep "mail/stats"               "$BASE/api/mail/stats"
 if [ "$ARM" = fastcore ]; then
