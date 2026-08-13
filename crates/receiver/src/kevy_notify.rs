@@ -86,7 +86,7 @@ impl KevyEventPublisher {
                 client.with_conn(|c| {
                     c.publish(&channel, &json)
                         .map(|_| ())
-                        .map_err(std::io::Error::other)
+                        .map_err(std::io::Error::from)
                 })
             })
             .await;

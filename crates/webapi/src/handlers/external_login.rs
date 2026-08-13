@@ -172,7 +172,7 @@ pub async fn start(Path(key): Path<String>) -> impl IntoResponse {
     let payload = stored.to_string();
     if with_kevy(move |c| {
         c.set_with_ttl(state_key.as_bytes(), payload.as_bytes(), FLOW_TTL)
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .is_err()
     {
@@ -216,10 +216,9 @@ pub async fn callback(
     // cannot be walked a second time.
     let flow_key = format!("oidc:flow:{state_tok}");
     let flow = with_kevy(move |c| {
-        let got = c.get(flow_key.as_bytes()).map_err(std::io::Error::other)?;
+        let got = c.get(flow_key.as_bytes())?;
         if got.is_some() {
-            c.del(&[flow_key.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.del(&[flow_key.as_bytes()])?;
         }
         Ok(got)
     })

@@ -233,7 +233,7 @@ async fn discover_rua(domain: &str) -> Option<RuaEndpoint> {
 
 fn enqueue_report_email(url: &str, to: &str, email: &[u8]) -> std::io::Result<()> {
     use base64::Engine as _;
-    let mut conn = kevy_client::Connection::connect(url).map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(url)?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

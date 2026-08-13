@@ -56,8 +56,7 @@ pub async fn inline_upload(
                 (b"content_type" as &[u8], ct_c.as_bytes()),
                 (b"body", body_v.as_slice()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({
@@ -75,11 +74,11 @@ pub async fn get_inline(
     let key_c = key.clone();
     let ct = with_kevy(move |c| {
         c.hget(key_c.as_bytes(), b"content_type")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let body = with_kevy(move |c| {
         c.hget(key.as_bytes(), b"body")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let Some(body) = body else {
         return Err(StatusCode::NOT_FOUND);

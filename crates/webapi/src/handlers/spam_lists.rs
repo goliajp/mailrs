@@ -43,7 +43,7 @@ fn list_set(user: &str, key: &str) -> Result<Vec<String>, StatusCode> {
     let _ = user;
     let members: Vec<Vec<u8>> = with_kevy(move |c| {
         c.smembers(key_owned.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut out: Vec<String> = members
@@ -61,8 +61,7 @@ fn add_to_set(key: &str, address: &str) -> Result<(), StatusCode> {
     }
     let key_owned = key.to_string();
     with_kevy(move |c| {
-        c.sadd(key_owned.as_bytes(), &[addr.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.sadd(key_owned.as_bytes(), &[addr.as_bytes()])?;
         Ok(())
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
@@ -72,8 +71,7 @@ fn remove_from_set(key: &str, address: &str) -> Result<(), StatusCode> {
     let addr = address.to_lowercase();
     let key_owned = key.to_string();
     with_kevy(move |c| {
-        c.srem(key_owned.as_bytes(), &[addr.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.srem(key_owned.as_bytes(), &[addr.as_bytes()])?;
         Ok(())
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)

@@ -118,7 +118,7 @@ pub fn enqueue(
     payload: &str,
     now: i64,
 ) -> std::io::Result<i64> {
-    let id = conn.incr(COUNTER).map_err(std::io::Error::other)?;
+    let id = conn.incr(COUNTER)?;
     let entry = OutboxEntry {
         id,
         subscription_id,
@@ -129,11 +129,9 @@ pub fn enqueue(
     };
     let pairs = entry.to_pairs();
     let refs: Vec<(&[u8], &[u8])> = pairs.iter().map(|(k, v)| (&k[..], &v[..])).collect();
-    conn.hset(entry_key(id).as_bytes(), &refs)
-        .map_err(std::io::Error::other)?;
+    conn.hset(entry_key(id).as_bytes(), &refs)?;
     let member = id.to_string();
-    conn.zadd(READY, &[(now as f64, member.as_bytes())])
-        .map_err(std::io::Error::other)?;
+    conn.zadd(READY, &[(now as f64, member.as_bytes())])?;
     Ok(id)
 }
 
@@ -152,7 +150,7 @@ pub fn claim_due(
     // set holds one member per undelivered webhook; if that ever grows past
     // a page this needs a score-ranged read, which the network client would
     // have to grow first.
-    let members = conn.zrange(READY, 0, -1).map_err(std::io::Error::other)?;
+    let members = conn.zrange(READY, 0, -1)?;
     let mut claimed = Vec::new();
     for member in members {
         if claimed.len() >= limit {
@@ -164,23 +162,17 @@ pub fn claim_due(
         let Ok(id) = id_str.parse::<i64>() else {
             continue;
         };
-        let score = conn
-            .zscore(READY, member.as_slice())
-            .map_err(std::io::Error::other)?;
+        let score = conn.zscore(READY, member.as_slice())?;
         match score {
             Some(due) if due as i64 <= now => {}
             _ => continue,
         }
         // The claim. Zero means another worker already took it.
-        let removed = conn
-            .zrem(READY, &[member.as_slice()])
-            .map_err(std::io::Error::other)?;
+        let removed = conn.zrem(READY, &[member.as_slice()])?;
         if removed == 0 {
             continue;
         }
-        let flat = conn
-            .hgetall(entry_key(id).as_bytes())
-            .map_err(std::io::Error::other)?;
+        let flat = conn.hgetall(entry_key(id).as_bytes())?;
         match OutboxEntry::from_flat(id, &flat) {
             Some(e) => claimed.push(e),
             // The hash is gone but the index named it. Dropping the member
@@ -193,8 +185,7 @@ pub fn claim_due(
 
 /// The delivery succeeded: forget the entry.
 pub fn mark_delivered(conn: &mut Connection, id: i64) -> std::io::Result<()> {
-    conn.del(&[entry_key(id).as_bytes()])
-        .map_err(std::io::Error::other)?;
+    conn.del(&[entry_key(id).as_bytes()])?;
     Ok(())
 }
 
@@ -234,19 +225,16 @@ pub fn mark_failed(
             (b"attempts".as_slice(), attempts.to_string().as_bytes()),
             (b"last_error".as_slice(), error.as_bytes()),
         ],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     let plan = plan_after_failure(attempts, now);
     match plan {
         AfterFailure::Retry(due) => {
             let member = entry.id.to_string();
-            conn.zadd(READY, &[(due as f64, member.as_bytes())])
-                .map_err(std::io::Error::other)?;
+            conn.zadd(READY, &[(due as f64, member.as_bytes())])?;
         }
         AfterFailure::DeadLettered => {
             let member = entry.id.to_string();
-            conn.zadd(DEAD, &[(now as f64, member.as_bytes())])
-                .map_err(std::io::Error::other)?;
+            conn.zadd(DEAD, &[(now as f64, member.as_bytes())])?;
         }
     }
     Ok(plan)
@@ -257,8 +245,8 @@ pub fn mark_failed(
 /// Both, so an operator reading zero deliveries can tell an empty queue from
 /// a stalled worker.
 pub fn depth(conn: &mut Connection) -> std::io::Result<(usize, usize)> {
-    let ready = conn.zcard(READY).map_err(std::io::Error::other)?;
-    let dead = conn.zcard(DEAD).map_err(std::io::Error::other)?;
+    let ready = conn.zcard(READY)?;
+    let dead = conn.zcard(DEAD)?;
     Ok((ready, dead))
 }
 

@@ -51,8 +51,7 @@ pub async fn create_app(
         c.hset(
             APPS_KEY.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     // Secret is returned once — the caller is responsible for storing
@@ -84,8 +83,7 @@ pub async fn delete_app(Path(app_id): Path<String>) -> Result<StatusCode, Status
             && let Some(id) = app.get("id").and_then(|v| v.as_i64())
         {
             with_kevy(move |c| {
-                c.hdel(APPS_KEY.as_bytes(), &[id.to_string().as_bytes()])
-                    .map_err(std::io::Error::other)?;
+                c.hdel(APPS_KEY.as_bytes(), &[id.to_string().as_bytes()])?;
                 Ok(())
             })?;
             return Ok(StatusCode::NO_CONTENT);
@@ -141,13 +139,11 @@ pub async fn create_agent_key(
         c.hset(
             hkey.as_bytes(),
             &[(id.to_string().as_bytes(), payload.as_slice())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         c.set(
             format!("agent:key:secret:{secret_c}").as_bytes(),
             index_payload.as_slice(),
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(serde_json::json!({ "id": id, "secret": secret })))
@@ -159,25 +155,20 @@ pub async fn delete_agent_key(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("agent:keys:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         // Also drop the secret index so revoked keys don't accumulate
         // forever. The record doesn't store the secret, so scan the
         // (single-digit-count) index keys for the matching {user,id}.
         let target = serde_json::json!({ "user": user, "id": id });
-        for idx_key in c
-            .keys(b"agent:key:secret:*")
-            .map_err(std::io::Error::other)?
-        {
-            let Some(raw) = c.get(&idx_key).map_err(std::io::Error::other)? else {
+        for idx_key in c.keys(b"agent:key:secret:*")? {
+            let Some(raw) = c.get(&idx_key)? else {
                 continue;
             };
             let matches = serde_json::from_slice::<serde_json::Value>(&raw)
                 .map(|v| v == target)
                 .unwrap_or(false);
             if matches {
-                c.del(&[idx_key.as_slice()])
-                    .map_err(std::io::Error::other)?;
+                c.del(&[idx_key.as_slice()])?;
             }
         }
         Ok(())
@@ -198,7 +189,7 @@ pub async fn migrate_legacy_agent_key_indexes(
         // prefix -> (user, id) from every user's key records
         let mut by_prefix: std::collections::HashMap<String, (String, i64)> =
             std::collections::HashMap::new();
-        for hkey in c.keys(b"agent:keys:*").map_err(std::io::Error::other)? {
+        for hkey in c.keys(b"agent:keys:*")? {
             let Ok(hkey_str) = std::str::from_utf8(&hkey) else {
                 continue;
             };
@@ -222,11 +213,8 @@ pub async fn migrate_legacy_agent_key_indexes(
         }
         let mut migrated = 0u32;
         let mut dropped = 0u32;
-        for idx_key in c
-            .keys(b"agent:key:secret:*")
-            .map_err(std::io::Error::other)?
-        {
-            let Some(raw) = c.get(&idx_key).map_err(std::io::Error::other)? else {
+        for idx_key in c.keys(b"agent:key:secret:*")? {
+            let Some(raw) = c.get(&idx_key)? else {
                 continue;
             };
             // already-migrated indexes parse as {user,id} — skip
@@ -246,15 +234,13 @@ pub async fn migrate_legacy_agent_key_indexes(
             match by_prefix.get(prefix) {
                 Some((owner, id)) => {
                     let val = serde_json::json!({ "user": owner, "id": id });
-                    c.set(&idx_key, val.to_string().as_bytes())
-                        .map_err(std::io::Error::other)?;
+                    c.set(&idx_key, val.to_string().as_bytes())?;
                     migrated += 1;
                 }
                 None => {
                     // no live record carries this prefix — the key was
                     // revoked; drop the dangling index
-                    c.del(&[idx_key.as_slice()])
-                        .map_err(std::io::Error::other)?;
+                    c.del(&[idx_key.as_slice()])?;
                     dropped += 1;
                 }
             }

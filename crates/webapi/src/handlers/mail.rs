@@ -132,7 +132,7 @@ pub async fn get_thread_reactions(
     let index_key = format!("reactions_index:{thread_id}");
     let members = with_kevy(move |c| {
         c.smembers(index_key.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let mut reactions = Vec::new();
     for uid_bytes in members {
@@ -141,7 +141,7 @@ pub async fn get_thread_reactions(
             continue;
         };
         let key = format!("reactions:{thread_id}:{uid}");
-        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+        let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
         let mut i = 0;
         while i + 1 < flat.len() {
             let emoji = String::from_utf8_lossy(&flat[i]).to_string();
@@ -182,8 +182,7 @@ pub async fn toggle_reaction(
     with_kevy(move |c| {
         // Read existing csv, toggle user, write back.
         let cur = c
-            .hget(key_c.as_bytes(), emoji_c.as_bytes())
-            .map_err(std::io::Error::other)?
+            .hget(key_c.as_bytes(), emoji_c.as_bytes())?
             .unwrap_or_default();
         let mut users: Vec<String> = String::from_utf8_lossy(&cur)
             .split(',')
@@ -197,27 +196,23 @@ pub async fn toggle_reaction(
         }
         let joined = users.join(",");
         if joined.is_empty() {
-            c.hdel(key_c.as_bytes(), &[emoji_c.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.hdel(key_c.as_bytes(), &[emoji_c.as_bytes()])?;
         } else {
-            c.hset(key_c.as_bytes(), &[(emoji_c.as_bytes(), joined.as_bytes())])
-                .map_err(std::io::Error::other)?;
+            c.hset(key_c.as_bytes(), &[(emoji_c.as_bytes(), joined.as_bytes())])?;
         }
         // Keep the per-thread index in sync: the message contributes to
         // the aggregate iff its hash still has ≥ 1 emoji entry after the
         // toggle. Cheap probe: `hlen`.
-        let remaining = c.hlen(key_c.as_bytes()).map_err(std::io::Error::other)?;
+        let remaining = c.hlen(key_c.as_bytes())?;
         if remaining > 0 {
-            c.sadd(index_key_c.as_bytes(), &[uid_bytes.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.sadd(index_key_c.as_bytes(), &[uid_bytes.as_bytes()])?;
         } else {
-            c.srem(index_key_c.as_bytes(), &[uid_bytes.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.srem(index_key_c.as_bytes(), &[uid_bytes.as_bytes()])?;
         }
         Ok(())
     })?;
     // Recompute aggregate for THIS message + return it.
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut reactions = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {

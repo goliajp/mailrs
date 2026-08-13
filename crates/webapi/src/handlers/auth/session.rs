@@ -87,10 +87,8 @@ pub async fn login(
     let totp_key_r = totp_key.clone();
     let totp_enrolled_secret = match crate::handlers::kevy_util::with_kevy(move |c| {
         Ok((
-            c.hget(totp_key_r.as_bytes(), b"secret")
-                .map_err(std::io::Error::other)?,
-            c.hget(totp_key_r.as_bytes(), b"enabled")
-                .map_err(std::io::Error::other)?,
+            c.hget(totp_key_r.as_bytes(), b"secret")?,
+            c.hget(totp_key_r.as_bytes(), b"enabled")?,
         ))
     }) {
         Ok(v) => v,
@@ -124,8 +122,7 @@ pub async fn login(
             let code_owned = code.to_string();
             crate::handlers::kevy_util::with_kevy(move |c| {
                 let recovery_str = c
-                    .hget(rc_key.as_bytes(), b"recovery_codes")
-                    .map_err(std::io::Error::other)?
+                    .hget(rc_key.as_bytes(), b"recovery_codes")?
                     .and_then(|v| String::from_utf8(v).ok())
                     .unwrap_or_default();
                 let mut codes: Vec<&str> =
@@ -138,8 +135,7 @@ pub async fn login(
                 c.hset(
                     rc_key.as_bytes(),
                     &[(b"recovery_codes" as &[u8], joined.as_bytes())],
-                )
-                .map_err(std::io::Error::other)?;
+                )?;
                 Ok(true)
             })
             .unwrap_or(false)
@@ -180,16 +176,16 @@ async fn claim_pending_link(headers: &axum::http::HeaderMap, address: &str) {
     };
     let addr = address.to_string();
     let outcome = tokio::task::spawn_blocking(move || -> std::io::Result<Option<String>> {
+        // VarError is not a KevyError, so there is no engine category here
         let url = std::env::var("MAILRS_KEVY_URL").map_err(std::io::Error::other)?;
-        let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
+        let mut c = kevy_client::Connection::connect(&url)?;
         use mailrs_core_sidestate::families::identity_link as link;
         // Single-use: claimed and deleted together, so a captured handle
         // cannot be replayed later against a second account.
         let Some(json) = link::claim_pending(&mut c, &handle)? else {
             return Ok(None);
         };
-        let identity: serde_json::Value =
-            serde_json::from_str(&json).map_err(std::io::Error::other)?;
+        let identity: serde_json::Value = serde_json::from_str(&json)?;
         let issuer = identity["issuer"].as_str().unwrap_or_default().to_string();
         let subject = identity["subject"].as_str().unwrap_or_default().to_string();
         if issuer.is_empty() || subject.is_empty() {
@@ -284,19 +280,17 @@ pub(crate) async fn issue_session(
         let token_clone = token.clone();
         let addr_clone = acct.public.address.clone();
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
+            let mut c = kevy_client::Connection::connect(&url)?;
             let key = format!("session:{token_clone}");
             c.set_with_ttl(
                 key.as_bytes(),
                 &blob_bytes,
                 std::time::Duration::from_secs(7 * 24 * 3600),
-            )
-            .map_err(std::io::Error::other)?;
+            )?;
             // Per-user session index — makes it possible to revoke all
             // active sessions when the password changes.
             let idx = format!("session:by_addr:{addr_clone}");
-            c.sadd(idx.as_bytes(), &[token_clone.as_bytes()])
-                .map_err(std::io::Error::other)?;
+            c.sadd(idx.as_bytes(), &[token_clone.as_bytes()])?;
             Ok(())
         })
         .await;
@@ -342,9 +336,9 @@ pub async fn logout(req: axum::extract::Request) -> Response {
 
     if let (Some(t), Ok(url)) = (token, std::env::var("MAILRS_KEVY_URL")) {
         let _ = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            let mut c = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
+            let mut c = kevy_client::Connection::connect(&url)?;
             let key = format!("session:{t}");
-            let _ = c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
+            let _ = c.del(&[key.as_bytes()])?;
             Ok(())
         })
         .await;

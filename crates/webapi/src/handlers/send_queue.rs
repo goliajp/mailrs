@@ -240,7 +240,7 @@ pub(crate) async fn mirror_send_to_sender_view(
             let uk = format!("mailrs:quota:{}:used_bytes", user.to_lowercase());
             let n = envelope.len() as i64;
             let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-                c.incr_by(uk.as_bytes(), n).map_err(std::io::Error::other)?;
+                c.incr_by(uk.as_bytes(), n)?;
                 Ok(())
             });
             ids[0].0.clone()
@@ -374,30 +374,24 @@ pub(crate) async fn mirror_send_to_sender_view(
                 } else {
                     addr.clone()
                 };
-                c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])
-                    .map_err(std::io::Error::other)?;
+                c.hset(key.as_bytes(), &[(addr.as_bytes(), val.as_bytes())])?;
                 // Track last-used ts in a companion zset so we can
                 // evict the least-recently-emailed contacts once the
                 // set grows past a soft cap. Without this the hash
                 // grows unbounded.
-                c.zadd(ts_key.as_bytes(), &[(now_ts as f64, addr.as_bytes())])
-                    .map_err(std::io::Error::other)?;
+                c.zadd(ts_key.as_bytes(), &[(now_ts as f64, addr.as_bytes())])?;
             }
             // Enforce a 2000-entry cap. If the zset exceeds it, drop
             // the oldest entries from both the hash and the zset.
-            let size = c.zcard(ts_key.as_bytes()).map_err(std::io::Error::other)?;
+            let size = c.zcard(ts_key.as_bytes())?;
             const CAP: usize = 2000;
             if size > CAP {
                 let overflow = (size - CAP) as i64;
-                let old = c
-                    .zrange(ts_key.as_bytes(), 0, overflow - 1)
-                    .map_err(std::io::Error::other)?;
+                let old = c.zrange(ts_key.as_bytes(), 0, overflow - 1)?;
                 let old_refs: Vec<&[u8]> = old.iter().map(|v| v.as_slice()).collect();
                 if !old_refs.is_empty() {
-                    c.hdel(key.as_bytes(), &old_refs)
-                        .map_err(std::io::Error::other)?;
-                    c.zrem(ts_key.as_bytes(), &old_refs)
-                        .map_err(std::io::Error::other)?;
+                    c.hdel(key.as_bytes(), &old_refs)?;
+                    c.zrem(ts_key.as_bytes(), &old_refs)?;
                 }
             }
             Ok(())

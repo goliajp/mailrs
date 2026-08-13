@@ -43,7 +43,7 @@ pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
     // listeners in the fastcore split — `mailrs-receiver` does — so
     // the ports come from the same env vars the receiver reads.
     let key = b"admin:config:smtp".to_vec();
-    if let Ok(Some(bytes)) = with_kevy(move |c| c.get(&key).map_err(std::io::Error::other))
+    if let Ok(Some(bytes)) = with_kevy(move |c| c.get(&key).map_err(std::io::Error::from))
         && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes)
     {
         return Ok(Json(v));
@@ -86,8 +86,7 @@ pub async fn get_smtp_config() -> Result<Json<serde_json::Value>, StatusCode> {
 pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<StatusCode, StatusCode> {
     let payload = serde_json::to_vec(&cfg).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     with_kevy(move |c| {
-        c.set(b"admin:config:smtp", payload.as_slice())
-            .map_err(std::io::Error::other)?;
+        c.set(b"admin:config:smtp", payload.as_slice())?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -108,7 +107,7 @@ pub async fn set_smtp_config(Json(cfg): Json<serde_json::Value>) -> Result<Statu
 pub async fn get_system_config() -> Result<Json<serde_json::Value>, StatusCode> {
     let flat = with_kevy(|c| {
         c.hgetall(b"admin:system-config")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let mut overrides: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut i = 0;
@@ -240,8 +239,7 @@ pub async fn set_system_config_key(
         c.hset(
             b"admin:system-config",
             &[(k.as_bytes(), req.value.as_bytes())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -253,8 +251,7 @@ pub async fn set_system_config_key(
 /// the button answered 405.
 pub async fn delete_system_config_key(Path(k): Path<String>) -> Result<StatusCode, StatusCode> {
     with_kevy(move |c| {
-        c.hdel(b"admin:system-config", &[k.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(b"admin:system-config", &[k.as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)

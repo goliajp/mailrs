@@ -22,7 +22,7 @@ pub(crate) fn hgetall_values(
     c: &mut kevy_client::Connection,
     key: &str,
 ) -> std::io::Result<Vec<Vec<u8>>> {
-    let flat = c.hgetall(key.as_bytes()).map_err(std::io::Error::other)?;
+    let flat = c.hgetall(key.as_bytes())?;
     Ok(flat
         .into_iter()
         .enumerate()

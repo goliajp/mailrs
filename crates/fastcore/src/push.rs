@@ -145,10 +145,8 @@ fn tokens_key(user: &str) -> String {
 fn load_tokens(user: &str) -> std::io::Result<Vec<String>> {
     let url = std::env::var("MAILRS_KEVY_URL")
         .map_err(|_| std::io::Error::other("MAILRS_KEVY_URL unset"))?;
-    let mut conn = kevy_client::Connection::connect(&url).map_err(std::io::Error::other)?;
-    let pairs = conn
-        .hgetall(tokens_key(user).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let mut conn = kevy_client::Connection::connect(&url)?;
+    let pairs = conn.hgetall(tokens_key(user).as_bytes())?;
     // hgetall answers [field, value, field, value, …]; the fields are the
     // tokens and the values metadata this side does not read.
     Ok(pairs

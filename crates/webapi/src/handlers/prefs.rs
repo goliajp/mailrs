@@ -46,8 +46,7 @@ pub(crate) fn now_secs() -> i64 {
 /// Next id from a `<hash>:counter` string.
 pub(crate) fn next_id(c: &mut kevy_client::Connection, counter_key: &str) -> std::io::Result<i64> {
     // v2 Stage B.2: single-op INCR — kevy-side atomic, no race.
-    c.incr(counter_key.as_bytes())
-        .map_err(std::io::Error::other)
+    c.incr(counter_key.as_bytes()).map_err(std::io::Error::from)
 }
 
 // ── drafts ─────────────────────────────────────────────────────────
@@ -58,7 +57,7 @@ pub async fn list_drafts(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::DraftWire>>, StatusCode> {
     let key = format!("drafts:{user}");
-    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut drafts = Vec::new();
     for val in out
         .into_iter()
@@ -105,8 +104,7 @@ pub async fn save_draft(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(mailrs_core_api::method::admin::SaveDraftResponse {
@@ -122,8 +120,7 @@ pub async fn delete_draft(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("drafts:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -137,7 +134,7 @@ pub async fn list_signatures(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::SignatureWire>>, StatusCode> {
     let key = format!("signatures:{user}");
-    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut items = Vec::new();
     for val in out
         .into_iter()
@@ -177,8 +174,7 @@ pub async fn save_signature(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(
@@ -194,8 +190,7 @@ pub async fn delete_signature(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("signatures:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -209,7 +204,7 @@ pub async fn list_templates(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<mailrs_core_api::method::admin::TemplateWire>>, StatusCode> {
     let key = format!("templates:{user}");
-    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let out = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut items = Vec::new();
     for val in out
         .into_iter()
@@ -252,8 +247,7 @@ pub async fn save_template(
         c.hset(
             key.as_bytes(),
             &[(id.to_string().as_bytes(), json.as_slice())],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     })?;
     Ok(Json(mailrs_core_api::method::admin::SaveTemplateResponse {
@@ -269,8 +263,7 @@ pub async fn delete_template(
 ) -> Result<StatusCode, StatusCode> {
     let key = format!("templates:{user}");
     with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[id.to_string().as_bytes()])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)

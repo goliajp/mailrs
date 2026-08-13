@@ -66,7 +66,7 @@ impl KevyNetClient {
         // wedge the whole pool on a fail-open mail-flow path.
         let mut slot = self.pool[idx].lock().unwrap_or_else(|e| e.into_inner());
         if slot.is_none() {
-            *slot = Some(Connection::connect(&self.url).map_err(std::io::Error::other)?);
+            *slot = Some(Connection::connect(&self.url)?);
         }
         let conn = slot.as_mut().expect("just ensured Some");
         match f(conn) {
@@ -96,10 +96,10 @@ mod tests {
     fn pool_round_trips_set_get_over_mem() {
         let client = KevyNetClient::new("mem://shared-test");
         client
-            .with_conn(|c| c.set(b"k", b"v").map_err(std::io::Error::other))
+            .with_conn(|c| c.set(b"k", b"v").map_err(std::io::Error::from))
             .expect("set should succeed over mem://");
         let got = client
-            .with_conn(|c| c.get(b"k").map_err(std::io::Error::other))
+            .with_conn(|c| c.get(b"k").map_err(std::io::Error::from))
             .expect("get should succeed");
         assert_eq!(got.as_deref(), Some(&b"v"[..]));
     }

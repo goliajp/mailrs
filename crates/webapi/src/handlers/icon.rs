@@ -211,11 +211,11 @@ fn miss_key(domain: &str) -> String {
 async fn lookup_cache(domain: &str) -> Option<(String, Vec<u8>)> {
     let key = hit_key(domain);
     let ct =
-        with_kevy(move |c| c.hget(key.as_bytes(), b"ct").map_err(std::io::Error::other)).ok()??;
+        with_kevy(move |c| c.hget(key.as_bytes(), b"ct").map_err(std::io::Error::from)).ok()??;
     let key = hit_key(domain);
     let body = with_kevy(move |c| {
         c.hget(key.as_bytes(), b"body")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .ok()??;
     Some((String::from_utf8_lossy(&ct).to_string(), body))
@@ -223,7 +223,7 @@ async fn lookup_cache(domain: &str) -> Option<(String, Vec<u8>)> {
 
 async fn is_cached_miss(domain: &str) -> bool {
     let key = miss_key(domain);
-    with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::other))
+    with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::from))
         .ok()
         .flatten()
         .is_some()
@@ -235,19 +235,18 @@ async fn store_hit(domain: &str, content_type: &str, bytes: &[u8]) {
     let body = bytes.to_vec();
     let hit_key_arg = key.clone();
     let _ = with_kevy(move |c| {
-        c.hset(hit_key_arg.as_bytes(), &[(b"ct", &ct), (b"body", &body)])
-            .map_err(std::io::Error::other)?;
+        c.hset(hit_key_arg.as_bytes(), &[(b"ct", &ct), (b"body", &body)])?;
         c.expire(key.as_bytes(), HIT_TTL)
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     });
 }
 
 async fn store_miss(domain: &str) {
     let key = miss_key(domain);
     let _ = with_kevy(move |c| {
-        c.set(key.as_bytes(), b"1").map_err(std::io::Error::other)?;
+        c.set(key.as_bytes(), b"1")?;
         c.expire(key.as_bytes(), MISS_TTL)
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     });
 }
 

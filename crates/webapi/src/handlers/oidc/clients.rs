@@ -41,14 +41,14 @@ pub async fn list_oauth_clients(
 ) -> Json<serde_json::Value> {
     let members = with_kevy(|c| {
         c.smembers(b"oidc:clients:index")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .unwrap_or_default();
     let mut items = Vec::new();
     for m in members {
         if let Ok(cid) = String::from_utf8(m) {
             let key = format!("oidc:client:{cid}");
-            let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+            let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
                 .unwrap_or_default();
             let mut fields = std::collections::HashMap::new();
             let mut i = 0;
@@ -106,10 +106,8 @@ pub async fn create_oauth_client(
                 (b"scopes", scopes_c.as_bytes()),
                 (b"created_at", now.to_string().as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
-        c.sadd(b"oidc:clients:index", &[cid_c.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        )?;
+        c.sadd(b"oidc:clients:index", &[cid_c.as_bytes()])?;
         Ok(())
     });
     Json(CreateOauthClientResponse {
@@ -129,9 +127,8 @@ pub async fn delete_oauth_client(
     let key = format!("oidc:client:{client_id}");
     let cid_c = client_id.clone();
     let _ = with_kevy(move |c| {
-        c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
-        c.srem(b"oidc:clients:index", &[cid_c.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.del(&[key.as_bytes()])?;
+        c.srem(b"oidc:clients:index", &[cid_c.as_bytes()])?;
         Ok(())
     });
     StatusCode::NO_CONTENT

@@ -81,7 +81,7 @@ impl Cfg {
 }
 
 fn kevy(url: &str) -> std::io::Result<kevy_client::Connection> {
-    kevy_client::Connection::connect(url).map_err(std::io::Error::other)
+    kevy_client::Connection::connect(url).map_err(std::io::Error::from)
 }
 
 fn now_secs() -> i64 {

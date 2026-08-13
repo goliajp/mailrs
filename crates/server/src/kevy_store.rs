@@ -49,7 +49,7 @@ pub fn open_store(data_dir: Option<&Path>) -> io::Result<KevyStore> {
         Some(dir) => cfg.with_persist(dir),
         None => cfg,
     };
-    let store = Store::open(cfg).map_err(std::io::Error::other)?;
+    let store = Store::open(cfg)?;
     Ok(Arc::new(store))
 }
 

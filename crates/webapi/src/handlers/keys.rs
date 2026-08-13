@@ -62,7 +62,7 @@ pub async fn list_keys(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
 ) -> Result<Json<Vec<EncryptionKeyInfo>>, StatusCode> {
     let key = format!("encryption_keys:{user}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     let mut out = Vec::new();
     let mut i = 0;
     while i + 1 < flat.len() {
@@ -95,7 +95,7 @@ pub async fn get_key(
     let field = key_type.clone();
     let val = match with_kevy(move |c| {
         c.hget(key.as_bytes(), field.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }) {
         Ok(v) => v,
         Err(s) => return (s, Json(serde_json::json!({"error": "kevy error"}))),
@@ -146,8 +146,7 @@ pub async fn set_key(
     let key = format!("encryption_keys:{user}");
     let field = key_type;
     let _ = with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(field.as_bytes(), json.as_slice())])
-            .map_err(std::io::Error::other)?;
+        c.hset(key.as_bytes(), &[(field.as_bytes(), json.as_slice())])?;
         Ok(())
     });
     Json(serde_json::json!({"success": true, "message": null}))
@@ -164,8 +163,7 @@ pub async fn delete_key(
     let key = format!("encryption_keys:{user}");
     let field = key_type;
     let _ = with_kevy(move |c| {
-        c.hdel(key.as_bytes(), &[field.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        c.hdel(key.as_bytes(), &[field.as_bytes()])?;
         Ok(())
     });
     Json(serde_json::json!({"success": true, "message": null}))
@@ -191,7 +189,7 @@ async fn get_public_key_inner(
     let field = key_type.to_string();
     let val = match with_kevy(move |c| {
         c.hget(key.as_bytes(), field.as_bytes())
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     }) {
         Ok(v) => v,
         Err(s) => return (s, Json(serde_json::json!({"error": "kevy error"}))),

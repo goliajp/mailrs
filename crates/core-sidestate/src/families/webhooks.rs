@@ -64,7 +64,7 @@ pub struct NewWebhook {
 
 /// Store a subscription and record who owns it. Returns the row as stored.
 pub fn create(conn: &mut Connection, new: NewWebhook) -> std::io::Result<WebhookSubWire> {
-    let id = conn.incr(COUNTER).map_err(std::io::Error::other)?;
+    let id = conn.incr(COUNTER)?;
     let w = WebhookSubWire {
         id,
         account_address: new.account_address.clone(),
@@ -76,28 +76,24 @@ pub fn create(conn: &mut Connection, new: NewWebhook) -> std::io::Result<Webhook
         active: true,
         created_at: now_secs(),
     };
-    let json = serde_json::to_vec(&w).map_err(std::io::Error::other)?;
+    let json = serde_json::to_vec(&w)?;
     let id_str = id.to_string();
     conn.hset(
         account_key(&new.account_address).as_bytes(),
         &[(id_str.as_bytes(), json.as_slice())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     // Written in the same call as the row, because a row without an owner
     // entry is one that cannot be deleted.
     conn.hset(
         OWNER,
         &[(id_str.as_bytes(), new.account_address.as_bytes())],
-    )
-    .map_err(std::io::Error::other)?;
+    )?;
     Ok(w)
 }
 
 /// Every subscription belonging to one account.
 pub fn list(conn: &mut Connection, address: &str) -> std::io::Result<Vec<WebhookSubWire>> {
-    let flat = conn
-        .hgetall(account_key(address).as_bytes())
-        .map_err(std::io::Error::other)?;
+    let flat = conn.hgetall(account_key(address).as_bytes())?;
     Ok(flat
         .into_iter()
         .enumerate()
@@ -116,18 +112,14 @@ pub fn list(conn: &mut Connection, address: &str) -> std::io::Result<Vec<Webhook
 /// indistinguishable from a successful one.
 pub fn delete(conn: &mut Connection, id: i64) -> std::io::Result<bool> {
     let id_str = id.to_string();
-    let owner = conn
-        .hget(OWNER, id_str.as_bytes())
-        .map_err(std::io::Error::other)?;
+    let owner = conn.hget(OWNER, id_str.as_bytes())?;
     let Some(owner) = owner else {
         return Ok(false);
     };
+    // not a KevyError, so it carries no engine category to preserve
     let address = String::from_utf8(owner).map_err(std::io::Error::other)?;
-    let removed = conn
-        .hdel(account_key(&address).as_bytes(), &[id_str.as_bytes()])
-        .map_err(std::io::Error::other)?;
-    conn.hdel(OWNER, &[id_str.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    let removed = conn.hdel(account_key(&address).as_bytes(), &[id_str.as_bytes()])?;
+    conn.hdel(OWNER, &[id_str.as_bytes()])?;
     Ok(removed > 0)
 }
 
@@ -147,14 +139,11 @@ pub fn backfill_owner_index(
     for address in addresses {
         for w in list(conn, address)? {
             let id_str = w.id.to_string();
-            let known = conn
-                .hget(OWNER, id_str.as_bytes())
-                .map_err(std::io::Error::other)?;
+            let known = conn.hget(OWNER, id_str.as_bytes())?;
             if known.is_some() {
                 continue;
             }
-            conn.hset(OWNER, &[(id_str.as_bytes(), address.as_bytes())])
-                .map_err(std::io::Error::other)?;
+            conn.hset(OWNER, &[(id_str.as_bytes(), address.as_bytes())])?;
             added += 1;
         }
     }
@@ -203,9 +192,7 @@ pub fn migrate_agent_namespace(
     let mut moved = 0usize;
     for address in addresses {
         let legacy_key = format!("agent:webhooks:{address}");
-        let flat = conn
-            .hgetall(legacy_key.as_bytes())
-            .map_err(std::io::Error::other)?;
+        let flat = conn.hgetall(legacy_key.as_bytes())?;
         let rows: Vec<Vec<u8>> = flat
             .into_iter()
             .enumerate()
@@ -221,24 +208,20 @@ pub fn migrate_agent_namespace(
             let Ok(old) = serde_json::from_slice::<serde_json::Value>(&raw) else {
                 continue;
             };
-            let id = conn.incr(COUNTER).map_err(std::io::Error::other)?;
+            let id = conn.incr(COUNTER)?;
             let w = row_from_legacy(&old, id, address);
-            let json = serde_json::to_vec(&w).map_err(std::io::Error::other)?;
+            let json = serde_json::to_vec(&w)?;
             let id_str = id.to_string();
             conn.hset(
                 account_key(address).as_bytes(),
                 &[(id_str.as_bytes(), json.as_slice())],
-            )
-            .map_err(std::io::Error::other)?;
-            conn.hset(OWNER, &[(id_str.as_bytes(), address.as_bytes())])
-                .map_err(std::io::Error::other)?;
+            )?;
+            conn.hset(OWNER, &[(id_str.as_bytes(), address.as_bytes())])?;
             moved += 1;
         }
-        conn.del(&[legacy_key.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        conn.del(&[legacy_key.as_bytes()])?;
         let counter = format!("agent:webhooks:counter:{address}");
-        conn.del(&[counter.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        conn.del(&[counter.as_bytes()])?;
     }
     Ok((moved, addresses.len()))
 }

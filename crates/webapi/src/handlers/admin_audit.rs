@@ -51,7 +51,7 @@ pub async fn list_audit_log(
     };
     let entries = with_kevy(move |c| {
         c.lrange(AUDIT_KEY.as_bytes(), 0, scan - 1)
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let items: Vec<wire::AuditRowWire> = entries
         .into_iter()
@@ -81,7 +81,7 @@ pub async fn export_audit_log(
 ) -> Result<Json<wire::AuditListResponse>, StatusCode> {
     let entries = with_kevy(move |c| {
         c.lrange(AUDIT_KEY.as_bytes(), 0, -1)
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     let items: Vec<wire::AuditRowWire> = entries
         .into_iter()

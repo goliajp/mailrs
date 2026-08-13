@@ -55,7 +55,7 @@ impl NetworkKevyAliasStore {
     /// duplicate declarations on the server return an error which we
     /// swallow (the catalog persists the spec on first call).
     pub fn ensure_indexes(&self) -> io::Result<()> {
-        let mut conn = self.connect().map_err(std::io::Error::other)?;
+        let mut conn = self.connect()?;
         let _ = conn.idx_create_range(
             IDX_ALIASES_BY_DOMAIN,
             ALIAS_V2_PREFIX,
@@ -74,14 +74,12 @@ impl NetworkKevyAliasStore {
 
 impl AliasStore for NetworkKevyAliasStore {
     fn resolve(&self, address: &str) -> io::Result<Option<String>> {
-        let mut conn = self.connect().map_err(std::io::Error::other)?;
+        let mut conn = self.connect()?;
         let mut current = address.to_string();
         let mut hit_any = false;
         for hop in 0..MAX_HOPS {
             let key_v2 = alias_key_v2(&current);
-            let mut target = conn
-                .hget(key_v2.as_bytes(), b"target")
-                .map_err(std::io::Error::other)?;
+            let mut target = conn.hget(key_v2.as_bytes(), b"target")?;
             // Domain catch-all — an entry keyed `@example.com` answers
             // for every local part in that domain with no explicit alias
             // and no mailbox. Mirrors `KevyMailboxStore::resolve_alias`;
@@ -98,9 +96,7 @@ impl AliasStore for NetworkKevyAliasStore {
                 && let Some((_, domain)) = current.rsplit_once('@')
             {
                 let key = alias_key_v2(&format!("@{domain}"));
-                target = conn
-                    .hget(key.as_bytes(), b"target")
-                    .map_err(std::io::Error::other)?;
+                target = conn.hget(key.as_bytes(), b"target")?;
             }
             let Some(raw) = target else {
                 return Ok(if hit_any { Some(current) } else { None });
@@ -118,7 +114,7 @@ impl AliasStore for NetworkKevyAliasStore {
     }
 
     fn upsert(&self, source: &str, target: &str) -> io::Result<()> {
-        let mut conn = self.connect().map_err(std::io::Error::other)?;
+        let mut conn = self.connect()?;
         let key_v2 = alias_key_v2(source);
         let domain = source.rsplit_once('@').map(|(_, d)| d).unwrap_or("");
         let created_at = now_secs().to_string();
@@ -130,17 +126,14 @@ impl AliasStore for NetworkKevyAliasStore {
                 (b"created_at".as_slice(), created_at.as_bytes()),
                 (b"active".as_slice(), b"1".as_slice()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     }
 
     fn delete(&self, source: &str) -> io::Result<bool> {
-        let mut conn = self.connect().map_err(std::io::Error::other)?;
+        let mut conn = self.connect()?;
         let key_v2 = alias_key_v2(source);
-        let removed = conn
-            .del(&[key_v2.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        let removed = conn.del(&[key_v2.as_bytes()])?;
         Ok(removed > 0)
     }
 
@@ -155,19 +148,17 @@ impl AliasStore for NetworkKevyAliasStore {
     /// including the `mailrs:alias:v2:` prefix which we strip to
     /// recover the source address.
     fn list(&self) -> io::Result<Vec<(String, String)>> {
-        let mut conn = self.connect().map_err(std::io::Error::other)?;
+        let mut conn = self.connect()?;
         let mut keys: Vec<Vec<u8>> = Vec::new();
         let mut cursor: Option<Vec<u8>> = None;
         loop {
-            let page = conn
-                .idx_query_range(
-                    IDX_ALIASES_BY_DOMAIN,
-                    b"",
-                    b"\xff\xff",
-                    10_000,
-                    cursor.as_deref(),
-                )
-                .map_err(std::io::Error::other)?;
+            let page = conn.idx_query_range(
+                IDX_ALIASES_BY_DOMAIN,
+                b"",
+                b"\xff\xff",
+                10_000,
+                cursor.as_deref(),
+            )?;
             for row in page.rows {
                 keys.push(row.key);
             }
@@ -179,13 +170,11 @@ impl AliasStore for NetworkKevyAliasStore {
         if keys.is_empty() {
             return Ok(Vec::new());
         }
-        let replies = conn
-            .pipeline(|p| {
-                for key in &keys {
-                    p.cmd(&[b"HGET", key, b"target"]);
-                }
-            })
-            .map_err(std::io::Error::other)?;
+        let replies = conn.pipeline(|p| {
+            for key in &keys {
+                p.cmd(&[b"HGET", key, b"target"]);
+            }
+        })?;
         let mut out = Vec::with_capacity(keys.len());
         for (i, reply) in replies.into_iter().enumerate() {
             let Some(source_bytes) = keys[i].strip_prefix(ALIAS_V2_PREFIX) else {

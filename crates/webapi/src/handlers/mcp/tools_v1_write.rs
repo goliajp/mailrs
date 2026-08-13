@@ -28,7 +28,7 @@ impl MailrsMcpService {
         // domains are shared side-state (env + network kevy admin:domains),
         // not switchable-core data — read network kevy directly.
         let flat = crate::handlers::kevy_util::with_kevy(|c| {
-            c.hgetall(b"admin:domains").map_err(std::io::Error::other)
+            c.hgetall(b"admin:domains").map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("domains read failed", None))?;
         let items: Vec<serde_json::Value> = flat
@@ -445,7 +445,7 @@ impl MailrsMcpService {
         let limit = params.limit as i64;
         let rows = crate::handlers::kevy_util::with_kevy(move |c| {
             c.lrange(b"admin:audit_log", 0, limit - 1)
-                .map_err(std::io::Error::other)
+                .map_err(std::io::Error::from)
         })
         .map_err(|_| McpError::internal_error("audit read failed", None))?;
         let items: Vec<serde_json::Value> = rows

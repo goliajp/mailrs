@@ -163,17 +163,13 @@ pub async fn list_reports(
         // kevy-client exposes only ascending `zrange`, and without
         // scores. Take the tail (highest window-begin) and reverse to
         // get newest-first.
-        let card = c.zcard(INDEX_KEY).map_err(std::io::Error::other)?;
+        let card = c.zcard(INDEX_KEY)?;
         let start = card.saturating_sub(limit) as i64;
-        let ids = c
-            .zrange(INDEX_KEY, start, -1)
-            .map_err(std::io::Error::other)?;
+        let ids = c.zrange(INDEX_KEY, start, -1)?;
         let mut out = Vec::with_capacity(ids.len());
         for sid_bytes in ids.into_iter().rev() {
             let sid = String::from_utf8_lossy(&sid_bytes).into_owned();
-            let flat = c
-                .hgetall(format!("{REPORT_PREFIX}{sid}").as_bytes())
-                .map_err(std::io::Error::other)?;
+            let flat = c.hgetall(format!("{REPORT_PREFIX}{sid}").as_bytes())?;
             out.push((sid, flat));
         }
         Ok(out)
@@ -196,12 +192,8 @@ pub async fn get_report(
 
     let key_sid = sid.clone();
     let (flat, row_blobs) = with_kevy(move |c| {
-        let flat = c
-            .hgetall(format!("{REPORT_PREFIX}{key_sid}").as_bytes())
-            .map_err(std::io::Error::other)?;
-        let rows = c
-            .zrange(format!("{ROWS_PREFIX}{key_sid}").as_bytes(), 0, -1)
-            .map_err(std::io::Error::other)?;
+        let flat = c.hgetall(format!("{REPORT_PREFIX}{key_sid}").as_bytes())?;
+        let rows = c.zrange(format!("{ROWS_PREFIX}{key_sid}").as_bytes(), 0, -1)?;
         Ok((flat, rows))
     })?;
 
@@ -231,20 +223,14 @@ pub async fn list_sources(
     let cutoff = now_secs() - days * 86_400;
 
     let raw = with_kevy(move |c| {
-        let card = c.zcard(INDEX_KEY).map_err(std::io::Error::other)?;
+        let card = c.zcard(INDEX_KEY)?;
         let start = card.saturating_sub(MAX_LIMIT) as i64;
-        let ids = c
-            .zrange(INDEX_KEY, start, -1)
-            .map_err(std::io::Error::other)?;
+        let ids = c.zrange(INDEX_KEY, start, -1)?;
         let mut out = Vec::new();
         for sid_bytes in ids.into_iter().rev() {
             let sid = String::from_utf8_lossy(&sid_bytes).into_owned();
-            let flat = c
-                .hgetall(format!("{REPORT_PREFIX}{sid}").as_bytes())
-                .map_err(std::io::Error::other)?;
-            let rows = c
-                .zrange(format!("{ROWS_PREFIX}{sid}").as_bytes(), 0, -1)
-                .map_err(std::io::Error::other)?;
+            let flat = c.hgetall(format!("{REPORT_PREFIX}{sid}").as_bytes())?;
+            let rows = c.zrange(format!("{ROWS_PREFIX}{sid}").as_bytes(), 0, -1)?;
             out.push((flat, rows));
         }
         Ok(out)

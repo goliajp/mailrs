@@ -55,7 +55,7 @@ pub async fn register_push_token(
     .to_string();
     with_kevy(move |c| {
         c.hset(key.as_bytes(), &[(req.token.as_bytes(), meta.as_bytes())])
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -69,7 +69,7 @@ pub async fn delete_push_token(
     let key = tokens_key(&user);
     with_kevy(move |c| {
         c.hdel(key.as_bytes(), &[token.as_bytes()])
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })?;
     Ok(StatusCode::NO_CONTENT)
 }

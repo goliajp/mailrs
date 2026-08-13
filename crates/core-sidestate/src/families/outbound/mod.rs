@@ -180,9 +180,7 @@ pub fn write_fresh_pending(
         original_sender,
         send_id,
     } = *job;
-    let id = conn
-        .incr(b"mailrs:outbound:counter")
-        .map_err(std::io::Error::other)?;
+    let id = conn.incr(b"mailrs:outbound:counter")?;
     let row = OutboundMessageWire {
         id,
         sender: sender.to_string(),
@@ -226,8 +224,7 @@ pub fn write_fresh_pending(
                 p.cmd(&[b"LPUSH", PENDING_IDX, id_str.as_bytes()]);
             }
         }
-    })
-    .map_err(std::io::Error::other)?;
+    })?;
     Ok(id)
 }
 
@@ -243,11 +240,7 @@ pub fn requeue_pending(
     now: i64,
 ) -> std::io::Result<bool> {
     let job_k = job_key(id);
-    if conn
-        .exists(&[job_k.as_bytes()])
-        .map_err(std::io::Error::other)?
-        == 0
-    {
+    if conn.exists(&[job_k.as_bytes()])? == 0 {
         return Ok(false);
     }
     let id_str = id.to_string();
@@ -262,8 +255,7 @@ pub fn requeue_pending(
             now_str.as_bytes(),
         ]);
         p.cmd(&[b"LPUSH", PENDING_IDX, id_str.as_bytes()]);
-    })
-    .map_err(std::io::Error::other)?;
+    })?;
     Ok(true)
 }
 

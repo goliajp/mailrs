@@ -39,8 +39,7 @@ pub(crate) async fn submit_feedback(
     let action = req.action;
     let ts = now_secs().to_string();
     with_kevy(move |c| {
-        c.hset(key.as_bytes(), &[(action.as_bytes(), ts.as_bytes())])
-            .map_err(std::io::Error::other)?;
+        c.hset(key.as_bytes(), &[(action.as_bytes(), ts.as_bytes())])?;
         Ok(())
     })?;
     Ok(StatusCode::NO_CONTENT)
@@ -183,7 +182,7 @@ pub(crate) async fn get_contacts(
     let key = format!("mailrs:user:{user}:contacts");
     let query = q.q.to_lowercase();
     let limit = q.limit.max(1) as usize;
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))?;
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))?;
     // hgetall returns [field, value, field, value, ...] — extract pairs.
     let mut matches: Vec<String> = Vec::new();
     let mut i = 0;

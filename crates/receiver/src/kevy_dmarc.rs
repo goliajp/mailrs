@@ -57,7 +57,7 @@ impl DmarcReportSink for KevyDmarcSink {
 /// the index set. Idempotent zadd (member is JSON with the timestamp
 /// baked in, so re-issuing a lookup after fastcore consumes it is safe).
 fn write_result(kevy_url: &str, record: &DmarcResultRecord) -> std::io::Result<()> {
-    let mut conn = Connection::connect(kevy_url).map_err(std::io::Error::other)?;
+    let mut conn = Connection::connect(kevy_url)?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -78,10 +78,8 @@ fn write_result(kevy_url: &str, record: &DmarcResultRecord) -> std::io::Result<(
         "disposition": record.disposition,
     })
     .to_string();
-    conn.zadd(key.as_bytes(), &[(now as f64, blob.as_bytes())])
-        .map_err(std::io::Error::other)?;
-    conn.sadd(INDEX_KEY, &[domain.as_bytes()])
-        .map_err(std::io::Error::other)?;
+    conn.zadd(key.as_bytes(), &[(now as f64, blob.as_bytes())])?;
+    conn.sadd(INDEX_KEY, &[domain.as_bytes()])?;
     Ok(())
 }
 

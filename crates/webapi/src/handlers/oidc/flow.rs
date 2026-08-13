@@ -48,7 +48,7 @@ pub async fn authorize(
     let cid_r = cid_key.clone();
     let registered_ru = with_kevy(move |c| {
         c.hget(cid_r.as_bytes(), b"redirect_uri")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .ok()
     .flatten()
@@ -92,16 +92,14 @@ pub async fn authorize(
                 (b"scope", scope.as_bytes()),
                 (b"expires_at", expires_at.to_string().as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         // Belt-and-braces: also set kevy TTL so a stolen code can't
         // outlast expires_at even if the token endpoint is DoS'd and
         // the exp check is somehow skipped.
         c.expire(
             code_key_c.as_bytes(),
             std::time::Duration::from_secs(AUTH_CODE_TTL_SECS as u64),
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     });
     // Percent-encode state so a value containing `&` / `#` / `=` doesn't
@@ -154,19 +152,17 @@ async fn exchange_authorization_code(req: TokenRequest) -> axum::response::Respo
             .into_response();
     };
     let code_key = format!("oidc:code:{code}");
-    let flat = match with_kevy(move |c| {
-        c.hgetall(code_key.as_bytes())
-            .map_err(std::io::Error::other)
-    }) {
-        Ok(v) => v,
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "server_error"})),
-            )
-                .into_response();
-        }
-    };
+    let flat =
+        match with_kevy(move |c| c.hgetall(code_key.as_bytes()).map_err(std::io::Error::from)) {
+            Ok(v) => v,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "server_error"})),
+                )
+                    .into_response();
+            }
+        };
     if flat.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -243,7 +239,7 @@ async fn exchange_authorization_code(req: TokenRequest) -> axum::response::Respo
     let ci = client_id.clone();
     let registered_secret = with_kevy(move |c| {
         c.hget(format!("oidc:client:{ci}").as_bytes(), b"secret")
-            .map_err(std::io::Error::other)
+            .map_err(std::io::Error::from)
     })
     .ok()
     .flatten()
@@ -287,8 +283,7 @@ async fn exchange_authorization_code(req: TokenRequest) -> axum::response::Respo
                 (b"scope", scope_c.as_bytes()),
                 (b"expires_at", expires.to_string().as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         c.hset(
             rt_key.as_bytes(),
             &[
@@ -296,10 +291,8 @@ async fn exchange_authorization_code(req: TokenRequest) -> axum::response::Respo
                 (b"client_id", client_c.as_bytes()),
                 (b"scope", scope_c.as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
-        c.del(&[del_code_key.as_bytes()])
-            .map_err(std::io::Error::other)?;
+        )?;
+        c.del(&[del_code_key.as_bytes()])?;
         Ok(())
     });
 
@@ -327,7 +320,7 @@ async fn refresh_access_token(req: TokenRequest) -> axum::response::Response {
             .into_response();
     };
     let rt_key = format!("oidc:refresh:{refresh}");
-    let flat = with_kevy(move |c| c.hgetall(rt_key.as_bytes()).map_err(std::io::Error::other))
+    let flat = with_kevy(move |c| c.hgetall(rt_key.as_bytes()).map_err(std::io::Error::from))
         .unwrap_or_default();
     if flat.is_empty() {
         return (
@@ -363,8 +356,7 @@ async fn refresh_access_token(req: TokenRequest) -> axum::response::Response {
                 (b"scope", scope_c.as_bytes()),
                 (b"expires_at", expires.to_string().as_bytes()),
             ],
-        )
-        .map_err(std::io::Error::other)?;
+        )?;
         Ok(())
     });
     (
@@ -400,7 +392,7 @@ pub async fn userinfo(headers: axum::http::HeaderMap) -> impl IntoResponse {
             .into_response();
     };
     let key = format!("oidc:token:{token}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::other))
+    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
         .unwrap_or_default();
     if flat.is_empty() {
         return (
