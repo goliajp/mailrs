@@ -80,6 +80,29 @@ BASE="http://127.0.0.1:${PORT}"
 # two hours.
 CURL_T=(--connect-timeout 5 -m 30)
 
+# Pin the arm's processes to a fixed CPU set when `taskset` is available.
+# Two reasons, and both matter on a shared host: it walls the measurement off
+# from whatever else the machine is doing, and four CPUs is the shape prod
+# runs on, so the numbers are about a topology that exists. Every arm gets the
+# same set or the comparison is meaningless. Empty = no pinning.
+# The commit under measurement. Taken from git when there is a git, and from
+# the environment when there is not: a run on a remote host often arrives as
+# `git archive`, with no `.git` to ask — and `set -e` would abort the whole
+# run at the last line, after the measuring was done.
+COMMIT="${BENCH_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
+
+BENCH_CPUS="${BENCH_CPUS:-}"
+PIN=()
+if [ -n "$BENCH_CPUS" ] && command -v taskset >/dev/null 2>&1; then
+    PIN=(taskset -c "$BENCH_CPUS")
+    echo "== pinned to CPUs $BENCH_CPUS =="
+elif [ -n "$BENCH_CPUS" ]; then
+    echo "!! BENCH_CPUS=$BENCH_CPUS requested and taskset is absent." >&2
+    echo "   Refusing to run: an unpinned run recorded as a pinned one is a" >&2
+    echo "   column measured under conditions nobody can reconstruct." >&2
+    exit 1
+fi
+
 WORK="$(mktemp -d /tmp/mailrs-bench-api.XXXXXX)"
 SAMPLES="$WORK/samples.ndjson"
 PROC_NAMES=()
@@ -140,6 +163,17 @@ start_sampler() {
                     emit "{\"kind\":\"resource\",\"proc\":\"$name\",\"rss_kb\":$rss,\"cpu_pct\":$cpu}"
                 fi
             done
+            # The machine's own load, as a witness unrelated to what is being
+            # measured. On a host with neighbours a spike during a round
+            # corrupts a percentile silently, and a percentile that moved
+            # while the load moved is not a finding. Recorded so the run can
+            # be rejected rather than believed.
+            if [ -r /proc/loadavg ]; then
+                la="$(cut -d" " -f1 /proc/loadavg)"
+            else
+                la="$(uptime | sed -E "s/.*load averages?: ([0-9.]+).*/\\1/")"
+            fi
+            [ -n "$la" ] && emit "{\"kind\":\"resource\",\"proc\":\"host loadavg\",\"rss_kb\":0,\"cpu_pct\":$la}"
             sleep 1
         done
     ) &
@@ -216,14 +250,17 @@ case "$ARM" in
       MAILRS_ANTISPAM_ENABLED=false \
       MAILRS_AI_ANALYSIS_ENABLED=false \
       MAILRS_SMTP_PORT=0 MAILRS_SUBMISSION_PORT=0 MAILRS_IMAP_PORT=0 \
-      "$TARGET/release/mailrs-server" > "$WORK/server.log" 2>&1 &
+      "${PIN[@]}" "$TARGET/release/mailrs-server" > "$WORK/server.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-server")
     ;;
 
   fastcore)
     echo "== backend: fastcore (kevy embedded) + webapi + $KEVY_IMAGE =="
     docker rm -f "$KEVY_CONTAINER" >/dev/null 2>&1 || true
-    docker run -d --name "$KEVY_CONTAINER" -p "$KEVY_PORT:6379" "$KEVY_IMAGE" >/dev/null
+    KEVY_CPUS=()
+    [ -n "$BENCH_CPUS" ] && KEVY_CPUS=(--cpuset-cpus "$BENCH_CPUS")
+    docker run -d --name "$KEVY_CONTAINER" "${KEVY_CPUS[@]}" \
+      -p "$KEVY_PORT:6379" "$KEVY_IMAGE" >/dev/null
     KEVY_URL="kevy://127.0.0.1:${KEVY_PORT}"
 
     echo "== build: fastcore + webapi --release =="
@@ -244,7 +281,7 @@ case "$ARM" in
       MAILRS_CORE_API_SECRET="$SECRET" \
       MAILRS_KEVY_URL="$KEVY_URL" \
       MAILRS_MAILDIR="$WORK/maildir" \
-      "$TARGET/release/mailrs-fastcore" > "$WORK/fastcore.log" 2>&1 &
+      "${PIN[@]}" "$TARGET/release/mailrs-fastcore" > "$WORK/fastcore.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-fastcore")
 
     wait_http "http://127.0.0.1:$CORE_PORT/v1/healthz" 200 120 || {
@@ -256,7 +293,7 @@ case "$ARM" in
       MAILRS_WEB_BIND="127.0.0.1:$PORT" \
       MAILRS_KEVY_URL="$KEVY_URL" \
       MAILRS_AI_ANALYSIS_ENABLED=false \
-      "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
+      "${PIN[@]}" "$TARGET/release/mailrs-webapi" > "$WORK/webapi.log" 2>&1 &
     PROC_PIDS+=($!); PROC_NAMES+=("mailrs-webapi")
 
     DISK_LABEL="kevy data dir"
@@ -382,7 +419,7 @@ for k in ('keys', 'used_memory', 'aof_bytes'):
     emit "{\"kind\":\"engine\",\"label\":\"kevy-server image\",\"value\":\"$KEVY_IMAGE\"}"
 fi
 
-emit "{\"kind\":\"meta\",\"arm\":\"$ARM\",\"rounds\":$ROUNDS,\"n\":$N,\"host\":\"$HOSTLABEL\",\"fingerprint\":\"$FP\",\"commit\":\"$(git rev-parse --short HEAD)\"}"
+emit "{\"kind\":\"meta\",\"arm\":\"$ARM\",\"rounds\":$ROUNDS,\"n\":$N,\"host\":\"$HOSTLABEL\",\"fingerprint\":\"$FP\",\"commit\":\"$COMMIT\",\"cpus\":\"${BENCH_CPUS:-unpinned}\"}"
 
 mkdir -p "$OUT"
 cp "$SAMPLES" "$OUT/$ARM.ndjson"
