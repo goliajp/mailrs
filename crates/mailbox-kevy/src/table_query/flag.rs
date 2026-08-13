@@ -112,13 +112,49 @@ impl KevyMailboxStore {
     }
 
     /// Count on a flag axis with extra predicates applied.
+    ///
+    /// Counted by the engine, materializing nothing. This used to fetch up
+    /// to 100,000 thread ids and take the length, because `idx_count` takes
+    /// no clauses — kevy 5.1's `idx_count_claused` is that verb, and its own
+    /// notes name this consumer shape: *"counting a filtered axis used to
+    /// mean fetching every page and taking its length."*
+    ///
+    /// It is also more correct than what it replaces. The old cap silently
+    /// became the answer for anyone past it, so an account with more than
+    /// 100,000 unread threads was shown 100,000. There is no cap now.
+    ///
+    /// `count_equals_list_length` pins the two against each other, because
+    /// the list applies one predicate this does not: it drops rows whose key
+    /// does not start with the user's prefix, which `FILTER user` should
+    /// already have excluded. If those two ever disagree the badge and the
+    /// page would disagree, which is the failure this axis exists to avoid.
     pub fn count_thread_ids_by_flag_filtered(
         &self,
         user: &str,
         flag: &str,
         extra: &[(&str, &str)],
     ) -> io::Result<usize> {
-        self.list_thread_ids_by_flag_filtered(user, flag, extra, 100_000, 0, None)
-            .map(|v| v.len())
+        use kevy_embedded::{IndexValue, ValueFilter};
+        let index = format!("threaduser.{flag}");
+        let mut filters = vec![ValueFilter::Eq {
+            field: b"user",
+            value: user.as_bytes(),
+        }];
+        for (col, val) in extra {
+            filters.push(ValueFilter::Eq {
+                field: col.as_bytes(),
+                value: val.as_bytes(),
+            });
+        }
+        let n = self
+            .store
+            .idx_count_claused(
+                index.as_bytes(),
+                &IndexValue::I64(1),
+                &IndexValue::I64(1),
+                &filters,
+            )
+            .map_err(io::Error::other)?;
+        Ok(usize::try_from(n).unwrap_or(usize::MAX))
     }
 }

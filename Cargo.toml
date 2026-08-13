@@ -88,33 +88,46 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 spg-sqlx = "7.37"
 spg-embedded = "7.37"
 # kevy-embedded — in-process RESP-compatible KV store with AOF + snapshot
-# persistence + native pub/sub bus. Zero network hop, ~10× faster than
-# the network kevy/redis container path. The only kvdb backend mailrs
-# ships with after Phase C (v1.7.95+); the `redis` crate dep is gone.
+# persistence + native pub/sub bus. Zero network hop. The only kvdb
+# backend mailrs ships with after Phase C (v1.7.95+); the `redis` crate
+# dep is gone.
 #
-# v2 Stage A · v1.9.0: bumped 1.15 → 3.17.2 (2 major versions). Core op
-# signatures (get/set/hget/hset/zadd/zrange...) are byte-identical
-# between 1.15 and 3.x, so migration is a version-only lift.
-# 3.x introduces pipeline/atomic/view/brpop/hexpire/zinterstore/idx/
-# change-stream that Stage B (H1-H8) refactor consumes. RFC:
-# .claude/rfcs/20260706-kevy-3x-upgrade-and-fastcore-refactor.md.
-# AOF gate: 1.x AOF replays intact on 3.x binary (RESP stream stable).
+# 2026-08-13: 4.1.1 → 5.1. **These two lines move together.** The client's
+# 2.2 line depends on the 5.x shared crates, so bumping one without the
+# other compiles both generations of kevy-store / kevy-persist / kevy-resp
+# into a single binary — the same duplication `check-workspace-deps.sh`
+# exists to catch on our own crates.
 #
-# v2.3 (2026-07-10): 3.17 → 3.18 ("the structure release"). kevy team
-# calls out four bug harvests from new fuzz coverage — the notable
-# one for us is config-REWRITE silently dropping 6 sections (both
-# hand-kept TOML serializers now share one canonical source). We
-# ship a `[feed]` section in `deploy/kevy.toml`; on 3.17.x a REWRITE
-# would erase it silently. 3.18 also folds all 32 crates onto Rust
-# 1.97, matching our own `rust-toolchain.toml` pin. Zero pub-API
-# change per the release notes; version bump only, no code churn.
-kevy-embedded = "4.0"
+# The embedded API was diffed name-by-name before the bump: 238 public
+# functions against 235, nothing removed, no signature changed, three
+# arrivals (`idx_advise`, `idx_usage`, `idx_count_claused`). The client's
+# surface is byte-identical across the same jump. So this is a version
+# lift, and any change the compiler forces is a finding.
+#
+# What it is for, since it is not correctness this code was losing — of
+# the three defects 5.0 closed that looked like they might reach us, none
+# do (`crates/mailbox-kevy/tests/kevy_upstream_properties.rs` records why):
+#   - giant collections copy on write at element granularity, so a write
+#     inside a rewrite window clones one segment instead of the whole
+#     value. We hold 23k-member indexes and 140k keys, and the old cost
+#     was 0.35–9.5 s with the collection's memory briefly doubled — the
+#     shape of the 2026-07-17 AOF incident.
+#   - `appendfsync always` group-commits on both reactors.
+#   - a forced rewrite no longer spikes the reactor for ~200 ms.
+# Data directories open in both directions; the release gate replays that.
+kevy-embedded = "5.1"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
-# Used only when MAILRS_KEVY_URL is set (receiver-split topology): the
-# anti subsystems (greylist / rate / auth-guard) read+write shared state
-# over the network instead of the in-process embedded Store. Blocking
-# `&mut self` client → wrapped in spawn_blocking. dogfood, same org.
-kevy-client = "2.0"
+# Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
+# core-sidestate families, plus the anti subsystems (greylist / rate /
+# auth-guard). Blocking `&mut self` client → wrapped in spawn_blocking.
+#
+# On its own version line, not the workspace's: 2.2 pairs with kevy 5.x.
+# `cargo info` reports 2.1.0 as latest from a stale local index — check
+# the sparse index, not the cache. Its public surface is unchanged from
+# 2.0.0 (108 names, no additions, no removals); what the bump brings is
+# `From<KevyError> for io::Error`, which has been available since 4.1.0
+# and lets 498 hand-written `.map_err(io::Error::other)` calls become `?`.
+kevy-client = "2.2"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }

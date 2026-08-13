@@ -193,6 +193,54 @@ mod flag_axis_tests {
         assert!(verdict.is_ok(), "TABLE.VERIFY must stay happy: {verdict:?}");
     }
 
+    /// The badge and the page must answer from the same set.
+    ///
+    /// They no longer share an implementation: the count asks the engine
+    /// (`idx_count_claused`, kevy 5.1) where it used to fetch every page and
+    /// take the length. That is the point of the change, and it is also how
+    /// the two could start to disagree — the list applies one predicate the
+    /// count does not, dropping rows whose key lacks the user's prefix, which
+    /// `FILTER user` should already have excluded. If that ever stops being
+    /// true, the badge says one number and the list shows another.
+    #[test]
+    fn count_equals_list_length() {
+        let st = KevyMailboxStore::new(Arc::new(
+            Store::open(Config::default()).expect("open in-memory kevy"),
+        ));
+        st.ensure_thread_table();
+
+        for i in 1..=17 {
+            seed_starred(&st, "alice@x.com", &format!("t{i:02}"), 1000 + i);
+        }
+        // Another owner's starred threads, which neither may count.
+        for i in 1..=4 {
+            seed_starred(&st, "bob@y.com", &format!("b{i}"), 5000 + i);
+        }
+
+        let listed = st
+            .list_thread_ids_by_flag_via_table("alice@x.com", "starred", 100_000, 0, None)
+            .unwrap();
+        let counted = st
+            .count_thread_ids_by_flag_via_table("alice@x.com", "starred")
+            .unwrap();
+        assert_eq!(listed.len(), 17, "the fixture should give alice 17 starred");
+        assert_eq!(
+            counted,
+            listed.len(),
+            "the engine counted {counted} where the page holds {} — the badge and \
+             the list would disagree",
+            listed.len()
+        );
+
+        // And the count is scoped, not global: bob's four are excluded.
+        assert_eq!(
+            st.count_thread_ids_by_flag_via_table("bob@y.com", "starred")
+                .unwrap(),
+            4,
+            "the count must be scoped to its user"
+        );
+    }
+
     /// If the sort were page-local, asking for 3 of 10 would return
     /// three arbitrary threads in descending order rather than the
     /// three newest — a paging bug that looks like correct output.
