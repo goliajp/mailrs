@@ -22,8 +22,9 @@
 //! declared paths report no usage cell at all** — `idx_usage` returns `None`
 //! for every one, including the standalone `idx_create` indexes. So the table
 //! is not merely missing the ORDERPATHs; it appears never to be populated
-//! here. Why has not been isolated and is filed upstream rather than guessed
-//! at.
+//! here. Why has not been isolated, and is written up for upstream in
+//! `.claude/notes/kevy-5.1-dogfood-feedback-2026-08-13.md` §8b rather than
+//! guessed at here.
 //!
 //! The first version of this route collapsed "no cell" into "zero hits" and so
 //! reported every path as unused, immediately after `threaduser.by_user_bucket`
