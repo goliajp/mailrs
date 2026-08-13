@@ -59,27 +59,92 @@ BASELINE=scripts/core-parity-baseline.txt
 lane() { grep -rl --include='*.rs' '\.route(' "$1" 2>/dev/null | sort; }
 
 extract() {
-    # Print the PATH_* constant each `.route(` call registers.
+    # Print `METHOD /url` for every handler a lane mounts, resolving the
+    # PATH_* constant to the string it stands for in core-api.
     #
-    # Only the constant, not the module alias in front of it: the two lanes
-    # alias the same core-api modules differently (`th_paths::` vs
-    # `thread::`), and the constant is the contract.
+    # Two decisions here, both made after the first version got them wrong.
+    #
+    # RESOLVED, NOT NAMED. The two lanes reach the same URL through different
+    # constants: pg-core mounts message delivery as the POST half of
+    # `PATH_LIST_THREAD_MESSAGES`, and that path string is byte-identical to
+    # `PATH_DELIVER_MESSAGE`. Comparing names called it missing on a lane that
+    # serves it — two of the thirteen "owed" routes were that, and a gate with
+    # false positives teaches people to ignore the true ones. A client
+    # constructing a path does not know which constant the server used.
+    #
+    # METHOD AND URL, NOT URL. axum merges `.route(p, get(..))` with a later
+    # `.route(p, delete(..))` on the same p, so both lanes legitimately mount
+    # some URLs from two call sites — 5 in pg-core, 4 in fastcore. Comparing
+    # bare URLs then hides a whole verb: deleting the GET half of
+    # `/v1/users/{user}/mailboxes/{name}` left the URL in the set, because the
+    # DELETE half still mounted it, and the gate reported parity. A client
+    # doing the missing verb gets 405, which is the one-side-of-the-wire
+    # failure this exists to catch. The contract is (method, URL).
+    #
+    # The call is bounded by paren depth rather than by a line count, because
+    # these are multi-line and a fixed window reaches into the next one.
     #
     # Routes spelled as string literals are deliberately skipped. They are
     # fastcore's `/v1/admin/maintenance:*` family, which is not part of the
     # core-api contract and has no pg-core counterpart by design.
     python3 - "$@" <<'PY'
-import re, sys
-names = []
+import pathlib
+import re
+import sys
+
+# Every PATH_* constant and the URL it stands for.
+consts = {}
+for f in pathlib.Path("crates/core-api/src").rglob("*.rs"):
+    for m in re.finditer(
+        r'pub const (PATH_[A-Z0-9_]+)\s*:\s*&str\s*=\s*"([^"]+)"', f.read_text()
+    ):
+        consts[m.group(1)] = m.group(2)
+
+VERBS = ("get", "post", "put", "delete", "patch", "head", "options")
+
+def call_body(src, open_paren):
+    """Text between `.route(` and its matching `)`."""
+    depth, i = 1, open_paren
+    while i < len(src) and depth:
+        i += 1
+        if src[i:i + 1] == "(":
+            depth += 1
+        elif src[i:i + 1] == ")":
+            depth -= 1
+    return src[open_paren + 1:i]
+
+pairs, unresolved = set(), []
 for path in sys.argv[1:]:
-    with open(path) as fh:
-        src = fh.read()
-    for m in re.finditer(r'\.route\(', src):
-        seg = src[m.end():m.end() + 240]
-        p = re.search(r'\bPATH_[A-Z0-9_]+', seg)
-        if p:
-            names.append(p.group(0))
-print('\n'.join(sorted(set(names))))
+    src = pathlib.Path(path).read_text()
+    for m in re.finditer(r"\.route\(", src):
+        body = call_body(src, m.end() - 1)
+        c = re.search(r"\bPATH_[A-Z0-9_]+", body)
+        if not c:
+            continue
+        name = c.group(0)
+        if name not in consts:
+            # An unresolvable constant would silently drop a route from the
+            # comparison — a smaller set that still reports parity, which is
+            # the failure mode this rewrite exists to remove. Say so and stop.
+            unresolved.append(name)
+            continue
+        url = consts[name]
+        verbs = {
+            v.group(1)
+            for v in re.finditer(r"\b(" + "|".join(VERBS) + r")\s*\(", body)
+        }
+        if not verbs:
+            unresolved.append(f"{name} (no HTTP verb found in .route call)")
+            continue
+        for v in verbs:
+            pairs.add(f"{v.upper()} {url}")
+if unresolved:
+    print(
+        "!! could not resolve: " + ", ".join(sorted(set(unresolved))),
+        file=sys.stderr,
+    )
+    sys.exit(2)
+print("\n".join(sorted(pairs)))
 PY
 }
 
@@ -94,19 +159,19 @@ fc_only=$(comm -13 <(printf '%s\n' "$PG") <(printf '%s\n' "$FC") | grep . || tru
 
 if [ "${1:-}" = "--update" ]; then
     printf '%s\n' "$fc_only" > "$BASELINE"
-    echo "baseline updated: $(printf '%s\n' "$fc_only" | grep -c . || true) routes fastcore serves and pg-core does not"
+    echo "baseline updated: $(printf '%s\n' "$fc_only" | grep -c . || true) endpoints fastcore serves and pg-core does not"
     exit 0
 fi
 
-echo "pg-core:  $n_pg contract routes"
-echo "fastcore: $n_fc contract routes"
+echo "pg-core:  $n_pg contract endpoints"
+echo "fastcore: $n_fc contract endpoints"
 
 fail=0
 
 if [ -n "$pg_only" ]; then
     echo
-    echo "!! REGRESSION — pg-core serves routes fastcore does not:"
-    printf '    %s\n' $pg_only
+    echo "!! REGRESSION — pg-core serves endpoints fastcore does not:"
+    printf '%s\n' "$pg_only" | sed 's/^/    /'
     echo
     echo "fastcore is what production answers with. Add these there rather"
     echo "than removing them from pg-core."
@@ -126,8 +191,8 @@ n_base=$(grep -c . "$BASELINE" || true)
 
 if [ -n "$new" ]; then
     echo
-    echo "!! DEBT GREW — new routes on fastcore with no pg-core counterpart:"
-    printf '    %s\n' $new
+    echo "!! DEBT GREW — new endpoints on fastcore with no pg-core counterpart:"
+    printf '%s\n' "$new" | sed 's/^/    /'
     echo
     echo "A capability on one side of the wire and nowhere on the other looks"
     echo "finished from both sides. Mount it on pg-core in the same change, or"
@@ -140,10 +205,10 @@ fi
 if [ -n "$closed" ]; then
     echo
     echo "pg-core reactivation debt shrank by $(printf '%s\n' "$closed" | grep -c .):"
-    printf '    %s\n' $closed
+    printf '%s\n' "$closed" | sed 's/^/    /'
     echo
     echo "Run '$0 --update' to retire these from the baseline."
     exit 0
 fi
 
-echo "core parity OK — pg-core ⊆ fastcore; reactivation debt $n_debt/$n_base routes"
+echo "core parity OK — pg-core ⊆ fastcore; reactivation debt $n_debt/$n_base endpoints"

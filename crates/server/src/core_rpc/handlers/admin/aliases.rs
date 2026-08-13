@@ -1,4 +1,4 @@
-//! Aliases, domains and sieve scripts.
+//! Aliases and domains.
 
 //! Admin handlers — Phase 2.2 priority subset for webapi split unblock.
 //!
@@ -196,41 +196,8 @@ pub async fn remove_domain(
     }
 }
 
-// ── sieve ───────────────────────────────────────────────────────────
-
-/// POST /v1/admin/accounts/{address}/sieve
-pub async fn set_sieve(
-    State(state): State<Arc<CoreRpcState>>,
-    Path(address): Path<String>,
-    Json(req): Json<wire::SetSieveRequest>,
-) -> Result<StatusCode, StatusCode> {
-    let now = chrono::Utc::now().timestamp();
-    state
-        .domain
-        .set_sieve_script(&address, &req.script, now)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, address = %address, "set_sieve failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-/// DELETE /v1/admin/accounts/{address}/sieve
-pub async fn delete_sieve(
-    State(state): State<Arc<CoreRpcState>>,
-    Path(address): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    state
-        .domain
-        .delete_sieve_script(&address)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, address = %address, "delete_sieve failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    Ok(StatusCode::NO_CONTENT)
-}
+// Sieve read AND write are the shared network-kevy family now — see
+// core-sidestate/families/groups_admin.rs. Nothing sieve-shaped belongs here.
 
 // ── audit log ───────────────────────────────────────────────────────
 

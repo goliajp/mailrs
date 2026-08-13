@@ -15,7 +15,8 @@ use axum::http::StatusCode;
 
 use mailrs_core_api::method::admin::{
     AddGroupMemberRequest, ApiKeyWire, GroupListResponse, GroupMembersResponse,
-    GroupPermissionsResponse, GroupWire, SetGroupPermissionsRequest, SieveScriptResponse,
+    GroupPermissionsResponse, GroupWire, SetGroupPermissionsRequest, SetSieveRequest,
+    SieveScriptResponse,
 };
 
 use crate::NetKevy;
@@ -185,6 +186,43 @@ pub async fn get_sieve<S: NetKevy>(
             .map(|v| String::from_utf8_lossy(&v).into_owned())
     });
     Json(SieveScriptResponse { script })
+}
+
+/// The write half of the read above, and it has to live beside it.
+///
+/// `sieve:<address>` in the network kevy is where every actor that consults a
+/// script already looks: this handler's own GET, the web UI's save path
+/// (`webapi/handlers/admin_ops.rs` writes the key directly), fastcore's
+/// ManageSieve, and fastcore's delivery-time evaluator. pg-core wrote the
+/// script to PG `sieve_scripts` instead, so a script saved through the
+/// contract was invisible to the GET on the same URL and applied to no mail —
+/// a 204 for a write with no reader, which is the shape
+/// `rules/one-side-of-the-wire.md` exists for.
+pub async fn set_sieve<S: NetKevy>(
+    State(state): State<Arc<S>>,
+    Path(address): Path<String>,
+    Json(req): Json<SetSieveRequest>,
+) -> StatusCode {
+    let Some(mut conn) = state.net_conn() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    match conn.set(format!("sieve:{address}").as_bytes(), req.script.as_bytes()) {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+pub async fn delete_sieve<S: NetKevy>(
+    State(state): State<Arc<S>>,
+    Path(address): Path<String>,
+) -> StatusCode {
+    let Some(mut conn) = state.net_conn() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    match conn.del(&[format!("sieve:{address}").as_bytes()]) {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
 }
 
 pub async fn set_group_permissions<S: NetKevy>(
