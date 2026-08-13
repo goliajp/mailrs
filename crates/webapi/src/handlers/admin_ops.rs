@@ -75,7 +75,7 @@ pub async fn get_account_sieve(
     Extension(_user): Extension<AuthedUser>,
     Path(address): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = format!("sieve:{address}");
+    let key = mailrs_core_sidestate::sieve_key(&address);
     let val = with_kevy(move |c| c.get(key.as_bytes()).map_err(std::io::Error::other))?;
     Ok(Json(serde_json::json!({
         "script": val.and_then(|v| String::from_utf8(v).ok()).unwrap_or_default(),
@@ -93,7 +93,7 @@ pub async fn set_account_sieve(
     Path(address): Path<String>,
     Json(req): Json<SetSieveRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("sieve:{address}");
+    let key = mailrs_core_sidestate::sieve_key(&address);
     super::audit::record(&actor, "sieve.update", &address, "");
     with_kevy(move |c| {
         c.set(key.as_bytes(), req.script.as_bytes())
@@ -108,7 +108,7 @@ pub async fn delete_account_sieve(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path(address): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = format!("sieve:{address}");
+    let key = mailrs_core_sidestate::sieve_key(&address);
     with_kevy(move |c| {
         c.del(&[key.as_bytes()]).map_err(std::io::Error::other)?;
         Ok(())

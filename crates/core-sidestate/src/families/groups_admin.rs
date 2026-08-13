@@ -180,7 +180,7 @@ pub async fn get_sieve<S: NetKevy>(
     Path(address): Path<String>,
 ) -> Json<SieveScriptResponse> {
     let script = state.net_conn().and_then(|mut conn| {
-        conn.get(format!("sieve:{address}").as_bytes())
+        conn.get(crate::sieve_key(&address).as_bytes())
             .ok()
             .flatten()
             .map(|v| String::from_utf8_lossy(&v).into_owned())
@@ -206,7 +206,7 @@ pub async fn set_sieve<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    match conn.set(format!("sieve:{address}").as_bytes(), req.script.as_bytes()) {
+    match conn.set(crate::sieve_key(&address).as_bytes(), req.script.as_bytes()) {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -219,7 +219,7 @@ pub async fn delete_sieve<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    match conn.del(&[format!("sieve:{address}").as_bytes()]) {
+    match conn.del(&[crate::sieve_key(&address).as_bytes()]) {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }

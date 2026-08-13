@@ -214,11 +214,7 @@ impl ManageSieveSession {
             return vec!["NO \"not authenticated\"\r\n".into()];
         };
 
-        let Some(ref ds) = self.domain_store else {
-            return vec!["\"default\"\r\n".into(), "OK\r\n".into()];
-        };
-
-        match ds.get_sieve_script(username).await {
+        match crate::sieve_store::get(username) {
             Ok(Some(_)) => vec!["\"default\" ACTIVE\r\n".into(), "OK\r\n".into()],
             Ok(None) => vec!["OK\r\n".into()],
             Err(e) => vec![format!("NO \"{e}\"\r\n")],
@@ -235,11 +231,7 @@ impl ManageSieveSession {
             return vec!["NO \"script name required\"\r\n".into()];
         }
 
-        let Some(ref ds) = self.domain_store else {
-            return vec!["NO \"no storage backend\"\r\n".into()];
-        };
-
-        match ds.get_sieve_script(username).await {
+        match crate::sieve_store::get(username) {
             Ok(Some(script)) => {
                 let size = script.len();
                 vec![
@@ -303,13 +295,8 @@ impl ManageSieveSession {
             return vec![format!("NO \"compilation failed: {e}\"\r\n")];
         }
 
-        let Some(ref ds) = self.domain_store else {
-            return vec!["NO \"no storage backend\"\r\n".into()];
-        };
-
         let username = username.clone();
-        let now = chrono::Utc::now().timestamp();
-        match ds.set_sieve_script(&username, &content, now).await {
+        match crate::sieve_store::set(&username, &content) {
             Ok(()) => vec![format!("OK \"script \\\"{name}\\\" saved\"\r\n")],
             Err(e) => vec![format!("NO \"{e}\"\r\n")],
         }
@@ -325,12 +312,8 @@ impl ManageSieveSession {
             return vec!["NO \"script name required\"\r\n".into()];
         }
 
-        let Some(ref ds) = self.domain_store else {
-            return vec!["NO \"no storage backend\"\r\n".into()];
-        };
-
         let username = username.clone();
-        match ds.delete_sieve_script(&username).await {
+        match crate::sieve_store::delete(&username) {
             Ok(true) => vec![format!("OK \"script \\\"{name}\\\" deleted\"\r\n")],
             Ok(false) => vec!["NO \"script not found\"\r\n".into()],
             Err(e) => vec![format!("NO \"{e}\"\r\n")],

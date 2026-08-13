@@ -22,16 +22,11 @@ pub(crate) struct SetSieveRequest {
 pub(crate) async fn get_sieve(
     Path(address): Path<String>,
     AuthUser { .. }: AuthUser,
-    State(state): State<Arc<WebState>>,
+    State(_state): State<Arc<WebState>>,
 ) -> impl IntoResponse {
-    let Some(ref ds) = state.domain_store else {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "domain store not configured"})),
-        )
-            .into_response();
-    };
-    match ds.get_sieve_script(&address).await {
+    // No domain-store guard: the script does not come from SQL. The write
+    // handlers still need one, because they write the audit log.
+    match crate::sieve_store::get(&address) {
         Ok(script) => Json(SieveResponse { address, script }).into_response(),
         Err(e) => {
             tracing::warn!(error = %e, "admin operation failed");
@@ -76,9 +71,8 @@ pub(crate) async fn set_sieve(
             message: Some(format!("invalid sieve script: {e}")),
         });
     }
-    let now = chrono::Utc::now().timestamp();
     let script_len = req.script.len();
-    match ds.set_sieve_script(&address, &req.script, now).await {
+    match crate::sieve_store::set(&address, &req.script) {
         Ok(()) => {
             ds.log_audit(&actor, "sieve_set", &address, &format!("size={script_len}"))
                 .await;
@@ -108,7 +102,7 @@ pub(crate) async fn delete_sieve(
             message: Some("domain store not configured".into()),
         });
     };
-    match ds.delete_sieve_script(&address).await {
+    match crate::sieve_store::delete(&address) {
         Ok(true) => {
             ds.log_audit(&actor, "sieve_deleted", &address, "").await;
             Json(ApiResult {

@@ -22,7 +22,6 @@ mod email_groups;
 mod encryption;
 mod groups;
 mod permissions;
-mod sieve;
 mod totp;
 mod vacation;
 
