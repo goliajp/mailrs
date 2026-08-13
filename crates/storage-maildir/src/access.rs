@@ -56,6 +56,36 @@ impl Maildir {
         Ok(())
     }
 
+    /// The flags currently on a message's file, or `None` when no file for
+    /// `id` exists in either directory.
+    ///
+    /// The missing half of [`Self::mark_processed`]: setting flags needs to
+    /// know which ones are already there, because the caller's own
+    /// representation may not cover all of them. A `u32` bitmask, for one,
+    /// has no bit for `P` (passed), so replacing a file's flag set from a
+    /// bitmask silently drops it. Read, modify the bits you own, write.
+    ///
+    /// A message still in `new/` has no suffix and therefore no flags —
+    /// `Some(vec![])`, which is different from `None`.
+    pub fn flags_of(&self, id: &MessageId) -> io::Result<Option<Vec<Flag>>> {
+        let base = base_id(id);
+        if self.root.join("new").join(base).is_file() {
+            return Ok(Some(Vec::new()));
+        }
+        let Some(path) = self.find_in_cur(id)? else {
+            return Ok(None);
+        };
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        // From the colon, not past it: `parse_flags` strips a leading
+        // `":2,"` itself, so handing it the part after the colon makes it
+        // find no prefix and report no flags — silently, as an empty set
+        // rather than an error.
+        Ok(Some(match name.find(':') {
+            Some(i) => crate::parse_flags(&name[i..]),
+            None => Vec::new(),
+        }))
+    }
+
     /// Delete a message by `id` from `new/` or `cur/`. Returns `NotFound`
     /// if it isn't present in either.
     pub fn delete(&self, id: &MessageId) -> io::Result<()> {

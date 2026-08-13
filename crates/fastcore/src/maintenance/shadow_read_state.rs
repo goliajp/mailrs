@@ -79,10 +79,18 @@ pub(crate) async fn read_state_shadow_route(
     let mut seen_only_in_index = 0u64;
     let mut flagged_only_on_disk = 0u64;
     let mut flagged_only_in_index = 0u64;
-    // The index names a message with no file. A different problem from the
-    // two above, and one that must be zero — it would mean the web offers
-    // to open something that cannot be read.
-    let mut no_file_for_index_row = 0u64;
+    // Two different causes, kept apart after the first run reported 215
+    // under one name and every sample came back as the empty string —
+    // which meant none of them were dangling references at all, they were
+    // rows carrying no reference. One number covering both is a number
+    // nobody can act on.
+    //
+    // `no_blob_ref` may well be legitimate (a row with no maildir file of
+    // its own). `blob_ref_names_no_file` is a dangling reference and must
+    // be zero: it would mean the web offers to open a message that cannot
+    // be read.
+    let mut index_row_has_no_blob_ref = 0u64;
+    let mut blob_ref_names_no_file = 0u64;
     // Threads whose stored `unread_count` disagrees with the count derived
     // from the file names. This is the number the badge and the list draw,
     // so it is the user-visible form of the two directional counters.
@@ -97,7 +105,8 @@ pub(crate) async fn read_state_shadow_route(
     // rows belonged to another.
     let mut seen_disk_samples: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut seen_index_samples: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut no_file_samples: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut no_ref_samples: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut dangling_samples: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut count_samples: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut by_user: BTreeMap<String, serde_json::Value> = BTreeMap::new();
 
@@ -130,9 +139,16 @@ pub(crate) async fn read_state_shadow_route(
                 let Ok(Some(facts)) = state.mailbox.user_message_facts(user, &mid) else {
                     continue;
                 };
+                if facts.blob_ref.is_empty() {
+                    index_row_has_no_blob_ref += 1;
+                    push(&mut no_ref_samples, user, mid.clone());
+                    continue;
+                }
                 let Some(disk_flags) = disk.get(base_id(&facts.blob_ref)) else {
-                    no_file_for_index_row += 1;
-                    push(&mut no_file_samples, user, facts.blob_ref.clone());
+                    blob_ref_names_no_file += 1;
+                    // The ref, not the message id: a dangling reference is
+                    // diagnosed by looking for the file it names.
+                    push(&mut dangling_samples, user, facts.blob_ref.clone());
                     continue;
                 };
                 compared += 1;
@@ -202,7 +218,8 @@ pub(crate) async fn read_state_shadow_route(
         "seen_only_in_index": seen_only_in_index,
         "flagged_only_on_disk": flagged_only_on_disk,
         "flagged_only_in_index": flagged_only_in_index,
-        "no_file_for_index_row": no_file_for_index_row,
+        "index_row_has_no_blob_ref": index_row_has_no_blob_ref,
+        "blob_ref_names_no_file": blob_ref_names_no_file,
         "threads_compared": threads_compared,
         "unread_count_agrees": unread_count_agrees,
         "unread_count_differs": unread_count_differs,
@@ -210,7 +227,8 @@ pub(crate) async fn read_state_shadow_route(
         "samples": {
             "seen_only_on_disk": seen_disk_samples,
             "seen_only_in_index": seen_index_samples,
-            "no_file_for_index_row": no_file_samples,
+            "index_row_has_no_blob_ref": no_ref_samples,
+            "blob_ref_names_no_file": dangling_samples,
             "unread_count_differs": count_samples,
         },
     }))

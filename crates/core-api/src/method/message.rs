@@ -42,6 +42,17 @@ pub const PATH_GET_INVITE_METHODS: &str = "/v1/invites/by-message-ids";
 /// which is how a bitmask ends up meaning two different things.
 pub use mailrs_mailbox::types::{FLAG_ANSWERED, FLAG_DELETED, FLAG_DRAFT, FLAG_FLAGGED, FLAG_SEEN};
 
+/// Conversions between the bitmask and the maildir flag set.
+///
+/// **`bitmask_to_maildir_flags` is lossy in one direction and it matters
+/// when writing.** Maildir has a `P` (passed / forwarded) flag with no bit
+/// in this mask — `maildir_flags_to_bitmask` maps it to `0` — so
+/// round-tripping a file's flags through the mask silently drops `P`. A
+/// caller renaming a file to match a new bitmask must therefore start from
+/// the flags already on the file and change only the bits the mask
+/// represents, rather than replacing the set outright.
+pub use mailrs_mailbox::types::{bitmask_to_maildir_flags, maildir_flags_to_bitmask};
+
 // ── wire types ──────────────────────────────────────────────────────
 
 /// Wire mirror of `mailrs_mailbox::types::Message`.

@@ -16,6 +16,7 @@ mod census;
 mod cleanup;
 mod idx_advice;
 pub(crate) use idx_advice::idx_advice_route;
+mod backfill_read_state;
 mod shadow_legacy;
 mod shadow_messages;
 mod shadow_projection;
@@ -23,6 +24,7 @@ mod shadow_read_state;
 
 pub(crate) use backfill_admin::*;
 pub(crate) use backfill_messages::*;
+pub(crate) use backfill_read_state::*;
 pub(crate) use backfill_threading::*;
 pub(crate) use census::*;
 pub(crate) use cleanup::*;
