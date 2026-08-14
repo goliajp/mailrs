@@ -267,13 +267,74 @@ function cachePut(key: string, value: SplitResult): void {
  */
 function isVisuallyEmpty(body: string, isHtml: boolean): boolean {
   if (!isHtml) return body.trim() === ''
+  return htmlBodyPaintsNothing(body)
+}
+
+// Elements that occupy space on their own, with no text inside them.
+// `img` is handled separately \u2014 see `imageIsSomethingToLookAt`.
+const PAINTS_ON_ITS_OWN = 'video, audio, table, iframe, svg, canvas, hr'
+
+const HIDDEN_STYLE_RE =
+  /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?:\.0+)?)\s*(?:;|$)/i
+
+/**
+ * Whether an HTML body would paint anything a reader can see.
+ *
+ * The reader pane chose the HTML branch on `html_body` being non-empty,
+ * which is not the same question. A mailing sent through Odoo/SES on
+ * 2026-08-14 arrived with its body missing from both MIME parts: 2.4 kB
+ * of `<style>` in the head, a `display:none` preheader, and a tracking
+ * gif. Every layer handled it correctly and the reader saw a white box \u2014
+ * worse than the `(no text content)` line, because it looks like a
+ * failure to load rather than an empty message.
+ *
+ * Three things are deliberately not content: a stylesheet, a subtree the
+ * message itself hides, and a *remote* image that declares neither a size
+ * nor alt text in a body that has no text at all. The last is the only
+ * judgement call, and it is narrow: an inline `cid:` or `data:` image is
+ * an attachment the sender chose to embed and always counts, and a remote
+ * image that says how big it is or what it shows counts too. What is left
+ * \u2014 a bare URL, no size, no alt, no text anywhere near it \u2014 is a beacon.
+ */
+export function htmlBodyPaintsNothing(html: string): boolean {
   try {
-    const doc = new DOMParser().parseFromString(body, 'text/html')
-    if (doc.body.querySelector('img, video, audio, table, iframe')) return false
-    return doc.body.textContent?.replace(/\u00a0/g, ' ').trim() === ''
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    for (const el of Array.from(doc.body.querySelectorAll('style, script, template'))) {
+      el.remove()
+    }
+    // Removing a hidden ancestor takes its descendants with it, so this
+    // walks a shrinking tree \u2014 re-query rather than iterate a stale list.
+    for (const el of Array.from(doc.body.querySelectorAll('[style]'))) {
+      if (el.isConnected && HIDDEN_STYLE_RE.test(el.getAttribute('style') ?? '')) el.remove()
+    }
+    if (doc.body.textContent?.replace(/\u00a0/g, ' ').trim() !== '') return false
+    if (doc.body.querySelector(PAINTS_ON_ITS_OWN)) return false
+    return !Array.from(doc.body.querySelectorAll('img')).some(imageIsSomethingToLookAt)
   } catch {
-    return body.trim() === ''
+    return html.trim() === ''
   }
+}
+
+function imageIsSomethingToLookAt(img: Element): boolean {
+  if ((img.getAttribute('alt') ?? '').trim() !== '') return true
+  // An embedded part, not a fetch: nothing is learned about the reader by
+  // showing it, and the sender put it there on purpose.
+  if (!/^\s*https?:/i.test(img.getAttribute('src') ?? '')) return true
+  const style = img.getAttribute('style') ?? ''
+  const sized = [
+    img.getAttribute('width'),
+    img.getAttribute('height'),
+    /(?:^|;)\s*width\s*:\s*([^;]+)/i.exec(style)?.[1] ?? null,
+    /(?:^|;)\s*height\s*:\s*([^;]+)/i.exec(style)?.[1] ?? null,
+  ]
+  return sized.some(isBiggerThanAPixel)
+}
+
+function isBiggerThanAPixel(declared: null | string): boolean {
+  if (declared === null) return false
+  const n = parseFloat(declared.trim())
+  if (!Number.isFinite(n)) return false
+  return declared.trim().endsWith('%') ? n > 0 : n > 1
 }
 
 /**

@@ -323,6 +323,27 @@ describe('ThreadView — selected message detail', () => {
     expect(screen.getAllByText(/Plain text email body here/).length).toBeGreaterThanOrEqual(1)
   })
 
+  /**
+   * A mailing that arrived on 2026-08-14 with its body missing from both
+   * MIME parts: a stylesheet, a `display:none` preheader and a tracking
+   * gif. `html_body` was 2,785 bytes, so the HTML branch was chosen and
+   * the reader got a white box. The text part is the only thing in the
+   * message that says anything.
+   */
+  it('falls back to the text part when the html would paint nothing', async () => {
+    await renderAndWait(
+      makeMessage({
+        html_body:
+          '<html><head><style>.o_layout{}</style></head><body>' +
+          '<div style="display:none">preheader only</div>' +
+          '<img src="https://e.example/mail/track/blank.gif"/></body></html>',
+        text_body: 'A small setup step can quietly become a major source of lost activation',
+      })
+    )
+    expect(screen.queryByTestId('message-bubble')).toBeNull()
+    expect(screen.getAllByText(/A small setup step/).length).toBeGreaterThanOrEqual(1)
+  })
+
   it('renders attachment preview', async () => {
     await renderAndWait(
       makeMessage({
