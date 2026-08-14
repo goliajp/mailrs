@@ -68,6 +68,20 @@ impl KevyMailboxStore {
         }
         store.del(&[from_msgs_key.as_bytes()])?;
 
+        // The same move on this user's own index. It reads from a
+        // different key, and moving only the shared one left the merged
+        // messages out of the mailbox that owns them: the reading pane
+        // lists a thread from `thread_user_messages`, so a merged
+        // conversation showed only the half that was already in the target
+        // — and the recount, which counts what the user holds, agreed with
+        // the pane and disagreed with the thread. `from`'s key is removed
+        // by `delete_thread` below.
+        let from_user_key = keys::thread_user_messages(user, from);
+        let into_user_key = keys::thread_user_messages(user, into);
+        for (mid_bytes, score) in &store.zrange(from_user_key.as_bytes(), 0, -1)? {
+            store.zadd(into_user_key.as_bytes(), &[(*score, mid_bytes.as_slice())])?;
+        }
+
         // 2. combine the aggregates. `from` may have no hash (already
         //    merged) — then only the zset move above mattered.
         let from_row = self.get_thread(from)?;
@@ -199,30 +213,40 @@ impl KevyMailboxStore {
         user: &str,
         tid: &str,
     ) -> io::Result<Option<(i64, i64, i64)>> {
-        let blobs = self.thread_messages_unscoped(tid)?;
-        if blobs.is_empty() {
+        // This user's messages, not the thread's. A thread is shared and a
+        // mailbox is not: `list_thread_messages` states the rule — "a
+        // message the user has no copy of is not in their index and so not
+        // in their thread, which is what a mailbox means" — and counting
+        // the shared index broke it, most visibly on a 28-message thread
+        // where the 28th belonged to another mailbox and was counted as
+        // this user's unread mail.
+        let mids = self.user_thread_message_ids(user, tid)?;
+        if mids.is_empty() {
             return Ok(None);
         }
         let mut count = 0i64;
         let mut unread = 0i64;
         let mut sent = 0i64;
-        for b in &blobs {
-            let Ok(w) = serde_json::from_slice::<serde_json::Value>(b) else {
+        for mid in &mids {
+            // Whether it has been read is a per-user fact, and the shared
+            // blob's `flags` is stripped to zero on every write precisely
+            // because it is shared. Reading it there counted every message
+            // unread and repaired read threads back to unread — the
+            // resurrection this sweep exists to prevent, performed by the
+            // sweep.
+            let Some(facts) = self.user_message_facts(user, mid)? else {
+                // An id in this user's index with no row behind it: not a
+                // copy, so not counted. Skipped rather than guessed at.
+                continue;
+            };
+            let Some(bytes) = self.get_message(mid)? else {
+                continue;
+            };
+            let Ok(w) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
                 continue;
             };
             count += 1;
-            // Whether it has been read is a per-user fact, and the blob's
-            // `flags` is stripped to zero on every write precisely because
-            // it is shared. Reading it here counted every message unread
-            // and repaired read threads back to unread — the resurrection
-            // this sweep exists to prevent, performed by the sweep.
-            let mid = w["message_id"].as_str().unwrap_or("");
-            let seen = match self.user_message_facts(user, mid)? {
-                Some(facts) => facts.flags & 1 != 0,
-                // No row for this user: not their copy, and the blob is
-                // the only thing left to ask.
-                None => w["flags"].as_u64().unwrap_or(0) & 1 != 0,
-            };
+            let seen = facts.flags & 1 != 0;
             let sender = w["sender"].as_str().unwrap_or("");
             let is_own = crate::thread_row::senders_csv_contains_user(sender, user);
             if is_own {
@@ -515,18 +539,45 @@ mod tests {
         // resurrect the stale unread.
         arrive(&s, "t-old", u, "a", 100);
         arrive(&s, "t-new", u, "a", 200);
-        let seen1 = serde_json::json!({"message_id":"m1","thread_id":"t-old","internal_date":100,"flags":1,"sender":"other@x.com"});
-        let seen2 = serde_json::json!({"message_id":"m2","thread_id":"t-new","internal_date":200,"flags":1,"sender":"other@x.com"});
-        s.upsert_message("t-old", "m1", 100, &serde_json::to_vec(&seen1).unwrap())
+        // Seeded as delivery does it — the shared blob *and* this user's
+        // row. The counters are recounted from the rows, so a
+        // shared-half-only seed would be testing a state no delivery can
+        // produce.
+        for (tid, mid, date) in [("t-old", "m1", 100i64), ("t-new", "m2", 200)] {
+            let w = serde_json::json!({
+                "message_id": mid, "thread_id": tid, "internal_date": date,
+                "flags": 1, "sender": "other@x.com",
+            });
+            s.upsert_user_message(
+                u,
+                tid,
+                mid,
+                date,
+                &serde_json::to_vec(&w).unwrap(),
+                &crate::UserMessageFacts {
+                    blob_ref: mid,
+                    uid: 1,
+                    flags: 1,
+                    modseq: 1,
+                },
+            )
             .unwrap();
-        s.upsert_message("t-new", "m2", 200, &serde_json::to_vec(&seen2).unwrap())
-            .unwrap();
+        }
 
         s.merge_thread_into(u, "t-old", "t-new").unwrap();
 
         let row = s.get_thread("t-new").unwrap().unwrap();
         assert_eq!(row.count, 2);
         assert_eq!(row.unread_count, 0);
+        // And the merged message is in the mailbox that owns it, not only
+        // in the shared index — the reading pane lists a thread from the
+        // per-user index, so a merge that moves one and not the other
+        // shows half a conversation.
+        assert_eq!(
+            s.list_thread_messages(u, "t-new").unwrap().len(),
+            2,
+            "the merged-in message is missing from this user's thread"
+        );
     }
 
     #[test]

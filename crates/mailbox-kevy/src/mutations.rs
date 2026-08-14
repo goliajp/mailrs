@@ -380,6 +380,12 @@ impl KevyMailboxStore {
             // buckets until v2.9, each time leaving orphans behind
             // on every delete.
             ctx.del(&[keys::thread_user(user, thread_id).as_bytes()]);
+            // And this user's index of the thread's messages. It is a
+            // separate key from the shared one above and was not in this
+            // list, so a deleted thread left one behind — the same
+            // omission, in the same key, that made a merge lose half a
+            // conversation.
+            ctx.del(&[keys::thread_user_messages(user, thread_id).as_bytes()]);
             Ok(true)
         })?;
         Ok((existed, blob_refs))
@@ -566,6 +572,41 @@ mod tests {
                 .unwrap()
                 .is_empty(),
             "the membership row outlived the thread"
+        );
+    }
+
+    /// The thread's messages, from the index the mailbox reads.
+    ///
+    /// The membership row above was the *shared* half of the delete. This
+    /// user's own index of the thread's messages is a separate key, and it
+    /// was not on the list — so a deleted thread left one behind. The same
+    /// key, and the same omission, that made a merge lose half a
+    /// conversation.
+    #[test]
+    fn deleting_a_thread_takes_this_users_index_of_its_messages() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u)).unwrap();
+        s.upsert_user_message(
+            u,
+            "t1",
+            "m-1",
+            100,
+            br#"{"message_id":"m-1","thread_id":"t1"}"#,
+            &crate::UserMessageFacts {
+                blob_ref: "m-1.host",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(s.user_thread_message_ids(u, "t1").unwrap().len(), 1);
+
+        assert!(s.delete_thread(u, "t1").unwrap().0);
+        assert!(
+            s.user_thread_message_ids(u, "t1").unwrap().is_empty(),
+            "the per-user message index outlived the thread"
         );
     }
 
