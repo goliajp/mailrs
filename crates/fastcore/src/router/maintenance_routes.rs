@@ -101,6 +101,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:drop-empty-threads",
             post(drop_empty_threads_route),
         )
+        // The rebuild the three sidecar files exist for: put the
+        // maildir's own facts back onto every thread row, not just the
+        // ones the sweep happens to create.
+        .route(
+            "/v1/admin/maintenance:reindex",
+            post(crate::maintenance::reindex_route),
+        )
         // One-time bridge: write each mailbox's uidlist from the UIDs its
         // index already holds. Without it the file only ever describes
         // mail that arrived after the deploy.
