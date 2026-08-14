@@ -74,7 +74,11 @@ pub(crate) async fn reindex_route(
 
     for user in &users {
         let kw = crate::keywords::load(user);
-        let md_root = crate::maildir_scan::mailbox_dir(user);
+        // One directory scan for the mailbox. Asking per message costs a
+        // `read_dir` of `cur/` each time — thirty thousand messages is a
+        // billion directory entries, and the honest dry run took minutes
+        // on production before this.
+        let on_disk = crate::maildir_scan::names_on_disk(&state, user);
         let log = crate::threadstate::load(user);
         let mut u_walked = 0u64;
         let mut u_changed = 0u64;
@@ -95,7 +99,8 @@ pub(crate) async fn reindex_route(
                 (crate::keywords::ARCHIVED, "archived"),
                 (crate::keywords::PINNED, "pinned"),
             ] {
-                let Some(on_disk) = crate::keywords::thread_has(&state, &kw, user, &tid, name)
+                let Some(on_file) =
+                    crate::keywords::thread_has(&state, &on_disk, &kw, user, &tid, name)
                 else {
                     continue;
                 };
@@ -106,7 +111,7 @@ pub(crate) async fn reindex_route(
                     "archived" => row.archived,
                     _ => row.pinned,
                 };
-                if in_index == on_disk {
+                if in_index == on_file {
                     continue;
                 }
                 if q.dry_run {
@@ -115,8 +120,8 @@ pub(crate) async fn reindex_route(
                     continue;
                 }
                 let wrote = match want {
-                    "archived" => state.mailbox.set_archived(user, &tid, on_disk),
-                    _ => state.mailbox.set_pinned(user, &tid, on_disk),
+                    "archived" => state.mailbox.set_archived(user, &tid, on_file),
+                    _ => state.mailbox.set_pinned(user, &tid, on_file),
                 };
                 match wrote {
                     Ok(_) => {
@@ -139,7 +144,7 @@ pub(crate) async fn reindex_route(
             // whole definition is "tier 2 is derived from tier 1". On
             // production the two agree — `seen_only_in_index: 0`,
             // measured — so nothing is at stake in saying so plainly.
-            if let Some(md_root) = md_root.as_ref() {
+            {
                 for mid in state
                     .mailbox
                     .user_thread_message_ids(user, &tid)
@@ -148,10 +153,9 @@ pub(crate) async fn reindex_route(
                     let Ok(Some(facts)) = state.mailbox.user_message_facts(user, &mid) else {
                         continue;
                     };
-                    let Some((md, id)) = mailrs_maildir::locate(md_root, &facts.blob_ref) else {
-                        continue;
-                    };
-                    let Ok(Some(flags)) = md.flags_of(&id) else {
+                    let Some((flags, _)) =
+                        on_disk.get(crate::maildir_scan::base_id(&facts.blob_ref))
+                    else {
                         continue;
                     };
                     let on_disk = flags.contains(&mailrs_maildir::Flag::Seen);
