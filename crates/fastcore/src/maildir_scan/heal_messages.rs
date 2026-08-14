@@ -5,6 +5,7 @@
 //! message wires the store never got — the "spool drain crashed mid-tick"
 //! case, where the file is on disk and the API cannot see it.
 
+use mailrs_core_api::method::message::FLAG_SEEN;
 use std::sync::Arc;
 
 use super::scan::MailFile;
@@ -52,13 +53,25 @@ pub(crate) fn backfill_uids_once(state: &Arc<FastcoreState>, user: &str) {
                 // This user's uid, not the shared blob's — that one belongs
                 // to whichever owner wrote last, so testing it would skip
                 // the second owner of a thread and leave them without one.
-                let existing = state
+                // The whole per-user row, not just its uid. This used to
+                // take only `.uid` and then write `blob_ref` and `flags`
+                // back from `wire` — the **shared** blob, which is stripped
+                // of exactly those fields by design. So a backfill whose
+                // only job is to assign a uid also blanked the file
+                // reference and reset the read state.
+                //
+                // `upsert_user_message` now refuses to erase a known
+                // `blob_ref` or `uid` with an unknown one, but it cannot
+                // protect `flags`: zero is a real value there, so a zero
+                // arriving from the stripped blob is indistinguishable from
+                // "mark unread" and would be applied. Hence this reads the
+                // row and passes it back unchanged apart from the uid.
+                let known = state
                     .mailbox
                     .user_message_facts(user, &wire.message_id)
                     .ok()
-                    .flatten()
-                    .map(|f| f.uid)
-                    .unwrap_or(wire.uid);
+                    .flatten();
+                let existing = known.as_ref().map(|f| f.uid).unwrap_or(wire.uid);
                 if existing != 0 {
                     continue;
                 }
@@ -78,10 +91,13 @@ pub(crate) fn backfill_uids_once(state: &Arc<FastcoreState>, user: &str) {
                         wire.internal_date,
                         &new_payload,
                         &mailrs_mailbox_kevy::UserMessageFacts {
-                            blob_ref: &wire.blob_ref,
+                            blob_ref: known
+                                .as_ref()
+                                .map(|f| f.blob_ref.as_str())
+                                .unwrap_or(&wire.blob_ref),
                             uid: wire.uid,
-                            flags: wire.flags,
-                            modseq: wire.modseq,
+                            flags: known.as_ref().map(|f| f.flags).unwrap_or(wire.flags),
+                            modseq: known.as_ref().map(|f| f.modseq).unwrap_or(wire.modseq),
                         },
                     );
                 }
@@ -203,7 +219,13 @@ pub(crate) fn heal_missing_messages(
                 date: m.date,
                 internal_date: m.date,
                 size: m.size,
-                flags: 1,
+                // From the file name, not assumed. Maildir states the
+                // read state in the `:2,FLAGS` suffix, and the scan has
+                // already parsed it into `m.seen` — this said `1`, marking
+                // every message it healed as read whatever the file said,
+                // which is the same fact-versus-guess mistake the read-state
+                // work exists to remove.
+                flags: if m.seen { FLAG_SEEN } else { 0 },
                 message_id: m.message_id.clone(),
                 in_reply_to: m.in_reply_to.clone(),
                 sender_trust: m.sender_trust.clone(),

@@ -69,9 +69,42 @@ impl KevyMailboxStore {
         let zset = keys::thread_messages(thread_id);
         let user_key = keys::user_message(user, message_id);
         let user_zset = keys::thread_user_messages(user, thread_id);
-        let uid = per_user.uid.to_string();
+        // A zero is "I do not know", not "the value is zero", and this
+        // crate's own `strip_per_user_fields` says so: *"A zero is the
+        // honest value for a field whose true value depends on who is
+        // asking."* So a caller handing us an empty `blob_ref` or a zero
+        // `uid` is telling us it has nothing to say about them, and writing
+        // that over a known value destroys the fact.
+        //
+        // That is not hypothetical. A caller that reads the **shared** blob
+        // and passes its fields straight back writes exactly those zeros,
+        // because the shared blob is stripped of them by design — and the
+        // result is a message the mailbox lists and cannot open, because
+        // nothing knows which file it is. 215 rows on production, and a
+        // repair that appeared to work and did not survive.
+        //
+        // `flags` is deliberately **not** protected: zero is a legitimate
+        // value there (unread, unflagged), so it has no "unknown" to
+        // distinguish. `modseq` only ever moves forward.
+        //
+        // See `rules/common/coding-style.md` — Null vs Zero — and
+        // `rules/one-side-of-the-wire.md`.
+        let known = self.user_message_facts(user, message_id).ok().flatten();
+        let blob_ref: &str = match (per_user.blob_ref.is_empty(), &known) {
+            (true, Some(k)) if !k.blob_ref.is_empty() => &k.blob_ref,
+            _ => per_user.blob_ref,
+        };
+        let uid_val = match (per_user.uid, &known) {
+            (0, Some(k)) if k.uid != 0 => k.uid,
+            _ => per_user.uid,
+        };
+        let modseq_val = match &known {
+            Some(k) if per_user.modseq < k.modseq => k.modseq,
+            _ => per_user.modseq,
+        };
+        let uid = uid_val.to_string();
         let flags = per_user.flags.to_string();
-        let modseq = per_user.modseq.to_string();
+        let modseq = modseq_val.to_string();
         // Stage 5: the shared blob stops carrying the per-user fields.
         //
         // They are cleared rather than left at the caller's values, because a
@@ -92,7 +125,7 @@ impl KevyMailboxStore {
                 ctx.hset(
                     user_key.as_bytes(),
                     &[
-                        (b"blob_ref".as_slice(), per_user.blob_ref.as_bytes()),
+                        (b"blob_ref".as_slice(), blob_ref.as_bytes()),
                         (b"uid".as_slice(), uid.as_bytes()),
                         (b"flags".as_slice(), flags.as_bytes()),
                         (b"modseq".as_slice(), modseq.as_bytes()),
@@ -242,6 +275,75 @@ mod tests {
         KevyMailboxStore::new(Arc::new(
             Store::open(Config::default()).expect("in-memory kevy"),
         ))
+    }
+
+    /// A caller with nothing to say about `blob_ref` or `uid` must not
+    /// erase what is already known.
+    ///
+    /// This is the defect that made 215 messages on production listable and
+    /// unopenable, and it is a Null-vs-Zero conflation: the shared blob is
+    /// stripped of the per-user fields on purpose, so a caller that reads it
+    /// and passes the fields straight back is handing over "unknown"
+    /// dressed as "empty". The guard lives here, in the one writer of these
+    /// fields, rather than in each caller — there were four candidates and
+    /// reading them was not enough to tell which one did it.
+    #[test]
+    fn an_unknown_per_user_fact_does_not_erase_a_known_one() {
+        let st = store();
+        let payload = br#"{"message_id":"m@x","thread_id":"t@x"}"#;
+
+        st.upsert_user_message("u@x", "t@x", "m@x", 1, payload, &facts("real.file", 7))
+            .expect("seed");
+        let before = st.user_message_facts("u@x", "m@x").unwrap().unwrap();
+        assert_eq!(before.blob_ref, "real.file");
+        assert_eq!(before.uid, 7);
+
+        // What a caller reading the stripped shared blob passes back.
+        st.upsert_user_message("u@x", "t@x", "m@x", 1, payload, &facts("", 0))
+            .expect("clobber attempt");
+        let after = st.user_message_facts("u@x", "m@x").unwrap().unwrap();
+        assert_eq!(
+            after.blob_ref, "real.file",
+            "an empty blob_ref erased the file reference — the message is \
+             now listable and unopenable"
+        );
+        assert_eq!(after.uid, 7, "a zero uid erased the assigned uid");
+
+        // A caller that does know something still wins.
+        st.upsert_user_message("u@x", "t@x", "m@x", 1, payload, &facts("moved.file", 9))
+            .expect("real update");
+        let moved = st.user_message_facts("u@x", "m@x").unwrap().unwrap();
+        assert_eq!(moved.blob_ref, "moved.file");
+        assert_eq!(moved.uid, 9);
+    }
+
+    /// `flags` is not protected, and must not be: zero is a real value
+    /// there. Marking a message unread is exactly writing zero.
+    #[test]
+    fn flags_zero_is_a_value_and_still_applies() {
+        let st = store();
+        let payload = br#"{"message_id":"m@x","thread_id":"t@x"}"#;
+        let seen = UserMessageFacts {
+            blob_ref: "f",
+            uid: 1,
+            flags: 1,
+            modseq: 1,
+        };
+        st.upsert_user_message("u@x", "t@x", "m@x", 1, payload, &seen)
+            .unwrap();
+        let unread = UserMessageFacts {
+            blob_ref: "f",
+            uid: 1,
+            flags: 0,
+            modseq: 2,
+        };
+        st.upsert_user_message("u@x", "t@x", "m@x", 1, payload, &unread)
+            .unwrap();
+        assert_eq!(
+            st.user_message_facts("u@x", "m@x").unwrap().unwrap().flags,
+            0,
+            "marking unread must still be able to write zero"
+        );
     }
 
     fn facts<'a>(blob_ref: &'a str, uid: u32) -> UserMessageFacts<'a> {
