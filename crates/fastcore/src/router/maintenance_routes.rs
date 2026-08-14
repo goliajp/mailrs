@@ -83,6 +83,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:read-state-backfill",
             post(read_state_backfill_route),
         )
+        // Gives back the file reference to rows the read path returns in
+        // full with an empty `blob_ref` — listed in the mailbox, body
+        // unfetchable. `?dry_run=true` reports first.
+        .route(
+            "/v1/admin/maintenance:repair-blob-refs",
+            post(repair_blob_refs_route),
+        )
         // Ops endpoint — where mail forging one of our own domains
         // actually ended up.
         .route(
