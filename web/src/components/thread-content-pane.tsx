@@ -18,6 +18,7 @@ import {
   Star,
   Trash2,
 } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
@@ -35,6 +36,7 @@ import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
 import { useSelectedThreadId } from '@/hooks/use-current-list'
 import { MPane } from '@/layouts/pane'
 import { extractEmail, extractName } from '@/lib/avatar'
+import { htmlBodyPaintsNothing } from '@/lib/email-split'
 import { formatFullDate } from '@/lib/format'
 import { highlightMentions } from '@/lib/mention'
 import { downloadEml, printMessage } from '@/lib/message-export'
@@ -108,6 +110,14 @@ export function ThreadContentPane({
   // names the message by (thread, uid) rather than by URL, which is
   // what stops it being a request forwarder.
   const threadId = useSelectedThreadId()
+  // A non-empty `html_body` is not the same as a message with a body. The
+  // mailing that surfaced this carried 2.4 kB of stylesheet, a hidden
+  // preheader and a tracking gif, and rendered as a white box — which
+  // reads as a failure to load rather than as an empty message. When the
+  // HTML would paint nothing, show the text part, which at least holds
+  // whatever the preheader said.
+  const html = selectedMsg?.html_body
+  const showHtml = useMemo(() => !!html && !htmlBodyPaintsNothing(html), [html])
   return (
     <>
       {/* content panel — full width on mobile, flex-[2] on desktop */}
@@ -345,7 +355,7 @@ export function ThreadContentPane({
                 )}
 
                 {/* email body */}
-                {selectedMsg.html_body && (
+                {showHtml && (
                   <div className="border-border border-b">
                     <MessageBubble
                       attachments={EMPTY_ATTACHMENTS}
@@ -364,7 +374,7 @@ export function ThreadContentPane({
                     </div>
                   </div>
                 )}
-                {!selectedMsg.html_body && (
+                {!showHtml && (
                   <div className="px-4 py-3 select-text">
                     <div className="text-fg text-mid font-sans leading-relaxed break-words whitespace-pre-wrap">
                       {linkifyNodes(
