@@ -53,6 +53,46 @@ pub(crate) fn mailbox_dir(user: &str) -> Option<std::path::PathBuf> {
     Some(std::path::PathBuf::from(root).join(domain).join(local))
 }
 
+/// Every message file in a mailbox, by base id, with what its name says.
+///
+/// One directory scan for the whole mailbox. The alternative — asking per
+/// message — costs a `read_dir` of `cur/` **per message**, because that is
+/// how a flag suffix is matched, so a thirty-thousand-message mailbox does
+/// a billion directory entries. `maintenance:reindex` took minutes on
+/// production that way before this existed.
+pub(crate) fn names_on_disk(
+    state: &std::sync::Arc<crate::FastcoreState>,
+    user: &str,
+) -> std::collections::HashMap<String, (Vec<mailrs_maildir::Flag>, Vec<char>)> {
+    let mut out = std::collections::HashMap::new();
+    for mb in crate::imap::backend::list_mailboxes(state, user) {
+        let md = mailrs_maildir::Maildir::open(&mb.path);
+        let entries = md
+            .scan_new()
+            .unwrap_or_default()
+            .into_iter()
+            .chain(md.scan_cur().unwrap_or_default());
+        for e in entries {
+            // Keywords come off the same name the flags were parsed from,
+            // rather than a second stat: the suffix carries both.
+            let name = e.path.file_name().unwrap_or_default().to_string_lossy();
+            let keywords = match name.find(':') {
+                Some(i) => mailrs_maildir::keywords_of(&name[i..]),
+                None => Vec::new(),
+            };
+            out.insert(e.id.0, (e.flags, keywords));
+        }
+    }
+    out
+}
+
+/// The flag-free, folder-free identity a `blob_ref` names — the key
+/// [`names_on_disk`] is built with.
+pub(crate) fn base_id(blob_ref: &str) -> &str {
+    let file = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
+    file.split(':').next().unwrap_or(file)
+}
+
 pub(crate) fn apply_flag_bitmask(user: &str, blob_ref: &str, bits: u32) -> std::io::Result<bool> {
     use mailrs_core_api::method::message::bitmask_to_maildir_flags;
     use mailrs_maildir::Flag;

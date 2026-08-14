@@ -127,13 +127,13 @@ pub(crate) fn file_has(keywords: &mailrs_keywords::Keywords, letters: &[char], n
 /// be asked.
 pub(crate) fn thread_has(
     state: &Arc<FastcoreState>,
+    on_disk: &std::collections::HashMap<String, (Vec<mailrs_maildir::Flag>, Vec<char>)>,
     keywords: &mailrs_keywords::Keywords,
     user: &str,
     thread_id: &str,
     name: &str,
 ) -> Option<bool> {
     let letter = keywords.letter(name)?;
-    let md_root = mailbox_dir(user)?;
     let mut saw_a_file = false;
     for mid in state
         .mailbox
@@ -143,10 +143,7 @@ pub(crate) fn thread_has(
         let Ok(Some(facts)) = state.mailbox.user_message_facts(user, &mid) else {
             continue;
         };
-        let Some((md, id)) = mailrs_maildir::locate(&md_root, &facts.blob_ref) else {
-            continue;
-        };
-        let Ok(Some(letters)) = md.keywords_of(&id) else {
+        let Some((_, letters)) = on_disk.get(crate::maildir_scan::base_id(&facts.blob_ref)) else {
             continue;
         };
         saw_a_file = true;
