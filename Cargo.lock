@@ -3243,6 +3243,7 @@ dependencies = [
  "mailrs-imap-proto",
  "mailrs-inbound",
  "mailrs-intelligence",
+ "mailrs-keywords",
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
  "mailrs-mime",
@@ -3350,6 +3351,13 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-keywords"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]

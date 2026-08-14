@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{
     FastcoreState, extract_headers, extract_sender_trust, file_mtime_epoch, maildir_filename_epoch,
-    maildir_seen_flag, resolve_thread_by_ancestry,
+    maildir_keyword_bits, maildir_seen_flag, resolve_thread_by_ancestry,
 };
 
 pub(crate) struct MailFile {
@@ -32,6 +32,11 @@ pub(crate) struct MailFile {
     /// read/unread fact. Self-heal must respect it or every boot
     /// resurrects already-read mail as unread.
     pub(crate) seen: bool,
+    /// The Maildir++ keyword bits on the file — lowercase letters in the
+    /// `:2,` suffix, whose meaning is in `mailrs-keywords`. `archived`
+    /// and `pinned` live here, so the sweep can put back a decision a
+    /// rebuilt index does not have.
+    pub(crate) keywords: Vec<char>,
     /// Sender-auth verdict from the file's `Authentication-Results`
     /// header (`verified` / `suspicious` / `unverified` / `""`).
     pub(crate) sender_trust: String,
@@ -167,6 +172,7 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
             from,
             to,
             seen: maildir_seen_flag(&bare),
+            keywords: maildir_keyword_bits(&bare),
             sender_trust: extract_sender_trust(&bytes),
         });
     }

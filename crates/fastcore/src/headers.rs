@@ -215,6 +215,24 @@ pub(crate) fn maildir_seen_flag(name: &str) -> bool {
     }
 }
 
+/// The Maildir++ keyword bits in a file name's `:2,` suffix.
+///
+/// Lowercase letters, whose meaning is in the mailbox's `mailrs-keywords`
+/// file — `archived` and `pinned` are written there because no standard
+/// flag means either and because a person's decision cannot be recomputed
+/// from the mail.
+pub(crate) fn maildir_keyword_bits(name: &str) -> Vec<char> {
+    match name.rsplit_once(":2,") {
+        Some((_, info)) => {
+            let mut out: Vec<char> = info.chars().filter(|c| c.is_ascii_lowercase()).collect();
+            out.sort_unstable();
+            out.dedup();
+            out
+        }
+        None => Vec::new(),
+    }
+}
+
 /// Fall back to the file's mtime as the delivery epoch when both the
 /// `Date:` header and the maildir filename yield nothing usable.
 pub(crate) fn file_mtime_epoch(path: &std::path::Path) -> Option<i64> {

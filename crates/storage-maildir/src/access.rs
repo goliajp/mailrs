@@ -9,7 +9,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use crate::{Flag, Maildir, MessageId, serialize_flags};
+use crate::{Flag, Maildir, MessageId};
 
 impl Maildir {
     /// Read the raw bytes of the message identified by `id`, searching
@@ -33,12 +33,51 @@ impl Maildir {
     /// given `flags` in the `:2,FLAGS` suffix. If it is already in `cur/`,
     /// its suffix is updated to `flags`. Returns `NotFound` if no file for
     /// `id` exists in either directory.
+    ///
+    /// Keeps the keyword bits already on the file.
+    ///
+    /// The suffix is rebuilt from `flags`, and a caller that knows about
+    /// the six standard flags knows nothing about the lowercase letters
+    /// beside them — `archived` and `pinned` live there. Dropping them on
+    /// a mark-read would be a fact erased by a write about something else,
+    /// so they are read off the file and carried through. To *change* them,
+    /// see [`mark_processed_with_keywords`](Self::mark_processed_with_keywords).
     pub fn mark_processed(&self, id: &MessageId, flags: &[Flag]) -> io::Result<()> {
+        let keywords = self.keywords_of(id)?.unwrap_or_default();
+        self.mark_processed_with_keywords(id, flags, &keywords)
+    }
+
+    /// The keyword bits on a message's file, or `None` when there is no
+    /// file for `id`. A message in `new/` has none by construction.
+    pub fn keywords_of(&self, id: &MessageId) -> io::Result<Option<Vec<char>>> {
         let base = base_id(id);
-        let target = self
-            .root
-            .join("cur")
-            .join(format!("{}{}", base, serialize_flags(flags)));
+        if self.root.join("new").join(base).is_file() {
+            return Ok(Some(Vec::new()));
+        }
+        let Some(path) = self.find_in_cur(id)? else {
+            return Ok(None);
+        };
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        Ok(Some(match name.find(':') {
+            Some(i) => crate::keywords_of(&name[i..]),
+            None => Vec::new(),
+        }))
+    }
+
+    /// [`mark_processed`](Self::mark_processed) with the keyword bits
+    /// stated rather than carried over — the write path for a keyword.
+    pub fn mark_processed_with_keywords(
+        &self,
+        id: &MessageId,
+        flags: &[Flag],
+        keywords: &[char],
+    ) -> io::Result<()> {
+        let base = base_id(id);
+        let target = self.root.join("cur").join(format!(
+            "{}{}",
+            base,
+            crate::serialize_flags_and_keywords(flags, keywords)
+        ));
         let new_path = self.root.join("new").join(base);
         let src = if new_path.is_file() {
             new_path
