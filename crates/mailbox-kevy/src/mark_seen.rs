@@ -122,6 +122,39 @@ impl KevyMailboxStore {
         Ok(behind)
     }
 
+    /// Give one user's copy of one message a UID, but only if it has none.
+    ///
+    /// Returns the row's `blob_ref` when it wrote, `None` when the row is
+    /// missing or already carries a UID.
+    ///
+    /// **The guard is the point.** A UID is a promise to an IMAP client and
+    /// overwriting one silently re-points a number a client is holding, so
+    /// this can only ever fill a hole. 215 rows on production have `uid: 0`
+    /// — imports whose UID was never allocated — and no client has ever
+    /// been told a number for them, which is exactly why giving them one
+    /// now is safe and giving a different one to anything else is not.
+    pub fn set_user_message_uid_if_unset(
+        &self,
+        user: &str,
+        message_id: &str,
+        uid: u32,
+    ) -> io::Result<Option<String>> {
+        if uid == 0 {
+            return Ok(None);
+        }
+        let Some(facts) = self.user_message_facts(user, message_id)? else {
+            return Ok(None);
+        };
+        if facts.uid != 0 {
+            return Ok(None);
+        }
+        self.store().hset(
+            keys::user_message(user, message_id).as_bytes(),
+            &[(b"uid".as_slice(), uid.to_string().as_bytes())],
+        )?;
+        Ok(Some(facts.blob_ref))
+    }
+
     /// Set `\Seen` on one user's copy of one message. `None` when the row
     /// does not exist or already carried the bit; otherwise its `blob_ref`
     /// and its new flags.
@@ -160,6 +193,66 @@ mod tests {
     use crate::MessageArrival;
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;
+
+    /// A UID may be filled in and never changed.
+    ///
+    /// 215 rows on production carry `uid: 0` — imports whose UID was never
+    /// allocated — and a message with no UID cannot be fetched by one: the
+    /// raw view and every attachment download go through it, and the web
+    /// client uses it as the timeline's React key, where a repeated zero is
+    /// the duplicate-bubble defect of 2026-07-08. Filling it is safe
+    /// because no client has ever been given a number for these. Changing
+    /// one would be the opposite.
+    #[test]
+    fn a_uid_is_filled_in_once_and_never_overwritten() {
+        let s = store();
+        let u = "u@x.com";
+        let seed = |mid: &str, uid: u32| {
+            s.upsert_user_message(
+                u,
+                "t1",
+                mid,
+                100,
+                br#"{"message_id":"m"}"#,
+                &crate::UserMessageFacts {
+                    blob_ref: "f.host",
+                    uid,
+                    flags: 0,
+                    modseq: 1,
+                },
+            )
+            .unwrap();
+        };
+
+        seed("no-uid", 0);
+        assert_eq!(
+            s.set_user_message_uid_if_unset(u, "no-uid", 7).unwrap(),
+            Some("f.host".to_string())
+        );
+        assert_eq!(s.user_message_facts(u, "no-uid").unwrap().unwrap().uid, 7);
+
+        // Idempotent, and refuses to move a promise.
+        assert_eq!(
+            s.set_user_message_uid_if_unset(u, "no-uid", 9).unwrap(),
+            None
+        );
+        assert_eq!(s.user_message_facts(u, "no-uid").unwrap().unwrap().uid, 7);
+
+        // Nothing to fill, nothing to say.
+        seed("has-uid", 4);
+        assert_eq!(
+            s.set_user_message_uid_if_unset(u, "has-uid", 9).unwrap(),
+            None
+        );
+        assert_eq!(
+            s.set_user_message_uid_if_unset(u, "absent", 9).unwrap(),
+            None
+        );
+        assert_eq!(
+            s.set_user_message_uid_if_unset(u, "no-uid", 0).unwrap(),
+            None
+        );
+    }
 
     fn store() -> KevyMailboxStore {
         let s = KevyMailboxStore::new(Arc::new(
