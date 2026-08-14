@@ -89,6 +89,49 @@ impl KevyMailboxStore {
         }
         Ok(exists)
     }
+
+    /// Set `\Seen` on every message `user` holds in `thread_id`, at the
+    /// row level, and report the files that are now behind.
+    ///
+    /// [`mark_seen`](Self::mark_seen) writes the thread's *counter* and
+    /// sinks the bit into the shared blob — where, since stage 5 of the
+    /// per-user message projection, no read path consults it: the blob's
+    /// `flags` is stripped to zero on write and `user_message_view`
+    /// overlays this row on top. So a conversation read in the web left
+    /// every message in it unread on the row that serves reads, and
+    /// unrenamed on disk.
+    ///
+    /// Returns `(blob_ref, flags)` for each row it changed, so the caller
+    /// — which is the only layer that may touch the filesystem — can bring
+    /// the names in line. Rows already carrying the bit are not returned:
+    /// a second call reports nothing, which is what makes the repair
+    /// converge rather than rename the same files every time.
+    pub fn mark_thread_messages_seen(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> io::Result<Vec<(String, u32)>> {
+        use mailrs_mailbox::types::FLAG_SEEN;
+
+        let mut behind = Vec::new();
+        for mid in self.user_thread_message_ids(user, thread_id)? {
+            let Some(facts) = self.user_message_facts(user, &mid)? else {
+                continue;
+            };
+            if facts.flags & FLAG_SEEN != 0 {
+                continue;
+            }
+            let flags = facts.flags | FLAG_SEEN;
+            self.store().hset(
+                keys::user_message(user, &mid).as_bytes(),
+                &[(b"flags".as_slice(), flags.to_string().as_bytes())],
+            )?;
+            if !facts.blob_ref.is_empty() {
+                behind.push((facts.blob_ref, flags));
+            }
+        }
+        Ok(behind)
+    }
 }
 
 #[cfg(test)]

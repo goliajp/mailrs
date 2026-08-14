@@ -211,7 +211,18 @@ impl KevyMailboxStore {
                 continue;
             };
             count += 1;
-            let seen = w["flags"].as_u64().unwrap_or(0) & 1 != 0;
+            // Whether it has been read is a per-user fact, and the blob's
+            // `flags` is stripped to zero on every write precisely because
+            // it is shared. Reading it here counted every message unread
+            // and repaired read threads back to unread — the resurrection
+            // this sweep exists to prevent, performed by the sweep.
+            let mid = w["message_id"].as_str().unwrap_or("");
+            let seen = match self.user_message_facts(user, mid)? {
+                Some(facts) => facts.flags & 1 != 0,
+                // No row for this user: not their copy, and the blob is
+                // the only thing left to ask.
+                None => w["flags"].as_u64().unwrap_or(0) & 1 != 0,
+            };
             let sender = w["sender"].as_str().unwrap_or("");
             let is_own = crate::thread_row::senders_csv_contains_user(sender, user);
             if is_own {

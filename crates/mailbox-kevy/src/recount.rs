@@ -266,6 +266,45 @@ mod tests {
         assert_eq!(after.sent_count, 0, "lihao sent nothing here");
     }
 
+    /// Where the unread bit is read from.
+    ///
+    /// Not the shared blob: `strip_per_user_fields` zeroes its `flags` on
+    /// every write, by design, because whether a message has been read
+    /// depends on who is asking. Counting from it calls every message
+    /// unread, so a thread the user had read was repaired *back* to
+    /// unread — the resurrection this sweep's own history blames on
+    /// something else, and one of the two writers behind
+    /// `unread_count_differs` climbing on production.
+    #[test]
+    fn unread_is_counted_from_the_row_that_holds_it_not_the_stripped_blob() {
+        let s = store();
+        s.record_message_arrival(&arrival("t1", "u@x.com", "alice@y.com", false))
+            .unwrap();
+        // Delivered through the real path, and read: the per-user row
+        // carries \Seen and the shared blob carries the zero it is given.
+        s.upsert_user_message(
+            "u@x.com",
+            "t1",
+            "msg-1",
+            100,
+            &wire("msg-1", "alice@y.com", true),
+            &crate::UserMessageFacts {
+                blob_ref: "f.host",
+                uid: 1,
+                flags: 1,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+
+        s.repair_thread_counts("u@x.com", "t1").unwrap();
+        let row = s.get_thread("t1").unwrap().unwrap();
+        assert_eq!(
+            row.unread_count, 0,
+            "the row says this message is read; only the stripped blob says otherwise"
+        );
+    }
+
     #[test]
     fn a_converged_thread_is_left_alone() {
         let s = store();
