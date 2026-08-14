@@ -111,26 +111,46 @@ impl KevyMailboxStore {
         user: &str,
         thread_id: &str,
     ) -> io::Result<Vec<(String, u32)>> {
-        use mailrs_mailbox::types::FLAG_SEEN;
-
         let mut behind = Vec::new();
         for mid in self.user_thread_message_ids(user, thread_id)? {
-            let Some(facts) = self.user_message_facts(user, &mid)? else {
-                continue;
-            };
-            if facts.flags & FLAG_SEEN != 0 {
-                continue;
-            }
-            let flags = facts.flags | FLAG_SEEN;
-            self.store().hset(
-                keys::user_message(user, &mid).as_bytes(),
-                &[(b"flags".as_slice(), flags.to_string().as_bytes())],
-            )?;
-            if !facts.blob_ref.is_empty() {
-                behind.push((facts.blob_ref, flags));
+            if let Some((blob_ref, flags)) = self.mark_user_message_seen(user, &mid)?
+                && !blob_ref.is_empty()
+            {
+                behind.push((blob_ref, flags));
             }
         }
         Ok(behind)
+    }
+
+    /// Set `\Seen` on one user's copy of one message. `None` when the row
+    /// does not exist or already carried the bit; otherwise its `blob_ref`
+    /// and its new flags.
+    ///
+    /// Keyed by message id, and deliberately so: the row is, and asking the
+    /// uid index for it first is what made the read-state backfill unable
+    /// to repair the very rows it was written for. All 215 of them carry
+    /// `uid: 0` — imports whose uid was never allocated — so the lookup
+    /// returned nothing, the write was skipped, and the counter that had
+    /// already been incremented reported the repair as done. Every run.
+    pub fn mark_user_message_seen(
+        &self,
+        user: &str,
+        message_id: &str,
+    ) -> io::Result<Option<(String, u32)>> {
+        use mailrs_mailbox::types::FLAG_SEEN;
+
+        let Some(facts) = self.user_message_facts(user, message_id)? else {
+            return Ok(None);
+        };
+        if facts.flags & FLAG_SEEN != 0 {
+            return Ok(None);
+        }
+        let flags = facts.flags | FLAG_SEEN;
+        self.store().hset(
+            keys::user_message(user, message_id).as_bytes(),
+            &[(b"flags".as_slice(), flags.to_string().as_bytes())],
+        )?;
+        Ok(Some((facts.blob_ref, flags)))
     }
 }
 

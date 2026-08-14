@@ -39,7 +39,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use mailrs_core_api::method::message::{FLAG_SEEN, MessageWire};
+use mailrs_core_api::method::message::FLAG_SEEN;
 use mailrs_maildir::{Flag, Maildir};
 
 use super::prelude::*;
@@ -119,6 +119,7 @@ pub(crate) async fn read_state_backfill_route(
                 }
             }
             let thread_level_only = thread_says_read && !any_message_says_read && !mids.is_empty();
+            let mut thread_touched = false;
 
             for mid in &mids {
                 let Ok(Some(facts)) = state.mailbox.user_message_facts(user, mid) else {
@@ -151,10 +152,28 @@ pub(crate) async fn read_state_backfill_route(
                 if disk_seen && !row_seen {
                     // The disk is ahead of the row, whatever the thread
                     // counter believes. The file name is the authority.
-                    index_marked_seen += 1;
-                    if !q.dry_run {
-                        set_index_seen(&state, user, facts.uid, facts.flags | FLAG_SEEN);
-                        u_index += 1;
+                    //
+                    // Counted on the write, not before it: the previous
+                    // version incremented first and wrote through a helper
+                    // that gives up silently when the uid index cannot
+                    // answer — which is every one of these rows, since they
+                    // carry `uid: 0`. It reported 215 repaired on every run
+                    // and repaired none.
+                    if q.dry_run {
+                        index_marked_seen += 1;
+                    } else {
+                        match state.mailbox.mark_user_message_seen(user, mid) {
+                            Ok(Some(_)) => {
+                                index_marked_seen += 1;
+                                u_index += 1;
+                                thread_touched = true;
+                            }
+                            Ok(None) => already_agreed += 1,
+                            Err(e) => {
+                                tracing::warn!(err = %e, %user, %mid, "backfill: row write failed");
+                                errors += 1;
+                            }
+                        }
                     }
                     continue;
                 }
@@ -200,8 +219,30 @@ pub(crate) async fn read_state_backfill_route(
                 // The index row's own bit may still be clear on a
                 // thread-level-only thread; bring it in line so the
                 // shadow converges and the axis is right.
-                if thread_level_only && !row_seen {
-                    set_index_seen(&state, user, facts.uid, facts.flags | FLAG_SEEN);
+                if thread_level_only
+                    && !row_seen
+                    && matches!(state.mailbox.mark_user_message_seen(user, mid), Ok(Some(_)))
+                {
+                    thread_touched = true;
+                }
+            }
+
+            // The thread's counter is a derivation of the bits just
+            // written, so recompute it rather than leave the shadow's
+            // other half reporting a disagreement this pass created.
+            if thread_touched && !q.dry_run {
+                if let Err(e) = state.mailbox.repair_thread_counts(user, &tid) {
+                    tracing::warn!(err = %e, %user, %tid, "backfill: recount failed");
+                }
+                // And drop it off the unread axis when nothing is left
+                // unread — `repair_thread_counts` writes the counters and
+                // not the column the axis keys on.
+                if matches!(
+                    state.mailbox.get_thread_for_user(user, &tid),
+                    Ok(Some(ref row)) if row.unread_count == 0
+                ) && let Err(e) = state.mailbox.mark_seen(user, &tid)
+                {
+                    tracing::warn!(err = %e, %user, %tid, "backfill: axis clear failed");
                 }
             }
         }
@@ -231,27 +272,6 @@ pub(crate) async fn read_state_backfill_route(
         "by_user": by_user,
     }))
     .into_response()
-}
-
-/// Set `\Seen` on one per-user message row, going through the same index
-/// sync the flags route uses so the thread counter and the engagement
-/// signal follow.
-fn set_index_seen(state: &Arc<FastcoreState>, user: &str, uid: u32, flags: u32) {
-    let Ok(Some(bytes)) = state.mailbox.get_message_by_uid(user, uid) else {
-        return;
-    };
-    let Ok(mut wire) = serde_json::from_slice::<MessageWire>(&bytes) else {
-        return;
-    };
-    let old = wire.flags;
-    wire.flags = flags;
-    let Ok(json) = serde_json::to_vec(&wire) else {
-        return;
-    };
-    if let Err(e) = crate::routes::message_ops::sync_index_to_flags(state, user, &wire, &json, old)
-    {
-        tracing::warn!(err = %e, %user, uid, "backfill: index sync failed");
-    }
 }
 
 /// Same rule as the shadow's: a `blob_ref` loses its subfolder prefix and
