@@ -38,6 +38,9 @@ pub(crate) fn heal_membership_rows(
     // Once for the sweep: reading it per message would reparse the whole
     // file per message, and this runs over thirty thousand of them.
     let uids = crate::uidlist::load(user);
+    // Once for the sweep, like the uidlist: the map is one small file and
+    // every message in the mailbox is about to be asked about it.
+    let kw = crate::keywords::load(user);
     for (root, bucket) in by_root {
         let sent_here: Vec<&&MailFile> = bucket
             .iter()
@@ -129,6 +132,23 @@ pub(crate) fn heal_membership_rows(
                 let _ = state
                     .mailbox
                     .set_thread_for_message_id(user, &m.message_id, root);
+            }
+            // The half that makes the keyword bits worth writing: a
+            // decision the maildir carries is put back on the row a
+            // rebuilt index serves from. Any message in the thread
+            // carrying the bit archives (or pins) the thread, because the
+            // bit is per message and the decision was made per thread.
+            let archived = ordered
+                .iter()
+                .any(|m| crate::keywords::file_has(&kw, &m.keywords, crate::keywords::ARCHIVED));
+            let pinned = ordered
+                .iter()
+                .any(|m| crate::keywords::file_has(&kw, &m.keywords, crate::keywords::PINNED));
+            if archived {
+                let _ = state.mailbox.set_archived(user, root, true);
+            }
+            if pinned {
+                let _ = state.mailbox.set_pinned(user, root, true);
             }
             created += 1;
         }

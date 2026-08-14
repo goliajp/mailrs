@@ -35,6 +35,7 @@ mod imap;
 mod importance;
 mod ingest;
 mod junk_ttl;
+mod keywords;
 pub mod live_sync;
 mod maildir_scan;
 mod maintenance;

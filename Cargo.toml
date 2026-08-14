@@ -13,6 +13,7 @@ members = [
     "crates/smtp-proto",
     "crates/storage-maildir",
     "crates/uidlist",
+    "crates/keywords",
     "crates/message-store",
     "crates/receiver",
     "crates/core",

@@ -139,12 +139,14 @@ pub(crate) async fn pin_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_pinned(&user, &thread_id, true)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_pinned(&user, &thread_id, true)
+        .unwrap_or(false);
+    // Tier 1: a person's decision, written where a rebuilt index cannot
+    // lose it. The row above is the index the list reads.
+    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, true);
+    action_result(ok)
 }
 
 pub(crate) async fn star_thread(
@@ -182,12 +184,12 @@ pub(crate) async fn unpin_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_pinned(&user, &thread_id, false)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_pinned(&user, &thread_id, false)
+        .unwrap_or(false);
+    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::PINNED, false);
+    action_result(ok)
 }
 
 pub(crate) async fn archive_thread(
@@ -207,6 +209,9 @@ pub(crate) async fn archive_thread(
         .mailbox
         .set_archived(&user, &thread_id, true)
         .unwrap_or(false);
+    // Tier 1: no standard maildir flag means "archived", so it goes in a
+    // keyword bit, which is where a rebuilt index can find it again.
+    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, true);
     if ok && dismissed_unread {
         crate::importance::record_engagement(
             &state,
@@ -323,12 +328,12 @@ pub(crate) async fn unarchive_thread(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
 ) -> axum::response::Response {
-    action_result(
-        state
-            .mailbox
-            .set_archived(&user, &thread_id, false)
-            .unwrap_or(false),
-    )
+    let ok = state
+        .mailbox
+        .set_archived(&user, &thread_id, false)
+        .unwrap_or(false);
+    crate::keywords::set_on_thread(&state, &user, &thread_id, crate::keywords::ARCHIVED, false);
+    action_result(ok)
 }
 
 pub(crate) async fn delete_thread(

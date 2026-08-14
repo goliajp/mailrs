@@ -1,6 +1,8 @@
 //! Flag parsing, ordering and the add/remove operations.
 
-use crate::{Flag, add_flag, parse_flags, serialize_flags};
+use crate::{
+    Flag, add_flag, keywords_of, parse_flags, serialize_flags, serialize_flags_and_keywords,
+};
 
 // --- Flag::as_char ---
 
@@ -187,4 +189,65 @@ fn add_flag_to_no_prefix() {
     // info string without ":2," — parse_flags returns [], flag is added fresh
     let result = add_flag("", Flag::Flagged);
     assert_eq!(result, ":2,F");
+}
+
+/// A maildir suffix may carry letters this crate does not model.
+///
+/// Lowercase `a`–`z` are Maildir++ **keyword bits**: `dovecot-keywords`
+/// maps each to a name, and mailrs is about to put `archived` and `pinned`
+/// there (step 4 of the maildir-is-the-store RFC). They are not flags in
+/// the `Flag` enum's sense and never will be — the enum is the six
+/// standard ones — but the file carries them and a rewrite must not lose
+/// them.
+///
+/// This is what made it a prerequisite rather than a detail: every write
+/// of read state rebuilds the suffix from a bitmask, so the first time a
+/// message was marked read it would have dropped every keyword on it.
+#[test]
+fn a_rewrite_keeps_the_letters_the_flag_enum_does_not_model() {
+    assert_eq!(keywords_of(":2,Sab"), vec!['a', 'b']);
+    assert_eq!(keywords_of(":2,S"), Vec::<char>::new());
+    // Only the lowercase ones: an unknown *uppercase* letter is a standard
+    // flag this crate has not implemented, and inventing a keyword out of
+    // it would give it a meaning it does not have.
+    assert_eq!(keywords_of(":2,SZ"), Vec::<char>::new());
+
+    // And the round trip: flags and keywords, canonical order, one suffix.
+    assert_eq!(
+        serialize_flags_and_keywords(&[Flag::Seen, Flag::Flagged], &['b', 'a']),
+        ":2,FSab"
+    );
+    assert_eq!(serialize_flags_and_keywords(&[Flag::Seen], &[]), ":2,S");
+}
+
+/// Marking a message processed must not erase its keywords.
+///
+/// `mark_processed` rebuilds the whole suffix from the flags it is given,
+/// and the caller — a flags route, a read-state repair — knows about the
+/// six standard flags and nothing about the keyword bits beside them.
+#[test]
+fn mark_processed_carries_the_keywords_already_on_the_file() {
+    let dir = tempfile::tempdir().expect("tmp");
+    for leaf in ["cur", "new", "tmp"] {
+        std::fs::create_dir_all(dir.path().join(leaf)).expect("maildir");
+    }
+    let md = crate::Maildir::open(dir.path());
+    let id = md.deliver(b"body").expect("deliver");
+    // Archived and pinned, say — set by whatever owns the keyword file.
+    md.mark_processed_with_keywords(&id, &[], &['a', 'b'])
+        .expect("keywords");
+
+    // Now something marks it read, knowing only about \Seen.
+    md.mark_processed(&id, &[Flag::Seen]).expect("mark read");
+
+    let name = std::fs::read_dir(dir.path().join("cur"))
+        .expect("cur")
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .next()
+        .unwrap_or_default();
+    assert!(
+        name.ends_with(":2,Sab"),
+        "marking read erased the keyword bits: {name}"
+    );
 }
