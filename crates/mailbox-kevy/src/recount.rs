@@ -264,8 +264,26 @@ mod tests {
             .unwrap();
         s.record_message_arrival(&arrival("t1", "devops@x.com", "devops@x.com", true))
             .unwrap();
-        s.upsert_message("t1", "msg-1", 100, &wire("msg-1", "devops@x.com", true))
+        // Delivered, so each mailbox has its own row over the one blob —
+        // seeding the shared half alone leaves a message no mailbox holds,
+        // which `upsert_message`'s own docstring warns about and which the
+        // recount now (correctly) declines to count for anybody.
+        for u in ["lihao@x.com", "devops@x.com"] {
+            s.upsert_user_message(
+                u,
+                "t1",
+                "msg-1",
+                100,
+                &wire("msg-1", "devops@x.com", true),
+                &crate::UserMessageFacts {
+                    blob_ref: "msg-1.host",
+                    uid: 1,
+                    flags: 1,
+                    modseq: 1,
+                },
+            )
             .unwrap();
+        }
 
         let before = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(
@@ -317,6 +335,53 @@ mod tests {
         assert_eq!(
             row.unread_count, 0,
             "the row says this message is read; only the stripped blob says otherwise"
+        );
+    }
+
+    /// A message this user has no copy of is not in this user's thread.
+    ///
+    /// The last row on production after everything above: a 28-message
+    /// thread where lihao holds 27, every one of them read, and a counter
+    /// saying one unread. The recount walked the *shared* message index,
+    /// found an id with no row for this user, and fell back to the shared
+    /// blob's `flags` — which is stripped to zero — so it counted a message
+    /// belonging to somebody else as this user's unread mail.
+    ///
+    /// `list_thread_messages` already states the rule this broke: "A
+    /// message the user has no copy of is not in their index and so not in
+    /// their thread, which is what a mailbox means."
+    #[test]
+    fn a_message_the_user_has_no_copy_of_is_not_counted() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arrival("t1", u, "alice@y.com", false))
+            .unwrap();
+        // Theirs, and read.
+        s.upsert_user_message(
+            u,
+            "t1",
+            "mine",
+            100,
+            &wire("mine", "alice@y.com", true),
+            &crate::UserMessageFacts {
+                blob_ref: "mine.host",
+                uid: 1,
+                flags: 1,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        // In the shared thread index, delivered to another mailbox: no row
+        // for this user.
+        s.upsert_message("t1", "theirs", 200, &wire("theirs", "bob@y.com", false))
+            .unwrap();
+
+        s.repair_thread_counts(u, "t1").unwrap();
+        let row = s.get_thread("t1").unwrap().unwrap();
+        assert_eq!(
+            (row.count, row.unread_count),
+            (1, 0),
+            "somebody else's copy was counted as this user's unread mail"
         );
     }
 
