@@ -214,12 +214,15 @@ pub(crate) async fn reindex_route(
             if shared_thread {
                 shared_threads += 1;
             }
-            let recount = if q.dry_run {
-                state.mailbox.thread_counts_need_repair(user, &tid)
-            } else if shared_thread {
-                state.mailbox.repair_thread_counts_per_user(user, &tid)
-            } else {
-                state.mailbox.repair_thread_counts(user, &tid)
+            let recount = match (q.dry_run, shared_thread) {
+                // The dry run asks exactly the question the real run
+                // answers, shared or not. Asking the wider one for a
+                // thread that will get the narrower repair over-reports
+                // work that will never be done.
+                (true, true) => state.mailbox.thread_counts_need_repair_per_user(user, &tid),
+                (true, false) => state.mailbox.thread_counts_need_repair(user, &tid),
+                (false, true) => state.mailbox.repair_thread_counts_per_user(user, &tid),
+                (false, false) => state.mailbox.repair_thread_counts(user, &tid),
             };
             match recount {
                 Ok(true) => {

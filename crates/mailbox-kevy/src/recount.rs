@@ -66,6 +66,17 @@ impl KevyMailboxStore {
         self.repair_counts_inner(user, tid, false, true)
     }
 
+    /// The dry-run partner of
+    /// [`repair_thread_counts_per_user`](Self::repair_thread_counts_per_user).
+    ///
+    /// A shared thread is repaired one way and asked about another only if
+    /// these two drift apart, and then the dry run over-reports work the
+    /// real run will not do — which is the same defect as a dry run that
+    /// skips a check, wearing the opposite sign.
+    pub fn thread_counts_need_repair_per_user(&self, user: &str, tid: &str) -> io::Result<bool> {
+        self.repair_counts_inner(user, tid, false, false)
+    }
+
     /// Repair only **this user's** copy of the counters, leaving the
     /// shared row alone.
     ///
