@@ -16,7 +16,6 @@
 //! settled: `mailbox` reports which files are involved, and this renames
 //! them.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::FastcoreState;
@@ -26,11 +25,7 @@ pub(crate) const ARCHIVED: &str = "archived";
 /// The keyword mailrs writes for "the user pinned this".
 pub(crate) const PINNED: &str = "pinned";
 
-fn mailbox_dir(user: &str) -> Option<PathBuf> {
-    let (local, domain) = user.split_once('@')?;
-    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    Some(PathBuf::from(root).join(domain).join(local))
-}
+use crate::maildir_scan::mailbox_dir;
 
 /// Read a mailbox's keyword map, or an empty one.
 pub(crate) fn load(user: &str) -> mailrs_keywords::Keywords {
@@ -117,4 +112,48 @@ pub(crate) fn set_on_thread(
 /// Whether a scanned file carries `name`, given the mailbox's map.
 pub(crate) fn file_has(keywords: &mailrs_keywords::Keywords, letters: &[char], name: &str) -> bool {
     keywords.letter(name).is_some_and(|c| letters.contains(&c))
+}
+
+/// Whether **any** message `user` holds in `thread_id` carries `name`.
+///
+/// Per thread, because that is the granularity the decision was made at,
+/// and any-of because the bit is written to every message in the thread —
+/// so one surviving bit is the decision, and requiring all of them would
+/// lose it to a single message that arrived after the archive.
+///
+/// Reads the files rather than the scan, so a caller outside the sweep can
+/// ask. `None` when the mailbox does not name the keyword at all: a bit
+/// nobody has a meaning for is not a `false`, it is a question that cannot
+/// be asked.
+pub(crate) fn thread_has(
+    state: &Arc<FastcoreState>,
+    keywords: &mailrs_keywords::Keywords,
+    user: &str,
+    thread_id: &str,
+    name: &str,
+) -> Option<bool> {
+    let letter = keywords.letter(name)?;
+    let md_root = mailbox_dir(user)?;
+    let mut saw_a_file = false;
+    for mid in state
+        .mailbox
+        .user_thread_message_ids(user, thread_id)
+        .unwrap_or_default()
+    {
+        let Ok(Some(facts)) = state.mailbox.user_message_facts(user, &mid) else {
+            continue;
+        };
+        let Some((md, id)) = mailrs_maildir::locate(&md_root, &facts.blob_ref) else {
+            continue;
+        };
+        let Ok(Some(letters)) = md.keywords_of(&id) else {
+            continue;
+        };
+        saw_a_file = true;
+        if letters.contains(&letter) {
+            return Some(true);
+        }
+    }
+    // No file read means nothing was asked, which is not the same as "no".
+    saw_a_file.then_some(false)
 }

@@ -20,17 +20,11 @@
 //! message and the index disagrees, the index is wrong by definition, and
 //! `register_uid` corrects it.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::FastcoreState;
 
-/// A mailbox's directory, or `None` for an address without a domain.
-fn mailbox_dir(user: &str) -> Option<PathBuf> {
-    let (local, domain) = user.split_once('@')?;
-    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
-    Some(PathBuf::from(root).join(domain).join(local))
-}
+use crate::maildir_scan::mailbox_dir;
 
 /// Read a user's uidlist once, for a sweep that is about to ask it about
 /// many messages.

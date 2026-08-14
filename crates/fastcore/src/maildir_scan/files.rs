@@ -40,6 +40,19 @@ pub(crate) fn read_maildir_file(user: &str, blob_ref: &str) -> Option<Vec<u8>> {
 /// The boolean matters to callers that report progress: a backfill has to
 /// tell "changed 14,704" from "walked 32,445 and everything already
 /// agreed", or its counter cannot come out zero.
+/// A user's mailbox directory, or `None` for an address with no domain.
+///
+/// One definition: this was spelled out in four places — here, and once in
+/// each of the three sidecar modules — which is the shape
+/// `check-outbound-keys.sh` exists to catch for kevy keys. A path built
+/// two ways is a file found by one caller and not the other, and this repo
+/// has already paid for that once in `locate`.
+pub(crate) fn mailbox_dir(user: &str) -> Option<std::path::PathBuf> {
+    let (local, domain) = user.split_once('@')?;
+    let root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
+    Some(std::path::PathBuf::from(root).join(domain).join(local))
+}
+
 pub(crate) fn apply_flag_bitmask(user: &str, blob_ref: &str, bits: u32) -> std::io::Result<bool> {
     use mailrs_core_api::method::message::bitmask_to_maildir_flags;
     use mailrs_maildir::Flag;

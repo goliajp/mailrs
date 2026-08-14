@@ -185,6 +185,40 @@ impl KevyMailboxStore {
         )?;
         Ok(Some((facts.blob_ref, flags)))
     }
+
+    /// Make one row's `\Seen` bit say `seen`, in either direction.
+    ///
+    /// `Ok(true)` when it had to change. The set-only
+    /// [`mark_user_message_seen`](Self::mark_user_message_seen) is the
+    /// *verb's* half — a person reading a thread can only ever add the
+    /// bit — while a **rebuild** takes the file name as authority and has
+    /// to be able to clear it too, or a row that drifted ahead of the
+    /// maildir would stay ahead of it forever.
+    pub fn set_user_message_seen(
+        &self,
+        user: &str,
+        message_id: &str,
+        seen: bool,
+    ) -> io::Result<bool> {
+        use mailrs_mailbox::types::FLAG_SEEN;
+
+        let Some(facts) = self.user_message_facts(user, message_id)? else {
+            return Ok(false);
+        };
+        if (facts.flags & FLAG_SEEN != 0) == seen {
+            return Ok(false);
+        }
+        let flags = if seen {
+            facts.flags | FLAG_SEEN
+        } else {
+            facts.flags & !FLAG_SEEN
+        };
+        self.store().hset(
+            keys::user_message(user, message_id).as_bytes(),
+            &[(b"flags".as_slice(), flags.to_string().as_bytes())],
+        )?;
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
