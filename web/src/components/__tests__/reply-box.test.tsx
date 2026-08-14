@@ -217,7 +217,14 @@ describe('ReplyBox', () => {
 
     // StructuredCompose is lazy-loaded (TipTap bundle is 700 kB); wait for
     // the Suspense fallback to resolve before asserting against its DOM.
-    expect(await screen.findByText('Add block')).toBeDefined()
+    //
+    // Five seconds, not the default one: resolving a dynamic import is work
+    // the machine does, and this failed a deploy at 1,078 ms while an arm64
+    // image built alongside it — green four times out of four in isolation.
+    // The assertion is that the component renders, not that a bundler is
+    // fast, and a test that fails on a busy machine teaches people to look
+    // past red.
+    expect(await screen.findByText('Add block', {}, { timeout: 5_000 })).toBeDefined()
   })
 
   it('highlights forward mode button when forward is active', () => {
