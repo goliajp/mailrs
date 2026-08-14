@@ -19,6 +19,18 @@
 //! write is how the read-state backfill reported repairing 215 rows it
 //! never touched (`periodic-work-must-converge`).
 //!
+//! # What a dry run can and cannot tell you
+//!
+//! Every leg is evaluated — the first version skipped three of the four
+//! and reported zero for them, which reads as a clean bill of health from
+//! checks that never ran. But the legs are ordered and the last one is
+//! **downstream**: the recount asks the message rows, and the flag replay
+//! is what corrects them. So a dry run reports `counts_repaired` against
+//! the rows as they are now and under-reports the recount that follows a
+//! flag replay it did not perform. A dry run cannot predict the
+//! consequences of changes it declined to make; the three independent
+//! legs are exact.
+//!
 //! It does **not** drop the rows first. The RFC's phrasing is "drops a
 //! user's tier-2 rows and rebuilds them", and reconciling in place is the
 //! same destination with no window in which the mailbox is empty. What a
@@ -127,9 +139,7 @@ pub(crate) async fn reindex_route(
             // whole definition is "tier 2 is derived from tier 1". On
             // production the two agree — `seen_only_in_index: 0`,
             // measured — so nothing is at stake in saying so plainly.
-            if !q.dry_run
-                && let Some(md_root) = md_root.as_ref()
-            {
+            if let Some(md_root) = md_root.as_ref() {
                 for mid in state
                     .mailbox
                     .user_thread_message_ids(user, &tid)
@@ -145,6 +155,14 @@ pub(crate) async fn reindex_route(
                         continue;
                     };
                     let on_disk = flags.contains(&mailrs_maildir::Flag::Seen);
+                    if (facts.flags & mailrs_core_api::method::message::FLAG_SEEN != 0) == on_disk {
+                        continue;
+                    }
+                    if q.dry_run {
+                        from_flags += 1;
+                        touched = true;
+                        continue;
+                    }
                     match state.mailbox.set_user_message_seen(user, &mid, on_disk) {
                         Ok(true) => {
                             from_flags += 1;
@@ -160,7 +178,12 @@ pub(crate) async fn reindex_route(
 
             // The decision log: snooze, importance, requires_action, and
             // the category — through `set_bucket`, which owns the axes.
-            if !q.dry_run && crate::threadstate::apply_to_row(&state, &log, user, &tid) {
+            let log_changes = if q.dry_run {
+                crate::threadstate::would_change_row(&state, &log, user, &tid)
+            } else {
+                crate::threadstate::apply_to_row(&state, &log, user, &tid)
+            };
+            if log_changes {
                 from_log += 1;
                 touched = true;
             }
@@ -168,12 +191,17 @@ pub(crate) async fn reindex_route(
             // The counters, recomputed from the per-user message rows —
             // the derivation `unread_count` is, rather than the number it
             // was last patched to.
-            match state.mailbox.repair_thread_counts(user, &tid) {
-                Ok(true) if !q.dry_run => {
+            let recount = if q.dry_run {
+                state.mailbox.thread_counts_need_repair(user, &tid)
+            } else {
+                state.mailbox.repair_thread_counts(user, &tid)
+            };
+            match recount {
+                Ok(true) => {
                     counts_repaired += 1;
                     touched = true;
                 }
-                Ok(_) => {}
+                Ok(false) => {}
                 Err(e) => tracing::warn!(err = %e, %user, %tid, "reindex: recount failed"),
             }
 
@@ -200,6 +228,9 @@ pub(crate) async fn reindex_route(
         "from_keywords": from_keywords,
         "from_flags": from_flags,
         "from_threadstate": from_log,
+        // Under-reports in a dry run: the recount is downstream of the
+        // flag replay, which a dry run does not perform. See the module
+        // docs.
         "counts_repaired": counts_repaired,
         "by_user": by_user,
     }))

@@ -58,6 +58,30 @@ pub(crate) fn apply_to_row(
     user: &str,
     thread_id: &str,
 ) -> bool {
+    apply_inner(state, log, user, thread_id, true)
+}
+
+/// Whether [`apply_to_row`] would change anything, without changing it.
+///
+/// The same function with the writes held back, so a dry run and the real
+/// thing cannot disagree — a dry run that reports zero for a check it did
+/// not perform reads as a clean bill of health.
+pub(crate) fn would_change_row(
+    state: &Arc<FastcoreState>,
+    log: &mailrs_threadstate::ThreadState,
+    user: &str,
+    thread_id: &str,
+) -> bool {
+    apply_inner(state, log, user, thread_id, false)
+}
+
+fn apply_inner(
+    state: &Arc<FastcoreState>,
+    log: &mailrs_threadstate::ThreadState,
+    user: &str,
+    thread_id: &str,
+    write: bool,
+) -> bool {
     let Some(rec) = log.get(thread_id) else {
         return false;
     };
@@ -69,6 +93,9 @@ pub(crate) fn apply_to_row(
     if let Some(until) = rec.snoozed_until
         && row.snoozed_until != until
     {
+        if !write {
+            return true;
+        }
         match state.mailbox.set_snoozed(user, thread_id, until) {
             Ok(_) => changed = true,
             Err(e) => {
@@ -82,6 +109,9 @@ pub(crate) fn apply_to_row(
         // string, so compare it loosely enough that a round trip is not a
         // difference — and tightly enough that a real change is one.
         if row.importance_level != *level || (row.importance_score - score).abs() > 1e-6 {
+            if !write {
+                return true;
+            }
             match state
                 .mailbox
                 .set_thread_importance(user, thread_id, level, score)
@@ -96,6 +126,9 @@ pub(crate) fn apply_to_row(
     if let Some(needs) = rec.requires_action
         && row.has_action != needs
     {
+        if !write {
+            return true;
+        }
         match state.mailbox.set_has_action(user, thread_id, needs) {
             Ok(_) => changed = true,
             Err(e) => {
@@ -112,6 +145,9 @@ pub(crate) fn apply_to_row(
         && row.category != *category
         && let Some(bucket) = bucket_for(category)
     {
+        if !write {
+            return true;
+        }
         match state.mailbox.set_bucket(user, thread_id, bucket) {
             Ok(_) => changed = true,
             Err(e) => {

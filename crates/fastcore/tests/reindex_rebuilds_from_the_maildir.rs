@@ -35,12 +35,20 @@ fn store() -> mailrs_mailbox_kevy::KevyMailboxStore {
     s
 }
 
+async fn dry_run(state: &Arc<mailrs_fastcore::FastcoreState>) -> serde_json::Value {
+    call(state, "/v1/admin/maintenance:reindex?dry_run=true").await
+}
+
 async fn reindex(state: &Arc<mailrs_fastcore::FastcoreState>) -> serde_json::Value {
+    call(state, "/v1/admin/maintenance:reindex").await
+}
+
+async fn call(state: &Arc<mailrs_fastcore::FastcoreState>, uri: &str) -> serde_json::Value {
     let res = mailrs_fastcore::build_router(state.clone())
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/v1/admin/maintenance:reindex")
+                .uri(uri)
                 .body(Body::empty())
                 .expect("req"),
         )
@@ -106,21 +114,42 @@ async fn an_existing_row_is_rebuilt_from_the_maildir_and_the_second_run_is_quiet
     rec.importance_score = Some(0.9);
     mailrs_threadstate::append(&md_dir, &rec).expect("log");
 
-    // The self-heal does not put them back: its replay lives on the branch
-    // that creates a thread, and this thread is not new.
-    mailrs_fastcore::self_heal_once(&state, USER).await;
     let row = |s: &Arc<mailrs_fastcore::FastcoreState>| {
         s.mailbox
             .get_thread_for_user(USER, &tid)
             .expect("row")
             .expect("present")
     };
+    // The self-heal does not put them back: its replay lives on the branch
+    // that creates a thread, and this thread is not new.
+    mailrs_fastcore::self_heal_once(&state, USER).await;
     assert!(
         !row(&state).pinned,
         "the self-heal already does this, so this test proves nothing"
     );
 
+    // The dry run reports what the real one will do, and does nothing.
+    //
+    // Its first version skipped three of the four legs and reported zero
+    // for them — a clean bill of health from checks that never ran, which
+    // is worse than no dry run at all. So the numbers are compared against
+    // the real run below rather than merely being non-zero.
+    let dry = dry_run(&state).await;
+    assert!(!row(&state).pinned, "the dry run wrote to the index: {dry}");
+
     let first = reindex(&state).await;
+    // The three independent legs are exact. `counts_repaired` is not
+    // compared, and that is a property rather than an oversight: the
+    // recount asks the message rows and the flag replay is what corrects
+    // them, so a dry run measuring against today's rows under-reports the
+    // recount that follows a replay it did not perform. A dry run cannot
+    // predict the consequences of changes it declined to make.
+    for leg in ["from_keywords", "from_flags", "from_threadstate"] {
+        assert_eq!(
+            dry[leg], first[leg],
+            "the dry run's {leg} did not match the real run\n  dry: {dry}\n  run: {first}"
+        );
+    }
     assert!(
         first["threads_changed"].as_u64().unwrap_or(0) >= 1,
         "the reindex changed nothing: {first}"

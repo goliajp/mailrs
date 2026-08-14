@@ -52,6 +52,21 @@ impl KevyMailboxStore {
     /// repaired to different answers, and it makes the S2 backfill the
     /// same sweep that already exists rather than a second one.
     pub fn repair_thread_counts(&self, user: &str, tid: &str) -> io::Result<bool> {
+        self.repair_counts_inner(user, tid, true)
+    }
+
+    /// Whether [`repair_thread_counts`](Self::repair_thread_counts) would
+    /// write, without writing.
+    ///
+    /// For a dry run, and it goes through the same function so the two
+    /// cannot answer differently — a dry run reporting zero for a check it
+    /// did not perform is worse than no dry run, because it reads as a
+    /// clean bill of health.
+    pub fn thread_counts_need_repair(&self, user: &str, tid: &str) -> io::Result<bool> {
+        self.repair_counts_inner(user, tid, false)
+    }
+
+    fn repair_counts_inner(&self, user: &str, tid: &str, write: bool) -> io::Result<bool> {
         let Some(mut row) = self.get_thread(tid)? else {
             return Ok(false);
         };
@@ -107,6 +122,9 @@ impl KevyMailboxStore {
             return Ok(false);
         }
 
+        if !write {
+            return Ok(true);
+        }
         if !per_user_agrees {
             let pairs: Vec<(&[u8], &[u8])> = want.iter().map(|(f, v)| (*f, v.as_slice())).collect();
             self.store().hset(tu_key.as_bytes(), &pairs)?;
