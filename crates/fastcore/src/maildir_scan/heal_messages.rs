@@ -142,6 +142,8 @@ pub(crate) fn heal_missing_messages(
     let mut healed_msgs = 0u32;
     let mut diff_healed_threads = 0u32;
     let mut diff_healed_msgs = 0u32;
+    // Once for the sweep — see `uidlist::load`.
+    let uids = crate::uidlist::load(user);
     for tid in &tids {
         let tid = tid.as_str();
         let msg_zset = mailrs_mailbox_kevy::keys::thread_messages(tid);
@@ -204,10 +206,12 @@ pub(crate) fn heal_missing_messages(
             .collect();
         to_write.sort_by_key(|m| m.date);
         for m in &to_write {
-            // allocate_uid is idempotent — reruns return the previously-
-            // issued uid via the uid_by_mid reverse index, so it's safe
-            // to run either branch multiple times.
-            let uid = state.mailbox.allocate_uid(user, &m.message_id).unwrap_or(0);
+            // From the maildir's own list when it has one, so a rebuild
+            // keeps the UIDs it has already promised to clients; otherwise
+            // allocate, which is idempotent — reruns return the
+            // previously-issued uid via the uid_by_mid reverse index.
+            let uid =
+                crate::uidlist::uid_for(state, uids.as_ref(), user, &m.message_id, &m.filename);
             let wire = mailrs_core_api::method::message::MessageWire {
                 id: 0,
                 mailbox_id: 0,

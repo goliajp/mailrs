@@ -101,6 +101,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:drop-empty-threads",
             post(drop_empty_threads_route),
         )
+        // Housekeeping for the append-only uidlist: one record per
+        // message, in UID order. Reports what it walked as well as what it
+        // dropped, so a run with nothing to do says so.
+        .route(
+            "/v1/admin/maintenance:uidlist-compact",
+            post(crate::maintenance::uidlist_compact_route),
+        )
         // Ops endpoint — seed the Bayesian corpus from existing
         // junk (spam) + inbox (ham) folders. One-shot; refuses if
         // the corpus is already non-empty.
