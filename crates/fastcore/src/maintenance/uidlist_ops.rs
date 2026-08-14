@@ -114,6 +114,96 @@ pub(crate) async fn uidlist_backfill_route(
     .into_response()
 }
 
+/// `POST /v1/admin/maintenance:allocate-missing-uids`
+///
+/// Give a UID to every per-user row that has none.
+///
+/// A message with `uid: 0` cannot be fetched by UID, and that is not
+/// cosmetic: viewing the source and downloading any attachment both go
+/// through `by-uid`, which answers 404 for it, and the web client uses the
+/// UID as the timeline's React key — a repeated zero in one thread is the
+/// duplicate-bubble defect of 2026-07-08. Measured on production: 215 such
+/// rows, all imports whose UID was never allocated.
+///
+/// Safe precisely because there is nothing to break: no client has ever
+/// been given a number for these messages. The store's guard refuses to
+/// change a UID that exists, so this can only fill holes, and the new
+/// numbers go into the maildir's uidlist in the same pass — a promise made
+/// only in the index is one a rebuild would forget.
+pub(crate) async fn allocate_missing_uids_route(
+    State(state): State<Arc<FastcoreState>>,
+) -> axum::response::Response {
+    let users = match state.mailbox.list_account_addresses() {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(err = %e, "list_account_addresses failed");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut walked = 0u64;
+    let mut allocated = 0u64;
+    let mut errors = 0u64;
+    let mut by_user: std::collections::BTreeMap<String, u64> = Default::default();
+
+    for user in &users {
+        let mut fresh: Vec<(u32, String)> = Vec::new();
+        for tid in state
+            .mailbox
+            .all_thread_ids_for_user(user)
+            .unwrap_or_default()
+        {
+            for mid in state
+                .mailbox
+                .user_thread_message_ids(user, &tid)
+                .unwrap_or_default()
+            {
+                let Ok(Some(facts)) = state.mailbox.user_message_facts(user, &mid) else {
+                    continue;
+                };
+                walked += 1;
+                if facts.uid != 0 {
+                    continue;
+                }
+                let Ok(uid) = state.mailbox.allocate_uid(user, &mid) else {
+                    errors += 1;
+                    continue;
+                };
+                match state.mailbox.set_user_message_uid_if_unset(user, &mid, uid) {
+                    Ok(Some(blob_ref)) => {
+                        allocated += 1;
+                        *by_user.entry(user.clone()).or_default() += 1;
+                        if !blob_ref.is_empty() {
+                            fresh.push((uid, blob_ref));
+                        }
+                    }
+                    // Raced, or the row went away. `allocate_uid` is keyed
+                    // by message id and idempotent, so nothing leaked.
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %mid, "uid fill failed");
+                        errors += 1;
+                    }
+                }
+            }
+        }
+        if !fresh.is_empty()
+            && let Err(e) = crate::uidlist::extend(user, &fresh)
+        {
+            tracing::warn!(err = %e, %user, "uidlist extend after allocation failed");
+            errors += 1;
+        }
+    }
+
+    Json(serde_json::json!({
+        "accounts": users.len(),
+        "messages_walked": walked,
+        "uids_allocated": allocated,
+        "errors": errors,
+        "by_user": by_user,
+    }))
+    .into_response()
+}
+
 /// `POST /v1/admin/maintenance:uidlist-compact`
 pub(crate) async fn uidlist_compact_route(
     State(state): State<Arc<FastcoreState>>,

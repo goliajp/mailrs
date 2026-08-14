@@ -108,6 +108,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:uidlist-backfill",
             post(crate::maintenance::uidlist_backfill_route),
         )
+        // A message with no UID cannot be fetched by one — the raw view
+        // and every attachment download go through it — and the web uses
+        // the UID as the timeline's React key.
+        .route(
+            "/v1/admin/maintenance:allocate-missing-uids",
+            post(crate::maintenance::allocate_missing_uids_route),
+        )
         // Housekeeping for the append-only uidlist: one record per
         // message, in UID order. Reports what it walked as well as what it
         // dropped, so a run with nothing to do says so.
