@@ -135,59 +135,73 @@ pub(crate) async fn read_state_backfill_route(
                 walked += 1;
 
                 let disk_seen = disk_flags.contains(&Flag::Seen);
-                let index_seen = facts.flags & FLAG_SEEN != 0;
+                let row_seen = facts.flags & FLAG_SEEN != 0;
                 // A thread read at thread level counts as read for every
                 // message in it, per the definition above.
-                let index_seen = index_seen || thread_level_only;
+                //
+                // Only for deciding what to write to the **file**. Comparing
+                // it against the disk instead is what made this route unable
+                // to converge its own shadow: a message the disk already
+                // called read matched the thread's verdict, was counted as
+                // agreement, and kept a clear index bit forever — 200 of the
+                // 215 `seen_only_on_disk` rows on production, none of them
+                // reachable by any number of runs.
+                let index_seen = row_seen || thread_level_only;
+
+                if disk_seen && !row_seen {
+                    // The disk is ahead of the row, whatever the thread
+                    // counter believes. The file name is the authority.
+                    index_marked_seen += 1;
+                    if !q.dry_run {
+                        set_index_seen(&state, user, facts.uid, facts.flags | FLAG_SEEN);
+                        u_index += 1;
+                    }
+                    continue;
+                }
 
                 if disk_seen == index_seen {
                     already_agreed += 1;
                     continue;
                 }
 
+                // Only one case is left: the index says read and the file
+                // does not. The disk-ahead direction returned above.
                 if q.dry_run {
-                    match (disk_seen, index_seen) {
-                        (false, true) if thread_level_only => thread_level_only_marked += 1,
-                        (false, true) => disk_marked_seen += 1,
-                        _ => index_marked_seen += 1,
+                    if thread_level_only {
+                        thread_level_only_marked += 1;
+                    } else {
+                        disk_marked_seen += 1;
                     }
                     continue;
                 }
 
-                if index_seen {
-                    // The file is behind: write `S`, keeping every flag the
-                    // bitmask cannot express (`P`), which is why this goes
-                    // through the shared helper rather than `mark_processed`.
-                    match crate::maildir_scan::apply_flag_bitmask(
-                        user,
-                        &facts.blob_ref,
-                        facts.flags | FLAG_SEEN,
-                    ) {
-                        Ok(true) if thread_level_only => {
-                            thread_level_only_marked += 1;
-                            u_thread += 1;
-                        }
-                        Ok(true) => {
-                            disk_marked_seen += 1;
-                            u_disk += 1;
-                        }
-                        Ok(false) => already_agreed += 1,
-                        Err(e) => {
-                            tracing::warn!(err = %e, %user, %mid, "backfill: rename failed");
-                            errors += 1;
-                        }
+                // The file is behind: write `S`, keeping every flag the
+                // bitmask cannot express (`P`), which is why this goes
+                // through the shared helper rather than `mark_processed`.
+                match crate::maildir_scan::apply_flag_bitmask(
+                    user,
+                    &facts.blob_ref,
+                    facts.flags | FLAG_SEEN,
+                ) {
+                    Ok(true) if thread_level_only => {
+                        thread_level_only_marked += 1;
+                        u_thread += 1;
                     }
-                    // The index row's own bit may still be clear on a
-                    // thread-level-only thread; bring it in line so the
-                    // shadow converges and the axis is right.
-                    if thread_level_only && facts.flags & FLAG_SEEN == 0 {
-                        set_index_seen(&state, user, facts.uid, facts.flags | FLAG_SEEN);
+                    Ok(true) => {
+                        disk_marked_seen += 1;
+                        u_disk += 1;
                     }
-                } else {
-                    // The disk is ahead — the steady-state direction.
+                    Ok(false) => already_agreed += 1,
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %mid, "backfill: rename failed");
+                        errors += 1;
+                    }
+                }
+                // The index row's own bit may still be clear on a
+                // thread-level-only thread; bring it in line so the
+                // shadow converges and the axis is right.
+                if thread_level_only && !row_seen {
                     set_index_seen(&state, user, facts.uid, facts.flags | FLAG_SEEN);
-                    index_marked_seen += 1;
-                    u_index += 1;
                 }
             }
         }
