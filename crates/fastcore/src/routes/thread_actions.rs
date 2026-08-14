@@ -11,6 +11,37 @@ use axum::extract::{Path, State};
 
 use crate::*;
 
+/// Mark one thread read in all three places it is recorded: the thread
+/// counter, this user's message rows, and the maildir file names.
+///
+/// The counter alone is what the three read verbs wrote until 2026-08-14,
+/// and the shape of that omission is `one-side-of-the-wire`: each layer
+/// was self-consistent, nothing failed, and mail read in the web stayed
+/// bold in every IMAP client. The store may not touch the filesystem, so
+/// it reports which files are behind and this brings them in line.
+///
+/// Returns whatever `mark_seen` returns — whether the thread row existed.
+fn mark_thread_read_everywhere(state: &Arc<FastcoreState>, user: &str, thread_id: &str) -> bool {
+    let found = match state.mailbox.mark_seen(user, thread_id) {
+        Ok(found) => found,
+        Err(e) => {
+            tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
+            false
+        }
+    };
+    match state.mailbox.mark_thread_messages_seen(user, thread_id) {
+        Ok(behind) => {
+            for (blob_ref, flags) in behind {
+                if let Err(e) = crate::maildir_scan::apply_flag_bitmask(user, &blob_ref, flags) {
+                    tracing::warn!(error = %e, %user, %blob_ref, "mark read: rename failed");
+                }
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, %user, %thread_id, "mark read: row sync failed"),
+    }
+    found
+}
+
 pub(crate) async fn mark_read(
     State(state): State<Arc<FastcoreState>>,
     Path((user, thread_id)): Path<(String, String)>,
@@ -28,9 +59,7 @@ pub(crate) async fn mark_read(
         .flatten()
         .is_some_and(|r| r.unread_count > 0);
     let event = crate::importance::read_event(&state, &thread_id, now_secs());
-    if let Err(e) = state.mailbox.mark_seen(&user, &thread_id) {
-        tracing::warn!(error = %e, %user, %thread_id, "mark_seen io error — treating as noop");
-    }
+    mark_thread_read_everywhere(&state, &user, &thread_id);
     if was_unread {
         crate::importance::record_engagement(&state, &user, &thread_id, event);
     }
@@ -46,7 +75,18 @@ pub(crate) async fn mark_all_read_route(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
 ) -> Json<serde_json::Value> {
-    let flipped = state.mailbox.mark_all_seen(&user).unwrap_or(0);
+    // Looped here rather than through `mark_all_seen`, which is the same
+    // loop inside the store — and the store cannot rename a file.
+    let unread = state
+        .mailbox
+        .list_thread_ids_by_flag_via_table(&user, "unread", 100_000, 0, None)
+        .unwrap_or_default();
+    let mut flipped = 0u32;
+    for tid in &unread {
+        if mark_thread_read_everywhere(&state, &user, tid) {
+            flipped += 1;
+        }
+    }
     Json(serde_json::json!({ "ok": true, "flipped": flipped }))
 }
 
@@ -88,12 +128,7 @@ pub(crate) async fn mark_list_read_route(
         // the row existed, not whether anything changed, and a count
         // that includes already-read threads would report work it did
         // not do.
-        if row.unread_count > 0
-            && state
-                .mailbox
-                .mark_seen(&user, &row.thread_id)
-                .unwrap_or(false)
-        {
+        if row.unread_count > 0 && mark_thread_read_everywhere(&state, &user, &row.thread_id) {
             flipped += 1;
         }
     }
