@@ -222,14 +222,35 @@ pub fn read(mailbox: impl AsRef<Path>) -> io::Result<Option<UidList>> {
 /// rather than corrupting each other, which is why the hot path needs no
 /// lock. The header's `N` is left alone — see the module docs.
 pub fn append(mailbox: impl AsRef<Path>, uid: u32, filename: &str) -> io::Result<()> {
+    append_many(mailbox, &[(uid, filename)])
+}
+
+/// Append a batch in one open.
+///
+/// Same semantics as [`append`], and the same file: a backfill has tens of
+/// thousands of records for one mailbox and opening per record is the
+/// whole cost. An empty batch writes nothing — a mailbox with no UIDs
+/// should not acquire a `UIDVALIDITY` it never promised.
+pub fn append_many(mailbox: impl AsRef<Path>, records: &[(u32, &str)]) -> io::Result<()> {
+    if records.is_empty() {
+        return Ok(());
+    }
     let p = path(&mailbox);
     if !p.exists() {
         let mut fresh = UidList::new();
-        fresh.uid_next = uid.saturating_add(1);
+        fresh.uid_next = records
+            .iter()
+            .map(|(uid, _)| uid.saturating_add(1))
+            .max()
+            .unwrap_or(1);
         write_atomic(&p, &fresh.render())?;
     }
+    let mut buf = String::new();
+    for (uid, filename) in records {
+        buf.push_str(&record_line(*uid, filename));
+    }
     let mut f = fs::OpenOptions::new().append(true).open(&p)?;
-    f.write_all(record_line(uid, filename).as_bytes())
+    f.write_all(buf.as_bytes())
 }
 
 /// Replace the file with `list`, atomically.
@@ -368,6 +389,35 @@ mod tests {
     }
 
     /// A rebuild replaces the file. It must not be observable half-written.
+    /// A backfill has thirty thousand records for one mailbox, and
+    /// `append` opens the file per call.
+    #[test]
+    fn append_many_writes_them_all_in_one_open() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        append_many(tmp.path(), &[(3, "c.host"), (1, "a.host"), (2, "b.host")]).expect("append");
+
+        let l = read(tmp.path()).expect("read").expect("present");
+        assert_eq!(l.entries.len(), 3);
+        assert_eq!(l.uid_of("a.host"), Some(1));
+        assert_eq!(l.uid_next, 4, "derived from the highest, not the order");
+
+        // And it appends rather than replacing.
+        append_many(tmp.path(), &[(9, "z.host")]).expect("append");
+        let l = read(tmp.path()).expect("read").expect("present");
+        assert_eq!(l.entries.len(), 4);
+        assert_eq!(l.uid_of("c.host"), Some(3), "the earlier batch survives");
+    }
+
+    #[test]
+    fn append_many_of_nothing_does_not_create_a_file() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        append_many(tmp.path(), &[]).expect("append");
+        assert!(
+            read(tmp.path()).expect("read").is_none(),
+            "an empty batch wrote a header for a mailbox that has no uids"
+        );
+    }
+
     #[test]
     fn rewrite_replaces_and_keeps_the_validity_it_is_given() {
         let tmp = tempfile::tempdir().expect("tmp");
