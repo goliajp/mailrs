@@ -52,7 +52,7 @@ impl KevyMailboxStore {
     /// repaired to different answers, and it makes the S2 backfill the
     /// same sweep that already exists rather than a second one.
     pub fn repair_thread_counts(&self, user: &str, tid: &str) -> io::Result<bool> {
-        self.repair_counts_inner(user, tid, true)
+        self.repair_counts_inner(user, tid, true, true)
     }
 
     /// Whether [`repair_thread_counts`](Self::repair_thread_counts) would
@@ -63,10 +63,27 @@ impl KevyMailboxStore {
     /// did not perform is worse than no dry run, because it reads as a
     /// clean bill of health.
     pub fn thread_counts_need_repair(&self, user: &str, tid: &str) -> io::Result<bool> {
-        self.repair_counts_inner(user, tid, false)
+        self.repair_counts_inner(user, tid, false, true)
     }
 
-    fn repair_counts_inner(&self, user: &str, tid: &str, write: bool) -> io::Result<bool> {
+    /// Repair only **this user's** copy of the counters, leaving the
+    /// shared row alone.
+    ///
+    /// For a rebuild that walks every account. The shared row cannot be
+    /// right for two owners at once, so writing it once per owner is a
+    /// loop that never settles; the membership row can be right for
+    /// everybody, and it is what the read path serves.
+    pub fn repair_thread_counts_per_user(&self, user: &str, tid: &str) -> io::Result<bool> {
+        self.repair_counts_inner(user, tid, true, false)
+    }
+
+    fn repair_counts_inner(
+        &self,
+        user: &str,
+        tid: &str,
+        write: bool,
+        write_shared: bool,
+    ) -> io::Result<bool> {
         let Some(mut row) = self.get_thread(tid)? else {
             return Ok(false);
         };
@@ -116,8 +133,8 @@ impl KevyMailboxStore {
             Ok::<bool, io::Error>(acc && have.as_deref() == Some(value.as_slice()))
         })?;
 
-        let shared_agrees =
-            row.count == count && row.unread_count == unread && row.sent_count == sent;
+        let shared_agrees = !write_shared
+            || (row.count == count && row.unread_count == unread && row.sent_count == sent);
         if shared_agrees && per_user_agrees {
             return Ok(false);
         }
