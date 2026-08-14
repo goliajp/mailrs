@@ -76,10 +76,25 @@ impl KevyMailboxStore {
         };
 
         let tu_key = keys::thread_user(user, tid);
-        let want: [(&[u8], Vec<u8>); 3] = [
+        // `unread` is the column the declared axis keys on, and it is a
+        // derivation of `unread_count` — so it is recomputed here rather
+        // than left to whoever wrote it last. Without it this function
+        // could correct a thread's count to zero and leave it listed under
+        // Unread, or give it four unread messages the Unread view never
+        // shows: the counter and the axis are the same fact, and a repair
+        // that writes one of them makes them disagree.
+        let want: [(&[u8], Vec<u8>); 4] = [
             (b"count", count.to_string().into_bytes()),
             (b"unread_count", unread.to_string().into_bytes()),
             (b"sent_count", sent.to_string().into_bytes()),
+            (
+                b"unread",
+                if unread > 0 {
+                    b"1".to_vec()
+                } else {
+                    b"0".to_vec()
+                },
+            ),
         ];
         let per_user_agrees = want.iter().try_fold(true, |acc, (field, value)| {
             let have = self.store().hget(tu_key.as_bytes(), field)?;
@@ -303,6 +318,78 @@ mod tests {
             row.unread_count, 0,
             "the row says this message is read; only the stripped blob says otherwise"
         );
+    }
+
+    /// The counter and the axis are the same fact, so one repair writes
+    /// both — in both directions.
+    ///
+    /// The nine rows left on production after the read-state repair are
+    /// these two shapes: `index=1 disk=0` (a counter standing after the
+    /// mail was read) and `index=0 disk=4` (a counter zeroed while its
+    /// messages are unread). Correcting only the number would have moved
+    /// the disagreement from the shadow to the Unread view.
+    #[test]
+    fn repairing_a_count_repairs_the_axis_it_derives() {
+        let s = store();
+        let u = "u@x.com";
+        let listed = || s.count_thread_ids_by_flag_via_table(u, "unread").unwrap();
+
+        // A thread whose row says unread while its only message is read.
+        s.record_message_arrival(&arrival("t1", u, "alice@y.com", false))
+            .unwrap();
+        s.upsert_user_message(
+            u,
+            "t1",
+            "m-1",
+            100,
+            &wire("m-1", "alice@y.com", true),
+            &crate::UserMessageFacts {
+                blob_ref: "f1.host",
+                uid: 1,
+                flags: 1,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(listed(), 1, "as stored");
+
+        assert!(s.repair_thread_counts(u, "t1").unwrap());
+        assert_eq!(
+            listed(),
+            0,
+            "the count is zero and the thread is still listed as unread"
+        );
+
+        // And the other way: a row marked read whose message is not.
+        s.record_message_arrival(&arrival("t2", u, "alice@y.com", false))
+            .unwrap();
+        s.mark_seen(u, "t2").unwrap();
+        s.upsert_user_message(
+            u,
+            "t2",
+            "m-2",
+            100,
+            &wire("m-2", "alice@y.com", false),
+            &crate::UserMessageFacts {
+                blob_ref: "f2.host",
+                uid: 2,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(listed(), 0, "as stored");
+
+        assert!(s.repair_thread_counts(u, "t2").unwrap());
+        assert_eq!(
+            listed(),
+            1,
+            "the thread has an unread message and the Unread view cannot see it"
+        );
+
+        // Convergent: nothing left to do on either.
+        assert!(!s.repair_thread_counts(u, "t1").unwrap());
+        assert!(!s.repair_thread_counts(u, "t2").unwrap());
     }
 
     #[test]
