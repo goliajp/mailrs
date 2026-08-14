@@ -94,6 +94,23 @@ pub(crate) fn uid_for(
     uid
 }
 
+/// Append many records in one open.
+///
+/// The backfill has thirty thousand of them per mailbox and [`record`]
+/// opens the file per call; this is the same write, once.
+pub(crate) fn extend(user: &str, records: &[(u32, String)]) -> std::io::Result<()> {
+    let Some(dir) = mailbox_dir(user) else {
+        return Ok(());
+    };
+    mailrs_uidlist::append_many(
+        &dir,
+        &records
+            .iter()
+            .map(|(uid, name)| (*uid, name.as_str()))
+            .collect::<Vec<_>>(),
+    )
+}
+
 /// Rewrite a user's uidlist with one record per message, in UID order.
 ///
 /// Housekeeping for the append-only write path, and the repair for a

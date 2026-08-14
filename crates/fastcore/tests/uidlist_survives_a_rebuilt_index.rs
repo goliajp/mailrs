@@ -12,6 +12,8 @@
 
 use std::sync::Arc;
 
+use tower::ServiceExt;
+
 const USER: &str = "bob@x.com";
 
 fn seed_maildir(root: &std::path::Path) -> Vec<String> {
@@ -112,6 +114,43 @@ async fn a_rebuilt_index_adopts_the_uids_the_maildir_already_names() {
         fresh > *before.iter().max().expect("some"),
         "a rebuilt index handed out {fresh}, which is already promised"
     );
+
+    // ── the mailbox that predates the file ──
+    //
+    // Production's shape on the day this shipped: 32,000 messages already
+    // indexed and already healed, so neither the delivery path nor the
+    // sweep ever names them — the rebuild story would have covered none of
+    // the mailbox it was written for. The backfill is the bridge, and it
+    // has to be driven the way an operator drives it.
+    std::fs::remove_file(mailrs_uidlist::path(&mailbox_dir)).expect("drop the file");
+    let res = mailrs_fastcore::build_router(second.clone())
+        .oneshot(
+            axum::http::Request::builder()
+                .method(axum::http::Method::POST)
+                .uri("/v1/admin/maintenance:uidlist-backfill")
+                .body(axum::body::Body::empty())
+                .expect("req"),
+        )
+        .await
+        .expect("call");
+    assert_eq!(res.status(), axum::http::StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(res.into_body(), 1 << 20)
+            .await
+            .expect("body"),
+    )
+    .expect("json");
+    assert_eq!(
+        body["records_added"], 3,
+        "the backfill wrote nothing back: {body}"
+    );
+
+    let rebuilt = mailrs_uidlist::read(&mailbox_dir)
+        .expect("read")
+        .expect("present");
+    for (f, uid) in files.iter().zip(&before) {
+        assert_eq!(rebuilt.uid_of(f), Some(*uid), "{f} lost its promise");
+    }
 }
 
 /// This user's uid for the message whose file is `filename`, read back the

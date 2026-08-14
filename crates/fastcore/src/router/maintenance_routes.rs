@@ -101,6 +101,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:drop-empty-threads",
             post(drop_empty_threads_route),
         )
+        // One-time bridge: write each mailbox's uidlist from the UIDs its
+        // index already holds. Without it the file only ever describes
+        // mail that arrived after the deploy.
+        .route(
+            "/v1/admin/maintenance:uidlist-backfill",
+            post(crate::maintenance::uidlist_backfill_route),
+        )
         // Housekeeping for the append-only uidlist: one record per
         // message, in UID order. Reports what it walked as well as what it
         // dropped, so a run with nothing to do says so.
