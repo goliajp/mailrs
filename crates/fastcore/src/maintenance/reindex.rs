@@ -70,7 +70,12 @@ pub(crate) async fn reindex_route(
     let mut from_flags = 0u64;
     let mut from_log = 0u64;
     let mut counts_repaired = 0u64;
+    let mut shared_threads = 0u64;
     let mut by_user: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
+
+    // Resolved once: `thread_is_shared` asks per account, and the answer
+    // decides whether the shared row may be written at all.
+    let accounts = state.mailbox.list_account_addresses().unwrap_or_default();
 
     for user in &users {
         let kw = crate::keywords::load(user);
@@ -195,8 +200,24 @@ pub(crate) async fn reindex_route(
             // The counters, recomputed from the per-user message rows —
             // the derivation `unread_count` is, rather than the number it
             // was last patched to.
+            // On a thread more than one account holds, only this user's
+            // copy is repaired. The shared hash has no user segment, so
+            // it can describe one owner or the other — writing it once
+            // per owner is a rebuild that reports work forever, which is
+            // what `periodic-work-must-converge` forbids and what a test
+            // caught before this shipped. Single-owner threads keep both
+            // copies in step, since there is only one writer for them.
+            let shared_thread = state
+                .mailbox
+                .thread_is_shared(&accounts, &tid)
+                .unwrap_or(false);
+            if shared_thread {
+                shared_threads += 1;
+            }
             let recount = if q.dry_run {
                 state.mailbox.thread_counts_need_repair(user, &tid)
+            } else if shared_thread {
+                state.mailbox.repair_thread_counts_per_user(user, &tid)
             } else {
                 state.mailbox.repair_thread_counts(user, &tid)
             };
@@ -236,6 +257,10 @@ pub(crate) async fn reindex_route(
         // flag replay, which a dry run does not perform. See the module
         // docs.
         "counts_repaired": counts_repaired,
+        // Threads more than one local account holds, where only the
+        // per-user copy is repaired. Reported because it is the
+        // population whose shared row this deliberately leaves stale.
+        "shared_threads": shared_threads,
         "by_user": by_user,
     }))
     .into_response()

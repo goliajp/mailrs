@@ -133,7 +133,14 @@ impl KevyMailboxStore {
 
     /// Whether more than one account holds `tid`. One exact lookup per
     /// account, not a keyspace scan.
-    fn thread_is_shared(&self, accounts: &[String], tid: &str) -> io::Result<bool> {
+    ///
+    /// `pub` because a rebuild has to ask it too: the shared thread hash
+    /// has no user segment, so on a thread two accounts hold it can carry
+    /// one of them or the other. A sweep run once may write it and accept
+    /// "last one wins"; an operation that walks every account and claims
+    /// to settle cannot, because each owner's pass would rewrite it to a
+    /// different answer and it would report work forever.
+    pub fn thread_is_shared(&self, accounts: &[String], tid: &str) -> io::Result<bool> {
         let mut seen = 0;
         for account in accounts {
             if self
