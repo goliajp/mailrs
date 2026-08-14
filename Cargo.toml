@@ -12,6 +12,7 @@ members = [
     "crates/test-docker",
     "crates/smtp-proto",
     "crates/storage-maildir",
+    "crates/uidlist",
     "crates/message-store",
     "crates/receiver",
     "crates/core",

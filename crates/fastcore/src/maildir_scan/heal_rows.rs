@@ -35,6 +35,9 @@ pub(crate) fn heal_membership_rows(
     // score for a tid that's already there.
     let mut rows_healed = 0u32;
     let mut created = 0u32;
+    // Once for the sweep: reading it per message would reparse the whole
+    // file per message, and this runs over thirty thousand of them.
+    let uids = crate::uidlist::load(user);
     for (root, bucket) in by_root {
         let sent_here: Vec<&&MailFile> = bucket
             .iter()
@@ -76,7 +79,13 @@ pub(crate) fn heal_membership_rows(
                 // Side sink: contacts autocomplete.
                 crate::live_sync::upsert_contacts(user, &m.from);
                 // Also write the message blob for enrich_with_body.
-                let uid = state.mailbox.allocate_uid(user, &m.message_id).unwrap_or(0);
+                //
+                // The UID comes from the maildir's own list when it has
+                // one: this sweep *is* the rebuild, and a rebuild that
+                // invents fresh UIDs is what makes every IMAP client
+                // resync.
+                let uid =
+                    crate::uidlist::uid_for(state, uids.as_ref(), user, &m.message_id, &m.filename);
                 let wire = mailrs_core_api::method::message::MessageWire {
                     id: 0,
                     mailbox_id: 0,

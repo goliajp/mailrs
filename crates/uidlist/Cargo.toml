@@ -1,0 +1,21 @@
+[package]
+name = "mailrs-uidlist"
+version = "0.1.0"
+edition = "2024"
+description = "Dovecot-compatible `dovecot-uidlist` reader and writer: the stable UID ↔ filename map that lives beside the mail rather than in a server's index, so a rebuilt index does not force every IMAP client to resync."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-uidlist"
+authors = ["GOLIA K.K."]
+keywords = ["email", "imap", "maildir", "uid", "dovecot"]
+categories = ["email", "filesystem"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+tempfile = "3"

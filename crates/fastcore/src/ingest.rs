@@ -392,6 +392,10 @@ pub(crate) fn ingest_delivered_file(
     let _ = state.notify.send(addr.to_string());
     crate::live_sync::publish_new_mail(addr, &root, &from, &subject, "");
     let uid = state.mailbox.allocate_uid(addr, &message_id).unwrap_or(0);
+    // The maildir's copy of the promise. Appended rather than read-checked:
+    // delivery is the hot path, the list is append-only by design, and the
+    // self-heal reads it back before allocating anything.
+    crate::uidlist::record(addr, uid, blob_ref);
     let wire = mailrs_core_api::method::message::MessageWire {
         id: 0,
         mailbox_id: 0,

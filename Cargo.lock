@@ -3256,6 +3256,7 @@ dependencies = [
  "mailrs-tls-reload",
  "mailrs-tls-rpt",
  "mailrs-triage",
+ "mailrs-uidlist",
  "mailrs-webhook-signature",
  "password-hash",
  "psl",
@@ -3894,6 +3895,13 @@ dependencies = [
  "kevy-client",
  "mailrs-bayes",
  "tracing",
+]
+
+[[package]]
+name = "mailrs-uidlist"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]
