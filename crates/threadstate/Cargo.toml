@@ -1,0 +1,23 @@
+[package]
+name = "mailrs-threadstate"
+version = "0.1.0"
+edition = "2024"
+description = "An append-only, newest-wins log of per-thread decisions stored beside the mail: snooze times, classifier verdicts and importance. The facts a Maildir flag or keyword bit cannot hold, kept where a rebuilt index can read them back."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-threadstate"
+authors = ["GOLIA K.K."]
+keywords = ["email", "maildir", "imap", "thread", "log"]
+categories = ["email", "filesystem"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

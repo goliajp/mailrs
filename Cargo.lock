@@ -3254,6 +3254,7 @@ dependencies = [
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-srs",
+ "mailrs-threadstate",
  "mailrs-tls-reload",
  "mailrs-tls-rpt",
  "mailrs-triage",
@@ -3869,6 +3870,15 @@ name = "mailrs-test-docker"
 version = "0.0.0"
 dependencies = [
  "tokio",
+]
+
+[[package]]
+name = "mailrs-threadstate"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

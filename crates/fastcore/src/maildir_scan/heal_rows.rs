@@ -41,6 +41,8 @@ pub(crate) fn heal_membership_rows(
     // Once for the sweep, like the uidlist: the map is one small file and
     // every message in the mailbox is about to be asked about it.
     let kw = crate::keywords::load(user);
+    // And the decisions a bit cannot hold — snooze times and verdicts.
+    let log = crate::threadstate::load(user);
     for (root, bucket) in by_root {
         let sent_here: Vec<&&MailFile> = bucket
             .iter()
@@ -150,6 +152,8 @@ pub(crate) fn heal_membership_rows(
             if pinned {
                 let _ = state.mailbox.set_pinned(user, root, true);
             }
+            // The reading half of the thread-state log.
+            crate::threadstate::apply_to_row(state, &log, user, root);
             created += 1;
         }
         if !is_sender_thread {
