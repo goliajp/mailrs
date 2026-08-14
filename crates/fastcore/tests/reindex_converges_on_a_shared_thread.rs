@@ -79,11 +79,15 @@ fn seed(s: &mailrs_mailbox_kevy::KevyMailboxStore, user: &str, mid: &str, sender
 }
 
 async fn reindex(state: &Arc<mailrs_fastcore::FastcoreState>) -> serde_json::Value {
+    call(state, "/v1/admin/maintenance:reindex").await
+}
+
+async fn call(state: &Arc<mailrs_fastcore::FastcoreState>, uri: &str) -> serde_json::Value {
     let res = mailrs_fastcore::build_router(state.clone())
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri("/v1/admin/maintenance:reindex")
+                .uri(uri)
                 .body(Body::empty())
                 .expect("req"),
         )
@@ -112,7 +116,22 @@ async fn a_thread_two_people_share_does_not_make_the_rebuild_report_forever() {
     seed(&mailbox, B, "m-1@x.com", A);
     let state = Arc::new(mailrs_fastcore::FastcoreState::new(mailbox));
 
+    // The dry run has to ask the question the real run answers. A shared
+    // thread gets the narrower repair, so asking the wider one reports
+    // work that will never be done — the same defect as a dry run that
+    // skips a check, with the opposite sign. Measured on production: the
+    // dry run said 74 while the real run would have repaired fewer.
+    let dry = call(&state, "/v1/admin/maintenance:reindex?dry_run=true").await;
     let first = reindex(&state).await;
+    assert_eq!(
+        dry["counts_repaired"], first["counts_repaired"],
+        "the dry run counted a repair the real run does not make\n  dry: {dry}\n  run: {first}"
+    );
+    assert!(
+        first["shared_threads"].as_u64().unwrap_or(0) >= 2,
+        "the shared population is not being reported: {first}"
+    );
+
     let second = reindex(&state).await;
     let third = reindex(&state).await;
 
