@@ -11,6 +11,7 @@
 //! created=0` every 31 seconds forever
 //! (`.claude/rules/periodic-work-must-converge.md`).
 
+use mailrs_core_api::method::message::FLAG_SEEN;
 use std::sync::Arc;
 
 use super::scan::MailFile;
@@ -87,7 +88,13 @@ pub(crate) fn heal_membership_rows(
                     date: m.date,
                     internal_date: m.date,
                     size: m.size,
-                    flags: 1,
+                    // From the file name, not assumed. Maildir states the
+                    // read state in the `:2,FLAGS` suffix, and the scan has
+                    // already parsed it into `m.seen` — this said `1`, marking
+                    // every message it healed as read whatever the file said,
+                    // which is the same fact-versus-guess mistake the read-state
+                    // work exists to remove.
+                    flags: if m.seen { FLAG_SEEN } else { 0 },
                     message_id: m.message_id.clone(),
                     in_reply_to: m.in_reply_to.clone(),
                     sender_trust: m.sender_trust.clone(),
