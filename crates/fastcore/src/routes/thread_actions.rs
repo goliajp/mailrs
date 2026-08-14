@@ -388,6 +388,12 @@ pub(crate) async fn snooze_thread_route(
     {
         tracing::warn!(error = %e, %user, %thread_id, "snooze io error");
     }
+    // Tier 1: a snooze carries a timestamp, so no flag or keyword bit can
+    // hold it — it goes in the log beside the mail, where a rebuilt index
+    // can read it back.
+    let mut rec = crate::threadstate::about(&thread_id);
+    rec.snoozed_until = Some(req.snoozed_until);
+    crate::threadstate::record(&user, &rec);
     axum::http::StatusCode::NO_CONTENT.into_response()
 }
 
@@ -398,5 +404,11 @@ pub(crate) async fn unsnooze_thread_route(
     if let Err(e) = state.mailbox.set_snoozed(&user, &thread_id, 0) {
         tracing::warn!(error = %e, %user, %thread_id, "unsnooze io error");
     }
+    // Zero is a value here, not an absence: it un-snoozes, and a replay
+    // that could not tell it from "nothing said" would put the thread
+    // away again.
+    let mut rec = crate::threadstate::about(&thread_id);
+    rec.snoozed_until = Some(0);
+    crate::threadstate::record(&user, &rec);
     axum::http::StatusCode::NO_CONTENT.into_response()
 }

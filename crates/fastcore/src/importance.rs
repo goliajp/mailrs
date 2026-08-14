@@ -187,6 +187,14 @@ fn store_verdict(
     {
         tracing::warn!(error = %e, %user, %thread_id, "importance: store failed");
     }
+    // Tier 1: a verdict at a point in time. Re-running the ranker is not
+    // free and its inputs move — the contact tallies it reads change with
+    // every message — so the recorded answer is a fact rather than
+    // something a rebuild can derive again.
+    let mut rec = crate::threadstate::about(thread_id);
+    rec.importance_level = Some(level.as_str().to_string());
+    rec.importance_score = Some(score as f64);
+    crate::threadstate::record(user, &rec);
 }
 
 /// Per-address message tallies for one user.
