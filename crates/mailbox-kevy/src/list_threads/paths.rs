@@ -347,7 +347,8 @@ impl KevyMailboxStore {
         tids: &[String],
         total: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        self.store()
+        let (mut rows, total) = self
+            .store()
             .atomic(|ctx| {
                 let mut out = Vec::with_capacity(tids.len());
                 for tid in tids {
@@ -358,6 +359,29 @@ impl KevyMailboxStore {
                 }
                 Ok((out, total))
             })
-            .map_err(std::io::Error::from)
+            .map_err(std::io::Error::from)?;
+        // The three counters come from the declared index rather than the
+        // row, so they cannot drift: everything that exists to repair them
+        // — recount-threads, shadow-counts, repair_thread_counts and its
+        // variants — exists because they are stored, and 127 threads on
+        // production had drifted between four writers.
+        //
+        // **Outside the atomic block above, not inside it.** `idx_group`
+        // takes a write lock on every shard to sync its segments, and the
+        // hydration holds its own; calling it in there deadlocks.
+        //
+        // A thread the index cannot answer keeps the stored numbers. It
+        // answers `None` rather than zero for exactly this — an
+        // un-backfilled conversation must not render as empty
+        // (`maintenance:group-backfill` is what removes that case, and it
+        // reports when there is nothing left to do).
+        for row in &mut rows {
+            if let Some((count, unread, sent)) = self.counts_from_index(user, &row.thread_id) {
+                row.count = count;
+                row.unread_count = unread;
+                row.sent_count = sent;
+            }
+        }
+        Ok((rows, total))
     }
 }
