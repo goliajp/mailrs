@@ -77,16 +77,21 @@ pub(crate) fn group_key(user: &str, tid: &str, flags: u32, own: bool) -> String 
     format!("{user}\0{tid}\0{}", State::of(flags, own).tag())
 }
 
-/// The three group names one thread's counters are read from.
+/// One thread's group name for a given state — what a reader asks for.
 ///
-/// `unread_count = count(u)`, `sent_count = count(o)`,
-/// `count = count(u) + count(r) + count(o)`.
+/// `unread_count = count(Unread)`, `sent_count = count(Own)`,
+/// `count = count(Unread) + count(Read) + count(Own)`.
+pub(crate) fn group_name(user: &str, tid: &str, state: State) -> String {
+    format!("{user}\0{tid}\0{}", state.tag())
+}
+
+/// All three, for a test that asserts a writer can only produce these.
 #[cfg(test)]
 pub(crate) fn group_names(user: &str, tid: &str) -> [String; 3] {
     [
-        format!("{user}\0{tid}\0u"),
-        format!("{user}\0{tid}\0r"),
-        format!("{user}\0{tid}\0o"),
+        group_name(user, tid, State::Unread),
+        group_name(user, tid, State::Read),
+        group_name(user, tid, State::Own),
     ]
 }
 

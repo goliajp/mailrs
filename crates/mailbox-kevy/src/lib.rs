@@ -66,6 +66,7 @@ use kevy_embedded::Store;
 
 mod account;
 mod alias;
+mod count_shadow;
 mod deliver;
 mod domain;
 mod importance;
