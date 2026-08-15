@@ -79,6 +79,7 @@ const SWEEPS: &[&str] = &[
     "/v1/admin/maintenance:shadow-counts",
     "/v1/admin/maintenance:count-shadow",
     "/v1/admin/maintenance:group-backfill?dry_run=true",
+    "/v1/admin/maintenance:axis-shadow",
     "/v1/admin/maintenance:reindex?dry_run=true",
     "/v1/admin/maintenance:uidlist-backfill",
     "/v1/admin/maintenance:allocate-missing-uids",
