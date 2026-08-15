@@ -164,6 +164,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:shadow-counts",
             post(shadow_counts_route),
         )
+        // What the declared aggregate index counts, against what the rows
+        // say. Read-only; the gate for moving the read onto the engine.
+        .route(
+            "/v1/admin/maintenance:count-shadow",
+            post(count_shadow_route),
+        )
         .route(
             "/v1/admin/maintenance:sent-axis-shadow",
             post(sent_axis_shadow_route),
