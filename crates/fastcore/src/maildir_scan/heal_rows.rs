@@ -50,10 +50,21 @@ pub(crate) fn heal_membership_rows(
             .collect();
         let is_sender_thread = !sent_here.is_empty();
         let thread_key = mailrs_mailbox_kevy::keys::thread(root);
+        // Whether the thread is there, asked of the field that says so.
+        //
+        // This probed `count` until 2026-08-15, which made a counter
+        // decide something that has nothing to do with counting — and
+        // this is the worst place for it. A thread whose `count` went
+        // missing reads as new, so the branch below rebuilds it from
+        // every message it holds, and this loop runs every 30 seconds
+        // (`ingest.rs:42-47`). Not a stale row: an unbounded rebuild.
         let exists = state
             .mailbox
             .store_ref()
-            .hexists(thread_key.as_bytes(), b"count")
+            .hexists(
+                thread_key.as_bytes(),
+                mailrs_mailbox_kevy::keys::THREAD_EXISTS_FIELD,
+            )
             .unwrap_or(false);
         if !exists {
             // Create a minimal thread aggregate from scratch — inbound

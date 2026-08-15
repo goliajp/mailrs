@@ -87,7 +87,7 @@ impl KevyMailboxStore {
         let new_category = bucket.category().as_bytes();
         self.store()
             .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
                     return Ok(false);
                 }
                 // Moving a thread into a folder un-archives it.
@@ -128,6 +128,12 @@ impl KevyMailboxStore {
     /// The existence check stays on the shared hash: it is what says the
     /// conversation exists at all, and starring something that is not
     /// there should still answer `false`.
+    ///
+    /// It asks [`keys::THREAD_EXISTS_FIELD`] and not a counter. Asking
+    /// `count` made a *count* load-bearing for a question that has
+    /// nothing to do with counting, so a thread whose counter was absent
+    /// was silently unstarrable — the mutation returned `false` and did
+    /// nothing.
     fn toggle_flag(
         &self,
         user: &str,
@@ -139,7 +145,7 @@ impl KevyMailboxStore {
         let val: &[u8] = if on { b"1" } else { b"0" };
         self.store()
             .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
                     return Ok(false);
                 }
                 ctx.hset(
@@ -161,7 +167,7 @@ impl KevyMailboxStore {
         let thread_key = keys::thread(thread_id);
         self.store()
             .atomic(|ctx| {
-                if !ctx.hexists(thread_key.as_bytes(), b"count")? {
+                if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
                     return Ok(false);
                 }
                 let cur = ctx
@@ -463,6 +469,46 @@ mod tests {
             unread: true,
             is_own: false,
         }
+    }
+
+    /// **A counter is not an existence test.**
+    ///
+    /// `set_bucket`, `toggle_flag` and `mark_unread` each ask
+    /// `hexists(thread, "count")` to decide whether the thread is there,
+    /// and `mark_seen` returns `hexists(thread, "unread_count")`. That
+    /// makes a *count* load-bearing for something that has nothing to do
+    /// with counting: any thread whose counter field is absent becomes
+    /// unstarrable, unarchivable and unreadable-as-read, silently — every
+    /// one of those returns `false` and does nothing.
+    ///
+    /// `delete_thread` in this same file already knows better and probes
+    /// `category` (see its own comment: *"all this asks now is whether the
+    /// thread is there at all"*). So does the membership-row path, which
+    /// probes `tid`.
+    ///
+    /// The hazard is live today and independent of the counters being
+    /// retired — this is what makes retiring them safe rather than what
+    /// makes it necessary.
+    #[test]
+    fn a_thread_without_a_count_field_is_still_a_thread() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u)).unwrap();
+
+        // The counter fields go, the thread stays.
+        s.store()
+            .hdel(
+                keys::thread("t1").as_bytes(),
+                &[b"count".as_slice(), b"unread_count".as_slice()],
+            )
+            .unwrap();
+
+        assert!(s.set_starred(u, "t1", true).unwrap(), "star");
+        assert!(s.set_archived(u, "t1", true).unwrap(), "archive");
+        assert!(s.set_pinned(u, "t1", true).unwrap(), "pin");
+        assert!(s.set_bucket(u, "t1", keys::Bucket::Junk).unwrap(), "bucket");
+        assert!(s.mark_unread(u, "t1").unwrap(), "mark_unread");
+        assert!(s.mark_seen(u, "t1").unwrap(), "mark_seen");
     }
 
     /// Count on the axis the UI queries, not on a raw index.

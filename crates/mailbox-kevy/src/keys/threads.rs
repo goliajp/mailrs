@@ -17,6 +17,19 @@ pub fn thread(tid: &str) -> String {
 pub const THREAD_PREFIX: &[u8] = b"mailrs:thread:";
 
 /// Name of the full-text index over [`THREAD_SEARCH_FIELD`].
+/// The field that answers "does this thread exist at all".
+///
+/// Every mutator has to ask something, and for a while five of them
+/// asked `count` or `unread_count` — which made a counter load-bearing
+/// for a question about existence. A thread missing its counter became
+/// silently unstarrable, unarchivable and unmarkable, and the maildir
+/// self-heal read it as "this thread is new" and rebuilt it from every
+/// message, every 30 seconds.
+///
+/// `category` is written by every path that creates a thread and by
+/// nothing that counts, and `delete_thread` has always probed it.
+pub const THREAD_EXISTS_FIELD: &[u8] = b"category";
+
 pub const IDX_THREAD_SEARCH: &[u8] = b"mailrs_thread_search";
 
 /// Synthesised hash field the text index reads. kevy indexes exactly
