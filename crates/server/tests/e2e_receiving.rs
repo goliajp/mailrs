@@ -227,15 +227,26 @@ hello world from the baseline test\r\n";
     assert!(sender.contains("bob@external.com"), "sender: {sender}");
     assert!(!thread_id.is_empty(), "thread resolved");
 
-    // S2.3 latency budget: delivery -> NewMessage must stay prompt even
-    // though post-delivery is async. Generous 2s ceiling (actual is tens
-    // of ms in-process) — this gate catches an async stall, not micro
-    // perf. Measured from delivery start, a conservative upper bound on
-    // the maildir-write -> NewMessage span. See crates/server/BUDGETS.md.
+    // S2.3 stall detector: delivery -> NewMessage must arrive even though
+    // post-delivery is async. It catches a wedged consumer or a degraded
+    // backpressure path — **not** micro perf, as the original note said.
+    //
+    // The ceiling was 2 s against an actual of tens of ms, which read as
+    // generous until you notice what it is generous *against*. It is a
+    // wall clock, and inside `cargo test --workspace` it runs while a few
+    // hundred other test binaries and a docker container start on the
+    // same machine: 2.95 s on 2026-08-15, failing a deploy, then 3 out of
+    // 3 passing in isolation. A budget that measures the host rather than
+    // the code trains people to wave red away, which is the real damage
+    // (`feedback-load-dependent-test-flakes`).
+    //
+    // 10 s is still 300x the observed span, so a stall — which means
+    // "never" or "many seconds" — trips it exactly as before, while
+    // machine load does not. See crates/server/BUDGETS.md.
     let latency = new_message_latency.expect("NewMessage observed");
     assert!(
-        latency < Duration::from_secs(2),
-        "delivery->NewMessage budget <2s, was {latency:?}"
+        latency < Duration::from_secs(10),
+        "delivery->NewMessage stalled: {latency:?}"
     );
 
     // messages row indexed
