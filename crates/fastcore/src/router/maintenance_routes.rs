@@ -170,6 +170,12 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:count-shadow",
             post(count_shadow_route),
         )
+        // Writes the group column onto rows that predate it, so the shadow
+        // above can start reporting a defect rather than a debt.
+        .route(
+            "/v1/admin/maintenance:group-backfill",
+            post(group_backfill_route),
+        )
         .route(
             "/v1/admin/maintenance:sent-axis-shadow",
             post(sent_axis_shadow_route),
