@@ -80,6 +80,12 @@ impl KevyMailboxStore {
         let into_user_key = keys::thread_user_messages(user, into);
         for (mid_bytes, score) in &store.zrange(from_user_key.as_bytes(), 0, -1)? {
             store.zadd(into_user_key.as_bytes(), &[(*score, mid_bytes.as_slice())])?;
+            // The row has to follow its message. Moving the index alone
+            // leaves each row naming the thread it came from, and with it
+            // the group a declared count reads.
+            if let Ok(mid) = std::str::from_utf8(mid_bytes) {
+                self.move_user_message_to_thread(user, mid, into)?;
+            }
         }
 
         // 2. combine the aggregates. `from` may have no hash (already
@@ -151,6 +157,24 @@ impl KevyMailboxStore {
         let new_msgs = keys::thread_messages(&new_tid);
         store.zrem(old_msgs.as_bytes(), &[mid.as_bytes()])?;
         store.zadd(new_msgs.as_bytes(), &[(date as f64, mid.as_bytes())])?;
+        // And this user's side of the same membership, which this did not
+        // touch until 2026-08-15. `merge_thread_into` has moved it since the
+        // day a merge showed half a conversation; the split kept moving only
+        // the shared half, so the user's index went on pointing the message
+        // at the thread it had just left.
+        //
+        // The row's own `tid` moves with it, and the group column derived
+        // from it — otherwise a declared count keeps the message under the
+        // old conversation and never sees it under the new one.
+        store.zrem(
+            keys::thread_user_messages(user, &old_tid).as_bytes(),
+            &[mid.as_bytes()],
+        )?;
+        store.zadd(
+            keys::thread_user_messages(user, &new_tid).as_bytes(),
+            &[(date as f64, mid.as_bytes())],
+        )?;
+        self.move_user_message_to_thread(user, mid, &new_tid)?;
         self.set_thread_for_message_id(user, mid, &new_tid)?;
         // rebuild the old thread's aggregate (may now be smaller)
         if !old_tid.is_empty()
@@ -488,6 +512,76 @@ mod tests {
         let wire = serde_json::json!({"message_id": mid, "thread_id": tid, "internal_date": date});
         s.upsert_message(tid, mid, date, &serde_json::to_vec(&wire).unwrap())
             .unwrap();
+    }
+
+    /// A split moves the message on **both** sides, not just the shared one.
+    ///
+    /// `merge_thread_into` moves the per-user zset and says why — a merge
+    /// that moved only the shared membership showed the user half a
+    /// conversation. Its sibling never did: a split rewrote the blob's
+    /// `thread_id` and moved the shared zset, and left this user's index
+    /// pointing the message at the thread it just left.
+    ///
+    /// With `tid` now a column, the per-user message row drifts too, and it
+    /// carries the group a declared count reads — so a split would leave the
+    /// message counted under the old conversation and missing from the new.
+    #[test]
+    fn a_split_moves_the_message_on_the_users_side_too() {
+        let s = store();
+        let u = "u@x.com";
+        let (old, mid) = ("t-old", "m-split@x");
+        arrive(&s, old, u, "Subj", 100);
+
+        let wire = serde_json::json!({
+            "message_id": mid, "thread_id": old, "internal_date": 100,
+            "sender": "other@z.com", "subject": "Subj", "flags": 0,
+        });
+        let payload = serde_json::to_vec(&wire).unwrap();
+        s.upsert_message(old, mid, 100, &payload).unwrap();
+        s.upsert_user_message(
+            u,
+            old,
+            mid,
+            100,
+            &payload,
+            &crate::UserMessageFacts {
+                blob_ref: "f.host",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(s.user_thread_message_ids(u, old).unwrap(), vec![mid]);
+
+        let new = s.split_message_to_new_thread(u, mid).unwrap().unwrap();
+        assert_ne!(new, old, "the split has to produce a different thread");
+
+        assert!(
+            s.user_thread_message_ids(u, old).unwrap().is_empty(),
+            "the message is still in this user's index of the old thread"
+        );
+        assert_eq!(
+            s.user_thread_message_ids(u, &new).unwrap(),
+            vec![mid.to_string()],
+            "the message never reached this user's index of the new thread"
+        );
+
+        let facts = s.user_message_facts(u, mid).unwrap().unwrap();
+        assert_eq!(facts.tid, new, "the row still names the thread it left");
+        let flat = s
+            .store()
+            .hgetall(keys::user_message(u, mid).as_bytes())
+            .unwrap();
+        let g = flat
+            .iter()
+            .find(|(f, _)| f.as_slice() == b"g")
+            .map(|(_, v)| String::from_utf8_lossy(v).to_string());
+        assert_eq!(
+            g.as_deref(),
+            Some(crate::messages::group_key(u, &new, facts.flags, facts.own).as_str()),
+            "the group column still counts the message under the old thread"
+        );
     }
 
     #[test]

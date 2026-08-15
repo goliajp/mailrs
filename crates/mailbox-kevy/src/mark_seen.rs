@@ -122,6 +122,36 @@ impl KevyMailboxStore {
         Ok(behind)
     }
 
+    /// Write one row's `flags`, and the group column derived from them.
+    ///
+    /// **The only way to set `flags` on a per-user message row.** The group
+    /// a declared aggregate index counts the row under is a function of its
+    /// `flags`, so a writer that set one without the other would move the
+    /// row and not its group — and an aggregate index is exact *with
+    /// respect to the column it groups by*, which means the resulting count
+    /// is an exact count of the wrong thing, with nothing to detect it.
+    ///
+    /// Three call sites used to hset `flags` directly. They are the whole
+    /// reason this is a function rather than three lines repeated:
+    /// `rules/kevy-patterns.md` → `kevy/every-writer-maintains-the-row`.
+    fn write_flags(
+        &self,
+        user: &str,
+        message_id: &str,
+        facts: &crate::OwnedUserMessageFacts,
+        flags: u32,
+    ) -> io::Result<()> {
+        let group = crate::messages::group_key(user, &facts.tid, flags, facts.own);
+        self.store().hset(
+            keys::user_message(user, message_id).as_bytes(),
+            &[
+                (b"flags".as_slice(), flags.to_string().as_bytes()),
+                (b"g".as_slice(), group.as_bytes()),
+            ],
+        )?;
+        Ok(())
+    }
+
     /// Give one user's copy of one message a UID, but only if it has none.
     ///
     /// Returns the row's `blob_ref` when it wrote, `None` when the row is
@@ -179,10 +209,7 @@ impl KevyMailboxStore {
             return Ok(None);
         }
         let flags = facts.flags | FLAG_SEEN;
-        self.store().hset(
-            keys::user_message(user, message_id).as_bytes(),
-            &[(b"flags".as_slice(), flags.to_string().as_bytes())],
-        )?;
+        self.write_flags(user, message_id, &facts, flags)?;
         Ok(Some((facts.blob_ref, flags)))
     }
 
@@ -213,10 +240,7 @@ impl KevyMailboxStore {
         } else {
             facts.flags & !FLAG_SEEN
         };
-        self.store().hset(
-            keys::user_message(user, message_id).as_bytes(),
-            &[(b"flags".as_slice(), flags.to_string().as_bytes())],
-        )?;
+        self.write_flags(user, message_id, &facts, flags)?;
         Ok(true)
     }
 }
@@ -227,6 +251,117 @@ mod tests {
     use crate::MessageArrival;
     use kevy_embedded::{Config, Store};
     use std::sync::Arc;
+
+    /// Read the group column straight off the row, without going through
+    /// any decoder that might paper over its absence.
+    fn group_on_row(s: &KevyMailboxStore, user: &str, mid: &str) -> Option<String> {
+        let flat = s
+            .store()
+            .hgetall(keys::user_message(user, mid).as_bytes())
+            .unwrap();
+        flat.iter()
+            .find(|(f, _)| f.as_slice() == b"g")
+            .map(|(_, v)| String::from_utf8_lossy(v).to_string())
+    }
+
+    /// **Every writer of `flags` maintains the group column.**
+    ///
+    /// The group a row counts toward is derived from its own `flags` — so a
+    /// writer that sets `flags` and leaves `g` alone moves the row's truth
+    /// without moving its group, and the declared counter reads a number
+    /// that was right before the write. There is no drift *detector* for
+    /// this: an aggregate index is exact by construction with respect to
+    /// the column it groups by, so a stale column produces an exact count
+    /// of the wrong thing.
+    ///
+    /// `rules/kevy-patterns.md` → `kevy/every-writer-maintains-the-row`.
+    /// The membership-row version of this test caught the main ingest path
+    /// writing no row at all; this is the same shape one level down.
+    #[test]
+    fn every_writer_of_flags_keeps_the_group_key_in_step() {
+        use mailrs_mailbox::types::FLAG_SEEN;
+
+        let s = store();
+        let u = "u@x.com";
+        let check = |mid: &str, what: &str| {
+            let facts = s.user_message_facts(u, mid).unwrap().unwrap();
+            let want = crate::messages::group_key(u, &facts.tid, facts.flags, facts.own);
+            assert_eq!(
+                group_on_row(&s, u, mid).as_deref(),
+                Some(want.as_str()),
+                "after {what}, the row's group disagrees with the row"
+            );
+        };
+
+        // Inbound, unread.
+        s.upsert_user_message(
+            u,
+            "t1",
+            "m1",
+            100,
+            br#"{"message_id":"m1","sender":"other@z.com"}"#,
+            &crate::UserMessageFacts {
+                blob_ref: "f.host",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        check("m1", "upsert");
+
+        s.mark_user_message_seen(u, "m1").unwrap();
+        check("m1", "mark_user_message_seen");
+
+        s.set_user_message_seen(u, "m1", false).unwrap();
+        check("m1", "set_user_message_seen(false)");
+
+        s.set_user_message_seen(u, "m1", true).unwrap();
+        check("m1", "set_user_message_seen(true)");
+
+        // Filling a uid must not disturb it either.
+        s.upsert_user_message(
+            u,
+            "t1",
+            "m2",
+            100,
+            br#"{"message_id":"m2","sender":"other@z.com"}"#,
+            &crate::UserMessageFacts {
+                blob_ref: "g.host",
+                uid: 0,
+                flags: FLAG_SEEN,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        s.set_user_message_uid_if_unset(u, "m2", 9).unwrap();
+        check("m2", "set_user_message_uid_if_unset");
+
+        // The user's own send: never unread, whatever the seen bit says.
+        s.upsert_user_message(
+            u,
+            "t1",
+            "m3",
+            100,
+            br#"{"message_id":"m3","sender":"u@x.com"}"#,
+            &crate::UserMessageFacts {
+                blob_ref: "h.host",
+                uid: 3,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        check("m3", "upsert of an own send");
+        assert!(
+            s.user_message_facts(u, "m3").unwrap().unwrap().own,
+            "a message whose sender is the user is that user's own"
+        );
+        assert!(
+            group_on_row(&s, u, "m3").unwrap().ends_with("\0o"),
+            "an own send belongs to the own group even while unseen"
+        );
+    }
 
     /// A UID may be filled in and never changed.
     ///
