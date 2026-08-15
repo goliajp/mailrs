@@ -1251,7 +1251,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2408,7 +2408,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4221,7 +4221,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5321,7 +5321,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5380,7 +5380,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5797,20 +5797,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
 name = "spg-crypto"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f36a06259498337f5d74fe3665ab8cbade9b46ba3759362f9237f31c533ffff"
+checksum = "cb4c0ce015e10101fb1e15e923441a5c8aaa57cb3b2cd86d41f124f7891bb23b"
 
 [[package]]
 name = "spg-embedded"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caf4aadd37503ca6f64e247c9b3c0dcc1c2cd22eec244f62a493f888f3d3ee97"
+checksum = "50dd33b952e5b50d95370588c75e5a62232abb24c8863da99bff0c1fe9617454"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5821,9 +5821,9 @@ dependencies = [
 
 [[package]]
 name = "spg-embedded-tokio"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92080e0522d8f27d24e7aebbc3fa72a7b9a3287a0aae1a8b34d13d8614951bbc"
+checksum = "5d1608feeaa9532739915b06294ceb249a0a9527db2deb6e0d0ff7120a551e6c"
 dependencies = [
  "spg-embedded",
  "spg-engine",
@@ -5832,9 +5832,9 @@ dependencies = [
 
 [[package]]
 name = "spg-engine"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "752d8f614c56f22cf281df75afad3af3cff6c2f23e1e62da93e37eb6fb8bc71e"
+checksum = "bfcbe10d9f38ffdc978f9ea7f5ed22bbb17e167e83afda2df7f2926b94602071"
 dependencies = [
  "bumpalo",
  "hashbrown 0.15.5",
@@ -5853,24 +5853,24 @@ dependencies = [
 
 [[package]]
 name = "spg-manifest"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "325dcd60ff86ab2f5b0c5b577edfe88ef2f83484c875d6c6365453258a8a97e0"
+checksum = "0ed9afb08af9899a6c340f8327c88a05f8f481a15abac21df8799c8021e29ebd"
 dependencies = [
  "spg-crypto",
 ]
 
 [[package]]
 name = "spg-sql"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a0bdfd0f5f73573cb1c6a4eb3b36db5d6b1c713f0ac24a5cecab1983fbaf6b2"
+checksum = "94ba6c4307d97b7b8ada7be63e13c0a7a18e7485cf4df3e2680176f4d8935c3c"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "615e5f35870a137a7da091ddb48c89aa0048aa01aadc7265f381044f30f744d9"
+checksum = "208a76005ff6a9fc1a9f14600834dd557a7b6e3f139ed7a74b50bdc94d4f539f"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -5891,9 +5891,9 @@ dependencies = [
 
 [[package]]
 name = "spg-storage"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7057a392d3536feb747ded8eaf4f58366d64df8d679276fddc0b37272bc1689"
+checksum = "c0d232c1a54c0544c7419a1a44c1a92702521de736882822e67d84bb18da308c"
 dependencies = [
  "bumpalo",
  "spg-crypto",
@@ -5902,9 +5902,9 @@ dependencies = [
 
 [[package]]
 name = "spg-tzif"
-version = "7.37.16"
+version = "7.37.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4152fb2f7de0d7d706fcb14bdbec2ea7b167d104f20bb3b5199a8c46b3d26fce"
+checksum = "4af866509f17b8317dbce7ccd570ec83fcb5587a55430f3aa1c26670905555a0"
 
 [[package]]
 name = "spin"
@@ -6289,7 +6289,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7149,7 +7149,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
