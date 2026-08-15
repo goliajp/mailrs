@@ -40,7 +40,11 @@ impl KevyMailboxStore {
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let found = self.store().atomic(|ctx| {
-            let exists = ctx.hexists(thread_key.as_bytes(), b"unread_count")?;
+            // Whether the row is there, asked of the field that says so —
+            // not of a counter. This is `mark_seen`'s return value and
+            // three routes branch on it, so a counter going missing used
+            // to make every one of them believe the thread had vanished.
+            let exists = ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)?;
             // Always drop from the has_unread index AND always plant
             // a concrete `unread_count = 0` on the hash. The previous
             // version guarded the hset behind `exists`, so a thread
