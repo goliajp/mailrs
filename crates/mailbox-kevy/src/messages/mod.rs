@@ -19,7 +19,7 @@ mod projection;
 mod read;
 mod uid;
 
-pub(crate) use group::{State, group_key, group_name};
+pub(crate) use group::{State, group_key, group_name, own_from_payload};
 
 /// What is true of one user's copy of a message, borrowed for the write.
 #[derive(Debug, Clone, Copy)]

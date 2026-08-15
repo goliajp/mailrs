@@ -112,14 +112,7 @@ impl KevyMailboxStore {
         // `message_arrival` already uses to decide `sent_count`:
         // `senders_csv_contains_user`. Reading it off the payload keeps a
         // single definition of "this is mine".
-        let own = serde_json::from_slice::<serde_json::Value>(payload)
-            .ok()
-            .and_then(|v| {
-                v.get("sender")
-                    .and_then(|s| s.as_str())
-                    .map(|s| crate::senders_csv_contains_user(s, user))
-            })
-            .unwrap_or(false);
+        let own = super::own_from_payload(payload, user);
         // The thread the row belongs to, and the group a declared aggregate
         // index counts it under. Neither was on the row before: the thread
         // lived only in the per-user zset, and there was no index. See

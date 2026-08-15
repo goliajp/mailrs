@@ -68,6 +68,27 @@ impl State {
     }
 }
 
+/// Whether `user` sent the message this payload describes.
+///
+/// **One definition, called by both writers.** `upsert_user_message` needs
+/// it for every new row and the backfill needs it for every old one, and a
+/// backfill that decides ownership differently from the write path would
+/// converge the shadow onto a number that is wrong in a new way. The rule
+/// is the one `message_arrival` already uses to decide `sent_count`.
+///
+/// `false` when the payload does not parse or carries no sender: a message
+/// nobody can attribute is not this user's own send.
+pub(crate) fn own_from_payload(payload: &[u8], user: &str) -> bool {
+    serde_json::from_slice::<serde_json::Value>(payload)
+        .ok()
+        .and_then(|v| {
+            v.get("sender")
+                .and_then(|s| s.as_str())
+                .map(|s| crate::senders_csv_contains_user(s, user))
+        })
+        .unwrap_or(false)
+}
+
 /// `user \0 tid \0 state` — what the aggregate index groups by.
 ///
 /// NUL-separated because an address and a thread id are both arbitrary
