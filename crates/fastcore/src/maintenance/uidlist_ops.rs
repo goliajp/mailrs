@@ -32,6 +32,8 @@ use super::prelude::*;
 pub(crate) async fn uidlist_backfill_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -102,15 +104,18 @@ pub(crate) async fn uidlist_backfill_route(
         }
     }
 
-    Json(serde_json::json!({
-        "accounts": users.len(),
-        "messages_walked": walked,
-        "records_added": added,
-        "skipped_no_uid": no_uid,
-        "skipped_no_file": no_file,
-        "errors": errors,
-        "by_user": by_user,
-    }))
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
+            "accounts": users.len(),
+            "messages_walked": walked,
+            "records_added": added,
+            "skipped_no_uid": no_uid,
+            "skipped_no_file": no_file,
+            "errors": errors,
+            "by_user": by_user,
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }
 
@@ -133,6 +138,8 @@ pub(crate) async fn uidlist_backfill_route(
 pub(crate) async fn allocate_missing_uids_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -194,13 +201,16 @@ pub(crate) async fn allocate_missing_uids_route(
         }
     }
 
-    Json(serde_json::json!({
-        "accounts": users.len(),
-        "messages_walked": walked,
-        "uids_allocated": allocated,
-        "errors": errors,
-        "by_user": by_user,
-    }))
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
+            "accounts": users.len(),
+            "messages_walked": walked,
+            "uids_allocated": allocated,
+            "errors": errors,
+            "by_user": by_user,
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }
 

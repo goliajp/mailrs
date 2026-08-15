@@ -53,6 +53,8 @@ pub(crate) async fn reindex_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<ReindexQuery>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let users = match &q.user {
         Some(u) => vec![u.clone()],
         None => match state.mailbox.list_account_addresses() {
@@ -248,23 +250,26 @@ pub(crate) async fn reindex_route(
         }
     }
 
-    Json(serde_json::json!({
-        "dry_run": q.dry_run,
-        "accounts": users.len(),
-        "threads_walked": walked,
-        "threads_changed": changed,
-        "from_keywords": from_keywords,
-        "from_flags": from_flags,
-        "from_threadstate": from_log,
-        // Under-reports in a dry run: the recount is downstream of the
-        // flag replay, which a dry run does not perform. See the module
-        // docs.
-        "counts_repaired": counts_repaired,
-        // Threads more than one local account holds, where only the
-        // per-user copy is repaired. Reported because it is the
-        // population whose shared row this deliberately leaves stale.
-        "shared_threads": shared_threads,
-        "by_user": by_user,
-    }))
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
+            "dry_run": q.dry_run,
+            "accounts": users.len(),
+            "threads_walked": walked,
+            "threads_changed": changed,
+            "from_keywords": from_keywords,
+            "from_flags": from_flags,
+            "from_threadstate": from_log,
+            // Under-reports in a dry run: the recount is downstream of the
+            // flag replay, which a dry run does not perform. See the module
+            // docs.
+            "counts_repaired": counts_repaired,
+            // Threads more than one local account holds, where only the
+            // per-user copy is repaired. Reported because it is the
+            // population whose shared row this deliberately leaves stale.
+            "shared_threads": shared_threads,
+            "by_user": by_user,
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }

@@ -45,6 +45,8 @@ mod push;
 mod router;
 mod routes;
 mod snooze_wake;
+mod store_motion;
+pub use store_motion::store_motion_probe;
 mod threadstate;
 mod uidlist;
 use headers::*;

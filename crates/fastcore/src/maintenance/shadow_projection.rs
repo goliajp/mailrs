@@ -42,6 +42,8 @@ use super::prelude::*;
 pub(crate) async fn threadrow_shadow_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     use axum::response::IntoResponse;
 
     let users = match state.mailbox.list_account_addresses() {
@@ -157,21 +159,24 @@ pub(crate) async fn threadrow_shadow_route(
         }
     }
 
-    Json(serde_json::json!({
-        "accounts": users.len(),
-        "distinct_threads": owners.len(),
-        "multi_owner_threads": owners.values().filter(|n| **n > 1).count(),
-        // What it walked, so the three counts below are legible as a
-        // fraction rather than as a bare number.
-        "pairs_compared": pairs_compared,
-        "agree": agree,
-        "differ": differ,
-        "differ_multi_owner": differ_multi_owner,
-        "row_missing": row_missing,
-        "shared_missing": shared_missing,
-        "differ_by_field": by_field,
-        "samples": samples,
-    }))
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
+            "accounts": users.len(),
+            "distinct_threads": owners.len(),
+            "multi_owner_threads": owners.values().filter(|n| **n > 1).count(),
+            // What it walked, so the three counts below are legible as a
+            // fraction rather than as a bare number.
+            "pairs_compared": pairs_compared,
+            "agree": agree,
+            "differ": differ,
+            "differ_multi_owner": differ_multi_owner,
+            "row_missing": row_missing,
+            "shared_missing": shared_missing,
+            "differ_by_field": by_field,
+            "samples": samples,
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }
 
@@ -194,6 +199,8 @@ pub(crate) async fn sent_axis_shadow_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let users = match q.get("user") {
         Some(u) => vec![u.clone()],
         None => state.mailbox.list_account_addresses().unwrap_or_default(),
@@ -275,7 +282,11 @@ pub(crate) async fn sent_axis_shadow_route(
         }));
     }
 
-    Json(serde_json::json!({ "users_checked": users.len(), "report": report })).into_response()
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({ "users_checked": users.len(), "report": report }),
+        motion.finish(&state),
+    ))
+    .into_response()
 }
 
 /// `POST /v1/admin/maintenance:shadow-counts?user=&offset=&limit=`
@@ -292,9 +303,15 @@ pub(crate) async fn shadow_counts_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let Some(user) = q.get("user") else {
         let users = state.mailbox.list_account_addresses().unwrap_or_default();
-        return Json(serde_json::json!({ "users": users })).into_response();
+        return Json(crate::store_motion::with_motion(
+            serde_json::json!({ "users": users }),
+            motion.finish(&state),
+        ))
+        .into_response();
     };
     let offset: i64 = q.get("offset").and_then(|v| v.parse().ok()).unwrap_or(0);
     let limit: i64 = q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(500);
