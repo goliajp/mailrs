@@ -222,7 +222,7 @@ fn a_row_written_before_the_flags_existed_is_listed_after_boot() {
     // `KevyMailboxStore::new` declares the table, and on a real boot the
     // AOF has been replayed by then. That ordering is the whole point:
     // the rows are there before the declaration reads them.
-    let pairs = crate::thread_row::thread_user_pairs(u, &row("legacy", 100, "inbox"));
+    let pairs = crate::thread_row::thread_user_pairs(u, &row("legacy", 100, "inbox"), None);
     let refs: Vec<(&[u8], &[u8])> = pairs
         .iter()
         .map(|(k, v)| (k.as_slice(), v.as_slice()))

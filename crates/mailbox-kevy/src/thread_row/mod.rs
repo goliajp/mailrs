@@ -332,19 +332,52 @@ fn tid_ord(tid: &str) -> i64 {
     (h >> 1) as i64
 }
 
-pub(crate) fn thread_user_pairs(user: &str, row: &ThreadRow) -> Vec<(Vec<u8>, Vec<u8>)> {
+/// The two declared axis columns, from a thread's total and the number
+/// of its messages this user sent.
+///
+/// **One definition of each**, because both decide which list a thread
+/// appears in: the Inbox ORDERPATH excludes `sent_only` and the Sent
+/// axis keys on `is_sender`.
+///
+/// "sent_only" means every message in the thread came from this user —
+/// it lives in Sent and nowhere else. Merely having replied does not
+/// qualify: a conversation the user took part in is still an inbox
+/// thread, and reading it as "has ever sent" dropped 190 threads from
+/// one account's inbox on production.
+///
+/// `is_sender` is the other half of that distinction: the Sent folder
+/// shows every thread the user has written in, the way Gmail does. A
+/// conversation they replied in is in both.
+pub(crate) fn axis_flags(total: i64, own: i64) -> (bool, bool) {
+    (total > 0 && own >= total, own > 0)
+}
+
+/// `counts` is `(total, own)` **for this user**, from the declared
+/// index. `None` when the index cannot answer — a thread whose rows
+/// predate the group column — and then the shared row's numbers stand in.
+///
+/// The fallback is the old behaviour and is deliberately kept: those
+/// counters are everybody's on a multi-owner thread, so one owner's
+/// replies can set another's `sent_only`. Measured on a copy of
+/// production over 32,206 threads and 159 multi-owner ones, that has
+/// never happened — but the hazard is in the code, and the engine's
+/// answer removes it wherever the index can speak.
+pub(crate) fn thread_user_pairs(
+    user: &str,
+    row: &ThreadRow,
+    counts: Option<(i64, i64)>,
+) -> Vec<(Vec<u8>, Vec<u8>)> {
     let bucket = keys::bucket_of(&row.category);
-    // "sent_only" means every message in the thread came from this
-    // user — it lives in Sent and nowhere else. Merely having replied
-    // does not qualify: a conversation the user took part in is still
-    // an inbox thread. Reading it as "has ever sent" dropped 190
-    // threads from one account's inbox on prod.
-    let sent_only = row.count > 0 && row.sent_count >= row.count;
-    // Distinct from `sent_only`: the Sent folder shows every thread
-    // the user has written in, the way Gmail does, while the inbox
-    // only excludes threads that are *nothing but* their own messages.
-    // A conversation they replied in is in both.
-    let is_sender = senders_csv_contains_user(&row.senders_csv, user);
+    let (sent_only, is_sender) = match counts {
+        Some((total, own)) => axis_flags(total, own),
+        // `senders_csv` is a display string that accumulates, so it can
+        // say the user wrote in a thread they only received: one such row
+        // on production, a message from noreply@ addressed to them.
+        None => (
+            row.count > 0 && row.sent_count >= row.count,
+            senders_csv_contains_user(&row.senders_csv, user),
+        ),
+    };
     vec![
         (b"user".to_vec(), user.as_bytes().to_vec()),
         (b"tid".to_vec(), row.thread_id.as_bytes().to_vec()),

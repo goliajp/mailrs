@@ -23,7 +23,12 @@ impl KevyMailboxStore {
         row: &ThreadRow,
     ) -> io::Result<bool> {
         let key = keys::thread_user(user, &row.thread_id);
-        let want = thread_user_pairs(user, row);
+        let want = thread_user_pairs(
+            user,
+            row,
+            self.counts_from_index(user, &row.thread_id)
+                .map(|(t, _u, o)| (t, o)),
+        );
         let have: std::collections::HashMap<Vec<u8>, Vec<u8>> =
             self.store().hgetall(key.as_bytes())?.into_iter().collect();
         // A flag the row does not carry is not the same as a flag set to
@@ -97,7 +102,12 @@ impl KevyMailboxStore {
             .map(|(k, v)| (k.as_slice(), v.as_slice()))
             .collect();
         let tu_key = keys::thread_user(user, &row.thread_id);
-        let tu_pairs = thread_user_pairs(user, row);
+        let tu_pairs = thread_user_pairs(
+            user,
+            row,
+            self.counts_from_index(user, &row.thread_id)
+                .map(|(t, _u, o)| (t, o)),
+        );
         let tu_refs: Vec<(&[u8], &[u8])> = tu_pairs
             .iter()
             .map(|(k, v)| (k.as_slice(), v.as_slice()))

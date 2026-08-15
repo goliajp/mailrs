@@ -216,4 +216,78 @@ mod tests {
         assert_eq!(r.samples[0]["stored"]["sent_only"], true);
         assert_eq!(r.samples[0]["derived"]["sent_only"], false);
     }
+
+    /// **The engine's answer wins over the row it was handed.**
+    ///
+    /// `upsert_thread(user, &row)` is given whatever ThreadRow its caller
+    /// holds, and `set_thread_date` hands it `get_thread(tid)` — the
+    /// shared hash, whose counters are every owner's. Here the row claims
+    /// the user sent all of it; the index says they sent none of it, and
+    /// the column has to follow the index.
+    #[test]
+    fn a_polluted_shared_row_does_not_set_this_users_column() {
+        let s = store();
+        let u = "u@x.com";
+        arrive(&s, "t1", u, true, false);
+        put(&s, u, "t1", "m1", 0, "other@z.com");
+        assert_eq!(s.counts_from_index(u, "t1"), Some((1, 1, 0)));
+
+        // The shared numbers, as a multi-owner thread would carry them.
+        let mut row = s.get_thread("t1").unwrap().expect("the thread");
+        row.count = 4;
+        row.sent_count = 4;
+        row.senders_csv = "u@x.com".into();
+        s.upsert_thread(u, &row).unwrap();
+
+        let pairs = s
+            .store()
+            .hgetall(keys::thread_user(u, "t1").as_bytes())
+            .unwrap();
+        let col = |n: &str| {
+            pairs
+                .iter()
+                .find(|(f, _)| f.as_slice() == n.as_bytes())
+                .map(|(_, v)| v.as_slice() == b"1")
+        };
+        assert_eq!(col("sent_only"), Some(false), "the row's totals decided it");
+        assert_eq!(col("is_sender"), Some(false), "senders_csv decided it");
+
+        // And the shadow agrees there is nothing left to report.
+        let r = s.shadow_axis_columns(u, 0, 100).unwrap();
+        assert_eq!((r.sent_only_differs, r.is_sender_differs), (0, 0));
+    }
+
+    /// A thread the index cannot answer for keeps the old derivation,
+    /// so un-backfilled data does not silently lose its Sent membership.
+    #[test]
+    fn an_unindexed_thread_keeps_the_old_derivation() {
+        let s = store();
+        let u = "u@x.com";
+        arrive(&s, "t1", u, false, true);
+        put(&s, u, "t1", "m1", 1, "u@x.com");
+        s.store()
+            .hdel(
+                keys::user_message(u, "m1").as_bytes(),
+                &[keys::USER_MESSAGE_GROUP_FIELD],
+            )
+            .unwrap();
+
+        let mut row = s.get_thread("t1").unwrap().expect("the thread");
+        row.senders_csv = "u@x.com".into();
+        s.upsert_thread(u, &row).unwrap();
+
+        let pairs = s
+            .store()
+            .hgetall(keys::thread_user(u, "t1").as_bytes())
+            .unwrap();
+        let is_sender = pairs
+            .iter()
+            .find(|(f, _)| f.as_slice() == b"is_sender")
+            .map(|(_, v)| v.as_slice() == b"1");
+        assert_eq!(
+            is_sender,
+            Some(true),
+            "an un-indexed thread lost its Sent membership"
+        );
+    }
 }
