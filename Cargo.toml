@@ -126,7 +126,7 @@ spg-embedded = "7.37.16"
 #   - `appendfsync always` group-commits on both reactors.
 #   - a forced rewrite no longer spikes the reactor for ~200 ms.
 # Data directories open in both directions; the release gate replays that.
-kevy-embedded = "5.1"
+kevy-embedded = "5.2"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /

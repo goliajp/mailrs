@@ -25,7 +25,7 @@ chrono = { workspace = true }
 # exists to catch. Only `WhereClause` / `CompositeCol` / `composite_bounds`
 # come from here — everything else goes through the facade. See
 # `src/table_spec.rs`.
-kevy-index = "5.1"
+kevy-index = "5.2"
 
 [dev-dependencies]
 criterion = { workspace = true }
