@@ -121,6 +121,31 @@ async fn the_scheduled_sweep_reaches_its_index() {
     // observed rather than asserted as wanted, so that the day spg
     // plans it differently this test goes red and says so.
     //
+    // **spg confirmed it the same day and fixed it on `develop`** — not
+    // in a released version as of 2026-08-16, which is why this pin is
+    // still here. When it goes red on an upgrade, that is the good
+    // outcome: flip these two assertions to expect
+    // `Index Scan using idx_outbound_scheduled_at` and delete this note.
+    //
+    // What it was, from their reply: `parse_range_bounds` accepted only a
+    // two-sided range, so `col <= x` alone never reached the parser, and
+    // the `IS NOT NULL` beside it made the whole predicate unparseable
+    // because both conjuncts had to be ranges. The rule was justified as
+    // "a one-sided range is usually non-selective" — a guess about a
+    // distribution, with a real selectivity cap two functions away, and
+    // exactly backwards for this shape: `scheduled_at` is NULL on almost
+    // every row and NULLs are not indexed, so the index holds fifty
+    // entries out of twenty thousand. Their measurement of our exact
+    // query at 160,000 rows: **6.64 ms → 0.014 ms**, with a wide range
+    // that matches everything still scanning, as the control.
+    //
+    // **What to re-verify when the upgrade lands.** Three callers share
+    // that parser; two seek and then re-apply the predicate, so a superset
+    // is safe, but `count(*)` over an indexed range answers from the index
+    // alone and would have counted rows a residual conjunct removes. They
+    // split it into a permissive parser and an exact one. That is the
+    // shape to check first.
+    //
     // Reported to spg 2026-08-16. Three observations, together:
     //
     //   * equality reaches the index (above), so it is not the index
