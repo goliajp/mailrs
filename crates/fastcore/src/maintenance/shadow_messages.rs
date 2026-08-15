@@ -77,6 +77,17 @@ pub(crate) async fn usermsg_shadow_route(
         std::collections::BTreeMap::new();
 
     for user in &users {
+        // One directory scan for the mailbox, not one per message.
+        //
+        // This asked whether a file resolves by calling
+        // `read_maildir_file`, which walks the whole of `cur/` to match
+        // the flag suffix and then reads the entire file — to answer a
+        // question about existence. At 32,923 messages that is thirty
+        // thousand directory walks and thirty thousand file reads, and
+        // the route did not finish in four minutes on production. Same
+        // shape `reindex` had, found the same way: a sweep only shows its
+        // cost once something makes it do the work.
+        let on_disk = crate::maildir_scan::names_on_disk(&state, user);
         for tid in state
             .mailbox
             .all_thread_ids_for_user(user)
@@ -119,7 +130,7 @@ pub(crate) async fn usermsg_shadow_route(
                         };
                         // Against the disk, and only about this user's own
                         // row: is their file there.
-                        if read_maildir_file(user, &facts.blob_ref).is_some() {
+                        if on_disk.contains_key(crate::maildir_scan::base_id(&facts.blob_ref)) {
                             per_user_resolves += 1;
                         } else {
                             per_user_unresolved += 1;
