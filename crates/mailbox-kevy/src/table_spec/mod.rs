@@ -167,6 +167,32 @@ impl KevyMailboxStore {
             IndexValType::Str,
             IndexKind::Text,
         );
+        // Per-thread message counts, kept by the engine.
+        //
+        // `count`, `unread_count` and `sent_count` are three numbers written
+        // by hand onto two rows, and every repair path in this crate that is
+        // not about mail — `recount-threads`, `shadow-counts`,
+        // `repair_thread_counts` and its four variants, the `unread` axis
+        // column, reindex's counts leg — exists because they drift. A count
+        // the engine derives from the rows cannot.
+        //
+        // The aggregated field is `uid` and its value is never read: `count`
+        // comes free whatever it is, and `idx_create_agg` requires a numeric
+        // one. `uid` is the safe choice because `upsert_user_message` writes
+        // it with the other three on every row it has ever written — a field
+        // that fails to coerce puts the row in `excluded`, which is an
+        // undercount that reports itself as a healthy number.
+        //
+        // Nothing reads this yet. See `messages/group.rs` for the group key
+        // and the plan's phase C for the shadow that has to agree before any
+        // reader moves onto it.
+        let _ = s.idx_create_agg(
+            keys::IDX_USERMSG_COUNTS,
+            keys::USER_MESSAGE_PREFIX,
+            b"uid",
+            IndexValType::I64,
+            keys::USER_MESSAGE_GROUP_FIELD,
+        );
         let _ = s.idx_create(
             keys::IDX_ALIASES_BY_DOMAIN,
             keys::ALIAS_V2_PREFIX,

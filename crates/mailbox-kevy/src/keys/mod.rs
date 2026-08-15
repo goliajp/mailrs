@@ -59,6 +59,26 @@ pub fn user_message(user: &str, message_id: &str) -> String {
     format!("mailrs:usermsg:{user}:{message_id}")
 }
 
+/// The prefix a declared index over per-user message rows matches on.
+///
+/// **The trailing colon is load-bearing.** [`thread_user_messages`] spells
+/// its keys `mailrs:usermsgs:` — one letter longer — and those are zsets,
+/// not hashes. Without the colon this prefix would match them too and the
+/// index would be fed keys that have no fields at all. See
+/// `the_row_prefix_does_not_reach_the_zsets`.
+pub const USER_MESSAGE_PREFIX: &[u8] = b"mailrs:usermsg:";
+
+/// Aggregate index over per-user message rows: per-thread counts, grouped
+/// by [`crate::messages::group_key`]'s composite column.
+///
+/// It replaces `count` / `unread_count` / `sent_count` maintained by hand on
+/// two rows — and with them every repair path that exists because they
+/// drift.
+pub const IDX_USERMSG_COUNTS: &[u8] = b"mailrs_usermsg_counts";
+
+/// The column [`IDX_USERMSG_COUNTS`] groups by.
+pub const USER_MESSAGE_GROUP_FIELD: &[u8] = b"g";
+
 /// The messages one user has in one thread — zset, score = internal_date,
 /// member = message_id (RFC string).
 ///
@@ -131,4 +151,29 @@ pub fn analysis_embedding_ref(message_id: i64) -> String {
 /// Contact hash — per user × email.
 pub fn contact(user: &str, email: &str) -> String {
     format!("mailrs:contact:{user}:{email}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The row prefix must not reach the per-user message **zsets**.
+    ///
+    /// `mailrs:usermsg:` and `mailrs:usermsgs:` differ by one letter, and
+    /// only the trailing colon keeps a prefix match from crossing between
+    /// them. The rows are hashes with a `g` field; the zsets have no fields
+    /// at all, so an index that matched both would be fed keys it cannot
+    /// read — and the failure would show up as a count, not an error.
+    #[test]
+    fn the_row_prefix_does_not_reach_the_zsets() {
+        let row = user_message("u@x.com", "m1");
+        let zset = thread_user_messages("u@x.com", "t1");
+        let p = std::str::from_utf8(USER_MESSAGE_PREFIX).unwrap();
+
+        assert!(row.starts_with(p), "{row} is what the index is for");
+        assert!(!zset.starts_with(p), "{zset} must not be indexed as a row");
+        // And state the near-miss outright, so dropping the colon fails here
+        // rather than in a count nobody can explain.
+        assert!(zset.starts_with("mailrs:usermsg"));
+    }
 }

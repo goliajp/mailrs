@@ -14,9 +14,12 @@
 use super::KevyMailboxStore;
 use super::keys;
 
+mod group;
 mod projection;
 mod read;
 mod uid;
+
+pub(crate) use group::group_key;
 
 /// What is true of one user's copy of a message, borrowed for the write.
 #[derive(Debug, Clone, Copy)]
@@ -42,6 +45,19 @@ pub struct OwnedUserMessageFacts {
     pub flags: u32,
     /// This user's mod-sequence.
     pub modseq: u64,
+    /// The thread this copy belongs to.
+    ///
+    /// The row carried no thread until the declared counters needed one:
+    /// the association lived only in `mailrs:usermsgs:{user}:{tid}`, so a
+    /// row could not say what it was part of and an index grouping by
+    /// thread had nothing to group on. Empty on rows written before that.
+    pub tid: String,
+    /// Whether this user sent the message.
+    ///
+    /// Derived once, on write, from the payload's sender — see
+    /// `upsert_user_message`. It decides which of the three counters the
+    /// row feeds, and a message you sent is never unread for you.
+    pub own: bool,
 }
 
 /// Blank the per-user fields on a serialized `MessageWire` before it is

@@ -105,6 +105,27 @@ impl KevyMailboxStore {
         let uid = uid_val.to_string();
         let flags = per_user.flags.to_string();
         let modseq = modseq_val.to_string();
+        // `own` is derived here, from the payload, rather than taken as an
+        // argument — so that all fifteen callers get it right without one of
+        // them having to know, and so the backfills and repairs that rebuild
+        // rows from a maildir get it right too. The rule is the one
+        // `message_arrival` already uses to decide `sent_count`:
+        // `senders_csv_contains_user`. Reading it off the payload keeps a
+        // single definition of "this is mine".
+        let own = serde_json::from_slice::<serde_json::Value>(payload)
+            .ok()
+            .and_then(|v| {
+                v.get("sender")
+                    .and_then(|s| s.as_str())
+                    .map(|s| crate::senders_csv_contains_user(s, user))
+            })
+            .unwrap_or(false);
+        // The thread the row belongs to, and the group a declared aggregate
+        // index counts it under. Neither was on the row before: the thread
+        // lived only in the per-user zset, and there was no index. See
+        // `messages/group.rs` for why the group is one composite column.
+        let group = super::group_key(user, thread_id, per_user.flags, own);
+        let own_field = if own { "1" } else { "0" };
         // Stage 5: the shared blob stops carrying the per-user fields.
         //
         // They are cleared rather than left at the caller's values, because a
@@ -129,6 +150,9 @@ impl KevyMailboxStore {
                         (b"uid".as_slice(), uid.as_bytes()),
                         (b"flags".as_slice(), flags.as_bytes()),
                         (b"modseq".as_slice(), modseq.as_bytes()),
+                        (b"tid".as_slice(), thread_id.as_bytes()),
+                        (b"own".as_slice(), own_field.as_bytes()),
+                        (b"g".as_slice(), group.as_bytes()),
                     ],
                 )?;
                 ctx.zadd(
@@ -138,6 +162,40 @@ impl KevyMailboxStore {
                 Ok(())
             })
             .map_err(std::io::Error::from)
+    }
+
+    /// Re-point one user's row at a different thread.
+    ///
+    /// **The only way to change a row's `tid`.** The group column a declared
+    /// aggregate index counts by is derived from it, so a caller that moved
+    /// the message between threads and left the row alone would leave the
+    /// message counted under the conversation it came from and absent from
+    /// the one it went to — exactly and permanently, since an aggregate
+    /// index does not drift with respect to the column it groups by.
+    ///
+    /// Both rethread paths use it: a split, which never moved the per-user
+    /// side at all, and a merge, which moved the zset and not the rows.
+    pub(crate) fn move_user_message_to_thread(
+        &self,
+        user: &str,
+        message_id: &str,
+        thread_id: &str,
+    ) -> io::Result<()> {
+        let Some(facts) = self.user_message_facts(user, message_id)? else {
+            return Ok(());
+        };
+        if facts.tid == thread_id {
+            return Ok(());
+        }
+        let group = super::group_key(user, thread_id, facts.flags, facts.own);
+        self.store().hset(
+            keys::user_message(user, message_id).as_bytes(),
+            &[
+                (b"tid".as_slice(), thread_id.as_bytes()),
+                (b"g".as_slice(), group.as_bytes()),
+            ],
+        )?;
+        Ok(())
     }
 
     /// Clear the per-user fields off the shared blobs of one thread —
@@ -193,6 +251,8 @@ impl KevyMailboxStore {
         let mut uid = 0u32;
         let mut flags = 0u32;
         let mut modseq = 0u64;
+        let mut tid = String::new();
+        let mut own = false;
         // The embedded store returns pairs, not the network client's flat
         // alternating list.
         for (field, value) in &flat {
@@ -202,6 +262,8 @@ impl KevyMailboxStore {
                 "uid" => uid = v.parse().unwrap_or(0),
                 "flags" => flags = v.parse().unwrap_or(0),
                 "modseq" => modseq = v.parse().unwrap_or(0),
+                "tid" => tid = v,
+                "own" => own = v == "1",
                 _ => {}
             }
         }
@@ -213,6 +275,8 @@ impl KevyMailboxStore {
             uid,
             flags,
             modseq,
+            tid,
+            own,
         }))
     }
 

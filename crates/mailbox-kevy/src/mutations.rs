@@ -354,6 +354,14 @@ impl KevyMailboxStore {
             for (mid, uid, _blob_ref) in &per_msg {
                 ctx.del(&[keys::message_blob(mid).as_bytes()]);
                 ctx.del(&[keys::message_by_message_id(user, mid).as_bytes()]);
+                // This user's own row about the message. It was missing
+                // from this list and nothing complained, because nothing
+                // reads such a row once the membership row above is gone —
+                // they accumulated instead. A declared index that groups by
+                // a column on these rows makes the leak load-bearing: the
+                // orphan keeps its group, and a deleted conversation goes on
+                // being counted.
+                ctx.del(&[keys::user_message(user, mid).as_bytes()]);
                 if let Some(u) = uid {
                     let uid_s = u.to_string();
                     ctx.hdel(msg_by_uid_key.as_bytes(), &[uid_s.as_bytes()])?;
@@ -696,6 +704,57 @@ mod tests {
         let (existed, blob_refs) = s.delete_thread("u@x.com", "nope").unwrap();
         assert!(!existed);
         assert!(blob_refs.is_empty());
+    }
+
+    /// Deleting a thread deletes this user's rows about its messages.
+    ///
+    /// Everything else went: the shared blob, the Message-ID pointer, both
+    /// directions of the uid map, the shared zset, the membership row and
+    /// this user's message zset. The per-user message **hashes** did not,
+    /// and nothing noticed because nothing reads them once the membership
+    /// row is gone — they simply accumulated.
+    ///
+    /// They stop being invisible the moment a declared index groups by a
+    /// column on them: a leaked row keeps its group alive, so a deleted
+    /// thread would go on contributing to a count for a conversation that
+    /// no longer exists.
+    #[test]
+    fn deleting_a_thread_takes_the_per_user_message_rows_with_it() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u)).unwrap();
+        for (mid, uid) in [("aaa@x", 42u32), ("bbb@x", 43)] {
+            s.upsert_user_message(
+                u,
+                "t1",
+                mid,
+                100,
+                serde_json::json!({ "message_id": mid, "sender": "other@z.com" })
+                    .to_string()
+                    .as_bytes(),
+                &crate::UserMessageFacts {
+                    blob_ref: "f.host",
+                    uid,
+                    flags: 0,
+                    modseq: 1,
+                },
+            )
+            .unwrap();
+            assert!(
+                s.user_message_facts(u, mid).unwrap().is_some(),
+                "the row has to exist for its removal to mean anything"
+            );
+        }
+
+        assert!(s.delete_thread(u, "t1").unwrap().0);
+
+        for mid in ["aaa@x", "bbb@x"] {
+            assert_eq!(
+                s.user_message_facts(u, mid).unwrap(),
+                None,
+                "{mid}: the per-user message row outlived the thread"
+            );
+        }
     }
 
     #[test]
