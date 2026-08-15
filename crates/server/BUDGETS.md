@@ -18,7 +18,7 @@ Server-level (cement) regression budgets. Two layers:
 
 | Span | Budget | Actual (M-series, in-process) | Rationale |
 |---|---|---|---|
-| delivery → `NewMessage` event | < 2 s | tens of ms | S2.3. Post-delivery is async (S1.4 mpsc consumer): the DATA handler returns 250 without waiting for the index, and the consumer emits `NewMessage` after `index_message`. The 2 s ceiling is a stall detector — if the consumer wedges or the channel backpressure path degrades, this trips. Measured from delivery start (connect), a conservative upper bound on the maildir-write → emit span. |
+| delivery → `NewMessage` event | < 10 s | tens of ms | S2.3. Post-delivery is async (S1.4 mpsc consumer): the DATA handler returns 250 without waiting for the index, and the consumer emits `NewMessage` after `index_message`. The ceiling is a stall detector — if the consumer wedges or the channel backpressure path degrades, this trips. Measured from delivery start (connect), a conservative upper bound on the maildir-write → emit span. **Raised 2 s → 10 s on 2026-08-15**: it is a wall clock, and under `cargo test --workspace` it competes with a few hundred test binaries and a container start — 2.95 s there, 3/3 passing in isolation. 10 s is still 300× the observed span, so it catches a stall and not the host. |
 
 ## How to add a new e2e budget
 
