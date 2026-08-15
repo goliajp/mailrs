@@ -65,6 +65,9 @@ fn flags_on_disk(state: &Arc<FastcoreState>, user: &str) -> HashMap<String, Vec<
 pub(crate) async fn read_state_shadow_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
+    // What the store did while this ran. A zero below means something
+    // different depending on the answer — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -211,7 +214,8 @@ pub(crate) async fn read_state_shadow_route(
         }
     }
 
-    Json(serde_json::json!({
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
         "messages_compared": compared,
         "seen_agrees": seen_agrees,
         "seen_only_on_disk": seen_only_on_disk,
@@ -231,7 +235,9 @@ pub(crate) async fn read_state_shadow_route(
             "blob_ref_names_no_file": dangling_samples,
             "unread_count_differs": count_samples,
         },
-    }))
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }
 

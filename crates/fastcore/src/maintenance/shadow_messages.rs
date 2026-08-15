@@ -34,6 +34,8 @@ use super::prelude::*;
 pub(crate) async fn usermsg_shadow_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     use mailrs_core_api::method::message::MessageWire;
 
     let users = match state.mailbox.list_account_addresses() {
@@ -162,30 +164,33 @@ pub(crate) async fn usermsg_shadow_route(
         }
     }
 
-    Json(serde_json::json!({
-        "accounts": users.len(),
-        "threads_compared": threads,
-        "in_both": in_both,
-        // Expected to match the backfill's `not_this_users`.
-        "only_in_shared": only_in_shared,
-        "only_in_shared_samples": only_shared_samples,
-        // Must be zero — the per-user index inventing a message would be
-        // worse than the defect it replaces.
-        "only_in_per_user": only_in_per_user,
-        "only_in_per_user_samples": only_per_user_samples,
-        // Must be zero after `maintenance:strip-shared-per-user-fields`:
-        // a shared row that still names a file is one a future fallback
-        // could reach for.
-        "shared_still_names_a_file": shared_still_names_a_file,
-        "shared_still_names_a_file_samples": named_samples,
-        // Measured against the disk, per owner.
-        "per_user_resolves": per_user_resolves,
-        "per_user_unresolved": per_user_unresolved,
-        "per_user_unresolved_samples": unresolved_samples,
-        // Threads that would render empty after the read cutover.
-        "threads_empty_after_cutover": threads_empty_after,
-        "threads_empty_after_cutover_samples": threads_empty_samples,
-        "threads_empty_after_cutover_by_user": empty_by_user,
-    }))
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
+            "accounts": users.len(),
+            "threads_compared": threads,
+            "in_both": in_both,
+            // Expected to match the backfill's `not_this_users`.
+            "only_in_shared": only_in_shared,
+            "only_in_shared_samples": only_shared_samples,
+            // Must be zero — the per-user index inventing a message would be
+            // worse than the defect it replaces.
+            "only_in_per_user": only_in_per_user,
+            "only_in_per_user_samples": only_per_user_samples,
+            // Must be zero after `maintenance:strip-shared-per-user-fields`:
+            // a shared row that still names a file is one a future fallback
+            // could reach for.
+            "shared_still_names_a_file": shared_still_names_a_file,
+            "shared_still_names_a_file_samples": named_samples,
+            // Measured against the disk, per owner.
+            "per_user_resolves": per_user_resolves,
+            "per_user_unresolved": per_user_unresolved,
+            "per_user_unresolved_samples": unresolved_samples,
+            // Threads that would render empty after the read cutover.
+            "threads_empty_after_cutover": threads_empty_after,
+            "threads_empty_after_cutover_samples": threads_empty_samples,
+            "threads_empty_after_cutover_by_user": empty_by_user,
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }

@@ -56,6 +56,8 @@ pub(crate) async fn read_state_backfill_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<BackfillQuery>,
 ) -> axum::response::Response {
+    // What the store did while this ran — see `store_motion`.
+    let motion = crate::store_motion::begin(&state);
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -259,18 +261,21 @@ pub(crate) async fn read_state_backfill_route(
         }
     }
 
-    Json(serde_json::json!({
-        "dry_run": q.dry_run,
-        "walked": walked,
-        "already_agreed": already_agreed,
-        "changed": disk_marked_seen + index_marked_seen + thread_level_only_marked,
-        "disk_marked_seen": disk_marked_seen,
-        "index_marked_seen": index_marked_seen,
-        "thread_level_only_marked": thread_level_only_marked,
-        "no_file": no_file,
-        "errors": errors,
-        "by_user": by_user,
-    }))
+    Json(crate::store_motion::with_motion(
+        serde_json::json!({
+            "dry_run": q.dry_run,
+            "walked": walked,
+            "already_agreed": already_agreed,
+            "changed": disk_marked_seen + index_marked_seen + thread_level_only_marked,
+            "disk_marked_seen": disk_marked_seen,
+            "index_marked_seen": index_marked_seen,
+            "thread_level_only_marked": thread_level_only_marked,
+            "no_file": no_file,
+            "errors": errors,
+            "by_user": by_user,
+        }),
+        motion.finish(&state),
+    ))
     .into_response()
 }
 
