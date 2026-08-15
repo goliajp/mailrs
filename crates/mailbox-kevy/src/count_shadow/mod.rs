@@ -326,6 +326,7 @@ pub(crate) mod tests {
     }
 }
 
+mod axes;
 mod backfill;
 
 impl KevyMailboxStore {
