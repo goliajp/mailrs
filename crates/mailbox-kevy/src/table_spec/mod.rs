@@ -337,7 +337,7 @@ mod table_spec_tests {
         // purpose — deriving the second group from the shared hash is
         // what let one owner's star reach another's row.
         let mut written: std::collections::BTreeSet<Vec<u8>> =
-            thread_row::thread_user_pairs("u@x.com", &row)
+            thread_row::thread_user_pairs("u@x.com", &row, None)
                 .into_iter()
                 .map(|(k, _)| k)
                 .collect();
