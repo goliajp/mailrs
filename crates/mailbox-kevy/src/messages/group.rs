@@ -1,12 +1,13 @@
 //! The group key a declared aggregate index counts by.
 //!
-//! `count`, `unread_count` and `sent_count` are three numbers maintained by
-//! hand on two rows today, and everything that exists to repair their drift
+//! `count`, `unread_count` and `sent_count` were three numbers maintained
+//! by hand on two rows, and everything that existed to repair their drift
 //! — `recount-threads`, `shadow-counts`, `repair_thread_counts` and its
-//! four variants, the `unread` axis column, reindex's counts leg — exists
-//! because they are *stored*. An engine that derives them from the rows
-//! cannot drift, so the counters move into a `KIND agg` index and this is
-//! the column it groups by.
+//! four variants, reindex's counts leg — existed because they were
+//! *stored*. An engine that derives them from the rows cannot drift, so
+//! the counters moved into a `KIND agg` index and this is the column it
+//! groups by. All of that repair machinery is deleted (C5c, 2026-08-16);
+//! the `unread` axis column is the last piece still hand-maintained.
 //!
 //! **Why a composite string and not three columns.** `IndexSpec::group_by`
 //! takes exactly one field name, and `KIND agg` has no predicate — the

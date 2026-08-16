@@ -150,20 +150,6 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-thread-user",
             post(backfill_thread_user_route),
         )
-        // Rebuild thread counters from the messages they summarise.
-        // The arrival path increments them by hand next to an index
-        // that dedupes, so a message delivered to two local
-        // mailboxes counts twice.
-        .route(
-            "/v1/admin/maintenance:recount-threads",
-            post(recount_threads_route),
-        )
-        // The same two copies, compared rather than repaired. The
-        // gate for reading from the per-user one.
-        .route(
-            "/v1/admin/maintenance:shadow-counts",
-            post(shadow_counts_route),
-        )
         // What the declared aggregate index counts, against what the rows
         // say. Read-only; the gate for moving the read onto the engine.
         .route(

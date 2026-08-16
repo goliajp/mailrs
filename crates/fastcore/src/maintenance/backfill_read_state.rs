@@ -229,23 +229,25 @@ pub(crate) async fn read_state_backfill_route(
                 }
             }
 
-            // The thread's counter is a derivation of the bits just
-            // written, so recompute it rather than leave the shadow's
-            // other half reporting a disagreement this pass created.
-            if thread_touched && !q.dry_run {
-                if let Err(e) = state.mailbox.repair_thread_counts(user, &tid) {
-                    tracing::warn!(err = %e, %user, %tid, "backfill: recount failed");
-                }
-                // And drop it off the unread axis when nothing is left
-                // unread — `repair_thread_counts` writes the counters and
-                // not the column the axis keys on.
-                if matches!(
+            // Drop the thread off the unread axis when nothing is left
+            // unread.
+            //
+            // There used to be a `repair_thread_counts` here first, to
+            // recompute the counter the bits above are a derivation of.
+            // The counter is no longer a stored number — the declared
+            // index derives it from these very rows — so recomputing it
+            // is recomputing nothing, and the call went with the rest of
+            // the repair machinery (C5c). The axis column is a separate
+            // fact and still hand-maintained, so clearing it stays.
+            if thread_touched
+                && !q.dry_run
+                && matches!(
                     state.mailbox.get_thread_for_user(user, &tid),
                     Ok(Some(ref row)) if row.unread_count == 0
-                ) && let Err(e) = state.mailbox.mark_seen(user, &tid)
-                {
-                    tracing::warn!(err = %e, %user, %tid, "backfill: axis clear failed");
-                }
+                )
+                && let Err(e) = state.mailbox.mark_seen(user, &tid)
+            {
+                tracing::warn!(err = %e, %user, %tid, "backfill: axis clear failed");
             }
         }
 

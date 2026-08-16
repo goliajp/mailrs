@@ -361,10 +361,11 @@ impl KevyMailboxStore {
             })
             .map_err(std::io::Error::from)?;
         // The three counters come from the declared index rather than the
-        // row, so they cannot drift: everything that exists to repair them
+        // row, so they cannot drift. Everything that existed to repair them
         // — recount-threads, shadow-counts, repair_thread_counts and its
-        // variants — exists because they are stored, and 127 threads on
-        // production had drifted between four writers.
+        // variants — existed because they were stored, and 127 threads on
+        // production had drifted between four writers. That machinery is
+        // gone (C5c); this read is why it could go.
         //
         // **Outside the atomic block above, not inside it.** `idx_group`
         // takes a write lock on every shard to sync its segments, and the
