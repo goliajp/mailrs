@@ -80,6 +80,30 @@ pub fn list_contains(list: &str, wanted: &str) -> bool {
     list.split(',').any(|m| addr_key(m) == key)
 }
 
+/// Whether every address in `list` is `wanted`.
+///
+/// [`list_contains`] answers "did this person write in the thread"; this
+/// answers "did **only** this person". The two decide different folders:
+/// Sent shows every thread the user wrote in, and the Inbox excludes the
+/// ones that are nothing but their own messages. Reading the second as
+/// the first dropped 190 threads from one account's inbox.
+///
+/// An empty list is not "only this person" — it is no evidence at all.
+pub fn list_is_only(list: &str, wanted: &str) -> bool {
+    let key = addr_key(wanted);
+    let mut any = false;
+    for m in list.split(',') {
+        if m.trim().is_empty() {
+            continue;
+        }
+        any = true;
+        if addr_key(m) != key {
+            return false;
+        }
+    }
+    any
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,6 +111,19 @@ mod tests {
     /// The defect this replaces: `senders_csv_contains_user` used
     /// `contains`, so any address ending with the user's put the thread in
     /// their Sent folder.
+    /// "only this person" is a different question from "this person is
+    /// among them", and a thread with a second sender must answer no.
+    #[test]
+    fn only_means_every_address_and_an_empty_list_is_no_evidence() {
+        assert!(list_is_only("a@b.com", "a@b.com"));
+        assert!(list_is_only("A@B.com, a@b.com", "a@b.com"));
+        assert!(list_is_only("Alice <a@b.com>", "a@b.com"));
+        assert!(!list_is_only("a@b.com, c@d.com", "a@b.com"));
+        assert!(!list_is_only("c@d.com", "a@b.com"));
+        assert!(!list_is_only("", "a@b.com"), "no senders is not 'only me'");
+        assert!(!list_is_only("  ", "a@b.com"));
+    }
+
     #[test]
     fn a_longer_address_ending_with_the_wanted_one_does_not_match() {
         assert!(!list_contains("xa@b.com", "a@b.com"));

@@ -38,7 +38,21 @@ impl KevyMailboxStore {
         payload: &[u8],
         per_user: &crate::UserMessageFacts<'_>,
     ) -> io::Result<()> {
-        self.record_message_arrival(arrival)?;
+        // **The message row first, the arrival second.**
+        //
+        // The arrival writes the membership row, and two of that row's
+        // declared columns — `sent_only` and `is_sender` — are derived
+        // from the aggregate index over these message rows. Recording the
+        // arrival first asks the index a question about a message it
+        // cannot see yet, so a reply arriving into a thread the user had
+        // only sent in was still counted as sent-only and stayed out of
+        // their Inbox.
+        //
+        // The old order worked by accident: `sent_only` came from the
+        // counters, and the counters were incremented inside the
+        // arrival's own atomic block, so the derivation could not run
+        // early. Moving it onto the index removed that coupling and with
+        // it the ordering it silently provided.
         self.upsert_user_message(
             arrival.user,
             arrival.thread_id,
@@ -47,6 +61,7 @@ impl KevyMailboxStore {
             payload,
             per_user,
         )?;
+        self.record_message_arrival(arrival)?;
         Ok(())
     }
 }
@@ -76,6 +91,10 @@ mod tests {
         // Reads are served from the declared table, so a test store
         // has to look like a booted one.
         s.ensure_thread_table();
+        // The aggregate index that derives the counters, too — without
+        // it every count reads zero, which looks exactly like a broken
+        // count rather than a store that was never fully booted.
+        s.ensure_admin_indexes();
         s
     }
 
@@ -99,10 +118,10 @@ mod tests {
         s.deliver_message(&arr("t1", "u@x.com", 100), "m1", b"blob-1", &test_facts())
             .unwrap();
 
-        // thread row exists
-        let row = s.get_thread("t1").unwrap().unwrap();
-        assert_eq!(row.count, 1);
-        assert_eq!(row.unread_count, 1);
+        // thread row exists, and its counts come from the index — they
+        // are per-user, and the shared hash has no user segment.
+        assert!(s.get_thread("t1").unwrap().is_some());
+        assert_eq!(s.counts_from_index("u@x.com", "t1"), Some((1, 1, 0)));
 
         // message blob exists at message_blob key
         let blob = s.get_message("m1").unwrap().unwrap();
@@ -126,9 +145,8 @@ mod tests {
 
         // thread aggregate bumped
         let row = s.get_thread("t1").unwrap().unwrap();
-        assert_eq!(row.count, 2);
-        assert_eq!(row.unread_count, 2);
         assert_eq!(row.latest_date, 200);
+        assert_eq!(s.counts_from_index("u@x.com", "t1"), Some((2, 2, 0)));
 
         // list_thread_messages returns in chronological order
         let blobs = s.thread_messages_for_maintenance("t1").unwrap();

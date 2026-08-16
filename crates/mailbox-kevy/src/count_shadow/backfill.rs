@@ -130,14 +130,28 @@ mod backfill_tests {
                 )
                 .unwrap();
         }
-        let before = s.shadow_declared_counts(u, 0, 100).unwrap();
-        assert_eq!(before.ungrouped_rows, 2);
+        // The debt, store-wide, and what the engine can see with it
+        // outstanding: rows without the group column are invisible to
+        // the index, so it answers for nothing.
+        assert_eq!(s.ungrouped_user_message_rows().unwrap(), (2, 2));
+        assert_eq!(
+            s.counts_from_index(u, "t1"),
+            None,
+            "with both rows ungrouped the index cannot answer at all"
+        );
 
         assert_eq!(s.backfill_group_columns(u, "t1").unwrap(), (2, 2));
 
-        let after = s.shadow_declared_counts(u, 0, 100).unwrap();
-        assert_eq!(after.ungrouped_rows, 0, "the debt is gone");
-        assert_eq!(after.agreed, 1, "and the engine now agrees");
+        assert_eq!(
+            s.ungrouped_user_message_rows().unwrap(),
+            (2, 0),
+            "the debt is gone"
+        );
+        assert_eq!(
+            s.counts_from_index(u, "t1"),
+            Some((2, 2, 0)),
+            "and the engine now counts both rows"
+        );
 
         // Convergence: nothing left to do, and it says so.
         assert_eq!(

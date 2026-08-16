@@ -157,10 +157,9 @@ impl KevyMailboxStore {
             .map_err(std::io::Error::from)
     }
 
-    /// Flip a thread back to unread. Mirrors `mark_seen` in the
-    /// opposite direction: set `unread_count` to at least 1 and add the
-    /// row to `has_unread`. Score used is the row's own `latest_date` so
-    /// the has_unread index remains sortable.
+    /// Flip a thread back to unread. Mirrors `mark_seen` in the opposite
+    /// direction: set the declared `unread` column, which is what every
+    /// unread axis and the badge read.
     ///
     /// Returns `true` when the row existed. Idempotent.
     pub fn mark_unread(&self, user: &str, thread_id: &str) -> io::Result<bool> {
@@ -170,24 +169,14 @@ impl KevyMailboxStore {
                 if !ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)? {
                     return Ok(false);
                 }
-                let cur = ctx
-                    .hget(thread_key.as_bytes(), b"unread_count")?
-                    .and_then(|v| {
-                        std::str::from_utf8(&v)
-                            .ok()
-                            .and_then(|s| s.parse::<i64>().ok())
-                    })
-                    .unwrap_or(0);
-                if cur < 1 {
-                    ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"1")])?;
-                }
-                // The unread axis reads the row, not the counter — and
-                // the per-user counter has to follow the same flip, or
-                // marking unread would light the axis while this user's
-                // count still said zero (RFC 20260730 S1).
+                // The unread axis is a declared column the engine
+                // indexes, and it is the whole of what "unread" means
+                // now: the counter that used to be written beside it is
+                // derived from the per-user message rows instead, so
+                // there is nothing here to read back or bump.
                 ctx.hset(
                     keys::thread_user(user, thread_id).as_bytes(),
-                    &[(b"unread" as &[u8], b"1" as &[u8]), (b"unread_count", b"1")],
+                    &[(b"unread" as &[u8], b"1" as &[u8])],
                 )?;
                 Ok(true)
             })
@@ -454,6 +443,10 @@ mod tests {
         // Reads are served from the declared table, so a test store
         // has to look like a booted one.
         s.ensure_thread_table();
+        // The aggregate index that derives the counters, too — without
+        // it every count reads zero, which looks exactly like a broken
+        // count rather than a store that was never fully booted.
+        s.ensure_admin_indexes();
         s
     }
 

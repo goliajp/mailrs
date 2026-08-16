@@ -76,7 +76,6 @@ const SWEEPS: &[&str] = &[
     "/v1/admin/maintenance:usermsg-shadow",
     "/v1/admin/maintenance:threadrow-shadow",
     "/v1/admin/maintenance:sent-axis-shadow",
-    "/v1/admin/maintenance:count-shadow",
     "/v1/admin/maintenance:group-backfill?dry_run=true",
     "/v1/admin/maintenance:axis-shadow",
     "/v1/admin/maintenance:reindex?dry_run=true",

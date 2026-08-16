@@ -132,15 +132,12 @@ impl ThreadRow {
             ),
             kv!("subject", self.subject.clone()),
             kv!("senders_csv", self.senders_csv.clone()),
-            kv!("count", self.count.to_string()),
-            kv!("unread_count", self.unread_count.to_string()),
             kv!("latest_date", self.latest_date.to_string()),
             kv!("latest_preview", self.latest_preview.clone()),
             kv!("category", self.category.clone()),
             kv!("importance_level", self.importance_level.clone()),
             kv!("importance_score", self.importance_score.to_string()),
             kv!("requires_action", (self.requires_action as u8).to_string()),
-            kv!("sent_count", self.sent_count.to_string()),
             // `pinned`, `archived`, `has_action` and `starred` are not
             // written here any more: they are one user's state and they
             // live on that user's membership row. What the shared hash
@@ -370,11 +367,26 @@ pub(crate) fn thread_user_pairs(
     let bucket = keys::bucket_of(&row.category);
     let (sent_only, is_sender) = match counts {
         Some((total, own)) => axis_flags(total, own),
-        // `senders_csv` is a display string that accumulates, so it can
-        // say the user wrote in a thread they only received: one such row
-        // on production, a message from noreply@ addressed to them.
+        // The fallback, for a thread the index cannot answer for — one
+        // with no per-user message rows yet.
+        //
+        // It used to read `row.count > 0 && row.sent_count >= row.count`.
+        // Those fields are no longer written (C5b-2), so that expression
+        // became a constant `false`, and a thread the user had only ever
+        // sent in would have appeared in their Inbox. A test caught it;
+        // production never could have, because every row there is
+        // backfilled and the index answers for all of them.
+        //
+        // `senders_csv` is the only per-thread evidence left on the row,
+        // and it answers both questions directly: *only* this user wrote
+        // in it, versus this user is *among* those who did.
+        //
+        // It is a display string that accumulates, so it can say the user
+        // wrote in a thread they only received — one such row on
+        // production, a message from noreply@ addressed to them. That is
+        // why the index's answer is preferred wherever it exists.
         None => (
-            row.count > 0 && row.sent_count >= row.count,
+            mailrs_rfc5322::list_is_only(&row.senders_csv, user),
             senders_csv_contains_user(&row.senders_csv, user),
         ),
     };
@@ -484,6 +496,10 @@ mod tests {
         // Reads are served from the declared table, so a test store
         // has to look like a booted one.
         s.ensure_thread_table();
+        // The aggregate index that derives the counters, too — without
+        // it every count reads zero, which looks exactly like a broken
+        // count rather than a store that was never fully booted.
+        s.ensure_admin_indexes();
         s
     }
 
@@ -597,9 +613,12 @@ mod tests {
             legacy,
             vec![
                 "archived".to_string(),
+                "count".to_string(),
                 "has_action".to_string(),
                 "pinned".to_string(),
-                "starred".to_string()
+                "sent_count".to_string(),
+                "starred".to_string(),
+                "unread_count".to_string()
             ],
             "the only unwritten entries are the flags that moved to the \
              membership row; anything else is drift"
@@ -634,9 +653,14 @@ mod tests {
         let row = sample("t1");
         s.upsert_thread("u@x.com", &row).unwrap();
         let back = s.get_thread("t1").unwrap().unwrap();
-        // Everything the shared hash is still the authority for. The
-        // four user-curated flags are not among them — they answer
-        // "whose?", which this hash cannot — so they come back off.
+        // Everything the shared hash is still the authority for.
+        //
+        // Two groups are not among them, for the same reason stated two
+        // different ways. The four user-curated flags answer "whose?",
+        // which a hash with no user segment cannot. And the three
+        // counters answer "how many, for whom?" — they are derived per
+        // user by the declared aggregate index and are not written here
+        // at all since C5b-2.
         assert_eq!(
             back,
             ThreadRow {
@@ -644,6 +668,9 @@ mod tests {
                 archived: false,
                 has_action: false,
                 starred: false,
+                count: 0,
+                unread_count: 0,
+                sent_count: 0,
                 ..row
             }
         );

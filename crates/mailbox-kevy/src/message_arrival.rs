@@ -140,13 +140,13 @@ impl KevyMailboxStore {
             // the thread hash afterwards, so these no longer need
             // to be read back here — but every increment still has
             // to happen.
-            ctx.hincrby(thread_key.as_bytes(), b"count", 1)?;
-            if m.is_own {
-                ctx.hincrby(thread_key.as_bytes(), b"sent_count", 1)?;
-            }
-            if m.unread && !m.is_own {
-                ctx.hincrby(thread_key.as_bytes(), b"unread_count", 1)?;
-            }
+            // The three counters used to be incremented here, on the
+            // shared hash and again on the membership row below. A
+            // declared aggregate index derives them from the per-user
+            // message rows now (`messages/group.rs`), so writing them
+            // would be a second answer to a question that already has
+            // one — and two answers disagreeing is the entire class of
+            // defect this removed.
 
             // The same three counters again, on this user's row.
             //
@@ -175,13 +175,7 @@ impl KevyMailboxStore {
             // `hincrby` count from 0 and relight a thread the user
             // had read. Planting explicit zeros is what closed
             // that, and the same reasoning applies here.
-            ctx.hincrby(tu_key.as_bytes(), b"count", 1)?;
-            ctx.hincrby(tu_key.as_bytes(), b"sent_count", i64::from(m.is_own))?;
-            ctx.hincrby(
-                tu_key.as_bytes(),
-                b"unread_count",
-                i64::from(m.unread && !m.is_own),
-            )?;
+
             // The declared `unread` flag alongside the counter it
             // describes, because this is the writer of that fact.
             // It used to be derived from the shared hash's
@@ -214,6 +208,83 @@ impl KevyMailboxStore {
             self.write_thread_user_if_changed(m.user, &row)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod stopped_writing_tests {
+    use super::*;
+    use kevy_embedded::{Config, Store};
+    use std::sync::Arc;
+
+    /// **Nothing writes the three counters any more.**
+    ///
+    /// They were maintained by hand on two rows and a declared aggregate
+    /// index derives them now, so a write is not merely redundant — it is
+    /// a second answer to a question that already has one, and the whole
+    /// class of defect this phase removed was two answers disagreeing.
+    ///
+    /// Asserted on the rows themselves rather than through any reader:
+    /// `get_thread_for_user` and the conversation page both serve the
+    /// index's numbers since C5b, so a reader would report the right
+    /// values whether or not the fields exist.
+    #[test]
+    fn an_arrival_writes_no_counter_onto_either_row() {
+        let s = KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()));
+        s.ensure_thread_table();
+        let u = "u@x.com";
+        s.record_message_arrival(&MessageArrival {
+            thread_id: "t1",
+            user: u,
+            subject: "Subj",
+            senders_csv: "other@z.com",
+            latest_date: 100,
+            latest_preview: "",
+            category: "inbox",
+            unread: true,
+            is_own: false,
+        })
+        .unwrap();
+
+        let counters: [&[u8]; 3] = [b"count", b"unread_count", b"sent_count"];
+        for (label, key) in [
+            ("the shared hash", keys::thread("t1")),
+            ("the membership row", keys::thread_user(u, "t1")),
+        ] {
+            let fields: Vec<String> = s
+                .store()
+                .hgetall(key.as_bytes())
+                .unwrap()
+                .iter()
+                .map(|(f, _)| String::from_utf8_lossy(f).to_string())
+                .collect();
+            assert!(
+                !fields.is_empty(),
+                "{label} is empty, so this test would pass for the wrong reason"
+            );
+            for c in counters {
+                let name = String::from_utf8_lossy(c).to_string();
+                assert!(
+                    !fields.contains(&name),
+                    "{label} still carries {name}: {fields:?}"
+                );
+            }
+        }
+
+        // And the axis column, which is *not* retired, is still written —
+        // it is a declared column the engine indexes, and it is what the
+        // unread badge counts.
+        let tu = s
+            .store()
+            .hgetall(keys::thread_user(u, "t1").as_bytes())
+            .unwrap();
+        assert_eq!(
+            tu.iter()
+                .find(|(f, _)| f.as_slice() == b"unread")
+                .map(|(_, v)| v.as_slice()),
+            Some(b"1".as_slice()),
+            "the unread axis column stopped being written"
+        );
     }
 }
 
@@ -265,9 +336,13 @@ mod tests {
         let s = KevyMailboxStore::new(Arc::new(
             Store::open(Config::default()).expect("open in-memory kevy"),
         ));
-        // Reads are served from the declared table, so a test store
-        // has to look like a booted one.
+        // Reads are served from the declared table *and* the aggregate
+        // index that derives the counters, so a test store has to look
+        // like a booted one in both respects. Without the second call
+        // the index does not exist and every count reads zero — which
+        // looks exactly like a broken count.
         s.ensure_thread_table();
+        s.ensure_admin_indexes();
         s
     }
 
@@ -282,7 +357,15 @@ mod tests {
             thread_id: tid,
             user,
             subject,
-            senders_csv: "alice@x.com",
+            // The sender has to agree with `is_own`, or the fixture says
+            // two different things about who wrote the message. It did
+            // until 2026-08-16: every arrival claimed `alice@x.com` while
+            // `is_own` said the user, and nothing noticed because the
+            // sent-only derivation read a counter rather than the sender.
+            // Reading the sender instead — the counters are gone — made
+            // the contradiction fail a test, which is the fixture working
+            // as intended a long time late.
+            senders_csv: if unread { "alice@x.com" } else { user },
             latest_date,
             latest_preview: "preview text",
             category: "inbox",
@@ -295,13 +378,16 @@ mod tests {
     #[test]
     fn first_arrival_creates_thread_and_indexes() {
         let s = store();
-        s.record_message_arrival(&arr("t1", "u@x.com", "Hello", 100, true))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "Hello", 100, true), "m1@x");
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.subject, "Hello");
-        assert_eq!(row.count, 1);
-        assert_eq!(row.unread_count, 1);
-        assert_eq!(row.sent_count, 0);
+        // The counters are per-user and the shared hash has no user
+        // segment, so they are asked of this user's view.
+        assert_eq!(
+            s.counts_from_index("u@x.com", "t1"),
+            Some((1, 1, 0)),
+            "count / unread / sent"
+        );
         assert_eq!(row.latest_date, 100);
         // reachable on the default, bucket and unread axes
         assert_eq!(total_count(&s, "u@x.com"), 1);
@@ -312,15 +398,12 @@ mod tests {
     #[test]
     fn second_arrival_bumps_count_and_activity() {
         let s = store();
-        s.record_message_arrival(&arr("t1", "u@x.com", "First", 100, true))
-            .unwrap();
-        s.record_message_arrival(&arr("t1", "u@x.com", "Second", 200, true))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "First", 100, true), "m2@x");
+        deliver(&s, &arr("t1", "u@x.com", "Second", 200, true), "m3@x");
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.subject, "Second"); // overwrite
-        assert_eq!(row.count, 2);
-        assert_eq!(row.unread_count, 2);
         assert_eq!(row.latest_date, 200);
+        assert_eq!(s.counts_from_index("u@x.com", "t1"), Some((2, 2, 0)));
         // and the axis still holds exactly the one thread
         assert_eq!(total_count(&s, "u@x.com"), 1);
     }
@@ -328,23 +411,71 @@ mod tests {
     #[test]
     fn sent_message_bumps_sent_count_not_unread() {
         let s = store();
-        s.record_message_arrival(&arr("t1", "u@x.com", "Outgoing", 100, false))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "Outgoing", 100, false), "m4@x");
         let row = s.get_thread("t1").unwrap().unwrap();
-        assert_eq!(row.sent_count, 1);
-        assert_eq!(row.unread_count, 0);
+        assert_eq!(
+            s.counts_from_index("u@x.com", "t1"),
+            Some((1, 0, 1)),
+            "one message, none unread, one sent"
+        );
+        let _ = &row;
         // Without any unread, the unread axis stays empty.
         assert_eq!(flag_count(&s, "u@x.com", "unread"), 0);
     }
 
-    /// Read a counter off one user's membership row.
+    /// Record an arrival **and** the message row it describes — what
+    /// `deliver_message` does, in that order (`deliver.rs:41-42`).
+    ///
+    /// The fixtures here called only the first half for years. That was
+    /// invisible while the arrival path incremented the counters itself:
+    /// a thread could report `count: 2` with no message rows behind it,
+    /// which is a state the real ingest never produces. The counters are
+    /// derived from those rows now, so the shortcut stopped working —
+    /// and what it was hiding is that these tests were not exercising
+    /// the path they are about.
+    fn deliver(s: &KevyMailboxStore, a: &MessageArrival<'_>, mid: &str) {
+        // Same order as `deliver_message`: the row the index reads, then
+        // the arrival that asks the index about it.
+        s.upsert_user_message(
+            a.user,
+            a.thread_id,
+            mid,
+            a.latest_date,
+            serde_json::json!({ "message_id": mid, "sender": a.senders_csv })
+                .to_string()
+                .as_bytes(),
+            &crate::UserMessageFacts {
+                blob_ref: "f.host",
+                uid: 0,
+                flags: if a.unread { 0 } else { 1 },
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        s.record_message_arrival(a).unwrap();
+    }
+
+    /// One user's count of a thread, asked of the engine.
+    ///
+    /// This used to read the field off the membership row. Nothing writes
+    /// those fields since C5b-2 — a declared aggregate index derives all
+    /// three from the per-user message rows — so the *questions* these
+    /// tests ask are unchanged and only the place to ask them moved.
+    ///
+    /// `None` from the index means it has no rows for the thread, which
+    /// for a fixture built by `record_message_arrival` alone is the
+    /// honest answer: an arrival records a thread, and a message row is
+    /// what `upsert_user_message` writes.
     fn tu_count(s: &KevyMailboxStore, user: &str, tid: &str, field: &str) -> i64 {
-        s.store()
-            .hget(keys::thread_user(user, tid).as_bytes(), field.as_bytes())
-            .unwrap()
-            .and_then(|v| String::from_utf8(v).ok())
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0)
+        let Some((count, unread, sent)) = s.counts_from_index(user, tid) else {
+            return 0;
+        };
+        match field {
+            "count" => count,
+            "unread_count" => unread,
+            "sent_count" => sent,
+            other => panic!("no such counter: {other}"),
+        }
     }
 
     /// One message, two local mailboxes — the reported bug.
@@ -375,13 +506,22 @@ mod tests {
             is_own: true,
             ..recipient
         };
-        s.record_message_arrival(&recipient).unwrap();
-        s.record_message_arrival(&sender_copy).unwrap();
+        // One message, delivered into two mailboxes: each owner records
+        // their own copy of it. Same message id on purpose — that is
+        // what makes it one message and two rows.
+        deliver(&s, &recipient, "shared@x");
+        deliver(&s, &sender_copy, "shared@x");
 
-        // The shared row still shows the sum — S1 writes both, and the
-        // read path has not moved yet.
+        // The shared row no longer carries counts at all: they answer
+        // "how many, for whom", and this hash has no user segment. That
+        // it used to hold the *sum* is precisely the reported bug —
+        // devops's own send was attributed to whoever read the row.
         let shared = s.get_thread("t1").unwrap().unwrap();
-        assert_eq!((shared.count, shared.sent_count), (2, 1));
+        assert_eq!(
+            (shared.count, shared.sent_count),
+            (0, 0),
+            "the shared hash stopped answering a per-user question"
+        );
 
         assert_eq!(tu_count(&s, "lihao@x.com", "t1", "count"), 1);
         assert_eq!(
@@ -402,10 +542,8 @@ mod tests {
     #[test]
     fn a_second_arrival_does_not_reset_the_per_user_counters() {
         let s = store();
-        s.record_message_arrival(&arr("t1", "u@x.com", "One", 100, true))
-            .unwrap();
-        s.record_message_arrival(&arr("t1", "u@x.com", "Two", 200, true))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "One", 100, true), "m5@x");
+        deliver(&s, &arr("t1", "u@x.com", "Two", 200, true), "m6@x");
 
         assert_eq!(tu_count(&s, "u@x.com", "t1", "count"), 2);
         assert_eq!(tu_count(&s, "u@x.com", "t1", "unread_count"), 2);
@@ -416,8 +554,7 @@ mod tests {
     #[test]
     fn the_membership_row_carries_what_a_list_page_renders() {
         let s = store();
-        s.record_message_arrival(&arr("t1", "u@x.com", "Hello", 100, true))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "Hello", 100, true), "m7@x");
         let key = keys::thread_user("u@x.com", "t1");
         for field in ["subject", "senders_csv", "latest_preview", "activity"] {
             let got = s.store().hget(key.as_bytes(), field.as_bytes()).unwrap();
@@ -428,8 +565,7 @@ mod tests {
     #[test]
     fn inbound_arrival_joins_inbox_folder() {
         let s = store();
-        s.record_message_arrival(&arr("t1", "u@x.com", "Hi", 100, true))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "Hi", 100, true), "m8@x");
         assert!(in_bucket(&s, "u@x.com", "inbox", "t1"));
         assert_eq!(bucket_count(&s, "u@x.com", "junk"), 0);
     }
@@ -474,8 +610,7 @@ mod tests {
         p.category = "promotion";
         s.record_message_arrival(&p).unwrap();
         // A plain inbox thread must NOT appear in the np view.
-        s.record_message_arrival(&arr("ti", u, "hi", 150, true))
-            .unwrap();
+        deliver(&s, &arr("ti", u, "hi", 150, true), "m9@x");
 
         let f = ListThreadsFilter {
             folder: Some("np"),
@@ -492,12 +627,14 @@ mod tests {
     fn sent_only_thread_stays_out_of_inbox() {
         let s = store();
         // Outbound-only write: count == sent_count → Sent axis only.
-        s.record_message_arrival(&arr("t1", "u@x.com", "Outgoing", 100, false))
-            .unwrap();
+        deliver(&s, &arr("t1", "u@x.com", "Outgoing", 100, false), "m10@x");
         assert!(inbox_ids(&s, "u@x.com").is_empty());
         // A reply arriving later promotes the thread into Inbox.
-        s.record_message_arrival(&arr("t1", "u@x.com", "Re: Outgoing", 200, true))
-            .unwrap();
+        deliver(
+            &s,
+            &arr("t1", "u@x.com", "Re: Outgoing", 200, true),
+            "m11@x",
+        );
         assert_eq!(inbox_ids(&s, "u@x.com"), vec!["t1".to_string()]);
     }
 
@@ -508,8 +645,7 @@ mod tests {
         // A sent-only arrival must not surface in Inbox — the axis
         // excludes it by construction now rather than by a scrubbing
         // step, so there is no stale state left to heal.
-        s.record_message_arrival(&arr("t1", u, "Outgoing", 100, false))
-            .unwrap();
+        deliver(&s, &arr("t1", u, "Outgoing", 100, false), "m12@x");
         assert!(inbox_ids(&s, u).is_empty());
     }
 
@@ -517,12 +653,9 @@ mod tests {
     fn list_after_arrivals_returns_newest_first() {
         let s = store();
         let u = "u@x.com";
-        s.record_message_arrival(&arr("t1", u, "old", 100, true))
-            .unwrap();
-        s.record_message_arrival(&arr("t2", u, "newer", 200, true))
-            .unwrap();
-        s.record_message_arrival(&arr("t1", u, "newest", 300, true))
-            .unwrap();
+        deliver(&s, &arr("t1", u, "old", 100, true), "m13@x");
+        deliver(&s, &arr("t2", u, "newer", 200, true), "m14@x");
+        deliver(&s, &arr("t1", u, "newest", 300, true), "m15@x");
         let (rows, total) = s
             .list_threads_by_activity(u, &ListThreadsFilter::default(), 0, 10)
             .unwrap();
@@ -537,8 +670,7 @@ mod tests {
         let s = store();
         let u = "u@x.com";
         // inbound from alice at t=100, then the user replies at t=900
-        s.record_message_arrival(&arr("t1", u, "Hello", 100, true))
-            .unwrap();
+        deliver(&s, &arr("t1", u, "Hello", 100, true), "m16@x");
         let reply = MessageArrival {
             thread_id: "t1",
             user: u,
@@ -550,15 +682,17 @@ mod tests {
             unread: false,
             is_own: true,
         };
-        s.record_message_arrival(&reply).unwrap();
+        deliver(&s, &reply, "m17@x");
 
         let row = s.get_thread("t1").unwrap().unwrap();
         // display fields stay at the inbound message
         assert_eq!(row.latest_date, 100);
         assert_eq!(row.subject, "Hello");
         assert_eq!(row.latest_preview, "preview text");
-        assert_eq!(row.count, 2);
-        assert_eq!(row.sent_count, 1);
+        // The reply is counted even though it moved nothing on display:
+        // two messages, one of them the user's own send, and their own
+        // send is never unread for them.
+        assert_eq!(s.counts_from_index(u, "t1"), Some((2, 1, 1)));
         // the reply's sender still joins the participant union
         assert!(row.senders_csv.contains("alice@x.com"));
         assert!(row.senders_csv.contains(u));
@@ -571,8 +705,7 @@ mod tests {
     fn inbound_after_own_reply_advances_the_row() {
         let s = store();
         let u = "u@x.com";
-        s.record_message_arrival(&arr("t1", u, "Hello", 100, true))
-            .unwrap();
+        deliver(&s, &arr("t1", u, "Hello", 100, true), "m17@x");
         let reply = MessageArrival {
             thread_id: "t1",
             user: u,
@@ -586,8 +719,7 @@ mod tests {
         };
         s.record_message_arrival(&reply).unwrap();
         // alice answers at t=1000 — NOW the row advances
-        s.record_message_arrival(&arr("t1", u, "Re: Hello", 1000, true))
-            .unwrap();
+        deliver(&s, &arr("t1", u, "Re: Hello", 1000, true), "m18@x");
         let row = s.get_thread("t1").unwrap().unwrap();
         assert_eq!(row.latest_date, 1000);
         assert_eq!(total_count(&s, u), 1);
