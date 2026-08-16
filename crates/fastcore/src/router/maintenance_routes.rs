@@ -87,6 +87,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // full with an empty `blob_ref` — listed in the mailbox, body
         // unfetchable. `?dry_run=true` reports first.
         .route(
+            "/v1/admin/maintenance:recompute-sender-trust",
+            post(crate::maintenance::recompute_sender_trust_route),
+        )
+        .route(
             "/v1/admin/maintenance:repair-blob-refs",
             post(repair_blob_refs_route),
         )

@@ -32,9 +32,21 @@ describe('SenderTrustBadge', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('still warns on a failed check', () => {
+  it('still warns on a suspicious sender', () => {
     render(<SenderTrustBadge trust="suspicious" />)
-    expect(screen.getByText(/unverified sender/i)).toBeInTheDocument()
+    expect(screen.getByText(/suspicious sender/i)).toBeInTheDocument()
+  })
+
+  /**
+   * The verdict now has two causes — authentication that failed, and a
+   * display name carrying a right-to-left override — and a phish that
+   * passes every check earns it. So the label must not say the sender is
+   * *unverified*, which would be false about exactly the message this
+   * whole change is for.
+   */
+  it('does not claim the sender is unverified', () => {
+    render(<SenderTrustBadge trust="suspicious" />)
+    expect(screen.queryByText(/unverified/i)).not.toBeInTheDocument()
   })
 
   it('shows nothing for the unremarkable middle', () => {
