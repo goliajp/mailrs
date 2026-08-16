@@ -79,6 +79,12 @@ services:
       - "110:110"
       - "4190:4190"
       - "995:995"
+    # The flush on the way out decides whether the next replay is clean,
+    # and a SIGKILL in the middle of it leaves a torn frame at the AOF
+    # tail. Measured 2026-08-16: the graceful stop takes 0.65 s, so this
+    # is not about needing a minute — it is about `stop_grace_period`
+    # never being one of the candidate explanations when a tail tears.
+    stop_grace_period: 60s
     environment:
       MAILRS_FASTCORE_BIND: 0.0.0.0:3301
       MAILRS_KEVY_DATA_DIR: /data/kevy-fastcore

@@ -249,6 +249,25 @@ scp -q deploy/docker-compose.prod.yml "$PROD:/apps/mailrs/docker-compose.yml"
 # Record what we wrote, so the next deploy can tell our own bytes from
 # someone else's edit.
 ssh "$PROD" "cd /apps/mailrs && cp docker-compose.yml docker-compose.yml.deployed"
+# Stop fastcore by itself first, and keep what it said on the way out.
+#
+# `compose up -d` recreates the container, and a recreated container
+# takes its logs with it — so the one process whose shutdown decides
+# whether the next replay is clean is also the one whose shutdown nobody
+# can read afterwards. Three deploys have left a 4-byte torn frame at
+# the AOF tail (2026-07-31 twice, 2026-08-16), each quarantined as the
+# identical `19 00 00 00` length prefix, and every time the evidence for
+# *why* had already been deleted by the thing that caused it.
+#
+# So: stop it on its own, with room (the flush is measured at 0.65 s, so
+# 60 s is not about speed — it is about never being the reason), print
+# the last lines, and only then roll. A deploy that tears the tail now
+# leaves a record of whether the graceful path ran at all.
+ssh "$PROD" "docker stop -t 60 mailrs-fastcore >/dev/null 2>&1 || true
+  echo '    fastcore shutdown:'
+  docker logs --tail 12 mailrs-fastcore 2>&1 \
+    | grep -iE 'SIGTERM|SIGINT|shutdown|exiting|flush' | sed 's/^/      /' \
+    || echo '      !! no shutdown lines — the process did not run its handler'"
 ssh "$PROD" "cd /apps/mailrs \
   && sed -i 's/^MAILRS_VERSION=.*/MAILRS_VERSION=$VERSION/' .env \
   && docker compose up -d --pull never --no-deps receiver fastcore webapi-fc fastcore-sender"
