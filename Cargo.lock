@@ -3322,6 +3322,8 @@ version = "1.2.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
+ "mailrs-rfc2047",
+ "mailrs-textguard",
  "metrics",
  "tokio",
  "tracing",
@@ -3871,6 +3873,10 @@ version = "0.0.0"
 dependencies = [
  "tokio",
 ]
+
+[[package]]
+name = "mailrs-textguard"
+version = "0.1.0"
 
 [[package]]
 name = "mailrs-threadstate"

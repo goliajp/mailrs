@@ -178,9 +178,10 @@ pub enum SenderTrust {
 /// Core fold: given the three relevant method results (each looked up as
 /// `Option<&str>`), produce the [`SenderTrust`] verdict.
 ///
-/// DMARC is authoritative when present, because it is the method that
-/// ties the visible From domain to a passing SPF or DKIM check — which
-/// is exactly the spoofing question. Only when DMARC is absent do we
+/// DMARC is authoritative when present *for the question it answers*:
+/// it ties the visible From domain to a passing SPF or DKIM check. It
+/// says nothing about the display name beside that domain, which is
+/// where `deception` comes in — see the override branch below. Only when DMARC is absent do we
 /// fall back to the weaker signal of a raw SPF/DKIM failure.
 ///
 /// This is the single source of truth shared by both fold paths: the
@@ -191,7 +192,22 @@ pub fn fold_sender_trust(
     dmarc: Option<&str>,
     spf: Option<&str>,
     dkim: Option<&str>,
+    deception: mailrs_textguard::Deception,
 ) -> SenderTrust {
+    // Before the authentication result, because authentication cannot
+    // speak to this. A right-to-left override in a display name renders
+    // one brand as another, and DMARC authenticates the *domain* — an
+    // attacker's own domain passes every check for free, which is
+    // exactly what the five production messages carrying an override
+    // did (`spf=pass dkim=pass dmarc=pass`, From `<RLO>BCJyM`).
+    //
+    // Only the override is a verdict. Zero-width padding is the weaker
+    // signal — one production message in forty carrying it was a real
+    // newsletter — and it contributes to the spam score instead
+    // (`decision::UNJUSTIFIED_ZERO_WIDTH_SCORE`).
+    if deception.bidi_override {
+        return SenderTrust::Suspicious;
+    }
     match dmarc {
         Some("pass") => return SenderTrust::Verified,
         Some("fail") => return SenderTrust::Suspicious,
@@ -210,14 +226,32 @@ pub fn fold_sender_trust(
 /// Fold parsed header method results into a [`SenderTrust`] verdict.
 /// Thin wrapper over [`fold_sender_trust`] that pulls the DMARC / SPF /
 /// DKIM tokens out of the parsed `results`.
+/// Convenience for callers that have only the parsed
+/// `Authentication-Results` header and no identifying text.
+///
+/// It passes an empty [`Deception`](mailrs_textguard::Deception), which
+/// is a claim: *nothing was examined*, not *nothing was found*. A caller
+/// that does hold the From display name and the Subject should call
+/// [`sender_trust_with`] instead — reading a header alone cannot see a
+/// forged display name, and a verdict built from it will say `Verified`
+/// about mail whose only lie is the name.
 pub fn sender_trust(results: &[AuthResult]) -> SenderTrust {
+    sender_trust_with(results, mailrs_textguard::Deception::default())
+}
+
+/// The full fold: parsed header results plus what the identifying text
+/// was found to contain.
+pub fn sender_trust_with(
+    results: &[AuthResult],
+    deception: mailrs_textguard::Deception,
+) -> SenderTrust {
     let find = |m: &str| {
         results
             .iter()
             .find(|r| r.method == m)
             .map(|r| r.result.as_str())
     };
-    fold_sender_trust(find("dmarc"), find("spf"), find("dkim"))
+    fold_sender_trust(find("dmarc"), find("spf"), find("dkim"), deception)
 }
 
 /// String form for storage / wire — stable tokens, not for display.
@@ -230,6 +264,67 @@ impl SenderTrust {
             SenderTrust::Unverified => "unverified",
             SenderTrust::Suspicious => "suspicious",
         }
+    }
+}
+
+#[cfg(test)]
+mod deception_tests {
+    use super::*;
+
+    /// **A bidi override in a sender's name is suspicious however the
+    /// authentication went.**
+    ///
+    /// The production message this comes from passed everything —
+    /// `spf=pass dkim=pass dmarc=pass` — because the attacker owned the
+    /// domain, which is free. What was forged is the display name:
+    /// `<RLO>BCJyM`, which renders as "MyJCB". DMARC does not
+    /// authenticate display names, so authentication had nothing to say
+    /// about the only part that was a lie.
+    ///
+    /// Five such messages in 33,602, all phishing, no false positives —
+    /// and no legitimate use exists, since the bidi algorithm derives
+    /// direction from the characters themselves.
+    #[test]
+    fn a_bidi_override_is_suspicious_even_when_every_check_passed() {
+        let clean = mailrs_textguard::Deception::default();
+        let bidi = mailrs_textguard::deception_in("\u{202E}BCJyM");
+
+        assert_eq!(
+            fold_sender_trust(Some("pass"), Some("pass"), Some("pass"), clean),
+            SenderTrust::Verified,
+            "an ordinary DMARC pass is still a pass"
+        );
+        assert_eq!(
+            fold_sender_trust(Some("pass"), Some("pass"), Some("pass"), bidi),
+            SenderTrust::Suspicious,
+            "the display name is forged; the domain being real does not help"
+        );
+    }
+
+    /// Zero-width padding is **not** promoted to a verdict. One
+    /// production message in forty carrying it was a real newsletter, so
+    /// it is a score contribution (see `decision.rs`) and the verdict
+    /// stays with authentication.
+    #[test]
+    fn zero_width_padding_does_not_by_itself_change_the_verdict() {
+        let padded = mailrs_textguard::deception_in("M\u{200B}yJC\u{2060}B");
+        assert!(padded.unjustified_zero_width);
+        assert_eq!(
+            fold_sender_trust(Some("pass"), Some("pass"), Some("pass"), padded),
+            SenderTrust::Verified,
+            "one in forty was legitimate — too many for a verdict"
+        );
+    }
+
+    /// And it does not rescue a failure either: a suspicious
+    /// authentication result stays suspicious.
+    #[test]
+    fn clean_text_does_not_soften_a_failed_check() {
+        let clean = mailrs_textguard::Deception::default();
+        assert_eq!(
+            fold_sender_trust(Some("fail"), Some("fail"), Some("none"), clean),
+            SenderTrust::Suspicious
+        );
     }
 }
 

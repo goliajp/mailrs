@@ -148,7 +148,13 @@ order (high → low):
 2. **Virus found** → hard 550 reject.
 3. **DMARC `p=reject`** → hard 550 reject.
 4. **DMARC `p=quarantine`** → Junk.
-5. **`content_score + ptr_score + ai_score >= spam_threshold`** → Junk.
+5. **`content_score + ptr_score + ai_score + sender + padding >= spam_threshold`** → Junk,
+   where `sender` is `SUSPICIOUS_SENDER_SCORE` when authentication folded to
+   `Suspicious`, and `padding` is `UNJUSTIFIED_ZERO_WIDTH_SCORE` when the From
+   display name or Subject carries zero-width characters with no typographic
+   job (`mailrs-textguard`). Both are contributions rather than rules: measured
+   over 33,602 production messages, 39 of the 40 carrying such padding were
+   phishing and the fortieth was a real newsletter.
 6. **Default**: Accept.
 
 The function is **pure** — same input always produces the same output.
@@ -173,6 +179,7 @@ let input = PipelineInput {
     matched_rules: vec![],
     ptr_score: 0.0,
     ai_score: 0.5,
+    deception: Default::default(),
     spam_threshold: 5.0,
     hostname: "mx.example.com".into(),
     from_addr: String::new(),

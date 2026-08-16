@@ -18,11 +18,20 @@ use crate::{FastcoreState, parse_rfc5322_date, strip_angle};
 /// index via `resolve_thread_by_ancestry`; `references[0]` is only the
 /// last-resort root guess (it is NOT stable across hops — remote MUAs
 /// rewrite it, which fragmented conversations before v2.9.5).
-/// Read the sender-authentication verdict from a message's own
-/// `Authentication-Results` header, folded to a stable token. Empty
-/// when the header is absent (e.g. mail that reached the maildir by a
-/// path that didn't stamp it). This is the self-hosted "is this sender
-/// who they claim to be" signal — pure auth results, no model.
+/// The sender verdict for one stored message, folded to a stable token.
+/// The self-hosted "is this sender who they claim to be" signal — no
+/// model involved.
+///
+/// Two inputs, and the order between them matters. The message's own
+/// `Authentication-Results` header answers *did this come from the
+/// domain the From header names*; the From display name and Subject
+/// answer *was that header arranged to render as somebody else*. The
+/// second outranks the first, because an attacker on a domain they own
+/// passes the first for free.
+///
+/// Empty means **nothing to say**: no authentication header and no
+/// tampering found. It never means the message was examined and found
+/// safe.
 pub(crate) fn extract_sender_trust(raw: &[u8]) -> String {
     let head = &raw[..raw.len().min(16 * 1024)];
     // Find the (possibly folded) Authentication-Results field. Headers
@@ -47,14 +56,35 @@ pub(crate) fn extract_sender_trust(raw: &[u8]) -> String {
             collecting = true;
         }
     }
+    // What the From display name and Subject actually contain. This is
+    // read before the authentication results are consulted, and it
+    // outranks them, because the two answer different questions: DMARC
+    // says the mail came from the domain in the From header, and a
+    // right-to-left override says somebody arranged for that header to
+    // render as a different name. An attacker on their own domain gets
+    // the first for free, which is how a JCB phish earned a green badge
+    // on 2026-08-16.
+    let deception = mailrs_inbound::deception_in_identity(raw);
     let Some(v) = value else {
-        return String::new();
+        // No verdict to fold — but an override is a property of the
+        // text, not of the authentication, so it still convicts.
+        return if deception.bidi_override {
+            mailrs_inbound::SenderTrust::Suspicious.as_str().to_string()
+        } else {
+            String::new()
+        };
     };
     let results = mailrs_inbound::parse_auth_results(&v);
     if results.is_empty() {
-        return String::new();
+        return if deception.bidi_override {
+            mailrs_inbound::SenderTrust::Suspicious.as_str().to_string()
+        } else {
+            String::new()
+        };
     }
-    mailrs_inbound::sender_trust(&results).as_str().to_string()
+    mailrs_inbound::sender_trust_with(&results, deception)
+        .as_str()
+        .to_string()
 }
 
 pub(crate) fn extract_headers(
@@ -265,4 +295,84 @@ pub(crate) fn body_text_for_search(raw: &[u8]) -> Option<String> {
         return Some(html2text::from_read(h.as_bytes(), 100).unwrap_or(h));
     }
     root.body_text()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A From display name encoded per RFC 2047, the way the real ones
+    /// arrive — the override is invisible in the raw bytes.
+    fn message_from(display_name: &str, auth: Option<&str>) -> Vec<u8> {
+        let encoded = mailrs_rfc2047::encode(display_name);
+        let auth_line = match auth {
+            Some(a) => format!("Authentication-Results: mail.golia.ai; {a}\r\n"),
+            None => String::new(),
+        };
+        format!(
+            "{auth_line}From: {encoded} <alertpq43@wokjx.crabfishhh.com>\r\n\
+             Subject: test\r\n\r\nbody\r\n"
+        )
+        .into_bytes()
+    }
+
+    /// **The reported message.** Every check passed and every check was
+    /// right — the attacker owns `wokjx.crabfishhh.com`, and
+    /// authentication records are free on a domain you control. The lie
+    /// was `MyJCB` written backwards behind an override, which is not
+    /// something DMARC has an opinion about.
+    #[test]
+    fn a_passing_dmarc_does_not_outrank_a_reversed_display_name() {
+        let raw = message_from("\u{202E}BCJyM", Some("spf=pass; dkim=pass; dmarc=pass"));
+        assert_eq!(
+            extract_sender_trust(&raw),
+            "suspicious",
+            "a right-to-left override in the display name was outvoted by DMARC"
+        );
+    }
+
+    /// The same authentication results on an untampered name must still
+    /// read as verified — otherwise this is not a discriminating check,
+    /// it is a verdict suppressed for everybody.
+    #[test]
+    fn the_same_checks_on_an_untampered_name_still_verify() {
+        let raw = message_from("MyJCB", Some("spf=pass; dkim=pass; dmarc=pass"));
+        assert_eq!(extract_sender_trust(&raw), "verified");
+    }
+
+    /// Mail that reached the maildir by a path that never stamped an
+    /// `Authentication-Results` header has no verdict to fold. An
+    /// override is a fact about the text rather than about the
+    /// authentication, so it convicts anyway.
+    #[test]
+    fn an_override_convicts_even_with_no_authentication_header() {
+        let raw = message_from("\u{202E}DRAC NOSIAS", None);
+        assert_eq!(
+            extract_sender_trust(&raw),
+            "suspicious",
+            "with no auth header the display name was never looked at"
+        );
+    }
+
+    /// And ordinary mail with no auth header still reports nothing,
+    /// rather than acquiring a verdict from this change.
+    #[test]
+    fn an_ordinary_message_without_an_auth_header_stays_silent() {
+        assert_eq!(
+            extract_sender_trust(&message_from("Quora Digest", None)),
+            ""
+        );
+    }
+
+    /// Zero-width padding is the weaker signal — one production message
+    /// in forty carrying it was a real newsletter. It feeds the spam
+    /// score at receive time and must not become a verdict here.
+    #[test]
+    fn zero_width_padding_alone_is_not_a_verdict() {
+        let raw = message_from(
+            "M\u{200B}yJC\u{2060}B",
+            Some("spf=pass; dkim=pass; dmarc=pass"),
+        );
+        assert_eq!(extract_sender_trust(&raw), "verified");
+    }
 }

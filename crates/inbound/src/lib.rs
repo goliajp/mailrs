@@ -68,15 +68,17 @@
 pub mod auth_header;
 pub mod context;
 pub mod decision;
+pub mod identity;
 pub mod pipeline;
 pub mod stage;
 
 // Public re-exports — the surface most consumers reach for.
 pub use auth_header::{
     AuthResult, SenderTrust, build_auth_header, fold_sender_trust, format_auth_results,
-    format_auth_results_header, parse_auth_results, sender_trust,
+    format_auth_results_header, parse_auth_results, sender_trust, sender_trust_with,
 };
 pub use context::{AuthResults, DmarcPolicy, ReceiveContext};
 pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision};
+pub use identity::deception_in_identity;
 pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
 pub use stage::{Stage, StageOutcome};
