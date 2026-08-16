@@ -24,20 +24,43 @@ const MAX_CACHE_ENTRIES = 100
 const splitCache = new Map<string, SplitResult>()
 
 export function splitEmail(textBody: null | string, htmlBody: null | string): SplitResult {
-  const cacheKey = htmlBody ? `h:${htmlBody}` : `t:${textBody ?? ''}`
+  // Both inputs, because the split depends on both. It keyed on the
+  // html alone whenever there was any, which was harmless only while
+  // the html decided the result by itself. A blank-painting html body
+  // falls back to the text now, so two messages sharing a
+  // stylesheet-only html and differing in their text would otherwise
+  // have the first one through decide what the second displays.
+  //
+  // The length prefix is what keeps the two halves from running
+  // together: without it, ("ab", "c") and ("a", "bc") are one key.
+  const t = textBody ?? ''
+  const h = htmlBody ?? ''
+  const cacheKey = `${t.length}:${t}\u0000${h}`
   const cached = cacheGet(cacheKey)
   if (cached) return cached
+  // An html body that paints nothing is not content, so the text is what
+  // the message actually says. The reading pane has made this choice
+  // since A1; the bubble reads `isHtml` from here, so making it here is
+  // what gives both the same answer from one rule.
+  //
+  // Only when there is text to fall back to: a blank-painting html with
+  // no text at all is still all the message has, and rendering an empty
+  // text part in its place shows less, not more.
+  const useHtml = !!htmlBody && !(t.trim() && htmlBodyPaintsNothing(htmlBody))
   let result: SplitResult
   try {
-    result = htmlBody
-      ? unsplitIfEmpty({ isHtml: true, parts: splitHtmlEmail(htmlBody) }, htmlBody)
-      : unsplitIfEmpty({ isHtml: false, parts: splitTextEmail(textBody ?? '') }, textBody ?? '')
+    result = useHtml
+      ? unsplitIfEmpty(
+          { isHtml: true, parts: splitHtmlEmail(htmlBody as string) },
+          htmlBody as string
+        )
+      : unsplitIfEmpty({ isHtml: false, parts: splitTextEmail(t) }, t)
   } catch {
     // fallback: return as-is
     result = {
-      isHtml: !!htmlBody,
+      isHtml: useHtml,
       parts: {
-        body: htmlBody ?? textBody ?? '',
+        body: useHtml ? (htmlBody ?? '') : (textBody ?? htmlBody ?? ''),
         quoted: null,
         signature: null,
       },
