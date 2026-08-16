@@ -169,12 +169,13 @@ impl KevyMailboxStore {
         );
         // Per-thread message counts, kept by the engine.
         //
-        // `count`, `unread_count` and `sent_count` are three numbers written
-        // by hand onto two rows, and every repair path in this crate that is
-        // not about mail — `recount-threads`, `shadow-counts`,
-        // `repair_thread_counts` and its four variants, the `unread` axis
-        // column, reindex's counts leg — exists because they drift. A count
-        // the engine derives from the rows cannot.
+        // `count`, `unread_count` and `sent_count` were three numbers
+        // written by hand onto two rows, and every repair path in this
+        // crate that was not about mail — `recount-threads`,
+        // `shadow-counts`, `repair_thread_counts` and its four variants,
+        // reindex's counts leg — existed because they drift. A count the
+        // engine derives from the rows cannot, and all of that machinery
+        // is deleted (C5c).
         //
         // The aggregated field is `uid` and its value is never read: `count`
         // comes free whatever it is, and `idx_create_agg` requires a numeric

@@ -23,13 +23,15 @@
 //!
 //! Every leg is evaluated — the first version skipped three of the four
 //! and reported zero for them, which reads as a clean bill of health from
-//! checks that never ran. But the legs are ordered and the last one is
-//! **downstream**: the recount asks the message rows, and the flag replay
-//! is what corrects them. So a dry run reports `counts_repaired` against
-//! the rows as they are now and under-reports the recount that follows a
-//! flag replay it did not perform. A dry run cannot predict the
-//! consequences of changes it declined to make; the three independent
-//! legs are exact.
+//! checks that never ran.
+//!
+//! There were four legs. The fourth was a recount, and it was the one
+//! that made a dry run inexact: it sat downstream of the flag replay a
+//! dry run does not perform, so it reported against the rows as they
+//! were rather than as they would be. That leg is gone (C5c) — the
+//! counters are derived by a declared index and there is nothing left to
+//! recount — and with it the caveat. The three remaining legs are exact
+//! in both modes.
 //!
 //! It does **not** drop the rows first. The RFC's phrasing is "drops a
 //! user's tier-2 rows and rebuilds them", and reconciling in place is the
@@ -71,13 +73,7 @@ pub(crate) async fn reindex_route(
     let mut from_keywords = 0u64;
     let mut from_flags = 0u64;
     let mut from_log = 0u64;
-    let mut counts_repaired = 0u64;
-    let mut shared_threads = 0u64;
     let mut by_user: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
-
-    // Resolved once: `thread_is_shared` asks per account, and the answer
-    // decides whether the shared row may be written at all.
-    let accounts = state.mailbox.list_account_addresses().unwrap_or_default();
 
     for user in &users {
         let kw = crate::keywords::load(user);
@@ -199,41 +195,13 @@ pub(crate) async fn reindex_route(
                 touched = true;
             }
 
-            // The counters, recomputed from the per-user message rows —
-            // the derivation `unread_count` is, rather than the number it
-            // was last patched to.
-            // On a thread more than one account holds, only this user's
-            // copy is repaired. The shared hash has no user segment, so
-            // it can describe one owner or the other — writing it once
-            // per owner is a rebuild that reports work forever, which is
-            // what `periodic-work-must-converge` forbids and what a test
-            // caught before this shipped. Single-owner threads keep both
-            // copies in step, since there is only one writer for them.
-            let shared_thread = state
-                .mailbox
-                .thread_is_shared(&accounts, &tid)
-                .unwrap_or(false);
-            if shared_thread {
-                shared_threads += 1;
-            }
-            let recount = match (q.dry_run, shared_thread) {
-                // The dry run asks exactly the question the real run
-                // answers, shared or not. Asking the wider one for a
-                // thread that will get the narrower repair over-reports
-                // work that will never be done.
-                (true, true) => state.mailbox.thread_counts_need_repair_per_user(user, &tid),
-                (true, false) => state.mailbox.thread_counts_need_repair(user, &tid),
-                (false, true) => state.mailbox.repair_thread_counts_per_user(user, &tid),
-                (false, false) => state.mailbox.repair_thread_counts(user, &tid),
-            };
-            match recount {
-                Ok(true) => {
-                    counts_repaired += 1;
-                    touched = true;
-                }
-                Ok(false) => {}
-                Err(e) => tracing::warn!(err = %e, %user, %tid, "reindex: recount failed"),
-            }
+            // The counters' leg used to be here: `thread_is_shared`, a
+            // four-way dry-run/shared dispatch, and `counts_repaired`.
+            // All of it existed because the counters were stored and
+            // drifted. They are derived by the declared index now, so
+            // there is nothing to repair and nothing to report — the
+            // `counts_repaired` and `shared_threads` keys went from the
+            // response with it (C5c).
 
             if touched {
                 u_changed += 1;
@@ -259,14 +227,6 @@ pub(crate) async fn reindex_route(
             "from_keywords": from_keywords,
             "from_flags": from_flags,
             "from_threadstate": from_log,
-            // Under-reports in a dry run: the recount is downstream of the
-            // flag replay, which a dry run does not perform. See the module
-            // docs.
-            "counts_repaired": counts_repaired,
-            // Threads more than one local account holds, where only the
-            // per-user copy is repaired. Reported because it is the
-            // population whose shared row this deliberately leaves stale.
-            "shared_threads": shared_threads,
             "by_user": by_user,
         }),
         motion.finish(&state),

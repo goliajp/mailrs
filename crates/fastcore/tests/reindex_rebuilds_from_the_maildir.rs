@@ -189,54 +189,13 @@ async fn an_existing_row_is_rebuilt_from_the_maildir_and_the_second_run_is_quiet
          things and must not look the same: {second}"
     );
 
-    // ── the third leg: the counters ──
-    //
-    // `unread_count` is a derivation of the `S` bits, and the reindex
-    // recomputes it rather than trusting whatever it was last patched to —
-    // which is the residue A3 left. Put a wrong number on the row the way
-    // a hand-maintained counter drifts to one.
-    //
-    // Read the **stored** field directly rather than through `row()`.
-    // `get_thread_for_user` serves the declared index's counts since
-    // C5b, so going through it would compare the index against itself:
-    // the seed would look like it never took, and after the reindex the
-    // assertion below would pass without the reindex having done
-    // anything. Two `count-shadow` tests went red the same way when that
-    // reader moved, which is how this one was found.
-    //
-    // The counters are on their way out — the reindex leg asserted here
-    // is what C5c retires — so this reads the field where it still lives
-    // until it does not live anywhere.
-    let stored_unread = |s: &Arc<mailrs_fastcore::FastcoreState>| -> i64 {
-        s.mailbox
-            .store_ref()
-            .hgetall(mailrs_mailbox_kevy::keys::thread_user(USER, &tid).as_bytes())
-            .expect("row")
-            .iter()
-            .find(|(f, _)| f.as_slice() == b"unread_count")
-            .and_then(|(_, v)| String::from_utf8_lossy(v).parse().ok())
-            .unwrap_or(0)
-    };
-    state
-        .mailbox
-        .store_ref()
-        .hset(
-            mailrs_mailbox_kevy::keys::thread_user(USER, &tid).as_bytes(),
-            &[(b"unread_count".as_slice(), b"7".as_slice())],
-        )
-        .expect("bend the counter");
-    assert_eq!(stored_unread(&state), 7, "the seed did not take");
+    // There was a third leg here — the counters — and it is gone with
+    // the repair machinery (C5c). `unread_count` is no longer a stored
+    // number a reindex could recompute; the declared index derives it
+    // from the per-user message rows, which the flag replay above is
+    // what corrects. Nothing to bend, nothing to recount, nothing to
+    // assert.
 
-    let third = reindex(&state).await;
-    assert!(
-        third["counts_repaired"].as_u64().unwrap_or(0) >= 1,
-        "the reindex did not recount: {third}"
-    );
-    assert_eq!(
-        stored_unread(&state),
-        0,
-        "the message is read, so the thread has nothing unread in it"
-    );
     assert_eq!(
         reindex(&state).await["threads_changed"],
         0,
