@@ -171,10 +171,27 @@ mod cutover_tests {
         );
     }
 
-    /// A thread the index cannot answer keeps its stored numbers rather
-    /// than rendering empty. Un-backfilled data must not disappear.
+    /// **A thread the index cannot see now counts zero, and that is the
+    /// cost of C5b-2 rather than a defect.**
+    ///
+    /// This used to assert the opposite: the stored numbers stood in, so
+    /// an un-backfilled conversation still showed its counts. Nothing
+    /// writes those numbers any more, so there is nothing to stand in
+    /// with, and `counts_from_index` returning `None` leaves the row's
+    /// zeros.
+    ///
+    /// Pinned rather than removed because the exposure is real and worth
+    /// being able to see: a row with no group column renders as an empty
+    /// conversation. What keeps it out of production is that the
+    /// backfill is complete — `rows_ungrouped_store_wide: 0` across all
+    /// thirteen accounts, re-checked after every deploy in this phase —
+    /// and that `upsert_user_message` writes the column on every row it
+    /// creates, so no new row can arrive without one.
+    ///
+    /// If this ever needs to be safe rather than merely true, the answer
+    /// is `maintenance:group-backfill`, not a second copy of the counts.
     #[test]
-    fn an_unbackfilled_thread_keeps_its_stored_numbers() {
+    fn a_thread_the_index_cannot_see_counts_zero() {
         let s = store();
         let u = "u@x.com";
         arrive(&s, "t1", u, true, false);
@@ -195,8 +212,10 @@ mod cutover_tests {
             .expect("the thread");
         assert_eq!(
             (row.count, row.unread_count),
-            (1, 1),
-            "an un-backfilled thread rendered as empty"
+            (0, 0),
+            "a row without a group column has nothing left to count it"
         );
+        // And the debt is visible where the backfill can act on it.
+        assert_eq!(s.ungrouped_user_message_rows().unwrap(), (1, 1));
     }
 }

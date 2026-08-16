@@ -490,6 +490,10 @@ mod tests {
         // Reads are served from the declared table, so a test store
         // has to look like a booted one.
         s.ensure_thread_table();
+        // The aggregate index that derives the counters, too — without
+        // it every count reads zero, which looks exactly like a broken
+        // count rather than a store that was never fully booted.
+        s.ensure_admin_indexes();
         s
     }
 
@@ -508,10 +512,37 @@ mod tests {
         .unwrap();
     }
 
+    /// A message, as a delivery records one: the shared blob **and** the
+    /// per-user row.
+    ///
+    /// It wrote only the shared half until 2026-08-16, which was
+    /// invisible while the counters were incremented by the arrival
+    /// path. They are derived from the per-user rows now, so a fixture
+    /// that skips them describes a thread with no messages in it —
+    /// a state no delivery produces.
     fn put_msg(s: &KevyMailboxStore, tid: &str, mid: &str, date: i64) {
-        let wire = serde_json::json!({"message_id": mid, "thread_id": tid, "internal_date": date});
-        s.upsert_message(tid, mid, date, &serde_json::to_vec(&wire).unwrap())
-            .unwrap();
+        put_msg_for(s, "u@x.com", tid, mid, date, false)
+    }
+
+    fn put_msg_for(s: &KevyMailboxStore, user: &str, tid: &str, mid: &str, date: i64, seen: bool) {
+        let wire = serde_json::json!({
+            "message_id": mid, "thread_id": tid, "internal_date": date,
+            "sender": "other@z.com",
+        });
+        s.upsert_user_message(
+            user,
+            tid,
+            mid,
+            date,
+            &serde_json::to_vec(&wire).unwrap(),
+            &crate::UserMessageFacts {
+                blob_ref: "f.host",
+                uid: 0,
+                flags: u32::from(seen),
+                modseq: 1,
+            },
+        )
+        .unwrap();
     }
 
     /// A split moves the message on **both** sides, not just the shared one.
@@ -609,9 +640,12 @@ mod tests {
 
         // t-old gone, t-new has both messages and the summed counts
         assert!(s.get_thread("t-old").unwrap().is_none());
-        let row = s.get_thread("t-new").unwrap().expect("merged row");
-        assert_eq!(row.count, 2);
-        assert_eq!(row.unread_count, 2);
+        assert!(s.get_thread("t-new").unwrap().is_some(), "merged row");
+        assert_eq!(
+            s.counts_from_index(u, "t-new"),
+            Some((2, 2, 0)),
+            "both messages counted under the surviving thread"
+        );
         let msgs = s.thread_messages_for_maintenance("t-new").unwrap();
         assert_eq!(msgs.len(), 2);
         // moved blob got its thread_id re-pointed
@@ -660,9 +694,11 @@ mod tests {
 
         s.merge_thread_into(u, "t-old", "t-new").unwrap();
 
-        let row = s.get_thread("t-new").unwrap().unwrap();
-        assert_eq!(row.count, 2);
-        assert_eq!(row.unread_count, 0);
+        // Both messages carry `\Seen`, so none of them is unread — the
+        // point of the test. The engine derives that from the rows'
+        // flags, which is what "not from the stale hash" now means
+        // structurally rather than by a recount step.
+        assert_eq!(s.counts_from_index(u, "t-new"), Some((2, 0, 0)));
         // And the merged message is in the mailbox that owns it, not only
         // in the shared index — the reading pane lists a thread from the
         // per-user index, so a merge that moves one and not the other
@@ -685,8 +721,11 @@ mod tests {
         s.merge_thread_into(u, "t-old", "t-new").unwrap();
         let again = s.merge_thread_into(u, "t-old", "t-new").unwrap();
         assert_eq!(again, 0);
-        let row = s.get_thread("t-new").unwrap().unwrap();
-        assert_eq!(row.count, 2);
+        assert_eq!(
+            s.counts_from_index(u, "t-new"),
+            Some((2, 2, 0)),
+            "a second merge must not double the count"
+        );
     }
 
     /// A token match is a substring match too. If the LIKE stage did not

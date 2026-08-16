@@ -55,6 +55,10 @@ mod tests {
     fn store() -> KevyMailboxStore {
         let s = KevyMailboxStore::new(Arc::new(Store::open(Config::default()).unwrap()));
         s.ensure_thread_table();
+        // The aggregate index that derives the counters, too — without
+        // it every count reads zero, which looks exactly like a broken
+        // count rather than a store that was never fully booted.
+        s.ensure_admin_indexes();
         s
     }
 

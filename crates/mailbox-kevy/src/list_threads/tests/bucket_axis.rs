@@ -394,9 +394,13 @@ fn the_non_junk_scope_excludes_sent_only_threads_from_its_inbox_side() {
     ));
     st.ensure_thread_table();
     let u = "alice@x.com";
+    // "Sent-only" said as the row can still say it: every sender in the
+    // thread is this user. It used to be `count == sent_count`, and
+    // those fields are no longer written — the counters are derived by
+    // the aggregate index, and the fallback for a thread the index
+    // cannot see reads `senders_csv`.
     let mut sent = row("s1", 100, "inbox");
-    sent.count = 1;
-    sent.sent_count = 1;
+    sent.senders_csv = u.to_string();
     st.upsert_thread(u, &sent).unwrap();
     let received = row("r1", 200, "inbox");
     st.upsert_thread(u, &received).unwrap();

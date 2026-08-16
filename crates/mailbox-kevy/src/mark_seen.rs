@@ -1,10 +1,10 @@
 //! `mark_seen` — flip a thread from unread → seen.
 //!
-//! v2 Stage B.1: kevy 3.17 `AtomicCtx` now exposes `zrem` and `hdel`,
-//! so the two-op split (hset in atomic + zrem outside) is history.
-//! Both ops now run inside a single atomic closure — no millisecond
-//! window where the row reads `unread_count = 0` but the has_unread
-//! index still lists it.
+//! What that means is now one thing: the declared `unread` column on the
+//! membership row. The counter that used to be zeroed beside it is
+//! derived from the per-user message rows by an aggregate index, so
+//! there is no second copy to keep in step and no window in which the
+//! two disagree.
 
 use std::io;
 
@@ -12,7 +12,6 @@ use super::KevyMailboxStore;
 use super::keys;
 
 impl KevyMailboxStore {
-    /// Mark `thread_id` as seen for `user` — zero the unread counter
     /// Sweep every unread thread for `user` — reads the unread axis
     /// off the declared table and calls `mark_seen` on each.
     /// Returns the number of threads flipped. Idempotent: a second call
@@ -32,11 +31,11 @@ impl KevyMailboxStore {
         Ok(flipped)
     }
 
-    /// and drop the row from the `has_unread` index.
+    /// Clear the declared `unread` column, which drops the thread off
+    /// every unread axis and out of the badge's count.
     ///
     /// Idempotent: re-applying produces the same state. Returns `true`
-    /// if the thread row was found (regardless of whether the unread
-    /// count actually flipped); `false` if the row doesn't exist.
+    /// if the thread exists, `false` otherwise.
     pub fn mark_seen(&self, user: &str, thread_id: &str) -> io::Result<bool> {
         let thread_key = keys::thread(thread_id);
         let found = self.store().atomic(|ctx| {
@@ -45,24 +44,14 @@ impl KevyMailboxStore {
             // three routes branch on it, so a counter going missing used
             // to make every one of them believe the thread had vanished.
             let exists = ctx.hexists(thread_key.as_bytes(), keys::THREAD_EXISTS_FIELD)?;
-            // Always drop from the has_unread index AND always plant
-            // a concrete `unread_count = 0` on the hash. The previous
-            // version guarded the hset behind `exists`, so a thread
-            // whose hash lacked the field (self-heal-created threads
-            // that never went through `record_message_arrival`) had
-            // no persistent zero. Any subsequent `hincrby thread:<tid>
-            // unread_count 1` would count from 0 → 1 and light the
-            // row back up. Writing an explicit zero prevents that.
-            ctx.hset(thread_key.as_bytes(), &[(b"unread_count" as &[u8], b"0")])?;
-            // Mirror onto the membership row the table reads from —
-            // both the flag the index keys on and the per-user counter
-            // the arrival path increments. Zeroing only the shared
-            // row's counter would leave this user's count standing
-            // after they read the thread (RFC 20260730 S1: every
-            // writer of a counter maintains both copies of it).
+            // The write is deliberately unguarded by `exists`. A thread
+            // whose row the self-heal created without going through
+            // `record_message_arrival` still has to be able to leave the
+            // unread axis, and clearing a column on a row that is not
+            // there costs nothing.
             ctx.hset(
                 keys::thread_user(user, thread_id).as_bytes(),
-                &[(b"unread" as &[u8], b"0" as &[u8]), (b"unread_count", b"0")],
+                &[(b"unread" as &[u8], b"0" as &[u8])],
             )?;
             Ok(exists)
         });
@@ -97,8 +86,8 @@ impl KevyMailboxStore {
     /// Set `\Seen` on every message `user` holds in `thread_id`, at the
     /// row level, and report the files that are now behind.
     ///
-    /// [`mark_seen`](Self::mark_seen) writes the thread's *counter* and
-    /// sinks the bit into the shared blob — where, since stage 5 of the
+    /// [`mark_seen`](Self::mark_seen) writes the thread's *axis column*
+    /// and sinks the bit into the shared blob — where, since stage 5 of the
     /// per-user message projection, no read path consults it: the blob's
     /// `flags` is stripped to zero on write and `user_message_view`
     /// overlays this row on top. So a conversation read in the web left
@@ -434,6 +423,10 @@ mod tests {
         // Reads are served from the declared table, so a test store
         // has to look like a booted one.
         s.ensure_thread_table();
+        // The aggregate index that derives the counters, too — without
+        // it every count reads zero, which looks exactly like a broken
+        // count rather than a store that was never fully booted.
+        s.ensure_admin_indexes();
         s
     }
 

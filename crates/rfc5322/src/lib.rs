@@ -11,6 +11,6 @@ mod address;
 mod header;
 mod message;
 
-pub use address::{addr_key, addr_spec, list_contains};
+pub use address::{addr_key, addr_spec, list_contains, list_is_only};
 pub use header::{Header, HeaderIter};
 pub use message::Message;
