@@ -8,11 +8,25 @@ import SwiftUI
 
 /// What the server's cryptographic checks concluded about the sender.
 ///
-/// Only `suspicious` is loud. A verified sender is the ordinary case and
-/// a badge on every message trains people to stop reading badges; the
-/// one worth interrupting for is mail whose From does not survive DMARC,
-/// because that is the shape of a forgery. `unverified` and mail that
-/// predates the signal say nothing rather than implying safety.
+/// **Warnings only. There is no positive mark, and that is deliberate.**
+///
+/// There was one: `verified` drew a green seal on a DMARC pass. A JCB
+/// phishing mail earned it on 2026-08-16 — `spf=pass dkim=pass
+/// dmarc=pass`, all three correct, because the attacker owns
+/// `wokjx.crabfishhh.com` and authentication records are free on a
+/// domain you control. DMARC's claim is that the mail came from the
+/// domain in the From header; the lie was the display name, which DMARC
+/// does not authenticate. The seal sat beside the words that were the
+/// deception.
+///
+/// Gmail's check mark requires DMARC at an enforced policy, BIMI, and a
+/// Verified Mark Certificate — a CA verifying trademark ownership. It
+/// stands for an identity checked out of band, never for a passing
+/// authentication run. We have no VMC, so we show no mark.
+///
+/// The asymmetry is the design: a warning that is sometimes wrong costs
+/// a reader distrusting real mail; a mark that is sometimes wrong costs
+/// a reader trusting a fake one, and the attacker chose it.
 struct SenderTrustBadge: View {
     let verdict: String
 
@@ -29,11 +43,6 @@ struct SenderTrustBadge: View {
                 .font(.footnote)
                 .foregroundStyle(.orange)
                 .accessibilityLabel("Unverified sender")
-        case "verified":
-            Image(systemName: "checkmark.seal.fill")
-                .font(.footnote)
-                .foregroundStyle(.green)
-                .accessibilityLabel("Verified sender")
         default:
             EmptyView()
         }

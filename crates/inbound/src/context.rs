@@ -51,6 +51,14 @@ pub struct ReceiveContext {
     pub ptr_score: f64,
     /// Score from an AI / ML scoring stage.
     pub ai_score: f64,
+    /// What the From display name and Subject were found to contain
+    /// (`mailrs_textguard`).
+    ///
+    /// Filled by [`ReceiveContext::new`] from the message it is handed —
+    /// **not** by a stage. It is a property of the text, fixed before
+    /// the pipeline starts, so nothing about stage ordering can leave it
+    /// unset and no caller has to remember to ask.
+    pub deception: mailrs_textguard::Deception,
 
     // ===== v2.4.1 Phase 3 (RFC-B) — sender allow / block =====
     /// Envelope `From:` address (lowercased) for whitelist / blacklist
@@ -79,6 +87,12 @@ impl ReceiveContext {
         message: Vec<u8>,
         hostname: impl Into<String>,
     ) -> Self {
+        // Read once, here, rather than in a stage. The two header
+        // fields this looks at are already in hand, the answer never
+        // changes as the pipeline runs, and there is exactly one
+        // construction site — so no caller can forget it and no stage
+        // ordering can leave it unset.
+        let deception = crate::identity::deception_in_identity(&message);
         Self {
             client_ip,
             ehlo_domain: ehlo_domain.into(),
@@ -93,6 +107,7 @@ impl ReceiveContext {
             matched_rules: Vec::new(),
             ptr_score: 0.0,
             ai_score: 0.0,
+            deception,
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
@@ -119,6 +134,7 @@ impl ReceiveContext {
             matched_rules: self.matched_rules.clone(),
             ptr_score: self.ptr_score,
             ai_score: self.ai_score,
+            deception: self.deception,
             spam_threshold,
             hostname: self.hostname.clone(),
             from_addr: self.from_addr.clone(),
@@ -163,10 +179,28 @@ impl AuthResults {
     /// (`pass`/`fail`/`none`/...); non-`pass`/`fail` values fold to
     /// `Unverified` naturally.
     pub fn sender_trust(&self) -> crate::auth_header::SenderTrust {
+        self.sender_trust_with(mailrs_textguard::Deception::default())
+    }
+
+    /// The same fold, told what the identifying text was found to
+    /// contain.
+    ///
+    /// The no-argument [`sender_trust`](Self::sender_trust) passes an
+    /// empty [`Deception`](mailrs_textguard::Deception), and that is a
+    /// claim rather than a default: *nothing was examined*. A caller
+    /// holding the From display name and the Subject should call this
+    /// one — authentication cannot see a forged display name, so a
+    /// verdict without it says `Verified` about mail whose only lie is
+    /// the name.
+    pub fn sender_trust_with(
+        &self,
+        deception: mailrs_textguard::Deception,
+    ) -> crate::auth_header::SenderTrust {
         crate::auth_header::fold_sender_trust(
             Some(self.dmarc.as_str()),
             Some(self.spf.as_str()),
             Some(self.dkim.as_str()),
+            deception,
         )
     }
 }
@@ -211,6 +245,34 @@ mod tests {
             b"From: alice\r\n\r\nhello".to_vec(),
             "mx.example.com",
         )
+    }
+
+    /// **The field has to be filled by the constructor**, because there
+    /// is exactly one and every caller would otherwise have to remember.
+    /// A `deception` nobody writes is the shape of every defect
+    /// `one-side-of-the-wire` records: each side self-consistent, no
+    /// test red, and the feature silently doing nothing.
+    #[test]
+    fn the_constructor_reads_the_identity_headers() {
+        let encoded = mailrs_rfc2047::encode("\u{202E}BCJyM");
+        let raw = format!("From: {encoded} <a@b.example>\r\nSubject: hi\r\n\r\nbody\r\n");
+        let c = ReceiveContext::new(
+            "1.2.3.4".parse().unwrap(),
+            "mail.example.com",
+            "a@b.example",
+            "me@golia.jp",
+            raw.into_bytes(),
+            "mail.golia.jp",
+        );
+        assert!(
+            c.deception.bidi_override,
+            "the constructor did not look at the message it was handed"
+        );
+        assert_eq!(
+            c.to_pipeline_input(5.0).deception,
+            c.deception,
+            "the verdict input dropped it on the way through"
+        );
     }
 
     #[test]

@@ -26,6 +26,24 @@ use crate::context::{AuthResults, DmarcPolicy};
 /// `p=none`, while still catching spoofed phishing that also looks spammy.
 pub const SUSPICIOUS_SENDER_SCORE: f64 = 3.0;
 
+/// Score contributed when a From display name or Subject carries
+/// zero-width characters with no typographic job — `U+200B`, `U+2060`
+/// and the invisible math operators (`mailrs_textguard`).
+///
+/// A **score and not a verdict**, and the number comes from the
+/// measurement. Over 33,602 production messages, 40 carried them and 39
+/// were phishing; the one that was not is a Quora digest with a
+/// zero-width space inside a long Japanese subject. One in forty is too
+/// often to junk a newsletter over, and far too rare to ignore.
+///
+/// At 2.5 against the default 5.0 threshold it cannot junk on its own —
+/// a padded subject with no other signal still reaches the inbox — but
+/// it crosses with any moderate content score, and it crosses on its
+/// own beside a suspicious sender (3.0 + 2.5 = 5.5). Which is the shape
+/// the phishing in that sample has: padded brand name, spoofed-looking
+/// setup, and spam-like content all at once.
+pub const UNJUSTIFIED_ZERO_WIDTH_SCORE: f64 = 2.5;
+
 /// Final decision the receive pipeline emits for one message.
 ///
 /// Maps directly to SMTP responses: `Accept` → 250, `Junk` → 250 + deliver to
@@ -84,6 +102,14 @@ pub struct PipelineInput {
     pub ptr_score: f64,
     /// Score from an LLM / ML classifier.
     pub ai_score: f64,
+    /// What the From display name and Subject were found to contain
+    /// (`mailrs_textguard`). The bidi half has already reached the
+    /// verdict through [`AuthResults::sender_trust_with`]; the
+    /// zero-width half is scored here.
+    ///
+    /// Defaults to "nothing found", which for a caller that never looked
+    /// means the signal is simply absent rather than negative.
+    pub deception: mailrs_textguard::Deception,
     /// Combined-score threshold above which the message goes to Junk.
     pub spam_threshold: f64,
     /// Server's hostname — needed to build the Authentication-Results header.
@@ -247,13 +273,24 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     // total as a signal — never on its own enough to Junk (see
     // `SUSPICIOUS_SENDER_SCORE`), so it combines with content/ptr/ai
     // rather than overriding them.
-    let suspicious_score = if input.auth.sender_trust() == SenderTrust::Suspicious {
-        SUSPICIOUS_SENDER_SCORE
+    let suspicious_score =
+        if input.auth.sender_trust_with(input.deception) == SenderTrust::Suspicious {
+            SUSPICIOUS_SENDER_SCORE
+        } else {
+            0.0
+        };
+
+    // Zero-width padding in the identifying text. Scored rather than
+    // ruled on: 39 of 40 production messages carrying it were phishing,
+    // and the fortieth was a real newsletter.
+    let padding_score = if input.deception.unjustified_zero_width {
+        UNJUSTIFIED_ZERO_WIDTH_SCORE
     } else {
         0.0
     };
 
-    let total_score = input.content_score + input.ptr_score + input.ai_score + suspicious_score;
+    let total_score =
+        input.content_score + input.ptr_score + input.ai_score + suspicious_score + padding_score;
     if total_score >= input.spam_threshold {
         return DeliveryDecision::Junk {
             auth_header,
@@ -341,7 +378,7 @@ mod tests {
         }
     }
 
-    fn baseline_input() -> PipelineInput {
+    pub(super) fn baseline_input() -> PipelineInput {
         PipelineInput {
             greylisted: false,
             auth: passing_auth(),
@@ -350,6 +387,7 @@ mod tests {
             matched_rules: vec![],
             ptr_score: 0.0,
             ai_score: 0.0,
+            deception: mailrs_textguard::Deception::default(),
             spam_threshold: 5.0,
             hostname: "mx.example.com".into(),
             from_addr: String::new(),
@@ -793,5 +831,119 @@ mod tests {
             make_delivery_decision(&input),
             DeliveryDecision::Junk { .. }
         ));
+    }
+}
+
+#[cfg(test)]
+mod deception_score_tests {
+    use super::*;
+
+    fn padded() -> PipelineInput {
+        let mut i = tests::baseline_input();
+        i.deception = mailrs_textguard::deception_in("M\u{200B}yJC\u{2060}B");
+        i
+    }
+
+    /// Padding alone does not junk anything.
+    ///
+    /// 2.5 against a 5.0 threshold, deliberately. One production message
+    /// in forty carrying zero-width padding was a real Quora digest, and
+    /// a signal that junks a newsletter one time in forty is worse than
+    /// no signal — people stop trusting the Junk folder, which is the
+    /// only thing that makes it useful.
+    #[test]
+    fn padding_alone_reaches_the_inbox() {
+        let d = make_delivery_decision(&padded());
+        assert!(
+            matches!(d, DeliveryDecision::Accept { .. }),
+            "padding alone junked the message: {d:?}"
+        );
+    }
+
+    /// Padding plus any moderate content signal does.
+    #[test]
+    fn padding_crosses_the_threshold_with_content() {
+        let mut i = padded();
+        i.content_score = 3.0;
+        assert!(
+            matches!(make_delivery_decision(&i), DeliveryDecision::Junk { .. }),
+            "2.5 + 3.0 should clear a 5.0 threshold"
+        );
+    }
+
+    /// And padding beside a suspicious sender crosses on its own: 3.0 +
+    /// 2.5 = 5.5. That is the shape the production phishing has —
+    /// a padded brand name and a sender that does not hold up.
+    #[test]
+    fn padding_and_a_suspicious_sender_cross_together() {
+        let mut i = padded();
+        i.auth.dmarc = "fail".into();
+        assert!(
+            matches!(make_delivery_decision(&i), DeliveryDecision::Junk { .. }),
+            "SUSPICIOUS_SENDER_SCORE + UNJUSTIFIED_ZERO_WIDTH_SCORE should clear the threshold"
+        );
+    }
+
+    /// Clean text adds nothing — the score is a contribution, not a
+    /// baseline shift.
+    #[test]
+    fn clean_text_contributes_nothing() {
+        let mut i = tests::baseline_input();
+        i.content_score = 4.9;
+        assert!(matches!(
+            make_delivery_decision(&i),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+}
+
+#[cfg(test)]
+mod bidi_verdict_tests {
+    use super::*;
+
+    /// **The receive path has to fold the same way the badge does.**
+    ///
+    /// A right-to-left override outranks a passing DMARC, and it has to
+    /// do so here as well as in the stored-mail path — otherwise the
+    /// message wears a warning badge while its spam score says the
+    /// sender is fine, which is one capability on one side of the wire
+    /// and nothing on the other.
+    #[test]
+    fn an_override_scores_as_a_suspicious_sender_despite_a_passing_dmarc() {
+        let mut i = tests::baseline_input();
+        i.auth.spf = "pass".into();
+        i.auth.dkim = "pass".into();
+        i.auth.dmarc = "pass".into();
+        let clean = make_delivery_decision(&i);
+        assert!(
+            matches!(clean, DeliveryDecision::Accept { .. }),
+            "premise: the same message without tampering is accepted"
+        );
+
+        i.deception = mailrs_textguard::deception_in("\u{202E}BCJyM");
+        i.content_score = 2.5;
+        assert!(
+            matches!(make_delivery_decision(&i), DeliveryDecision::Junk { .. }),
+            "the override contributed nothing — a passing DMARC outvoted it"
+        );
+    }
+
+    /// And an override alone does **not** junk: 3.0 against a 5.0
+    /// threshold. It shows the warning badge and lets content decide,
+    /// which is the same restraint every other single signal gets.
+    #[test]
+    fn an_override_alone_reaches_the_inbox_wearing_a_warning() {
+        let mut i = tests::baseline_input();
+        i.auth.dmarc = "pass".into();
+        i.deception = mailrs_textguard::deception_in("\u{202E}BCJyM");
+        assert!(matches!(
+            make_delivery_decision(&i),
+            DeliveryDecision::Accept { .. }
+        ));
+        assert_eq!(
+            i.auth.sender_trust_with(i.deception),
+            SenderTrust::Suspicious,
+            "the verdict the badge reads must still be Suspicious"
+        );
     }
 }

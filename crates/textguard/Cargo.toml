@@ -1,0 +1,17 @@
+[package]
+name = "mailrs-textguard"
+version = "0.1.0"
+edition = "2024"
+description = "Detects characters placed in a sender's name to deceive a reader — bidi overrides and zero-width padding — while leaving alone the invisibles real typography needs (ZWJ, ZWNJ, BOM, soft hyphen)."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-textguard"
+authors = ["GOLIA K.K."]
+keywords = ["email", "phishing", "unicode", "bidi", "security"]
+categories = ["email", "text-processing"]
+
+[dependencies]
+
+[lints]
+workspace = true

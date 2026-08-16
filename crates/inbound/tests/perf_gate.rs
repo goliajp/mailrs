@@ -42,6 +42,7 @@ fn default_input() -> PipelineInput {
         matched_rules: vec!["missing_from".into(), "html_only_no_text".into()],
         ptr_score: 0.5,
         ai_score: 0.0,
+        deception: mailrs_textguard::Deception::default(),
         spam_threshold: 5.0,
         hostname: "mx.example.com".into(),
         from_addr: String::new(),

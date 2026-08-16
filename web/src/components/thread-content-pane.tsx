@@ -28,6 +28,7 @@ import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
 import { MessageSource } from '@/components/message-source'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { SenderClaimBadge } from '@/components/sender-claim-badge'
 import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, HdrBtn, SmBtn } from '@/components/thread-view-bubble'
@@ -265,20 +266,14 @@ export function ThreadContentPane({
                           {/* The reading pane is where a message is actually
                               read, and it showed no verdict at all — the
                               badge existed only in the timeline bubbles. */}
-                          <span className="ml-1.5 shrink-0">
+                          <span className="ml-1.5 flex shrink-0 items-center gap-1">
                             <SenderTrustBadge trust={selectedMsg.sender_trust} />
+                            {/* The name says one domain and the wire says
+                                another — the gap brand impersonation lives
+                                in, and one no authentication check has an
+                                opinion about. */}
+                            <SenderClaimBadge sender={selectedMsg.sender} />
                           </span>
-                          {selectedMsg.bimi_logo_url && (
-                            <img
-                              alt="Verified brand"
-                              className="ml-1 inline-block h-4 w-4 shrink-0"
-                              height={16}
-                              loading="lazy"
-                              src={selectedMsg.bimi_logo_url}
-                              title="BIMI verified brand"
-                              width={16}
-                            />
-                          )}
                         </p>
                         <div className="flex h-5 shrink-0 items-center gap-0.5">
                           <SmBtn onClick={() => handleReplyMsg(selectedMsg)} title="Reply">
