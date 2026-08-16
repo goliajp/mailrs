@@ -162,6 +162,30 @@ impl KevyMailboxStore {
     ) -> io::Result<Option<ThreadRow>> {
         let key = keys::thread_user(user, thread_id);
         let pairs = self.store().hgetall(key.as_bytes())?;
-        Ok(ThreadRow::from_user_pairs(thread_id.to_string(), &pairs))
+        let Some(mut row) = ThreadRow::from_user_pairs(thread_id.to_string(), &pairs) else {
+            return Ok(None);
+        };
+        // The three counters come from the declared index, the same as they
+        // do for a page (`list_threads::paths::hydrate_page`). This is the
+        // single-row half of that move, and it is what makes retiring the
+        // stored counters possible: search-scope filtering, `mark_read`'s
+        // was-unread gate, `mark_list_read`'s counter and `archive_thread`'s
+        // dismissed-unread gate all read through here, and every one of
+        // them would see zero the day nothing writes the fields.
+        //
+        // Readers first, writers after — `kevy/delete-an-index-by-its-readers`
+        // in the direction the rule is usually read, and the direction the
+        // deletion audit said this had to go.
+        //
+        // `None` from the index means it cannot see the thread, not that the
+        // thread is empty, so the stored numbers stand in. Not called inside
+        // an atomic block anywhere — checked — because `idx_group` takes a
+        // write lock per shard.
+        if let Some((count, unread, sent)) = self.counts_from_index(user, thread_id) {
+            row.count = count;
+            row.unread_count = unread;
+            row.sent_count = sent;
+        }
+        Ok(Some(row))
     }
 }
