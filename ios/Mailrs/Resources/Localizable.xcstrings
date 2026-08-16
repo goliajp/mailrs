@@ -3476,6 +3476,22 @@
         }
       }
     },
+    "Suspicious sender": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信者が疑わしい"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发件人可疑"
+          }
+        }
+      }
+    },
     "System": {
       "localizations": {
         "ja": {
@@ -3872,22 +3888,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在退订…"
-          }
-        }
-      }
-    },
-    "Unverified sender": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "送信者は未検証"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发件人未通过验证"
           }
         }
       }

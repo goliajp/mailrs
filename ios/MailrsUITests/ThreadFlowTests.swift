@@ -53,7 +53,7 @@ final class ThreadFlowTests: MailrsUITestCase {
         // accessibility label is also the check that the words are
         // still said aloud — a mark with no label would look right and
         // tell a VoiceOver reader nothing.
-        let badge = app.images["Unverified sender"]
+        let badge = app.images["Suspicious sender"]
         var swipes = 0
         while !badge.exists && swipes < 8 {
             app.swipeUp()

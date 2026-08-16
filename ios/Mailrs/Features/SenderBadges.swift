@@ -33,16 +33,22 @@ struct SenderTrustBadge: View {
     var body: some View {
         switch verdict {
         case "suspicious":
-            // A mark, not a sentence. "Unverified sender" spelled out
-            // beside a name and a date is two words too many for the
-            // line, and the header wrapped — which reads as a defect
-            // whatever it says. Colour and shape carry it; the words
-            // stay as the accessibility label, where they are read
-            // aloud rather than competing for width.
+            // A mark, not a sentence. The words spelled out beside a
+            // name and a date are two too many for the line, and the
+            // header wrapped — which reads as a defect whatever it says.
+            // Colour and shape carry it; the words stay as the
+            // accessibility label, where they are read aloud rather than
+            // competing for width.
+            //
+            // "Suspicious", not "unverified": the verdict now has two
+            // causes and only one is about verification. A JCB phish
+            // passes every check and still earns this, so calling its
+            // sender unverified would be false about exactly the message
+            // the check exists for.
             Image(systemName: "exclamationmark.shield.fill")
                 .font(.footnote)
                 .foregroundStyle(.orange)
-                .accessibilityLabel("Unverified sender")
+                .accessibilityLabel("Suspicious sender")
         default:
             EmptyView()
         }

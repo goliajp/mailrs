@@ -154,10 +154,18 @@ truncated name is still a name and a truncated timestamp is nothing.
 Addresses and filenames truncate in the middle, where the domain and
 the extension survive.
 
-State is a mark and a colour, not a sentence. "Unverified sender"
+State is a mark and a colour, not a sentence. "Suspicious sender"
 spelled out beside a name and a time was two words too many for the
 line; it is an orange shield now, with the words kept as the
 accessibility label — read aloud rather than competing for width.
+
+There is no positive mark, and the green check that used to be one was
+removed on 2026-08-16: a JCB phish passed SPF, DKIM and DMARC — on the
+attacker's own domain, where records are free — and wore the check
+beside a display name reading `MyJCB` backwards behind an override.
+A warning that is sometimes wrong costs a reader distrusting real mail;
+a mark that is sometimes wrong costs a reader trusting a fake one, and
+the attacker chose it.
 
 ## Typing belongs at the top
 

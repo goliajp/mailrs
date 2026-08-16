@@ -31,10 +31,10 @@ export function SenderTrustBadge({ trust }: { trust: string }) {
       return (
         <span
           className="bg-danger/10 text-danger inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium"
-          title="Sender authentication failed — the From address may be spoofed"
+          title="This sender does not hold up: either its authentication failed, or its displayed name was tampered with"
         >
           <ShieldAlert className="h-3 w-3" />
-          Unverified sender
+          Suspicious sender
         </span>
       )
     default:
