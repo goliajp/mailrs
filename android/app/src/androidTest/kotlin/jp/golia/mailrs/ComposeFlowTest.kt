@@ -402,4 +402,41 @@ class ComposeFlowTest : MailrsUiTest() {
         assertTrue("the message went out unsigned: $sent", sent.contains("-- \\nLi Hao"))
         assertTrue("it signed with the wrong one: $sent", !sent.contains("Sent from a phone"))
     }
+
+    /**
+     * Forwarding passes the message on, attachments and all.
+     *
+     * Three things that are each invisible when wrong: the subject is
+     * "Fwd:" and not "Re:", the recipients start empty because it is
+     * going to somebody new, and `forward_attachments_from` carries the
+     * original's files — the server re-extracts them, so a phone can
+     * forward what it has never downloaded. A forward that dropped that
+     * field would look identical on screen and arrive with nothing
+     * attached.
+     *
+     * It is deliberately not a reply: `in_reply_to` would thread it
+     * into a conversation the new recipient has never been in.
+     */
+    @Test
+    fun forwarding_carries_the_subject_and_the_attachments() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        tapWhenSteady("button.forward", 0)
+        waitForTag("field.to", "the composer never opened")
+        compose.onNodeWithTag("field.subject").assertTextContains("Fwd:", substring = true)
+        compose.onNodeWithTag("field.to").assertTextContains("", substring = true)
+
+        compose.onNodeWithTag("field.to").performTextInput("elsewhere@example.com")
+        compose.onNodeWithTag("button.send").performClick()
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/sent").contains("Fwd:") }
+
+        val sent = readStub("/debug/sent")
+        assertTrue("the original's attachments were not carried: $sent",
+            sent.contains("\"forward_attachments_from\": 1"))
+        assertTrue("a forward should not thread into the original: $sent",
+            !sent.contains("\"in_reply_to\": \"<m1@x>\""))
+    }
 }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.filled.Edit
@@ -259,6 +260,16 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
                 modifier = Modifier.testTag("button.replyAll"),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = "Reply all", tint = theme.fgSecondary)
+            }
+            IconButton(
+                onClick = { vm.compose(replyTo = m, forward = true) },
+                modifier = Modifier.testTag("button.forward"),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Forward,
+                    contentDescription = "Forward",
+                    tint = theme.fgSecondary,
+                )
             }
             IconButton(
                 onClick = { vm.viewSource(m.uid) },

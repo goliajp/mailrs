@@ -34,15 +34,39 @@ import kotlinx.coroutines.launch
  * invisible until somebody noticed a colleague missing from a
  * thread.
  */
-fun MailViewModel.compose(replyTo: Wire.Message? = null, all: Boolean = false) {
-    val draft = if (replyTo == null) {
-        Draft(id = nextDraftId++)
-    } else {
-        val me = _state.value.myAddress
-        Draft(
+fun MailViewModel.compose(
+    replyTo: Wire.Message? = null,
+    all: Boolean = false,
+    forward: Boolean = false,
+) {
+    val draft = when {
+        replyTo == null -> Draft(id = nextDraftId++)
+
+        // **A forward starts empty and keeps everything else.** It goes
+        // to somebody new, so the recipients are theirs to type; the
+        // subject and the quoted original are the message being passed
+        // on, and `forwardFrom` is what lets the server carry that
+        // message's attachments without this phone downloading them.
+        //
+        // It is not a reply: `in_reply_to` would thread the forward
+        // into the original conversation, where the person receiving it
+        // has never been.
+        forward -> Draft(
+            id = nextDraftId++,
+            subject = ReplyRecipients.subject(replyTo.subject, forwarding = true),
+            body = ReplyRecipients.quote(
+                replyTo.sender,
+                replyTo.internalDate,
+                replyTo.textBody.orEmpty(),
+            ),
+            forwardFrom = replyTo.uid,
+        )
+
+        else -> Draft(
             id = nextDraftId++,
             to = if (all) {
-                ReplyRecipients.replyAll(replyTo.sender, replyTo.recipients, me).joinToString(", ")
+                ReplyRecipients.replyAll(replyTo.sender, replyTo.recipients, _state.value.myAddress)
+                    .joinToString(", ")
             } else {
                 ReplyRecipients.reply(replyTo.sender).joinToString(", ")
             },
@@ -243,6 +267,7 @@ fun MailViewModel.send() {
                 draft.inReplyTo,
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
+                forwardAttachmentsFrom = draft.forwardFrom,
             )
         } else {
             client.sendMultipart(
