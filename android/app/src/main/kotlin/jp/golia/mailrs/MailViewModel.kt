@@ -28,6 +28,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     private var nextDraftId = 1
     private var pending: PendingTriage? = null
     private var undoToken = 0
+    private var searchToken = 0
 
     /**
      * Point the app at a stub, the way the iOS suite's
@@ -219,6 +220,40 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Search, with the server's ranking left alone.
+     *
+     * An empty term is not a search — it clears back to the inbox rather
+     * than asking the server to rank everything.
+     */
+    fun search(term: String) {
+        searchToken++
+        val token = searchToken
+        if (term.isBlank()) {
+            _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
+            return
+        }
+        _state.value = _state.value.copy(searchTerm = term, searching = true, error = null)
+        viewModelScope.launch {
+            val r = client.search(term)
+            // A slower earlier search must not overwrite a later one —
+            // typing "ref" then "ref 2026" would otherwise settle on
+            // whichever request the network happened to finish last.
+            if (token != searchToken) return@launch
+            _state.value = when (r) {
+                is MailrsClient.Outcome.Ok ->
+                    _state.value.copy(results = r.value, searching = false)
+                is MailrsClient.Outcome.Err ->
+                    _state.value.copy(searching = false, error = r.message)
+            }
+        }
+    }
+
+    fun clearSearch() {
+        searchToken++
+        _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
+    }
+
     /** Put the row back and forget the action. Nothing was ever sent. */
     fun undo() {
         val action = pending ?: return
@@ -276,6 +311,15 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val myAddress: String = "",
         /** What the snackbar is offering to undo, or null. */
         val undo: PendingTriage? = null,
+        /** What was typed into the search field. */
+        val searchTerm: String = "",
+        /**
+         * Hits, in the server's ranking. Null means no search is on —
+         * distinct from an empty list, which means this term matched
+         * nothing, and the two say different things to the reader.
+         */
+        val results: List<Wire.Conversation>? = null,
+        val searching: Boolean = false,
     )
 
     /**

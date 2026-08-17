@@ -82,6 +82,19 @@ class MailrsClient(private val store: TokenStore) {
         Wire.Conversation.serializer(),
     )
 
+    /**
+     * `GET /api/conversations/search?q=`.
+     *
+     * **The order that comes back is the order to show.** The server
+     * walks ranked hit ids and hydrates them in that order, so a client
+     * that helpfully re-sorts by date throws the ranking away and shows
+     * the least relevant match first. The array is used as it arrives.
+     */
+    suspend fun search(term: String): Outcome<List<Wire.Conversation>> = decode(
+        get("/api/conversations/search?q=" + java.net.URLEncoder.encode(term, "UTF-8")),
+        Wire.Conversation.serializer(),
+    )
+
     suspend fun thread(threadId: String): Outcome<List<Wire.Message>> = decode(
         get("/api/conversations/${enc(threadId)}"),
         Wire.Message.serializer(),
