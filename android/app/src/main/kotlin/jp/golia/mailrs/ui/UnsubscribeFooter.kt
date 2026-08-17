@@ -18,6 +18,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.Unsubscribing
+import jp.golia.mailrs.unsubscribe
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.UnsubscribeOffer
 import jp.golia.mailrs.wire.Wire
@@ -42,7 +45,7 @@ import jp.golia.mailrs.wire.Wire
  * end up tapping it every week for a year.
  */
 @Composable
-fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: MailViewModel.UiState, vm: MailViewModel) {
+fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val context = LocalContext.current
     val offer = UnsubscribeOffer.of(m.unsubscribe)
@@ -52,7 +55,7 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: MailViewModel.Ui
 
     Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         when (progress) {
-            MailViewModel.Unsubscribing.Working -> {
+            Unsubscribing.Working -> {
                 CircularProgressIndicator(Modifier.size(14.dp), color = theme.accent, strokeWidth = 2.dp)
                 Text(
                     "Unsubscribing…",
@@ -62,7 +65,7 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: MailViewModel.Ui
                 )
             }
 
-            MailViewModel.Unsubscribing.Done -> {
+            Unsubscribing.Done -> {
                 Icon(
                     Icons.Filled.CheckCircle,
                     contentDescription = null,
@@ -91,7 +94,7 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: MailViewModel.Ui
                 ) {
                     Text(offer.label, color = theme.accent, fontSize = 12.sp)
                 }
-                if (progress == MailViewModel.Unsubscribing.Failed) {
+                if (progress == Unsubscribing.Failed) {
                     Text(
                         "That did not go through",
                         color = theme.warning,

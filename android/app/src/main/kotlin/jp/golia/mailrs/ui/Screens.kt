@@ -75,6 +75,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.Draft
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.attachmentOpened
+import jp.golia.mailrs.compose
+import jp.golia.mailrs.draftNoticeShown
+import jp.golia.mailrs.openDrafts
+import jp.golia.mailrs.applyToSelection
+import jp.golia.mailrs.clearSelection
+import jp.golia.mailrs.dismissUndo
+import jp.golia.mailrs.toggleSelected
+import jp.golia.mailrs.triage
+import jp.golia.mailrs.undo
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity
@@ -178,7 +190,7 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
+fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val snackbars = remember { SnackbarHostState() }
     var searchOpen by remember { mutableStateOf(false) }
@@ -410,203 +422,4 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
         }
     }
 }
-}
-
-/** A thread: messages as cards on the grouped background. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ThreadScreen(state: MailViewModel.UiState, vm: MailViewModel) {
-    val theme = LocalTheme.current
-    val open = state.open ?: return
-    val context = LocalContext.current
-
-    // Handing the file on is an action, so it happens once per file and
-    // then the offer is cleared. Leaving it in state would re-open the
-    // same attachment on every recomposition.
-    LaunchedEffect(state.openFile) {
-        val ready = state.openFile ?: return@LaunchedEffect
-        val uri = androidx.core.content.FileProvider.getUriForFile(
-            context,
-            context.packageName + ".files",
-            ready.file,
-        )
-        val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, ready.mimeType)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        // No app on the phone opens this kind of file. Saying so beats
-        // a tap that appears to do nothing.
-        runCatching { context.startActivity(intent) }
-        vm.attachmentOpened()
-    }
-    Scaffold(
-        containerColor = theme.bgSecondary,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        open.subject.ifBlank { "(no subject)" },
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = theme.bgSecondary,
-                    titleContentColor = theme.fg,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = { vm.closeThread() }, modifier = Modifier.testTag("button.back")) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = theme.fgSecondary)
-                    }
-                },
-            )
-        }
-    ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when {
-                state.busy && state.messages.isEmpty() ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center), color = theme.accent)
-                state.error != null && state.messages.isEmpty() ->
-                    Conclusion("Could not open this conversation", state.error, Modifier.align(Alignment.Center))
-                else -> Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)
-                        .testTag("list.messages"),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    state.messages.forEach { MessageCard(open.threadId, it, state, vm) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MessageCard(threadId: String, m: Wire.Message, state: MailViewModel.UiState, vm: MailViewModel) {
-    val theme = LocalTheme.current
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(theme.surface)
-            .padding(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SenderAvatarView(m.sender, size = 30.dp)
-            Column(Modifier.padding(start = 10.dp).weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        SenderIdentity.readableName(m.sender),
-                        color = theme.fg,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    SenderTrustMark(m.senderTrust)
-                    SenderClaimMark(m.sender)
-                }
-                Text(RowDate.format(m.internalDate), color = theme.fgMuted, fontSize = 11.sp)
-            }
-        }
-        // HTML first, and not as a preference. A message that was
-        // composed as HTML and shown as its `text_body` is a different
-        // message: the fixture's plain part is the two words "plain
-        // fallback" against a newsletter, which is what this client
-        // showed until now.
-        val html = m.htmlBody
-        if (html.isNullOrBlank()) {
-            Text(
-                m.textBody.orEmpty().ifBlank { "(no body)" },
-                color = theme.fg,
-                fontSize = 15.sp,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-        } else {
-            MessageBody(html, Modifier.padding(top = 10.dp))
-        }
-        AttachmentList(m.uid, m.attachments, state, vm)
-        UnsubscribeFooter(threadId, m, state, vm)
-
-        Row(Modifier.padding(top = 6.dp)) {
-            IconButton(
-                onClick = { vm.compose(replyTo = m) },
-                modifier = Modifier.testTag("button.reply"),
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = "Reply", tint = theme.fgSecondary)
-            }
-            IconButton(
-                onClick = { vm.compose(replyTo = m, all = true) },
-                modifier = Modifier.testTag("button.replyAll"),
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = "Reply all", tint = theme.fgSecondary)
-            }
-            IconButton(
-                onClick = { vm.viewSource(m.uid) },
-                modifier = Modifier.testTag("button.viewSource"),
-            ) {
-                Icon(Icons.Filled.Code, contentDescription = "View source", tint = theme.fgSecondary)
-            }
-        }
-    }
-}
-
-/**
- * State is a mark and a colour, not a sentence.
- *
- * `ios/DESIGN.md`: *"'Suspicious sender' spelled out beside a name and a
- * time was two words too many for the line; it is an orange shield now,
- * with the words kept as the accessibility label"*. The first Android
- * draft spelled it out, which is the thing that made the header wrap.
- *
- * **There is no positive mark** — see `SenderIdentity`.
- */
-@Composable
-private fun SenderTrustMark(senderTrust: String) {
-    val theme = LocalTheme.current
-    if (!SenderIdentity.isSuspicious(senderTrust)) return
-    Icon(
-        Icons.Filled.Warning,
-        contentDescription = "Suspicious sender",
-        tint = theme.warning,
-        modifier = Modifier.padding(start = 5.dp).size(14.dp),
-    )
-}
-
-/** Where it actually came from, when the name says somewhere else. */
-@Composable
-private fun SenderClaimMark(sender: String) {
-    val theme = LocalTheme.current
-    val actual = SenderIdentity.contradictedDomain(sender) ?: return
-    Text(
-        actual,
-        color = theme.warning,
-        fontSize = 10.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            .padding(start = 5.dp)
-            .background(theme.warning.copy(alpha = 0.14f), RoundedCornerShape(5.dp))
-            .padding(horizontal = 5.dp, vertical = 1.dp),
-    )
-}
-
-/** An absence, with the sentence finished. */
-@Composable
-internal fun Conclusion(headline: String, detail: String, modifier: Modifier = Modifier) {
-    val theme = LocalTheme.current
-    Column(
-        modifier.padding(32.dp).testTag("conclusion"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(headline, color = theme.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Text(
-            detail,
-            color = theme.fgMuted,
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-    }
 }

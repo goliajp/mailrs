@@ -28,6 +28,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
+import jp.golia.mailrs.AccountDetail
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.closeAccount
+import jp.golia.mailrs.closeAdmin
+import jp.golia.mailrs.closeAdminRow
+import jp.golia.mailrs.openAdmin
+import jp.golia.mailrs.cancelCompose
+import jp.golia.mailrs.closeDrafts
 import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -57,7 +65,7 @@ private enum class Screen {
  * no chance of the two disagreeing about which screen to leave.
  */
 @Composable
-fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
+fun MailrsApp(vm: MailViewModel, state: UiState) {
     val windowSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current
     val windowWidthDp = with(density) { windowSize.width.toDp() }

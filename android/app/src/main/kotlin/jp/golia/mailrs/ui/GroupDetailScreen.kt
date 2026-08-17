@@ -37,6 +37,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.AdminDetail
+import jp.golia.mailrs.AdminSection
+import jp.golia.mailrs.addGroupMember
+import jp.golia.mailrs.closeAdminRow
+import jp.golia.mailrs.removeGroupMember
 import jp.golia.mailrs.MailViewModel
 
 /**
@@ -54,9 +59,9 @@ import jp.golia.mailrs.MailViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GroupDetailScreen(detail: MailViewModel.AdminDetail, vm: MailViewModel) {
+fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
     val theme = LocalTheme.current
-    val editable = detail.section == MailViewModel.AdminSection.EmailGroups
+    val editable = detail.section == AdminSection.EmailGroups
     var adding by remember { mutableStateOf(false) }
     var address by remember { mutableStateOf("") }
 

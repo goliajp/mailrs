@@ -30,6 +30,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.Draft
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.closeDrafts
+import jp.golia.mailrs.discardDraft
+import jp.golia.mailrs.editSavedDraft
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.Wire
 
@@ -47,7 +52,7 @@ import jp.golia.mailrs.wire.Wire
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DraftsScreen(state: MailViewModel.UiState, vm: MailViewModel) {
+fun DraftsScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     Scaffold(
         containerColor = theme.bg,

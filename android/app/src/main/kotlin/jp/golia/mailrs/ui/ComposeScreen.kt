@@ -41,6 +41,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import jp.golia.mailrs.wire.RecipientAutocomplete
+import jp.golia.mailrs.RecipientField
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.attach
+import jp.golia.mailrs.cancelCompose
+import jp.golia.mailrs.clearSuggestions
+import jp.golia.mailrs.detach
+import jp.golia.mailrs.editDraft
+import jp.golia.mailrs.send
+import jp.golia.mailrs.suggestContacts
 import jp.golia.mailrs.MailViewModel
 
 /**
@@ -59,7 +68,7 @@ import jp.golia.mailrs.MailViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
+fun ComposeScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val draft = state.composing ?: return
 
@@ -144,9 +153,9 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
             },
         ) {
             vm.editDraft(to = it)
-            vm.suggestContacts(MailViewModel.RecipientField.To, it)
+            vm.suggestContacts(RecipientField.To, it)
         }
-        Suggestions(state, MailViewModel.RecipientField.To, vm) { picked ->
+        Suggestions(state, RecipientField.To, vm) { picked ->
             vm.editDraft(to = RecipientAutocomplete.completing(to, picked))
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
@@ -154,9 +163,9 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
         if (extraLines) {
             CompactField("Cc", cc, "field.cc") {
                 vm.editDraft(cc = it)
-                vm.suggestContacts(MailViewModel.RecipientField.Cc, it)
+                vm.suggestContacts(RecipientField.Cc, it)
             }
-            Suggestions(state, MailViewModel.RecipientField.Cc, vm) { picked ->
+            Suggestions(state, RecipientField.Cc, vm) { picked ->
                 vm.editDraft(cc = RecipientAutocomplete.completing(cc, picked))
             }
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
@@ -165,9 +174,9 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
             // Cc has told a mailing list who else is on it.
             CompactField("Bcc", bcc, "field.bcc") {
                 vm.editDraft(bcc = it)
-                vm.suggestContacts(MailViewModel.RecipientField.Bcc, it)
+                vm.suggestContacts(RecipientField.Bcc, it)
             }
-            Suggestions(state, MailViewModel.RecipientField.Bcc, vm) { picked ->
+            Suggestions(state, RecipientField.Bcc, vm) { picked ->
                 vm.editDraft(bcc = RecipientAutocomplete.completing(bcc, picked))
             }
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
@@ -286,8 +295,8 @@ private fun CompactField(
  */
 @Composable
 private fun Suggestions(
-    state: MailViewModel.UiState,
-    field: MailViewModel.RecipientField,
+    state: UiState,
+    field: RecipientField,
     vm: MailViewModel,
     onPick: (String) -> Unit,
 ) {

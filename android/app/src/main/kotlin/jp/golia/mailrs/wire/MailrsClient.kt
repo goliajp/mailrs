@@ -32,7 +32,7 @@ class MailrsClient(private val store: TokenStore) {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private val json = Json {
+    internal val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
     }
@@ -340,129 +340,8 @@ class MailrsClient(private val store: TokenStore) {
     /** One file on its way out: a name, a type, and a body to stream. */
     data class Upload(val filename: String, val body: RequestBody)
 
-    // ── Operator ────────────────────────────────────────────────────
-
-    suspend fun accounts(): Outcome<List<Admin.Account>> =
-        one(get("/api/admin/accounts"), Admin.AccountList.serializer()).map { it.items }
-
-    suspend fun aliases(): Outcome<List<Admin.Alias>> =
-        one(get("/api/admin/aliases"), Admin.AliasList.serializer()).map { it.items }
-
-    suspend fun domains(): Outcome<List<Admin.Domain>> =
-        one(get("/api/admin/domains"), Admin.DomainList.serializer()).map { it.items }
-
-    suspend fun queue(): Outcome<List<Admin.QueueJob>> =
-        one(get("/api/admin/queues"), Admin.QueueList.serializer()).map { it.items }
-
-    suspend fun dmarcReports(): Outcome<List<Admin.DmarcReport>> =
-        one(get("/api/admin/dmarc/reports"), Admin.DmarcList.serializer()).map { it.items }
-
-    suspend fun auditLog(): Outcome<List<Admin.AuditEntry>> =
-        one(get("/api/admin/audit-log"), Admin.AuditList.serializer()).map { it.items }
-
-    /**
-     * `GET /api/mail/messages/{uid}/raw` — the message as it arrived.
-     *
-     * Answered as `message/rfc822`, not JSON. A client that decoded it
-     * would fail on a message that came back perfectly well.
-     */
-    suspend fun messageSource(uid: Int): Outcome<String> = get("/api/mail/messages/$uid/raw")
-
-    suspend fun groups(): Outcome<List<Admin.Group>> =
-        one(get("/api/admin/groups"), Admin.GroupList.serializer()).map { it.items }
-
-    suspend fun emailGroups(): Outcome<List<Admin.EmailGroup>> =
-        one(get("/api/admin/email-groups"), Admin.EmailGroupList.serializer()).map { it.items }
-
-    suspend fun emailGroupMembers(id: Long): Outcome<List<String>> =
-        one(get("/api/admin/email-groups/$id/members"), Admin.MemberList.serializer()).map { it.members }
-
-    suspend fun addEmailGroupMember(id: Long, address: String): Outcome<String> = post(
-        url("/api/admin/email-groups/$id/members"),
-        json.encodeToString(Admin.AddMemberRequest.serializer(), Admin.AddMemberRequest(address)),
-        authorized = true,
-    )
-
-    suspend fun removeEmailGroupMember(id: Long, address: String): Outcome<String> =
-        delete("/api/admin/email-groups/$id/members/" + enc(address))
-
-    suspend fun groupMembers(id: Long): Outcome<List<String>> =
-        one(get("/api/admin/groups/$id/members"), Admin.MemberList.serializer()).map { it.members }
-
-    suspend fun groupPermissions(id: Long): Outcome<List<String>> =
-        one(get("/api/admin/groups/$id/permissions"), Admin.PermissionList.serializer())
-            .map { it.permissions }
-
-    suspend fun apps(): Outcome<List<Admin.App>> =
-        one(get("/api/admin/apps"), Admin.AppList.serializer()).map { it.items }
-
-    suspend fun accountQuota(address: String): Outcome<Long?> =
-        one(get("/api/admin/accounts/" + enc(address) + "/quota"), Admin.Quota.serializer())
-            .map { it.quotaBytes }
-
-    suspend fun accountSieve(address: String): Outcome<String> =
-        one(get("/api/admin/accounts/" + enc(address) + "/sieve"), Admin.Sieve.serializer())
-            .map { it.script }
-
-    suspend fun accountWebhooks(address: String): Outcome<List<Admin.Webhook>> =
-        one(
-            get("/api/admin/accounts/" + enc(address) + "/webhook-subscriptions"),
-            Admin.WebhookList.serializer(),
-        ).map { it.items }
-
-    suspend fun agentKeys(): Outcome<List<Admin.AgentKey>> =
-        one(get("/api/agent/keys"), Admin.AgentKeyList.serializer()).map { it.items }
-
-    suspend fun deleteAgentKey(id: Long): Outcome<String> = delete("/api/agent/keys/$id")
-
-    suspend fun suppressions(): Outcome<List<String>> =
-        one(get("/api/admin/suppressions"), Admin.SuppressionList.serializer()).map { it.items }
-
-    /** `allowed` is the whitelist, `blocked` the blacklist. */
-    suspend fun senderList(allowed: Boolean): Outcome<List<String>> =
-        one(get(senderListPath(allowed)), Admin.SenderList.serializer()).map { it.entries }
-
-    suspend fun addToSenderList(allowed: Boolean, address: String): Outcome<String> = post(
-        url(senderListPath(allowed)),
-        json.encodeToString(Admin.AddSenderRequest.serializer(), Admin.AddSenderRequest(address)),
-        authorized = true,
-    )
-
-    suspend fun removeFromSenderList(allowed: Boolean, address: String): Outcome<String> =
-        delete(senderListPath(allowed) + "/" + enc(address))
-
-    private fun senderListPath(allowed: Boolean) =
-        if (allowed) "/api/spam/whitelist" else "/api/spam/blacklist"
-
-    suspend fun addAlias(req: Admin.AddAliasRequest): Outcome<String> = post(
-        url("/api/admin/aliases"),
-        json.encodeToString(Admin.AddAliasRequest.serializer(), req),
-        authorized = true,
-    )
-
-    suspend fun deleteAlias(id: Long): Outcome<String> = delete("/api/admin/aliases/$id")
-
-    suspend fun addDomain(name: String): Outcome<String> = post(
-        url("/api/admin/domains"),
-        json.encodeToString(Admin.AddDomainRequest.serializer(), Admin.AddDomainRequest(name)),
-        authorized = true,
-    )
-
-    suspend fun deleteDomain(name: String): Outcome<String> = delete("/api/admin/domains/" + enc(name))
-
-    private suspend fun delete(path: String): Outcome<String> = withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext Outcome.Err("Not signed in.")
-        send(
-            Request.Builder()
-                .url(s.server + path)
-                .header("Authorization", "Bearer ${s.token}")
-                .delete()
-                .build(),
-        )
-    }
-
     /** Decode one object, where [decode] decodes an array of them. */
-    private fun <T> one(
+    internal fun <T> one(
         r: Outcome<String>,
         serializer: kotlinx.serialization.KSerializer<T>,
     ): Outcome<T> = when (r) {
@@ -473,7 +352,7 @@ class MailrsClient(private val store: TokenStore) {
         is Outcome.Err -> r
     }
 
-    private fun <T, R> Outcome<T>.map(f: (T) -> R): Outcome<R> = when (this) {
+    internal fun <T, R> Outcome<T>.map(f: (T) -> R): Outcome<R> = when (this) {
         is Outcome.Ok -> Outcome.Ok(f(value))
         is Outcome.Err -> this
     }
@@ -493,12 +372,12 @@ class MailrsClient(private val store: TokenStore) {
         is Outcome.Err -> r
     }
 
-    private suspend fun get(path: String): Outcome<String> = withContext(Dispatchers.IO) {
+    internal suspend fun get(path: String): Outcome<String> = withContext(Dispatchers.IO) {
         val s = session ?: return@withContext Outcome.Err("Not signed in.")
         send(Request.Builder().url(s.server + path).header("Authorization", "Bearer ${s.token}").get().build())
     }
 
-    private suspend fun post(url: String, body: String, authorized: Boolean): Outcome<String> =
+    internal suspend fun post(url: String, body: String, authorized: Boolean): Outcome<String> =
         withContext(Dispatchers.IO) {
             val b = Request.Builder().url(url).post(body.toRequestBody(JSON_MEDIA))
             if (authorized) {
@@ -508,7 +387,7 @@ class MailrsClient(private val store: TokenStore) {
             send(b.build())
         }
 
-    private fun send(request: Request): Outcome<String> = try {
+    internal fun send(request: Request): Outcome<String> = try {
         http.newCall(request).execute().use { response ->
             val text = response.body.string()
             when {
@@ -523,9 +402,9 @@ class MailrsClient(private val store: TokenStore) {
         Outcome.Err("Could not reach the server: ${e.message}")
     }
 
-    private fun url(path: String) = (session?.server ?: "") + path
+    internal fun url(path: String) = (session?.server ?: "") + path
 
-    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+    internal fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
 
     /** `mail.golia.jp` and `https://mail.golia.jp/` mean the same thing. */
     private fun normalise(server: String): String {

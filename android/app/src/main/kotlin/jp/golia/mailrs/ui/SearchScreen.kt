@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.UiState
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.Wire
 
@@ -49,7 +50,7 @@ import jp.golia.mailrs.wire.Wire
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MailSearchBar(
-    state: MailViewModel.UiState,
+    state: UiState,
     vm: MailViewModel,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -88,7 +89,7 @@ fun MailSearchBar(
 }
 
 @Composable
-private fun SearchResults(state: MailViewModel.UiState, vm: MailViewModel) {
+private fun SearchResults(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val results = state.results
 
