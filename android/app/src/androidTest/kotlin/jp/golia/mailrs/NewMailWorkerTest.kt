@@ -26,22 +26,12 @@ import org.junit.runner.RunWith
  * preference, notification — against the same stub the flow tests use.
  */
 @RunWith(AndroidJUnit4::class)
-class NewMailWorkerTest {
+class NewMailWorkerTest : GrantsNotifications() {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Before
     fun signedInAgainstTheStub() {
-        // Granted the way a person grants it. Without this the worker
-        // runs, decides correctly, and posts nothing — the platform
-        // drops it silently — so the test would be asserting the
-        // permission dialog rather than the rule.
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
-                context.packageName,
-                android.Manifest.permission.POST_NOTIFICATIONS,
-            )
-        }
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
             ?: "http://127.0.0.1:6039"
         TokenStore(context).write(TokenStore.Session(stub, "test-token"))

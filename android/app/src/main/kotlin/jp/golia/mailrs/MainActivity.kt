@@ -37,8 +37,16 @@ class MainActivity : ComponentActivity() {
     private var model: MailViewModel? = null
 
     fun useStubServer(url: String) {
+        // Remembered, not dropped. This used to be `model?.useServer(…)`
+        // and did nothing at all when the composition had not run yet —
+        // so the sign-in that followed went to the real host and failed
+        // with "Failure in SSL library", which reads as a network
+        // problem and is really a test hook that missed.
+        pendingServer = url
         model?.useServer(url)
     }
+
+    private var pendingServer: String? = null
 
     /**
      * Start from signed-out, the way the iOS suite's
@@ -168,7 +176,7 @@ class MainActivity : ComponentActivity() {
                     // is this app's `-mailrsBaseURL`. Ignored outside a
                     // debug build; see `MailViewModel.useServer`.
                     model = vm
-                    vm.useServer(intent?.getStringExtra("mailrs_base_url"))
+                    vm.useServer(pendingServer ?: intent?.getStringExtra("mailrs_base_url"))
                     // Once per intent, not once per recomposition: the
                     // key is the intent itself, so a rotation does not
                     // reopen a composer the person just cancelled.
