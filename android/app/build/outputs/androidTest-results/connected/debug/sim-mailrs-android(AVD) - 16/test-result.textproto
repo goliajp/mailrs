@@ -1,7 +1,7 @@
 # proto-message: google.testing.platform.proto.api.core.TestSuiteResult
-# 2026-08-17T15:31:30.619124Z:
+# 2026-08-17T15:53:16.933Z:
 test_suite_meta_data {
-  scheduled_test_case_count: 1
+  scheduled_test_case_count: 14
   device {
     id: "emulator-5570"
     friendly_name: "primary"
@@ -12,14 +12,126 @@ test_result {
   test_case {
     test_class: "MailFlowTest"
     test_package: "jp.golia.mailrs"
-    test_method: "back_collapses_the_search"
+    test_method: "a_message_with_no_recipient_cannot_be_sent"
     start_time {
-      seconds: 1786980685
-      nanos: 348000000
+      seconds: 1786981928
+      nanos: 111000000
     }
     end_time {
-      seconds: 1786980690
-      nanos: 63000000
+      seconds: 1786981933
+      nanos: 489000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-a_message_with_no_recipient_cannot_be_sent.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "back_closes_the_thread_rather_than_the_app"
+    start_time {
+      seconds: 1786981933
+      nanos: 496000000
+    }
+    end_time {
+      seconds: 1786981938
+      nanos: 818000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-back_closes_the_thread_rather_than_the_app.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "back_collapses_the_search"
+    start_time {
+      seconds: 1786981938
+      nanos: 819000000
+    }
+    end_time {
+      seconds: 1786981943
+      nanos: 123000000
     }
     device {
       id: "emulator-5570"
@@ -34,6 +146,622 @@ test_result {
     }
     source_path {
       path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-back_collapses_the_search.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "replying_sends_a_reply_and_not_a_new_message"
+    start_time {
+      seconds: 1786981943
+      nanos: 123000000
+    }
+    end_time {
+      seconds: 1786981950
+      nanos: 842000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-replying_sends_a_reply_and_not_a_new_message.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "a_search_with_no_hits_says_which_term_missed"
+    start_time {
+      seconds: 1786981950
+      nanos: 843000000
+    }
+    end_time {
+      seconds: 1786981955
+      nanos: 935000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-a_search_with_no_hits_says_which_term_missed.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "opening_a_conversation_shows_its_messages"
+    start_time {
+      seconds: 1786981955
+      nanos: 935000000
+    }
+    end_time {
+      seconds: 1786981961
+      nanos: 74000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-opening_a_conversation_shows_its_messages.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "back_cancels_the_composer"
+    start_time {
+      seconds: 1786981961
+      nanos: 75000000
+    }
+    end_time {
+      seconds: 1786981965
+      nanos: 601000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-back_cancels_the_composer.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "an_unreachable_server_says_so"
+    start_time {
+      seconds: 1786981965
+      nanos: 602000000
+    }
+    end_time {
+      seconds: 1786981968
+      nanos: 423000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-an_unreachable_server_says_so.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "a_body_renders_and_holds_its_remote_content"
+    start_time {
+      seconds: 1786981968
+      nanos: 423000000
+    }
+    end_time {
+      seconds: 1786981973
+      nanos: 565000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-a_body_renders_and_holds_its_remote_content.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "signing_in_lists_the_inbox"
+    start_time {
+      seconds: 1786981973
+      nanos: 566000000
+    }
+    end_time {
+      seconds: 1786981977
+      nanos: 902000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-signing_in_lists_the_inbox.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "a_swiped_row_can_be_brought_back"
+    start_time {
+      seconds: 1786981977
+      nanos: 902000000
+    }
+    end_time {
+      seconds: 1786981982
+      nanos: 102000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-a_swiped_row_can_be_brought_back.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "search_keeps_the_servers_ranking"
+    start_time {
+      seconds: 1786981982
+      nanos: 102000000
+    }
+    end_time {
+      seconds: 1786981987
+      nanos: 438000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-search_keeps_the_servers_ranking.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "the_second_attachment_is_the_one_fetched"
+    start_time {
+      seconds: 1786981987
+      nanos: 439000000
+    }
+    end_time {
+      seconds: 1786981994
+      nanos: 351000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-the_second_attachment_is_the_one_fetched.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "the_server_field_can_be_changed"
+    start_time {
+      seconds: 1786981994
+      nanos: 351000000
+    }
+    end_time {
+      seconds: 1786981996
+      nanos: 288000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-the_server_field_can_be_changed.txt"
     }
   }
   output_artifact {

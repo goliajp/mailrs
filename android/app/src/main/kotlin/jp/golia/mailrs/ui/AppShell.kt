@@ -1,0 +1,147 @@
+package jp.golia.mailrs.ui
+
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.dp
+import jp.golia.mailrs.MailViewModel
+import kotlin.coroutines.cancellation.CancellationException
+
+/** Which screen is showing, in the order they stack. */
+private enum class Screen { SignIn, List, Thread, Compose }
+
+/**
+ * The app's one navigation decision, and the motion that goes with it.
+ *
+ * **Screens used to swap with no transition at all**, which on Android
+ * reads as a redraw rather than a move: nothing tells the eye whether it
+ * went deeper or came back. Material's shared-axis pattern is the
+ * platform's answer — forward enters from the right, back from the left.
+ *
+ * **Back is predictive.** From Android 14 the system draws the app
+ * peeling back under the thumb while the gesture is still undecided, and
+ * an app that only reacts on release is the one screen in the phone that
+ * does not move until it is too late to change your mind. The progress
+ * flow scales and slides the screen being left, and a cancelled gesture
+ * snaps it back — the cancellation *is* the signal, which is why it is
+ * caught rather than allowed to propagate.
+ *
+ * `PredictiveBackHandler` also serves an ordinary press: the dispatcher
+ * completes the flow at once, so there is no separate `BackHandler` and
+ * no chance of the two disagreeing about which screen to leave.
+ */
+@Composable
+fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
+    val screen = when {
+        !state.signedIn -> Screen.SignIn
+        // The composer sits on top of whatever opened it, so leaving it
+        // returns there rather than to the inbox.
+        state.composing != null -> Screen.Compose
+        state.open != null -> Screen.Thread
+        else -> Screen.List
+    }
+
+    var backProgress by remember { mutableFloatStateOf(0f) }
+    // Read at gesture time, not at registration time: the block below is
+    // captured once and would otherwise leave whichever screen was
+    // showing when it was composed.
+    val current by rememberUpdatedState(screen)
+
+    PredictiveBackHandler(enabled = screen == Screen.Thread || screen == Screen.Compose) { progress ->
+        try {
+            progress.collect { backProgress = it.progress }
+            backProgress = 0f
+            when (current) {
+                Screen.Compose -> vm.cancelCompose()
+                Screen.Thread -> vm.closeThread()
+                else -> Unit
+            }
+        } catch (_: CancellationException) {
+            // Let go without committing. The screen returns to where it
+            // was, which is the whole point of showing the peek.
+            backProgress = 0f
+        }
+    }
+
+    // **A `Box`, not `AnimatedContent`.** The obvious tool measures its
+    // children against an unbounded height while it works out what size
+    // to animate to, and a child that fills what it is given then fills
+    // infinity: the expanded search field came out 2400px tall and its
+    // results were laid out at y=2574, off the bottom of a 2400px
+    // screen. `using null` does not help — the measurement, not the size
+    // animation, is what does it. Measured, not guessed: taking
+    // `AnimatedContent` out and changing nothing else turned the search
+    // tests green.
+    //
+    // Every screen is composed here and only the current one is visible,
+    // so each is measured against the Box's real constraints.
+    // **The window's size, in so many words.** `AnimatedVisibility`
+    // measures its content against an unbounded height so the content
+    // keeps its full size while the container animates — which means
+    // `fillMaxSize()` inside it fills infinity. The expanded search
+    // field came out 2400px tall and its results were laid out at
+    // y=2574, off the bottom of a 2400px screen. Isolated by taking the
+    // wrapper out and changing nothing else: the search tests went
+    // green, and back red when it returned. A screen that is meant to
+    // be exactly one window tall has to be told how tall that is.
+    val windowSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val windowModifier = with(density) {
+        Modifier.size(windowSize.width.toDp(), windowSize.height.toDp())
+    }
+
+    val previous = remember { intArrayOf(screen.ordinal) }
+    val forward = screen.ordinal >= previous[0]
+    previous[0] = screen.ordinal
+    val enterFrom = if (forward) 1 else -1
+
+    Box(Modifier.fillMaxSize()) {
+        for (candidate in Screen.entries) {
+            AnimatedVisibility(
+                visible = screen == candidate,
+                enter = slideInHorizontally { it * enterFrom } + fadeIn(),
+                exit = slideOutHorizontally { -it * enterFrom / 4 } + fadeOut(),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                val peel = backProgress
+                val peeled = windowModifier
+                    .graphicsLayer {
+                        // The system's own shape: shrink a little, slide
+                        // toward the edge the gesture came from, and round
+                        // the corners so it reads as a card lifting off.
+                        scaleX = 1f - 0.08f * peel
+                        scaleY = 1f - 0.08f * peel
+                        translationX = peel * 24.dp.toPx()
+                    }
+                    .clip(RoundedCornerShape((peel * 24f).dp))
+
+                when (candidate) {
+                    Screen.SignIn -> Box(windowModifier) {
+                        SignInScreen(state.busy, state.error) { s, u, p -> vm.signIn(s, u, p) }
+                    }
+                    Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
+                    Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }
+                    Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
+                }
+            }
+        }
+    }
+}
