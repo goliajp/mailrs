@@ -3,6 +3,8 @@ package jp.golia.mailrs
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import jp.golia.mailrs.widget.WidgetState
+import jp.golia.mailrs.widget.refreshInboxWidgets
 import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailCache
@@ -106,6 +108,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         // And the share sheet's top row, which is a list of people this
         // account writes to and belongs to the account.
         RecentRecipients.clear(getApplication())
+        // And the widget, or the launcher would keep showing this
+        // account's mail to whoever signs in next.
+        WidgetState.clear(getApplication())
+        viewModelScope.launch { refreshInboxWidgets(getApplication()) }
         _state.value = UiState(appearance = prefs.appearance, notifyNewMail = prefs.notifyNewMail)
         // Nothing to check for once nobody is signed in, and a count
         // left behind would make the next person's first check
@@ -139,6 +145,12 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             when (val r = client.conversations(list)) {
                 is MailrsClient.Outcome.Ok -> {
                     cache.writeConversations(r.value, list.name)
+                    // The home-screen widget draws what was last
+                    // fetched and never fetches itself — it is redrawn
+                    // on every launcher scroll. Written here because
+                    // this is where the list is already in hand.
+                    WidgetState.write(getApplication(), signedIn = true, conversations = r.value)
+                    viewModelScope.launch { refreshInboxWidgets(getApplication()) }
                     // Still the list that was asked for: switching lists
                     // mid-flight must not paint the old one's answer.
                     if (_state.value.list != list) return@launch

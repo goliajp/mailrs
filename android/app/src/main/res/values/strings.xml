@@ -8,4 +8,5 @@
     <string name="shortcut_compose_long">New message</string>
     <string name="shortcut_search_short">Search</string>
     <string name="shortcut_search_long">Search mail</string>
+    <string name="widget_description">Unread mail at a glance</string>
 </resources>

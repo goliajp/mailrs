@@ -17,6 +17,8 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import jp.golia.mailrs.widget.WidgetState
+import jp.golia.mailrs.widget.refreshInboxWidgets
 import java.util.concurrent.TimeUnit
 
 /**
@@ -67,10 +69,16 @@ class NewMailWorker(
         // difference between a notification worth reading on a lock
         // screen and one that says only that something happened. One
         // extra request, and only when something actually arrived.
-        val newest = (client.conversations(MailList.Inbox) as? MailrsClient.Outcome.Ok)
-            ?.value
-            ?.filter { it.unreadCount > 0 }
-            ?.maxByOrNull { it.lastDate }
+        val inbox = (client.conversations(MailList.Inbox) as? MailrsClient.Outcome.Ok)?.value
+        val newest = inbox?.filter { it.unreadCount > 0 }?.maxByOrNull { it.lastDate }
+
+        // The home-screen widget draws what was last fetched and never
+        // fetches itself, and the list is already in hand — so it is
+        // written from this trip rather than from a second one.
+        if (inbox != null) {
+            WidgetState.write(applicationContext, signedIn = true, conversations = inbox)
+            refreshInboxWidgets(applicationContext)
+        }
         notify(
             context = applicationContext,
             title = newest?.let { SenderIdentity.readableName(it.participants.firstOrNull().orEmpty()) }

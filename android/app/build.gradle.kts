@@ -75,6 +75,8 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
     implementation(libs.adaptive)
+    implementation(libs.glance)
+    implementation(libs.glance.material3)
     implementation(libs.splashscreen)
     implementation(libs.work.runtime)
     androidTestImplementation(libs.work.testing)

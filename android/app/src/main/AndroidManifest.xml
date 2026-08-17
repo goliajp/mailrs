@@ -69,6 +69,22 @@
           and making the copy world-readable instead would be a worse
           way to make it work.
         -->
+        <!--
+          The inbox on the home screen. Exported because the launcher is
+          another app and has to be able to bind it — that is what a
+          widget is.
+        -->
+        <receiver
+            android:name=".widget.InboxWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inbox_widget_info" />
+        </receiver>
+
         <!-- Archive, from the notification shade. Not exported: only
              this app's own PendingIntent triggers it. -->
         <receiver
