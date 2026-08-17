@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -935,6 +936,59 @@ class MailFlowTest {
 
         compose.onNodeWithText("Administrators").assertIsDisplayed()
         compose.onNodeWithText("built in").assertIsDisplayed()
+    }
+
+    /**
+     * A group is a list with a list inside it, and the inner one is the
+     * point: "Support" says nothing, its members are what somebody came
+     * for. Adding one goes to the server and the list is re-read.
+     */
+    @Test
+    fun an_email_group_opens_to_its_members() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("admin.EmailGroups").performScrollTo().performClick()
+        waitForTag("list.admin", "the email groups never listed")
+
+        compose.onAllNodesWithTag("row.admin").onFirst().performClick()
+        waitForTag("list.groupMembers", "the group never opened")
+        compose.onNodeWithText("lihao@golia.jp").assertIsDisplayed()
+
+        val before = compose.onAllNodesWithTag("row.member").fetchSemanticsNodes().size
+        compose.onNodeWithTag("button.addMember").performClick()
+        waitForTag("field.member", "the form never opened")
+        compose.onNodeWithTag("field.member").performTextInput("newcomer@golia.jp")
+        compose.onNodeWithTag("button.confirmMember").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.member").fetchSemanticsNodes().size == before + 1
+        }
+    }
+
+    /**
+     * A permission group shows what it grants and offers no edit.
+     *
+     * Its membership decides what somebody may *do*, and granting that
+     * from a phone list — no confirmation, no record of why — is not an
+     * edit this offers. So the grants are on screen and the add button
+     * is not.
+     */
+    @Test
+    fun a_permission_group_shows_its_grants_and_cannot_be_edited() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("admin.Groups").performScrollTo().performClick()
+        waitForTag("list.admin", "the groups never listed")
+
+        compose.onAllNodesWithTag("row.admin").onFirst().performClick()
+        waitForTag("list.groupMembers", "the group never opened")
+        compose.onNodeWithText("admin.accounts").assertIsDisplayed()
+        compose.onAllNodesWithTag("button.addMember").assertCountEquals(0)
     }
 
     private fun readStub(path: String): String {

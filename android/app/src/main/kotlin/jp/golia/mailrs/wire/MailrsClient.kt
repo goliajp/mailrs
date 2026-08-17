@@ -348,6 +348,28 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun groups(): Outcome<List<Admin.Group>> =
         one(get("/api/admin/groups"), Admin.GroupList.serializer()).map { it.items }
 
+    suspend fun emailGroups(): Outcome<List<Admin.EmailGroup>> =
+        one(get("/api/admin/email-groups"), Admin.EmailGroupList.serializer()).map { it.items }
+
+    suspend fun emailGroupMembers(id: Long): Outcome<List<String>> =
+        one(get("/api/admin/email-groups/$id/members"), Admin.MemberList.serializer()).map { it.members }
+
+    suspend fun addEmailGroupMember(id: Long, address: String): Outcome<String> = post(
+        url("/api/admin/email-groups/$id/members"),
+        json.encodeToString(Admin.AddMemberRequest.serializer(), Admin.AddMemberRequest(address)),
+        authorized = true,
+    )
+
+    suspend fun removeEmailGroupMember(id: Long, address: String): Outcome<String> =
+        delete("/api/admin/email-groups/$id/members/" + enc(address))
+
+    suspend fun groupMembers(id: Long): Outcome<List<String>> =
+        one(get("/api/admin/groups/$id/members"), Admin.MemberList.serializer()).map { it.members }
+
+    suspend fun groupPermissions(id: Long): Outcome<List<String>> =
+        one(get("/api/admin/groups/$id/permissions"), Admin.PermissionList.serializer())
+            .map { it.permissions }
+
     suspend fun agentKeys(): Outcome<List<Admin.AgentKey>> =
         one(get("/api/agent/keys"), Admin.AgentKeyList.serializer()).map { it.items }
 
