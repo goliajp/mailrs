@@ -97,8 +97,8 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 # connection-pool exhaustion and a crash-recovery hang, closed at .8 (V5
 # ROW_REDO on by default) and .11/.12 (process-wide `open_path` dedup). Five of
 # the ten releases before .12 are named for mailrs recurrences of those two.
-spg-sqlx = "7.37.27"
-spg-embedded = "7.37.27"
+spg-sqlx = "7.37.28"
+spg-embedded = "7.37.28"
 # kevy-embedded — in-process RESP-compatible KV store with AOF + snapshot
 # persistence + native pub/sub bus. Zero network hop. The only kvdb
 # backend mailrs ships with after Phase C (v1.7.95+); the `redis` crate

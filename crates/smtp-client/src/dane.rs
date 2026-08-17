@@ -272,12 +272,16 @@ pub struct DaneVerifier {
 impl DaneVerifier {
     /// Build a verifier from the TLSA records published for the relay's port 25.
     pub fn new(tlsa_records: Vec<TlsaRecord>) -> Self {
-        let roots = rustls::RootCertStore {
-            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-        };
-        let pkix = rustls::client::WebPkiServerVerifier::builder(Arc::new(roots))
-            .build()
-            .expect("failed to build PKIX verifier");
+        // The same anchors the non-DANE path verifies against. This
+        // built its own store from `webpki-roots` alone, so a PKIX-TA /
+        // PKIX-EE record — usages 0 and 1, which require *standard PKIX
+        // as well as* a TLSA match — was checked against a trust store
+        // missing whatever the platform has and Mozilla does not. On
+        // 2026-08-17 that difference was every Microsoft-hosted domain.
+        let pkix =
+            rustls::client::WebPkiServerVerifier::builder(Arc::new(crate::pkix_root_store()))
+                .build()
+                .expect("failed to build PKIX verifier");
         Self {
             tlsa_records,
             pkix_verifier: pkix,
