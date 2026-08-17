@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
@@ -518,6 +519,45 @@ class MailFlowTest {
         val asked = readStub("/debug/unsubscribed")
         assertTrue("the request did not name thread t3: $asked", asked.contains("\"t3\""))
         assertTrue("the request did not name uid 8: $asked", asked.contains("8"))
+    }
+
+    /**
+     * Long press picks rows; the bar becomes the action bar.
+     *
+     * Android's own pattern, and the reason a row tap has two meanings:
+     * while a selection is on, tapping changes it rather than opening
+     * the thread. The assertion is at the wire — one batch request with
+     * both threads in it, not two requests — because a client that sent
+     * one per row would look identical on screen.
+     */
+    @Test
+    fun a_long_press_selects_and_the_bar_acts_on_all_of_them() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
+        waitForTag("button.endSelection", "the bar never became an action bar")
+
+        // The second row joins by an ordinary tap, which must not open it.
+        compose.onAllNodesWithTag("row.conversation")[1].performClick()
+        compose.onNodeWithText("2").assertIsDisplayed()
+
+        compose.onNodeWithTag("button.selectionArchive").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            readStub("/debug/verbs").contains("t1") && readStub("/debug/verbs").contains("t2")
+        }
+    }
+
+    /** And back leaves the selection rather than the app. */
+    @Test
+    fun back_ends_a_selection() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
+        waitForTag("button.endSelection", "the bar never became an action bar")
+
+        pressBack()
+        waitForTag("button.folders", "back did not end the selection")
     }
 
     private fun readStub(path: String): String {

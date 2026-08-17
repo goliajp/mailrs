@@ -138,11 +138,21 @@ class MailrsClient(private val store: TokenStore) {
         }
     }
 
+    /**
+     * The batch verbs the server accepts.
+     *
+     * Exactly the set in `conversation_verbs.rs` — an unknown one is a
+     * 500 with "unknown batch action" and no other signal, so the names
+     * are the wire's rather than this app's.
+     */
     enum class Verb(val wire: String) {
         Archive("archive"),
         Unarchive("unarchive"),
         Read("read"),
         Unread("unread"),
+        Star("star"),
+        Unstar("unstar"),
+        Delete("delete"),
     }
 
     /** Mark a thread read. Best-effort: the list still works if it fails. */

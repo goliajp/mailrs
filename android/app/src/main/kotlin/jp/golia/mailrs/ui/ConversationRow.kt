@@ -1,7 +1,9 @@
 package jp.golia.mailrs.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,8 +51,14 @@ import jp.golia.mailrs.wire.Wire
  * gives way before the date does, because a truncated name is still a
  * name and a truncated timestamp is nothing.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ConversationRow(c: Wire.Conversation, onClick: () -> Unit) {
+fun ConversationRow(
+    c: Wire.Conversation,
+    selected: Boolean = false,
+    onLongPress: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val theme = LocalTheme.current
     val unread = c.unreadCount > 0
     val sender = c.participants.firstOrNull().orEmpty()
@@ -58,7 +66,13 @@ fun ConversationRow(c: Wire.Conversation, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            // A long press starts a selection, which is the gesture
+            // Android has meant by "act on more than one of these" since
+            // before this app existed. `combinedClickable` is what
+            // carries both meanings on one row; a separate long-press
+            // pointer modifier would race the tap.
+            .combinedClickable(onLongClick = onLongPress, onClick = onClick)
+            .background(if (selected) theme.accent.copy(alpha = 0.14f) else theme.bg)
             .testTag("row.conversation")
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .alpha(if (unread) 1f else 0.7f),
