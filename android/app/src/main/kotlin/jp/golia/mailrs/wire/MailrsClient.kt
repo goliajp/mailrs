@@ -337,6 +337,30 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun auditLog(): Outcome<List<Admin.AuditEntry>> =
         one(get("/api/admin/audit-log"), Admin.AuditList.serializer()).map { it.items }
 
+    suspend fun agentKeys(): Outcome<List<Admin.AgentKey>> =
+        one(get("/api/agent/keys"), Admin.AgentKeyList.serializer()).map { it.items }
+
+    suspend fun deleteAgentKey(id: Long): Outcome<String> = delete("/api/agent/keys/$id")
+
+    suspend fun suppressions(): Outcome<List<String>> =
+        one(get("/api/admin/suppressions"), Admin.SuppressionList.serializer()).map { it.items }
+
+    /** `allowed` is the whitelist, `blocked` the blacklist. */
+    suspend fun senderList(allowed: Boolean): Outcome<List<String>> =
+        one(get(senderListPath(allowed)), Admin.SenderList.serializer()).map { it.entries }
+
+    suspend fun addToSenderList(allowed: Boolean, address: String): Outcome<String> = post(
+        url(senderListPath(allowed)),
+        json.encodeToString(Admin.AddSenderRequest.serializer(), Admin.AddSenderRequest(address)),
+        authorized = true,
+    )
+
+    suspend fun removeFromSenderList(allowed: Boolean, address: String): Outcome<String> =
+        delete(senderListPath(allowed) + "/" + enc(address))
+
+    private fun senderListPath(allowed: Boolean) =
+        if (allowed) "/api/spam/whitelist" else "/api/spam/blacklist"
+
     suspend fun addAlias(req: Admin.AddAliasRequest): Outcome<String> = post(
         url("/api/admin/aliases"),
         json.encodeToString(Admin.AddAliasRequest.serializer(), req),

@@ -642,7 +642,9 @@ class MailFlowTest {
 
         // Choosing dark must not be a no-op the next screen forgets.
         compose.onNodeWithTag("appearance.Dark").performClick()
-        compose.onNodeWithTag("button.signOut").performClick()
+        // Scrolled to first: settings is longer than a phone, and a tap
+        // at a coordinate below the edge is not the tap this means.
+        compose.onNodeWithTag("button.signOut").performScrollTo().performClick()
         waitForTag("field.address", "signing out did not return to sign-in")
     }
 
@@ -845,6 +847,57 @@ class MailFlowTest {
             compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size == before + 1
         }
         compose.onNodeWithText("help@golia.jp → lihao@golia.jp").assertIsDisplayed()
+    }
+
+    /**
+     * The allow list reads `entries`, not `items`.
+     *
+     * `spam_lists.rs` answers with a different key from the admin
+     * lists, and reaching for the wrong one decodes an empty list —
+     * which on screen is indistinguishable from "nothing is listed".
+     * So this asserts the address is there, and then that adding one
+     * and removing it both reach the server.
+     */
+    @Test
+    fun the_allow_list_loads_and_can_be_edited() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Allowed", "settings never listed the allow list")
+        compose.onNodeWithTag("admin.Allowed").performClick()
+        waitForTag("list.admin", "the allow list never loaded")
+        compose.onNodeWithText("friend@example.com").assertIsDisplayed()
+
+        compose.onNodeWithTag("button.addAdminRow").performClick()
+        waitForTag("field.admin0", "the form never opened")
+        compose.onNodeWithTag("field.admin0").performTextInput("newfriend@example.com")
+        compose.onNodeWithTag("button.confirmAdmin").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("newfriend@example.com").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        compose.onAllNodesWithTag("button.deleteAdminRow").onFirst().performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("friend@example.com").fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    /** A key is told apart by its prefix and its scopes, which is what a revoke needs. */
+    @Test
+    fun agent_keys_name_what_they_can_do() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.AgentKeys", "settings never listed the keys")
+        compose.onNodeWithTag("admin.AgentKeys").performClick()
+        waitForTag("list.admin", "the keys never listed")
+
+        compose.onNodeWithText("Scheduler").assertIsDisplayed()
+        compose.onNodeWithText("mk_a1b2c · mail.send").assertIsDisplayed()
     }
 
     private fun readStub(path: String): String {

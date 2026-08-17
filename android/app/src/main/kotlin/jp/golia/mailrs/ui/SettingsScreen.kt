@@ -1,6 +1,8 @@
 package jp.golia.mailrs.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,7 +76,18 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize().background(theme.bg)) {
+        // Scrollable, because it is longer than a phone. It was not,
+        // and the moment Administration grew to nine entries the sign
+        // out at the bottom went past the edge with no way to reach it
+        // — the test failed as "signing out did not return to sign-in",
+        // which is what an unreachable button looks like from outside.
+        Column(
+            Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(theme.bg)
+                .verticalScroll(rememberScrollState()),
+        ) {
             SectionHeading("Account")
             Field("Signed in as", state.myAddress.ifBlank { "—" })
             Field("Server", state.server.ifBlank { "—" })

@@ -1,7 +1,7 @@
 # proto-message: google.testing.platform.proto.api.core.TestSuiteResult
-# 2026-08-17T16:47:52.231232Z:
+# 2026-08-17T16:55:48.061072Z:
 test_suite_meta_data {
-  scheduled_test_case_count: 26
+  scheduled_test_case_count: 28
   device {
     id: "emulator-5570"
     friendly_name: "primary"
@@ -14,12 +14,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "the_operator_lists_load_and_a_delete_names_its_row"
     start_time {
-      seconds: 1786985119
-      nanos: 256000000
+      seconds: 1786985581
+      nanos: 737000000
     }
     end_time {
-      seconds: 1786985127
-      nanos: 735000000
+      seconds: 1786985590
+      nanos: 426000000
     }
     device {
       id: "emulator-5570"
@@ -70,12 +70,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "back_ends_a_selection"
     start_time {
-      seconds: 1786985127
-      nanos: 743000000
+      seconds: 1786985590
+      nanos: 432000000
     }
     end_time {
-      seconds: 1786985131
-      nanos: 865000000
+      seconds: 1786985595
+      nanos: 13000000
     }
     device {
       id: "emulator-5570"
@@ -126,12 +126,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "a_message_with_no_recipient_cannot_be_sent"
     start_time {
-      seconds: 1786985131
-      nanos: 866000000
+      seconds: 1786985595
+      nanos: 14000000
     }
     end_time {
-      seconds: 1786985136
-      nanos: 992000000
+      seconds: 1786985600
+      nanos: 190000000
     }
     device {
       id: "emulator-5570"
@@ -182,12 +182,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "back_closes_the_thread_rather_than_the_app"
     start_time {
-      seconds: 1786985136
-      nanos: 993000000
+      seconds: 1786985600
+      nanos: 191000000
     }
     end_time {
-      seconds: 1786985142
-      nanos: 522000000
+      seconds: 1786985605
+      nanos: 740000000
     }
     device {
       id: "emulator-5570"
@@ -238,12 +238,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "back_collapses_the_search"
     start_time {
-      seconds: 1786985142
-      nanos: 522000000
+      seconds: 1786985605
+      nanos: 742000000
     }
     end_time {
-      seconds: 1786985147
-      nanos: 352000000
+      seconds: 1786985609
+      nanos: 983000000
     }
     device {
       id: "emulator-5570"
@@ -294,12 +294,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "replying_sends_a_reply_and_not_a_new_message"
     start_time {
-      seconds: 1786985147
-      nanos: 352000000
+      seconds: 1786985609
+      nanos: 984000000
     }
     end_time {
-      seconds: 1786985154
-      nanos: 125000000
+      seconds: 1786985617
+      nanos: 768000000
     }
     device {
       id: "emulator-5570"
@@ -350,12 +350,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "an_alias_can_be_added_from_the_phone"
     start_time {
-      seconds: 1786985154
-      nanos: 125000000
+      seconds: 1786985617
+      nanos: 769000000
     }
     end_time {
-      seconds: 1786985161
-      nanos: 701000000
+      seconds: 1786985625
+      nanos: 354000000
     }
     device {
       id: "emulator-5570"
@@ -406,12 +406,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "a_search_with_no_hits_says_which_term_missed"
     start_time {
-      seconds: 1786985161
-      nanos: 702000000
+      seconds: 1786985625
+      nanos: 355000000
     }
     end_time {
-      seconds: 1786985166
-      nanos: 677000000
+      seconds: 1786985630
+      nanos: 343000000
     }
     device {
       id: "emulator-5570"
@@ -462,12 +462,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "a_long_press_selects_and_the_bar_acts_on_all_of_them"
     start_time {
-      seconds: 1786985166
-      nanos: 678000000
+      seconds: 1786985630
+      nanos: 344000000
     }
     end_time {
-      seconds: 1786985174
-      nanos: 144000000
+      seconds: 1786985637
+      nanos: 768000000
     }
     device {
       id: "emulator-5570"
@@ -518,12 +518,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "opening_a_conversation_shows_its_messages"
     start_time {
-      seconds: 1786985174
-      nanos: 144000000
+      seconds: 1786985637
+      nanos: 768000000
     }
     end_time {
-      seconds: 1786985179
-      nanos: 414000000
+      seconds: 1786985642
+      nanos: 992000000
     }
     device {
       id: "emulator-5570"
@@ -574,12 +574,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "back_cancels_the_composer"
     start_time {
-      seconds: 1786985179
-      nanos: 415000000
+      seconds: 1786985642
+      nanos: 993000000
     }
     end_time {
-      seconds: 1786985183
-      nanos: 461000000
+      seconds: 1786985647
+      nanos: 84000000
     }
     device {
       id: "emulator-5570"
@@ -630,12 +630,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "the_queue_says_which_rows_are_stuck"
     start_time {
-      seconds: 1786985183
-      nanos: 462000000
+      seconds: 1786985647
+      nanos: 85000000
     }
     end_time {
-      seconds: 1786985188
-      nanos: 727000000
+      seconds: 1786985652
+      nanos: 432000000
     }
     device {
       id: "emulator-5570"
@@ -686,12 +686,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "the_drawer_switches_which_list_is_read"
     start_time {
-      seconds: 1786985188
-      nanos: 728000000
+      seconds: 1786985652
+      nanos: 433000000
     }
     end_time {
-      seconds: 1786985193
-      nanos: 671000000
+      seconds: 1786985657
+      nanos: 461000000
     }
     device {
       id: "emulator-5570"
@@ -742,12 +742,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "an_unreachable_server_says_so"
     start_time {
-      seconds: 1786985193
-      nanos: 671000000
+      seconds: 1786985657
+      nanos: 462000000
     }
     end_time {
-      seconds: 1786985196
-      nanos: 205000000
+      seconds: 1786985659
+      nanos: 920000000
     }
     device {
       id: "emulator-5570"
@@ -798,12 +798,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "a_body_renders_and_holds_its_remote_content"
     start_time {
-      seconds: 1786985196
-      nanos: 206000000
+      seconds: 1786985659
+      nanos: 921000000
     }
     end_time {
-      seconds: 1786985201
-      nanos: 536000000
+      seconds: 1786985665
+      nanos: 92000000
     }
     device {
       id: "emulator-5570"
@@ -854,12 +854,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "signing_in_lists_the_inbox"
     start_time {
-      seconds: 1786985201
-      nanos: 536000000
+      seconds: 1786985665
+      nanos: 92000000
     }
     end_time {
-      seconds: 1786985205
-      nanos: 701000000
+      seconds: 1786985669
+      nanos: 365000000
     }
     device {
       id: "emulator-5570"
@@ -910,12 +910,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "a_dmarc_row_reads_as_passing_against_total"
     start_time {
-      seconds: 1786985205
-      nanos: 702000000
+      seconds: 1786985669
+      nanos: 366000000
     }
     end_time {
-      seconds: 1786985210
-      nanos: 725000000
+      seconds: 1786985674
+      nanos: 403000000
     }
     device {
       id: "emulator-5570"
@@ -966,12 +966,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "a_swiped_row_can_be_brought_back"
     start_time {
-      seconds: 1786985210
-      nanos: 725000000
+      seconds: 1786985674
+      nanos: 405000000
     }
     end_time {
-      seconds: 1786985214
-      nanos: 937000000
+      seconds: 1786985678
+      nanos: 612000000
     }
     device {
       id: "emulator-5570"
@@ -1022,12 +1022,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "settings_holds_the_account_and_the_way_out"
     start_time {
-      seconds: 1786985214
-      nanos: 938000000
+      seconds: 1786985678
+      nanos: 613000000
     }
     end_time {
-      seconds: 1786985220
-      nanos: 180000000
+      seconds: 1786985683
+      nanos: 387000000
     }
     device {
       id: "emulator-5570"
@@ -1078,12 +1078,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "search_keeps_the_servers_ranking"
     start_time {
-      seconds: 1786985220
-      nanos: 181000000
+      seconds: 1786985683
+      nanos: 387000000
     }
     end_time {
-      seconds: 1786985225
-      nanos: 280000000
+      seconds: 1786985688
+      nanos: 453000000
     }
     device {
       id: "emulator-5570"
@@ -1132,14 +1132,70 @@ test_result {
   test_case {
     test_class: "MailFlowTest"
     test_package: "jp.golia.mailrs"
-    test_method: "an_attached_file_arrives_with_the_message"
+    test_method: "the_allow_list_loads_and_can_be_edited"
     start_time {
-      seconds: 1786985225
-      nanos: 281000000
+      seconds: 1786985688
+      nanos: 454000000
     }
     end_time {
-      seconds: 1786985233
-      nanos: 219000000
+      seconds: 1786985697
+      nanos: 890000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-the_allow_list_loads_and_can_be_edited.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "an_attached_file_arrives_with_the_message"
+    start_time {
+      seconds: 1786985697
+      nanos: 891000000
+    }
+    end_time {
+      seconds: 1786985705
+      nanos: 866000000
     }
     device {
       id: "emulator-5570"
@@ -1190,12 +1246,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "leaving_the_composer_saves_a_draft_and_editing_reuses_it"
     start_time {
-      seconds: 1786985233
-      nanos: 220000000
+      seconds: 1786985705
+      nanos: 866000000
     }
     end_time {
-      seconds: 1786985243
-      nanos: 237000000
+      seconds: 1786985714
+      nanos: 890000000
     }
     device {
       id: "emulator-5570"
@@ -1246,12 +1302,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "the_second_attachment_is_the_one_fetched"
     start_time {
-      seconds: 1786985243
-      nanos: 238000000
+      seconds: 1786985714
+      nanos: 919000000
     }
     end_time {
-      seconds: 1786985251
-      nanos: 243000000
+      seconds: 1786985721
+      nanos: 893000000
     }
     device {
       id: "emulator-5570"
@@ -1302,12 +1358,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "unsubscribing_names_the_message_not_a_url"
     start_time {
-      seconds: 1786985251
-      nanos: 244000000
+      seconds: 1786985721
+      nanos: 894000000
     }
     end_time {
-      seconds: 1786985259
-      nanos: 233000000
+      seconds: 1786985729
+      nanos: 933000000
     }
     device {
       id: "emulator-5570"
@@ -1358,12 +1414,12 @@ test_result {
     test_package: "jp.golia.mailrs"
     test_method: "cc_and_bcc_travel_as_themselves"
     start_time {
-      seconds: 1786985259
-      nanos: 233000000
+      seconds: 1786985729
+      nanos: 934000000
     }
     end_time {
-      seconds: 1786985269
-      nanos: 734000000
+      seconds: 1786985740
+      nanos: 402000000
     }
     device {
       id: "emulator-5570"
@@ -1412,14 +1468,70 @@ test_result {
   test_case {
     test_class: "MailFlowTest"
     test_package: "jp.golia.mailrs"
-    test_method: "the_server_field_can_be_changed"
+    test_method: "agent_keys_name_what_they_can_do"
     start_time {
-      seconds: 1786985269
-      nanos: 735000000
+      seconds: 1786985740
+      nanos: 403000000
     }
     end_time {
-      seconds: 1786985271
-      nanos: 653000000
+      seconds: 1786985745
+      nanos: 479000000
+    }
+    device {
+      id: "emulator-5570"
+      friendly_name: "primary"
+    }
+  }
+  test_status: PASSED
+  output_artifact {
+    label {
+      label: "logcat"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-agent_keys_name_what_they_can_do.txt"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.meminfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"
+    }
+  }
+  output_artifact {
+    label {
+      label: "device-info.cpuinfo"
+      namespace: "android"
+    }
+    source_path {
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo"
+    }
+  }
+}
+test_result {
+  test_case {
+    test_class: "MailFlowTest"
+    test_package: "jp.golia.mailrs"
+    test_method: "the_server_field_can_be_changed"
+    start_time {
+      seconds: 1786985745
+      nanos: 514000000
+    }
+    end_time {
+      seconds: 1786985747
+      nanos: 372000000
     }
     device {
       id: "emulator-5570"

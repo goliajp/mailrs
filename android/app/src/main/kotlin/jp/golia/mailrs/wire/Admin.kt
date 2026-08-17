@@ -117,6 +117,42 @@ object Admin {
     @Serializable
     data class AuditList(val items: List<AuditEntry> = emptyList())
 
+    /**
+     * An API key that acts as this account.
+     *
+     * The stored record has no secret in it — the server keeps eight
+     * characters — so a client that expected one would decode nothing.
+     */
+    @Serializable
+    data class AgentKey(
+        val id: Long,
+        val name: String = "",
+        val scopes: List<String> = emptyList(),
+        val prefix: String = "",
+        @SerialName("created_at") val createdAt: Long = 0,
+    )
+
+    @Serializable
+    data class AgentKeyList(val items: List<AgentKey> = emptyList())
+
+    /** Addresses the sender refuses to try again. */
+    @Serializable
+    data class SuppressionList(val items: List<String> = emptyList())
+
+    /**
+     * A per-user allow or block list.
+     *
+     * `entries`, not `items` — `spam_lists.rs` answers with a different
+     * key from the admin lists, and reaching for the wrong one decodes
+     * an empty list, which on screen is indistinguishable from "nothing
+     * is listed".
+     */
+    @Serializable
+    data class SenderList(val entries: List<String> = emptyList())
+
+    @Serializable
+    data class AddSenderRequest(val address: String)
+
     @Serializable
     data class AddAliasRequest(
         @SerialName("source_address") val sourceAddress: String,
