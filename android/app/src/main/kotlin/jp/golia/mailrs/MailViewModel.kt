@@ -633,6 +633,18 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, domains = r.value)
                     is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
                 }
+                AdminSection.Queue -> when (val r = client.queue()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, queue = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Dmarc -> when (val r = client.dmarcReports()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, dmarc = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Audit -> when (val r = client.auditLog()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, audit = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
             }
         }
     }
@@ -653,7 +665,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             val r = when (section) {
                 AdminSection.Aliases -> client.deleteAlias(row.key.toLongOrNull() ?: return@launch)
                 AdminSection.Domains -> client.deleteDomain(row.key)
-                AdminSection.Accounts -> return@launch
+                AdminSection.Accounts, AdminSection.Queue,
+                AdminSection.Dmarc, AdminSection.Audit -> return@launch
             }
             if (r is MailrsClient.Outcome.Err) {
                 _state.value = _state.value.copy(error = r.message)
@@ -767,6 +780,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val accounts: List<Admin.Account> = emptyList(),
         val aliases: List<Admin.Alias> = emptyList(),
         val domains: List<Admin.Domain> = emptyList(),
+        val queue: List<Admin.QueueJob> = emptyList(),
+        val dmarc: List<Admin.DmarcReport> = emptyList(),
+        val audit: List<Admin.AuditEntry> = emptyList(),
         /** Whether the settings screen is showing. */
         val settingsOpen: Boolean = false,
         /** Light, dark, or the phone's own answer. */
@@ -794,7 +810,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     enum class AdminSection(val title: String, val emptyMessage: String) {
         Accounts("Accounts", "No accounts on this server."),
         Aliases("Aliases", "Nothing forwards anywhere."),
-        Domains("Domains", "This server answers for no domain.");
+        Domains("Domains", "This server answers for no domain."),
+        Queue("Queue", "Nothing waiting to go out."),
+        Dmarc("DMARC", "No reports yet."),
+        Audit("Audit log", "Nothing has happened.");
 
         fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
             // Not deletable here: removing an account takes its mail
@@ -825,6 +844,46 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     headline = it.name,
                     detail = "",
                     deletable = true,
+                )
+            }
+            Queue -> state.queue.map { job ->
+                // Asked for later is not stuck, and saying so is the
+                // whole reason the row reads its own timestamps: a queue
+                // where every row looks stuck is a queue nobody reads.
+                val scheduled = job.scheduledAt
+                val detail = when {
+                    scheduled != null && scheduled > System.currentTimeMillis() / 1000 ->
+                        "scheduled for " + jp.golia.mailrs.ui.RowDate.format(scheduled)
+                    job.lastError != null ->
+                        "attempt ${job.attempts ?: 0} — ${job.lastError}"
+                    else -> job.status
+                }
+                jp.golia.mailrs.ui.AdminRow(
+                    key = job.id.toString(),
+                    headline = job.recipient.ifBlank { job.sender },
+                    detail = detail,
+                    deletable = false,
+                )
+            }
+            Dmarc -> state.dmarc.map { r ->
+                jp.golia.mailrs.ui.AdminRow(
+                    key = r.sid,
+                    headline = r.orgName.ifBlank { r.sid },
+                    // Passing against total, because that is what a
+                    // report is for. A count of rows says nothing about
+                    // whether anybody's mail was refused.
+                    detail = "${r.passing}/${r.total} passing · p=${r.p}",
+                    deletable = false,
+                )
+            }
+            Audit -> state.audit.map { e ->
+                jp.golia.mailrs.ui.AdminRow(
+                    key = e.id.toString(),
+                    headline = e.action + " " + e.target,
+                    detail = listOf(e.actor, jp.golia.mailrs.ui.RowDate.format(e.timestamp))
+                        .filter(String::isNotBlank)
+                        .joinToString(" · "),
+                    deletable = false,
                 )
             }
         }

@@ -53,6 +53,70 @@ object Admin {
     @Serializable
     data class DomainList(val items: List<Domain> = emptyList())
 
+    /**
+     * One message the sender has not finished with.
+     *
+     * `scheduled_at` in the future is *asked for later*, not stuck —
+     * before the row read its own timestamps the two were
+     * indistinguishable, and a queue where every row looks stuck is a
+     * queue nobody reads.
+     *
+     * Backend: `crates/webapi/src/handlers/complete.rs`, `/api/admin/queues`.
+     */
+    @Serializable
+    data class QueueJob(
+        val id: Long,
+        val sender: String = "",
+        val recipient: String = "",
+        val status: String = "",
+        val attempts: Int? = null,
+        @SerialName("last_error") val lastError: String? = null,
+        @SerialName("next_retry") val nextRetry: Long? = null,
+        @SerialName("scheduled_at") val scheduledAt: Long? = null,
+        @SerialName("created_at") val createdAt: Long? = null,
+    )
+
+    /**
+     * A DMARC report: somebody else saying what your mail looked like
+     * from their side, so `passing` against `total` is the whole point
+     * of the row.
+     *
+     * Backend: `crates/webapi/src/handlers/dmarc.rs` — `ReportSummary`.
+     */
+    @Serializable
+    data class DmarcReport(
+        val sid: String,
+        @SerialName("org_name") val orgName: String = "",
+        val email: String = "",
+        @SerialName("policy_domain") val policyDomain: String = "",
+        val begin: Long = 0,
+        val end: Long = 0,
+        val p: String = "",
+        val total: Long = 0,
+        val passing: Long = 0,
+        val rows: Long = 0,
+    )
+
+    /** Backend: `crates/webapi/src/handlers/admin.rs` — `list_audit_log`. */
+    @Serializable
+    data class AuditEntry(
+        val id: Long,
+        val timestamp: Long = 0,
+        val actor: String = "",
+        val action: String = "",
+        val target: String = "",
+        val detail: String = "",
+    )
+
+    @Serializable
+    data class QueueList(val items: List<QueueJob> = emptyList())
+
+    @Serializable
+    data class DmarcList(val items: List<DmarcReport> = emptyList())
+
+    @Serializable
+    data class AuditList(val items: List<AuditEntry> = emptyList())
+
     @Serializable
     data class AddAliasRequest(
         @SerialName("source_address") val sourceAddress: String,

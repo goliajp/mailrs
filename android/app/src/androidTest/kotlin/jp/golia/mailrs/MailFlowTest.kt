@@ -770,6 +770,48 @@ class MailFlowTest {
         }
     }
 
+    /**
+     * The queue tells stuck apart from asked-for-later.
+     *
+     * The fixture holds one of each and a third in flight. Before the
+     * row read its own timestamps the scheduled one was
+     * indistinguishable from the stuck one, and a queue where every row
+     * looks stuck is a queue nobody reads — so the assertion is on the
+     * words beside the rows, not on how many there are.
+     */
+    @Test
+    fun the_queue_says_which_rows_are_stuck() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Queue", "settings never listed the queue")
+
+        compose.onNodeWithTag("admin.Queue").performClick()
+        waitForTag("list.admin", "the queue never listed")
+
+        compose.onNodeWithText("stuck@example.com").assertIsDisplayed()
+        compose.onNodeWithText("attempt 3 — 421 too many connections").assertIsDisplayed()
+        compose.onAllNodesWithText("scheduled for", substring = true).onFirst().assertIsDisplayed()
+    }
+
+    /** A DMARC row is passing against total, which is what a report is for. */
+    @Test
+    fun a_dmarc_row_reads_as_passing_against_total() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Dmarc", "settings never listed DMARC")
+
+        compose.onNodeWithTag("admin.Dmarc").performClick()
+        waitForTag("list.admin", "the reports never listed")
+        compose.onNodeWithText("google.com").assertIsDisplayed()
+        compose.onNodeWithText("118/120 passing · p=quarantine").assertIsDisplayed()
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
