@@ -3811,6 +3811,7 @@ dependencies = [
  "hickory-resolver",
  "rcgen 0.14.8",
  "rustls",
+ "rustls-native-certs",
  "sha2 0.11.0",
  "tokio",
  "tokio-rustls",

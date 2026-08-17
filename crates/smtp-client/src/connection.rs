@@ -165,7 +165,7 @@ impl SmtpConnection {
     /// servers in integration tests, etc.) should use
     /// [`Self::try_starttls_with_config`].
     pub async fn try_starttls(self, hostname: &str) -> StarttlsResult {
-        self.try_starttls_with_config(hostname, default_pkix_client_config())
+        self.try_starttls_with_config(hostname, crate::trust::default_pkix_client_config())
             .await
     }
 
@@ -391,18 +391,6 @@ impl SmtpConnection {
             )
         })
     }
-}
-
-/// Default PKIX client config used by [`SmtpConnection::try_starttls`]:
-/// `webpki-roots` trust store, no client auth, empty ALPN.
-pub fn default_pkix_client_config() -> ClientConfig {
-    let mut config = ClientConfig::builder()
-        .with_root_certificates(rustls::RootCertStore {
-            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-        })
-        .with_no_client_auth();
-    config.alpn_protocols = vec![];
-    config
 }
 
 /// dot-stuff message body for SMTP DATA transmission (RFC 5321 section 4.5.2)

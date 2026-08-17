@@ -277,10 +277,53 @@ pub(super) async fn try_deliver(
                 tracing::info!(code, %msg, "STARTTLS rejected, continuing plaintext");
                 conn
             }
-            mailrs_smtp_client::StarttlsResult::HandshakeFailed { source, .. } => {
+            mailrs_smtp_client::StarttlsResult::HandshakeFailed { outcome, source } => {
                 if sts_enforce || dane_active {
-                    last_err = format!("mta-sts enforce: {} TLS handshake failed", mx.exchange);
+                    // Say *why*. The stone classifies the failure and
+                    // this arm used to discard both the classification
+                    // and the error, so the log and the bounce both read
+                    // "TLS handshake failed" and nothing else — while
+                    // the branch one line down, the one that does not
+                    // stop delivery, logged the source.
+                    //
+                    // 2026-08-17: every message to every Microsoft 365
+                    // tenant was dying here, and the sentence that would
+                    // have said so in one line —
+                    // `CertificateNotTrusted("UnknownIssuer")` — was
+                    // computed and thrown away. It cost a bounce report,
+                    // a packet capture and an afternoon to recover a
+                    // string the process already had.
+                    last_err = format!(
+                        "mta-sts enforce: {} TLS handshake failed: {}: {}",
+                        mx.exchange,
+                        outcome.as_str(),
+                        outcome.detail()
+                    );
                     tracing::warn!(err = %last_err, "TLS handshake failed under STS enforce, next MX");
+                    // TLS-RPT exists for exactly this class, and the
+                    // sibling arm records one while this did not — so a
+                    // domain whose STARTTLS is refused was reported and
+                    // a domain whose certificate we cannot verify was
+                    // not, which is backwards. `source` is unused now
+                    // that `outcome` carries both the class and the
+                    // detail; it is the same string.
+                    mailrs_fastcore::tlsrpt::record(
+                        &cfg.kevy_url,
+                        &mailrs_fastcore::tlsrpt::TlsEvent {
+                            domain: domain.to_string(),
+                            mx: mx.exchange.to_string(),
+                            success: false,
+                            // The stone already classified this in RFC
+                            // 8460's own vocabulary — `as_str()` returns
+                            // `certificate-not-trusted`,
+                            // `certificate-host-mismatch` and the rest.
+                            // Writing a constant here would discard the
+                            // classification a second time, one layer up
+                            // from where it was discarded the first.
+                            failure_type: Some(outcome.as_str().to_string()),
+                            detail: Some(last_err.clone()),
+                        },
+                    );
                     continue;
                 }
                 tracing::warn!(

@@ -81,9 +81,12 @@ pub mod response;
 /// (RFC 8460 §4.3) and any downstream decision that wants more
 /// than an opaque `io::Error`.
 pub mod tls_outcome;
+/// Which certificate authorities an SMTP peer is verified against.
+mod trust;
 
-pub use connection::{SmtpConnection, TimeoutConfig, default_pkix_client_config};
+pub use connection::{SmtpConnection, TimeoutConfig};
 pub use dane::{DaneVerifier, TlsaRecord, dane_tls_config, resolve_tlsa};
 pub use mx::{MxCache, MxRecord, TokioResolver, fallback_to_domain, resolve_mx, sort_mx_records};
 pub use response::{SmtpResponse, parse_response};
 pub use tls_outcome::{StarttlsResult, TlsOutcome};
+pub use trust::{default_pkix_client_config, pkix_root_store};
