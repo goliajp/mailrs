@@ -54,6 +54,19 @@ class MailrsClient(private val store: TokenStore) {
      * classpath there, so this is only ever set by the test runner.
      */
     var baseUrlOverride: String? = null
+        set(value) {
+            field = value
+            // **And the live session follows it.** It used to apply
+            // only at login, so pointing the app at another server
+            // after signing in changed nothing and every request still
+            // went to the old one — which made two tests that thought
+            // they had taken the network away pass while talking to it.
+            // "Point this app at this server" has to mean every
+            // request, or it does not mean anything.
+            val current = session ?: return
+            if (value == null || value == current.server) return
+            session = TokenStore.Session(value, current.token)
+        }
 
     fun signOut() {
         session = null

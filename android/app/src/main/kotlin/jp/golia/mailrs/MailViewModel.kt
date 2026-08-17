@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.ContentUriBody
+import jp.golia.mailrs.wire.MailCache
 import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Prefs
@@ -32,6 +33,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
     private val client = MailrsClient(TokenStore(app))
     private val prefs = Prefs(app)
+    private val cache = MailCache(app)
     private var nextDraftId = 1
     private var pending: PendingTriage? = null
     private var undoToken = 0
@@ -86,26 +88,67 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         client.signOut()
-        _state.value = UiState()
+        // The mailbox goes with the session. A cached list left behind
+        // would paint somebody else's mail onto the next sign-in for as
+        // long as the first fetch takes.
+        cache.clear()
+        _state.value = UiState(appearance = prefs.appearance)
     }
 
+    /**
+     * Fetch the list, showing what was last seen while it is out.
+     *
+     * **The cache paints first.** A cold launch on a train used to be a
+     * spinner and then "Could not reach the server", for a mailbox the
+     * phone had fetched two minutes earlier. Rows appear at once and are
+     * replaced when the answer arrives.
+     *
+     * A failure with rows on screen keeps them and says nothing: they
+     * are still the last true thing anybody knew, and an error banner
+     * over readable mail is noise. A failure with *no* rows is the
+     * screen that has to explain itself.
+     */
     fun refresh() {
-        _state.value = _state.value.copy(busy = true, error = null)
+        val list = _state.value.list
+        val cached = if (_state.value.conversations.isEmpty()) cache.readConversations(list.name) else null
+        _state.value = _state.value.copy(
+            busy = true,
+            error = null,
+            conversations = cached ?: _state.value.conversations,
+        )
         viewModelScope.launch {
-            when (val r = client.conversations(_state.value.list)) {
-                is MailrsClient.Outcome.Ok ->
+            when (val r = client.conversations(list)) {
+                is MailrsClient.Outcome.Ok -> {
+                    cache.writeConversations(r.value, list.name)
+                    // Still the list that was asked for: switching lists
+                    // mid-flight must not paint the old one's answer.
+                    if (_state.value.list != list) return@launch
                     _state.value = _state.value.copy(busy = false, conversations = r.value)
+                }
                 is MailrsClient.Outcome.Err ->
-                    _state.value = _state.value.copy(busy = false, error = r.message)
+                    _state.value = _state.value.copy(
+                        busy = false,
+                        error = if (_state.value.conversations.isEmpty()) r.message else null,
+                    )
             }
         }
     }
 
     fun open(conversation: Wire.Conversation) {
-        _state.value = _state.value.copy(open = conversation, messages = emptyList(), busy = true, error = null)
+        // Same rule as the list: the messages this thread had last time
+        // are shown while the fetch is out, so opening mail already read
+        // works with no network at all.
+        val cached = cache.readMessages(conversation.threadId)
+        _state.value = _state.value.copy(
+            open = conversation,
+            messages = cached.orEmpty(),
+            busy = true,
+            error = null,
+        )
         viewModelScope.launch {
             when (val r = client.thread(conversation.threadId)) {
                 is MailrsClient.Outcome.Ok -> {
+                    cache.writeMessages(r.value, conversation.threadId)
                     _state.value = _state.value.copy(busy = false, messages = r.value)
                     if (conversation.unreadCount > 0) {
                         client.markRead(conversation.threadId)
@@ -224,6 +267,21 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         )
         _state.value = _state.value.copy(composing = draft, error = null)
         if (attachments.isNotEmpty()) attach(attachments)
+    }
+
+    /**
+     * Forget the mail held in memory, keeping the session and the disk
+     * cache — a cold launch, without the launch.
+     *
+     * Debug only, and it exists because the alternative does not work:
+     * a `ViewModel` survives activity recreation by design, so there is
+     * no way from a test to get a fresh one and watch it paint from
+     * disk. Without this the cache path has no coverage at all, and an
+     * untested cache is one that silently stops being read.
+     */
+    fun forgetLoadedMail() {
+        if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+        _state.value = _state.value.copy(conversations = emptyList(), messages = emptyList())
     }
 
     /** Every keystroke, straight into the one copy of the draft. */
