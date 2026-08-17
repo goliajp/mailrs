@@ -343,4 +343,71 @@ class AdminFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.signOut").performScrollTo().performClick()
         waitForTag("field.address", "signing out did not return to sign-in")
     }
+
+    /**
+     * The appearance choice is written where the next launch reads it.
+     *
+     * The screen showing dark is not the same as the phone remembering
+     * it: `chooseAppearance` writes through to `SharedPreferences` as
+     * it is chosen, and the next launch builds its first state from
+     * there. This taps Dark and then asks the store — a fresh `Prefs`
+     * over the same file, which is what a cold start does.
+     */
+    @Test
+    fun choosing_dark_is_written_where_the_next_launch_reads_it() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("appearance.Dark", "settings never opened")
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.onNodeWithTag("appearance.Dark").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            jp.golia.mailrs.wire.Prefs(context).appearance == jp.golia.mailrs.wire.Prefs.Appearance.Dark
+        }
+
+        // And back, so the next test does not inherit a dark phone.
+        compose.onNodeWithTag("appearance.System").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            jp.golia.mailrs.wire.Prefs(context).appearance == jp.golia.mailrs.wire.Prefs.Appearance.System
+        }
+    }
+
+    /**
+     * The splash screen is wired, which is all there is to check.
+     *
+     * What the system draws before the first frame is not visible to
+     * this suite, but the two things that make it the app's own are:
+     * the activity launches with the splash theme, and that theme hands
+     * over to the real one. Both are declarations, and a declaration
+     * that is missing is exactly how an app ends up with the white
+     * rectangle again.
+     */
+    @Test
+    fun the_activity_launches_with_the_splash_theme() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val activity = context.packageManager.getActivityInfo(
+            android.content.ComponentName(context, MainActivity::class.java),
+            0,
+        )
+        val expected = context.resources.getIdentifier(
+            "Theme.Mailrs.Splash",
+            "style",
+            context.packageName,
+        )
+        assertTrue("Theme.Mailrs.Splash is not declared", expected != 0)
+        assertEquals("the activity does not launch with the splash theme", expected, activity.theme)
+
+        // And it hands over: without `postSplashScreenTheme` the splash
+        // theme stays up and the app wears it.
+        val styled = context.obtainStyledAttributes(
+            expected,
+            intArrayOf(context.resources.getIdentifier("postSplashScreenTheme", "attr", context.packageName)),
+        )
+        val handover = styled.getResourceId(0, 0)
+        styled.recycle()
+        assertTrue("the splash theme does not hand over to another", handover != 0)
+    }
 }
