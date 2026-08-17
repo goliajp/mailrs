@@ -237,6 +237,8 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     // and the swipe-away all come back through one return value, so
     // "the person did nothing" and "the person undid it" cannot be
     // confused — which is the whole safety of an undo.
+    FailureSnackbar(state, vm, snackbars, hasContent = state.conversations.isNotEmpty())
+
     // "Draft saved", once. Said where the composer went, because a
     // message that vanished from the screen without a word looks lost.
     LaunchedEffect(state.draftSaved) {
