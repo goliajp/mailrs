@@ -57,6 +57,8 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
@@ -390,7 +392,22 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     onRefresh = { vm.refresh() },
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    LazyColumn(Modifier.fillMaxSize().testTag("list.conversations")) {
+                    val rows = rememberLazyListState()
+                    // **Ask for the next page before the bottom.** The
+                    // mailbox is thousands of threads and a page is
+                    // fifty; waiting for the very last row to be visible
+                    // means the reader waits too. Five from the end is
+                    // about a screen's worth of warning.
+                    val nearTheEnd by remember(state.conversations.size) {
+                        derivedStateOf {
+                            val last = rows.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                            last >= state.conversations.size - 5
+                        }
+                    }
+                    LaunchedEffect(nearTheEnd, state.conversations.size) {
+                        if (nearTheEnd) vm.loadMore()
+                    }
+                    LazyColumn(state = rows, modifier = Modifier.fillMaxSize().testTag("list.conversations")) {
                         items(state.conversations, key = { it.threadId }) { c ->
                             val picked = c.threadId in state.selected
                             if (selecting) {
@@ -415,6 +432,20 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                 }
                             }
                             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        }
+                        if (state.loadingMore) {
+                            item {
+                                Box(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator(
+                                        Modifier.size(20.dp),
+                                        color = theme.accent,
+                                        strokeWidth = 2.dp,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

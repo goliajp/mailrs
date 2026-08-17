@@ -80,6 +80,11 @@ class MainActivity : ComponentActivity() {
         model?.let { actOn(it, intent) }
     }
 
+    /** Point the list at a stub-only folder — see `useFolderForTest`. */
+    fun useFolderForTest(folder: String) {
+        model?.useFolderForTest(folder)
+    }
+
     /** A cold launch without the launch — see `forgetLoadedMail`. */
     fun forgetLoadedMailForTest() {
         model?.forgetLoadedMail()

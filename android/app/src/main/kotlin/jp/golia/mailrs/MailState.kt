@@ -51,6 +51,10 @@ data class UiState(
     val openSearch: Boolean = false,
     /** Which list is showing. Its axes scope both the list and the search. */
     val list: MailList = MailList.Inbox,
+    /** A page is on its way; the list shows a spinner at its foot. */
+    val loadingMore: Boolean = false,
+    /** The last page carried nothing new, so there is no more to ask for. */
+    val endOfList: Boolean = false,
     /** Saved drafts, newest first, and whether their list is showing. */
     val drafts: List<Wire.Draft> = emptyList(),
     val draftsOpen: Boolean = false,
