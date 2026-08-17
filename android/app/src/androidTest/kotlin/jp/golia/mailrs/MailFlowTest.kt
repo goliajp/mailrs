@@ -734,6 +734,42 @@ class MailFlowTest {
         assertTrue("the file arrived empty: $sent", sent.contains("\"bytes\": 16"))
     }
 
+    /**
+     * The operator lists, and what deleting one names.
+     *
+     * A row's key is the identity the server knows the thing by — an
+     * alias id, a domain name — kept beside the row rather than derived
+     * from the text on it, so a row whose display changes still deletes
+     * the right thing. The assertion is that the list came back one
+     * shorter after a re-read, which is the server's answer rather than
+     * the screen's.
+     */
+    @Test
+    fun the_operator_lists_load_and_a_delete_names_its_row() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Accounts", "settings never listed the operator sections")
+
+        compose.onNodeWithTag("admin.Accounts").performClick()
+        waitForTag("list.admin", "the accounts never listed")
+        compose.onNodeWithText("lihao@golia.jp").assertIsDisplayed()
+
+        pressBack()
+        waitForTag("admin.Domains", "back did not return to settings")
+        compose.onNodeWithTag("admin.Domains").performClick()
+        waitForTag("list.admin", "the domains never listed")
+        val before = compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size
+        assertTrue("the fixture has no domains", before > 0)
+
+        compose.onAllNodesWithTag("button.deleteAdminRow").onFirst().performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size == before - 1
+        }
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
