@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What a long press on the launcher icon offers.
+
+  The two things somebody opens this app to *start* rather than to
+  read. Static rather than dynamic: they are always available and never
+  depend on what is in the mailbox, and a dynamic shortcut would have
+  to be published at runtime for no gain.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="compose"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_compose"
+        android:shortcutShortLabel="@string/shortcut_compose_short"
+        android:shortcutLongLabel="@string/shortcut_compose_long">
+        <intent
+            android:action="jp.golia.mailrs.COMPOSE"
+            android:targetPackage="jp.golia.mailrs"
+            android:targetClass="jp.golia.mailrs.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutShortLabel="@string/shortcut_search_short"
+        android:shortcutLongLabel="@string/shortcut_search_long">
+        <intent
+            android:action="jp.golia.mailrs.SEARCH"
+            android:targetPackage="jp.golia.mailrs"
+            android:targetClass="jp.golia.mailrs.MainActivity" />
+    </shortcut>
+</shortcuts>

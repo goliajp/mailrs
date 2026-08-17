@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Mailrs</string>
+    <!-- Launcher shortcuts. Short labels are shown when space is tight
+         and are capped at ten characters by the launcher, so they are
+         written to fit rather than truncated for us. -->
+    <string name="shortcut_compose_short">Write</string>
+    <string name="shortcut_compose_long">New message</string>
+    <string name="shortcut_search_short">Search</string>
+    <string name="shortcut_search_long">Search mail</string>
 </resources>
