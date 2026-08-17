@@ -302,6 +302,39 @@ class MailFlowTest {
         compose.onNodeWithTag("search.empty").assertTextContains("zzzznothing", substring = true)
     }
 
+    /**
+     * A message body is rendered, and it fetches nothing until asked.
+     *
+     * Two claims in one flow because they are one behaviour: the body
+     * is HTML in a WebView — the fixture's plain part is the two words
+     * "plain fallback" against a newsletter, so a client preferring it
+     * shows a different message than the sender composed — and the
+     * remote image in it stays unfetched behind a banner, because
+     * fetching is what tells the sender the message was opened.
+     */
+    @Test
+    fun a_body_renders_and_holds_its_remote_content() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        // Height, not presence. A `WebView` that measured to nothing
+        // still puts a semantics node on the tree, so "the node exists"
+        // passes for a body nobody can read — which is the failure this
+        // is most likely to have.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("body.web").fetchSemanticsNodes()
+                .any { it.size.height > 100 }
+        }
+        waitForTag("body.remoteBlocked", "the remote image was not held back")
+
+        compose.onNodeWithTag("button.loadImages").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("body.remoteBlocked").fetchSemanticsNodes().isEmpty()
+        }
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
