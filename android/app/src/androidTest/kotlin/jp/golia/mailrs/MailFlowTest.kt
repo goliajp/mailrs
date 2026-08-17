@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -333,6 +334,33 @@ class MailFlowTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag("body.remoteBlocked").fetchSemanticsNodes().isEmpty()
         }
+    }
+
+    /**
+     * An attachment is fetched **by its own index**.
+     *
+     * The fixture's two files preview identically, so a client that
+     * always asked the server for index 0 would show the right name
+     * over the wrong bytes and look correct doing it. `/debug/fetched`
+     * is the only thing that can tell those apart, which is why the
+     * second row is the one tapped.
+     */
+    @Test
+    fun the_second_attachment_is_the_one_fetched() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.attachments", "the message listed no attachments")
+
+        val rows = compose.onAllNodesWithTag("row.attachment").fetchSemanticsNodes().size
+        assertEquals("the fixture offers two attachments", 2, rows)
+
+        compose.onAllNodesWithTag("row.attachment")[1].performClick()
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/fetched").contains("1") }
+        assertTrue(
+            "index 0 was fetched, not the row that was tapped",
+            !readStub("/debug/fetched").contains("0"),
+        )
     }
 
     private fun readStub(path: String): String {

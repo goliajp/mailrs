@@ -221,6 +221,60 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Fetch an attachment and put it somewhere another app can read.
+     *
+     * The bytes land in the cache under a per-message directory, so two
+     * messages carrying `invoice.pdf` cannot overwrite each other's —
+     * the filename is the sender's and is not unique. A `FileProvider`
+     * URI is what leaves this app: handing out a `file://` path has
+     * been an error since API 24, and a world-readable copy would be a
+     * worse way to make it work.
+     */
+    fun openAttachment(uid: Int, index: Int, att: Wire.Attachment) {
+        _state.value = _state.value.copy(openingAttachment = index, error = null)
+        viewModelScope.launch {
+            _state.value = when (val r = client.attachment(uid, index)) {
+                is MailrsClient.Outcome.Ok -> {
+                    val file = runCatching { writeToCache(uid, index, att.filename, r.value) }
+                    file.fold(
+                        onSuccess = {
+                            _state.value.copy(
+                                openingAttachment = null,
+                                openFile = OpenedFile(it, att.contentType, att.filename),
+                            )
+                        },
+                        onFailure = {
+                            _state.value.copy(
+                                openingAttachment = null,
+                                error = "Could not save ${att.filename}: ${it.message}",
+                            )
+                        },
+                    )
+                }
+                is MailrsClient.Outcome.Err ->
+                    _state.value.copy(openingAttachment = null, error = r.message)
+            }
+        }
+    }
+
+    /** The screen has handed it to another app; stop offering it. */
+    fun attachmentOpened() {
+        _state.value = _state.value.copy(openFile = null)
+    }
+
+    private fun writeToCache(uid: Int, index: Int, filename: String, bytes: ByteArray): java.io.File {
+        val dir = java.io.File(getApplication<Application>().cacheDir, "attachments/$uid-$index")
+        dir.mkdirs()
+        // The sender chose this name. A name that walks out of the
+        // directory — "../../databases/x" — must land in the directory
+        // anyway, so only the last path component is kept.
+        val safe = filename.substringAfterLast('/').ifBlank { "attachment" }
+        val file = java.io.File(dir, safe)
+        file.writeBytes(bytes)
+        return file
+    }
+
+    /**
      * Search, with the server's ranking left alone.
      *
      * An empty term is not a search — it clears back to the inbox rather
@@ -320,7 +374,14 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
          */
         val results: List<Wire.Conversation>? = null,
         val searching: Boolean = false,
+        /** Which attachment index is being fetched, if any. */
+        val openingAttachment: Int? = null,
+        /** A file ready to hand to another app. */
+        val openFile: OpenedFile? = null,
     )
+
+    /** A downloaded attachment, waiting for the screen to hand it on. */
+    data class OpenedFile(val file: java.io.File, val mimeType: String, val filename: String)
 
     /**
      * A triage waiting out its undo window.

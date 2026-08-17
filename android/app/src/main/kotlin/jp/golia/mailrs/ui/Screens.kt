@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -292,6 +294,26 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
 fun ThreadScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val open = state.open ?: return
+    val context = LocalContext.current
+
+    // Handing the file on is an action, so it happens once per file and
+    // then the offer is cleared. Leaving it in state would re-open the
+    // same attachment on every recomposition.
+    LaunchedEffect(state.openFile) {
+        val ready = state.openFile ?: return@LaunchedEffect
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            context.packageName + ".files",
+            ready.file,
+        )
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, ready.mimeType)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        // No app on the phone opens this kind of file. Saying so beats
+        // a tap that appears to do nothing.
+        runCatching { context.startActivity(intent) }
+        vm.attachmentOpened()
+    }
     Scaffold(
         containerColor = theme.bgSecondary,
         topBar = {
@@ -328,7 +350,7 @@ fun ThreadScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                         .testTag("list.messages"),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    state.messages.forEach { MessageCard(it, vm) }
+                    state.messages.forEach { MessageCard(it, state, vm) }
                 }
             }
         }
@@ -336,7 +358,7 @@ fun ThreadScreen(state: MailViewModel.UiState, vm: MailViewModel) {
 }
 
 @Composable
-private fun MessageCard(m: Wire.Message, vm: MailViewModel) {
+private fun MessageCard(m: Wire.Message, state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     Column(
         Modifier
@@ -380,6 +402,8 @@ private fun MessageCard(m: Wire.Message, vm: MailViewModel) {
         } else {
             MessageBody(html, Modifier.padding(top = 10.dp))
         }
+        AttachmentList(m.uid, m.attachments, state, vm)
+
         Row(Modifier.padding(top = 6.dp)) {
             IconButton(
                 onClick = { vm.compose(replyTo = m) },

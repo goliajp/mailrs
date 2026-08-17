@@ -45,6 +45,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!--
+          Attachments leave through a content:// URI with a per-open
+          grant. A file:// path to another app has thrown since API 24,
+          and making the copy world-readable instead would be a worse
+          way to make it work.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="jp.golia.mailrs.files"
+            android:exported="false"
+            android:grantUriPermissions="true" >
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name="androidx.compose.ui.tooling.PreviewActivity"
             android:exported="true" />
