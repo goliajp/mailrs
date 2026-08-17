@@ -85,8 +85,8 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: UiState, vm: Mai
                     onClick = {
                         when (offer) {
                             UnsubscribeOffer.OneClick -> vm.unsubscribe(threadId, m.uid)
-                            is UnsubscribeOffer.OpenPage -> open(context, offer.url)
-                            is UnsubscribeOffer.SendMail -> open(context, offer.mailto)
+                            is UnsubscribeOffer.OpenPage -> open(context, vm, offer.url)
+                            is UnsubscribeOffer.SendMail -> open(context, vm, offer.mailto)
                             UnsubscribeOffer.None -> Unit
                         }
                     },
@@ -107,10 +107,19 @@ fun UnsubscribeFooter(threadId: String, m: Wire.Message, state: UiState, vm: Mai
     }
 }
 
-private fun open(context: android.content.Context, uri: String) {
-    runCatching {
+/**
+ * Hand the link to whatever opens it, and say when nothing does.
+ *
+ * A phone with no browser is unusual; a `mailto:` with no handler is
+ * not, since this app is often the one that would have handled it and
+ * excludes itself here. Either way a tap that silently does nothing
+ * reads as a broken button.
+ */
+private fun open(context: android.content.Context, vm: MailViewModel, uri: String) {
+    val opened = runCatching {
         context.startActivity(
             Intent(Intent.ACTION_VIEW, uri.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
-    }
+    }.isSuccess
+    if (!opened) vm.reportFailure("Nothing on this phone can open that link.")
 }

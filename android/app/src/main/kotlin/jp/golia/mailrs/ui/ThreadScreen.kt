@@ -118,10 +118,14 @@ fun ThreadScreen(state: UiState, vm: MailViewModel) {
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, ready.mimeType)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        // No app on the phone opens this kind of file. Saying so beats
-        // a tap that appears to do nothing.
-        runCatching { context.startActivity(intent) }
+        // **And say so when nothing can open it.** The comment here used
+        // to promise this and the code did not: `runCatching` swallowed
+        // the ActivityNotFoundException and the tap did nothing at all,
+        // which reads as a broken button rather than as a phone with no
+        // PDF reader on it.
+        val opened = runCatching { context.startActivity(intent) }.isSuccess
         vm.attachmentOpened()
+        if (!opened) vm.reportFailure("No app on this phone opens ${ready.filename}.")
     }
     val snackbars = remember { SnackbarHostState() }
     FailureSnackbar(state, vm, snackbars, hasContent = state.messages.isNotEmpty())
