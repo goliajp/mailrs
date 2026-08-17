@@ -79,6 +79,7 @@ object Wire {
         @SerialName("risk_score") val riskScore: Int,
         @SerialName("risk_reason") val riskReason: String,
         val attachments: List<Attachment> = emptyList(),
+        val unsubscribe: Unsubscribe? = null,
     )
 
     /**
@@ -98,6 +99,47 @@ object Wire {
         @SerialName("content_type") val contentType: String,
         val size: Long,
         @SerialName("content_id") val contentId: String? = null,
+    )
+
+    /**
+     * What a message advertises as the way off its list.
+     *
+     * `one_click` means the sender accepts an RFC 8058 POST, which the
+     * **server** performs. The URLs are sent so the client can offer a
+     * link when one-click is not on the table, but a client must not
+     * post to them itself: they identify the subscriber, and fetching
+     * one from a phone hands the sender the reader's address and
+     * network.
+     *
+     * Source: `crates/webapi/src/handlers/conversation_body.rs` —
+     * `UnsubscribeWire`. Both vectors are `skip_serializing_if` empty,
+     * so absent means none.
+     */
+    @Serializable
+    data class Unsubscribe(
+        @SerialName("one_click") val oneClick: Boolean = false,
+        val http: List<String> = emptyList(),
+        val mailto: List<String> = emptyList(),
+    )
+
+    /**
+     * `POST /api/mail/unsubscribe` — `{thread_id, uid}`.
+     *
+     * The message's identity, not a URL from the client. The server
+     * takes the one-click URL out of the message's own header, so a
+     * client that sent a URL would be choosing where the POST goes.
+     */
+    @Serializable
+    data class UnsubscribeRequest(
+        @SerialName("thread_id") val threadId: String,
+        val uid: Int,
+    )
+
+    @Serializable
+    data class UnsubscribeResult(
+        val ok: Boolean,
+        val status: Int? = null,
+        val message: String? = null,
     )
 
     /**

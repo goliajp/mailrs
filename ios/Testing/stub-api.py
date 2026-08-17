@@ -645,7 +645,14 @@ class H(BaseHTTPRequestHandler):
                 self._send([convo("unread1", "Unread thread", "not opened", 1754260000)])
                 return
             if folder == "NP":
-                self._send([convo("np1", "Newsletter thread", "weekly", 1754270000)])
+                # t3 rides along so a client whose folder list has no
+                # test-only "Lists" entry can still reach the newsletter
+                # — a newsletter is what N & P is for. The `Lists` branch
+                # below stays for the iOS suite, which asks for it by
+                # name.
+                self._send([convo("np1", "Newsletter thread", "weekly", 1754270000),
+                            convo("t3", "This week in systems design",
+                                  "the one with a way out", 1754280000)])
                 return
             # A list the newsletter thread is reachable from, so the
             # unsubscribe footer can be opened without disturbing the

@@ -1,8 +1,8 @@
 
-
+
 emulator-5570primary’
 €
-MailFlowTestjp.golia.mailrs*a_message_with_no_recipient_cannot_be_sent2¨ÜŒÔÀóö4:­ÜŒÔÀ˜–éB
+MailFlowTestjp.golia.mailrs*a_message_with_no_recipient_cannot_be_sent2åáŒÔÀêü3:êáŒÔÀøÜÄB
 emulator-5570primary"ï
 
 logcatandroidÙ
@@ -15,9 +15,9 @@
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo“
-
-MailFlowTestjp.golia.mailrs*back_closes_the_thread_rather_than_the_app2­ÜŒÔ€¸Áì:²ÜŒÔ€á††B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo’
+€
+MailFlowTestjp.golia.mailrs*back_closes_the_thread_rather_than_the_app2êáŒÔ€¡‚É:ğáŒÔ€½ƒB
 emulator-5570primary"ï
 
 logcatandroidÙ
@@ -32,7 +32,7 @@
 device-info.cpuinfoandroid
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoï
 o
-MailFlowTestjp.golia.mailrsback_collapses_the_search2²ÜŒÔÀåÃ†:·ÜŒÔÀ©Ó:B
+MailFlowTestjp.golia.mailrsback_collapses_the_search2ğáŒÔÀÁÀ:ôáŒÔÀÖĞ­B
 emulator-5570primary"Ş
 
 logcatandroidÈ
@@ -47,7 +47,7 @@ o
 device-info.cpuinfoandroid
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo–
 ‚
-MailFlowTestjp.golia.mailrs,replying_sends_a_reply_and_not_a_new_message2·ÜŒÔÀ©Ó::¾ÜŒÔ€Í¿‘B
+MailFlowTestjp.golia.mailrs,replying_sends_a_reply_and_not_a_new_message2ôáŒÔ€Û®:üáŒÔ€Ûò?B
 emulator-5570primary"ñ
 
 logcatandroidÛ
@@ -60,9 +60,9 @@ o
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo—
-ƒ
-MailFlowTestjp.golia.mailrs,a_search_with_no_hits_says_which_term_missed2¾ÜŒÔÀÑü‘:ÃÜŒÔÀïë½B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo•
+
+MailFlowTestjp.golia.mailrs,a_search_with_no_hits_says_which_term_missed2üáŒÔÀß¯@:âŒÔ€Òø>B
 emulator-5570primary"ñ
 
 logcatandroidÛ
@@ -77,7 +77,7 @@ o
 device-info.cpuinfoandroid
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo
 
-MailFlowTestjp.golia.mailrs)opening_a_conversation_shows_its_messages2ÃÜŒÔÀïë½:ÉÜŒÔ€Í¤#B
+MailFlowTestjp.golia.mailrs)opening_a_conversation_shows_its_messages2âŒÔÀÖµ?:†âŒÔ€°õ¡B
 emulator-5570primary"î
 
 logcatandroidØ
@@ -90,9 +90,9 @@ o
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoï
-o
-MailFlowTestjp.golia.mailrsback_cancels_the_composer2ÉÜŒÔÀÑá#:ÍÜŒÔÀÊB
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoğ
+p
+MailFlowTestjp.golia.mailrsback_cancels_the_composer2†âŒÔ€¹ï¢:ŠâŒÔÀÓ˜B
 emulator-5570primary"Ş
 
 logcatandroidÈ
@@ -105,9 +105,24 @@ o
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoø
-t
-MailFlowTestjp.golia.mailrsan_unreachable_server_says_so2ÍÜŒÔ€•‡Ÿ:ĞÜŒÔÀïÙÉB
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo‰
+|
+MailFlowTestjp.golia.mailrs&the_drawer_switches_which_list_is_read2ŠâŒÔ€•™:âŒÔÀñ£BB
+emulator-5570primary"ë
+
+logcatandroidÕ
+Ò/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-the_drawer_switches_which_list_is_read.txt"°
+
+device-infoandroid•
+’/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"±
+
+device-info.meminfoandroid
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
+
+device-info.cpuinfoandroid
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo÷
+s
+MailFlowTestjp.golia.mailrsan_unreachable_server_says_so2âŒÔ€öàB:’âŒÔ€è¤šB
 emulator-5570primary"â
 
 logcatandroidÌ
@@ -120,9 +135,9 @@ t
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo•
-‚
-MailFlowTestjp.golia.mailrs+a_body_renders_and_holds_its_remote_content2ĞÜŒÔÀïÙÉ:ÕÜŒÔÀî´B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo”
+
+MailFlowTestjp.golia.mailrs+a_body_renders_and_holds_its_remote_content2’âŒÔÀìáš:˜âŒÔÀå¨B
 emulator-5570primary"ğ
 
 logcatandroidÚ
@@ -135,9 +150,9 @@ t
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoò
-q
-MailFlowTestjp.golia.mailrssigning_in_lists_the_inbox2ÕÜŒÔ€óñ:ÙÜŒÔ€Û®B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoñ
+p
+MailFlowTestjp.golia.mailrssigning_in_lists_the_inbox2˜âŒÔÀî¢:œâŒÔ€¤ƒòB
 emulator-5570primary"ß
 
 logcatandroidÉ
@@ -150,9 +165,9 @@ q
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoı
-v
-MailFlowTestjp.golia.mailrs a_swiped_row_can_be_brought_back2ÙÜŒÔ€Û®:ŞÜŒÔ€ËÑ0B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoş
+w
+MailFlowTestjp.golia.mailrs a_swiped_row_can_be_brought_back2œâŒÔ€Úß÷:¡âŒÔ€ãÇ„B
 emulator-5570primary"å
 
 logcatandroidÏ
@@ -167,7 +182,7 @@ v
 device-info.cpuinfoandroid
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoı
 v
-MailFlowTestjp.golia.mailrs search_keeps_the_servers_ranking2ŞÜŒÔ€ËÑ0:ãÜŒÔ€³íĞB
+MailFlowTestjp.golia.mailrs search_keeps_the_servers_ranking2¡âŒÔÀç„…:¦âŒÔÀñ£BB
 emulator-5570primary"å
 
 logcatandroidÏ
@@ -180,9 +195,9 @@ v
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo
-
-MailFlowTestjp.golia.mailrs(the_second_attachment_is_the_one_fetched2ãÜŒÔÀ·ªÑ:êÜŒÔÀ«¯§B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoŒ
+}
+MailFlowTestjp.golia.mailrs(the_second_attachment_is_the_one_fetched2¦âŒÔ€öàB:®âŒÔ€ÚÄ	B
 emulator-5570primary"í
 
 logcatandroid×
@@ -195,9 +210,25 @@ v
 ‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
 
 device-info.cpuinfoandroid
-‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoü
-v
-MailFlowTestjp.golia.mailrsthe_server_field_can_be_changed2êÜŒÔÀ«¯§:ìÜŒÔ€ª‰B
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfo
+~
+MailFlowTestjp.golia.mailrs)unsubscribing_names_the_message_not_a_url2®âŒÔÀŞ
+:¶âŒÔÀüğ5B
+emulator-5570primary"î
+
+logcatandroidØ
+Õ/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-unsubscribing_names_the_message_not_a_url.txt"°
+
+device-infoandroid•
+’/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/device-info.pb"±
+
+device-info.meminfoandroid
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/meminfo"±
+
+device-info.cpuinfoandroid
+‹/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/cpuinfoû
+u
+MailFlowTestjp.golia.mailrsthe_server_field_can_be_changed2¶âŒÔ€®6:¸âŒÔÀ™ÄŸB
 emulator-5570primary"ä
 
 logcatandroidÎ

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="jp.golia.mailrs.wire.ReplyRecipientsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-08-17T15:19:29.324Z" hostname="studio" time="0.021">
+<testsuite name="jp.golia.mailrs.wire.ReplyRecipientsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-08-17T15:56:35.782Z" hostname="studio" time="0.019">
   <properties/>
   <testcase name="an_empty_subject_is_just_the_prefix" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.0"/>
-  <testcase name="reply_all_keeps_the_sender_first_and_collapses_duplicates" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.009"/>
+  <testcase name="reply_all_keeps_the_sender_first_and_collapses_duplicates" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.008"/>
   <testcase name="the_quote_carries_the_original_indented" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.009"/>
   <testcase name="reply_all_drops_me" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.0"/>
   <testcase name="a_subject_gains_one_prefix_at_most" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.001"/>
-  <testcase name="my_address_is_matched_however_it_is_cased" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.0"/>
+  <testcase name="my_address_is_matched_however_it_is_cased" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.001"/>
   <testcase name="a_reply_goes_to_the_sender" classname="jp.golia.mailrs.wire.ReplyRecipientsTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>

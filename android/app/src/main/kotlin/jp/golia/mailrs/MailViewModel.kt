@@ -3,6 +3,7 @@ package jp.golia.mailrs
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.TokenStore
@@ -80,7 +81,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         _state.value = _state.value.copy(busy = true, error = null)
         viewModelScope.launch {
-            when (val r = client.conversations()) {
+            when (val r = client.conversations(_state.value.list)) {
                 is MailrsClient.Outcome.Ok ->
                     _state.value = _state.value.copy(busy = false, conversations = r.value)
                 is MailrsClient.Outcome.Err ->
@@ -257,6 +258,34 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Ask the server to leave the list.
+     *
+     * Only ever the one-click case, and only ever by the message's
+     * identity — the advertised URLs identify the subscriber, so the
+     * server takes the URL out of the message's own header rather than
+     * being told where to post.
+     *
+     * A refusal is kept per message and shown, because an unsubscribe
+     * that failed and looks like one that worked is how people end up
+     * tapping it every week for a year.
+     */
+    fun unsubscribe(threadId: String, uid: Int) {
+        _state.value = _state.value.copy(
+            unsubscribing = _state.value.unsubscribing + (uid to Unsubscribing.Working),
+        )
+        viewModelScope.launch {
+            val outcome = client.unsubscribe(threadId, uid)
+            val verdict = when {
+                outcome is MailrsClient.Outcome.Ok && outcome.value.ok -> Unsubscribing.Done
+                else -> Unsubscribing.Failed
+            }
+            _state.value = _state.value.copy(
+                unsubscribing = _state.value.unsubscribing + (uid to verdict),
+            )
+        }
+    }
+
     /** The screen has handed it to another app; stop offering it. */
     fun attachmentOpened() {
         _state.value = _state.value.copy(openFile = null)
@@ -289,7 +318,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.value = _state.value.copy(searchTerm = term, searching = true, error = null)
         viewModelScope.launch {
-            val r = client.search(term)
+            val r = client.search(term, _state.value.list)
             // A slower earlier search must not overwrite a later one —
             // typing "ref" then "ref 2026" would otherwise settle on
             // whichever request the network happened to finish last.
@@ -301,6 +330,27 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     _state.value.copy(searching = false, error = r.message)
             }
         }
+    }
+
+    /**
+     * Show another list.
+     *
+     * The rows on screen belong to the list that was showing, so they
+     * are cleared rather than left under a new heading — a moment of
+     * Junk labelled Inbox is worse than a moment of nothing.
+     */
+    fun show(list: MailList) {
+        if (list == _state.value.list) return
+        searchToken++
+        _state.value = _state.value.copy(
+            list = list,
+            conversations = emptyList(),
+            searchTerm = "",
+            results = null,
+            searching = false,
+            error = null,
+        )
+        refresh()
     }
 
     fun clearSearch() {
@@ -374,11 +424,18 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
          */
         val results: List<Wire.Conversation>? = null,
         val searching: Boolean = false,
+        /** Which list is showing. Its axes scope both the list and the search. */
+        val list: MailList = MailList.Inbox,
         /** Which attachment index is being fetched, if any. */
         val openingAttachment: Int? = null,
         /** A file ready to hand to another app. */
         val openFile: OpenedFile? = null,
+        /** Where each message's unsubscribe has got to, by uid. */
+        val unsubscribing: Map<Int, Unsubscribing> = emptyMap(),
     )
+
+    /** How far a one-click unsubscribe has got. */
+    enum class Unsubscribing { Working, Done, Failed }
 
     /** A downloaded attachment, waiting for the screen to hand it on. */
     data class OpenedFile(val file: java.io.File, val mimeType: String, val filename: String)
