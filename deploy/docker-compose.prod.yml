@@ -194,7 +194,16 @@ services:
       # fallback yields MAILER-DAEMON@mail.golia.ai — a subdomain, which
       # lands under sp=reject with no aligned key.
       MAILRS_DSN_FROM_DOMAIN: ${MAILRS_DSN_FROM_DOMAIN:-golia.ai}
-      MAILRS_SENDER_MAX_ATTEMPTS: "10"
+      # No MAILRS_SENDER_MAX_ATTEMPTS here on purpose. It said "10", and
+      # with the flat 60-second floor that made a message's whole life
+      # ten minutes — shorter than the propagation delay of the very
+      # unblock that would have delivered it (2026-08-17, Microsoft
+      # S3140). The bound is now the queue lifetime, five days, per
+      # RFC 5321 §4.5.4.1; the attempt cap survives only as a backstop
+      # against a pathological loop and the code's 100 is the right
+      # value for that. Pinning 10 here would have quietly capped the
+      # new schedule at about 23 hours — a compose knob overriding the
+      # policy it was written before.
       MAILRS_SENDER_POLL_MS: "500"
       MAILRS_SENDER_RETRY_MIN_SECS: "60"
       MAILRS_DKIM_DOMAIN: golia.jp
