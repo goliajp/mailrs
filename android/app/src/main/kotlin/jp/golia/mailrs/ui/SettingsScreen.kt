@@ -1,0 +1,132 @@
+package jp.golia.mailrs.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.MailViewModel
+import jp.golia.mailrs.wire.Prefs
+
+/**
+ * Settings: who is signed in, how it should look, and the way out.
+ *
+ * **Sign out moved here from the toolbar.** It was a text button next
+ * to refresh — one mis-tap from losing the session, on the screen a
+ * person uses most. On Android the destructive account action lives in
+ * settings, at the bottom, in the colour that says so.
+ *
+ * Only what belongs to *this device* is offered. Signature, language
+ * and time zone are the account's and are read from the server, or two
+ * devices end up disagreeing about the same person.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    state: MailViewModel.UiState,
+    appearance: Prefs.Appearance,
+    onAppearance: (Prefs.Appearance) -> Unit,
+    onClose: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val theme = LocalTheme.current
+    Scaffold(
+        containerColor = theme.bg,
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = theme.bg,
+                    titleContentColor = theme.fg,
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onClose, modifier = Modifier.testTag("button.closeSettings")) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = theme.fgSecondary,
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize().background(theme.bg)) {
+            SectionHeading("Account")
+            Field("Signed in as", state.myAddress.ifBlank { "—" })
+            Field("Server", state.server.ifBlank { "—" })
+
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            SectionHeading("Appearance")
+            SingleChoiceSegmentedButtonRow(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Prefs.Appearance.entries.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = option == appearance,
+                        onClick = { onAppearance(option) },
+                        shape = SegmentedButtonDefaults.itemShape(index, Prefs.Appearance.entries.size),
+                        modifier = Modifier.testTag("appearance.${option.name}"),
+                    ) {
+                        Text(option.label, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            TextButton(
+                onClick = onSignOut,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp).testTag("button.signOut"),
+            ) {
+                Text("Sign out", color = theme.danger, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeading(text: String) {
+    val theme = LocalTheme.current
+    Text(
+        text,
+        color = theme.fgMuted,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 6.dp),
+    )
+}
+
+/** A label and its value, on one line, the way a settings list reads. */
+@Composable
+private fun Field(label: String, value: String) {
+    val theme = LocalTheme.current
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = theme.fgSecondary, fontSize = 14.sp, modifier = Modifier.padding(end = 12.dp))
+        Text(value, color = theme.fg, fontSize = 14.sp)
+    }
+}

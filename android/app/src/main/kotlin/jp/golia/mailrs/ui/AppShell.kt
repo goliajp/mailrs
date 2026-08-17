@@ -26,7 +26,7 @@ import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
-private enum class Screen { SignIn, List, Thread, Compose }
+private enum class Screen { SignIn, List, Settings, Thread, Compose }
 
 /**
  * The app's one navigation decision, and the motion that goes with it.
@@ -56,6 +56,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         // returns there rather than to the inbox.
         state.composing != null -> Screen.Compose
         state.open != null -> Screen.Thread
+        state.settingsOpen -> Screen.Settings
         else -> Screen.List
     }
 
@@ -65,13 +66,16 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
     // showing when it was composed.
     val current by rememberUpdatedState(screen)
 
-    PredictiveBackHandler(enabled = screen == Screen.Thread || screen == Screen.Compose) { progress ->
+    PredictiveBackHandler(
+        enabled = screen == Screen.Thread || screen == Screen.Compose || screen == Screen.Settings,
+    ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
             backProgress = 0f
             when (current) {
                 Screen.Compose -> vm.cancelCompose()
                 Screen.Thread -> vm.closeThread()
+                Screen.Settings -> vm.closeSettings()
                 else -> Unit
             }
         } catch (_: CancellationException) {
@@ -140,6 +144,18 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }
                     Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
+                    Screen.Settings -> Box(peeled) {
+                        SettingsScreen(
+                            state = state,
+                            appearance = state.appearance,
+                            onAppearance = { vm.chooseAppearance(it) },
+                            onClose = { vm.closeSettings() },
+                            onSignOut = {
+                                vm.closeSettings()
+                                vm.signOut()
+                            },
+                        )
+                    }
                 }
             }
         }

@@ -383,7 +383,7 @@ class MailFlowTest {
         // below the fold — and a tap at a coordinate that is off-screen
         // is not the tap this test means. iOS's copy of this test says
         // the same thing about the unsubscribe button.
-        compose.onAllNodesWithTag("row.attachment")[1].performScrollTo().performClick()
+        tapWhenSteady("row.attachment", 1)
         try {
             compose.waitUntil(TIMEOUT_MS) { readStub("/debug/fetched").contains("1") }
         } catch (e: Throwable) {
@@ -456,6 +456,33 @@ class MailFlowTest {
         waitForTag("list.conversations", "back did not return to the inbox")
     }
 
+    /**
+     * Scroll to something under a message body, wait for it to stop
+     * moving, then tap it.
+     *
+     * A body is a `WebView` that finds its height after its content
+     * loads, so everything below it slides down some milliseconds after
+     * the screen looks finished. A tap dispatched across that shift
+     * lands where the row *was*. Both failures this fixes were
+     * intermittent in the suite and never reproduced in isolation, which
+     * is exactly what a layout race looks like.
+     *
+     * Steady means the top edge is unchanged across two reads, not that
+     * some fixed time has passed — a sleep would be a guess about a
+     * machine's speed.
+     */
+    private fun tapWhenSteady(tag: String, index: Int) {
+        compose.onAllNodesWithTag(tag)[index].performScrollTo()
+        var last = Float.NaN
+        compose.waitUntil(TIMEOUT_MS) {
+            val top = compose.onAllNodesWithTag(tag)[index].fetchSemanticsNode().positionInRoot.y
+            val steady = top == last
+            last = top
+            steady
+        }
+        compose.onAllNodesWithTag(tag)[index].performClick()
+    }
+
     private fun pressBack() {
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
@@ -512,7 +539,7 @@ class MailFlowTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag("button.unsubscribe").fetchSemanticsNodes().size == 2
         }
-        compose.onAllNodesWithTag("button.unsubscribe")[1].performScrollTo().performClick()
+        tapWhenSteady("button.unsubscribe", 1)
 
         waitForTag("unsubscribed", "the button never resolved to a result")
 
@@ -593,6 +620,30 @@ class MailFlowTest {
         val sent = readStub("/debug/sent")
         assertTrue("the Cc did not travel as a Cc: $sent", sent.contains("\"cc\": [\"alice@example.com\"]"))
         assertTrue("the Bcc did not travel as a Bcc: $sent", sent.contains("\"bcc\": [\"bob@example.com\"]"))
+    }
+
+    /**
+     * Settings, and the way out of the account.
+     *
+     * Sign out used to be a text button beside refresh — one mis-tap
+     * from losing the session on the screen used most. It lives at the
+     * bottom of settings now, so the path a person actually takes is
+     * the one this walks.
+     */
+    @Test
+    fun settings_holds_the_account_and_the_way_out() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("appearance.System", "settings never opened")
+
+        // Choosing dark must not be a no-op the next screen forgets.
+        compose.onNodeWithTag("appearance.Dark").performClick()
+        compose.onNodeWithTag("button.signOut").performClick()
+        waitForTag("field.address", "signing out did not return to sign-in")
     }
 
     private fun readStub(path: String): String {

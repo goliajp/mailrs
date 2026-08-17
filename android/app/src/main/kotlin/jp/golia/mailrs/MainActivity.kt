@@ -4,12 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import jp.golia.mailrs.ui.LocalTheme
 import jp.golia.mailrs.ui.MailrsApp
+import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.ui.MailrsTheme
 
 class MainActivity : ComponentActivity() {
@@ -49,15 +51,24 @@ class MainActivity : ComponentActivity() {
             // Not Material You: the three clients hold one palette, and
             // an accent taken from the wallpaper is not that. See
             // `ui/Theme.kt`.
-            MailrsTheme {
+            val vm: MailViewModel = viewModel()
+            val state by vm.state.collectAsStateWithLifecycle()
+            // "Follow the phone" is a real answer and the default one, so
+            // the preference resolves to a boolean here rather than being
+            // stored as one — a two-state switch freezes whichever mode
+            // the phone happened to be in.
+            val dark = when (state.appearance) {
+                Prefs.Appearance.System -> isSystemInDarkTheme()
+                Prefs.Appearance.Light -> false
+                Prefs.Appearance.Dark -> true
+            }
+            MailrsTheme(dark = dark) {
                 Surface(color = LocalTheme.current.bg) {
-                    val vm: MailViewModel = viewModel()
                     // `am start … --es mailrs_base_url http://10.0.2.2:6039`
                     // is this app's `-mailrsBaseURL`. Ignored outside a
                     // debug build; see `MailViewModel.useServer`.
                     model = vm
                     vm.useServer(intent?.getStringExtra("mailrs_base_url"))
-                    val state by vm.state.collectAsStateWithLifecycle()
                     MailrsApp(vm, state)
                 }
             }
