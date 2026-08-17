@@ -20,6 +20,9 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
@@ -366,4 +369,48 @@ class NavigationFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.star").performClick()
         compose.waitUntil(TIMEOUT_MS) { readStub("/debug/verbs").contains("star t1") }
     }
+
+    /**
+     * The list pages, and does not lose the boundary second.
+     *
+     * The stub's `Paged` fixture is 120 threads with rows 48-52 sharing
+     * one second, which is the trap: the server compares strictly, so a
+     * client asking for its oldest row's own timestamp drops the
+     * siblings that did not fit — silently, because a short page looks
+     * exactly like the end of the mailbox.
+     *
+     * So this scrolls to the end and asserts the row that would be lost
+     * is there. Sixty was fifty before paging existed.
+     */
+    @Test
+    fun the_list_pages_past_fifty_without_skipping_a_shared_second() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.activityRule.scenario.onActivity { it.useFolderForTest("Paged") }
+
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("Paged thread 0").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Scroll until the list stops growing: each pass brings a page.
+        var seen = 0
+        repeat(12) {
+            compose.onNodeWithTag("list.conversations").performScrollToIndex(
+                maxOf(0, currentRowCount() - 1),
+            )
+            compose.waitForIdle()
+            val now = currentRowCount()
+            if (now == seen) return@repeat
+            seen = now
+        }
+
+        // Row 52 shares its second with 48-51 and is the one a client
+        // paging on its own oldest timestamp would drop.
+        compose.onNodeWithTag("list.conversations")
+            .performScrollToNode(hasText("Paged thread 52"))
+        compose.onNodeWithText("Paged thread 52").assertIsDisplayed()
+    }
+
+    private fun currentRowCount() =
+        compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
 }

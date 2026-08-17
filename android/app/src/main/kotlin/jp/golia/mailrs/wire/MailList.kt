@@ -68,4 +68,17 @@ enum class MailList(val title: String, val emptyMessage: String, val axes: MailL
      * list means.
      */
     Archived("Archived", "No archived conversations", MailListAxes(archived = true)),
+    ;
+
+    companion object {
+        /**
+         * A list named by something other than this enum.
+         *
+         * Only the instrumented suite uses it, for the stub's `Paged`
+         * fixture — 120 threads with a deliberate timestamp collision at
+         * rows 48-52, which is the only way to exercise keyset paging
+         * against a real server-shaped answer.
+         */
+        fun named(folder: String) = MailListAxes(folder = folder)
+    }
 }

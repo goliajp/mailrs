@@ -9,6 +9,7 @@ import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailCache
 import jp.golia.mailrs.wire.MailList
+import jp.golia.mailrs.wire.MailListAxes
 import jp.golia.mailrs.wire.messageSource
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.NewMailWorker
@@ -18,6 +19,7 @@ import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ShareIntent
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.TokenStore
+import jp.golia.mailrs.wire.ThreadPage
 import jp.golia.mailrs.wire.Wire
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +46,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     internal var undoToken = 0
     private var searchToken = 0
     internal var contactToken = 0
+
+    /** Set only by `useFolderForTest`; null in every shipped build. */
+    internal var testFolder: MailListAxes? = null
 
     /**
      * Point the app at a stub, the way the iOS suite's
@@ -139,10 +144,14 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             busy = true,
             error = null,
+            // A refresh starts the paging over: the first page is the
+            // newest fifty again, and whatever was paged in below it is
+            // replaced rather than left dangling under fresh rows.
+            endOfList = false,
             conversations = cached ?: _state.value.conversations,
         )
         viewModelScope.launch {
-            when (val r = client.conversations(list)) {
+            when (val r = client.conversations(testFolder ?: list.axes)) {
                 is MailrsClient.Outcome.Ok -> {
                     cache.writeConversations(r.value, list.name)
                     // The home-screen widget draws what was last
@@ -161,6 +170,45 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                         busy = false,
                         error = if (_state.value.conversations.isEmpty()) r.message else null,
                     )
+            }
+        }
+    }
+
+    /**
+     * Fetch the next page when the list has been scrolled to its end.
+     *
+     * The mailbox is thousands of threads and a page is fifty, so a list
+     * that stopped at the first page put everything older than the last
+     * fortnight out of reach. Keyset paging, with the boundary second
+     * re-requested and merged — [ThreadPage] carries the reasoning.
+     *
+     * A page with nothing new in it is the end, and `endOfList` stops
+     * the asking; a full page of rows already held would otherwise be
+     * requested forever.
+     */
+    fun loadMore() {
+        val state = _state.value
+        if (state.loadingMore || state.endOfList || state.conversations.isEmpty()) return
+        val before = ThreadPage.nextBefore(state.conversations) ?: return
+        val list = state.list
+        _state.value = state.copy(loadingMore = true)
+        viewModelScope.launch {
+            when (val r = client.conversations(testFolder ?: list.axes, before = before)) {
+                is MailrsClient.Outcome.Ok -> {
+                    // The list may have been switched while this was out.
+                    if (_state.value.list != list) return@launch
+                    val merged = ThreadPage.merge(_state.value.conversations, r.value)
+                    _state.value = _state.value.copy(
+                        conversations = merged.rows,
+                        loadingMore = false,
+                        endOfList = !merged.progressed,
+                    )
+                }
+                is MailrsClient.Outcome.Err ->
+                    // Not the end — just not now. Saying otherwise would
+                    // stop the list asking again after the network came
+                    // back.
+                    _state.value = _state.value.copy(loadingMore = false)
             }
         }
     }
@@ -212,6 +260,21 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      * disk. Without this the cache path has no coverage at all, and an
      * untested cache is one that silently stops being read.
      */
+    /**
+     * Point the list at a folder this enum does not name.
+     *
+     * Debug only, and it exists for the stub's `Paged` fixture: 120
+     * threads with a deliberate collision at rows 48-52, which is the
+     * only way to page against a server-shaped answer rather than a
+     * two-row fixture.
+     */
+    fun useFolderForTest(folder: String) {
+        if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+        testFolder = MailList.named(folder)
+        _state.value = _state.value.copy(conversations = emptyList(), endOfList = false)
+        refresh()
+    }
+
     fun forgetLoadedMail() {
         if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
         _state.value = _state.value.copy(conversations = emptyList(), messages = emptyList())
@@ -292,6 +355,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             list = list,
             selected = emptySet(),
+            endOfList = false,
             conversations = emptyList(),
             searchTerm = "",
             results = null,

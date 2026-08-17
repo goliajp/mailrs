@@ -92,8 +92,18 @@ class MailrsClient(private val store: TokenStore) {
         }
     }
 
-    suspend fun conversations(list: MailList): Outcome<List<Wire.Conversation>> = decode(
-        get("/api/conversations?limit=50&" + list.axes.query()),
+    /**
+     * @param before keyset page boundary — see [ThreadPage] for why it
+     *   is one second past the oldest row rather than the oldest row.
+     */
+    suspend fun conversations(list: MailList, before: Long? = null): Outcome<List<Wire.Conversation>> =
+        conversations(list.axes, before)
+
+    suspend fun conversations(axes: MailListAxes, before: Long? = null): Outcome<List<Wire.Conversation>> = decode(
+        get(
+            "/api/conversations?limit=50&" + axes.query() +
+                (before?.let { "&before_ts=$it" } ?: ""),
+        ),
         Wire.Conversation.serializer(),
     )
 
