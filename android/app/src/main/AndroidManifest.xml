@@ -69,6 +69,12 @@
           and making the copy world-readable instead would be a worse
           way to make it work.
         -->
+        <!-- Archive, from the notification shade. Not exported: only
+             this app's own PendingIntent triggers it. -->
+        <receiver
+            android:name=".wire.ArchiveFromNotification"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

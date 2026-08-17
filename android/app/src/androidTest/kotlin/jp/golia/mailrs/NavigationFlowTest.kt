@@ -298,4 +298,28 @@ class NavigationFlowTest : MailrsUiTest() {
             }
         }
     }
+
+    /**
+     * A tapped notification opens **that** message, not the app.
+     *
+     * The notification carries a thread id and nothing else, so the
+     * list is fetched to find its row — a thread needs one for its
+     * header. Delivered through the same debug hook the share tests
+     * use, because `onNewIntent` upsets `ActivityScenario`.
+     */
+    @Test
+    fun a_tapped_notification_opens_that_thread() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.deliverForTest(
+                android.content.Intent(activity, MainActivity::class.java)
+                    .putExtra(jp.golia.mailrs.wire.NewMailWorker.EXTRA_THREAD_ID, "t1"),
+            )
+        }
+
+        waitForTag("list.messages", "the notification did not open the thread")
+        compose.onNodeWithText("Alice Smith").assertIsDisplayed()
+    }
 }
