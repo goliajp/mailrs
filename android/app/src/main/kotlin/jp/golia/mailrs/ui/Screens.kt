@@ -594,7 +594,7 @@ private fun SenderClaimMark(sender: String) {
 
 /** An absence, with the sentence finished. */
 @Composable
-private fun Conclusion(headline: String, detail: String, modifier: Modifier = Modifier) {
+internal fun Conclusion(headline: String, detail: String, modifier: Modifier = Modifier) {
     val theme = LocalTheme.current
     Column(
         modifier.padding(32.dp).testTag("conclusion"),
