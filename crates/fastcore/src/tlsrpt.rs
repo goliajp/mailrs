@@ -268,6 +268,12 @@ fn parse_failure_type(s: Option<&str>) -> FailureType {
         "sts-webpki-invalid" => FailureType::StsWebpkiInvalid,
         "mx-mismatch" => FailureType::MxMismatch,
         "dane-required" => FailureType::DaneRequired,
+        // `mailrs_smtp_client::TlsOutcome::as_str()` emits this for a
+        // TLSA rejection, and this arm did not exist — so a DANE
+        // failure was reported to the domain owner as a generic
+        // validation failure, which is the one thing a TLS-RPT report
+        // is supposed to tell them apart from.
+        "tlsa-invalid" => FailureType::TlsaInvalid,
         _ => FailureType::ValidationFailure,
     }
 }
@@ -315,6 +321,69 @@ mod tests {
         assert_eq!(
             parse_failure_type(Some("garbage")),
             FailureType::ValidationFailure
+        );
+    }
+}
+
+#[cfg(test)]
+mod vocabulary_tests {
+    use super::*;
+
+    /// **The two vocabularies have to agree**, and nothing made them.
+    ///
+    /// `mailrs_smtp_client::TlsOutcome::as_str()` names a TLS failure in
+    /// RFC 8460's own words; `parse_failure_type` reads that name back.
+    /// A name the stone emits and the parser does not know does not
+    /// error — it falls through to `ValidationFailure`, and the domain
+    /// owner receives a report saying "something was wrong" about a
+    /// failure we had classified exactly.
+    ///
+    /// It had already happened: `tlsa-invalid` was emitted and not
+    /// parsed, so every DANE rejection was reported as generic. This
+    /// walks every variant the stone can produce instead of listing the
+    /// ones somebody remembered.
+    #[test]
+    fn every_name_the_stone_emits_is_one_this_parses() {
+        use mailrs_smtp_client::TlsOutcome as O;
+        let all = [
+            O::CertificateExpired(String::new()),
+            O::CertificateHostMismatch(String::new()),
+            O::CertificateNotTrusted(String::new()),
+            O::DaneValidationFailure(String::new()),
+            O::InvalidServerName(String::new()),
+            O::NetworkError(String::new()),
+            O::Other(String::new()),
+        ];
+        // The three that RFC 8460 has no vocabulary for map to
+        // `validation-failure` by design — the stone's own docs say so.
+        // Everything else must round-trip to something specific.
+        let no_rfc_name = ["invalid-server-name", "network-error", "other"];
+        for o in &all {
+            let name = o.as_str();
+            let parsed = parse_failure_type(Some(name));
+            if no_rfc_name.contains(&name) {
+                assert_eq!(
+                    parsed,
+                    FailureType::ValidationFailure,
+                    "{name} has no RFC 8460 vocabulary and should be generic"
+                );
+            } else {
+                assert_ne!(
+                    parsed,
+                    FailureType::ValidationFailure,
+                    "{name} is an RFC 8460 failure type and this parser \
+                     downgraded it to a generic one"
+                );
+            }
+        }
+    }
+
+    /// And the one that was actually being lost, named.
+    #[test]
+    fn a_tlsa_rejection_is_reported_as_a_tlsa_rejection() {
+        assert_eq!(
+            parse_failure_type(Some("tlsa-invalid")),
+            FailureType::TlsaInvalid
         );
     }
 }
