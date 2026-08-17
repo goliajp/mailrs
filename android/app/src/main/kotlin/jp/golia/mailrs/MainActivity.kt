@@ -1,5 +1,7 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.compose
+import jp.golia.mailrs.composeFromShare
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager

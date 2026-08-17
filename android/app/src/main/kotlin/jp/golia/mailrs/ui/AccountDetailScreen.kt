@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.AccountDetail
+import jp.golia.mailrs.closeAccount
 import jp.golia.mailrs.MailViewModel
 
 /**
@@ -49,7 +51,7 @@ import jp.golia.mailrs.MailViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountDetailScreen(detail: MailViewModel.AccountDetail, vm: MailViewModel) {
+fun AccountDetailScreen(detail: AccountDetail, vm: MailViewModel) {
     val theme = LocalTheme.current
     Scaffold(
         containerColor = theme.bg,

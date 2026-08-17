@@ -1,0 +1,301 @@
+package jp.golia.mailrs
+
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Getting around, and filing what is there.
+ *
+ * The gestures rather than the screens: back at every layer, the swipe
+ * and its undo, the drawer, selection mode, two panes on a wide screen,
+ * and a mailbox that survives the network going away. Split out of
+ * `MailFlowTest` when it went back over this repo's 500-line limit.
+ */
+@RunWith(AndroidJUnit4::class)
+class NavigationFlowTest : MailrsUiTest() {
+
+    /**
+     * Swipe a row away and put it back.
+     *
+     * The undo is the only protection this screen offers — no dialog
+     * asks — so a swipe that could not be undone would make every
+     * mis-swipe permanent. That the row **returns** is the assertion;
+     * that it left is only half of it.
+     */
+    @Test
+    fun a_swiped_row_can_be_brought_back() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("the fixture has no rows to swipe", before > 0)
+
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput {
+            swipeRight(startX = centerX, endX = right)
+        }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before - 1
+        }
+
+        // The snackbar's action is the platform's control, so this taps
+        // the word rather than calling the view model — the test has to
+        // fail if the snackbar stops being wired to it.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("Undo").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Undo").performClick()
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+            }
+        } catch (e: Throwable) {
+            throw AssertionError(
+                // The verbs are in the message because they say which
+                // of the two failures this is: none means the undo did
+                // not restore, one means the row was filed anyway.
+                "the row did not come back. verbs the stub saw: " + readStub("/debug/verbs") +
+                    "; rows now " + compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size +
+                    ", was " + before,
+                e,
+            )
+        }
+    }
+
+    /**
+     * Back is navigation on Android, not exit.
+     *
+     * On iOS the chevron is the way out and the edge swipe follows it;
+     * here the gesture *is* the way out, and a screen that does not take
+     * it closes the app instead of the thread. Driven through the
+     * activity's own `OnBackPressedDispatcher`, which is what the system
+     * dispatches to, so this fails for the same reason a person's swipe
+     * would.
+     */
+    @Test
+    fun back_closes_the_thread_rather_than_the_app() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        pressBack()
+        waitForTag("list.conversations", "back did not return to the inbox")
+    }
+
+    @Test
+    fun back_collapses_the_search() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.search").performClick()
+        waitForTag("search.field", "the search never opened")
+
+        pressBack()
+        waitForTag("list.conversations", "back did not return to the inbox")
+    }
+
+    /**
+     * The drawer is how six lists became reachable at all.
+     *
+     * The app showed one hard-coded Inbox while the server, the web and
+     * iOS all carried Junk, Starred, Archived and the rest. Choosing one
+     * has to re-query with that list's axes, which is why the assertion
+     * is on the row that only Junk returns rather than on the heading.
+     */
+    @Test
+    fun the_drawer_switches_which_list_is_read() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Junk").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("You have won").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * Long press picks rows; the bar becomes the action bar.
+     *
+     * Android's own pattern, and the reason a row tap has two meanings:
+     * while a selection is on, tapping changes it rather than opening
+     * the thread. The assertion is at the wire — one batch request with
+     * both threads in it, not two requests — because a client that sent
+     * one per row would look identical on screen.
+     */
+    @Test
+    fun a_long_press_selects_and_the_bar_acts_on_all_of_them() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
+        waitForTag("button.endSelection", "the bar never became an action bar")
+
+        // The second row joins by an ordinary tap, which must not open it.
+        compose.onAllNodesWithTag("row.conversation")[1].performClick()
+        compose.onNodeWithText("2").assertIsDisplayed()
+
+        compose.onNodeWithTag("button.selectionArchive").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            readStub("/debug/verbs").contains("t1") && readStub("/debug/verbs").contains("t2")
+        }
+    }
+
+    @Test
+    fun back_ends_a_selection() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
+        waitForTag("button.endSelection", "the bar never became an action bar")
+
+        pressBack()
+        waitForTag("button.folders", "back did not end the selection")
+    }
+
+    /**
+     * A mailbox already fetched survives the network going away.
+     *
+     * The phone is the place this matters: a cold launch on a train
+     * used to be a spinner and then "Could not reach the server", for
+     * mail the device had fetched two minutes earlier. The list is
+     * fetched, the server is then pointed somewhere that does not
+     * answer, and the rows have to still be there — with **no error
+     * banner**, because they are still the last true thing anybody
+     * knew.
+     */
+    @Test
+    fun mail_already_fetched_survives_losing_the_server() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("the fixture listed nothing", before > 0)
+
+        // Nothing listens on port 1.
+        compose.activityRule.scenario.onActivity { it.useStubServer("http://127.0.0.1:1") }
+        compose.onNodeWithTag("button.refresh").performClick()
+
+        // Long enough for the connect to fail and the state to settle.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("conclusion").fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+        }
+        compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size.let {
+            assertEquals("the rows were thrown away when the server went", before, it)
+        }
+        compose.onAllNodesWithTag("conclusion").assertCountEquals(0)
+    }
+
+    /**
+     * And it comes back from **disk**, not from memory.
+     *
+     * The test above keeps rows that were already on screen, which a
+     * cache would not be needed for. This one throws the in-memory copy
+     * away first — a cold launch without the launch — and then refreshes
+     * against a server that does not answer. Rows can only come from the
+     * file the last successful fetch wrote.
+     */
+    @Test
+    fun a_cold_start_paints_from_disk_before_the_network_answers() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("the fixture listed nothing", before > 0)
+
+        compose.activityRule.scenario.onActivity {
+            it.useStubServer("http://127.0.0.1:1")
+            it.forgetLoadedMailForTest()
+        }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().isEmpty()
+        }
+
+        compose.onNodeWithTag("button.refresh").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+        }
+    }
+
+    /**
+     * On a tablet the message opens **beside** the list, not over it.
+     *
+     * The emulator is a phone, so the test makes it a tablet for the
+     * length of one check — `wm size` and `wm density` are what the
+     * platform gives for exactly this — and puts it back in a `finally`,
+     * because a display left at 1600x2560 would break every test after
+     * it in a way that has nothing to do with the code.
+     */
+    @Test
+    fun a_wide_screen_shows_the_list_and_the_message_together() {
+        val device = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .uiAutomation
+        try {
+            device.executeShellCommand("wm size 1600x2560").close()
+            device.executeShellCommand("wm density 240").close()
+
+            signIn()
+            waitForTag("list.conversations", "the inbox never listed")
+            // Both panes, and the empty one saying so rather than being
+            // blank — a pane with nothing in it and no explanation looks
+            // like something failed to load.
+            waitForTag("pane.detail", "there was no second pane")
+            compose.onNodeWithText("No conversation open").assertIsDisplayed()
+
+            compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+            waitForTag("list.messages", "the message did not open")
+            // The list is still there. On a phone it would have gone.
+            compose.onNodeWithTag("list.conversations").assertIsDisplayed()
+        } finally {
+            device.executeShellCommand("wm size reset").close()
+            device.executeShellCommand("wm density reset").close()
+            // **And wait for the app to come back.** Putting the display
+            // back is another configuration change, so the activity is
+            // recreated once more — and the next test's launch raced it,
+            // failing with "No compose hierarchies found in the app" for
+            // reasons entirely inside this test's cleanup.
+            var settled = false
+            repeat(60) {
+                if (!settled &&
+                    runCatching {
+                        compose.onAllNodes(hasTestTag("list.conversations")).fetchSemanticsNodes()
+                            .isNotEmpty() ||
+                            compose.onAllNodes(hasTestTag("field.address")).fetchSemanticsNodes()
+                                .isNotEmpty()
+                    }.getOrDefault(false)
+                ) {
+                    settled = true
+                }
+                if (!settled) Thread.sleep(250)
+            }
+        }
+    }
+}

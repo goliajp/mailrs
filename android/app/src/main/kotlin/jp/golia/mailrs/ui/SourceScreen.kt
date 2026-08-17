@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.UiState
 import jp.golia.mailrs.MailViewModel
 
 /**
@@ -41,7 +42,7 @@ import jp.golia.mailrs.MailViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SourceScreen(state: MailViewModel.UiState, vm: MailViewModel) {
+fun SourceScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     Scaffold(
         containerColor = theme.bg,

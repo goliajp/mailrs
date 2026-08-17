@@ -40,6 +40,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.AdminSection
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.addAdminRow
+import jp.golia.mailrs.addFields
+import jp.golia.mailrs.closeAdmin
+import jp.golia.mailrs.deleteAdminRow
+import jp.golia.mailrs.openAdminRow
 import jp.golia.mailrs.MailViewModel
 
 /**
@@ -58,7 +65,7 @@ import jp.golia.mailrs.MailViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminScreen(section: MailViewModel.AdminSection, state: MailViewModel.UiState, vm: MailViewModel) {
+fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val fields = vm.addFields(section)
     var adding by remember { mutableStateOf(false) }

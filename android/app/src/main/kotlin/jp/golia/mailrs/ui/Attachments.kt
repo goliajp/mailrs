@@ -25,6 +25,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.UiState
+import jp.golia.mailrs.openAttachment
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.Wire
 
@@ -44,7 +46,7 @@ import jp.golia.mailrs.wire.Wire
  * doing it. The stub records what was actually asked for.
  */
 @Composable
-fun AttachmentList(uid: Int, attachments: List<Wire.Attachment>, state: MailViewModel.UiState, vm: MailViewModel) {
+fun AttachmentList(uid: Int, attachments: List<Wire.Attachment>, state: UiState, vm: MailViewModel) {
     // Filtered by index so the index stays the server's, not the
     // filtered list's — dropping an inline image would otherwise shift
     // every attachment after it by one.

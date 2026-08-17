@@ -30,6 +30,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.AdminSection
+import jp.golia.mailrs.UiState
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.Prefs
 
@@ -48,12 +50,12 @@ import jp.golia.mailrs.wire.Prefs
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    state: MailViewModel.UiState,
+    state: UiState,
     appearance: Prefs.Appearance,
     onAppearance: (Prefs.Appearance) -> Unit,
     onNotify: (Boolean) -> Unit,
     onClose: () -> Unit,
-    onAdmin: (MailViewModel.AdminSection) -> Unit,
+    onAdmin: (AdminSection) -> Unit,
     onSignOut: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -138,7 +140,7 @@ fun SettingsScreen(
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
             SectionHeading("Administration")
-            for (section in MailViewModel.AdminSection.entries) {
+            for (section in AdminSection.entries) {
                 TextButton(
                     onClick = { onAdmin(section) },
                     modifier = Modifier
