@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.splashscreen)
     implementation(libs.work.runtime)
     androidTestImplementation(libs.work.testing)
+    androidTestImplementation(libs.glance.testing)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
