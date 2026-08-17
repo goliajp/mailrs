@@ -119,7 +119,7 @@ class MailrsClient(private val store: TokenStore) {
         // Scoped to the same list. The axes travel together for exactly
         // this reason: a search that dropped them would answer a
         // question about Inbox while the heading said Junk.
-        get("/api/conversations/search?q=" + enc(term) + "&" + list.axes.query()),
+        get("/api/conversations/search?q=" + enc(term) + "&limit=$SEARCH_LIMIT&" + list.axes.query()),
         Wire.Conversation.serializer(),
     )
 
@@ -429,7 +429,19 @@ class MailrsClient(private val store: TokenStore) {
         data class Err(val message: String) : Outcome<Nothing>
     }
 
-    private companion object {
-        val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+    companion object {
+        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
+        /**
+         * What the search endpoint is asked for.
+         *
+         * It has no keyset parameter — unlike the conversation list,
+         * there is no way to ask for the next page — so this is a
+         * ceiling and the screen has to say when it was reached. Sent
+         * explicitly rather than left to the server's default, because
+         * a screen cannot say "the first fifty" about a number it does
+         * not know.
+         */
+        const val SEARCH_LIMIT = 50
     }
 }

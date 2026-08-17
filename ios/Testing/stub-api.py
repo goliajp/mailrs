@@ -469,9 +469,20 @@ class H(BaseHTTPRequestHandler):
             # fixture cannot tell a preserved ranking from a date sort,
             # which is how the first version of this test passed with the
             # client re-sorting by date.
+            limit = int(query.get("limit", ["50"])[0])
+            # "many" asks for more hits than the limit allows, so a
+            # client can be shown to say when it is looking at a capped
+            # result set rather than at everything that matched. Search
+            # has no keyset parameter, so there is no next page and the
+            # cap is the end of what can be seen.
+            if term == "many":
+                hits = [convo(f"m{i}", f"Many match {i}", "lots", 1754400000 - i)
+                        for i in range(limit + 20)]
+                self._send(hits[:limit])
+                return
             hits = [c for c in reversed(CONVOS)
                     if term.lower() in c["subject"].lower() or term.lower() in c["snippet"].lower()]
-            self._send(hits)
+            self._send(hits[:limit])
             return
         raw = re.match(r"^/api/mail/messages/(\d+)/raw$", self.path.split("?")[0])
         if raw:
