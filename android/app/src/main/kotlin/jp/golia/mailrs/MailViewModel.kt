@@ -23,6 +23,7 @@ import jp.golia.mailrs.wire.TokenStore
 import jp.golia.mailrs.wire.ThreadPage
 import jp.golia.mailrs.wire.Wire
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -110,20 +111,20 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signIn(server: String, username: String, password: String) {
-        _state.value = _state.value.copy(busy = true, error = null)
+        _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             when (val r = client.login(server, username, password)) {
                 is MailrsClient.Outcome.Ok -> {
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         signedIn = true,
                         busy = false,
                         server = client.session?.server.orEmpty(),
-                    )
+                    ) }
                     refresh()
                     loadSignature()
                 }
                 is MailrsClient.Outcome.Err ->
-                    _state.value = _state.value.copy(busy = false, error = r.message)
+                    _state.update { it.copy(busy = false, error = r.message) }
             }
         }
     }
@@ -165,7 +166,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         val list = _state.value.list
         val cached = if (_state.value.conversations.isEmpty()) cache.readConversations(list.name) else null
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             busy = true,
             error = null,
             // A refresh starts the paging over: the first page is the
@@ -173,7 +174,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             // replaced rather than left dangling under fresh rows.
             endOfList = false,
             conversations = cached ?: _state.value.conversations,
-        )
+        ) }
         viewModelScope.launch {
             when (val r = client.conversations(testFolder ?: list.axes)) {
                 is MailrsClient.Outcome.Ok -> {
@@ -187,13 +188,13 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     // Still the list that was asked for: switching lists
                     // mid-flight must not paint the old one's answer.
                     if (_state.value.list != list) return@launch
-                    _state.value = _state.value.copy(busy = false, conversations = r.value)
+                    _state.update { it.copy(busy = false, conversations = r.value) }
                 }
                 is MailrsClient.Outcome.Err ->
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         busy = false,
                         error = if (_state.value.conversations.isEmpty()) r.message else null,
-                    )
+                    ) }
             }
         }
     }
@@ -215,24 +216,24 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         if (state.loadingMore || state.endOfList || state.conversations.isEmpty()) return
         val before = ThreadPage.nextBefore(state.conversations) ?: return
         val list = state.list
-        _state.value = state.copy(loadingMore = true)
+        _state.update { it.copy(loadingMore = true) }
         viewModelScope.launch {
             when (val r = client.conversations(testFolder ?: list.axes, before = before)) {
                 is MailrsClient.Outcome.Ok -> {
                     // The list may have been switched while this was out.
                     if (_state.value.list != list) return@launch
                     val merged = ThreadPage.merge(_state.value.conversations, r.value)
-                    _state.value = _state.value.copy(
+                    _state.update { it.copy(
                         conversations = merged.rows,
                         loadingMore = false,
                         endOfList = !merged.progressed,
-                    )
+                    ) }
                 }
                 is MailrsClient.Outcome.Err ->
                     // Not the end — just not now. Saying otherwise would
                     // stop the list asking again after the network came
                     // back.
-                    _state.value = _state.value.copy(loadingMore = false)
+                    _state.update { it.copy(loadingMore = false) }
             }
         }
     }
@@ -242,30 +243,30 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         // are shown while the fetch is out, so opening mail already read
         // works with no network at all.
         val cached = cache.readMessages(conversation.threadId)
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             open = conversation,
             messages = cached.orEmpty(),
             busy = true,
             error = null,
-        )
+        ) }
         viewModelScope.launch {
             when (val r = client.thread(conversation.threadId)) {
                 is MailrsClient.Outcome.Ok -> {
                     cache.writeMessages(r.value, conversation.threadId)
-                    _state.value = _state.value.copy(busy = false, messages = r.value)
+                    _state.update { it.copy(busy = false, messages = r.value) }
                     if (conversation.unreadCount > 0) {
                         client.markRead(conversation.threadId)
                         // Reflect it locally rather than refetching the
                         // whole list for one counter.
-                        _state.value = _state.value.copy(
+                        _state.update { it.copy(
                             conversations = _state.value.conversations.map {
                                 if (it.threadId == conversation.threadId) it.copy(unreadCount = 0) else it
                             }
-                        )
+                        ) }
                     }
                 }
                 is MailrsClient.Outcome.Err ->
-                    _state.value = _state.value.copy(busy = false, error = r.message)
+                    _state.update { it.copy(busy = false, error = r.message) }
             }
         }
     }
@@ -295,13 +296,13 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun useFolderForTest(folder: String) {
         if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
         testFolder = MailList.named(folder)
-        _state.value = _state.value.copy(conversations = emptyList(), endOfList = false)
+        _state.update { it.copy(conversations = emptyList(), endOfList = false) }
         refresh()
     }
 
     fun forgetLoadedMail() {
         if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
-        _state.value = _state.value.copy(conversations = emptyList(), messages = emptyList())
+        _state.update { it.copy(conversations = emptyList(), messages = emptyList()) }
     }
 
     /** Every keystroke, straight into the one copy of the draft. */
@@ -348,7 +349,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun show(list: MailList) {
         if (list == _state.value.list) return
         searchToken++
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             list = list,
             selected = emptySet(),
             endOfList = false,
@@ -357,7 +358,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             results = null,
             searching = false,
             error = null,
-        )
+        ) }
         refresh()
     }
 
@@ -383,26 +384,28 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      * exact Content-Type. Nothing else in this app shows them.
      */
     fun viewSource(uid: Int) {
-        _state.value = _state.value.copy(sourceOpen = true, source = null, error = null)
+        _state.update { it.copy(sourceOpen = true, source = null, error = null) }
         viewModelScope.launch {
-            _state.value = when (val r = client.messageSource(uid)) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(source = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(sourceOpen = false, error = r.message)
+            _state.update {
+                when (val r = client.messageSource(uid)) {
+                is MailrsClient.Outcome.Ok -> it.copy(source = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(sourceOpen = false, error = r.message)
+            }
             }
         }
     }
 
     fun closeSource() {
-        _state.value = _state.value.copy(sourceOpen = false, source = null)
+        _state.update { it.copy(sourceOpen = false, source = null) }
     }
 
     /** Open and close the settings screen. */
     fun openSettings() {
-        _state.value = _state.value.copy(settingsOpen = true, selected = emptySet())
+        _state.update { it.copy(settingsOpen = true, selected = emptySet()) }
     }
 
     fun closeSettings() {
-        _state.value = _state.value.copy(settingsOpen = false)
+        _state.update { it.copy(settingsOpen = false) }
     }
 
     /**
@@ -421,12 +424,12 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun chooseNotify(on: Boolean) {
         prefs.notifyNewMail = on
         NewMailWorker.schedule(getApplication(), on)
-        _state.value = _state.value.copy(notifyNewMail = on)
+        _state.update { it.copy(notifyNewMail = on) }
     }
 
     fun chooseAppearance(appearance: Prefs.Appearance) {
         prefs.appearance = appearance
-        _state.value = _state.value.copy(appearance = appearance)
+        _state.update { it.copy(appearance = appearance) }
     }
 
 
@@ -450,18 +453,18 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val rows = client.conversations(_state.value.list)
             if (rows is MailrsClient.Outcome.Ok) {
-                _state.value = _state.value.copy(conversations = rows.value)
+                _state.update { it.copy(conversations = rows.value) }
                 rows.value.firstOrNull { it.threadId == threadId }?.let { open(it) }
             }
         }
     }
 
     fun closeThread() {
-        _state.value = _state.value.copy(open = null, messages = emptyList())
+        _state.update { it.copy(open = null, messages = emptyList()) }
     }
 
     fun dismissError() {
-        _state.value = _state.value.copy(error = null)
+        _state.update { it.copy(error = null) }
     }
 
 }

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.signatures
@@ -29,7 +30,7 @@ internal fun MailViewModel.loadSignature() {
     viewModelScope.launch {
         val r = client.signatures()
         if (r is MailrsClient.Outcome.Ok) {
-            _state.value = _state.value.copy(signature = MailSignature.preferred(r.value))
+            _state.update { it.copy(signature = MailSignature.preferred(r.value)) }
         }
     }
 }
@@ -44,21 +45,23 @@ fun MailViewModel.search(term: String) {
     searchToken++
     val token = searchToken
     if (term.isBlank()) {
-        _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
+        _state.update { it.copy(searchTerm = "", results = null, searching = false) }
         return
     }
-    _state.value = _state.value.copy(searchTerm = term, searching = true, error = null)
+    _state.update { it.copy(searchTerm = term, searching = true, error = null) }
     viewModelScope.launch {
         val r = client.search(term, _state.value.list)
         // A slower earlier search must not overwrite a later one —
         // typing "ref" then "ref 2026" would otherwise settle on
         // whichever request the network happened to finish last.
         if (token != searchToken) return@launch
-        _state.value = when (r) {
+        _state.update {
+            when (r) {
             is MailrsClient.Outcome.Ok ->
-                _state.value.copy(results = r.value, searching = false)
+                it.copy(results = r.value, searching = false)
             is MailrsClient.Outcome.Err ->
-                _state.value.copy(searching = false, error = r.message)
+                it.copy(searching = false, error = r.message)
+        }
         }
     }
 }
@@ -71,22 +74,22 @@ fun MailViewModel.search(term: String) {
  * appears cannot be missed by arriving early.
  */
 fun MailViewModel.openSearchFromShortcut() {
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         openSearch = true,
         open = null,
         composing = null,
         settingsOpen = false,
         draftsOpen = false,
         adminOpen = null,
-    )
+    ) }
 }
 
 fun MailViewModel.searchOpened() {
     if (!_state.value.openSearch) return
-    _state.value = _state.value.copy(openSearch = false)
+    _state.update { it.copy(openSearch = false) }
 }
 
 fun MailViewModel.clearSearch() {
     searchToken++
-    _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
+    _state.update { it.copy(searchTerm = "", results = null, searching = false) }
 }

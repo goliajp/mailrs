@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Wire
@@ -42,7 +43,7 @@ fun MailViewModel.triage(conversation: Wire.Conversation, verb: MailrsClient.Ver
     val remaining = _state.value.conversations.filterNot { it.threadId == conversation.threadId }
     val action = PendingTriage(conversation, verb, _state.value.conversations)
     pending = action
-    _state.value = _state.value.copy(conversations = remaining, undo = action)
+    _state.update { it.copy(conversations = remaining, undo = action) }
 
     val token = ++undoToken
     viewModelScope.launch {
@@ -65,12 +66,12 @@ fun MailViewModel.triage(conversation: Wire.Conversation, verb: MailrsClient.Ver
 fun MailViewModel.toggleSelected(threadId: String) {
     val now = _state.value.selected
     val next = if (threadId in now) now - threadId else now + threadId
-    _state.value = _state.value.copy(selected = next)
+    _state.update { it.copy(selected = next) }
 }
 
 fun MailViewModel.clearSelection() {
     if (_state.value.selected.isEmpty()) return
-    _state.value = _state.value.copy(selected = emptySet())
+    _state.update { it.copy(selected = emptySet()) }
 }
 
 /**
@@ -92,10 +93,10 @@ fun MailViewModel.applyToSelection(verb: MailrsClient.Verb) {
     // list honest about what the server was asked to do.
     val staysInPlace = verb == MailrsClient.Verb.Read || verb == MailrsClient.Verb.Unread ||
         verb == MailrsClient.Verb.Star || verb == MailrsClient.Verb.Unstar
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         selected = emptySet(),
         conversations = if (staysInPlace) before else before.filterNot { it.threadId in ids },
-    )
+    ) }
     viewModelScope.launch {
         when (val r = client.batch(verb, ids)) {
             is MailrsClient.Outcome.Ok -> if (staysInPlace) refresh()
@@ -103,7 +104,7 @@ fun MailViewModel.applyToSelection(verb: MailrsClient.Verb) {
                 // It did not happen, so the rows come back. Mail
                 // that vanished on a failed request is mail the
                 // person believes they filed and did not.
-                _state.value = _state.value.copy(conversations = before, error = r.message)
+                _state.update { it.copy(conversations = before, error = r.message) }
         }
     }
 }
@@ -112,16 +113,16 @@ fun MailViewModel.undo() {
     val action = pending ?: return
     undoToken++
     pending = null
-    _state.value = _state.value.copy(conversations = action.before, undo = null)
+    _state.update { it.copy(conversations = action.before, undo = null) }
 }
 
 fun MailViewModel.dismissUndo() {
-    _state.value = _state.value.copy(undo = null)
+    _state.update { it.copy(undo = null) }
 }
 
 private fun MailViewModel.commit(action: PendingTriage) {
     pending = null
-    _state.value = _state.value.copy(undo = null)
+    _state.update { it.copy(undo = null) }
     viewModelScope.launch {
         when (val r = client.batch(action.verb, listOf(action.conversation.threadId))) {
             is MailrsClient.Outcome.Ok -> Unit
@@ -129,10 +130,10 @@ private fun MailViewModel.commit(action: PendingTriage) {
                 // It did not happen, so the row comes back. A row
                 // that vanished on a failed request is mail the
                 // person believes they filed and did not.
-                _state.value = _state.value.copy(
+                _state.update { it.copy(
                     conversations = action.before,
                     error = r.message,
-                )
+                ) }
             }
         }
     }
@@ -150,19 +151,19 @@ private fun MailViewModel.commit(action: PendingTriage) {
 fun MailViewModel.toggleStar(conversation: Wire.Conversation) {
     val wanted = !conversation.flagged
     val verb = if (wanted) MailrsClient.Verb.Star else MailrsClient.Verb.Unstar
-    fun withFlag(flagged: Boolean) = _state.value.copy(
-        open = _state.value.open?.takeIf { it.threadId == conversation.threadId }?.copy(flagged = flagged)
-            ?: _state.value.open,
-        conversations = _state.value.conversations.map {
+    fun withFlag(state: UiState, flagged: Boolean) = state.copy(
+        open = state.open?.takeIf { it.threadId == conversation.threadId }?.copy(flagged = flagged)
+            ?: state.open,
+        conversations = state.conversations.map {
             if (it.threadId == conversation.threadId) it.copy(flagged = flagged) else it
         },
     )
-    _state.value = withFlag(wanted)
+    _state.update { withFlag(it, wanted) }
     viewModelScope.launch {
         if (client.batch(verb, listOf(conversation.threadId)) is MailrsClient.Outcome.Err) {
             // It did not happen. A star that stayed lit on a failed
             // request is the person believing the thread is kept.
-            _state.value = withFlag(conversation.flagged)
+            _state.update { withFlag(it, conversation.flagged) }
         }
     }
 }
