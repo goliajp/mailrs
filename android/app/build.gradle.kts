@@ -74,6 +74,7 @@ dependencies {
 
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
+    implementation(libs.adaptive)
     implementation(libs.work.runtime)
     androidTestImplementation(libs.work.testing)
     androidTestImplementation(platform(libs.compose.bom))

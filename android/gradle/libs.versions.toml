@@ -10,6 +10,7 @@ lifecycle = "2.11.0"
 navigation = "2.9.8"
 serialization = "1.11.0"
 okhttp = "5.5.0"
+adaptive = "1.3.0"
 work = "2.11.2"
 coreKtx = "1.17.0"
 
@@ -27,6 +28,7 @@ navigation-compose = { group = "androidx.navigation", name = "navigation-compose
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+adaptive = { group = "androidx.compose.material3.adaptive", name = "adaptive", version.ref = "adaptive" }
 work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 work-testing = { group = "androidx.work", name = "work-testing", version.ref = "work" }
 junit = { group = "junit", name = "junit", version = "4.13.2" }

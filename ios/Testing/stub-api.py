@@ -436,6 +436,11 @@ class H(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        # Said out loud rather than left to be inferred from HTTP/1.0.
+        # A client that pools the socket and sends a second request into
+        # it gets "unexpected end of stream" — the failure this stub
+        # spent a suite's worth of flakes producing.
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -1164,4 +1169,14 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 6039
+    # **A deeper listen backlog, set before the socket is bound.**
+    # socketserver defaults to 5, and this is HTTP/1.0 — one connection
+    # per request — so a client that fires a burst overflows it and the
+    # kernel drops the extra SYNs. The client sees "unexpected end of
+    # stream", which reads as the server crashing and is really a queue
+    # that was five deep. It only appeared once the Android suite
+    # stopped crossing the emulator's NAT and started connecting at
+    # local speed. It has to be set on the class: `listen()` happens in
+    # the constructor, and setting it afterwards changes nothing.
+    ThreadingHTTPServer.request_queue_size = 128
     ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()

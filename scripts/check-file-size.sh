@@ -36,6 +36,11 @@ sources() {
     # files past the limit while the rest of the repo was held to it. The
     # rule says every language; the script now looks where the rule does.
     find ios/Mailrs ios/MailrsTests ios/MailrsUITests -name '*.swift' 2>/dev/null | sort
+    # And the Android app, for the same reason and by the same argument:
+    # it was outside this gate while it was written, and grew a
+    # 1,460-line view model on the day the rest of the repo had none over
+    # 500. The rule says every language.
+    find android/app/src -name '*.kt' 2>/dev/null | sort
 }
 
 # Carve-out #1 from rules/common/file-size.md: generated code is exempt,

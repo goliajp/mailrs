@@ -7,6 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +58,20 @@ private enum class Screen {
  */
 @Composable
 fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
+    val windowSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val windowWidthDp = with(density) { windowSize.width.toDp() }
+    val windowModifier = with(density) {
+        Modifier.size(windowWidthDp, windowSize.height.toDp())
+    }
+
+    // A tablet, or a foldable that has been opened. The list keeps its
+    // place and the message appears beside it rather than on top —
+    // which is what the width is for, and the whole of Android's
+    // large-screen guidance in one sentence.
+    val twoPanes = Panes.twoPanes(windowWidthDp.value.toInt())
+
+
     // **This order is the stack, innermost first.** Each line asks "is
     // something on top of what the line below would show?", so a screen
     // opened *from* another must appear above it — and getting that
@@ -69,7 +89,9 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         state.adminOpen != null -> Screen.Admin    // opened from settings
         state.settingsOpen -> Screen.Settings
         state.draftsOpen -> Screen.Drafts
-        state.open != null -> Screen.Thread
+        // With two panes the thread is *beside* the list rather than
+        // over it, so it is not a screen of its own: List draws both.
+        state.open != null && !twoPanes -> Screen.Thread
         else -> Screen.List
     }
 
@@ -127,12 +149,6 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
     // wrapper out and changing nothing else: the search tests went
     // green, and back red when it returned. A screen that is meant to
     // be exactly one window tall has to be told how tall that is.
-    val windowSize = LocalWindowInfo.current.containerSize
-    val density = LocalDensity.current
-    val windowModifier = with(density) {
-        Modifier.size(windowSize.width.toDp(), windowSize.height.toDp())
-    }
-
     val previous = remember { intArrayOf(screen.ordinal) }
     val forward = screen.ordinal >= previous[0]
     previous[0] = screen.ordinal
@@ -171,7 +187,32 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     Screen.AccountDetail -> Box(peeled) {
                         state.accountDetail?.let { AccountDetailScreen(it, vm) }
                     }
-                    Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
+                    Screen.List -> Box(windowModifier) {
+                        if (twoPanes) {
+                            Row(Modifier.fillMaxSize()) {
+                                Box(Modifier.width(Panes.LIST_PANE_WIDTH_DP.dp).fillMaxHeight()) {
+                                    ConversationListScreen(state, vm)
+                                }
+                                VerticalDivider(color = LocalTheme.current.border, thickness = 0.5.dp)
+                                Box(Modifier.weight(1f).fillMaxHeight().testTag("pane.detail")) {
+                                    if (state.open != null) {
+                                        ThreadScreen(state, vm)
+                                    } else {
+                                        // Not blank: a pane with nothing
+                                        // in it and no explanation looks
+                                        // like something failed to load.
+                                        Conclusion(
+                                            "No conversation open",
+                                            "Choose one on the left.",
+                                            Modifier.align(Alignment.Center),
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            ConversationListScreen(state, vm)
+                        }
+                    }
                     Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
                     Screen.Admin -> Box(peeled) {
                         // Non-null on this branch by construction; the

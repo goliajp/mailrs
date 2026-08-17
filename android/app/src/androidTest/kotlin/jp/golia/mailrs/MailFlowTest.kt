@@ -1221,6 +1221,60 @@ class MailFlowTest : GrantsNotifications() {
         }
     }
 
+    /**
+     * On a tablet the message opens **beside** the list, not over it.
+     *
+     * The emulator is a phone, so the test makes it a tablet for the
+     * length of one check — `wm size` and `wm density` are what the
+     * platform gives for exactly this — and puts it back in a `finally`,
+     * because a display left at 1600x2560 would break every test after
+     * it in a way that has nothing to do with the code.
+     */
+    @Test
+    fun a_wide_screen_shows_the_list_and_the_message_together() {
+        val device = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .uiAutomation
+        try {
+            device.executeShellCommand("wm size 1600x2560").close()
+            device.executeShellCommand("wm density 240").close()
+
+            signIn()
+            waitForTag("list.conversations", "the inbox never listed")
+            // Both panes, and the empty one saying so rather than being
+            // blank — a pane with nothing in it and no explanation looks
+            // like something failed to load.
+            waitForTag("pane.detail", "there was no second pane")
+            compose.onNodeWithText("No conversation open").assertIsDisplayed()
+
+            compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+            waitForTag("list.messages", "the message did not open")
+            // The list is still there. On a phone it would have gone.
+            compose.onNodeWithTag("list.conversations").assertIsDisplayed()
+        } finally {
+            device.executeShellCommand("wm size reset").close()
+            device.executeShellCommand("wm density reset").close()
+            // **And wait for the app to come back.** Putting the display
+            // back is another configuration change, so the activity is
+            // recreated once more — and the next test's launch raced it,
+            // failing with "No compose hierarchies found in the app" for
+            // reasons entirely inside this test's cleanup.
+            var settled = false
+            repeat(60) {
+                if (!settled &&
+                    runCatching {
+                        compose.onAllNodes(hasTestTag("list.conversations")).fetchSemanticsNodes()
+                            .isNotEmpty() ||
+                            compose.onAllNodes(hasTestTag("field.address")).fetchSemanticsNodes()
+                                .isNotEmpty()
+                    }.getOrDefault(false)
+                ) {
+                    settled = true
+                }
+                if (!settled) Thread.sleep(250)
+            }
+        }
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }

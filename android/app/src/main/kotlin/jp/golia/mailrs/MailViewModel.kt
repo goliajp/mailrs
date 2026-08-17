@@ -53,6 +53,13 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun useServer(url: String?) {
         if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+        // **Null means "nothing was given", not "forget what you have".**
+        // The activity calls this on every composition, and a
+        // configuration change — a rotation, or a display resize — makes
+        // a new activity whose intent carries no override. Clearing on
+        // null wiped it, and the next request went to the real host and
+        // came back "Failure in SSL library".
+        if (url == null) return
         client.baseUrlOverride = url
     }
 
