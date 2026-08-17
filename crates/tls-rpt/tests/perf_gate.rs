@@ -1,8 +1,23 @@
 //! Perf regression gates for the mailrs-tls-rpt parsers + builder.
 //!
 //! Budgets are ~10× release P95 so we catch order-of-magnitude
-//! regressions without flaking under load. Debug-mode runs
-//! (release.sh `cargo test --workspace`) get a 5× slack on top.
+//! regressions without flaking under load.
+//!
+//! **Release only**, joining the 23 files already gated that way. The
+//! 5× debug slack these carried was not enough at the one moment that
+//! matters: the 2026-08-17 deploy gate red on
+//! `parse single rua 10.362µs (budget 10µs)` — 3.6% over — and
+//! `build 100-success 174.986µs (budget 150µs)`, while the same four
+//! passed in 0.06 s alone and `perf-gates.sh` (release) passed in the
+//! same run. `cargo test --workspace` runs 231 test binaries at once,
+//! and a debug budget under that measures the host, which is what
+//! `.claude/CLAUDE.md` says about asserting an optimised-build number
+//! in a dev build.
+//!
+//! The other 16 debug-mode gates are left alone: they survived two
+//! full-load runs the same day, so their authors' slack is holding.
+//! This is the one with evidence against it.
+#![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};
 
@@ -19,12 +34,12 @@ fn time<F: Fn()>(iterations: u32, f: F) -> Duration {
     start.elapsed() / iterations
 }
 
-fn budget(release_us: u64, debug_us: u64) -> Duration {
-    if cfg!(debug_assertions) {
-        Duration::from_micros(debug_us)
-    } else {
-        Duration::from_micros(release_us)
-    }
+/// The release budget. The second argument is the debug one this file
+/// used to fall back to; it is kept at the call sites as a record of
+/// what was measured, and no longer consulted — nothing here runs in a
+/// debug build.
+fn budget(release_us: u64, _debug_us: u64) -> Duration {
+    Duration::from_micros(release_us)
 }
 
 #[test]
