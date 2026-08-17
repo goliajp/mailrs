@@ -1,1 +1,0 @@
-jp.golia.mailrs.test

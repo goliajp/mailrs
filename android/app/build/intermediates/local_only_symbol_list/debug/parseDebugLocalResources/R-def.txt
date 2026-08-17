@@ -1,9 +1,0 @@
-R_DEF: Internal format may change without notice
-local
-drawable ic_launcher_background
-drawable ic_launcher_foreground
-mipmap ic_launcher
-string app_name
-style Theme.Mailrs
-xml file_paths
-xml network_security_config

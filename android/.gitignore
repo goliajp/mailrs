@@ -1,0 +1,13 @@
+# Gradle's own state and every build output. None of it is source, all
+# of it is regenerated, and 1,768 of these files were committed by the
+# time anyone looked — including `.gradle/*.lock`, which changes on
+# every build and conflicts on every merge.
+.gradle/
+build/
+local.properties
+captures/
+.cxx/
+*.apk
+*.aab
+*.jks
+*.keystore
