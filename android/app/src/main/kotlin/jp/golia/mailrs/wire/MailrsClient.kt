@@ -108,10 +108,19 @@ class MailrsClient(private val store: TokenStore) {
         subject: String,
         body: String,
         inReplyTo: String?,
+        cc: List<String> = emptyList(),
+        bcc: List<String> = emptyList(),
     ): Outcome<Unit> {
         val payload = json.encodeToString(
             Wire.SendRequest.serializer(),
-            Wire.SendRequest(to = to, subject = subject, body = body, inReplyTo = inReplyTo),
+            Wire.SendRequest(
+                to = to,
+                cc = cc,
+                bcc = bcc,
+                subject = subject,
+                body = body,
+                inReplyTo = inReplyTo,
+            ),
         )
         return when (val r = post(url("/api/mail/send"), payload, authorized = true)) {
             is Outcome.Ok -> Outcome.Ok(Unit)
@@ -211,6 +220,18 @@ class MailrsClient(private val store: TokenStore) {
             is Outcome.Err -> r
         }
     }
+
+    /**
+     * `GET /api/contacts?q=` — a bare array of `Name <email>`.
+     *
+     * Substring on either half, case-insensitively, which is the
+     * server's rule and not this app's: matching here as well would
+     * mean two answers to one question.
+     */
+    suspend fun contacts(term: String): Outcome<List<String>> = decode(
+        get("/api/contacts?q=" + enc(term)),
+        kotlinx.serialization.serializer<String>(),
+    )
 
     private fun <T> decode(
         r: Outcome<String>,
