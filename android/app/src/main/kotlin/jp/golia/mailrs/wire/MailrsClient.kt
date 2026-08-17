@@ -328,6 +328,15 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun domains(): Outcome<List<Admin.Domain>> =
         one(get("/api/admin/domains"), Admin.DomainList.serializer()).map { it.items }
 
+    suspend fun queue(): Outcome<List<Admin.QueueJob>> =
+        one(get("/api/admin/queues"), Admin.QueueList.serializer()).map { it.items }
+
+    suspend fun dmarcReports(): Outcome<List<Admin.DmarcReport>> =
+        one(get("/api/admin/dmarc/reports"), Admin.DmarcList.serializer()).map { it.items }
+
+    suspend fun auditLog(): Outcome<List<Admin.AuditEntry>> =
+        one(get("/api/admin/audit-log"), Admin.AuditList.serializer()).map { it.items }
+
     suspend fun addAlias(req: Admin.AddAliasRequest): Outcome<String> = post(
         url("/api/admin/aliases"),
         json.encodeToString(Admin.AddAliasRequest.serializer(), req),
