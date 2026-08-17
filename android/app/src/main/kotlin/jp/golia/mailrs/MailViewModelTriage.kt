@@ -137,3 +137,46 @@ private fun MailViewModel.commit(action: PendingTriage) {
         }
     }
 }
+
+/**
+ * Star or unstar the thread being read.
+ *
+ * The row changes here and now, and the server is told at once — no
+ * undo window, unlike the swipe. A star is not destructive and nothing
+ * leaves the list, so deferring it would mean the icon and the server
+ * disagreed for five seconds over something the person can simply tap
+ * again.
+ */
+fun MailViewModel.toggleStar(conversation: Wire.Conversation) {
+    val wanted = !conversation.flagged
+    val verb = if (wanted) MailrsClient.Verb.Star else MailrsClient.Verb.Unstar
+    fun withFlag(flagged: Boolean) = _state.value.copy(
+        open = _state.value.open?.takeIf { it.threadId == conversation.threadId }?.copy(flagged = flagged)
+            ?: _state.value.open,
+        conversations = _state.value.conversations.map {
+            if (it.threadId == conversation.threadId) it.copy(flagged = flagged) else it
+        },
+    )
+    _state.value = withFlag(wanted)
+    viewModelScope.launch {
+        if (client.batch(verb, listOf(conversation.threadId)) is MailrsClient.Outcome.Err) {
+            // It did not happen. A star that stayed lit on a failed
+            // request is the person believing the thread is kept.
+            _state.value = withFlag(conversation.flagged)
+        }
+    }
+}
+
+/**
+ * File the thread being read and go back to the list.
+ *
+ * The same deferred triage a swipe uses, so the undo snackbar on the
+ * list offers it back — reading a message and filing it should cost
+ * exactly what swiping past it costs.
+ */
+fun MailViewModel.triageOpenThread(verb: MailrsClient.Verb) {
+    val conversation = _state.value.open ?: return
+    closeThread()
+    triage(conversation, verb)
+}
+
