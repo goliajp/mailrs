@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -376,7 +377,12 @@ class MailFlowTest {
         val rows = compose.onAllNodesWithTag("row.attachment").fetchSemanticsNodes().size
         assertEquals("the fixture offers two attachments", 2, rows)
 
-        compose.onAllNodesWithTag("row.attachment")[1].performClick()
+        // Existence is not reach. The rows sit under a rendered body
+        // that is often taller than the screen, so the second one can be
+        // below the fold — and a tap at a coordinate that is off-screen
+        // is not the tap this test means. iOS's copy of this test says
+        // the same thing about the unsubscribe button.
+        compose.onAllNodesWithTag("row.attachment")[1].performScrollTo().performClick()
         try {
             compose.waitUntil(TIMEOUT_MS) { readStub("/debug/fetched").contains("1") }
         } catch (e: Throwable) {
@@ -385,9 +391,16 @@ class MailFlowTest {
             // answer rather than another re-run: whether the tap was
             // lost (nothing fetched, no error) or the fetch failed
             // (an error on screen) are different bugs.
+            // Counts, not a truncated tree: the tree was cut off at
+            // 2000 characters and its silence about the attachment rows
+            // proved nothing, which is the failure mode this diagnostic
+            // was added to avoid.
             throw AssertionError(
                 "no attachment was fetched. /debug/fetched=" + readStub("/debug/fetched") +
-                    "\n" + compose.onRoot().printToString(maxDepth = 12).take(2000),
+                    "; attachment rows now " +
+                    compose.onAllNodesWithTag("row.attachment").fetchSemanticsNodes().size +
+                    ", message bodies " +
+                    compose.onAllNodesWithTag("body.web").fetchSemanticsNodes().size,
                 e,
             )
         }
@@ -445,6 +458,66 @@ class MailFlowTest {
     private fun pressBack() {
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
+    }
+
+    /**
+     * The drawer is how six lists became reachable at all.
+     *
+     * The app showed one hard-coded Inbox while the server, the web and
+     * iOS all carried Junk, Starred, Archived and the rest. Choosing one
+     * has to re-query with that list's axes, which is why the assertion
+     * is on the row that only Junk returns rather than on the heading.
+     */
+    @Test
+    fun the_drawer_switches_which_list_is_read() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Junk").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("You have won").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * Leaving a mailing list, asserted at the wire.
+     *
+     * The request names a **message**, never a URL: the advertised URLs
+     * identify the subscriber, so a client that posted to one itself
+     * would hand the sender the reader's address and network — and the
+     * stub answers 400 to any body carrying a URL, so this fails rather
+     * than passes if that ever changes.
+     */
+    @Test
+    fun unsubscribing_names_the_message_not_a_url() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.NP").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("This week in systems design").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("This week in systems design").performClick()
+        waitForTag("list.messages", "the newsletter never opened")
+
+        // The one-click offer is the second message; the first only
+        // advertises a page, and tapping that leaves for a browser —
+        // which is the correct behaviour for that offer and useless here.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("button.unsubscribe").fetchSemanticsNodes().size == 2
+        }
+        compose.onAllNodesWithTag("button.unsubscribe")[1].performScrollTo().performClick()
+
+        waitForTag("unsubscribed", "the button never resolved to a result")
+
+        val asked = readStub("/debug/unsubscribed")
+        assertTrue("the request did not name thread t3: $asked", asked.contains("\"t3\""))
+        assertTrue("the request did not name uid 8: $asked", asked.contains("8"))
     }
 
     private fun readStub(path: String): String {

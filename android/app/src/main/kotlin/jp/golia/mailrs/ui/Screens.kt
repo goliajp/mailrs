@@ -47,6 +47,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -170,6 +176,8 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val snackbars = remember { SnackbarHostState() }
     var searchOpen by remember { mutableStateOf(false) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     // Collapsing the bar ends the search. Leaving a stale result set
     // behind the closed bar means re-opening it shows an answer to a
@@ -208,12 +216,29 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
         if (result == SnackbarResult.ActionPerformed) vm.undo() else vm.dismissUndo()
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        drawerContent = {
+            MailListDrawer(state.list) { chosen ->
+                scope.launch { drawer.close() }
+                vm.show(chosen)
+            }
+        },
+    ) {
     Scaffold(
         containerColor = theme.bg,
         snackbarHost = { SnackbarHost(snackbars, Modifier.testTag("snackbar.undo")) },
         topBar = {
             TopAppBar(
-                title = { Text("Inbox", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                title = { Text(state.list.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(
+                        onClick = { scope.launch { drawer.open() } },
+                        modifier = Modifier.testTag("button.folders"),
+                    ) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Lists", tint = theme.fgSecondary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = theme.bg,
                     titleContentColor = theme.fg,
@@ -258,11 +283,12 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
 
                 state.conversations.isEmpty() ->
                     // An empty state is a conclusion, so it finishes the
-                    // sentence: "No mail" alone says what the reader can
-                    // already see.
+                    // sentence — and each list finishes its own. "All
+                    // caught up" congratulates a reader on an empty spam
+                    // folder and reads as loss in Archived.
                     Conclusion(
-                        "No conversations",
-                        "Mail that arrives for you appears here.",
+                        state.list.emptyMessage,
+                        "Mail that arrives here appears in this list.",
                         Modifier.align(Alignment.Center),
                     )
 
@@ -286,6 +312,7 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
             }
         }
     }
+}
 }
 
 /** A thread: messages as cards on the grouped background. */
@@ -350,7 +377,7 @@ fun ThreadScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                         .testTag("list.messages"),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    state.messages.forEach { MessageCard(it, state, vm) }
+                    state.messages.forEach { MessageCard(open.threadId, it, state, vm) }
                 }
             }
         }
@@ -358,7 +385,7 @@ fun ThreadScreen(state: MailViewModel.UiState, vm: MailViewModel) {
 }
 
 @Composable
-private fun MessageCard(m: Wire.Message, state: MailViewModel.UiState, vm: MailViewModel) {
+private fun MessageCard(threadId: String, m: Wire.Message, state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     Column(
         Modifier
@@ -403,6 +430,7 @@ private fun MessageCard(m: Wire.Message, state: MailViewModel.UiState, vm: MailV
             MessageBody(html, Modifier.padding(top = 10.dp))
         }
         AttachmentList(m.uid, m.attachments, state, vm)
+        UnsubscribeFooter(threadId, m, state, vm)
 
         Row(Modifier.padding(top = 6.dp)) {
             IconButton(

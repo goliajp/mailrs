@@ -77,8 +77,8 @@ class MailrsClient(private val store: TokenStore) {
         }
     }
 
-    suspend fun conversations(): Outcome<List<Wire.Conversation>> = decode(
-        get("/api/conversations?limit=50"),
+    suspend fun conversations(list: MailList): Outcome<List<Wire.Conversation>> = decode(
+        get("/api/conversations?limit=50&" + list.axes.query()),
         Wire.Conversation.serializer(),
     )
 
@@ -90,8 +90,11 @@ class MailrsClient(private val store: TokenStore) {
      * that helpfully re-sorts by date throws the ranking away and shows
      * the least relevant match first. The array is used as it arrives.
      */
-    suspend fun search(term: String): Outcome<List<Wire.Conversation>> = decode(
-        get("/api/conversations/search?q=" + java.net.URLEncoder.encode(term, "UTF-8")),
+    suspend fun search(term: String, list: MailList): Outcome<List<Wire.Conversation>> = decode(
+        // Scoped to the same list. The axes travel together for exactly
+        // this reason: a search that dropped them would answer a
+        // question about Inbox while the heading said Junk.
+        get("/api/conversations/search?q=" + enc(term) + "&" + list.axes.query()),
         Wire.Conversation.serializer(),
     )
 
@@ -173,6 +176,29 @@ class MailrsClient(private val store: TokenStore) {
             }
         } catch (e: IOException) {
             Outcome.Err("Could not reach the server: ${e.message}")
+        }
+    }
+
+    /**
+     * `POST /api/mail/unsubscribe` — the server leaves the list.
+     *
+     * Answered with `{ok, status, message}` rather than a status code,
+     * because "the sender's endpoint refused" and "we never reached it"
+     * are different things to tell a reader.
+     */
+    suspend fun unsubscribe(threadId: String, uid: Int): Outcome<Wire.UnsubscribeResult> {
+        val body = json.encodeToString(
+            Wire.UnsubscribeRequest.serializer(),
+            Wire.UnsubscribeRequest(threadId, uid),
+        )
+        return when (val r = post(url("/api/mail/unsubscribe"), body, authorized = true)) {
+            is Outcome.Ok -> runCatching {
+                json.decodeFromString(Wire.UnsubscribeResult.serializer(), r.value)
+            }.fold(
+                onSuccess = { Outcome.Ok(it) },
+                onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            )
+            is Outcome.Err -> r
         }
     }
 
