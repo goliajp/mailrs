@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.ui.AdminRow
 import jp.golia.mailrs.wire.Admin
@@ -54,67 +55,69 @@ import kotlinx.coroutines.launch
  * take.
  */
 fun MailViewModel.openAdmin(section: AdminSection) {
-    _state.value = _state.value.copy(adminOpen = section, busy = true, error = null)
+    _state.update { it.copy(adminOpen = section, busy = true, error = null) }
     viewModelScope.launch {
-        _state.value = when (section) {
+        _state.update {
+            when (section) {
             AdminSection.Accounts -> when (val r = client.accounts()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, accounts = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, accounts = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Aliases -> when (val r = client.aliases()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, aliases = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, aliases = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Domains -> when (val r = client.domains()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, domains = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, domains = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Queue -> when (val r = client.queue()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, queue = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, queue = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Dmarc -> when (val r = client.dmarcReports()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, dmarc = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, dmarc = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Audit -> when (val r = client.auditLog()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, audit = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, audit = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.AgentKeys -> when (val r = client.agentKeys()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, agentKeys = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, agentKeys = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Allowed -> when (val r = client.senderList(allowed = true)) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, allowedSenders = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, allowedSenders = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Blocked -> when (val r = client.senderList(allowed = false)) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, blockedSenders = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, blockedSenders = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Suppressed -> when (val r = client.suppressions()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, suppressed = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, suppressed = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Groups -> when (val r = client.groups()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, groups = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, groups = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.EmailGroups -> when (val r = client.emailGroups()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, emailGroups = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, emailGroups = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
             AdminSection.Apps -> when (val r = client.apps()) {
-                is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, apps = r.value)
-                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                is MailrsClient.Outcome.Ok -> it.copy(busy = false, apps = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
             }
+        }
         }
     }
 }
 
 fun MailViewModel.closeAdmin() {
-    _state.value = _state.value.copy(adminOpen = null, adminDetail = null, accountDetail = null)
+    _state.update { it.copy(adminOpen = null, adminDetail = null, accountDetail = null) }
 }
 
 /**
@@ -130,9 +133,9 @@ fun MailViewModel.openAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.Ad
         return
     }
     val id = row.key.toLongOrNull() ?: return
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         adminDetail = AdminDetail(section, id, row.headline),
-    )
+    ) }
     viewModelScope.launch {
         val members = when (section) {
             AdminSection.EmailGroups -> client.emailGroupMembers(id)
@@ -146,41 +149,41 @@ fun MailViewModel.openAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.Ad
         }
         val current = _state.value.adminDetail ?: return@launch
         if (current.id != id) return@launch
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             adminDetail = current.copy(
                 members = (members as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
                 grants = (grants as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
                 loading = false,
             ),
-        )
+        ) }
     }
 }
 
 fun MailViewModel.closeAdminRow() {
-    _state.value = _state.value.copy(adminDetail = null)
+    _state.update { it.copy(adminDetail = null) }
 }
 
 private fun MailViewModel.openAccount(address: String) {
-    _state.value = _state.value.copy(accountDetail = AccountDetail(address))
+    _state.update { it.copy(accountDetail = AccountDetail(address)) }
     viewModelScope.launch {
         val quota = client.accountQuota(address)
         val sieve = client.accountSieve(address)
         val hooks = client.accountWebhooks(address)
         val current = _state.value.accountDetail ?: return@launch
         if (current.address != address) return@launch
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             accountDetail = current.copy(
                 quotaBytes = (quota as? MailrsClient.Outcome.Ok)?.value,
                 sieve = (sieve as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
                 webhooks = (hooks as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
                 loading = false,
             ),
-        )
+        ) }
     }
 }
 
 fun MailViewModel.closeAccount() {
-    _state.value = _state.value.copy(accountDetail = null)
+    _state.update { it.copy(accountDetail = null) }
 }
 
 /**
@@ -196,7 +199,7 @@ fun MailViewModel.addGroupMember(address: String) {
     viewModelScope.launch {
         val r = client.addEmailGroupMember(detail.id, address.trim())
         if (r is MailrsClient.Outcome.Err) {
-            _state.value = _state.value.copy(error = r.message)
+            _state.update { it.copy(error = r.message) }
             return@launch
         }
         reloadDetail(detail)
@@ -209,7 +212,7 @@ fun MailViewModel.removeGroupMember(address: String) {
     viewModelScope.launch {
         val r = client.removeEmailGroupMember(detail.id, address)
         if (r is MailrsClient.Outcome.Err) {
-            _state.value = _state.value.copy(error = r.message)
+            _state.update { it.copy(error = r.message) }
             return@launch
         }
         reloadDetail(detail)
@@ -220,12 +223,12 @@ private suspend fun MailViewModel.reloadDetail(detail: AdminDetail) {
     val members = client.emailGroupMembers(detail.id)
     val current = _state.value.adminDetail ?: return
     if (current.id != detail.id) return
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         adminDetail = current.copy(
             members = (members as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
             loading = false,
         ),
-    )
+    ) }
 }
 
 /**
@@ -278,7 +281,7 @@ fun MailViewModel.addAdminRow(section: AdminSection, values: List<String>) {
             else -> return@launch
         }
         if (r is MailrsClient.Outcome.Err) {
-            _state.value = _state.value.copy(error = r.message)
+            _state.update { it.copy(error = r.message) }
             return@launch
         }
         openAdmin(section)
@@ -307,7 +310,7 @@ fun MailViewModel.deleteAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.
             AdminSection.Apps -> return@launch
         }
         if (r is MailrsClient.Outcome.Err) {
-            _state.value = _state.value.copy(error = r.message)
+            _state.update { it.copy(error = r.message) }
             return@launch
         }
         openAdmin(section)

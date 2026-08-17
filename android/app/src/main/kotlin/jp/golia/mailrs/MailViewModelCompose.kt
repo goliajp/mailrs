@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import kotlinx.coroutines.flow.update
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.ContentUriBody
@@ -86,7 +87,7 @@ fun MailViewModel.compose(
             replyToThreadId = _state.value.open?.threadId,
         )
     }
-    _state.value = _state.value.copy(composing = draft, error = null)
+    _state.update { it.copy(composing = draft, error = null) }
 }
 
 /**
@@ -115,16 +116,16 @@ fun MailViewModel.attach(uris: List<android.net.Uri>) {
         }.getOrNull()
     }
     if (added.isEmpty()) return
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         composing = draft.copy(attachments = draft.attachments + added),
-    )
+    ) }
 }
 
 fun MailViewModel.detach(a: Attached) {
     val draft = _state.value.composing ?: return
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         composing = draft.copy(attachments = draft.attachments.filterNot { it.uri == a.uri }),
-    )
+    ) }
 }
 
 /**
@@ -153,7 +154,7 @@ fun MailViewModel.composeFromShare(
         subject = mailto?.subject?.takeIf(String::isNotBlank) ?: subject,
         body = mailto?.body?.takeIf(String::isNotBlank) ?: body,
     )
-    _state.value = _state.value.copy(composing = draft, error = null)
+    _state.update { it.copy(composing = draft, error = null) }
     if (attachments.isNotEmpty()) attach(attachments)
 }
 
@@ -165,7 +166,7 @@ fun MailViewModel.editDraft(
     body: String? = null,
 ) {
     val draft = _state.value.composing ?: return
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         composing = draft.copy(
             to = to ?: draft.to,
             cc = cc ?: draft.cc,
@@ -173,7 +174,7 @@ fun MailViewModel.editDraft(
             subject = subject ?: draft.subject,
             body = body ?: draft.body,
         ),
-    )
+    ) }
 }
 
 /**
@@ -186,7 +187,7 @@ fun MailViewModel.editDraft(
  */
 fun MailViewModel.cancelCompose() {
     val draft = _state.value.composing
-    _state.value = _state.value.copy(composing = null, error = null)
+    _state.update { it.copy(composing = null, error = null) }
     if (draft == null || draft.isEmpty) return
     viewModelScope.launch {
         val saved = client.saveDraft(
@@ -201,28 +202,30 @@ fun MailViewModel.cancelCompose() {
             ),
         )
         if (saved is MailrsClient.Outcome.Ok) {
-            _state.value = _state.value.copy(draftSaved = true)
+            _state.update { it.copy(draftSaved = true) }
         }
     }
 }
 
 fun MailViewModel.draftNoticeShown() {
-    _state.value = _state.value.copy(draftSaved = false)
+    _state.update { it.copy(draftSaved = false) }
 }
 
 fun MailViewModel.openDrafts() {
-    _state.value = _state.value.copy(draftsOpen = true, busy = true, error = null)
+    _state.update { it.copy(draftsOpen = true, busy = true, error = null) }
     viewModelScope.launch {
-        _state.value = when (val r = client.drafts()) {
+        _state.update {
+            when (val r = client.drafts()) {
             is MailrsClient.Outcome.Ok ->
-                _state.value.copy(busy = false, drafts = r.value.sortedByDescending { it.updatedAt })
-            is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                it.copy(busy = false, drafts = r.value.sortedByDescending { it.updatedAt })
+            is MailrsClient.Outcome.Err -> it.copy(busy = false, error = r.message)
+        }
         }
     }
 }
 
 fun MailViewModel.closeDrafts() {
-    _state.value = _state.value.copy(draftsOpen = false)
+    _state.update { it.copy(draftsOpen = false) }
 }
 
 /**
@@ -232,7 +235,7 @@ fun MailViewModel.closeDrafts() {
  * row rather than leaving a copy behind on every edit.
  */
 fun MailViewModel.editSavedDraft(d: Wire.Draft) {
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         draftsOpen = false,
         composing = Draft(
             id = nextDraftId++,
@@ -244,11 +247,11 @@ fun MailViewModel.editSavedDraft(d: Wire.Draft) {
             replyToThreadId = d.replyToThreadId,
             serverId = d.id,
         ),
-    )
+    ) }
 }
 
 fun MailViewModel.discardDraft(d: Wire.Draft) {
-    _state.value = _state.value.copy(drafts = _state.value.drafts.filterNot { it.id == d.id })
+    _state.update { it.copy(drafts = _state.value.drafts.filterNot { it.id == d.id }) }
     viewModelScope.launch { client.deleteDraft(d.id) }
 }
 
@@ -256,10 +259,10 @@ fun MailViewModel.send() {
     val draft = _state.value.composing ?: return
     val recipients = recipientsIn(draft.to)
     if (recipients.isEmpty()) {
-        _state.value = _state.value.copy(error = "A message needs somebody to go to.")
+        _state.update { it.copy(error = "A message needs somebody to go to.") }
         return
     }
-    _state.value = _state.value.copy(sending = true, error = null)
+    _state.update { it.copy(sending = true, error = null) }
     viewModelScope.launch {
         val resolver = getApplication<Application>().contentResolver
         val r = if (draft.attachments.isEmpty()) {
@@ -296,20 +299,20 @@ fun MailViewModel.send() {
                 // this account has *received* from would put a mailing
                 // list one tap from a photo.
                 RecentRecipients.remember(getApplication(), recipients)
-                _state.value = _state.value.copy(sending = false, composing = null, sent = true)
+                _state.update { it.copy(sending = false, composing = null, sent = true) }
                 refresh()
             }
             is MailrsClient.Outcome.Err ->
                 // The composer stays open. A send that failed and
                 // closed the screen would take the text with it,
                 // which is the one thing a person cannot get back.
-                _state.value = _state.value.copy(sending = false, error = r.message)
+                _state.update { it.copy(sending = false, error = r.message) }
         }
     }
 }
 
 fun MailViewModel.acknowledgeSent() {
-    _state.value = _state.value.copy(sent = false)
+    _state.update { it.copy(sent = false) }
 }
 
 /**
@@ -323,28 +326,33 @@ fun MailViewModel.acknowledgeSent() {
  * worse way to make it work.
  */
 fun MailViewModel.openAttachment(uid: Int, index: Int, att: Wire.Attachment) {
-    _state.value = _state.value.copy(openingAttachment = index, error = null)
+    _state.update { it.copy(openingAttachment = index, error = null) }
     viewModelScope.launch {
-        _state.value = when (val r = client.attachment(uid, index)) {
-            is MailrsClient.Outcome.Ok -> {
-                val file = runCatching { writeToCache(uid, index, att.filename, r.value) }
-                file.fold(
-                    onSuccess = {
-                        _state.value.copy(
-                            openingAttachment = null,
-                            openFile = OpenedFile(it, att.contentType, att.filename),
-                        )
-                    },
-                    onFailure = {
-                        _state.value.copy(
-                            openingAttachment = null,
-                            error = "Could not save ${att.filename}: ${it.message}",
-                        )
-                    },
-                )
+        // The parameter is named because `fold` binds `it` too, and a
+        // bare `it.copy(...)` in there means the file rather than the
+        // state — which compiles in some shapes and is never what was
+        // meant.
+        _state.update { state ->
+            when (val r = client.attachment(uid, index)) {
+                is MailrsClient.Outcome.Ok ->
+                    runCatching { writeToCache(uid, index, att.filename, r.value) }.fold(
+                        onSuccess = { file ->
+                            state.copy(
+                                openingAttachment = null,
+                                openFile = OpenedFile(file, att.contentType, att.filename),
+                            )
+                        },
+                        onFailure = { failure ->
+                            state.copy(
+                                openingAttachment = null,
+                                error = "Could not save ${att.filename}: ${failure.message}",
+                            )
+                        },
+                    )
+
+                is MailrsClient.Outcome.Err ->
+                    state.copy(openingAttachment = null, error = r.message)
             }
-            is MailrsClient.Outcome.Err ->
-                _state.value.copy(openingAttachment = null, error = r.message)
         }
     }
 }
@@ -362,23 +370,23 @@ fun MailViewModel.openAttachment(uid: Int, index: Int, att: Wire.Attachment) {
  * tapping it every week for a year.
  */
 fun MailViewModel.unsubscribe(threadId: String, uid: Int) {
-    _state.value = _state.value.copy(
+    _state.update { it.copy(
         unsubscribing = _state.value.unsubscribing + (uid to Unsubscribing.Working),
-    )
+    ) }
     viewModelScope.launch {
         val outcome = client.unsubscribe(threadId, uid)
         val verdict = when {
             outcome is MailrsClient.Outcome.Ok && outcome.value.ok -> Unsubscribing.Done
             else -> Unsubscribing.Failed
         }
-        _state.value = _state.value.copy(
+        _state.update { it.copy(
             unsubscribing = _state.value.unsubscribing + (uid to verdict),
-        )
+        ) }
     }
 }
 
 fun MailViewModel.attachmentOpened() {
-    _state.value = _state.value.copy(openFile = null)
+    _state.update { it.copy(openFile = null) }
 }
 
 private fun MailViewModel.writeToCache(uid: Int, index: Int, filename: String, bytes: ByteArray): java.io.File {
@@ -404,7 +412,7 @@ private fun MailViewModel.writeToCache(uid: Int, index: Int, filename: String, b
 fun MailViewModel.suggestContacts(field: RecipientField, line: String) {
     val token = RecipientAutocomplete.currentToken(line)
     if (!RecipientAutocomplete.shouldSuggest(token)) {
-        _state.value = _state.value.copy(suggestions = emptyList(), suggestingFor = null)
+        _state.update { it.copy(suggestions = emptyList(), suggestingFor = null) }
         return
     }
     contactToken++
@@ -412,18 +420,20 @@ fun MailViewModel.suggestContacts(field: RecipientField, line: String) {
     viewModelScope.launch {
         val r = client.contacts(token)
         if (mine != contactToken) return@launch
-        _state.value = when (r) {
+        _state.update {
+            when (r) {
             is MailrsClient.Outcome.Ok ->
-                _state.value.copy(suggestions = r.value, suggestingFor = field)
+                it.copy(suggestions = r.value, suggestingFor = field)
             // A suggestion list that cannot be fetched is not an
             // error worth a banner: the person can type the address.
             is MailrsClient.Outcome.Err ->
-                _state.value.copy(suggestions = emptyList(), suggestingFor = null)
+                it.copy(suggestions = emptyList(), suggestingFor = null)
+        }
         }
     }
 }
 
 fun MailViewModel.clearSuggestions() {
     if (_state.value.suggestions.isEmpty()) return
-    _state.value = _state.value.copy(suggestions = emptyList(), suggestingFor = null)
+    _state.update { it.copy(suggestions = emptyList(), suggestingFor = null) }
 }
