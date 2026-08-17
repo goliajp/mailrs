@@ -58,14 +58,19 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val draft = state.composing ?: return
 
-    var to by remember(draft.id) { mutableStateOf(draft.to.joinToString(", ")) }
-    var cc by remember(draft.id) { mutableStateOf("") }
-    var bcc by remember(draft.id) { mutableStateOf("") }
-    var subject by remember(draft.id) { mutableStateOf(draft.subject) }
-    var body by remember(draft.id) { mutableStateOf(draft.body) }
+    // **No local copy of the text.** It lives on the draft in the view
+    // model, because the back gesture cancels through the shell — which
+    // cannot see a screen's local variables — and leaving by the gesture
+    // everybody uses would otherwise throw the message away.
+    val to = draft.to
+    val cc = draft.cc
+    val bcc = draft.bcc
+    val subject = draft.subject
+    val body = draft.body
     // Hidden until wanted, because most mail has neither and two empty
-    // lines above the subject cost every message to serve a few.
-    var extraLines by remember(draft.id) { mutableStateOf(false) }
+    // lines above the subject cost every message to serve a few. Shown
+    // from the start when a reopened draft already has one.
+    var extraLines by remember(draft.id) { mutableStateOf(cc.isNotBlank() || bcc.isNotBlank()) }
 
     Column(
         Modifier
@@ -89,7 +94,7 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
                 } else {
                     IconButton(
-                        onClick = { vm.send(to, cc, bcc, subject, body) },
+                        onClick = { vm.send() },
                         // The same rule the send uses, not a second one.
                         enabled = vm.recipientsIn(to).isNotEmpty(),
                         modifier = Modifier.testTag("button.send"),
@@ -119,37 +124,37 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                 }
             },
         ) {
-            to = it
+            vm.editDraft(to = it)
             vm.suggestContacts(MailViewModel.RecipientField.To, it)
         }
         Suggestions(state, MailViewModel.RecipientField.To, vm) { picked ->
-            to = RecipientAutocomplete.completing(to, picked)
+            vm.editDraft(to = RecipientAutocomplete.completing(to, picked))
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
 
         if (extraLines) {
             CompactField("Cc", cc, "field.cc") {
-                cc = it
+                vm.editDraft(cc = it)
                 vm.suggestContacts(MailViewModel.RecipientField.Cc, it)
             }
             Suggestions(state, MailViewModel.RecipientField.Cc, vm) { picked ->
-                cc = RecipientAutocomplete.completing(cc, picked)
+                vm.editDraft(cc = RecipientAutocomplete.completing(cc, picked))
             }
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
             // Bcc says what it does. "Blind" is the whole point and the
             // reason it is worth a word: a reader who confuses it with
             // Cc has told a mailing list who else is on it.
             CompactField("Bcc", bcc, "field.bcc") {
-                bcc = it
+                vm.editDraft(bcc = it)
                 vm.suggestContacts(MailViewModel.RecipientField.Bcc, it)
             }
             Suggestions(state, MailViewModel.RecipientField.Bcc, vm) { picked ->
-                bcc = RecipientAutocomplete.completing(bcc, picked)
+                vm.editDraft(bcc = RecipientAutocomplete.completing(bcc, picked))
             }
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
         }
 
-        CompactField("Subject", subject, "field.subject") { subject = it }
+        CompactField("Subject", subject, "field.subject") { vm.editDraft(subject = it) }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
 
         if (state.error != null) {
@@ -175,7 +180,7 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
             }
             BasicTextField(
                 value = body,
-                onValueChange = { body = it },
+                onValueChange = { vm.editDraft(body = it) },
                 textStyle = TextStyle(color = theme.fg, fontSize = 15.sp),
                 cursorBrush = SolidColor(theme.accent),
                 modifier = Modifier

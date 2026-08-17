@@ -143,6 +143,41 @@ object Wire {
     )
 
     /**
+     * One saved draft. `to`, `cc` and `bcc` are the raw lines as typed,
+     * not parsed lists — the server stores what the composer had.
+     *
+     * Source: `crates/core-api/src/method/admin/userdata.rs` —
+     * `DraftWire`.
+     */
+    @Serializable
+    data class Draft(
+        val id: Long,
+        val to: String = "",
+        val cc: String = "",
+        val bcc: String = "",
+        val subject: String = "",
+        val body: String = "",
+        @SerialName("reply_to_thread_id") val replyToThreadId: String? = null,
+        @SerialName("created_at") val createdAt: Long = 0,
+        @SerialName("updated_at") val updatedAt: Long = 0,
+    )
+
+    /** `POST /api/mail/drafts` — an id means update, its absence means create. */
+    @Serializable
+    data class SaveDraftRequest(
+        val id: Long? = null,
+        val to: String,
+        val cc: String,
+        val bcc: String,
+        val subject: String,
+        val body: String,
+        @SerialName("reply_to_thread_id") val replyToThreadId: String? = null,
+    )
+
+    @Serializable
+    data class SaveDraftResponse(val id: Long)
+
+    /**
      * `POST /api/mail/send`.
      *
      * Every field is `#[serde(default)]` on the server

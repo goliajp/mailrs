@@ -26,7 +26,7 @@ import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
-private enum class Screen { SignIn, List, Settings, Thread, Compose }
+private enum class Screen { SignIn, List, Settings, Drafts, Thread, Compose }
 
 /**
  * The app's one navigation decision, and the motion that goes with it.
@@ -57,6 +57,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         state.composing != null -> Screen.Compose
         state.open != null -> Screen.Thread
         state.settingsOpen -> Screen.Settings
+        state.draftsOpen -> Screen.Drafts
         else -> Screen.List
     }
 
@@ -67,7 +68,8 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
     val current by rememberUpdatedState(screen)
 
     PredictiveBackHandler(
-        enabled = screen == Screen.Thread || screen == Screen.Compose || screen == Screen.Settings,
+        enabled = screen == Screen.Thread || screen == Screen.Compose ||
+            screen == Screen.Settings || screen == Screen.Drafts,
     ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
@@ -76,6 +78,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                 Screen.Compose -> vm.cancelCompose()
                 Screen.Thread -> vm.closeThread()
                 Screen.Settings -> vm.closeSettings()
+                Screen.Drafts -> vm.closeDrafts()
                 else -> Unit
             }
         } catch (_: CancellationException) {
@@ -144,6 +147,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }
                     Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
+                    Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
                     Screen.Settings -> Box(peeled) {
                         SettingsScreen(
                             state = state,

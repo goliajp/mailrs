@@ -211,6 +211,14 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     // and the swipe-away all come back through one return value, so
     // "the person did nothing" and "the person undid it" cannot be
     // confused — which is the whole safety of an undo.
+    // "Draft saved", once. Said where the composer went, because a
+    // message that vanished from the screen without a word looks lost.
+    LaunchedEffect(state.draftSaved) {
+        if (!state.draftSaved) return@LaunchedEffect
+        snackbars.showSnackbar("Draft saved")
+        vm.draftNoticeShown()
+    }
+
     LaunchedEffect(state.undo) {
         val pending = state.undo ?: return@LaunchedEffect
         val what = when (pending.verb) {
@@ -235,6 +243,10 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
         drawerContent = {
             MailListDrawer(
                 current = state.list,
+                onDrafts = {
+                    scope.launch { drawer.close() }
+                    vm.openDrafts()
+                },
                 onSettings = {
                     scope.launch { drawer.close() }
                     vm.openSettings()

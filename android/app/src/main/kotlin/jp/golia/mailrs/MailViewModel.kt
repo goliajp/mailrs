@@ -132,15 +132,15 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun compose(replyTo: Wire.Message? = null, all: Boolean = false) {
         val draft = if (replyTo == null) {
-            Draft(id = nextDraftId++, to = emptyList(), subject = "", body = "", inReplyTo = null)
+            Draft(id = nextDraftId++)
         } else {
             val me = _state.value.myAddress
             Draft(
                 id = nextDraftId++,
                 to = if (all) {
-                    ReplyRecipients.replyAll(replyTo.sender, replyTo.recipients, me)
+                    ReplyRecipients.replyAll(replyTo.sender, replyTo.recipients, me).joinToString(", ")
                 } else {
-                    ReplyRecipients.reply(replyTo.sender)
+                    ReplyRecipients.reply(replyTo.sender).joinToString(", ")
                 },
                 subject = ReplyRecipients.subject(replyTo.subject),
                 body = ReplyRecipients.quote(
@@ -149,13 +149,107 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     replyTo.textBody.orEmpty(),
                 ),
                 inReplyTo = replyTo.messageId,
+                replyToThreadId = _state.value.open?.threadId,
             )
         }
         _state.value = _state.value.copy(composing = draft, error = null)
     }
 
+    /** Every keystroke, straight into the one copy of the draft. */
+    fun editDraft(
+        to: String? = null,
+        cc: String? = null,
+        bcc: String? = null,
+        subject: String? = null,
+        body: String? = null,
+    ) {
+        val draft = _state.value.composing ?: return
+        _state.value = _state.value.copy(
+            composing = draft.copy(
+                to = to ?: draft.to,
+                cc = cc ?: draft.cc,
+                bcc = bcc ?: draft.bcc,
+                subject = subject ?: draft.subject,
+                body = body ?: draft.body,
+            ),
+        )
+    }
+
+    /**
+     * Leave the composer, keeping what was written.
+     *
+     * **Leaving saves.** Every mail client on the phone does, and a
+     * half-written message is the one thing a person cannot get back by
+     * trying again. An empty composer is not saved, or the drafts list
+     * fills with blanks from every mis-tapped compose button.
+     */
     fun cancelCompose() {
+        val draft = _state.value.composing
         _state.value = _state.value.copy(composing = null, error = null)
+        if (draft == null || draft.isEmpty) return
+        viewModelScope.launch {
+            val saved = client.saveDraft(
+                Wire.SaveDraftRequest(
+                    id = draft.serverId,
+                    to = draft.to,
+                    cc = draft.cc,
+                    bcc = draft.bcc,
+                    subject = draft.subject,
+                    body = draft.body,
+                    replyToThreadId = draft.replyToThreadId,
+                ),
+            )
+            if (saved is MailrsClient.Outcome.Ok) {
+                _state.value = _state.value.copy(draftSaved = true)
+            }
+        }
+    }
+
+    fun draftNoticeShown() {
+        _state.value = _state.value.copy(draftSaved = false)
+    }
+
+    /** Load the drafts list, and open one for editing. */
+    fun openDrafts() {
+        _state.value = _state.value.copy(draftsOpen = true, busy = true, error = null)
+        viewModelScope.launch {
+            _state.value = when (val r = client.drafts()) {
+                is MailrsClient.Outcome.Ok ->
+                    _state.value.copy(busy = false, drafts = r.value.sortedByDescending { it.updatedAt })
+                is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+            }
+        }
+    }
+
+    fun closeDrafts() {
+        _state.value = _state.value.copy(draftsOpen = false)
+    }
+
+    /**
+     * Reopen a saved draft.
+     *
+     * Its server id travels with it, so saving again updates the same
+     * row rather than leaving a copy behind on every edit.
+     */
+    fun editSavedDraft(d: Wire.Draft) {
+        _state.value = _state.value.copy(
+            draftsOpen = false,
+            composing = Draft(
+                id = nextDraftId++,
+                to = d.to,
+                cc = d.cc,
+                bcc = d.bcc,
+                subject = d.subject,
+                body = d.body,
+                replyToThreadId = d.replyToThreadId,
+                serverId = d.id,
+            ),
+        )
+    }
+
+    fun discardDraft(d: Wire.Draft) {
+        _state.value = _state.value.copy(drafts = _state.value.drafts.filterNot { it.id == d.id })
+        viewModelScope.launch { client.deleteDraft(d.id) }
     }
 
     /**
@@ -171,9 +265,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun recipientsIn(to: String): List<String> =
         to.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
 
-    fun send(to: String, cc: String, bcc: String, subject: String, body: String) {
+    fun send() {
         val draft = _state.value.composing ?: return
-        val recipients = recipientsIn(to)
+        val recipients = recipientsIn(draft.to)
         if (recipients.isEmpty()) {
             _state.value = _state.value.copy(error = "A message needs somebody to go to.")
             return
@@ -183,11 +277,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             when (
                 val r = client.send(
                     recipients,
-                    subject,
-                    body,
+                    draft.subject,
+                    draft.body,
                     draft.inReplyTo,
-                    cc = recipientsIn(cc),
-                    bcc = recipientsIn(bcc),
+                    cc = recipientsIn(draft.cc),
+                    bcc = recipientsIn(draft.bcc),
                 )
             ) {
                 is MailrsClient.Outcome.Ok -> {
@@ -555,6 +649,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val searching: Boolean = false,
         /** Which list is showing. Its axes scope both the list and the search. */
         val list: MailList = MailList.Inbox,
+        /** Saved drafts, newest first, and whether their list is showing. */
+        val drafts: List<Wire.Draft> = emptyList(),
+        val draftsOpen: Boolean = false,
+        /** A draft was just saved; the list screen says so once. */
+        val draftSaved: Boolean = false,
         /** Whether the settings screen is showing. */
         val settingsOpen: Boolean = false,
         /** Light, dark, or the phone's own answer. */
@@ -607,11 +706,33 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         const val UNDO_WINDOW_MS = 5_000L
     }
 
+    /**
+     * The message being written, held here and nowhere else.
+     *
+     * The composer used to mirror these into its own `remember`d state
+     * and hand them back on send. That is the pattern this codebase has
+     * a rule against (`frontend/no-rq-mirror.md`), and it had a second
+     * cost here: the back gesture cancels through the shell, which
+     * cannot see a screen's local variables, so leaving by the gesture
+     * everybody uses would have thrown the text away.
+     *
+     * `serverId` is null until the draft has been saved once; after
+     * that it is reused, or one message leaves a trail of drafts.
+     */
     data class Draft(
         val id: Int,
-        val to: List<String>,
-        val subject: String,
-        val body: String,
-        val inReplyTo: String?,
-    )
+        val to: String = "",
+        val cc: String = "",
+        val bcc: String = "",
+        val subject: String = "",
+        val body: String = "",
+        val inReplyTo: String? = null,
+        val replyToThreadId: String? = null,
+        val serverId: Long? = null,
+    ) {
+        /** Nothing typed and nothing quoted: not worth saving. */
+        val isEmpty: Boolean
+            get() = to.isBlank() && cc.isBlank() && bcc.isBlank() &&
+                subject.isBlank() && body.isBlank()
+    }
 }

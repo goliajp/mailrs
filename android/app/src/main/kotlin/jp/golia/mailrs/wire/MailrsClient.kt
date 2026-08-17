@@ -233,6 +233,43 @@ class MailrsClient(private val store: TokenStore) {
         kotlinx.serialization.serializer<String>(),
     )
 
+    suspend fun drafts(): Outcome<List<Wire.Draft>> = decode(
+        get("/api/mail/drafts"),
+        Wire.Draft.serializer(),
+    )
+
+    /**
+     * `POST /api/mail/drafts` — create or update.
+     *
+     * The id decides which: present is an in-place update of the same
+     * hash field, absent allocates a new one. A composer that dropped
+     * the id on the second save would leave a trail of drafts behind
+     * one message.
+     */
+    suspend fun saveDraft(req: Wire.SaveDraftRequest): Outcome<Long> {
+        val payload = json.encodeToString(Wire.SaveDraftRequest.serializer(), req)
+        return when (val r = post(url("/api/mail/drafts"), payload, authorized = true)) {
+            is Outcome.Ok -> runCatching {
+                json.decodeFromString(Wire.SaveDraftResponse.serializer(), r.value).id
+            }.fold(
+                onSuccess = { Outcome.Ok(it) },
+                onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            )
+            is Outcome.Err -> r
+        }
+    }
+
+    suspend fun deleteDraft(id: Long): Outcome<String> = withContext(Dispatchers.IO) {
+        val s = session ?: return@withContext Outcome.Err("Not signed in.")
+        send(
+            Request.Builder()
+                .url("${s.server}/api/mail/drafts/$id")
+                .header("Authorization", "Bearer ${s.token}")
+                .delete()
+                .build(),
+        )
+    }
+
     private fun <T> decode(
         r: Outcome<String>,
         element: kotlinx.serialization.KSerializer<T>,

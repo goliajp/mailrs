@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.Settings
@@ -37,7 +38,12 @@ import jp.golia.mailrs.wire.MailList
  * on the server and nowhere a phone could reach them.
  */
 @Composable
-fun MailListDrawer(current: MailList, onSettings: () -> Unit, onChoose: (MailList) -> Unit) {
+fun MailListDrawer(
+    current: MailList,
+    onDrafts: () -> Unit,
+    onSettings: () -> Unit,
+    onChoose: (MailList) -> Unit,
+) {
     val theme = LocalTheme.current
     ModalDrawerSheet(
         drawerContainerColor = theme.bg,
@@ -68,6 +74,23 @@ fun MailListDrawer(current: MailList, onSettings: () -> Unit, onChoose: (MailLis
             )
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
+        // Below the rule with Settings, not among the lists: drafts are
+        // not a folder of received mail, and putting them in the same
+        // group would make "Inbox, Junk, Drafts" read as three places
+        // mail arrives.
+        NavigationDrawerItem(
+            label = { Text("Drafts", fontSize = 14.sp) },
+            icon = { Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = null) },
+            selected = false,
+            onClick = onDrafts,
+            colors = NavigationDrawerItemDefaults.colors(
+                unselectedTextColor = theme.fgSecondary,
+                unselectedIconColor = theme.fgSecondary,
+            ),
+            modifier = Modifier
+                .padding(NavigationDrawerItemDefaults.ItemPadding)
+                .testTag("drawer.item.Drafts"),
+        )
         NavigationDrawerItem(
             label = { Text("Settings", fontSize = 14.sp) },
             icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
