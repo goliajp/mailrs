@@ -439,4 +439,31 @@ class ComposeFlowTest : MailrsUiTest() {
         assertTrue("a forward should not thread into the original: $sent",
             !sent.contains("\"in_reply_to\": \"<m1@x>\""))
     }
+
+    /**
+     * A file that could not be read is said, not dropped.
+     *
+     * A provider can refuse to answer for a URI — a share that has gone
+     * away, a grant since revoked — and picking three files to find two
+     * attached, with nothing said, is being quietly lied to about what
+     * is going out. The URI here points at a document provider that
+     * does not exist, which is the same answer from the app's side.
+     */
+    @Test
+    fun a_file_that_cannot_be_read_is_reported() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.attachForTest(android.net.Uri.parse("content://jp.golia.nothing/here/1"))
+        }
+
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("could not be read", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodesWithTag("row.draftAttachment").assertCountEquals(0)
+    }
 }

@@ -463,6 +463,18 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(open = null, messages = emptyList()) }
     }
 
+    /**
+     * Something outside this view model went wrong and is worth saying.
+     *
+     * A screen can reach the parts of Android that fail — no app to
+     * open a file, no browser for a link — and those failures belong on
+     * the same snackbar as everything else rather than in a `runCatching`
+     * nobody reads.
+     */
+    fun reportFailure(message: String) {
+        _state.update { it.copy(error = message) }
+    }
+
     fun dismissError() {
         _state.update { it.copy(error = null) }
     }

@@ -115,10 +115,26 @@ fun MailViewModel.attach(uris: List<android.net.Uri>) {
             }
         }.getOrNull()
     }
-    if (added.isEmpty()) return
-    _state.update { it.copy(
-        composing = draft.copy(attachments = draft.attachments + added),
-    ) }
+    // **Say when one did not come through.** A provider can refuse to
+    // answer for a URI — a file on a share that has gone away, a
+    // document the granting app has since revoked — and picking three
+    // files to find two attached, with nothing said, is the reader
+    // being quietly lied to about what is going out.
+    val lost = uris.size - added.size
+    _state.update { state ->
+        state.copy(
+            composing = if (added.isEmpty()) {
+                state.composing
+            } else {
+                draft.copy(attachments = draft.attachments + added)
+            },
+            error = when (lost) {
+                0 -> state.error
+                1 -> "One file could not be read and was not attached."
+                else -> "$lost files could not be read and were not attached."
+            },
+        )
+    }
 }
 
 fun MailViewModel.detach(a: Attached) {
