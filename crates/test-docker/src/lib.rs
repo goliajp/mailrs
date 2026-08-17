@@ -47,6 +47,20 @@ const STALE_AFTER: Duration = Duration::from_secs(30);
 /// breakage.
 const HEARTBEAT: Duration = Duration::from_secs(5);
 
+/// How long a container gets to report ready.
+///
+/// testcontainers defaults to 60 s, which is generous for a postgres
+/// that has the machine to itself and far too short for one starting
+/// during `cargo test --workspace`: 231 test binaries run at once, and
+/// on 2026-08-17 eleven container-backed tests took 541 s together
+/// while the same eleven took 55 s alone. Nine tests across three
+/// crates failed a release gate on that timeout, in two separate runs.
+///
+/// The lock keeps the starts from overlapping. This keeps a start that
+/// is merely slow from being called a failure — the same distinction
+/// `STALE_AFTER` needed, one layer down.
+pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Held while one container comes up. Released on drop, including on panic.
 pub struct StartupLock(PathBuf, Option<tokio::task::JoinHandle<()>>);
 

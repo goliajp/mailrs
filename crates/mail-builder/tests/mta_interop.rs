@@ -17,6 +17,7 @@ use std::time::Duration;
 
 use mailrs_mail_builder::{Attachment, MessageBuilder};
 use testcontainers::GenericImage;
+use testcontainers::ImageExt;
 use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -44,7 +45,11 @@ async fn start_mailpit() -> (
         // fetch_latest_raw retries for another two seconds so total
         // ramp-up tolerance is ~5s.
         .with_wait_for(WaitFor::seconds(3));
-    let container = image.start().await.expect("start mailpit");
+    let container = image
+        .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
+        .start()
+        .await
+        .expect("start mailpit");
     // additional grace period before we hit the HTTP API
     tokio::time::sleep(Duration::from_millis(500)).await;
 

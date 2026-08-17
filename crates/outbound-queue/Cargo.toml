@@ -61,6 +61,7 @@ spg-sqlx = { workspace = true, optional = true }
 kevy-embedded = { workspace = true, optional = true }
 
 [dev-dependencies]
+mailrs-test-docker = { path = "../test-docker" }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 # Integration tests spin a real Postgres in a container so the `pg`

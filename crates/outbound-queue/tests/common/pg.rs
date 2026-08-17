@@ -15,6 +15,7 @@ use mailrs_outbound_queue::BackendPool;
 use sqlx::postgres::PgPoolOptions;
 #[cfg(not(feature = "spg"))]
 use testcontainers::ContainerAsync;
+use testcontainers::ImageExt;
 #[cfg(not(feature = "spg"))]
 use testcontainers_modules::postgres::Postgres;
 #[cfg(not(feature = "spg"))]
@@ -88,7 +89,14 @@ pub async fn start_pg() -> (TestHandle, BackendPool) {
 
 #[cfg(not(feature = "spg"))]
 pub async fn start_pg() -> (TestHandle, BackendPool) {
+    // One container comes up at a time, repo-wide. This fixture was the
+    // one that did not take the lock while `mailrs-test-docker`'s own
+    // doc counted it among the six that did — and six of the nine
+    // container timeouts in the 2026-08-17 gate came from here. A shared
+    // fix a caller can silently skip is the same defect as no fix.
+    let _guard = mailrs_test_docker::startup_lock().await;
     let container = Postgres::default()
+        .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
         .start()
         .await
         .expect("start postgres container");

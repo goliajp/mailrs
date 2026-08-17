@@ -112,6 +112,13 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # `mail-builder`.
     ./scripts/check-tls-trust.sh
 
+    # Every fixture that starts a container takes the shared startup lock
+    # and the shared timeout. outbound-queue's took neither, while
+    # test-docker's own doc counted it among the six that did — and six
+    # of the nine container timeouts that failed two gates on 2026-08-17
+    # came from there. A shared fix a caller can silently skip is no fix.
+    ./scripts/check-container-fixtures.sh
+
     # Three checks for one failure mode: a capability that exists on
     # one side of the wire and nowhere on the other, with nothing
     # saying so. Each was written on 2026-08-10 after finding its own

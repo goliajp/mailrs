@@ -3503,6 +3503,7 @@ dependencies = [
  "mailrs-mail-builder",
  "mailrs-rfc5322",
  "mailrs-smtp-client",
+ "mailrs-test-docker",
  "metrics",
  "rcgen 0.14.8",
  "rustls",
