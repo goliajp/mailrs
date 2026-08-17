@@ -654,6 +654,57 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Whether this list can be added to, and what the form asks for.
+     *
+     * Two fields at most, because an operator adding an alias on a
+     * phone is doing it between other things. Anything that needs more
+     * — an account, with a password — is not offered here at all rather
+     * than offered badly.
+     */
+    fun addFields(section: AdminSection): List<String> = when (section) {
+        AdminSection.Aliases -> listOf("Source address", "Target address")
+        AdminSection.Domains -> listOf("Domain name")
+        else -> emptyList()
+    }
+
+    /**
+     * Create a row from what the form holds, then re-read the list.
+     *
+     * The alias's domain is taken from its own source address rather
+     * than asked for separately: they cannot disagree, and a form that
+     * lets them is a form that will be filled in wrong.
+     */
+    fun addAdminRow(section: AdminSection, values: List<String>) {
+        viewModelScope.launch {
+            val r = when (section) {
+                AdminSection.Aliases -> {
+                    val source = values.getOrElse(0) { "" }.trim()
+                    val target = values.getOrElse(1) { "" }.trim()
+                    if (source.isEmpty() || target.isEmpty()) return@launch
+                    client.addAlias(
+                        Admin.AddAliasRequest(
+                            sourceAddress = source,
+                            targetAddress = target,
+                            domain = source.substringAfter('@', ""),
+                        ),
+                    )
+                }
+                AdminSection.Domains -> {
+                    val name = values.getOrElse(0) { "" }.trim()
+                    if (name.isEmpty()) return@launch
+                    client.addDomain(name)
+                }
+                else -> return@launch
+            }
+            if (r is MailrsClient.Outcome.Err) {
+                _state.value = _state.value.copy(error = r.message)
+                return@launch
+            }
+            openAdmin(section)
+        }
+    }
+
+    /**
      * Remove one row, and re-read the list.
      *
      * Re-read rather than removed locally: the server decides whether a

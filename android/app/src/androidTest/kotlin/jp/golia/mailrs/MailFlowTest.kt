@@ -812,6 +812,41 @@ class MailFlowTest {
         compose.onNodeWithText("118/120 passing · p=quarantine").assertIsDisplayed()
     }
 
+    /**
+     * Adding an alias, with the domain taken from the address.
+     *
+     * The two cannot disagree, so the form does not ask twice — a form
+     * that lets them is a form that will be filled in wrong. The
+     * assertion is that the list came back one longer, which is the
+     * server's answer rather than the dialog's.
+     */
+    @Test
+    fun an_alias_can_be_added_from_the_phone() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Aliases", "settings never listed the aliases")
+        compose.onNodeWithTag("admin.Aliases").performClick()
+        waitForTag("list.admin", "the aliases never listed")
+
+        val before = compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size
+        compose.onNodeWithTag("button.addAdminRow").performClick()
+        waitForTag("field.admin0", "the form never opened")
+
+        // Half filled: the button must not be live yet.
+        compose.onNodeWithTag("field.admin0").performTextInput("help@golia.jp")
+        compose.onNodeWithTag("button.confirmAdmin").assertIsNotEnabled()
+        compose.onNodeWithTag("field.admin1").performTextInput("lihao@golia.jp")
+        compose.onNodeWithTag("button.confirmAdmin").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size == before + 1
+        }
+        compose.onNodeWithText("help@golia.jp → lihao@golia.jp").assertIsDisplayed()
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
