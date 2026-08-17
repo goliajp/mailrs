@@ -11,6 +11,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performTextInput
@@ -78,9 +80,11 @@ class MailFlowTest {
     @Before
     fun startSignedOut() {
         compose.activityRule.scenario.onActivity { it.signOutForTest() }
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodes(hasTestTag("field.address")).fetchSemanticsNodes().isNotEmpty()
-        }
+        // Displayed, not merely present. Signing out slides the sign-in
+        // screen back in, and a field that exists but is still off the
+        // left edge takes a click at a coordinate that is not on it.
+        // One run in fourteen failed here, filled fields and all.
+        waitForTag("field.address", "the sign-in screen never came back")
     }
 
     /** The activity is launched by the rule; point it at the stub. */
@@ -100,11 +104,28 @@ class MailFlowTest {
      * response. Every wait here is bounded and says what it was waiting
      * for, because "test timed out" names nothing.
      */
+    /**
+     * Wait until something is **on screen**, not until it exists.
+     *
+     * These were two different checks: it waited for the node to appear
+     * and then asserted, once, that it was displayed. A node that exists
+     * but is still sliding or expanding fails that single assertion, so
+     * the helper was sound only as long as nothing animated. Adding
+     * screen transitions turned two search tests red without touching
+     * search — the failure was in the waiting, not the app.
+     */
     private fun waitForTag(tag: String, what: String) {
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() &&
+                    runCatching { compose.onAllNodesWithTag(tag).onFirst().assertIsDisplayed() }.isSuccess
+            }
+        } catch (e: Throwable) {
+            throw AssertionError(
+                what + "\n" + compose.onRoot().printToString(maxDepth = 12).take(2500),
+                e,
+            )
         }
-        compose.onAllNodesWithTag(tag).onFirst().assertIsDisplayed().also { _ -> require(what.isNotEmpty()) }
     }
 
     @Test
@@ -356,7 +377,20 @@ class MailFlowTest {
         assertEquals("the fixture offers two attachments", 2, rows)
 
         compose.onAllNodesWithTag("row.attachment")[1].performClick()
-        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/fetched").contains("1") }
+        try {
+            compose.waitUntil(TIMEOUT_MS) { readStub("/debug/fetched").contains("1") }
+        } catch (e: Throwable) {
+            // This failed once in fourteen and passed three times
+            // isolated, so the next occurrence has to arrive as an
+            // answer rather than another re-run: whether the tap was
+            // lost (nothing fetched, no error) or the fetch failed
+            // (an error on screen) are different bugs.
+            throw AssertionError(
+                "no attachment was fetched. /debug/fetched=" + readStub("/debug/fetched") +
+                    "\n" + compose.onRoot().printToString(maxDepth = 12).take(2000),
+                e,
+            )
+        }
         assertTrue(
             "index 0 was fetched, not the row that was tapped",
             !readStub("/debug/fetched").contains("0"),
