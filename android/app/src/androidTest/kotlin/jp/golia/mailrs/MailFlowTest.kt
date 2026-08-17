@@ -52,7 +52,7 @@ import org.junit.runner.RunWith
  * way `ios-build.sh` does for the other one.
  */
 @RunWith(AndroidJUnit4::class)
-class MailFlowTest {
+class MailFlowTest : GrantsNotifications() {
 
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
@@ -72,34 +72,6 @@ class MailFlowTest {
      * reason; skipping it is how a passing assertion stops meaning
      * anything.
      */
-    /**
-     * Granted up front so the system dialog never appears.
-     *
-     * The app asks for it after signing in, which is right on a phone
-     * and fatal here: an unanswered permission dialog covers the
-     * activity, and every test in this class then fails with "No
-     * compose hierarchies found in the app". Thirty-nine of forty did.
-     */
-    @Before
-    fun grantNotifications() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
-                InstrumentationRegistry.getInstrumentation().targetContext.packageName,
-                android.Manifest.permission.POST_NOTIFICATIONS,
-            )
-        }
-    }
-
-    @Before
-    fun resetStub() {
-        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
-        val c = java.net.URL("$stub/debug/reset").openConnection() as java.net.HttpURLConnection
-        c.requestMethod = "POST"
-        c.connectTimeout = 5_000
-        c.readTimeout = 5_000
-        c.inputStream.use { it.readBytes() }
-    }
-
     @Before
     fun startSignedOut() {
         compose.activityRule.scenario.onActivity { it.signOutForTest() }
