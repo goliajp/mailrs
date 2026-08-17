@@ -4,6 +4,14 @@
     <!-- Mail is the whole app; without this it can do nothing. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      "You have mail". Asked for at the moment it means something —
+      after signing in — rather than at first launch, which is a prompt
+      about nothing. Refusing it costs only the notification: the app
+      works the same and the check simply says nothing.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="false"
         android:networkSecurityConfig="@xml/network_security_config"

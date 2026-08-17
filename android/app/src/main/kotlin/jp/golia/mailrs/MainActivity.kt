@@ -1,11 +1,15 @@
 package jp.golia.mailrs
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Surface
@@ -15,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import jp.golia.mailrs.ui.LocalTheme
 import androidx.compose.runtime.LaunchedEffect
 import jp.golia.mailrs.ui.MailrsApp
+import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.ShareIntent
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.ui.MailrsTheme
@@ -126,9 +131,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Asked for once signed in, which is the moment it means something.
+     *
+     * At first launch it would be a prompt about nothing — there is no
+     * mailbox yet — and Android only shows the system dialog once, so
+     * spending it on a screen where the answer is "what mail?" spends
+     * it badly. Refusing costs only the notification.
+     */
+    private val askNotifications = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Granted or not, the app is unchanged; the check just stays quiet. */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        NewMailWorker.ensureChannel(this)
         setContent {
             // Not Material You: the three clients hold one palette, and
             // an accent taken from the wallpaper is not that. See
@@ -155,6 +173,21 @@ class MainActivity : ComponentActivity() {
                     // key is the intent itself, so a rotation does not
                     // reopen a composer the person just cancelled.
                     LaunchedEffect(intent) { actOn(vm, intent) }
+
+                    // Signed in: start checking, and ask for the
+                    // permission that lets the check say anything.
+                    LaunchedEffect(state.signedIn) {
+                        if (!state.signedIn) return@LaunchedEffect
+                        NewMailWorker.schedule(this@MainActivity, state.notifyNewMail)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
                     MailrsApp(vm, state)
                 }
             }

@@ -196,6 +196,10 @@ object Wire {
         @SerialName("in_reply_to") val inReplyTo: String? = null,
     )
 
+    /** `GET /api/conversations/unseen-count`. */
+    @Serializable
+    data class UnseenCount(val count: Int = 0)
+
     /** `POST /api/conversations/batch` — `{action, thread_ids}`. */
     @Serializable
     data class BatchRequest(
