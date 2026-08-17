@@ -44,6 +44,20 @@ class MainActivity : ComponentActivity() {
     fun signOutForTest() {
         model?.signOut()
     }
+
+    /**
+     * Attach a file without the system picker.
+     *
+     * The picker runs in another process and is the platform's, not
+     * this app's; what is worth testing is everything after it — the
+     * name and size read from the resolver, the streaming body, and the
+     * multipart shape the server reads. Debug builds only, for the same
+     * reason `useServer` is.
+     */
+    fun attachForTest(uri: android.net.Uri) {
+        if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+        model?.attach(listOf(uri))
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

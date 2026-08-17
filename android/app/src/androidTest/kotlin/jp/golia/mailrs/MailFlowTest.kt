@@ -688,6 +688,52 @@ class MailFlowTest {
         assertTrue("the second save did not name the draft: $posts", posts.contains("[null, 1]"))
     }
 
+    /**
+     * A file goes out with the message, by name and by content type.
+     *
+     * The system picker is skipped — it runs in another process and is
+     * the platform's. What this covers is everything after it: the name
+     * and size read from the content resolver rather than from the
+     * URI's opaque last segment, the body streamed instead of read into
+     * memory, and the multipart field names the handler reads. The stub
+     * records what arrived, so the assertion is on the file the server
+     * got and not on the chip that was drawn.
+     */
+    @Test
+    fun an_attached_file_arrives_with_the_message() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+
+        compose.activityRule.scenario.onActivity { activity ->
+            val dir = java.io.File(activity.cacheDir, "attachments/test")
+            dir.mkdirs()
+            val file = java.io.File(dir, "notes.txt")
+            file.writeText("two lines\nof it\n")
+            activity.attachForTest(
+                androidx.core.content.FileProvider.getUriForFile(
+                    activity,
+                    activity.packageName + ".files",
+                    file,
+                ),
+            )
+        }
+        waitForTag("row.draftAttachment", "the file was never taken on")
+        compose.onNodeWithText("notes.txt").assertIsDisplayed()
+
+        compose.onNodeWithTag("field.to").performTextInput("someone@example.com")
+        compose.onNodeWithTag("field.subject").performTextInput("With a file")
+        compose.onNodeWithTag("button.send").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/sent").contains("With a file") }
+        val sent = readStub("/debug/sent")
+        assertTrue("the file did not arrive: $sent", sent.contains("notes.txt"))
+        // 16 bytes of "two lines\nof it\n" — a file that arrived empty
+        // would still carry the right name.
+        assertTrue("the file arrived empty: $sent", sent.contains("\"bytes\": 16"))
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }

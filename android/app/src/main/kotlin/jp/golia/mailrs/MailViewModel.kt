@@ -3,6 +3,7 @@ package jp.golia.mailrs
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Prefs
@@ -155,6 +156,44 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(composing = draft, error = null)
     }
 
+    /**
+     * Take on a picked file.
+     *
+     * The name and size come from the content resolver rather than the
+     * URI's last path segment: a document provider's URI is an opaque
+     * id, and "msf:1000000042" is not a filename anybody wants to see
+     * arrive in their mail.
+     */
+    fun attach(uris: List<android.net.Uri>) {
+        val draft = _state.value.composing ?: return
+        val resolver = getApplication<Application>().contentResolver
+        val added = uris.mapNotNull { uri ->
+            runCatching {
+                resolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameAt = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val sizeAt = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (!cursor.moveToFirst()) return@use null
+                    Attached(
+                        uri = uri,
+                        filename = if (nameAt >= 0) cursor.getString(nameAt) else "attachment",
+                        size = if (sizeAt >= 0 && !cursor.isNull(sizeAt)) cursor.getLong(sizeAt) else 0,
+                    )
+                }
+            }.getOrNull()
+        }
+        if (added.isEmpty()) return
+        _state.value = _state.value.copy(
+            composing = draft.copy(attachments = draft.attachments + added),
+        )
+    }
+
+    fun detach(a: Attached) {
+        val draft = _state.value.composing ?: return
+        _state.value = _state.value.copy(
+            composing = draft.copy(attachments = draft.attachments.filterNot { it.uri == a.uri }),
+        )
+    }
+
     /** Every keystroke, straight into the one copy of the draft. */
     fun editDraft(
         to: String? = null,
@@ -274,8 +313,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.value = _state.value.copy(sending = true, error = null)
         viewModelScope.launch {
-            when (
-                val r = client.send(
+            val resolver = getApplication<Application>().contentResolver
+            val r = if (draft.attachments.isEmpty()) {
+                client.send(
                     recipients,
                     draft.subject,
                     draft.body,
@@ -283,7 +323,20 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     cc = recipientsIn(draft.cc),
                     bcc = recipientsIn(draft.bcc),
                 )
-            ) {
+            } else {
+                client.sendMultipart(
+                    to = recipients,
+                    cc = recipientsIn(draft.cc),
+                    bcc = recipientsIn(draft.bcc),
+                    subject = draft.subject,
+                    body = draft.body,
+                    inReplyTo = draft.inReplyTo,
+                    attachments = draft.attachments.map { a ->
+                        MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))
+                    },
+                )
+            }
+            when (r) {
                 is MailrsClient.Outcome.Ok -> {
                     _state.value = _state.value.copy(sending = false, composing = null, sent = true)
                     refresh()
@@ -674,6 +727,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     /** Which recipient line a suggestion belongs to. */
     enum class RecipientField { To, Cc, Bcc }
 
+    /** A file picked for the message being written. */
+    data class Attached(val uri: android.net.Uri, val filename: String, val size: Long)
+
     /** How far a one-click unsubscribe has got. */
     enum class Unsubscribing { Working, Done, Failed }
 
@@ -729,6 +785,16 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val inReplyTo: String? = null,
         val replyToThreadId: String? = null,
         val serverId: Long? = null,
+        /**
+         * Files picked to go with it.
+         *
+         * In memory only, and deliberately: a server draft has nowhere
+         * to keep an attachment, and a `content://` URI granted to this
+         * activity does not survive the process — a draft reopened
+         * tomorrow with a file it can no longer read would be worse than
+         * one that says it has none.
+         */
+        val attachments: List<Attached> = emptyList(),
     ) {
         /** Nothing typed and nothing quoted: not worth saving. */
         val isEmpty: Boolean
