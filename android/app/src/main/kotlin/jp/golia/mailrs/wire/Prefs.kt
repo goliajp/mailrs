@@ -23,6 +23,30 @@ class Prefs(context: Context) {
         set(value) = store.edit().putString(KEY_APPEARANCE, value.name).apply()
 
     /**
+     * Whether the periodic check runs at all.
+     *
+     * Default **on**: a mail client that has to be switched on before
+     * it mentions mail is a strange thing to hand somebody. The real
+     * consent gate is the platform's — nothing is posted without
+     * `POST_NOTIFICATIONS` — and this switch is for turning it off
+     * afterwards.
+     */
+    var notifyNewMail: Boolean
+        get() = store.getBoolean(KEY_NOTIFY, true)
+        set(value) = store.edit().putBoolean(KEY_NOTIFY, value).apply()
+
+    /**
+     * What the last check saw, or null if there has not been one.
+     *
+     * Null is a real answer here and not zero: the first check has no
+     * "before", and treating it as zero would announce the entire
+     * unread mailbox as newly arrived.
+     */
+    var lastUnseen: Int?
+        get() = store.getInt(KEY_LAST_UNSEEN, -1).takeIf { it >= 0 }
+        set(value) = store.edit().putInt(KEY_LAST_UNSEEN, value ?: -1).apply()
+
+    /**
      * Three states, not a boolean.
      *
      * "Follow the phone" is a real answer and the default one; a
@@ -38,5 +62,7 @@ class Prefs(context: Context) {
 
     private companion object {
         const val KEY_APPEARANCE = "appearance"
+        const val KEY_NOTIFY = "notify_new_mail"
+        const val KEY_LAST_UNSEEN = "last_unseen"
     }
 }

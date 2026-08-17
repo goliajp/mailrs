@@ -18,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -50,6 +51,7 @@ fun SettingsScreen(
     state: MailViewModel.UiState,
     appearance: Prefs.Appearance,
     onAppearance: (Prefs.Appearance) -> Unit,
+    onNotify: (Boolean) -> Unit,
     onClose: () -> Unit,
     onAdmin: (MailViewModel.AdminSection) -> Unit,
     onSignOut: () -> Unit,
@@ -107,6 +109,31 @@ fun SettingsScreen(
                         Text(option.label, fontSize = 13.sp)
                     }
                 }
+            }
+
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            SectionHeading("New mail")
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Tell me when mail arrives", color = theme.fg, fontSize = 14.sp)
+                    // Said plainly rather than left to be discovered.
+                    // This is a check every quarter of an hour, not
+                    // push, and a person who expects instant delivery
+                    // has been misled by silence.
+                    Text(
+                        "Checked about every 15 minutes while the app is closed.",
+                        color = theme.fgMuted,
+                        fontSize = 12.sp,
+                    )
+                }
+                Switch(
+                    checked = state.notifyNewMail,
+                    onCheckedChange = onNotify,
+                    modifier = Modifier.testTag("switch.notify"),
+                )
             }
 
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)

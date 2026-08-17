@@ -8,6 +8,7 @@ import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailCache
 import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ShareIntent
@@ -60,6 +61,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             signedIn = client.session != null,
             server = client.session?.server.orEmpty(),
             appearance = prefs.appearance,
+            notifyNewMail = prefs.notifyNewMail,
         )
     )
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -92,7 +94,12 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         // would paint somebody else's mail onto the next sign-in for as
         // long as the first fetch takes.
         cache.clear()
-        _state.value = UiState(appearance = prefs.appearance)
+        _state.value = UiState(appearance = prefs.appearance, notifyNewMail = prefs.notifyNewMail)
+        // Nothing to check for once nobody is signed in, and a count
+        // left behind would make the next person's first check
+        // announce a difference against somebody else's mailbox.
+        prefs.lastUnseen = null
+        NewMailWorker.schedule(getApplication(), false)
     }
 
     /**
@@ -1004,6 +1011,18 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      * some later save: a preference that is only in memory is one the
      * next launch forgets, and nobody sets a theme twice.
      */
+    /**
+     * Turn the periodic new-mail check on or off.
+     *
+     * Scheduling follows immediately: a switch that only takes effect
+     * next launch is a switch that looks broken.
+     */
+    fun chooseNotify(on: Boolean) {
+        prefs.notifyNewMail = on
+        NewMailWorker.schedule(getApplication(), on)
+        _state.value = _state.value.copy(notifyNewMail = on)
+    }
+
     fun chooseAppearance(appearance: Prefs.Appearance) {
         prefs.appearance = appearance
         _state.value = _state.value.copy(appearance = appearance)
@@ -1138,6 +1157,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val settingsOpen: Boolean = false,
         /** Light, dark, or the phone's own answer. */
         val appearance: Prefs.Appearance = Prefs.Appearance.System,
+        /** Whether the periodic new-mail check runs. */
+        val notifyNewMail: Boolean = true,
         /** Threads picked out for a bulk action. Empty means not selecting. */
         val selected: Set<String> = emptySet(),
         /** Contact suggestions for the field named by [suggestingFor]. */

@@ -72,6 +72,24 @@ class MailFlowTest {
      * reason; skipping it is how a passing assertion stops meaning
      * anything.
      */
+    /**
+     * Granted up front so the system dialog never appears.
+     *
+     * The app asks for it after signing in, which is right on a phone
+     * and fatal here: an unanswered permission dialog covers the
+     * activity, and every test in this class then fails with "No
+     * compose hierarchies found in the app". Thirty-nine of forty did.
+     */
+    @Before
+    fun grantNotifications() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
+                InstrumentationRegistry.getInstrumentation().targetContext.packageName,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            )
+        }
+    }
+
     @Before
     fun resetStub() {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB

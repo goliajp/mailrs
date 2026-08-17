@@ -113,6 +113,16 @@ class MailrsClient(private val store: TokenStore) {
         Wire.Conversation.serializer(),
     )
 
+    /**
+     * `GET /api/conversations/unseen-count` — `{"count": N}`.
+     *
+     * A number rather than a list: the periodic check wants to know
+     * whether anything arrived, and downloading a mailbox in the
+     * background to find out would be the wrong trade on a phone.
+     */
+    suspend fun unseenCount(): Outcome<Int> =
+        one(get("/api/conversations/unseen-count"), Wire.UnseenCount.serializer()).map { it.count }
+
     suspend fun thread(threadId: String): Outcome<List<Wire.Message>> = decode(
         get("/api/conversations/${enc(threadId)}"),
         Wire.Message.serializer(),

@@ -1,0 +1,99 @@
+package jp.golia.mailrs
+
+import android.app.NotificationManager
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.work.ListenableWorker
+import androidx.work.testing.TestListenableWorkerBuilder
+import jp.golia.mailrs.wire.NewMailWorker
+import jp.golia.mailrs.wire.Prefs
+import jp.golia.mailrs.wire.TokenStore
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * The periodic check, run for real.
+ *
+ * Push is not available to this app, so this is how anybody finds out
+ * mail arrived without opening it. The rule about *when* to say
+ * something is unit-tested; this runs the whole worker — token, HTTP,
+ * preference, notification — against the same stub the flow tests use.
+ */
+@RunWith(AndroidJUnit4::class)
+class NewMailWorkerTest {
+
+    private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun signedInAgainstTheStub() {
+        // Granted the way a person grants it. Without this the worker
+        // runs, decides correctly, and posts nothing — the platform
+        // drops it silently — so the test would be asserting the
+        // permission dialog rather than the rule.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
+                context.packageName,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            )
+        }
+        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
+            ?: "http://127.0.0.1:6039"
+        TokenStore(context).write(TokenStore.Session(stub, "test-token"))
+        Prefs(context).notifyNewMail = true
+        Prefs(context).lastUnseen = null
+        NotificationManagerCompatShim.clear(context)
+    }
+
+    /**
+     * **The first check is silent.** There is no "before", and the
+     * unread mailbox is the backlog rather than news — so this asserts
+     * nothing was posted, and that the count was recorded.
+     */
+    @Test
+    fun the_first_check_records_and_says_nothing() = runBlocking {
+        val result = TestListenableWorkerBuilder<NewMailWorker>(context).build().doWork()
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals(3, Prefs(context).lastUnseen)
+        assertEquals(0, active(context))
+    }
+
+    /** A rise since the last check is what gets said out loud. */
+    @Test
+    fun a_rise_since_the_last_check_notifies() = runBlocking {
+        // The stub answers 3. Pretend the last check saw one.
+        Prefs(context).lastUnseen = 1
+        val result = TestListenableWorkerBuilder<NewMailWorker>(context).build().doWork()
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertTrue("nothing was posted for two new messages", active(context) > 0)
+    }
+
+    /** Switched off, it does not even ask the server. */
+    @Test
+    fun switched_off_it_stays_quiet() = runBlocking {
+        Prefs(context).notifyNewMail = false
+        Prefs(context).lastUnseen = 1
+        TestListenableWorkerBuilder<NewMailWorker>(context).build().doWork()
+        assertEquals(0, active(context))
+        // Untouched: a check that did not run has nothing to record.
+        assertEquals(1, Prefs(context).lastUnseen)
+    }
+
+    private fun active(context: Context): Int {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        return nm.activeNotifications.count { it.id == NewMailWorker.NOTIFICATION_ID }
+    }
+}
+
+/** Cancelling by hand, so one test cannot see another's notification. */
+private object NotificationManagerCompatShim {
+    fun clear(context: Context) {
+        context.getSystemService(NotificationManager::class.java)
+            .cancel(NewMailWorker.NOTIFICATION_ID)
+    }
+}

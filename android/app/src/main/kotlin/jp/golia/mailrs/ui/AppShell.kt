@@ -183,6 +183,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                             state = state,
                             appearance = state.appearance,
                             onAppearance = { vm.chooseAppearance(it) },
+                            onNotify = { vm.chooseNotify(it) },
                             onClose = { vm.closeSettings() },
                             onAdmin = { vm.openAdmin(it) },
                             onSignOut = {
