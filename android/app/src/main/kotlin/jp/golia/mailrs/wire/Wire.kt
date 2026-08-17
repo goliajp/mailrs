@@ -222,6 +222,27 @@ object Wire {
         @SerialName("created_at") val createdAt: String = "",
     )
 
+    /**
+     * What `POST /api/conversations/batch` answers.
+     *
+     * **200 is not success.** The route applies each verb in turn and
+     * reports how many did not go through — and which — in the body. A
+     * client that read only the status code would take a partial
+     * failure for a clean one and leave rows off the screen that are
+     * still in the mailbox.
+     *
+     * Source: `crates/webapi/src/handlers/conversation_verbs.rs` —
+     * `BatchResponse`.
+     */
+    @Serializable
+    data class BatchResult(
+        val success: Boolean = true,
+        val failed: Int = 0,
+        val processed: Int = 0,
+        val message: String? = null,
+        @SerialName("failed_thread_ids") val failedThreadIds: List<String> = emptyList(),
+    )
+
     /** `GET /api/conversations/unseen-count`. */
     @Serializable
     data class UnseenCount(val count: Int = 0)

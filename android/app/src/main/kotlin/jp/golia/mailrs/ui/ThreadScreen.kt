@@ -123,8 +123,12 @@ fun ThreadScreen(state: UiState, vm: MailViewModel) {
         runCatching { context.startActivity(intent) }
         vm.attachmentOpened()
     }
+    val snackbars = remember { SnackbarHostState() }
+    FailureSnackbar(state, vm, snackbars, hasContent = state.messages.isNotEmpty())
+
     Scaffold(
         containerColor = theme.bgSecondary,
+        snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(
                 title = {

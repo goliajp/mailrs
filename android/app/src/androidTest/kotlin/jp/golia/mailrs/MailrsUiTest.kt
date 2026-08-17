@@ -195,6 +195,10 @@ abstract class MailrsUiTest : GrantsNotifications() {
 
 
 
+    /** Where the stub is, for the tests that poke its debug routes. */
+    protected fun stubBase(): String =
+        InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
+
     protected fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }

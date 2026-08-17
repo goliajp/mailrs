@@ -413,4 +413,39 @@ class NavigationFlowTest : MailrsUiTest() {
 
     private fun currentRowCount() =
         compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+
+    /**
+     * A refused bulk action is said out loud, not just undone.
+     *
+     * The rows coming back is the visible half; without a word for it,
+     * a person watching two rows leave and return has been told
+     * nothing about why. Twenty-eight places in this app set an error
+     * and, until this snackbar, four read it — each only when its list
+     * was empty, which is exactly when this kind of failure is not.
+     */
+    @Test
+    fun a_refused_bulk_action_says_why_the_rows_came_back() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+
+        // The stub refuses this verb from now on.
+        java.net.URL(stubBase() + "/debug/refuse-verb/archive").openConnection()
+            .let { it as java.net.HttpURLConnection }
+            .apply { requestMethod = "POST" }
+            .inputStream.use { it.readBytes() }
+
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput { longClick() }
+        waitForTag("button.endSelection", "the bar never became an action bar")
+        compose.onNodeWithTag("button.selectionArchive").performClick()
+
+        // Back on screen, and said.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+        }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("refused", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 }

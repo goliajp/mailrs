@@ -184,7 +184,28 @@ class MailrsClient(private val store: TokenStore) {
             Wire.BatchRequest(action.wire, threadIds),
         )
         return when (val r = post(url("/api/conversations/batch"), payload, authorized = true)) {
-            is Outcome.Ok -> Outcome.Ok(Unit)
+            // **200 is not success.** The route applies each verb in
+            // turn and says in the body how many did not go through. A
+            // client that read only the status code takes a partial
+            // failure for a clean one and leaves rows off the screen
+            // that are still in the mailbox.
+            is Outcome.Ok -> runCatching {
+                json.decodeFromString(Wire.BatchResult.serializer(), r.value)
+            }.fold(
+                onSuccess = { result ->
+                    if (result.success && result.failed == 0) {
+                        Outcome.Ok(Unit)
+                    } else {
+                        Outcome.Err(
+                            result.message
+                                ?: "The server refused ${result.failed} of ${threadIds.size}.",
+                        )
+                    }
+                },
+                // An answer this app cannot read is not an answer it
+                // may call success.
+                onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+            )
             is Outcome.Err -> r
         }
     }

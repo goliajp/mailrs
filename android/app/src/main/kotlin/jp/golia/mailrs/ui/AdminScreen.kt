@@ -18,6 +18,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -82,8 +84,12 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
         )
     }
 
+    val snackbars = remember { SnackbarHostState() }
+    FailureSnackbar(state, vm, snackbars, hasContent = section.rows(state).isNotEmpty())
+
     Scaffold(
         containerColor = theme.bg,
+        snackbarHost = { SnackbarHost(snackbars) },
         floatingActionButton = {
             if (fields.isNotEmpty()) {
                 FloatingActionButton(
