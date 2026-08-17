@@ -71,6 +71,7 @@ mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 mailrs-srs = { path = "../srs", version = "1" }
 mailrs-mta-sts = { path = "../mta-sts", version = "2" }
+mailrs-backoff = { path = "../backoff", version = "1" }
 mailrs-tls-rpt = { path = "../tls-rpt", version = "1" }
 mailrs-acme = { path = "../acme", version = "1" }
 mailrs-tls-reload = { path = "../tls-reload", version = "1" }

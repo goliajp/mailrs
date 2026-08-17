@@ -18,6 +18,10 @@ pub(super) struct Cfg {
     pub(super) max_attempts: u32,
     pub(super) poll_ms: u64,
     pub(super) retry_min_secs: i64,
+    /// How long a message may stay in the queue before it bounces —
+    /// Postfix's `maximal_queue_lifetime`, and the rule RFC 5321
+    /// §4.5.4.1 states. `max_attempts` is only a backstop beside it.
+    pub(super) max_queue_lifetime_secs: i64,
     /// DKIM signing enabled when `MAILRS_DKIM_DOMAIN`,
     /// `MAILRS_DKIM_SELECTOR`, and `MAILRS_DKIM_PRIVATE_KEY_PEM_FILE`
     /// are all set. Public MX (Gmail / Outlook / etc.) drop unsigned

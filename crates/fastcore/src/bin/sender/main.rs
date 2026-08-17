@@ -14,9 +14,11 @@
 //! Env:
 //!   MAILRS_KEVY_URL              — required, kevy://host:port
 //!   MAILRS_HELO_HOSTNAME         — default "mail.golia.jp"
-//!   MAILRS_SENDER_MAX_ATTEMPTS   — default 10
+//!   MAILRS_SENDER_MAX_ATTEMPTS   — default 100 (a backstop, not the rule)
 //!   MAILRS_SENDER_POLL_MS        — default 500 (idle sleep)
-//!   MAILRS_SENDER_RETRY_MIN_SECS — default 60 (per-item minimum retry delay)
+//!   MAILRS_SENDER_RETRY_MIN_SECS — default 60 (floor under the backoff)
+//!   MAILRS_SENDER_MAX_QUEUE_LIFETIME_SECS — default 432000 (5 days; the
+//!     real give-up rule, per RFC 5321 §4.5.4.1. MAX_ATTEMPTS is a backstop)
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +31,7 @@ mod config;
 mod deliver;
 mod outcome;
 mod queue;
+mod retry;
 
 use config::*;
 use deliver::*;
@@ -65,7 +68,11 @@ impl Cfg {
             max_attempts: std::env::var("MAILRS_SENDER_MAX_ATTEMPTS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(10),
+                .unwrap_or(retry::DEFAULT_MAX_ATTEMPTS),
+            max_queue_lifetime_secs: std::env::var("MAILRS_SENDER_MAX_QUEUE_LIFETIME_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(retry::DEFAULT_MAX_QUEUE_LIFETIME_SECS),
             poll_ms: std::env::var("MAILRS_SENDER_POLL_MS")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -152,6 +159,20 @@ async fn process_one(cfg: Cfg, id: String) {
         .get("last_attempt_at")
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
+    // When this message entered the queue. The give-up rule is its age,
+    // not how many times we have tried — see `retry`.
+    let created_at = envelope
+        .get("created_at")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    // Deterministic per message, so its jitter is stable across reads
+    // and two messages to the same dead host do not retry in lockstep.
+    let jitter_seed = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        id.hash(&mut h);
+        h.finish()
+    };
 
     if sender.is_empty() || recipient.is_empty() || message_bytes.is_empty() {
         tracing::error!(%id, "envelope malformed (missing sender/recipient/message_data)");
@@ -159,11 +180,17 @@ async fn process_one(cfg: Cfg, id: String) {
         return;
     }
 
-    // Enforce a soft per-item retry floor. If we picked this up too
-    // soon, put it back and let another item run first.
+    // Enforce a per-item retry floor. If we picked this up too soon,
+    // put it back and let another item run first.
+    //
+    // The floor grows with the attempt (`Backoff::smtp_outbound`)
+    // rather than being flat: a remote that is down should not be
+    // knocked on once a minute for five days, and RFC 5321 §4.5.4.1
+    // asks for exactly this shape.
     let now = now_secs();
-    if attempts_prev > 0 && (now - last_attempt_at) < cfg.retry_min_secs {
-        tracing::debug!(%id, attempts_prev, "retry floor not reached, requeuing");
+    let floor = retry::retry_floor_secs(attempts_prev, jitter_seed).max(cfg.retry_min_secs);
+    if attempts_prev > 0 && (now - last_attempt_at) < floor {
+        tracing::debug!(%id, attempts_prev, floor, "retry floor not reached, requeuing");
         let _ = requeue(cfg.clone(), id, envelope).await;
         // Sleep briefly so the loop doesn't spin on a single retry-floor item.
         tokio::time::sleep(Duration::from_millis(cfg.poll_ms.max(500))).await;
@@ -212,12 +239,19 @@ async fn process_one(cfg: Cfg, id: String) {
         }
         Outcome::Transient(reason) => {
             let attempts = attempts_prev + 1;
-            if attempts >= cfg.max_attempts {
+            // Age is the rule; the attempt cap is the backstop. A count
+            // was never a duration — ten tries on a flat minute gave a
+            // message a ten-minute life, and on 2026-08-17 that was
+            // shorter than the propagation delay of the unblock that
+            // would have delivered it.
+            let age = if created_at > 0 { now - created_at } else { 0 };
+            if retry::give_up(age, attempts, cfg.max_queue_lifetime_secs, cfg.max_attempts) {
                 tracing::warn!(
                     %id,
                     attempts,
+                    age,
                     reason = %reason,
-                    "max attempts reached — moving to failed"
+                    "queue lifetime reached — moving to failed"
                 );
                 enqueue_bounce_dsn(&cfg, &sender, &recipient, &reason, &message_bytes).await;
                 let _ = move_to_failed(cfg, id, reason, true).await;
