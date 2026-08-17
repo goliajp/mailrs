@@ -669,12 +669,16 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, emailGroups = r.value)
                     is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
                 }
+                AdminSection.Apps -> when (val r = client.apps()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, apps = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
             }
         }
     }
 
     fun closeAdmin() {
-        _state.value = _state.value.copy(adminOpen = null, adminDetail = null)
+        _state.value = _state.value.copy(adminOpen = null, adminDetail = null, accountDetail = null)
     }
 
     /**
@@ -685,6 +689,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      * group would be a request that means nothing.
      */
     fun openAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.AdminRow) {
+        if (section == AdminSection.Accounts) {
+            openAccount(row.key)
+            return
+        }
         val id = row.key.toLongOrNull() ?: return
         _state.value = _state.value.copy(
             adminDetail = AdminDetail(section, id, row.headline),
@@ -714,6 +722,29 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeAdminRow() {
         _state.value = _state.value.copy(adminDetail = null)
+    }
+
+    private fun openAccount(address: String) {
+        _state.value = _state.value.copy(accountDetail = AccountDetail(address))
+        viewModelScope.launch {
+            val quota = client.accountQuota(address)
+            val sieve = client.accountSieve(address)
+            val hooks = client.accountWebhooks(address)
+            val current = _state.value.accountDetail ?: return@launch
+            if (current.address != address) return@launch
+            _state.value = _state.value.copy(
+                accountDetail = current.copy(
+                    quotaBytes = (quota as? MailrsClient.Outcome.Ok)?.value,
+                    sieve = (sieve as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
+                    webhooks = (hooks as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
+                    loading = false,
+                ),
+            )
+        }
+    }
+
+    fun closeAccount() {
+        _state.value = _state.value.copy(accountDetail = null)
     }
 
     /**
@@ -836,7 +867,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                 AdminSection.Blocked -> client.removeFromSenderList(allowed = false, address = row.key)
                 AdminSection.Accounts, AdminSection.Queue, AdminSection.Dmarc,
                 AdminSection.Audit, AdminSection.Suppressed,
-                AdminSection.Groups, AdminSection.EmailGroups -> return@launch
+                AdminSection.Groups, AdminSection.EmailGroups,
+                AdminSection.Apps -> return@launch
             }
             if (r is MailrsClient.Outcome.Err) {
                 _state.value = _state.value.copy(error = r.message)
@@ -980,6 +1012,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val suppressed: List<String> = emptyList(),
         val groups: List<Admin.Group> = emptyList(),
         val emailGroups: List<Admin.EmailGroup> = emptyList(),
+        val apps: List<Admin.App> = emptyList(),
+        /** The account whose side state is showing, if one is. */
+        val accountDetail: AccountDetail? = null,
         /** The group whose members are showing, if one is. */
         val adminDetail: AdminDetail? = null,
         /** The raw message being read, if any. Null while it is on its way. */
@@ -1021,7 +1056,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         Blocked("Always blocked", "Nothing is refused on sight."),
         Suppressed("Suppressed", "The sender is retrying everybody."),
         Groups("Permission groups", "No groups are defined."),
-        EmailGroups("Email groups", "No distribution addresses.");
+        EmailGroups("Email groups", "No distribution addresses."),
+        Apps("Apps", "Nothing holds credentials here.");
 
         fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
             // Not deletable here: removing an account takes its mail
@@ -1034,8 +1070,14 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     detail = listOfNotNull(
                         it.displayName.takeIf(String::isNotBlank),
                         if (it.active) null else "inactive",
+                        // A quota of zero is *no cap*, not a full
+                        // mailbox, so it is left unsaid rather than
+                        // printed as "0 B".
+                        it.quotaBytes.takeIf { q -> q > 0 }
+                            ?.let { q -> jp.golia.mailrs.ui.humanSize(q) },
                     ).joinToString(" · "),
                     deletable = false,
+                    drillable = true,
                 )
             }
             Aliases -> state.aliases.map {
@@ -1121,6 +1163,18 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     drillable = true,
                 )
             }
+            Apps -> state.apps.map { a ->
+                jp.golia.mailrs.ui.AdminRow(
+                    key = a.id.toString(),
+                    headline = a.name.ifBlank { a.appId },
+                    detail = listOfNotNull(
+                        a.ownerAddress.takeIf(String::isNotBlank),
+                        if (a.active) null else "inactive",
+                        a.scopes.joinToString(", ").takeIf(String::isNotBlank),
+                    ).joinToString(" · "),
+                    deletable = false,
+                )
+            }
             EmailGroups -> state.emailGroups.map { g ->
                 jp.golia.mailrs.ui.AdminRow(
                     key = g.id.toString(),
@@ -1157,6 +1211,23 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
     /** How far a one-click unsubscribe has got. */
     enum class Unsubscribing { Working, Done, Failed }
+
+    /**
+     * One account, opened.
+     *
+     * The three things about an account that are kept somewhere other
+     * than the account row: how much it may hold, the sieve script that
+     * files its mail, and what is subscribed to its events. All three
+     * are read-only here — a sieve script is a program, and a phone
+     * keyboard is the wrong place to edit one.
+     */
+    data class AccountDetail(
+        val address: String,
+        val quotaBytes: Long? = null,
+        val sieve: String = "",
+        val webhooks: List<Admin.Webhook> = emptyList(),
+        val loading: Boolean = true,
+    )
 
     /**
      * One group, opened.

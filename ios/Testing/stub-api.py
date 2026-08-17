@@ -149,6 +149,22 @@ def queue_jobs():
     ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# Per-account side state. The sieve script is one string under "script";
+# `quota_bytes` is null for an account with no cap, which is a different
+# answer from zero and the reason it is nullable on the wire.
+SIEVE = {"lihao@golia.jp": "require [\"fileinto\"];\nif header :contains \"subject\" \"[ops]\" {\n  fileinto \"Ops\";\n}"}
+WEBHOOKS = {"lihao@golia.jp": [
+    {"id": 5, "account_address": "lihao@golia.jp", "url": "https://hooks.example/mail",
+     "event_type": "message.received", "signing_secret": "whsec_x", "active": True,
+     "created_at": 1754400000},
+]}
+# Applications holding credentials against this server.
+APPS = [
+    {"id": 1, "app_id": "app_reporting", "name": "Reporting", "description": "",
+     "owner_address": "lihao@golia.jp", "scopes": ["mail.read"], "active": True,
+     "created_at": 1754400000},
+]
+
 # Per-user sender allow/block, as `spam_lists.rs` answers them:
 # `{"entries": [...]}`, not `{"items": [...]}` like the admin lists.
 # A client that reached for the wrong key would decode an empty list
@@ -408,6 +424,13 @@ _load_real()
 
 
 class H(BaseHTTPRequestHandler):
+    # **HTTP/1.0 on purpose — do not "upgrade" this to 1.1.** Tried, and
+    # it failed 26 of 34 Android tests: several handlers here answer
+    # without reading the request body, which a closing connection
+    # forgives and a reused one does not — the unread bytes become the
+    # next request. The Android emulator's connect stalls that prompted
+    # it are fixed where they belong, with `adb reverse` in
+    # `scripts/android-build.sh`, so the guest never crosses the NAT.
     def _send(self, obj, status=200):
         body = json.dumps(obj).encode()
         self.send_response(status)
@@ -549,6 +572,23 @@ class H(BaseHTTPRequestHandler):
         spam_list = re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0])
         if spam_list:
             self._send({"entries": SPAM_LISTS[spam_list.group(1)]})
+            return
+        acct_side = re.match(
+            r"^/api/admin/accounts/(.+)/(quota|sieve|webhook-subscriptions)$",
+            self.path.split("?")[0],
+        )
+        if acct_side:
+            who, what = unquote(acct_side.group(1)), acct_side.group(2)
+            if what == "quota":
+                match = next((a for a in ACCOUNTS if a["address"] == who), None)
+                self._send({"quota_bytes": match["quota_bytes"] if match else None})
+            elif what == "sieve":
+                self._send({"script": SIEVE.get(who, "")})
+            else:
+                self._send({"items": WEBHOOKS.get(who, [])})
+            return
+        if self.path.split("?")[0] == "/api/admin/apps":
+            self._send({"items": APPS})
             return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             self._send({"items": SUPPRESSED})
@@ -750,6 +790,23 @@ class H(BaseHTTPRequestHandler):
         spam_list = re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0])
         if spam_list:
             self._send({"entries": SPAM_LISTS[spam_list.group(1)]})
+            return
+        acct_side = re.match(
+            r"^/api/admin/accounts/(.+)/(quota|sieve|webhook-subscriptions)$",
+            self.path.split("?")[0],
+        )
+        if acct_side:
+            who, what = unquote(acct_side.group(1)), acct_side.group(2)
+            if what == "quota":
+                match = next((a for a in ACCOUNTS if a["address"] == who), None)
+                self._send({"quota_bytes": match["quota_bytes"] if match else None})
+            elif what == "sieve":
+                self._send({"script": SIEVE.get(who, "")})
+            else:
+                self._send({"items": WEBHOOKS.get(who, [])})
+            return
+        if self.path.split("?")[0] == "/api/admin/apps":
+            self._send({"items": APPS})
             return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             SUPPRESSED.clear()

@@ -62,6 +62,15 @@ start_stub() {
         sleep 0.3
     done
     say "stub up on $STUB_PORT (pid $STUB_PID)"
+    # **The guest reaches the stub over adb, not over the emulator's
+    # NAT.** `10.0.2.2` works, but a whole suite of short-lived
+    # connections through slirp eventually stalls a connect for
+    # seconds, and it showed up as one test per run failing somewhere
+    # different with `SocketTimeoutException: failed to connect to
+    # /10.0.2.2`. A reverse forward makes it a guest-local port.
+    if adb devices | grep -q "^$EMULATOR_SERIAL[[:space:]]*device"; then
+        adb -s "$EMULATOR_SERIAL" reverse "tcp:$STUB_PORT" "tcp:$STUB_PORT" >/dev/null
+    fi
 }
 stop_stub() {
     [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null || true

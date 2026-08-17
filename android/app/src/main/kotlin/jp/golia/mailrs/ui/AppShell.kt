@@ -26,7 +26,9 @@ import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
-private enum class Screen { SignIn, List, Drafts, Settings, Admin, GroupDetail, Thread, Source, Compose }
+private enum class Screen {
+    SignIn, List, Drafts, Settings, Admin, GroupDetail, AccountDetail, Thread, Source, Compose,
+}
 
 /**
  * The app's one navigation decision, and the motion that goes with it.
@@ -62,7 +64,8 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         // On top of whatever opened it, so cancelling returns there.
         state.composing != null -> Screen.Compose
         state.sourceOpen -> Screen.Source          // opened from a thread
-        state.adminDetail != null -> Screen.GroupDetail   // opened from an admin list
+        state.adminDetail != null -> Screen.GroupDetail    // opened from an admin list
+        state.accountDetail != null -> Screen.AccountDetail // opened from the accounts list
         state.adminOpen != null -> Screen.Admin    // opened from settings
         state.settingsOpen -> Screen.Settings
         state.draftsOpen -> Screen.Drafts
@@ -80,7 +83,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         enabled = screen == Screen.Thread || screen == Screen.Compose ||
             screen == Screen.Settings || screen == Screen.Drafts ||
             screen == Screen.Admin || screen == Screen.Source ||
-            screen == Screen.GroupDetail,
+            screen == Screen.GroupDetail || screen == Screen.AccountDetail,
     ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
@@ -93,6 +96,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                 Screen.Admin -> vm.closeAdmin()
                 Screen.Source -> vm.closeSource()
                 Screen.GroupDetail -> vm.closeAdminRow()
+                Screen.AccountDetail -> vm.closeAccount()
                 else -> Unit
             }
         } catch (_: CancellationException) {
@@ -163,6 +167,9 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     Screen.Source -> Box(peeled) { SourceScreen(state, vm) }
                     Screen.GroupDetail -> Box(peeled) {
                         state.adminDetail?.let { GroupDetailScreen(it, vm) }
+                    }
+                    Screen.AccountDetail -> Box(peeled) {
+                        state.accountDetail?.let { AccountDetailScreen(it, vm) }
                     }
                     Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
                     Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
