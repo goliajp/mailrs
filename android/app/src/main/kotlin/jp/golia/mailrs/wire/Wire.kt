@@ -196,6 +196,23 @@ object Wire {
         @SerialName("in_reply_to") val inReplyTo: String? = null,
     )
 
+    /**
+     * One of the account's signatures.
+     *
+     * Source: `crates/core-api/src/method/admin/userdata.rs` —
+     * `SignatureWire`. `list_signatures` answers a bare array, not
+     * `{items: [...]}` like the admin lists.
+     */
+    @Serializable
+    data class Signature(
+        val id: Long,
+        val name: String = "",
+        val html: String = "",
+        @SerialName("text_content") val textContent: String = "",
+        @SerialName("is_default") val isDefault: Boolean = false,
+        @SerialName("created_at") val createdAt: String = "",
+    )
+
     /** `GET /api/conversations/unseen-count`. */
     @Serializable
     data class UnseenCount(val count: Int = 0)

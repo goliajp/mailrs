@@ -372,4 +372,34 @@ class ComposeFlowTest : MailrsUiTest() {
                 .any { it.id == "recipient:alice@example.com" }
         }
     }
+
+    /**
+     * A message sent from the phone is signed by the account.
+     *
+     * The web keeps its signature in `localStorage`, so it belongs to a
+     * browser rather than a person; the server has had a per-user store
+     * the whole time and this client reads it, which makes the
+     * signature follow the account. The stub offers two and marks the
+     * second default — picking the first would sign work mail "Sent
+     * from a phone" forever.
+     */
+    @Test
+    fun a_sent_message_carries_the_accounts_signature() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+
+        compose.onNodeWithTag("field.to").performTextInput("someone@example.com")
+        compose.onNodeWithTag("field.subject").performTextInput("Signed please")
+        compose.onNodeWithTag("field.body").performTextInput("Short note.")
+        compose.onNodeWithTag("button.send").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/sent").contains("Signed please") }
+        val sent = readStub("/debug/sent")
+        // The separator carries its trailing space; JSON escapes the
+        // newlines, which is why this looks the way it does.
+        assertTrue("the message went out unsigned: $sent", sent.contains("-- \\nLi Hao"))
+        assertTrue("it signed with the wrong one: $sent", !sent.contains("Sent from a phone"))
+    }
 }

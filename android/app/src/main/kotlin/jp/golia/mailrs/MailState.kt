@@ -88,6 +88,13 @@ data class UiState(
     val appearance: Prefs.Appearance = Prefs.Appearance.System,
     /** Whether the periodic new-mail check runs. */
     val notifyNewMail: Boolean = true,
+    /**
+     * The account's signature, appended on the way out.
+     *
+     * Empty until it has been fetched, and empty is a real answer —
+     * an account with no signature signs nothing.
+     */
+    val signature: String = "",
     /** Threads picked out for a bulk action. Empty means not selecting. */
     val selected: Set<String> = emptySet(),
     /** Contact suggestions for the field named by [suggestingFor]. */
