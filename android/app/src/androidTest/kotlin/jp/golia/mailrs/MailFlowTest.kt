@@ -1,0 +1,277 @@
+package jp.golia.mailrs
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * The path a person actually takes: sign in, see the inbox, open a
+ * thread, come back.
+ *
+ * **Against the same stub the iOS suite drives** —
+ * `ios/Testing/stub-api.py` on port 6039, reached from the emulator as
+ * `10.0.2.2`. Two clients against one stub is the point: a stub written
+ * for Android would be a second opinion about what the Rust handlers
+ * send, and the whole reason that file exists is that a client model
+ * which disagrees with the server should fail here rather than in
+ * somebody's inbox.
+ *
+ * A test that needs someone's real password is a test nobody runs, so
+ * the stub takes any password and the suite is about what the app does
+ * afterwards.
+ *
+ * `scripts/android-build.sh` starts and stops the stub around this, the
+ * way `ios-build.sh` does for the other one.
+ */
+@RunWith(AndroidJUnit4::class)
+class MailFlowTest {
+
+    @get:Rule
+    val compose = createAndroidComposeRule<MainActivity>()
+
+    /**
+     * Every test starts signed out.
+     *
+     * The token store survives the process, so without this the second
+     * run of the suite opens on the inbox and the sign-in tests fail
+     * looking for fields that are not there — a stale session wearing
+     * the costume of a broken locator.
+     */
+    /**
+     * The stub keeps what it was sent until told otherwise, so a run
+     * that asserts on `/debug/sent` can be reading the previous run's
+     * message. The iOS suite resets it in `launch()` for the same
+     * reason; skipping it is how a passing assertion stops meaning
+     * anything.
+     */
+    @Before
+    fun resetStub() {
+        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
+        val c = java.net.URL("$stub/debug/reset").openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "POST"
+        c.connectTimeout = 5_000
+        c.readTimeout = 5_000
+        c.inputStream.use { it.readBytes() }
+    }
+
+    @Before
+    fun startSignedOut() {
+        compose.activityRule.scenario.onActivity { it.signOutForTest() }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodes(hasTestTag("field.address")).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /** The activity is launched by the rule; point it at the stub. */
+    private fun signIn(address: String = "me@golia.jp", password: String = "anything") {
+        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
+            ?: DEFAULT_STUB
+        compose.activityRule.scenario.onActivity { it.useStubServer(stub) }
+
+        compose.onNodeWithTag("field.address").performTextInput(address)
+        compose.onNodeWithTag("field.password").performTextInput(password)
+        compose.onNodeWithTag("button.signIn").performClick()
+    }
+
+    /**
+     * Compose's idling waits for recomposition, not for a network call
+     * on `Dispatchers.IO` — so a bare assertion after a click races the
+     * response. Every wait here is bounded and says what it was waiting
+     * for, because "test timed out" names nothing.
+     */
+    private fun waitForTag(tag: String, what: String) {
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodesWithTag(tag).onFirst().assertIsDisplayed().also { _ -> require(what.isNotEmpty()) }
+    }
+
+    @Test
+    fun signing_in_lists_the_inbox() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+    }
+
+    @Test
+    fun opening_a_conversation_shows_its_messages() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        // And back, because a screen you cannot leave is not a screen.
+        compose.onNodeWithTag("button.back").performClick()
+        waitForTag("list.conversations", "back did not return to the inbox")
+    }
+
+    /**
+     * A wrong server is the failure a person actually hits first, and
+     * the app must say so rather than sitting on an empty list. The
+     * unreachable port is deliberate: nothing listens there, so this
+     * tests the message and not a 500.
+     */
+    @Test
+    fun an_unreachable_server_says_so() {
+        compose.activityRule.scenario.onActivity { it.useStubServer("http://10.0.2.2:1") }
+        compose.onNodeWithTag("field.address").performTextInput("me@golia.jp")
+        compose.onNodeWithTag("field.password").performTextInput("anything")
+        compose.onNodeWithTag("button.signIn").performClick()
+
+        waitForTag("text.signInError", "no error was shown for an unreachable server")
+    }
+
+    /**
+     * The server field is prefilled but editable — someone else's
+     * deployment is the ordinary case for a self-hosted mail server.
+     */
+    @Test
+    fun the_server_field_can_be_changed() {
+        compose.onNodeWithTag("field.server").performTextClearance()
+        compose.onNodeWithTag("field.server").performTextInput("mail.example.test")
+        compose.onNodeWithTag("field.server").assertIsDisplayed()
+    }
+
+    /**
+     * Reply, send, and read back what the stub actually received.
+     *
+     * The two fields that decide whether a reply is a reply —
+     * `in_reply_to` and the recipient — are not on screen anywhere, so
+     * asserting the composer closed would prove only that a button
+     * worked. `/debug/sent` is the stub's record of what arrived, which
+     * is the same thing the iOS suite reads for the same reason.
+     */
+    @Test
+    fun replying_sends_a_reply_and_not_a_new_message() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        compose.onAllNodesWithTag("button.reply").onFirst().performClick()
+        waitForTag("field.body", "the composer never opened")
+
+        // The recipients and the quoted history are already filled by
+        // `ReplyRecipients`; a person types their answer above it.
+        compose.onNodeWithTag("field.body").performTextInput("Thanks — noted.")
+        compose.onNodeWithTag("button.send").performClick()
+
+        // Wait for the thread to be back — a positive signal. Waiting
+        // for the composer to *disappear* is satisfied by anything that
+        // removes it, including a crash, and says nothing about where
+        // the app went.
+        waitForTag("list.messages", "the composer did not return to the thread after sending")
+
+        val sent = readStub("/debug/sent")
+        assertTrue("the stub received no message at all: $sent", sent.contains("Thanks"))
+        assertTrue("the reply did not go to the sender of the message: $sent",
+            sent.contains("alice@example.com"))
+        assertTrue("the reply carried no in_reply_to, so it starts a new thread: $sent",
+            sent.contains("in_reply_to") && !sent.contains("\"in_reply_to\": null"))
+    }
+
+    /**
+     * A To line that looks filled and names nobody leaves the send
+     * button disabled.
+     *
+     * The first version of this test clicked send and waited for an
+     * error, which could never arrive: the button was already disabled,
+     * so the click did nothing and the wait timed out. That is the test
+     * finding a real disagreement — the button asked `isNotBlank()` and
+     * the send asked "does this name anyone", and `"   "` answers those
+     * differently. One rule now, and this asserts the visible half.
+     */
+    @Test
+    fun a_message_with_no_recipient_cannot_be_sent() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.body", "the composer never opened")
+
+        // `button.send` is disabled with an empty To, which is the
+        // first defence; the message below is the second.
+        compose.onNodeWithTag("field.to").performTextInput(" , ; ")
+        compose.onNodeWithTag("button.send").assertIsNotEnabled()
+
+        // And it becomes sendable the moment it names somebody.
+        compose.onNodeWithTag("field.to").performTextInput("a@x.test")
+        compose.onNodeWithTag("button.send").assertIsEnabled()
+    }
+
+    /**
+     * Swipe a row away and put it back.
+     *
+     * The undo is the only protection this screen offers — no dialog
+     * asks — so a swipe that could not be undone would make every
+     * mis-swipe permanent. That the row **returns** is the assertion;
+     * that it left is only half of it.
+     */
+    @Test
+    fun a_swiped_row_can_be_brought_back() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("the fixture has no rows to swipe", before > 0)
+
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput {
+            swipeRight(startX = centerX, endX = right)
+        }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before - 1
+        }
+
+        // The snackbar's action is the platform's control, so this taps
+        // the word rather than calling the view model — the test has to
+        // fail if the snackbar stops being wired to it.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("Undo").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Undo").performClick()
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+            }
+        } catch (e: Throwable) {
+            throw AssertionError(
+                // The verbs are in the message because they say which
+                // of the two failures this is: none means the undo did
+                // not restore, one means the row was filed anyway.
+                "the row did not come back. verbs the stub saw: " + readStub("/debug/verbs") +
+                    "; rows now " + compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size +
+                    ", was " + before,
+                e,
+            )
+        }
+    }
+
+    private fun readStub(path: String): String {
+        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
+        return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
+    }
+
+    private companion object {
+        /** The emulator's route to the host, where the stub runs. */
+        const val DEFAULT_STUB = "http://10.0.2.2:6039"
+        const val TIMEOUT_MS = 15_000L
+    }
+}

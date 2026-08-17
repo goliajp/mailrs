@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="7" failures="0" errors="0" skipped="0" time="30.472" timestamp="2026-08-17T15:13:53" hostname="localhost">
+  <testsuite name="jp.golia.mailrs.MailFlowTest" tests="7" failures="0" errors="0" skipped="0" time="30.011" timestamp="2026-08-17T15:13:53" hostname="localhost">
+    <properties>
+      <property name="device" value="sim-mailrs-android(AVD) - 16" />
+      <property name="flavor" value="" />
+      <property name="project" value=":app" />
+    </properties>
+    <testcase name="a_message_with_no_recipient_cannot_be_sent" classname="jp.golia.mailrs.MailFlowTest" time="5.15" />
+    <testcase name="replying_sends_a_reply_and_not_a_new_message" classname="jp.golia.mailrs.MailFlowTest" time="7.477" />
+    <testcase name="opening_a_conversation_shows_its_messages" classname="jp.golia.mailrs.MailFlowTest" time="5.118" />
+    <testcase name="an_unreachable_server_says_so" classname="jp.golia.mailrs.MailFlowTest" time="2.429" />
+    <testcase name="signing_in_lists_the_inbox" classname="jp.golia.mailrs.MailFlowTest" time="3.996" />
+    <testcase name="a_swiped_row_can_be_brought_back" classname="jp.golia.mailrs.MailFlowTest" time="4.195" />
+    <testcase name="the_server_field_can_be_changed" classname="jp.golia.mailrs.MailFlowTest" time="1.646" />
+  </testsuite>
+</testsuites>
