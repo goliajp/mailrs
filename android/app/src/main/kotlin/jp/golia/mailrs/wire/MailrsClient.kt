@@ -370,6 +370,23 @@ class MailrsClient(private val store: TokenStore) {
         one(get("/api/admin/groups/$id/permissions"), Admin.PermissionList.serializer())
             .map { it.permissions }
 
+    suspend fun apps(): Outcome<List<Admin.App>> =
+        one(get("/api/admin/apps"), Admin.AppList.serializer()).map { it.items }
+
+    suspend fun accountQuota(address: String): Outcome<Long?> =
+        one(get("/api/admin/accounts/" + enc(address) + "/quota"), Admin.Quota.serializer())
+            .map { it.quotaBytes }
+
+    suspend fun accountSieve(address: String): Outcome<String> =
+        one(get("/api/admin/accounts/" + enc(address) + "/sieve"), Admin.Sieve.serializer())
+            .map { it.script }
+
+    suspend fun accountWebhooks(address: String): Outcome<List<Admin.Webhook>> =
+        one(
+            get("/api/admin/accounts/" + enc(address) + "/webhook-subscriptions"),
+            Admin.WebhookList.serializer(),
+        ).map { it.items }
+
     suspend fun agentKeys(): Outcome<List<Admin.AgentKey>> =
         one(get("/api/agent/keys"), Admin.AgentKeyList.serializer()).map { it.items }
 

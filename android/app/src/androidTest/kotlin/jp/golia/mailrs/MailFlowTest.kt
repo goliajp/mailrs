@@ -1,5 +1,7 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -99,6 +101,32 @@ class MailFlowTest {
         compose.onNodeWithTag("field.address").performTextInput(address)
         compose.onNodeWithTag("field.password").performTextInput(password)
         compose.onNodeWithTag("button.signIn").performClick()
+
+        // Wait for an answer of either kind rather than for the inbox.
+        // "the inbox never listed" is what a failed sign-in looks like
+        // from the caller, and it names neither the error the server
+        // gave nor the fact that the tap never landed — both of which
+        // have happened here, intermittently, and neither of which the
+        // old message could tell apart.
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodes(hasTestTag("list.conversations")).fetchSemanticsNodes().isNotEmpty() ||
+                    compose.onAllNodes(hasTestTag("text.signInError")).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (e: Throwable) {
+            throw AssertionError(
+                "sign-in produced neither a list nor an error. still on sign-in: " +
+                    compose.onAllNodes(hasTestTag("button.signIn")).fetchSemanticsNodes().isNotEmpty(),
+                e,
+            )
+        }
+        val failed = compose.onAllNodes(hasTestTag("text.signInError")).fetchSemanticsNodes()
+        if (failed.isNotEmpty()) {
+            throw AssertionError(
+                "the server refused the sign-in: " +
+                    failed.first().config.getOrNull(SemanticsProperties.Text)?.joinToString(),
+            )
+        }
     }
 
     /**
@@ -158,7 +186,7 @@ class MailFlowTest {
      */
     @Test
     fun an_unreachable_server_says_so() {
-        compose.activityRule.scenario.onActivity { it.useStubServer("http://10.0.2.2:1") }
+        compose.activityRule.scenario.onActivity { it.useStubServer("http://127.0.0.1:1") }
         compose.onNodeWithTag("field.address").performTextInput("me@golia.jp")
         compose.onNodeWithTag("field.password").performTextInput("anything")
         compose.onNodeWithTag("button.signIn").performClick()
@@ -193,7 +221,11 @@ class MailFlowTest {
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("list.messages", "the thread never opened")
 
-        compose.onAllNodesWithTag("button.reply").onFirst().performClick()
+        // Under the body, so the same rule as every other control down
+        // there: the WebView finds its height after its content loads
+        // and everything below slides. This failed as "the composer
+        // never opened", which is what a lost tap looks like.
+        tapWhenSteady("button.reply", 0)
         waitForTag("field.body", "the composer never opened")
 
         // The recipients and the quoted history are already filled by
@@ -991,14 +1023,67 @@ class MailFlowTest {
         compose.onAllNodesWithTag("button.addMember").assertCountEquals(0)
     }
 
+    /**
+     * An account opens to the three things kept away from its row: what
+     * it may hold, the rule that files its mail, and what subscribes to
+     * it.
+     *
+     * The sieve script is the reason this screen exists — an operator
+     * asking "why did that go to Ops" wants to read the rule. All three
+     * are read-only, and the webhook's signing secret is on the wire and
+     * deliberately not on the screen.
+     */
+    @Test
+    fun an_account_opens_to_its_quota_sieve_and_webhooks() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Accounts", "settings never listed the accounts")
+        compose.onNodeWithTag("admin.Accounts").performClick()
+        waitForTag("list.admin", "the accounts never listed")
+
+        compose.onAllNodesWithTag("row.admin").onFirst().performClick()
+        waitForTag("account.detail", "the account never opened")
+
+        compose.onNodeWithTag("account.quota").assertTextContains("5.4 GB")
+        compose.onNodeWithTag("account.sieve").assertTextContains("fileinto", substring = true)
+        compose.onNodeWithText("https://hooks.example/mail").assertIsDisplayed()
+        // The secret proves a delivery came from this server. A screen
+        // that prints it turns a glance over a shoulder into a forgery.
+        compose.onAllNodesWithText("whsec_x", substring = true).assertCountEquals(0)
+    }
+
+    /** Apps say who owns them and what they may do. */
+    @Test
+    fun apps_name_their_owner_and_scopes() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("admin.Apps").performScrollTo().performClick()
+        waitForTag("list.admin", "the apps never listed")
+
+        compose.onNodeWithText("Reporting").assertIsDisplayed()
+        compose.onNodeWithText("lihao@golia.jp · mail.read").assertIsDisplayed()
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
     }
 
     private companion object {
-        /** The emulator's route to the host, where the stub runs. */
-        const val DEFAULT_STUB = "http://10.0.2.2:6039"
+            /**
+         * Guest-local, reached through `adb reverse` — see
+         * `scripts/android-build.sh`. Not `10.0.2.2`: that crosses the
+         * emulator's NAT, and a suite's worth of short-lived
+         * connections through it stalls a connect every so often, which
+         * arrives as one unrelated test failing per run.
+         */
+        const val DEFAULT_STUB = "http://127.0.0.1:6039"
         const val TIMEOUT_MS = 15_000L
     }
 }
