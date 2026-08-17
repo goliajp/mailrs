@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
@@ -309,6 +310,24 @@ class MailFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("text.source").assertTextContains("Received:", substring = true)
     }
 
+    /**
+     * A capped search says so.
+     *
+     * Search has no keyset parameter, so unlike the conversation list
+     * there is no next page to fetch — fifty hits is a ceiling, and
+     * showing them as though they were everything that matched is the
+     * same silent truncation the list had. The reader can narrow the
+     * term, but only if somebody tells them there is more.
+     */
+    @Test
+    fun a_search_that_hit_the_ceiling_says_so() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.search").performClick()
+        compose.onNodeWithTag("search.field").performTextInput("many")
+        waitForTag("list.searchResults", "the search never returned")
 
-
+        compose.onNodeWithTag("list.searchResults").performScrollToNode(hasTestTag("search.capped"))
+        compose.onNodeWithTag("search.capped").assertTextContains("Narrow the search", substring = true)
+    }
 }

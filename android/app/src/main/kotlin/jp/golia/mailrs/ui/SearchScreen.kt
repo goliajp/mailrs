@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.UiState
 import jp.golia.mailrs.MailViewModel
+import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Wire
 
 /**
@@ -129,6 +130,25 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
             items(results, key = Wire.Conversation::threadId) { c ->
                 ConversationRow(c) { vm.open(c) }
                 HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            }
+            // **Said, not hidden.** Search has no keyset parameter, so
+            // there is no next page to fetch — a full result set is a
+            // ceiling, and fifty hits shown as though they were all of
+            // them is the same silent truncation the conversation list
+            // had. The reader can narrow the term; they cannot do that
+            // if nobody tells them.
+            if (results.size >= MailrsClient.SEARCH_LIMIT) {
+                item {
+                    Text(
+                        "First ${MailrsClient.SEARCH_LIMIT} matches. Narrow the search to see more.",
+                        color = theme.fgMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .testTag("search.capped"),
+                    )
+                }
             }
         }
     }
