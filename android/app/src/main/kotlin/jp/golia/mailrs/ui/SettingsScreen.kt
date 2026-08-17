@@ -49,6 +49,7 @@ fun SettingsScreen(
     appearance: Prefs.Appearance,
     onAppearance: (Prefs.Appearance) -> Unit,
     onClose: () -> Unit,
+    onAdmin: (MailViewModel.AdminSection) -> Unit,
     onSignOut: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -92,6 +93,24 @@ fun SettingsScreen(
                     ) {
                         Text(option.label, fontSize = 13.sp)
                     }
+                }
+            }
+
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            SectionHeading("Administration")
+            for (section in MailViewModel.AdminSection.entries) {
+                TextButton(
+                    onClick = { onAdmin(section) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("admin.${section.name}"),
+                ) {
+                    Text(
+                        section.title,
+                        color = theme.fg,
+                        fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
+                    )
                 }
             }
 

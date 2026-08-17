@@ -26,7 +26,7 @@ import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
-private enum class Screen { SignIn, List, Settings, Drafts, Thread, Compose }
+private enum class Screen { SignIn, List, Drafts, Settings, Admin, Thread, Compose }
 
 /**
  * The app's one navigation decision, and the motion that goes with it.
@@ -56,6 +56,11 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         // returns there rather than to the inbox.
         state.composing != null -> Screen.Compose
         state.open != null -> Screen.Thread
+        // Admin before Settings: it is opened *from* settings and sits
+        // on top of it, so back returns there rather than to the list.
+        // With the order the other way round the screen never changed at
+        // all, because settings was still open underneath.
+        state.adminOpen != null -> Screen.Admin
         state.settingsOpen -> Screen.Settings
         state.draftsOpen -> Screen.Drafts
         else -> Screen.List
@@ -69,7 +74,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
 
     PredictiveBackHandler(
         enabled = screen == Screen.Thread || screen == Screen.Compose ||
-            screen == Screen.Settings || screen == Screen.Drafts,
+            screen == Screen.Settings || screen == Screen.Drafts || screen == Screen.Admin,
     ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
@@ -79,6 +84,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                 Screen.Thread -> vm.closeThread()
                 Screen.Settings -> vm.closeSettings()
                 Screen.Drafts -> vm.closeDrafts()
+                Screen.Admin -> vm.closeAdmin()
                 else -> Unit
             }
         } catch (_: CancellationException) {
@@ -148,12 +154,18 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }
                     Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
                     Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
+                    Screen.Admin -> Box(peeled) {
+                        // Non-null on this branch by construction; the
+                        // screen is chosen from the same value.
+                        state.adminOpen?.let { AdminScreen(it, state, vm) }
+                    }
                     Screen.Settings -> Box(peeled) {
                         SettingsScreen(
                             state = state,
                             appearance = state.appearance,
                             onAppearance = { vm.chooseAppearance(it) },
                             onClose = { vm.closeSettings() },
+                            onAdmin = { vm.openAdmin(it) },
                             onSignOut = {
                                 vm.closeSettings()
                                 vm.signOut()

@@ -1,0 +1,705 @@
+08-18 01:37:53.445  3789  3808 I TestRunner: started: the_operator_lists_load_and_a_delete_names_its_row(jp.golia.mailrs.MailFlowTest)
+08-18 01:37:53.480  3789  3808 W FileTestStorage: Output properties is not supported.
+08-18 01:37:53.481  3789  3808 I Tracing : Tracer added: class androidx.test.platform.tracing.AndroidXTracer
+08-18 01:37:53.483  3789  3789 D EventInjectionStrategy: Creating injection strategy with input manager.
+08-18 01:37:53.484  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/hardware/input/InputManager;->getInstance()Landroid/hardware/input/InputManager; (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/test/espresso/base/InputManagerEventInjectionStrategy; (domain=app) using reflection: allowed
+08-18 01:37:53.485  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/hardware/input/InputManager;->injectInputEvent(Landroid/view/InputEvent;I)Z (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/test/espresso/base/InputManagerEventInjectionStrategy; (domain=app) using reflection: allowed
+08-18 01:37:53.485  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden field Landroid/hardware/input/InputManager;->INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH:I (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/test/espresso/base/InputManagerEventInjectionStrategy; (domain=app) using reflection: allowed
+08-18 01:37:53.487  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/os/MessageQueue;->next()Landroid/os/Message; (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/test/espresso/base/Interrogator; (domain=app) using reflection: allowed
+08-18 01:37:53.487  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden field Landroid/os/MessageQueue;->mMessages:Landroid/os/Message; (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/test/espresso/base/Interrogator; (domain=app) using reflection: allowed
+08-18 01:37:53.487  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/os/Message;->recycleUnchecked()V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/test/espresso/base/Interrogator; (domain=app) using reflection: allowed
+08-18 01:37:53.488  3789  3808 D IdlingRegistry: Registering idling resources: [androidx.compose.ui.test.EspressoLink@13a91ee]
+08-18 01:37:53.497  3789  3808 W Settings: Setting always_finish_activities has moved from android.provider.Settings.System to android.provider.Settings.Global, returning read-only value.
+08-18 01:37:53.500  3789  3808 E ashmem  : Pinning is deprecated since Android Q. Please use trim or other methods.
+08-18 01:37:53.503   638  1663 I system_server: AssetManager2(0xb4000078c00bce98) locale list changing from [] to [en-US]
+08-18 01:37:53.503   638  1663 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10350, packageName = null, attributionTag = null, token = android.os.Binder@33c18a5, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+08-18 01:37:53.511   498   629 I BpBinder: onLastStrongRef automatically unlinking death recipients:
+08-18 01:37:53.514   983  1123 I ndroid.systemui: AssetManager2(0xb4000078c0028dd8) locale list changing from [] to [en-US]
+08-18 01:37:53.518   983  1124 D SplashScreenView: Build android.window.SplashScreenView{ee73355 V.E...... ......ID 0,0-0,0}
+08-18 01:37:53.518   983  1124 D SplashScreenView: Icon: view: null drawable: null size: 0
+08-18 01:37:53.518   983  1124 D SplashScreenView: Branding: view: android.view.View{2d2f16a G.ED..... ......I. 0,0-0,0 #1020541 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+08-18 01:37:53.523   498   498 I BpBinder: onLastStrongRef automatically unlinking death recipients:
+08-18 01:37:53.534  3789  3789 I jp.golia.mailrs: AssetManager2(0xb4000078c0015878) locale list changing from [] to [en-US]
+08-18 01:37:53.535  1568  1840 I AssistantForeground: (REDACTED) Get launcher package: %s
+08-18 01:37:53.564   983  1093 I ndroid.systemui: AssetManager2(0xb4000078c0047b98) locale list changing from [] to [en-US]
+08-18 01:37:53.564  3789  3810 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+08-18 01:37:53.566  3789  3810 I EGL_emulation: Opening libGLESv2_emulation.so
+08-18 01:37:53.572  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: PRE_ON_CREATE
+08-18 01:37:53.572  3789  3789 V ActivityScenario: Activity lifecycle changed event received but ignored because the reported transition was not ON_CREATE while the last known transition was PRE_ON_CREATE
+08-18 01:37:53.574  3789  3810 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+08-18 01:37:53.576   983  1093 I ndroid.systemui: AssetManager2(0xb4000078c0044fd8) locale list changing from [] to [en-US]
+08-18 01:37:53.576  3789  3810 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+08-18 01:37:53.590   455   503 I RanchuHwc: logCompositionFallbackIfChanged: layer 5816 CompositionType fallback from 3 to 1
+08-18 01:37:53.601  3789  3789 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_UNSET
+08-18 01:37:53.608  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: CREATED
+08-18 01:37:53.608  3789  3789 V ActivityScenario: Update currentActivityStage to CREATED, currentActivity=jp.golia.mailrs.MainActivity@cf99995
+08-18 01:37:53.609  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: STARTED
+08-18 01:37:53.609  3789  3789 V ActivityScenario: Update currentActivityStage to STARTED, currentActivity=jp.golia.mailrs.MainActivity@cf99995
+08-18 01:37:53.612  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: RESUMED
+08-18 01:37:53.612  3789  3789 V ActivityScenario: Update currentActivityStage to RESUMED, currentActivity=jp.golia.mailrs.MainActivity@cf99995
+08-18 01:37:53.617  3789  3789 W HWUI    : Unknown dataspace 0
+08-18 01:37:53.986  3789  3793 I jp.golia.mailrs: Compiler allocated 5111KB to compile void android.view.ViewRootImpl.performTraversals()
+08-18 01:37:54.053   983  1115 E FrameTracker: force finish cuj, time out: J<DEFAULT_TASK_TO_TASK_ANIMATION>
+08-18 01:37:54.096 19153 19153 D VRI[HostPhotoPagerActivity]: visibilityChanged oldVisibility=true newVisibility=false
+08-18 01:37:54.100   498   536 W ServiceManagerCppClient: Permission failure: android.permission.ACCESS_SURFACE_FLINGER from uid=10350 pid=0
+08-18 01:37:54.100   498   536 D PermissionCache: checking android.permission.ACCESS_SURFACE_FLINGER for uid=10350 => denied (488 us)
+08-18 01:37:54.101   498   536 W ServiceManagerCppClient: Permission failure: android.permission.ROTATE_SURFACE_FLINGER from uid=10350 pid=0
+08-18 01:37:54.101   498   536 D PermissionCache: checking android.permission.ROTATE_SURFACE_FLINGER for uid=10350 => denied (261 us)
+08-18 01:37:54.101   498  1372 W ServiceManagerCppClient: Permission failure: android.permission.ROTATE_SURFACE_FLINGER from uid=10350 pid=3789
+08-18 01:37:54.101   498  1372 D PermissionCache: checking android.permission.ROTATE_SURFACE_FLINGER for uid=10350 => denied (23 us)
+08-18 01:37:54.101   498  1372 W ServiceManagerCppClient: Permission failure: android.permission.INTERNAL_SYSTEM_WINDOW from uid=10350 pid=3789
+08-18 01:37:54.101   498  1372 D PermissionCache: checking android.permission.INTERNAL_SYSTEM_WINDOW for uid=10350 => denied (15 us)
+08-18 01:37:54.101   498   536 W ServiceManagerCppClient: Permission failure: android.permission.INTERNAL_SYSTEM_WINDOW from uid=10350 pid=0
+08-18 01:37:54.101   498   536 D PermissionCache: checking android.permission.INTERNAL_SYSTEM_WINDOW for uid=10350 => denied (140 us)
+08-18 01:37:54.154   638   895 D WifiClientModeImpl[19878:wlan0]: updateLinkLayerStatsRssiSpeedFrequencyCapabilities rssi=-50 TxLinkspeed=1 freq=2447 RxLinkSpeed=2
+08-18 01:37:54.154   638   895 D WifiDataStall: tx tput in kbps: 11000
+08-18 01:37:54.154   638   895 D WifiDataStall: rx tput in kbps: 11000
+08-18 01:37:54.154   638   895 V WifiConfigManager: Updating scan detail cache freq=2447 BSSID=00:13:10:85:fe:01 RSSI=-50 for "AndroidWifi"NONE
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:54.154   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:54.154   638   895 D WifiScoreCard: BSSID update SIGNAL_POLL ID: 2053008787 SSID: "AndroidWifi", BSSID: 00:13:10:85:fe:01, MAC: 02:15:c2:00:00:00, IP: /10.0.2.18, Security type: 0, Supplicant state: COMPLETED, Wi-Fi standard: legacy, RSSI: -50, Link speed: 1Mbps, Tx Link speed: 1Mbps, Max Supported Tx Link speed: 11Mbps, Rx Link speed: 2Mbps, Max Supported Rx Link speed: 11Mbps, Frequency: 2447MHz, Net ID: 0, Metered hint: false, score: 60, isUsable: true, CarrierMerged: false, SubscriptionId: -1, IsPrimary: 1, Trusted: true, Restricted: false, Ephemeral: false, OEM paid: false, OEM private: false, OSU AP: false, FQDN: <none>, Provider friendly name: <none>, Requesting package name: <none>"AndroidWifi"openMLO Information: , Is TID-To-Link negotiation supported by the AP: false, AP MLD Address: <none>, AP MLO Link Id: <none>, AP MLO Affiliated links: <none>, Vendor Data: <none>
+08-18 01:37:54.154   638   895 D WifiScoreCard: txRate: 1 txSpeed: 1
+08-18 01:37:54.154   638   895 D WifiScoreCard: network update SIGNAL_POLL "AndroidWifi" ID: 1103574677 RSSI -50 txSpeed -1
+08-18 01:37:54.154   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$L2ConnectedState screen=on 1 0 "AndroidWifi" 00:13:10:85:fe:01 rssi=-50 f=2447 sc=60 link=1 tx=0.9, 0.0, 0.0 rx=0.7 bcn=0 [on:0 tx:0 rx:0 period:3001] from screen [on:0 period:278279018] score=60
+08-18 01:37:54.200   638   652 W ServiceManagerCppClient: Permission failure: android.permission.ACCESS_SURFACE_FLINGER from uid=10350 pid=0
+08-18 01:37:54.200   638   652 D PermissionCache: checking android.permission.ACCESS_SURFACE_FLINGER for uid=10350 => denied (266 us)
+08-18 01:37:54.200  3789  3789 I jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/os/SystemProperties;->addChangeCallback(Ljava/lang/Runnable;)V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/compose/ui/platform/AndroidComposeView$Companion; (domain=app) using reflection: allowed
+08-18 01:37:54.200   638   652 W ServiceManagerCppClient: Permission failure: android.permission.ROTATE_SURFACE_FLINGER from uid=10350 pid=0
+08-18 01:37:54.201   638   652 D PermissionCache: checking android.permission.ROTATE_SURFACE_FLINGER for uid=10350 => denied (264 us)
+08-18 01:37:54.201   638   652 W ServiceManagerCppClient: Permission failure: android.permission.INTERNAL_SYSTEM_WINDOW from uid=10350 pid=0
+08-18 01:37:54.201   638   652 D PermissionCache: checking android.permission.INTERNAL_SYSTEM_WINDOW for uid=10350 => denied (52 us)
+08-18 01:37:54.201  3789  3789 I Choreographer: Skipped 32 frames!  The application may be doing too much work on its main thread.
+08-18 01:37:54.203   638   658 I ActivityTaskManager: Displayed jp.golia.mailrs/.MainActivity for user 0: +700ms
+08-18 01:37:54.211  3789  3789 E jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSelection()Landroid/view/accessibility/AccessibilityNodeInfo$Selection; (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~BDf1OExTCYZ9zxpIE3jDWA==/jp.golia.mailrs-G68H-jR6i2P_hZkMxqAr2g==/base.apk!classes7.dex (domain=app) using linking: denied
+08-18 01:37:54.212  3789  3789 E jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->setSelection(Landroid/view/accessibility/AccessibilityNodeInfo$Selection;)V (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~BDf1OExTCYZ9zxpIE3jDWA==/jp.golia.mailrs-G68H-jR6i2P_hZkMxqAr2g==/base.apk!classes7.dex (domain=app) using linking: denied
+08-18 01:37:54.212  3789  3789 E jp.golia.mailrs: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->setSelection(Landroid/view/accessibility/AccessibilityNodeInfo$Selection;)V (runtime_flags=0, domain=platform, api=blocked) from /data/app/~~BDf1OExTCYZ9zxpIE3jDWA==/jp.golia.mailrs-G68H-jR6i2P_hZkMxqAr2g==/base.apk!classes7.dex (domain=app) using linking: denied
+08-18 01:37:54.220  1338  1961 I FontLog : Received query Noto Color Emoji Compat, URI content://com.google.android.gms.fonts [CONTEXT service_id=132 ]
+08-18 01:37:54.220  1338  1961 I FontLog : Query [emojicompat-emoji-font] resolved to {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false}, isVf false} [CONTEXT service_id=132 ]
+08-18 01:37:54.221  1338  1961 I FontLog : Fetch {Noto Color Emoji Compat, wdth 100.0, wght 400, ital 0.0, bestEffort false}, isVf false} end status Status{statusCode=SUCCESS, resolution=null} [CONTEXT service_id=132 ]
+08-18 01:37:54.227  1338  1961 I FontLog : Pulling font file for id = 248, cache size = 8 [CONTEXT service_id=132 ]
+08-18 01:37:54.229  1338  1961 I FontLog : Pulling font file for id = 248, cache size = 8 [CONTEXT service_id=132 ]
+08-18 01:37:54.241   638   749 I ImeTracker: jp.golia.mailrs:3c36508e: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+08-18 01:37:54.245  3789  3789 D InsetsController: hide(ime(), fromIme=false)
+08-18 01:37:54.246  3789  3789 I ImeTracker: jp.golia.mailrs:3c36508e: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+08-18 01:37:54.253   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.253   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.255   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.257   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.258  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2043
+08-18 01:37:54.259  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+08-18 01:37:54.260  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+08-18 01:37:54.260   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.260   638   652 W JobInfo : Job 'com.google.android.apps.photos/com.google.android.libraries.social.async.BackgroundTaskJobService#1043' has a deadline with no functional constraints. The deadline won't improve job execution latency. Consider removing the deadline.
+08-18 01:37:54.260   638  3112 I ImeTracker: system_server:b6675875: onRequestHide at ORIGIN_SERVER reason IME_REQUESTED_CHANGED_LISTENER fromUser false
+08-18 01:37:54.264  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:54.265   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.266   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.267   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:37:54.274   638   661 I ImeTracker: system_server:b6675875: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-18 01:37:54.281 19153 19197 W JobInfo : Requested important-while-foreground flag for job555000381 is ignored and takes no effect
+08-18 01:37:54.284   431   484 I netd    : tetherGetStats() -> {[]} <0.17ms>
+08-18 01:37:54.290  1338  2929 I DiscoveryManager: Filter criteria(null) scannerFlags(0)
+08-18 01:37:54.290  1338  2929 W DatabaseProcessor: processLocalDevices: failed to get the network info with non-null networkId.
+08-18 01:37:54.294   638  1663 D ConnectivityService: requestNetwork for uid/pid:10159/19153 activeRequest: null callbackRequest: 1299 [NetworkRequest [ REQUEST id=1300, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10159 RequestorUid: 10159 RequestorPkg: com.google.android.apps.photos UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647 isUidTracked: false declaredMethods: AVAIL|LOST|NC
+08-18 01:37:54.294   638   904 I serviceDiscovery: [MdnsDiscoveryManager] Unregistering listener for serviceType:_googlecast._tcp.local
+08-18 01:37:54.295   638   895 D WifiNetworkFactory: got request NetworkRequest [ REQUEST id=1300, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10159 RequestorUid: 10159 RequestorPkg: com.google.android.apps.photos UnderlyingNetworks: Null] ]
+08-18 01:37:54.295   638   895 V WifiNetworkFactory: Accepted network request NetworkRequest [ REQUEST id=1300, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10159 RequestorUid: 10159 RequestorPkg: com.google.android.apps.photos UnderlyingNetworks: Null] ]
+08-18 01:37:54.295   638   895 D UntrustedWifiNetworkFactory: got request NetworkRequest [ REQUEST id=1300, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10159 RequestorUid: 10159 RequestorPkg: com.google.android.apps.photos UnderlyingNetworks: Null] ]
+08-18 01:37:54.295   638   895 D OemPaidWifiNetworkFactory: got request NetworkRequest [ REQUEST id=1300, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10159 RequestorUid: 10159 RequestorPkg: com.google.android.apps.photos UnderlyingNetworks: Null] ]
+08-18 01:37:54.295   638   895 D MultiInternetWifiNetworkFactory: got request NetworkRequest [ REQUEST id=1300, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10159 RequestorUid: 10159 RequestorPkg: com.google.android.apps.photos UnderlyingNetworks: Null] ]
+08-18 01:37:54.295   638   901 D ConnectivityService: NetReassign [1300 : null → 100] [c 0] [a 1] [i 0]
+08-18 01:37:54.296   638  1663 I WifiService: releaseMulticastLock uid=10146 lockTag=MdnsServiceBrowserImpl
+08-18 01:37:54.296   638  1663 V WifiPermissionsUtil: deviceOwner:null
+08-18 01:37:54.298   638   904 I serviceDiscovery: [MdnsDiscoveryManager] Unregistering listener for serviceType:_googlecast._tcp.local
+08-18 01:37:54.300   638   904 I WifiService: releaseMulticastLock uid=1000 lockTag=NsdService
+08-18 01:37:54.300   638   904 I serviceDiscovery: [MdnsSocketProvider] Stop monitoring sockets.
+08-18 01:37:54.300   638   904 I TetheringManager: unregisterTetheringEventCallback caller:android
+08-18 01:37:54.303  1086  1225 D IpClient.wlan0: set max DTIM multiplier to 2
+08-18 01:37:54.309   638   895 D WifiVendorHal: installPacketFilter filter length 1683
+08-18 01:37:54.310   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$ConnectableState screen=on len=1683
+08-18 01:37:54.312   638   895 E WifiStaIfaceAidlImpl: setDtimMultiplier failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+08-18 01:37:54.312   638   895 D WifiClientModeImpl: Set maximum DTIM Multiplier to 2 FAIL
+08-18 01:37:54.312   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$ConnectableState screen=on maximum multiplier=2
+08-18 01:37:54.529   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-18 01:37:54.529   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-18 01:37:54.529   638   901 D InetDiagMessage: Destroyed live tcp sockets for uids={10098} in 0ms
+08-18 01:37:54.585   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-18 01:37:54.585   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-18 01:37:54.585   638   901 D InetDiagMessage: Destroyed live tcp sockets for uids={10169} in 1ms
+08-18 01:37:54.600   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-18 01:37:54.600   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-18 01:37:54.600   638   901 D InetDiagMessage: Destroyed live tcp sockets for uids={10211} in 0ms
+08-18 01:37:54.638   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-18 01:37:54.638   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-18 01:37:54.638   638   901 D InetDiagMessage: Destroyed live tcp sockets for uids={10094} in 2ms
+08-18 01:37:55.513  3789  3789 D InsetsController: show(ime(), fromIme=false)
+08-18 01:37:55.513  3789  3789 I ImeTracker: jp.golia.mailrs:382d2569: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT_BY_INSETS_API fromUser false
+08-18 01:37:55.519 19153  2665 I FA      : Application backgrounded at: timestamp_millis: 1786984673518
+08-18 01:37:55.522  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2043
+08-18 01:37:55.525  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+08-18 01:37:55.527  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=8021, inputTypeString=EmailAddress[AutoCorrect], enableLearning=true, autoCorrection=true, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[mParcelledData.dataSize=404], hintText=null, hintLocales=[]}}, false)
+08-18 01:37:55.536   431   484 I netd    : tetherGetStats() -> {[]} <0.17ms>
+08-18 01:37:55.553  3789  3789 I AssistStructure: Flattened final assist data: 908 bytes, containing 1 windows, 5 views
+08-18 01:37:55.585  3773  3773 V InlineSuggestionRenderService: handleDestroySuggestionViews called for 0:561986160
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: InputConnectionWrapper.waitForInputConnectionFutureInternal():1688 Failed to get the input connection call's result.
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: java.util.concurrent.TimeoutException: Waited 100 milliseconds (plus 283292 nanoseconds delay) for qfs@ee4f0a[status=PENDING, info=[task=[running=[RUNNING ON ICWrapper-1], euq@d48e37b]]]
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at qcq.get(PG:52)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kcs.e(PG:10)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kcs.d(PG:20)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kcs.s(PG:56)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kfo.k(PG:7)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kfo.j(PG:40)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kfo.f(PG:37)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at dbj.v(PG:90)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at kgn.onStartInput(PG:206)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.inputmethodservice.InputMethodService.doStartInput(InputMethodService.java:3521)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.inputmethodservice.InputMethodService$InputMethodImpl.startInput(InputMethodService.java:879)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.inputmethodservice.InputMethodService$InputMethodImpl.dispatchStartInput(InputMethodService.java:908)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.inputmethodservice.IInputMethodWrapper.executeMessage(IInputMethodWrapper.java:201)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at com.android.internal.os.HandlerCaller$MyHandler.handleMessage(HandlerCaller.java:44)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.os.Handler.dispatchMessage(Handler.java:110)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.os.Looper.loopOnce(Looper.java:248)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.os.Looper.loop(Looper.java:338)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at java.lang.reflect.Method.invoke(Native Method)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+08-18 01:37:55.629  1454  1454 E InputConnectionWrapper: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+08-18 01:37:55.629  1454  1454 W InputConnectionWrapper: InputConnectionWrapper.recordDuration():1609 IPC IC_REQUEST_CURSOR_UPDATES took 101 ms
+08-18 01:37:55.632  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:55.633  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=8021, inputTypeString=EmailAddress[AutoCorrect], enableLearning=true, autoCorrection=true, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[mParcelledData.dataSize=404], hintText=null, hintLocales=[]}}, true)
+08-18 01:37:55.633  1454  1454 W SessionManager: SessionManager.beginSession():53 Try to begin an already begun session [INPUT_SESSION], end it first
+08-18 01:37:55.662  3789  3789 I ImeTracker: jp.golia.mailrs:b110364c: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+08-18 01:37:55.662  3789  3789 D InsetsController: show(ime(), fromIme=false)
+08-18 01:37:55.663  3789  3789 I ImeTracker: jp.golia.mailrs:b110364c: onCancelled at PHASE_CLIENT_REPORT_REQUESTED_VISIBLE_TYPES
+08-18 01:37:55.664  3789  3789 W RemoteInputConnectionImpl: requestCursorUpdates on inactive InputConnection
+08-18 01:37:55.673  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:55.676  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInputView():1392 onStartInputView(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=8021, inputTypeString=EmailAddress[AutoCorrect], enableLearning=true, autoCorrection=true, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[{android.support.text.emoji.emojiCompat_metadataVersion=10, androidx.core.view.inputmethod.EditorInfoCompat.STYLUS_HANDWRITING_ENABLED=true, android.support.text.emoji.emojiCompat_replaceAll=false}], hintText=null, hintLocales=[]}}, false)
+08-18 01:37:55.676  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.getOemKeyboardHeightRatio():161 systemKeyboardHeightRatio:1.000000.
+08-18 01:37:55.678  1454  1454 I AndroidIME: InputBundleManager.loadActiveInputBundleId():483 loadActiveInputBundleId: en-US, ime_english_united_states
+08-18 01:37:55.679  1454  1454 I AndroidIME: AbstractIme.onActivate():90 LatinIme.onActivate() : EditorInfo = EditorInfo{packageName=jp.golia.mailrs, inputType=8021, inputTypeString=EmailAddress[AutoCorrect], enableLearning=true, autoCorrection=true, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[{android.support.text.emoji.emojiCompat_metadataVersion=10, androidx.core.view.inputmethod.EditorInfoCompat.STYLUS_HANDWRITING_ENABLED=true, android.support.text.emoji.emojiCompat_replaceAll=false}], hintText=null, hintLocales=[]}, IncognitoMode = false, DeviceLocked = false
+08-18 01:37:55.679  1454  1454 I InputBundle: InputBundle.consumeEvent():949 Skip consuming an event as keyboard status is 0
+08-18 01:37:55.681  1454  1454 I Delight5Facilitator: Delight5Facilitator.initializeForIme():729 initializeForIme() : Locale = [en_US], layout = qwerty
+08-18 01:37:55.682  1454  1454 I LatinIme: LatinIme.updateEnableInlineSuggestionsOnDecoderSideFlags():1256 inline flag updated to:false
+08-18 01:37:55.682  1454  1454 I LatinIme: LatinIme.updateEnableInlineSuggestionsOnDecoderSideFlags():1256 inline flag updated to:false
+08-18 01:37:55.684  1454  1454 I InputBundle: InputBundle.consumeEvent():949 Skip consuming an event as keyboard status is 0
+08-18 01:37:55.684  1454  1454 I InputBundle: InputBundle.consumeEvent():949 Skip consuming an event as keyboard status is 0
+08-18 01:37:55.686  1454  1454 I KeyboardWrapper: KeyboardWrapper.activateKeyboard():562 activateKeyboard(): type=prime, status=0, imeDef=kyj{stringId=ime_english_united_states, language=en-US, languageTag=en-US, processedConditions={enable_number_row=false, device=phone}, className=com.google.android.libraries.inputmethod.ime.experiment.ExperimentImeWrapper, label=0, keyEventInterpreter=null, inlineComposing=true, autoCapital=true, announceAutoSelectedCandidate=true, statusIcon=0, primeKeyboardType=SOFT, indicatorIcon=0, indicatorLabel=US, displayAppCompletions=true, extraValues=kyb{#0x7f0b021c=TypedValue{t=0x3/d=0x0 "writing_helper_enable_by_word_revert=false"}, #0x7f0b0222=TypedValue{t=0x3/d=0x0 "com.google.android.apps.inputmethod.libs.latin5.LatinIme"}, #0x7f0b0223=TypedValue{t=0x3/d=0x0 "com.google.android.apps.inputmethod.libs.edittracker.EditTrackingImeWrapper"}, #0x7f0b0224=TypedValue{t=0x3/d=0x0 "com.google.android.apps.inputmethod.libs.latin5.LatinIme"}}, processors=lac@d72fd56, unacceptableMetaKeys=4098, languageSpecificSettings=0, asciiCapable=true, alwaysShowSuggestions=false, useAsciiPasswordKeyboard=false, secondaryIme=null, keyboardGroupDef=kzl@54f98f1, phenotypeFlagId=0, localizationLanguageTag=null, supportsInlineSuggestion=true}
+08-18 01:37:55.686  1454  1454 I KeyboardManager: KeyboardManager.requestKeyboard():248 Creating keyboard prime, imeId=ime_english_united_states, cacheKey=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true
+08-18 01:37:55.686  1454  1454 I KeyboardWrapper: KeyboardWrapper.onKeyboardReady():212 onKeyboardReady(): type=prime(prime), kb=com.google.android.apps.inputmethod.latin.keyboard.LatinPrimeKeyboard@e04cb57
+08-18 01:37:55.686  1454  1454 I KeyboardWrapper: KeyboardWrapper.doActivateKeyboard():589 doActivateKeyboard(): prime
+08-18 01:37:55.689  1454  1454 I KeyboardViewHelper: KeyboardViewHelper.getView():178 Get view with height ratio:1.000000
+08-18 01:37:55.697  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.697  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.getKeyboardInitialStates():131
+08-18 01:37:55.698  1454  1454 W Keyboard: Keyboard.getKeyboardViewHelper():597 null helper is returned: keyboardDef=kze{processedConditions={enable_more_candidates_view_for_multilingual=false, layout_9key_split=false, enable_secondary_symbols=false, language=en-US, deprecate_long_press_space_for_ime_picker=false, expressions=normal, enable_flick_symbols=true, variant=qwerty, device=phone, keyboard_mode=normal, show_secondary_digits=true, enable_preemptive_decode=true, rtl_layout=false}, globalConditions={global_theme_key=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true, global_locale=en_US, global_density_dpi=420, global_orientation=1}, className=.latin.keyboard.LatinPrimeKeyboard, resourceIds=[#0x7f17065e, #0x7f1708dc], initialStates=0, keyboardViewDefs=[kzt{direction=null, id=#0x7f0b0166, isScalable=true, layoutId=#0x7f0e0346, type=BODY, touchable=true, defaultShow=true}, kzt{direction=null, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e01db, type=FLOATING_CANDIDATES, touchable=false, defaultShow=false}, kzt{direction=LOCALE, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e04da, type=HEADER, touchable=true, defaultShow=true}], persistentStates=0, persistentStatesPrefKey=null, popupBubbleLayoutId=#0x7f0e05ce, recentKeyLayoutId=0, recentKeyPopupLayoutId=0, recentKeyType=null, rememberRecentKey=NONE, sessionStates=17592186044419}, type=WIDGET, helpersCreated=[kkl@986f8b7, kkl@2c9d824, kkl@fa42f8d, null], context.getResources().getConfiguration(): {1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h866dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.37 fontWeightAdjustment=0}
+08-18 01:37:55.698  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.699  1454  1454 I AndroidIME: InputBundleManager.startInput():361 startInput() with kzp[keyboardType=prime, payload=null]
+08-18 01:37:55.699  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onActivate():70
+08-18 01:37:55.700  1454  1454 I CrowdsourceExtension: CrowdsourceExtension.checkIfDefaultBrowserIsAllowed():109 Failed to get default browser. The default browser may be deactivated.
+08-18 01:37:55.701  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020165, callback=cbb@c4a5545, lastModifier=2, keyCodes=[56], actions=[0]}
+08-18 01:37:55.701  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020165, callback=cbb@e21da8, lastModifier=0, keyCodes=[317], actions=[0]}
+08-18 01:37:55.701  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020165, callback=cbb@2a6279, lastModifier=2, keyCodes=[56], actions=[0]}
+08-18 01:37:55.701  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020165, callback=cbb@a61a36c, lastModifier=0, keyCodes=[317], actions=[0]}
+08-18 01:37:55.702  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.cancelShutdown():100 cancelShutdown()
+08-18 01:37:55.702  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.syncLanguagePacks():112 syncLanguagePacks()
+08-18 01:37:55.702  1454  1454 I VoiceInputManager: VoiceInputManager.onKeyboardActivated():1023 onKeyboardActivated() [UD]
+08-18 01:37:55.703  1454  1454 I AccessoryInputModeManager: AccessoryInputModeManager.onModeStarted():322 Accessory input mode started: null
+08-18 01:37:55.703  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10160, DEACTIVATE_SUPPLEMENTARY_KEYBOARD, data=accessory_candidates_consumer}
+08-18 01:37:55.703  1454  1454 W SupplementaryKeyboardsWrapper: SupplementaryKeyboardsWrapper.deactivateKeyboard():160 keyboard accessory_candidates_consumer is not activated before!
+08-18 01:37:55.706  1454  1454 I KeyboardModeUtils: KeyboardModeUtils.getKeyboardBottomOffset():437 inch: 0.000000 ydpi: 420.000000 adjustKeyboardBottomByDisplaySize: false currentDensityDpi: 420 defaultDensityDpi: 420 keyboardBottomToScreenPx: 0 keyboardBottomToNavBarPx: -126 navBarHeight: 126
+08-18 01:37:55.706  1454  1454 I ResizableKeyboardModeController: ResizableKeyboardModeController.getKeyboardBottomOffset():182 currentPrimeKeyboardType:SOFT keyboardBottomOffset:0 navBarHeight:126 isInLandscape:false
+08-18 01:37:55.706  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.706  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.706  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.706  1454  1454 W ExtensionWrapper: ExtensionWrapper.setExtensionViewVisibility():801 interface koa is not activate
+08-18 01:37:55.707  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:55.708  1454  1454 I CurrentMicStatusHolder: CurrentMicStatusHolder.onStartInputView():81 Current Mic status = {MicIconHidden-EmailInputType,}
+08-18 01:37:55.708  1454  1454 I VoiceImeExtension: VoiceImeExtension.shouldStartVoiceInputAutomaticallyInCurrentInputBox():469 No private IME option set to start voice input.
+08-18 01:37:55.709  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020170, callback=cbb@8b38d14, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:55.709  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020170, callback=cbb@4af2683, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:55.714  1454  5362 I SpeechFactory: SpeechRecognitionFactory.maybeScheduleAutoPackDownloadForFallback():161 maybeScheduleAutoPackDownloadForFallback()
+08-18 01:37:55.714  1454  5362 I FallbackOnDeviceRecognitionProvider: FallbackOnDeviceRecognitionProvider.maybeScheduleAutoPackDownload():198 maybeScheduleAutoPackDownload() for language tag en-US
+08-18 01:37:55.715  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.715  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.715  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notifyWithWindow():166
+08-18 01:37:55.715  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notify():159 mub[bounds=Rect(0, 132 - 1080, 2400), insets=Rect(0, 0 - 0, 126), densityDpi=420, smallestScreenWidthDp=411, displayWidth=1080, displayHeight=2400, xdpi=420.0, ydpi=420.0, isTrustable=true, displayId=0]; DisplayMetrics{density=2.625, width=1080, height=2400, scaledDensity=2.625, xdpi=420.0, ydpi=420.0}
+08-18 01:37:55.765  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=HEADER keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{8cd36a4 V.E...... ........ 0,0-1080,116}
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=BODY keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{fe4af22 V.E...... ........ 0,0-1080,641}
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension$1.onKeyboardViewShown():96 Not show new language banner: no change in enabled input method entries
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.765  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10044, UPDATE_KEYBOARD_LAYOUT, data=# qsn@8c3e979}
+08-18 01:37:55.765  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10188, SET_KEYBOARD_LAYOUT, data=# qsn@cd86fd1e}
+08-18 01:37:55.765  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10044, UPDATE_KEYBOARD_LAYOUT, data=# qsn@8c3e979}
+08-18 01:37:55.765  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10188, SET_KEYBOARD_LAYOUT, data=# qsn@cd86fd1e}
+08-18 01:37:55.778  1454  1739 I Delight5Decoder: Delight5DecoderWrapper.setKeyboardLayout():521 setKeyboardLayout()
+08-18 01:37:55.782  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10181, UNIVERSAL_DICTATION_NO_PUNCTUATION, data=false}
+08-18 01:37:55.783  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-20001, ENABLE_GESTURE_TYPING, data=null}
+08-18 01:37:55.783  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10126, INPUT_SELECTION_CHANGED, data=null}
+08-18 01:37:55.783  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.783  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:55.790  1454  1739 I Delight5Decoder: Delight5DecoderWrapper.setKeyboardLayout():521 setKeyboardLayout()
+08-18 01:37:55.809  3789  3789 W InteractionJankMonitor: Initializing without READ_DEVICE_CONFIG permission. enabled=true, interval=1, missedFrameThreshold=3, frameTimeThreshold=64, package=jp.golia.mailrs
+08-18 01:37:55.885  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id spell_check_add_to_dictionary not found in tooltipManager.
+08-18 01:37:55.931  3789  3789 D InsetsController: hide(ime(), fromIme=false)
+08-18 01:37:55.932  3789  3789 I ImeTracker: jp.golia.mailrs:3cdbfc73: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT_BY_INSETS_API fromUser false
+08-18 01:37:55.932  3789  3789 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ImeBackAnimationController@267cae9
+08-18 01:37:55.932  3789  3789 I ImeTracker: jp.golia.mailrs:382d2569: onCancelled at PHASE_CLIENT_ANIMATION_CANCEL
+08-18 01:37:55.944  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, true)
+08-18 01:37:55.944  1454  1454 W SessionManager: SessionManager.beginSession():53 Try to begin an already begun session [INPUT_SESSION], end it first
+08-18 01:37:55.944  1454  1454 W SessionManager: SessionManager.endSession():96 Child session [INPUT_VIEW_SESSION] is not ended while ending session [{INPUT_SESSION=1786984675633, IME_SESSION=1786984675679, TRAINING_CACHE_SESSION=1786984675679, INPUT_VIEW_SESSION=1786984675676}], ending it now.
+08-18 01:37:55.944  1454  1454 W SessionManager: SessionManager.endSession():96 Child session [IME_SESSION] is not ended while ending session [{INPUT_SESSION=1786984675633, IME_SESSION=1786984675679, TRAINING_CACHE_SESSION=1786984675679, INPUT_VIEW_SESSION=1786984675676}], ending it now.
+08-18 01:37:55.944  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:55.947  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInputView():1392 onStartInputView(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, true)
+08-18 01:37:55.948  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.getOemKeyboardHeightRatio():161 systemKeyboardHeightRatio:1.000000.
+08-18 01:37:55.961  3789  3789 D InsetsController: show(ime(), fromIme=false)
+08-18 01:37:55.962  3789  3789 I ImeTracker: jp.golia.mailrs:4ccfa3c4: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT_BY_INSETS_API fromUser false
+08-18 01:37:55.962  3789  3789 I ImeTracker: jp.golia.mailrs:3cdbfc73: onCancelled at PHASE_CLIENT_ANIMATION_CANCEL
+08-18 01:37:56.061  1454  1454 W InputConnectionWrapper: InputConnectionWrapper.recordDuration():1609 IPC IC_GET_SURROUNDING_TEXT took 112 ms
+08-18 01:37:56.062  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10181, UNIVERSAL_DICTATION_NO_PUNCTUATION, data=false}
+08-18 01:37:56.062  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-20001, ENABLE_GESTURE_TYPING, data=null}
+08-18 01:37:56.062  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10126, INPUT_SELECTION_CHANGED, data=null}
+08-18 01:37:56.063  1454  1454 I InputContextChangeTracker: InputContextChangeTracker.fixLyingSelectionRangeFromSurroundingText():1665 fixLyingSelectionRangeFromSurroundingText(): [-1, -1]([-1, -1]) -> [0, 0]([0, 0])
+08-18 01:37:56.063  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-20002, DISABLE_GESTURE_TYPING, data=null}
+08-18 01:37:56.063  1454  1454 I InputBundle: InputBundle.consumeEvent():949 Skip consuming an event as keyboard status is 0
+08-18 01:37:56.064  1454  1454 I AndroidIME: AbstractIme.onDeactivate():203 LatinIme.onDeactivate()
+08-18 01:37:56.064  1454  1454 W SessionManager: SessionManager.endSession():88 Try to end a not begun session [IME_SESSION].
+08-18 01:37:56.064  1454  1454 I AndroidIME: InputBundleManager.loadActiveInputBundleId():483 loadActiveInputBundleId: und-Latn-x-password, password
+08-18 01:37:56.064  1454  1454 I AndroidIME: AbstractIme.onActivate():90 PasswordIme.onActivate() : EditorInfo = EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}, IncognitoMode = false, DeviceLocked = false
+08-18 01:37:56.064  1454  1454 I KeyboardWrapper: KeyboardWrapper.activateKeyboard():562 activateKeyboard(): type=prime, status=0, imeDef=kyj{stringId=password, language=und-Latn-x-password, languageTag=und-Latn-x-password, processedConditions={variant=qwerty, enable_access_points_in_password_number=false, enable_number_row=false, device=phone}, className=com.google.android.libraries.inputmethod.ime.password.PasswordIme, label=2132019061, keyEventInterpreter=null, inlineComposing=true, autoCapital=true, announceAutoSelectedCandidate=true, statusIcon=0, primeKeyboardType=SOFT, indicatorIcon=0, indicatorLabel=null, displayAppCompletions=false, extraValues=kyb{}, processors=lac@d72fd56, unacceptableMetaKeys=4098, languageSpecificSettings=0, asciiCapable=false, alwaysShowSuggestions=false, useAsciiPasswordKeyboard=false, secondaryIme=null, keyboardGroupDef=kzl@9aa41d7, phenotypeFlagId=0, localizationLanguageTag=null, supportsInlineSuggestion=false}
+08-18 01:37:56.065  1454  1454 I KeyboardManager: KeyboardManager.requestKeyboard():248 Creating keyboard prime, imeId=password, cacheKey=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true
+08-18 01:37:56.065  1454  1454 I KeyboardWrapper: KeyboardWrapper.onKeyboardReady():212 onKeyboardReady(): type=prime(prime), kb=com.google.android.apps.inputmethod.latin.keyboard.LatinPasswordKeyboard@2297d7b
+08-18 01:37:56.065  1454  1454 I KeyboardWrapper: KeyboardWrapper.doActivateKeyboard():589 doActivateKeyboard(): prime
+08-18 01:37:56.066  3789  3789 I ImeTracker: jp.golia.mailrs:b7539d69: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+08-18 01:37:56.066  3789  3789 D InsetsController: show(ime(), fromIme=false)
+08-18 01:37:56.066  3789  3789 I ImeTracker: jp.golia.mailrs:b7539d69: onCancelled at PHASE_CLIENT_APPLY_ANIMATION
+08-18 01:37:56.069  1454  1454 I KeyboardViewHelper: KeyboardViewHelper.getView():178 Get view with height ratio:1.000000
+08-18 01:37:56.070  1454  1736 W ModuleManager: ModuleManager.loadModule():547 Module mly is not available
+08-18 01:37:56.073  1454  1454 W HWUI    : Image decoding logging dropped!
+08-18 01:37:56.073  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.074  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id undo_access_point_promotion_banner not found in tooltipManager.
+08-18 01:37:56.075  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.getKeyboardInitialStates():131
+08-18 01:37:56.075  1454  1454 W Keyboard: Keyboard.getKeyboardViewHelper():597 null helper is returned: keyboardDef=kze{processedConditions={enable_more_candidates_view_for_multilingual=false, layout_9key_split=false, enable_secondary_symbols=false, language=en-US, deprecate_long_press_space_for_ime_picker=false, expressions=normal, enable_access_points_in_password_number=false, show_suggestions=true, enable_flick_symbols=true, variant=qwerty, device=phone, keyboard_mode=normal, show_secondary_digits=false, enable_preemptive_decode=true, rtl_layout=false}, globalConditions={global_theme_key=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true, global_locale=en_US, global_density_dpi=420, global_orientation=1}, className=.latin.keyboard.LatinPasswordKeyboard, resourceIds=[#0x7f17065e, #0x7f1708dc, #0x7f17071c], initialStates=0, keyboardViewDefs=[kzt{direction=null, id=#0x7f0b0166, isScalable=true, layoutId=#0x7f0e0346, type=BODY, touchable=true, defaultShow=true}, kzt{direction=null, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e01db, type=FLOATING_CANDIDATES, touchable=false, defaultShow=false}, kzt{direction=LOCALE, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e04d8, type=HEADER, touchable=true, defaultShow=true}], persistentStates=0, persistentStatesPrefKey=null, popupBubbleLayoutId=#0x7f0e05ce, recentKeyLayoutId=0, recentKeyPopupLayoutId=0, recentKeyType=null, rememberRecentKey=NONE, sessionStates=17592186044419}, type=WIDGET, helpersCreated=[kkl@536e53c, kkl@aa012c5, kkl@53e341a, null], context.getResources().getConfiguration(): {1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h866dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.37 fontWeightAdjustment=0}
+08-18 01:37:56.075  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.075  1454  1454 I KeyboardWrapper: KeyboardWrapper.activateKeyboard():562 activateKeyboard(): type=prime, status=1, imeDef=kyj{stringId=password, language=und-Latn-x-password, languageTag=und-Latn-x-password, processedConditions={variant=qwerty, enable_access_points_in_password_number=false, enable_number_row=false, device=phone}, className=com.google.android.libraries.inputmethod.ime.password.PasswordIme, label=2132019061, keyEventInterpreter=null, inlineComposing=true, autoCapital=true, announceAutoSelectedCandidate=true, statusIcon=0, primeKeyboardType=SOFT, indicatorIcon=0, indicatorLabel=null, displayAppCompletions=false, extraValues=kyb{}, processors=lac@d72fd56, unacceptableMetaKeys=4098, languageSpecificSettings=0, asciiCapable=false, alwaysShowSuggestions=false, useAsciiPasswordKeyboard=false, secondaryIme=null, keyboardGroupDef=kzl@9aa41d7, phenotypeFlagId=0, localizationLanguageTag=null, supportsInlineSuggestion=false}
+08-18 01:37:56.075  1454  1454 I AndroidIME: InputBundleManager.startInput():361 startInput() with kzp[keyboardType=prime, payload=null]
+08-18 01:37:56.075  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onDeactivate():104
+08-18 01:37:56.075  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.shutdown():122 shutdown()
+08-18 01:37:56.076  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onActivate():70
+08-18 01:37:56.077  1454  1454 I CrowdsourceExtension: CrowdsourceExtension.checkIfDefaultBrowserIsAllowed():109 Failed to get default browser. The default browser may be deactivated.
+08-18 01:37:56.078  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension.onActivate():186 Not activated NewLanguagePromptExtension: not a normal text input box.
+08-18 01:37:56.078  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020165, callback=cbb@2a6279, lastModifier=2, keyCodes=[56], actions=[0]}
+08-18 01:37:56.078  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020165, callback=cbb@a61a36c, lastModifier=0, keyCodes=[317], actions=[0]}
+08-18 01:37:56.078  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020165, callback=cbb@e43cb9f, lastModifier=2, keyCodes=[56], actions=[0]}
+08-18 01:37:56.078  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020165, callback=cbb@31ee34a, lastModifier=0, keyCodes=[317], actions=[0]}
+08-18 01:37:56.078  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.cancelShutdown():100 cancelShutdown()
+08-18 01:37:56.078  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.syncLanguagePacks():112 syncLanguagePacks()
+08-18 01:37:56.078  1454  5362 I SpeechFactory: SpeechRecognitionFactory.maybeScheduleAutoPackDownloadForFallback():161 maybeScheduleAutoPackDownloadForFallback()
+08-18 01:37:56.079  1454  1454 I VoiceInputManager: VoiceInputManager.onKeyboardActivated():1023 onKeyboardActivated() [UD]
+08-18 01:37:56.080  1454  1454 I AccessoryInputModeManager: AccessoryInputModeManager.onModeStarted():322 Accessory input mode started: null
+08-18 01:37:56.080  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10160, DEACTIVATE_SUPPLEMENTARY_KEYBOARD, data=accessory_candidates_consumer}
+08-18 01:37:56.080  1454  1454 W SupplementaryKeyboardsWrapper: SupplementaryKeyboardsWrapper.deactivateKeyboard():160 keyboard accessory_candidates_consumer is not activated before!
+08-18 01:37:56.081  1454  1454 I KeyboardModeUtils: KeyboardModeUtils.getKeyboardBottomOffset():437 inch: 0.000000 ydpi: 420.000000 adjustKeyboardBottomByDisplaySize: false currentDensityDpi: 420 defaultDensityDpi: 420 keyboardBottomToScreenPx: 0 keyboardBottomToNavBarPx: -126 navBarHeight: 126
+08-18 01:37:56.082  1454  1454 I ResizableKeyboardModeController: ResizableKeyboardModeController.getKeyboardBottomOffset():182 currentPrimeKeyboardType:SOFT keyboardBottomOffset:0 navBarHeight:126 isInLandscape:false
+08-18 01:37:56.082  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.082  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.083  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.083  1454  1454 W ExtensionWrapper: ExtensionWrapper.setExtensionViewVisibility():801 interface koa is not activate
+08-18 01:37:56.084  1454  5362 I FallbackOnDeviceRecognitionProvider: FallbackOnDeviceRecognitionProvider.maybeScheduleAutoPackDownload():198 maybeScheduleAutoPackDownload() for language tag en-US
+08-18 01:37:56.084  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:56.084  1454  1454 I VoiceImeExtension: VoiceImeExtension.shouldStartVoiceInputAutomaticallyInCurrentInputBox():469 No private IME option set to start voice input.
+08-18 01:37:56.085  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020170, callback=cbb@4af2683, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:56.085  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020170, callback=cbb@5d01769, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:56.087  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.087  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.087  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notifyWithWindow():166
+08-18 01:37:56.087  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notify():159 mub[bounds=Rect(0, 132 - 1080, 2400), insets=Rect(0, 0 - 0, 126), densityDpi=420, smallestScreenWidthDp=411, displayWidth=1080, displayHeight=2400, xdpi=420.0, ydpi=420.0, isTrustable=true, displayId=0]; DisplayMetrics{density=2.625, width=1080, height=2400, scaledDensity=2.625, xdpi=420.0, ydpi=420.0}
+08-18 01:37:56.092  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=8081, inputTypeString=Password[AutoCorrect], enableLearning=false, autoCorrection=false, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[mParcelledData.dataSize=404], hintText=null, hintLocales=[]}}, true)
+08-18 01:37:56.092  1454  1454 W SessionManager: SessionManager.beginSession():53 Try to begin an already begun session [INPUT_SESSION], end it first
+08-18 01:37:56.092  1454  1454 W SessionManager: SessionManager.endSession():96 Child session [INPUT_VIEW_SESSION] is not ended while ending session [{INPUT_SESSION=1786984675944, IME_SESSION=1786984676064, INPUT_VIEW_SESSION=1786984675948}], ending it now.
+08-18 01:37:56.092  1454  1454 W SessionManager: SessionManager.endSession():96 Child session [IME_SESSION] is not ended while ending session [{INPUT_SESSION=1786984675944, IME_SESSION=1786984676064, INPUT_VIEW_SESSION=1786984675948}], ending it now.
+08-18 01:37:56.096  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=0, callback=fjq@bd5f67f, lastModifier=0, keyCodes=[57, 57], actions=[1, 0]}
+08-18 01:37:56.096  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=0, callback=fjq@253b3aa, lastModifier=0, keyCodes=[58, 58], actions=[1, 0]}
+08-18 01:37:56.096  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:56.097  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInputView():1392 onStartInputView(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=8081, inputTypeString=Password[AutoCorrect], enableLearning=false, autoCorrection=false, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[{android.support.text.emoji.emojiCompat_metadataVersion=10, androidx.core.view.inputmethod.EditorInfoCompat.STYLUS_HANDWRITING_ENABLED=false, android.support.text.emoji.emojiCompat_replaceAll=false}], hintText=null, hintLocales=[]}}, true)
+08-18 01:37:56.098  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.getOemKeyboardHeightRatio():161 systemKeyboardHeightRatio:1.000000.
+08-18 01:37:56.099  1454  1454 I AndroidIME: AbstractIme.onDeactivate():203 PasswordIme.onDeactivate()
+08-18 01:37:56.099  1454  1454 W SessionManager: SessionManager.endSession():88 Try to end a not begun session [IME_SESSION].
+08-18 01:37:56.099  1454  1454 I AndroidIME: InputBundleManager.loadActiveInputBundleId():483 loadActiveInputBundleId: und-Latn-x-password, password
+08-18 01:37:56.099  1454  1454 I AndroidIME: AbstractIme.onActivate():90 PasswordIme.onActivate() : EditorInfo = EditorInfo{packageName=jp.golia.mailrs, inputType=8081, inputTypeString=Password[AutoCorrect], enableLearning=false, autoCorrection=false, autoComplete=true, imeOptions=2000006, privateImeOptions=null, actionName=DONE, actionLabel=null, initialSelStart=0, initialSelEnd=0, initialCapsMode=0, label=null, fieldId=-1, fieldName=null, extras=Bundle[{android.support.text.emoji.emojiCompat_metadataVersion=10, androidx.core.view.inputmethod.EditorInfoCompat.STYLUS_HANDWRITING_ENABLED=false, android.support.text.emoji.emojiCompat_replaceAll=false}], hintText=null, hintLocales=[]}, IncognitoMode = false, DeviceLocked = false
+08-18 01:37:56.099  1454  1454 I KeyboardWrapper: KeyboardWrapper.activateKeyboard():562 activateKeyboard(): type=prime, status=0, imeDef=kyj{stringId=password, language=und-Latn-x-password, languageTag=und-Latn-x-password, processedConditions={variant=qwerty, enable_access_points_in_password_number=false, enable_number_row=false, device=phone}, className=com.google.android.libraries.inputmethod.ime.password.PasswordIme, label=2132019061, keyEventInterpreter=null, inlineComposing=true, autoCapital=true, announceAutoSelectedCandidate=true, statusIcon=0, primeKeyboardType=SOFT, indicatorIcon=0, indicatorLabel=null, displayAppCompletions=false, extraValues=kyb{}, processors=lac@d72fd56, unacceptableMetaKeys=4098, languageSpecificSettings=0, asciiCapable=false, alwaysShowSuggestions=false, useAsciiPasswordKeyboard=false, secondaryIme=null, keyboardGroupDef=kzl@9aa41d7, phenotypeFlagId=0, localizationLanguageTag=null, supportsInlineSuggestion=false}
+08-18 01:37:56.099  1454  1454 I KeyboardManager: KeyboardManager.requestKeyboard():248 Creating keyboard prime, imeId=password, cacheKey=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true
+08-18 01:37:56.100  1454  1454 I KeyboardWrapper: KeyboardWrapper.onKeyboardReady():212 onKeyboardReady(): type=prime(prime), kb=com.google.android.apps.inputmethod.latin.keyboard.LatinPasswordKeyboard@2297d7b
+08-18 01:37:56.100  1454  1454 I KeyboardWrapper: KeyboardWrapper.doActivateKeyboard():589 doActivateKeyboard(): prime
+08-18 01:37:56.100  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=HEADER keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{f420f3 V.E...... .......D 0,0-1080,116}
+08-18 01:37:56.100  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.100  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.100  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.100  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.101  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.101  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=BODY keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{fe4af22 V.E...... ........ 0,0-1080,641}
+08-18 01:37:56.101  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.101  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension$1.onKeyboardViewShown():86 Not show new language banner: not prime keyboard, or the extension not activated.
+08-18 01:37:56.101  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.101  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.101  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.101  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id undo_access_point_promotion_banner not found in tooltipManager.
+08-18 01:37:56.101  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.getKeyboardInitialStates():131
+08-18 01:37:56.101  1454  1454 W Keyboard: Keyboard.getKeyboardViewHelper():597 null helper is returned: keyboardDef=kze{processedConditions={enable_more_candidates_view_for_multilingual=false, layout_9key_split=false, enable_secondary_symbols=false, language=en-US, deprecate_long_press_space_for_ime_picker=false, expressions=normal, enable_access_points_in_password_number=false, show_suggestions=true, enable_flick_symbols=true, variant=qwerty, device=phone, keyboard_mode=normal, show_secondary_digits=false, enable_preemptive_decode=true, rtl_layout=false}, globalConditions={global_theme_key=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true, global_locale=en_US, global_density_dpi=420, global_orientation=1}, className=.latin.keyboard.LatinPasswordKeyboard, resourceIds=[#0x7f17065e, #0x7f1708dc, #0x7f17071c], initialStates=0, keyboardViewDefs=[kzt{direction=null, id=#0x7f0b0166, isScalable=true, layoutId=#0x7f0e0346, type=BODY, touchable=true, defaultShow=true}, kzt{direction=null, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e01db, type=FLOATING_CANDIDATES, touchable=false, defaultShow=false}, kzt{direction=LOCALE, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e04d8, type=HEADER, touchable=true, defaultShow=true}], persistentStates=0, persistentStatesPrefKey=null, popupBubbleLayoutId=#0x7f0e05ce, recentKeyLayoutId=0, recentKeyPopupLayoutId=0, recentKeyType=null, rememberRecentKey=NONE, sessionStates=17592186044419}, type=WIDGET, helpersCreated=[kkl@536e53c, kkl@aa012c5, kkl@53e341a, null], context.getResources().getConfiguration(): {1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h866dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.37 fontWeightAdjustment=0}
+08-18 01:37:56.102  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.103  1454  1454 I AndroidIME: InputBundleManager.startInput():361 startInput() with kzp[keyboardType=prime, payload=null]
+08-18 01:37:56.103  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onDeactivate():104
+08-18 01:37:56.103  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.shutdown():122 shutdown()
+08-18 01:37:56.104  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onActivate():70
+08-18 01:37:56.105  1454  1454 I CrowdsourceExtension: CrowdsourceExtension.checkIfDefaultBrowserIsAllowed():109 Failed to get default browser. The default browser may be deactivated.
+08-18 01:37:56.107  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension.onActivate():186 Not activated NewLanguagePromptExtension: not a normal text input box.
+08-18 01:37:56.107  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.cancelShutdown():100 cancelShutdown()
+08-18 01:37:56.107  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.syncLanguagePacks():112 syncLanguagePacks()
+08-18 01:37:56.107  1454  1454 I VoiceInputManager: VoiceInputManager.onKeyboardActivated():1023 onKeyboardActivated() [UD]
+08-18 01:37:56.107  1454  1454 I AccessoryInputModeManager: AccessoryInputModeManager.onModeStarted():322 Accessory input mode started: null
+08-18 01:37:56.107  1454  1454 W SupplementaryKeyboardsWrapper: SupplementaryKeyboardsWrapper.deactivateKeyboard():160 keyboard accessory_candidates_consumer is not activated before!
+08-18 01:37:56.112  1454  1454 I KeyboardModeUtils: KeyboardModeUtils.getKeyboardBottomOffset():437 inch: 0.000000 ydpi: 420.000000 adjustKeyboardBottomByDisplaySize: false currentDensityDpi: 420 defaultDensityDpi: 420 keyboardBottomToScreenPx: 0 keyboardBottomToNavBarPx: -126 navBarHeight: 126
+08-18 01:37:56.112  1454  1454 I ResizableKeyboardModeController: ResizableKeyboardModeController.getKeyboardBottomOffset():182 currentPrimeKeyboardType:SOFT keyboardBottomOffset:0 navBarHeight:126 isInLandscape:false
+08-18 01:37:56.112  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.112  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.112  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.112  1454  1454 W ExtensionWrapper: ExtensionWrapper.setExtensionViewVisibility():801 interface koa is not activate
+08-18 01:37:56.112  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:56.113  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020169, callback=cbb@1f7d6f, lastModifier=2, keyCodes=[48], actions=[0]}
+08-18 01:37:56.113  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020169, callback=cbb@5c9ceaa, lastModifier=2, keyCodes=[48], actions=[0]}
+08-18 01:37:56.113  1454  1454 I CurrentMicStatusHolder: CurrentMicStatusHolder.onStartInputView():81 Current Mic status = {MicIconHidden-PasswordOrNumberOrDateInputType,}
+08-18 01:37:56.113  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020170, callback=cbb@5d01769, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:56.113  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020170, callback=cbb@7caa577, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:56.114  1454  1454 W InputContextProxy: InputContextProxy.applyClientDiffInternal():957 Ignore [FetchSuggestions] diff due to stale request: 5577<5578, inputStateId=4733, lastInputStateId=4734
+08-18 01:37:56.116  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.117  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.117  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notifyWithWindow():166
+08-18 01:37:56.117  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notify():159 mub[bounds=Rect(0, 132 - 1080, 2400), insets=Rect(0, 0 - 0, 126), densityDpi=420, smallestScreenWidthDp=411, displayWidth=1080, displayHeight=2400, xdpi=420.0, ydpi=420.0, isTrustable=true, displayId=0]; DisplayMetrics{density=2.625, width=1080, height=2400, scaledDensity=2.625, xdpi=420.0, ydpi=420.0}
+08-18 01:37:56.119  1454  5362 I SpeechFactory: SpeechRecognitionFactory.maybeScheduleAutoPackDownloadForFallback():161 maybeScheduleAutoPackDownloadForFallback()
+08-18 01:37:56.120  1454  5362 I FallbackOnDeviceRecognitionProvider: FallbackOnDeviceRecognitionProvider.maybeScheduleAutoPackDownload():198 maybeScheduleAutoPackDownload() for language tag en-US
+08-18 01:37:56.124  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=HEADER keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{f420f3 V.E...... ........ 0,0-1080,116}
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=BODY keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{fe4af22 V.E...... ........ 0,0-1080,641}
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension$1.onKeyboardViewShown():86 Not show new language banner: not prime keyboard, or the extension not activated.
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.124  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:56.202   638  1065 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+08-18 01:37:56.359  3789  3789 I ImeTracker: jp.golia.mailrs:4ccfa3c4: onShown
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3674945, 14013942, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3674960, 8955401, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3674989, 5977068, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675011, 37910402, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675048, 7224820, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675063, 7139404, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675078, 5050113, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675093, 28832906, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675108, 13122531, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675123, 9930407, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675145, 7306783, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675167, 3005492, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675189, 6271992, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675211, 3705535, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675226, 5608827, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675248, 6196994, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675270, 6114620, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.421  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675292, 6882121, CUJ=J<IME_INSETS_SHOW_ANIMATION::0@1@jp.golia.mailrs>
+08-18 01:37:56.424  3789  3826 V PerfettoTrigger: Triggering /system/bin/trigger_perfetto com.android.telemetry.interaction-jank-monitor-80
+08-18 01:37:57.019  3789  3789 D InsetsController: hide(ime(), fromIme=false)
+08-18 01:37:57.020  3789  3789 I ImeTracker: jp.golia.mailrs:60fe7960: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT_BY_INSETS_API fromUser false
+08-18 01:37:57.020  3789  3789 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ImeBackAnimationController@267cae9
+08-18 01:37:57.023  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, true)
+08-18 01:37:57.023  1454  1454 W SessionManager: SessionManager.beginSession():53 Try to begin an already begun session [INPUT_SESSION], end it first
+08-18 01:37:57.023  1454  1454 W SessionManager: SessionManager.endSession():96 Child session [INPUT_VIEW_SESSION] is not ended while ending session [{INPUT_SESSION=1786984676092, IME_SESSION=1786984676099, INPUT_VIEW_SESSION=1786984676097}], ending it now.
+08-18 01:37:57.023  1454  1454 W SessionManager: SessionManager.endSession():96 Child session [IME_SESSION] is not ended while ending session [{INPUT_SESSION=1786984676092, IME_SESSION=1786984676099, INPUT_VIEW_SESSION=1786984676097}], ending it now.
+08-18 01:37:57.029  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=0, callback=fjq@bb97e49, lastModifier=0, keyCodes=[57, 57], actions=[1, 0]}
+08-18 01:37:57.029  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=0, callback=fjq@38d0d7c, lastModifier=0, keyCodes=[58, 58], actions=[1, 0]}
+08-18 01:37:57.030  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:57.031  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInputView():1392 onStartInputView(EditorInfo{EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, true)
+08-18 01:37:57.031  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.getOemKeyboardHeightRatio():161 systemKeyboardHeightRatio:1.000000.
+08-18 01:37:57.092  1454  1454 I InputContextChangeTracker: InputContextChangeTracker.fixLyingSelectionRangeFromSurroundingText():1665 fixLyingSelectionRangeFromSurroundingText(): [-1, -1]([-1, -1]) -> [0, 0]([0, 0])
+08-18 01:37:57.094  1454  1454 I AndroidIME: AbstractIme.onDeactivate():203 PasswordIme.onDeactivate()
+08-18 01:37:57.094  1454  1454 W SessionManager: SessionManager.endSession():88 Try to end a not begun session [IME_SESSION].
+08-18 01:37:57.096  1454  1454 I AndroidIME: InputBundleManager.loadActiveInputBundleId():483 loadActiveInputBundleId: und-Latn-x-password, password
+08-18 01:37:57.096  1454  1454 I AndroidIME: AbstractIme.onActivate():90 PasswordIme.onActivate() : EditorInfo = EditorInfo{packageName=jp.golia.mailrs, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}, IncognitoMode = false, DeviceLocked = false
+08-18 01:37:57.100  1454  1454 I KeyboardWrapper: KeyboardWrapper.activateKeyboard():562 activateKeyboard(): type=prime, status=0, imeDef=kyj{stringId=password, language=und-Latn-x-password, languageTag=und-Latn-x-password, processedConditions={variant=qwerty, enable_access_points_in_password_number=false, enable_number_row=false, device=phone}, className=com.google.android.libraries.inputmethod.ime.password.PasswordIme, label=2132019061, keyEventInterpreter=null, inlineComposing=true, autoCapital=true, announceAutoSelectedCandidate=true, statusIcon=0, primeKeyboardType=SOFT, indicatorIcon=0, indicatorLabel=null, displayAppCompletions=false, extraValues=kyb{}, processors=lac@d72fd56, unacceptableMetaKeys=4098, languageSpecificSettings=0, asciiCapable=false, alwaysShowSuggestions=false, useAsciiPasswordKeyboard=false, secondaryIme=null, keyboardGroupDef=kzl@9aa41d7, phenotypeFlagId=0, localizationLanguageTag=null, supportsInlineSuggestion=false}
+08-18 01:37:57.100  1454  1454 I KeyboardManager: KeyboardManager.requestKeyboard():248 Creating keyboard prime, imeId=password, cacheKey=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true
+08-18 01:37:57.100  1454  1454 I KeyboardWrapper: KeyboardWrapper.onKeyboardReady():212 onKeyboardReady(): type=prime(prime), kb=com.google.android.apps.inputmethod.latin.keyboard.LatinPasswordKeyboard@2297d7b
+08-18 01:37:57.100  1454  1454 I KeyboardWrapper: KeyboardWrapper.doActivateKeyboard():589 doActivateKeyboard(): prime
+08-18 01:37:57.101  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.101  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id undo_access_point_promotion_banner not found in tooltipManager.
+08-18 01:37:57.102  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.getKeyboardInitialStates():131
+08-18 01:37:57.102  1454  1454 W Keyboard: Keyboard.getKeyboardViewHelper():597 null helper is returned: keyboardDef=kze{processedConditions={enable_more_candidates_view_for_multilingual=false, layout_9key_split=false, enable_secondary_symbols=false, language=en-US, deprecate_long_press_space_for_ime_picker=false, expressions=normal, enable_access_points_in_password_number=false, show_suggestions=true, enable_flick_symbols=true, variant=qwerty, device=phone, keyboard_mode=normal, show_secondary_digits=false, enable_preemptive_decode=true, rtl_layout=false}, globalConditions={global_theme_key=theme_!gsf_!pgsans_!pgsf_!use_system_font_BORDER=true_FLAVOR_DPI=XXHDPI_KEYBOARD_WIDTH_CATEGORY=NORMAL_LIGHT_THEME=true_PHYSICAL_DIAGONAL=5.9809904_SCREEN_SHORTEST_WIDTH=411_SCREEN_SHORTEST_WIDTH_NO_SCALE=411_bottom4dp_enable_google_fonts_icons=true_enable_popup_on_keypress=true_keyboard_redesign_google_sans=true_noshadow_overlay_builtin_dynamic_color_light_base.binarypb:gm3-light-fffaf8ff-ff475d92-6dac7c28fa7faa76f8370bbfdbc77981_silkpopup_unify_function_key_color=true, global_locale=en_US, global_density_dpi=420, global_orientation=1}, className=.latin.keyboard.LatinPasswordKeyboard, resourceIds=[#0x7f17065e, #0x7f1708dc, #0x7f17071c], initialStates=0, keyboardViewDefs=[kzt{direction=null, id=#0x7f0b0166, isScalable=true, layoutId=#0x7f0e0346, type=BODY, touchable=true, defaultShow=true}, kzt{direction=null, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e01db, type=FLOATING_CANDIDATES, touchable=false, defaultShow=false}, kzt{direction=LOCALE, id=#0x7f0b0166, isScalable=false, layoutId=#0x7f0e04d8, type=HEADER, touchable=true, defaultShow=true}], persistentStates=0, persistentStatesPrefKey=null, popupBubbleLayoutId=#0x7f0e05ce, recentKeyLayoutId=0, recentKeyPopupLayoutId=0, recentKeyType=null, rememberRecentKey=NONE, sessionStates=17592186044419}, type=WIDGET, helpersCreated=[kkl@536e53c, kkl@aa012c5, kkl@53e341a, null], context.getResources().getConfiguration(): {1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h866dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.37 fontWeightAdjustment=0}
+08-18 01:37:57.103  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.104  1454  1454 I AndroidIME: InputBundleManager.startInput():361 startInput() with kzp[keyboardType=prime, payload=null]
+08-18 01:37:57.104  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onDeactivate():104
+08-18 01:37:57.104  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.shutdown():122 shutdown()
+08-18 01:37:57.104  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onActivate():70
+08-18 01:37:57.106  1454  1454 I CrowdsourceExtension: CrowdsourceExtension.checkIfDefaultBrowserIsAllowed():109 Failed to get default browser. The default browser may be deactivated.
+08-18 01:37:57.106  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension.onActivate():186 Not activated NewLanguagePromptExtension: not a normal text input box.
+08-18 01:37:57.106  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.cancelShutdown():100 cancelShutdown()
+08-18 01:37:57.106  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.syncLanguagePacks():112 syncLanguagePacks()
+08-18 01:37:57.107  1454  1454 I VoiceInputManager: VoiceInputManager.onKeyboardActivated():1023 onKeyboardActivated() [UD]
+08-18 01:37:57.107  1454  1454 I AccessoryInputModeManager: AccessoryInputModeManager.onModeStarted():322 Accessory input mode started: null
+08-18 01:37:57.107  1454  1454 I ProactiveUndoTriggerExtension: ProactiveUndoTriggerExtension.eventConsumer$lambda$0():125 kyp{intention=null, keyCode=-10160, DEACTIVATE_SUPPLEMENTARY_KEYBOARD, data=accessory_candidates_consumer}
+08-18 01:37:57.107  1454  1454 W SupplementaryKeyboardsWrapper: SupplementaryKeyboardsWrapper.deactivateKeyboard():160 keyboard accessory_candidates_consumer is not activated before!
+08-18 01:37:57.108  1454  1454 I KeyboardModeUtils: KeyboardModeUtils.getKeyboardBottomOffset():437 inch: 0.000000 ydpi: 420.000000 adjustKeyboardBottomByDisplaySize: false currentDensityDpi: 420 defaultDensityDpi: 420 keyboardBottomToScreenPx: 0 keyboardBottomToNavBarPx: -126 navBarHeight: 126
+08-18 01:37:57.109  1454  1454 I ResizableKeyboardModeController: ResizableKeyboardModeController.getKeyboardBottomOffset():182 currentPrimeKeyboardType:SOFT keyboardBottomOffset:0 navBarHeight:126 isInLandscape:false
+08-18 01:37:57.109  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.109  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.109  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.109  1454  1454 W ExtensionWrapper: ExtensionWrapper.setExtensionViewVisibility():801 interface koa is not activate
+08-18 01:37:57.111  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:37:57.111  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020169, callback=cbb@5c9ceaa, lastModifier=2, keyCodes=[48], actions=[0]}
+08-18 01:37:57.112  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020169, callback=cbb@1618bb9, lastModifier=2, keyCodes=[48], actions=[0]}
+08-18 01:37:57.113  1454  1454 I VoiceImeExtension: VoiceImeExtension.shouldStartVoiceInputAutomaticallyInCurrentInputBox():469 No private IME option set to start voice input.
+08-18 01:37:57.114  1454  1454 I HardKeyTracker: HardKeyTracker.unregisterKeySequence():182 Unregister key sequence lsr{labelResId=2132020170, callback=cbb@7caa577, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:57.114  1454  1454 I HardKeyTracker: HardKeyTracker.registerKeySequence():138 Register key sequence lsr{labelResId=2132020170, callback=cbb@2289cd6, lastModifier=2, keyCodes=[32], actions=[0]}
+08-18 01:37:57.116  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.116  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.116  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notifyWithWindow():166
+08-18 01:37:57.116  1454  1454 I WindowMetricsNotification: WindowMetricsNotification.notify():159 mub[bounds=Rect(0, 132 - 1080, 2400), insets=Rect(0, 0 - 0, 126), densityDpi=420, smallestScreenWidthDp=411, displayWidth=1080, displayHeight=2400, xdpi=420.0, ydpi=420.0, isTrustable=true, displayId=0]; DisplayMetrics{density=2.625, width=1080, height=2400, scaledDensity=2.625, xdpi=420.0, ydpi=420.0}
+08-18 01:37:57.124  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=HEADER keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{f420f3 V.E...... ........ 0,0-1080,116}
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I GoogleInputMethodService: GoogleInputMethodService$1.onKeyboardViewShown():312 onKeyboardViewShown: keyboardType=prime, keyboardViewType=BODY keyboardView=com.google.android.libraries.inputmethod.widgets.SoftKeyboardView{fe4af22 V.E...... ........ 0,0-1080,641}
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I NewLanguagePromptExtension: NewLanguagePromptExtension$1.onKeyboardViewShown():86 Not show new language banner: not prime keyboard, or the extension not activated.
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.125  1454  1454 I KeyboardHeightUtil: KeyboardHeightUtil.calculateMaxKeyboardBodyHeight():46 leave 281 height for app when ime window height:2142, header height:116 and isFullscreenMode:false, so the max keyboard body height is:1745
+08-18 01:37:57.128  1454  5362 I SpeechFactory: SpeechRecognitionFactory.maybeScheduleAutoPackDownloadForFallback():161 maybeScheduleAutoPackDownloadForFallback()
+08-18 01:37:57.128  1454  5362 I FallbackOnDeviceRecognitionProvider: FallbackOnDeviceRecognitionProvider.maybeScheduleAutoPackDownload():198 maybeScheduleAutoPackDownload() for language tag en-US
+08-18 01:37:57.161   638   895 D WifiClientModeImpl[19878:wlan0]: updateLinkLayerStatsRssiSpeedFrequencyCapabilities rssi=-50 TxLinkspeed=1 freq=2447 RxLinkSpeed=2
+08-18 01:37:57.161   638   895 D WifiDataStall: tx tput in kbps: 11000
+08-18 01:37:57.161   638   895 D WifiDataStall: rx tput in kbps: 11000
+08-18 01:37:57.161   638   895 V WifiConfigManager: Updating scan detail cache freq=2447 BSSID=00:13:10:85:fe:01 RSSI=-50 for "AndroidWifi"NONE
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:37:57.161   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:37:57.161   638   895 D WifiScoreCard: BSSID update SIGNAL_POLL ID: 2053008787 SSID: "AndroidWifi", BSSID: 00:13:10:85:fe:01, MAC: 02:15:c2:00:00:00, IP: /10.0.2.18, Security type: 0, Supplicant state: COMPLETED, Wi-Fi standard: legacy, RSSI: -50, Link speed: 1Mbps, Tx Link speed: 1Mbps, Max Supported Tx Link speed: 11Mbps, Rx Link speed: 2Mbps, Max Supported Rx Link speed: 11Mbps, Frequency: 2447MHz, Net ID: 0, Metered hint: false, score: 60, isUsable: true, CarrierMerged: false, SubscriptionId: -1, IsPrimary: 1, Trusted: true, Restricted: false, Ephemeral: false, OEM paid: false, OEM private: false, OSU AP: false, FQDN: <none>, Provider friendly name: <none>, Requesting package name: <none>"AndroidWifi"openMLO Information: , Is TID-To-Link negotiation supported by the AP: false, AP MLD Address: <none>, AP MLO Link Id: <none>, AP MLO Affiliated links: <none>, Vendor Data: <none>
+08-18 01:37:57.161   638   895 D WifiScoreCard: txRate: 4 txSpeed: 1
+08-18 01:37:57.161   638   895 D WifiScoreCard: network update SIGNAL_POLL "AndroidWifi" ID: 1103574677 RSSI -50 txSpeed 1
+08-18 01:37:57.161   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$L2ConnectedState screen=on 1 0 "AndroidWifi" 00:13:10:85:fe:01 rssi=-50 f=2447 sc=60 link=1 tx=3.5, 0.0, 0.0 rx=2.3 bcn=0 [on:0 tx:0 rx:0 period:3007] from screen [on:0 period:278282025] score=60
+08-18 01:37:57.376   638  1065 I ImeTracker: system_server:489bb34e: onRequestHide at ORIGIN_SERVER reason IME_REQUESTED_CHANGED_LISTENER fromUser false
+08-18 01:37:57.379  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onFinishInputView():1524
+08-18 01:37:57.379  1454  1454 I GlobeKeyExtension: GlobeKeyExtension.onDeactivate():104
+08-18 01:37:57.380  1454  1454 I VoiceInputManagerWrapper: VoiceInputManagerWrapper.shutdown():122 shutdown()
+08-18 01:37:57.380  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id spell_check_add_to_dictionary not found in tooltipManager.
+08-18 01:37:57.380  1454  1454 I AndroidIME: AbstractIme.onDeactivate():203 PasswordIme.onDeactivate()
+08-18 01:37:57.380  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id undo_access_point_promotion_banner not found in tooltipManager.
+08-18 01:37:57.381  1454  1454 I ImeTracker: system_server:489bb34e: onHidden
+08-18 01:37:57.400   431   484 I netd    : tetherGetStats() -> {[]} <0.18ms>
+08-18 01:37:57.407   638   662 I ImeTracker: system_server:d25741c3: onRequestShow at ORIGIN_SERVER reason CONTROLS_CHANGED fromUser false
+08-18 01:37:57.408  3789  3789 I ImeTracker: system_server:d25741c3: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed App frame:UNKNOWN: 3, 3675852, 75039732, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:UNKNOWN: 3, 3675852, 75039732, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675889, 28967068, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675904, 7567069, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675919, 7815070, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675927, 5013820, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675935, 3921446, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675943, 6448530, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675951, 3569781, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675959, 5718990, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675967, 3357990, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675975, 8116741, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3675990, 4568075, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3676005, 4017867, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3676020, 5697076, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3676035, 4485452, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3676050, 3513953, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.434  3789  3789 W FrameTracker: Missed SF frame:JANK_COMPOSER, 3676065, 4398162, CUJ=J<IME_INSETS_HIDE_ANIMATION::1@1@jp.golia.mailrs>
+08-18 01:37:57.435  3789  3826 V PerfettoTrigger: Triggering /system/bin/trigger_perfetto com.android.telemetry.interaction-jank-monitor-81
+08-18 01:37:57.891  1454  1454 W TooltipLifecycleManager: TooltipLifecycleManager.dismissTooltips():154 Tooltip with id undo_access_point_promotion_banner not found in tooltipManager.
+08-18 01:37:57.894   638  1065 I ImeTracker: system_server:25f29518: onRequestHide at ORIGIN_SERVER reason IME_REQUESTED_CHANGED_LISTENER fromUser false
+08-18 01:37:57.896   638   661 I ImeTracker: system_server:25f29518: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-18 01:37:57.998   638  1755 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+08-18 01:37:58.015   494   601 D AudioFlinger: mixer(0xb400007aeb3b1770) throttle end: throttle time(34)
+08-18 01:37:58.119   638  1755 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+08-18 01:37:58.344   638  1755 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+08-18 01:37:58.453  3789  3839 D ProfileInstaller: Installing profile for jp.golia.mailrs
+08-18 01:37:58.484  1194  1194 D wpa_supplicant: nl80211: Drv Event 64 (NL80211_CMD_NOTIFY_CQM) received for wlan0
+08-18 01:37:58.484  1194  1194 D wpa_supplicant: nl80211: Beacon loss event
+08-18 01:37:58.484  1194  1194 D wpa_supplicant: wlan0: Event BEACON_LOSS (53) received
+08-18 01:37:58.484  1194  1194 I wpa_supplicant: wlan0: CTRL-EVENT-BEACON-LOSS
+08-18 01:37:58.756  1144  1391 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+08-18 01:37:59.595   638   652 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+08-18 01:38:00.165   638   895 D WifiClientModeImpl[19878:wlan0]: updateLinkLayerStatsRssiSpeedFrequencyCapabilities rssi=-50 TxLinkspeed=1 freq=2447 RxLinkSpeed=2
+08-18 01:38:00.165   638   895 D WifiDataStall: tx tput in kbps: 11000
+08-18 01:38:00.165   638   895 D WifiDataStall: rx tput in kbps: 11000
+08-18 01:38:00.165   638   895 V WifiConfigManager: Updating scan detail cache freq=2447 BSSID=00:13:10:85:fe:01 RSSI=-50 for "AndroidWifi"NONE
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  utilization (LLS) 80 isBluetoothConnected: false final utilization: 80
+08-18 01:38:00.165   638   895 D WifiThroughputPredictor:  BW: 0 RSSI: -50 Nss: 1 Mode: 1 symDur: 4000 snrDb 30 bitPerTone: 4500 rate: 54 throughput: 11
+08-18 01:38:00.165   638   895 D WifiScoreCard: BSSID update SIGNAL_POLL ID: 2053008787 SSID: "AndroidWifi", BSSID: 00:13:10:85:fe:01, MAC: 02:15:c2:00:00:00, IP: /10.0.2.18, Security type: 0, Supplicant state: COMPLETED, Wi-Fi standard: legacy, RSSI: -50, Link speed: 1Mbps, Tx Link speed: 1Mbps, Max Supported Tx Link speed: 11Mbps, Rx Link speed: 2Mbps, Max Supported Rx Link speed: 11Mbps, Frequency: 2447MHz, Net ID: 0, Metered hint: false, score: 60, isUsable: true, CarrierMerged: false, SubscriptionId: -1, IsPrimary: 1, Trusted: true, Restricted: false, Ephemeral: false, OEM paid: false, OEM private: false, OSU AP: false, FQDN: <none>, Provider friendly name: <none>, Requesting package name: <none>"AndroidWifi"openMLO Information: , Is TID-To-Link negotiation supported by the AP: false, AP MLD Address: <none>, AP MLO Link Id: <none>, AP MLO Affiliated links: <none>, Vendor Data: <none>
+08-18 01:38:00.165   638   895 D WifiScoreCard: txRate: 7 txSpeed: 1
+08-18 01:38:00.165   638   895 D WifiScoreCard: network update SIGNAL_POLL "AndroidWifi" ID: 1103574677 RSSI -50 txSpeed 1
+08-18 01:38:00.165   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$L2ConnectedState screen=on 1 0 "AndroidWifi" 00:13:10:85:fe:01 rssi=-50 f=2447 sc=60 link=1 tx=6.3, 0.0, 0.0 rx=5.0 bcn=0 [on:0 tx:0 rx:0 period:3004] from screen [on:0 period:278285029] score=60
+08-18 01:38:00.249   431   484 I netd    : tetherGetStats() -> {[]} <0.46ms>
+08-18 01:38:00.445   638  1755 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+08-18 01:38:00.593  1338  2509 I IPCThreadState: oneway function results for code 1 on binder at 0xb4000079400128c0 will be dropped but finished with status UNKNOWN_TRANSACTION and reply parcel size 80
+08-18 01:38:01.125   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+08-18 01:38:01.125   638   901 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+08-18 01:38:01.126   638   901 D InetDiagMessage: Destroyed live tcp sockets for uids={10107} in 1ms
+08-18 01:38:01.620   638   895 D WifiConfigStore: Writing to stores completed in 3 ms.
+08-18 01:38:02.381   638  1663 I system_server: AssetManager2(0xb4000078c00bbbd8) locale list changing from [] to [en-US]
+08-18 01:38:02.382   638  1663 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10351, packageName = null, attributionTag = null, token = android.os.Binder@33c18a5, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+08-18 01:38:02.388   983  1123 I ndroid.systemui: AssetManager2(0xb4000078c0045938) locale list changing from [] to [en-US]
+08-18 01:38:02.390   498   535 I BpBinder: onLastStrongRef automatically unlinking death recipients:
+08-18 01:38:02.394   983  1124 D SplashScreenView: Build android.window.SplashScreenView{1ec3afc V.E...... ......ID 0,0-0,0}
+08-18 01:38:02.394   983  1124 D SplashScreenView: Icon: view: null drawable: null size: 0
+08-18 01:38:02.394   983  1124 D SplashScreenView: Branding: view: android.view.View{6761585 G.ED..... ......I. 0,0-0,0 #1020541 android:id/splashscreen_branding_view} drawable: null size w: 0 h: 0
+08-18 01:38:02.396   638   661 V GrammaticalInflectionUtils: AttributionSource: AttributionSource { uid = 10351, packageName = null, attributionTag = null, token = android.os.Binder@33c18a5, deviceId = 0, next = null } does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+08-18 01:38:02.397  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: PAUSED
+08-18 01:38:02.397  3789  3789 V ActivityScenario: Update currentActivityStage to PAUSED, currentActivity=jp.golia.mailrs.MainActivity@cf99995
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.400   638   661 W IPCThreadState: Sending oneway calls to frozen process.
+08-18 01:38:02.404  1568  1844 I AssistantForeground: (REDACTED) Get launcher package: %s
+08-18 01:38:02.405   434   434 D Zygote  : Forked child process 3840
+08-18 01:38:02.406   498   498 I BpBinder: onLastStrongRef automatically unlinking death recipients:
+08-18 01:38:02.408   638   750 I system_server: AssetManager2(0xb4000078c0082518) locale list changing from [] to [en-US]
+08-18 01:38:02.409   638   750 I system_server: AssetManager2(0xb4000078c00d96d8) locale list changing from [] to [en-US]
+08-18 01:38:02.412  3840  3840 I lia.mailrs.test: Late-enabling -Xcheck:jni
+08-18 01:38:02.416   431   484 I netd    : tetherGetStats() -> {[]} <0.18ms>
+08-18 01:38:02.426  3840  3840 I lia.mailrs.test: Using CollectorTypeCMC GC.
+08-18 01:38:02.432  3840  3840 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+08-18 01:38:02.435   504   523 I adbd    : jdwp connection from 3840
+08-18 01:38:02.478  3840  3840 D nativeloader: Configuring clns-9 for other apk /data/app/~~LGR8DVf9b1n6VayXTPt_Vw==/jp.golia.mailrs.test-_RUUah5_q-mMtPH5Z-5RoA==/base.apk. target_sdk_version=37, uses_libraries=, library_path=/data/app/~~LGR8DVf9b1n6VayXTPt_Vw==/jp.golia.mailrs.test-_RUUah5_q-mMtPH5Z-5RoA==/lib/arm64, permitted_path=/data:/mnt/expand:/data/user/0/jp.golia.mailrs.test
+08-18 01:38:02.481  3840  3840 I lia.mailrs.test: AssetManager2(0xb4000078c001a378) locale list changing from [] to [en-US]
+08-18 01:38:02.484  3840  3840 V GraphicsEnvironment: Currently set values for:
+08-18 01:38:02.484  3840  3840 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+08-18 01:38:02.484  3840  3840 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+08-18 01:38:02.484  3840  3840 V GraphicsEnvironment: jp.golia.mailrs.test is not listed in per-application setting
+08-18 01:38:02.484  3840  3840 V GraphicsEnvironment: ANGLE allowlist from config: com.dreamgames.royalmatch com.dts.freefiremax com.dxx.firenow com.gramgames.mergedragons com.ludo.king com.mojang.minecraftpe com.my.defense com.nintendo.zaka com.os.airforce com.playrix.fishdomdd.gplay io.teslatech.callbreak jp.konami.prospia net.peakgames.toonblast
+08-18 01:38:02.484  3840  3840 V GraphicsEnvironment: jp.golia.mailrs.test is not listed in ANGLE allowlist or settings, returning default
+08-18 01:38:02.486  3840  3840 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+08-18 01:38:02.490   455   503 I RanchuHwc: logCompositionFallbackIfChanged: layer 5821 CompositionType fallback from 3 to 1
+08-18 01:38:02.517  3840  3840 I lia.mailrs.test: AssetManager2(0xb4000078c001c2b8) locale list changing from [] to [en-US]
+08-18 01:38:02.529  3840  3840 E ashmem  : Pinning is deprecated since Android Q. Please use trim or other methods.
+08-18 01:38:02.555  3840  3840 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_UNSET
+08-18 01:38:02.569  3840  3840 W HWUI    : Unknown dataspace 0
+08-18 01:38:02.576  3840  3855 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+08-18 01:38:02.577  3840  3855 I EGL_emulation: Opening libGLESv2_emulation.so
+08-18 01:38:02.582  3840  3855 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+08-18 01:38:02.583  3840  3855 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+08-18 01:38:02.604   498   630 I BpBinder: onLastStrongRef automatically unlinking death recipients:
+08-18 01:38:02.612   498   629 W ServiceManagerCppClient: Permission failure: android.permission.ACCESS_SURFACE_FLINGER from uid=10351 pid=0
+08-18 01:38:02.612   498   629 D PermissionCache: checking android.permission.ACCESS_SURFACE_FLINGER for uid=10351 => denied (130 us)
+08-18 01:38:02.613   498   629 W ServiceManagerCppClient: Permission failure: android.permission.ROTATE_SURFACE_FLINGER from uid=10351 pid=0
+08-18 01:38:02.613   498   629 D PermissionCache: checking android.permission.ROTATE_SURFACE_FLINGER for uid=10351 => denied (524 us)
+08-18 01:38:02.613   498   629 W ServiceManagerCppClient: Permission failure: android.permission.INTERNAL_SYSTEM_WINDOW from uid=10351 pid=0
+08-18 01:38:02.613   498   629 D PermissionCache: checking android.permission.INTERNAL_SYSTEM_WINDOW for uid=10351 => denied (213 us)
+08-18 01:38:02.633   638  1065 W ServiceManagerCppClient: Permission failure: android.permission.ACCESS_SURFACE_FLINGER from uid=10351 pid=0
+08-18 01:38:02.633   638  1065 D PermissionCache: checking android.permission.ACCESS_SURFACE_FLINGER for uid=10351 => denied (485 us)
+08-18 01:38:02.633   638  1065 W ServiceManagerCppClient: Permission failure: android.permission.ROTATE_SURFACE_FLINGER from uid=10351 pid=0
+08-18 01:38:02.633   638  1065 D PermissionCache: checking android.permission.ROTATE_SURFACE_FLINGER for uid=10351 => denied (42 us)
+08-18 01:38:02.633   638  1065 W ServiceManagerCppClient: Permission failure: android.permission.INTERNAL_SYSTEM_WINDOW from uid=10351 pid=0
+08-18 01:38:02.633   638  1065 D PermissionCache: checking android.permission.INTERNAL_SYSTEM_WINDOW for uid=10351 => denied (17 us)
+08-18 01:38:02.635 19153 19153 D ViewRootImpl: Skipping stats log for color mode
+08-18 01:38:02.637 19153 19153 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.
+08-18 01:38:02.637 19153 19153 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+08-18 01:38:02.649  1568  1840 I AssistantForeground: (REDACTED) Get launcher package: %s
+08-18 01:38:02.652   983   983 I ndroid.systemui: AssetManager2(0xb4000078c005a158) locale list changing from [] to [en-US]
+08-18 01:38:02.679  3789  3789 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=androidx.navigationevent.OnBackInvokedInput$createOnBackAnimationCallback$1@43d559d
+08-18 01:38:02.684  1338  3516 I DiscoveryManager: Filter criteria(96084372) scannerFlags(0)
+08-18 01:38:02.686  1338  3516 W DatabaseProcessor: processLocalDevices: failed to get the network info with non-null networkId.
+08-18 01:38:02.686  3789  3789 I AutofillManager: onInvisibleForAutofill(): expiringResponse
+08-18 01:38:02.686  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: STOPPED
+08-18 01:38:02.687  3789  3789 V ActivityScenario: Update currentActivityStage to STOPPED, currentActivity=jp.golia.mailrs.MainActivity@cf99995
+08-18 01:38:02.688  1338  1338 I CastMediaRouteProvider: Published 0 routes
+08-18 01:38:02.706   638   749 I ImeTracker: com.google.android.apps.photos:ef7de991: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+08-18 01:38:02.707   455   503 I RanchuHwc: logCompositionFallbackIfChanged: layer 5824 CompositionType fallback from 3 to 1
+08-18 01:38:02.716  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2043
+08-18 01:38:02.716  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+08-18 01:38:02.716  1454  1454 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1293 onStartInput(EditorInfo{EditorInfo{packageName=com.google.android.apps.photos, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+08-18 01:38:02.716  1454  1454 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+08-18 01:38:02.717 19153 19153 D InsetsController: hide(ime(), fromIme=false)
+08-18 01:38:02.717 19153 19153 I ImeTracker: com.google.android.apps.photos:ef7de991: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+08-18 01:38:02.718  3789  3789 D AutofillManager: onActivityFinishing(): calling cancelLocked()
+08-18 01:38:02.719  3789  3789 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.app.Activity$$ExternalSyntheticLambda0@fb12a4f
+08-18 01:38:02.719  3789  3789 D LifecycleMonitor: Lifecycle status change: jp.golia.mailrs.MainActivity@cf99995 in: DESTROYED
+08-18 01:38:02.719  3789  3789 V ActivityScenario: Update currentActivityStage to DESTROYED, currentActivity=null
+08-18 01:38:02.720   638   652 I ImeTracker: system_server:a0410499: onRequestHide at ORIGIN_SERVER reason IME_REQUESTED_CHANGED_LISTENER fromUser false
+08-18 01:38:02.720   638   661 I ImeTracker: system_server:a0410499: onCancelled at PHASE_SERVER_SHOULD_HIDE
+08-18 01:38:02.721  3789  3808 D IdlingRegistry: Unregistering idling resources: [androidx.compose.ui.test.EspressoLink@13a91ee]
+08-18 01:38:02.725   455   503 I RanchuHwc: logCompositionFallbackIfChanged: layer 5825 CompositionType fallback from 2 to 1
+08-18 01:38:02.744  3789  3810 D HWUI    : endAllActiveAnimators on 0xb40000781003ceb0 (UnprojectedRipple) with handle 0xb40000794004c970
+08-18 01:38:02.745  3789  3810 D HWUI    : endAllActiveAnimators on 0xb400007810030d90 (UnprojectedRipple) with handle 0xb400007940047d20
+08-18 01:38:02.746  3789  3789 D ViewRootImpl: Skipping stats log for color mode
+08-18 01:38:02.747   638  1065 I WifiService: acquireMulticastLock uid=10146 lockTag=MdnsServiceBrowserImpl
+08-18 01:38:02.748   638   904 I serviceDiscovery: [MdnsSocketProvider] Start monitoring sockets.
+08-18 01:38:02.748   638   904 I TetheringManager: registerTetheringEventCallback caller:android
+08-18 01:38:02.748   638   904 I serviceDiscovery: [MdnsDiscoveryManager] Registering listener for serviceType: _googlecast._tcp.local
+08-18 01:38:02.748   638   904 I serviceDiscovery: [MdnsDiscoveryManager] Registering listener for serviceType: _googlecast._tcp.local
+08-18 01:38:02.749  1251  1251 D RecentsView: onTaskRemoved: 1095, not handling task stack changes
+08-18 01:38:02.749  1251  1251 D RecentsView: onTaskRemoved: 1095, not handling task stack changes
+08-18 01:38:02.750  1086  1225 D IpClient.wlan0: set max DTIM multiplier to 1
+08-18 01:38:02.750   638   895 D WifiVendorHal: installPacketFilter filter length 1598
+08-18 01:38:02.750   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$ConnectableState screen=on len=1598
+08-18 01:38:02.750   638   895 E WifiStaIfaceAidlImpl: setDtimMultiplier failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+08-18 01:38:02.750   638   895 D WifiClientModeImpl: Set maximum DTIM Multiplier to 1 FAIL
+08-18 01:38:02.750   638   895 D WifiClientModeImpl[19878:wlan0]:  ClientModeImpl$ConnectableState screen=on maximum multiplier=1
+08-18 01:38:02.751   638   901 D ConnectivityService: NetReassign [no changes] [c 0] [a 0] [i 0]
+08-18 01:38:02.752   638   904 I WifiService: acquireMulticastLock uid=1000 lockTag=NsdService
+08-18 01:38:02.753  3789  3808 I TestRunner: finished: the_operator_lists_load_and_a_delete_names_its_row(jp.golia.mailrs.MailFlowTest)

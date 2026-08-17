@@ -317,6 +317,61 @@ class MailrsClient(private val store: TokenStore) {
     /** One file on its way out: a name, a type, and a body to stream. */
     data class Upload(val filename: String, val body: RequestBody)
 
+    // ── Operator ────────────────────────────────────────────────────
+
+    suspend fun accounts(): Outcome<List<Admin.Account>> =
+        one(get("/api/admin/accounts"), Admin.AccountList.serializer()).map { it.items }
+
+    suspend fun aliases(): Outcome<List<Admin.Alias>> =
+        one(get("/api/admin/aliases"), Admin.AliasList.serializer()).map { it.items }
+
+    suspend fun domains(): Outcome<List<Admin.Domain>> =
+        one(get("/api/admin/domains"), Admin.DomainList.serializer()).map { it.items }
+
+    suspend fun addAlias(req: Admin.AddAliasRequest): Outcome<String> = post(
+        url("/api/admin/aliases"),
+        json.encodeToString(Admin.AddAliasRequest.serializer(), req),
+        authorized = true,
+    )
+
+    suspend fun deleteAlias(id: Long): Outcome<String> = delete("/api/admin/aliases/$id")
+
+    suspend fun addDomain(name: String): Outcome<String> = post(
+        url("/api/admin/domains"),
+        json.encodeToString(Admin.AddDomainRequest.serializer(), Admin.AddDomainRequest(name)),
+        authorized = true,
+    )
+
+    suspend fun deleteDomain(name: String): Outcome<String> = delete("/api/admin/domains/" + enc(name))
+
+    private suspend fun delete(path: String): Outcome<String> = withContext(Dispatchers.IO) {
+        val s = session ?: return@withContext Outcome.Err("Not signed in.")
+        send(
+            Request.Builder()
+                .url(s.server + path)
+                .header("Authorization", "Bearer ${s.token}")
+                .delete()
+                .build(),
+        )
+    }
+
+    /** Decode one object, where [decode] decodes an array of them. */
+    private fun <T> one(
+        r: Outcome<String>,
+        serializer: kotlinx.serialization.KSerializer<T>,
+    ): Outcome<T> = when (r) {
+        is Outcome.Ok -> runCatching { json.decodeFromString(serializer, r.value) }.fold(
+            onSuccess = { Outcome.Ok(it) },
+            onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
+        )
+        is Outcome.Err -> r
+    }
+
+    private fun <T, R> Outcome<T>.map(f: (T) -> R): Outcome<R> = when (this) {
+        is Outcome.Ok -> Outcome.Ok(f(value))
+        is Outcome.Err -> this
+    }
+
     private fun <T> decode(
         r: Outcome<String>,
         element: kotlinx.serialization.KSerializer<T>,

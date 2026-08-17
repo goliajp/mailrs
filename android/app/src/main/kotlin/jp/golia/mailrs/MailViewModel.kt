@@ -3,6 +3,7 @@ package jp.golia.mailrs
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
@@ -608,6 +609,60 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(suggestions = emptyList(), suggestingFor = null)
     }
 
+    /**
+     * Open an operator list and fetch it.
+     *
+     * Fetched every time rather than cached: these are answers about
+     * what the server is configured to do right now, and a stale one
+     * read as current is how an operator concludes a change did not
+     * take.
+     */
+    fun openAdmin(section: AdminSection) {
+        _state.value = _state.value.copy(adminOpen = section, busy = true, error = null)
+        viewModelScope.launch {
+            _state.value = when (section) {
+                AdminSection.Accounts -> when (val r = client.accounts()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, accounts = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Aliases -> when (val r = client.aliases()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, aliases = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Domains -> when (val r = client.domains()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, domains = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+            }
+        }
+    }
+
+    fun closeAdmin() {
+        _state.value = _state.value.copy(adminOpen = null)
+    }
+
+    /**
+     * Remove one row, and re-read the list.
+     *
+     * Re-read rather than removed locally: the server decides whether a
+     * delete took, and a row that disappeared from the screen while the
+     * request failed is the operator believing a thing is gone.
+     */
+    fun deleteAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.AdminRow) {
+        viewModelScope.launch {
+            val r = when (section) {
+                AdminSection.Aliases -> client.deleteAlias(row.key.toLongOrNull() ?: return@launch)
+                AdminSection.Domains -> client.deleteDomain(row.key)
+                AdminSection.Accounts -> return@launch
+            }
+            if (r is MailrsClient.Outcome.Err) {
+                _state.value = _state.value.copy(error = r.message)
+                return@launch
+            }
+            openAdmin(section)
+        }
+    }
+
     /** Open and close the settings screen. */
     fun openSettings() {
         _state.value = _state.value.copy(settingsOpen = true, selected = emptySet())
@@ -707,6 +762,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val draftsOpen: Boolean = false,
         /** A draft was just saved; the list screen says so once. */
         val draftSaved: Boolean = false,
+        /** The operator list showing, if any, and what it holds. */
+        val adminOpen: AdminSection? = null,
+        val accounts: List<Admin.Account> = emptyList(),
+        val aliases: List<Admin.Alias> = emptyList(),
+        val domains: List<Admin.Domain> = emptyList(),
         /** Whether the settings screen is showing. */
         val settingsOpen: Boolean = false,
         /** Light, dark, or the phone's own answer. */
@@ -723,6 +783,52 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         /** Where each message's unsubscribe has got to, by uid. */
         val unsubscribing: Map<Int, Unsubscribing> = emptyMap(),
     )
+
+    /**
+     * An operator list, and how to read it.
+     *
+     * The rows come out of state rather than being fetched by the
+     * screen, so the one place that knows what a row says is the same
+     * place that knows what deleting one names.
+     */
+    enum class AdminSection(val title: String, val emptyMessage: String) {
+        Accounts("Accounts", "No accounts on this server."),
+        Aliases("Aliases", "Nothing forwards anywhere."),
+        Domains("Domains", "This server answers for no domain.");
+
+        fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
+            // Not deletable here: removing an account takes its mail
+            // with it, and a delete button beside a list is not where
+            // that decision belongs.
+            Accounts -> state.accounts.map {
+                jp.golia.mailrs.ui.AdminRow(
+                    key = it.address,
+                    headline = it.address,
+                    detail = listOfNotNull(
+                        it.displayName.takeIf(String::isNotBlank),
+                        if (it.active) null else "inactive",
+                    ).joinToString(" · "),
+                    deletable = false,
+                )
+            }
+            Aliases -> state.aliases.map {
+                jp.golia.mailrs.ui.AdminRow(
+                    key = it.id.toString(),
+                    headline = it.sourceAddress + " → " + it.targetAddress,
+                    detail = it.aliasType,
+                    deletable = true,
+                )
+            }
+            Domains -> state.domains.map {
+                jp.golia.mailrs.ui.AdminRow(
+                    key = it.name,
+                    headline = it.name,
+                    detail = "",
+                    deletable = true,
+                )
+            }
+        }
+    }
 
     /** Which recipient line a suggestion belongs to. */
     enum class RecipientField { To, Cc, Bcc }
