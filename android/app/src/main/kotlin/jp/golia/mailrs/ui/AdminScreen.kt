@@ -21,6 +21,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,8 +59,35 @@ import jp.golia.mailrs.MailViewModel
 @Composable
 fun AdminScreen(section: MailViewModel.AdminSection, state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
+    val fields = vm.addFields(section)
+    var adding by remember { mutableStateOf(false) }
+
+    if (adding) {
+        AddRowDialog(
+            title = section.title,
+            fields = fields,
+            onDismiss = { adding = false },
+            onConfirm = { values ->
+                adding = false
+                vm.addAdminRow(section, values)
+            },
+        )
+    }
+
     Scaffold(
         containerColor = theme.bg,
+        floatingActionButton = {
+            if (fields.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = { adding = true },
+                    containerColor = theme.accent,
+                    contentColor = theme.accentFg,
+                    modifier = Modifier.testTag("button.addAdminRow"),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add")
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(section.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
@@ -104,6 +141,57 @@ fun AdminScreen(section: MailViewModel.AdminSection, state: MailViewModel.UiStat
             }
         }
     }
+}
+
+/**
+ * The form for a new row.
+ *
+ * An `AlertDialog`, which is Android's shape for a short interruption
+ * with a decision at the end of it, rather than another screen: two
+ * fields do not deserve a navigation.
+ */
+@Composable
+private fun AddRowDialog(
+    title: String,
+    fields: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+    val theme = LocalTheme.current
+    val values = remember(fields) { mutableStateListOf(*Array(fields.size) { "" }) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = theme.surface,
+        title = { Text("New ${title.trimEnd('s').lowercase()}", fontSize = 16.sp, color = theme.fg) },
+        text = {
+            Column {
+                fields.forEachIndexed { i, label ->
+                    OutlinedTextField(
+                        value = values[i],
+                        onValueChange = { values[i] = it },
+                        label = { Text(label, fontSize = 13.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("field.admin$i"),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                // Every field, not just the first: a half-filled form
+                // that the server answers 400 to is a worse answer than
+                // a button that has not lit up yet.
+                enabled = values.all { it.isNotBlank() },
+                onClick = { onConfirm(values.toList()) },
+                modifier = Modifier.testTag("button.confirmAdmin"),
+            ) {
+                Text("Add", color = theme.accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = theme.fgSecondary) }
+        },
+    )
 }
 
 /**
