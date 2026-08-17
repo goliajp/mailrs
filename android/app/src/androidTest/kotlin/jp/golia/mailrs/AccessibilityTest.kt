@@ -1,6 +1,7 @@
 package jp.golia.mailrs
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
