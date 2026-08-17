@@ -117,6 +117,13 @@ class MainActivity : ComponentActivity() {
      * in a draft, so leaving still saves it.
      */
     private fun actOn(vm: MailViewModel, intent: Intent?) {
+        // A tapped notification, which arrives as an ordinary launch
+        // carrying an extra rather than as an action of its own.
+        intent?.getStringExtra(NewMailWorker.EXTRA_THREAD_ID)?.let { threadId ->
+            intent.removeExtra(NewMailWorker.EXTRA_THREAD_ID)
+            vm.openThreadById(threadId)
+            return
+        }
         when (intent?.action) {
             Intent.ACTION_VIEW, Intent.ACTION_SENDTO -> {
                 val uri = intent.data?.toString() ?: return

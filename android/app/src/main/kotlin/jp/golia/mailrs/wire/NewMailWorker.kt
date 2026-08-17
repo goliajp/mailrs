@@ -61,12 +61,30 @@ class NewMailWorker(
 
         val arrived = NewMailRule.arrived(prefs.lastUnseen, count)
         prefs.lastUnseen = count
-        if (arrived != null) notify(applicationContext, NewMailRule.text(arrived))
+        if (arrived == null) return Result.success()
+
+        // **Who it is from and what it is about**, which is the whole
+        // difference between a notification worth reading on a lock
+        // screen and one that says only that something happened. One
+        // extra request, and only when something actually arrived.
+        val newest = (client.conversations(MailList.Inbox) as? MailrsClient.Outcome.Ok)
+            ?.value
+            ?.filter { it.unreadCount > 0 }
+            ?.maxByOrNull { it.lastDate }
+        notify(
+            context = applicationContext,
+            title = newest?.let { SenderIdentity.readableName(it.participants.firstOrNull().orEmpty()) }
+                ?: "Mailrs",
+            text = newest?.subject?.ifBlank { "(no subject)" } ?: NewMailRule.text(arrived),
+            summary = if (arrived > 1) NewMailRule.text(arrived) else null,
+            threadId = newest?.threadId,
+        )
         return Result.success()
     }
 
     companion object {
         const val CHANNEL_ID = "new-mail"
+        const val EXTRA_THREAD_ID = "mailrs_open_thread"
         const val NOTIFICATION_ID = 1
         private const val WORK_NAME = "new-mail-check"
 
@@ -89,7 +107,22 @@ class NewMailWorker(
                 ?.createNotificationChannel(channel)
         }
 
-        fun notify(context: Context, text: String) {
+        /**
+         * @param summary said only when more than one arrived — with a
+         *   single message the sender and subject are the whole story,
+         *   and "1 new message" underneath them is a line that adds
+         *   nothing.
+         * @param threadId what tapping opens. Null falls back to the
+         *   app, which is what a notification with no particular
+         *   message to show should do.
+         */
+        fun notify(
+            context: Context,
+            title: String,
+            text: String,
+            summary: String? = null,
+            threadId: String? = null,
+        ) {
             ensureChannel(context)
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
@@ -102,15 +135,32 @@ class NewMailWorker(
                 context,
                 0,
                 context.packageManager.getLaunchIntentForPackage(context.packageName)
-                    ?.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    ?.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    ?.putExtra(EXTRA_THREAD_ID, threadId),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             val note = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_notify_chat)
-                .setContentTitle("Mailrs")
+                .setContentTitle(title)
                 .setContentText(text)
+                .apply { if (summary != null) setSubText(summary) }
                 .setContentIntent(open)
                 .setAutoCancel(true)
+                .apply {
+                    // Filing from the shade, which is what a lock screen
+                    // is for: most arriving mail is read once and put
+                    // away, and making that two taps instead of five is
+                    // the point of the action.
+                    if (threadId != null) {
+                        addAction(
+                            NotificationCompat.Action.Builder(
+                                android.R.drawable.ic_menu_delete,
+                                "Archive",
+                                ArchiveFromNotification.intent(context, threadId),
+                            ).build(),
+                        )
+                    }
+                }
                 .build()
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, note)
         }

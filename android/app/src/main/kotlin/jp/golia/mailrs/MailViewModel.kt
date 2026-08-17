@@ -385,6 +385,26 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
 
 
+    /**
+     * Open a thread named by something outside the app — a tapped
+     * notification.
+     *
+     * The list is fetched first because a thread needs its row for the
+     * header, and the row is what the notification did not carry. If it
+     * is not there any more — read elsewhere, archived elsewhere — the
+     * inbox is what opens, which is the honest answer rather than an
+     * empty thread.
+     */
+    fun openThreadById(threadId: String) {
+        viewModelScope.launch {
+            val rows = client.conversations(_state.value.list)
+            if (rows is MailrsClient.Outcome.Ok) {
+                _state.value = _state.value.copy(conversations = rows.value)
+                rows.value.firstOrNull { it.threadId == threadId }?.let { open(it) }
+            }
+        }
+    }
+
     fun closeThread() {
         _state.value = _state.value.copy(open = null, messages = emptyList())
     }

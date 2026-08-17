@@ -53,6 +53,39 @@ class NewMailWorkerTest : GrantsNotifications() {
         assertEquals(0, active(context))
     }
 
+    /**
+     * The notification names the sender and the subject.
+     *
+     * "2 new messages" on a lock screen says only that something
+     * happened; "Alice Smith — Quarterly report" is the thing worth
+     * reading without unlocking. It costs one extra request, and only
+     * when something actually arrived.
+     */
+    @Test
+    fun the_notification_says_who_it_is_from_and_what_it_is_about() = runBlocking {
+        Prefs(context).lastUnseen = 1
+        TestListenableWorkerBuilder<NewMailWorker>(context).build().doWork()
+        assertTrue("nothing was posted", waitForNotification())
+
+        val posted = context.getSystemService(NotificationManager::class.java)
+            .activeNotifications
+            .first { it.id == NewMailWorker.NOTIFICATION_ID }
+            .notification
+        assertEquals(
+            "Alice Smith",
+            posted.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString(),
+        )
+        assertEquals(
+            "Quarterly report and the follow-up notes",
+            posted.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString(),
+        )
+        // And something to do with it without opening the app.
+        assertTrue(
+            "there was no Archive action",
+            posted.actions.orEmpty().any { it.title.toString() == "Archive" },
+        )
+    }
+
     /** A rise since the last check is what gets said out loud. */
     @Test
     fun a_rise_since_the_last_check_notifies() = runBlocking {
