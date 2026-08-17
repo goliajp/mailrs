@@ -52,6 +52,7 @@ async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
         .with_env_var("POSTGRES_PASSWORD", "test")
         .with_env_var("POSTGRES_DB", "mailrs_test")
         .with_env_var("POSTGRES_USER", "postgres")
+        .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
         .start()
         .await
         .expect("start pgvector");

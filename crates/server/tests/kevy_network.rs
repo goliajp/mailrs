@@ -69,6 +69,7 @@ async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) 
         .with_wait_for(WaitFor::message_on_stderr("starting:"))
         .with_exposed_port(6379.tcp())
         .with_copy_to("/etc/kevy/kevy.toml", b"[feed]\nenabled = true\n".to_vec())
+        .with_startup_timeout(mailrs_test_docker::STARTUP_TIMEOUT)
         .start()
         .await
         .expect("start kevy container");
