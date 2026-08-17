@@ -665,12 +665,100 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, groups = r.value)
                     is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
                 }
+                AdminSection.EmailGroups -> when (val r = client.emailGroups()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, emailGroups = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
             }
         }
     }
 
     fun closeAdmin() {
-        _state.value = _state.value.copy(adminOpen = null)
+        _state.value = _state.value.copy(adminOpen = null, adminDetail = null)
+    }
+
+    /**
+     * Open one group and read who is in it.
+     *
+     * Both kinds answer members under the same `members` key; only a
+     * permission group has grants, and asking for them on an email
+     * group would be a request that means nothing.
+     */
+    fun openAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.AdminRow) {
+        val id = row.key.toLongOrNull() ?: return
+        _state.value = _state.value.copy(
+            adminDetail = AdminDetail(section, id, row.headline),
+        )
+        viewModelScope.launch {
+            val members = when (section) {
+                AdminSection.EmailGroups -> client.emailGroupMembers(id)
+                AdminSection.Groups -> client.groupMembers(id)
+                else -> return@launch
+            }
+            val grants = if (section == AdminSection.Groups) {
+                client.groupPermissions(id)
+            } else {
+                MailrsClient.Outcome.Ok(emptyList())
+            }
+            val current = _state.value.adminDetail ?: return@launch
+            if (current.id != id) return@launch
+            _state.value = _state.value.copy(
+                adminDetail = current.copy(
+                    members = (members as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
+                    grants = (grants as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
+                    loading = false,
+                ),
+            )
+        }
+    }
+
+    fun closeAdminRow() {
+        _state.value = _state.value.copy(adminDetail = null)
+    }
+
+    /**
+     * Add or remove a member of an email group.
+     *
+     * Only email groups: a permission group's membership decides what
+     * somebody may do, and granting that from a phone list — with no
+     * confirmation and no record of why — is not an edit this offers.
+     */
+    fun addGroupMember(address: String) {
+        val detail = _state.value.adminDetail ?: return
+        if (detail.section != AdminSection.EmailGroups || address.isBlank()) return
+        viewModelScope.launch {
+            val r = client.addEmailGroupMember(detail.id, address.trim())
+            if (r is MailrsClient.Outcome.Err) {
+                _state.value = _state.value.copy(error = r.message)
+                return@launch
+            }
+            reloadDetail(detail)
+        }
+    }
+
+    fun removeGroupMember(address: String) {
+        val detail = _state.value.adminDetail ?: return
+        if (detail.section != AdminSection.EmailGroups) return
+        viewModelScope.launch {
+            val r = client.removeEmailGroupMember(detail.id, address)
+            if (r is MailrsClient.Outcome.Err) {
+                _state.value = _state.value.copy(error = r.message)
+                return@launch
+            }
+            reloadDetail(detail)
+        }
+    }
+
+    private suspend fun reloadDetail(detail: AdminDetail) {
+        val members = client.emailGroupMembers(detail.id)
+        val current = _state.value.adminDetail ?: return
+        if (current.id != detail.id) return
+        _state.value = _state.value.copy(
+            adminDetail = current.copy(
+                members = (members as? MailrsClient.Outcome.Ok)?.value.orEmpty(),
+                loading = false,
+            ),
+        )
     }
 
     /**
@@ -748,7 +836,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                 AdminSection.Blocked -> client.removeFromSenderList(allowed = false, address = row.key)
                 AdminSection.Accounts, AdminSection.Queue, AdminSection.Dmarc,
                 AdminSection.Audit, AdminSection.Suppressed,
-                AdminSection.Groups -> return@launch
+                AdminSection.Groups, AdminSection.EmailGroups -> return@launch
             }
             if (r is MailrsClient.Outcome.Err) {
                 _state.value = _state.value.copy(error = r.message)
@@ -891,6 +979,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val blockedSenders: List<String> = emptyList(),
         val suppressed: List<String> = emptyList(),
         val groups: List<Admin.Group> = emptyList(),
+        val emailGroups: List<Admin.EmailGroup> = emptyList(),
+        /** The group whose members are showing, if one is. */
+        val adminDetail: AdminDetail? = null,
         /** The raw message being read, if any. Null while it is on its way. */
         val sourceOpen: Boolean = false,
         val source: String? = null,
@@ -929,7 +1020,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         Allowed("Always allowed", "Nothing skips the filter."),
         Blocked("Always blocked", "Nothing is refused on sight."),
         Suppressed("Suppressed", "The sender is retrying everybody."),
-        Groups("Permission groups", "No groups are defined.");
+        Groups("Permission groups", "No groups are defined."),
+        EmailGroups("Email groups", "No distribution addresses.");
 
         fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
             // Not deletable here: removing an account takes its mail
@@ -1026,6 +1118,22 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                         g.description.takeIf(String::isNotBlank),
                     ).joinToString(" · "),
                     deletable = false,
+                    drillable = true,
+                )
+            }
+            EmailGroups -> state.emailGroups.map { g ->
+                jp.golia.mailrs.ui.AdminRow(
+                    key = g.id.toString(),
+                    // The address, not the name: mail is sent to the
+                    // address, and a list keyed on "Support" does not
+                    // tell an operator what to type.
+                    headline = g.address.ifBlank { g.name },
+                    detail = listOfNotNull(
+                        g.name.takeIf { it.isNotBlank() && it != g.address },
+                        g.description.takeIf(String::isNotBlank),
+                    ).joinToString(" · "),
+                    deletable = false,
+                    drillable = true,
                 )
             }
             Audit -> state.audit.map { e ->
@@ -1049,6 +1157,24 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
     /** How far a one-click unsubscribe has got. */
     enum class Unsubscribing { Working, Done, Failed }
+
+    /**
+     * One group, opened.
+     *
+     * A group is a list with a list inside it, and the inner one is the
+     * point: "Support" says nothing, "Support — lihao@golia.jp" is the
+     * answer somebody came for. `grants` is only populated for a
+     * permission group, where what it allows matters as much as who is
+     * in it.
+     */
+    data class AdminDetail(
+        val section: AdminSection,
+        val id: Long,
+        val title: String,
+        val members: List<String> = emptyList(),
+        val grants: List<String> = emptyList(),
+        val loading: Boolean = true,
+    )
 
     /** A downloaded attachment, waiting for the screen to hand it on. */
     data class OpenedFile(val file: java.io.File, val mimeType: String, val filename: String)

@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -134,7 +135,15 @@ fun AdminScreen(section: MailViewModel.AdminSection, state: MailViewModel.UiStat
 
                 else -> LazyColumn(Modifier.fillMaxSize().testTag("list.admin")) {
                     items(rows, key = { it.key }) { row ->
-                        AdminRow(row) { vm.deleteAdminRow(section, row) }
+                        AdminRow(
+                            row = row,
+                            onOpen = if (row.drillable) {
+                                { vm.openAdminRow(section, row) }
+                            } else {
+                                null
+                            },
+                            onDelete = { vm.deleteAdminRow(section, row) },
+                        )
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                     }
                 }
@@ -207,14 +216,17 @@ data class AdminRow(
     val headline: String,
     val detail: String,
     val deletable: Boolean,
+    /** Whether there is something inside it worth opening. */
+    val drillable: Boolean = false,
 )
 
 @Composable
-private fun AdminRow(row: AdminRow, onDelete: () -> Unit) {
+private fun AdminRow(row: AdminRow, onOpen: (() -> Unit)?, onDelete: () -> Unit) {
     val theme = LocalTheme.current
     Row(
         Modifier
             .fillMaxWidth()
+            .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier)
             .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)
             .testTag("row.admin"),
         verticalAlignment = Alignment.CenterVertically,

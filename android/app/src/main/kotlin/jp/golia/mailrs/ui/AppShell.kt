@@ -26,7 +26,7 @@ import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
-private enum class Screen { SignIn, List, Drafts, Settings, Admin, Thread, Source, Compose }
+private enum class Screen { SignIn, List, Drafts, Settings, Admin, GroupDetail, Thread, Source, Compose }
 
 /**
  * The app's one navigation decision, and the motion that goes with it.
@@ -62,6 +62,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
         // On top of whatever opened it, so cancelling returns there.
         state.composing != null -> Screen.Compose
         state.sourceOpen -> Screen.Source          // opened from a thread
+        state.adminDetail != null -> Screen.GroupDetail   // opened from an admin list
         state.adminOpen != null -> Screen.Admin    // opened from settings
         state.settingsOpen -> Screen.Settings
         state.draftsOpen -> Screen.Drafts
@@ -78,7 +79,8 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
     PredictiveBackHandler(
         enabled = screen == Screen.Thread || screen == Screen.Compose ||
             screen == Screen.Settings || screen == Screen.Drafts ||
-            screen == Screen.Admin || screen == Screen.Source,
+            screen == Screen.Admin || screen == Screen.Source ||
+            screen == Screen.GroupDetail,
     ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
@@ -90,6 +92,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                 Screen.Drafts -> vm.closeDrafts()
                 Screen.Admin -> vm.closeAdmin()
                 Screen.Source -> vm.closeSource()
+                Screen.GroupDetail -> vm.closeAdminRow()
                 else -> Unit
             }
         } catch (_: CancellationException) {
@@ -158,6 +161,9 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }
                     Screen.Source -> Box(peeled) { SourceScreen(state, vm) }
+                    Screen.GroupDetail -> Box(peeled) {
+                        state.adminDetail?.let { GroupDetailScreen(it, vm) }
+                    }
                     Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
                     Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
                     Screen.Admin -> Box(peeled) {

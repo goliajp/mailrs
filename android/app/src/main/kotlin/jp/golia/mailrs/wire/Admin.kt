@@ -174,6 +174,38 @@ object Admin {
     @Serializable
     data class GroupList(val items: List<Group> = emptyList())
 
+    /**
+     * A distribution address: mail to it reaches everyone in it.
+     *
+     * Backend: `crates/core-api/src/method/admin/directory.rs` —
+     * `EmailGroupWire`. Distinct from a **permission** group, which
+     * grants what somebody may do; the two share the word "group" and
+     * nothing else.
+     */
+    @Serializable
+    data class EmailGroup(
+        val id: Long,
+        val address: String = "",
+        val domain: String = "",
+        val name: String = "",
+        val description: String = "",
+        @SerialName("created_at") val createdAt: Long = 0,
+    )
+
+    @Serializable
+    data class EmailGroupList(val items: List<EmailGroup> = emptyList())
+
+    /** `{members: [...]}` — both group kinds answer with this key. */
+    @Serializable
+    data class MemberList(val members: List<String> = emptyList())
+
+    /** `{permissions: [...]}` — what a permission group grants. */
+    @Serializable
+    data class PermissionList(val permissions: List<String> = emptyList())
+
+    @Serializable
+    data class AddMemberRequest(@SerialName("member_address") val memberAddress: String)
+
     @Serializable
     data class AddAliasRequest(
         @SerialName("source_address") val sourceAddress: String,
