@@ -366,6 +366,14 @@ data class Draft(
     val replyToThreadId: String? = null,
     val serverId: Long? = null,
     /**
+     * The message being forwarded, by uid.
+     *
+     * Set only for a forward. The server re-extracts that message's
+     * attachments and sends them along, so what is passed on is what
+     * arrived rather than a copy this phone had to fetch first.
+     */
+    val forwardFrom: Int? = null,
+    /**
      * Files picked to go with it.
      *
      * In memory only, and deliberately: a server draft has nowhere

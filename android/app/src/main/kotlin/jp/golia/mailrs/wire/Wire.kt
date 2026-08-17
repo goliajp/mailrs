@@ -194,6 +194,15 @@ object Wire {
         val subject: String,
         val body: String,
         @SerialName("in_reply_to") val inReplyTo: String? = null,
+        /**
+         * The message being forwarded, by uid.
+         *
+         * The server re-extracts its attachments and carries them,
+         * which is the whole reason a forward does not have to
+         * download and re-upload what it is passing on — and the
+         * reason a phone can forward a message it has never opened.
+         */
+        @SerialName("forward_attachments_from") val forwardAttachmentsFrom: Int? = null,
     )
 
     /**

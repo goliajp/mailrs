@@ -150,6 +150,7 @@ class MailrsClient(private val store: TokenStore) {
         inReplyTo: String?,
         cc: List<String> = emptyList(),
         bcc: List<String> = emptyList(),
+        forwardAttachmentsFrom: Int? = null,
     ): Outcome<Unit> {
         val payload = json.encodeToString(
             Wire.SendRequest.serializer(),
@@ -160,6 +161,7 @@ class MailrsClient(private val store: TokenStore) {
                 subject = subject,
                 body = body,
                 inReplyTo = inReplyTo,
+                forwardAttachmentsFrom = forwardAttachmentsFrom,
             ),
         )
         return when (val r = post(url("/api/mail/send"), payload, authorized = true)) {

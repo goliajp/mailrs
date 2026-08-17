@@ -1176,6 +1176,10 @@ class H(BaseHTTPRequestHandler):
             SENT.append(record)
             self._send({"message_id": "<stub-multipart@golia.jp>", "success": True})
         elif self.path.startswith("/api/mail/send"):
+            # The body is recorded whole, `forward_attachments_from`
+            # included: a forward that dropped it would look identical
+            # on screen and arrive without the attachments it was
+            # forwarding.
             length = int(self.headers.get("Content-Length", "0"))
             if length:
                 try:
