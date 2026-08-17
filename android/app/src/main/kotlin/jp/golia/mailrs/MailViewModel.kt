@@ -645,6 +645,22 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, audit = r.value)
                     is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
                 }
+                AdminSection.AgentKeys -> when (val r = client.agentKeys()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, agentKeys = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Allowed -> when (val r = client.senderList(allowed = true)) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, allowedSenders = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Blocked -> when (val r = client.senderList(allowed = false)) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, blockedSenders = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
+                AdminSection.Suppressed -> when (val r = client.suppressions()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, suppressed = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
             }
         }
     }
@@ -664,6 +680,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun addFields(section: AdminSection): List<String> = when (section) {
         AdminSection.Aliases -> listOf("Source address", "Target address")
         AdminSection.Domains -> listOf("Domain name")
+        AdminSection.Allowed, AdminSection.Blocked -> listOf("Address")
         else -> emptyList()
     }
 
@@ -694,6 +711,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     if (name.isEmpty()) return@launch
                     client.addDomain(name)
                 }
+                AdminSection.Allowed, AdminSection.Blocked -> {
+                    val address = values.getOrElse(0) { "" }.trim()
+                    if (address.isEmpty()) return@launch
+                    client.addToSenderList(section == AdminSection.Allowed, address)
+                }
                 else -> return@launch
             }
             if (r is MailrsClient.Outcome.Err) {
@@ -716,8 +738,12 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             val r = when (section) {
                 AdminSection.Aliases -> client.deleteAlias(row.key.toLongOrNull() ?: return@launch)
                 AdminSection.Domains -> client.deleteDomain(row.key)
-                AdminSection.Accounts, AdminSection.Queue,
-                AdminSection.Dmarc, AdminSection.Audit -> return@launch
+                AdminSection.AgentKeys ->
+                    client.deleteAgentKey(row.key.toLongOrNull() ?: return@launch)
+                AdminSection.Allowed -> client.removeFromSenderList(allowed = true, address = row.key)
+                AdminSection.Blocked -> client.removeFromSenderList(allowed = false, address = row.key)
+                AdminSection.Accounts, AdminSection.Queue, AdminSection.Dmarc,
+                AdminSection.Audit, AdminSection.Suppressed -> return@launch
             }
             if (r is MailrsClient.Outcome.Err) {
                 _state.value = _state.value.copy(error = r.message)
@@ -834,6 +860,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val queue: List<Admin.QueueJob> = emptyList(),
         val dmarc: List<Admin.DmarcReport> = emptyList(),
         val audit: List<Admin.AuditEntry> = emptyList(),
+        val agentKeys: List<Admin.AgentKey> = emptyList(),
+        val allowedSenders: List<String> = emptyList(),
+        val blockedSenders: List<String> = emptyList(),
+        val suppressed: List<String> = emptyList(),
         /** Whether the settings screen is showing. */
         val settingsOpen: Boolean = false,
         /** Light, dark, or the phone's own answer. */
@@ -864,7 +894,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         Domains("Domains", "This server answers for no domain."),
         Queue("Queue", "Nothing waiting to go out."),
         Dmarc("DMARC", "No reports yet."),
-        Audit("Audit log", "Nothing has happened.");
+        Audit("Audit log", "Nothing has happened."),
+        AgentKeys("Agent keys", "No keys act as this account."),
+        Allowed("Always allowed", "Nothing skips the filter."),
+        Blocked("Always blocked", "Nothing is refused on sight."),
+        Suppressed("Suppressed", "The sender is retrying everybody.");
 
         fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
             // Not deletable here: removing an account takes its mail
@@ -926,6 +960,28 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     detail = "${r.passing}/${r.total} passing · p=${r.p}",
                     deletable = false,
                 )
+            }
+            AgentKeys -> state.agentKeys.map { k ->
+                jp.golia.mailrs.ui.AdminRow(
+                    key = k.id.toString(),
+                    headline = k.name.ifBlank { k.prefix },
+                    // The prefix and the scopes, because those are what
+                    // tell two keys apart when one has to be revoked.
+                    detail = (listOf(k.prefix) + k.scopes).joinToString(" · "),
+                    deletable = true,
+                )
+            }
+            Allowed -> state.allowedSenders.map {
+                jp.golia.mailrs.ui.AdminRow(key = it, headline = it, detail = "", deletable = true)
+            }
+            Blocked -> state.blockedSenders.map {
+                jp.golia.mailrs.ui.AdminRow(key = it, headline = it, detail = "", deletable = true)
+            }
+            // Not deletable one at a time: the endpoint clears the set,
+            // and a delete button that quietly emptied the list would be
+            // a different action wearing the same icon.
+            Suppressed -> state.suppressed.map {
+                jp.golia.mailrs.ui.AdminRow(key = it, headline = it, detail = "", deletable = false)
             }
             Audit -> state.audit.map { e ->
                 jp.golia.mailrs.ui.AdminRow(

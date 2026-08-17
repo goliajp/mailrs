@@ -149,6 +149,12 @@ def queue_jobs():
     ]
 SUPPRESSED = ["bounced@example.com", "closed@example.com"]
 
+# Per-user sender allow/block, as `spam_lists.rs` answers them:
+# `{"entries": [...]}`, not `{"items": [...]}` like the admin lists.
+# A client that reached for the wrong key would decode an empty list
+# and show an empty screen, which looks like "nothing is listed".
+SPAM_LISTS = {"whitelist": ["friend@example.com"], "blacklist": ["spammer@example.com"]}
+
 # Agent keys. The stored record has no secret in it — the server keeps
 # eight characters — so a client that expected one would decode nothing.
 AGENT_KEYS = [
@@ -522,6 +528,10 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/admin/queues":
             self._send({"items": queue_jobs()})
             return
+        spam_list = re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0])
+        if spam_list:
+            self._send({"entries": SPAM_LISTS[spam_list.group(1)]})
+            return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             self._send({"items": SUPPRESSED})
             return
@@ -719,6 +729,10 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             return
         WRITES.append("DELETE " + self.path.split("?")[0])
+        spam_list = re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0])
+        if spam_list:
+            self._send({"entries": SPAM_LISTS[spam_list.group(1)]})
+            return
         if self.path.split("?")[0] == "/api/admin/suppressions":
             SUPPRESSED.clear()
             self.send_response(204)
@@ -763,6 +777,14 @@ class H(BaseHTTPRequestHandler):
         if alias:
             wanted = int(alias.group(1))
             ALIASES[:] = [a for a in ALIASES if a["id"] != wanted]
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        spam_entry = re.match(r"^/api/spam/(whitelist|blacklist)/(.+)$", self.path.split("?")[0])
+        if spam_entry:
+            kind, address = spam_entry.group(1), unquote(spam_entry.group(2))
+            SPAM_LISTS[kind][:] = [a for a in SPAM_LISTS[kind] if a != address]
             self.send_response(204)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -997,6 +1019,14 @@ class H(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length)) if length else {}
             DOMAINS.append({"name": body.get("name", ""), "created_at": 1754400002})
+            self._send({"ok": True})
+        elif re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0]):
+            kind = re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0]).group(1)
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            address = body.get("address", "")
+            if address and address not in SPAM_LISTS[kind]:
+                SPAM_LISTS[kind].append(address)
             self._send({"ok": True})
         elif self.path.split("?")[0] == "/api/admin/aliases":
             length = int(self.headers.get("Content-Length", "0"))
