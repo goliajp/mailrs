@@ -661,6 +661,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                     is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, suppressed = r.value)
                     is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
                 }
+                AdminSection.Groups -> when (val r = client.groups()) {
+                    is MailrsClient.Outcome.Ok -> _state.value.copy(busy = false, groups = r.value)
+                    is MailrsClient.Outcome.Err -> _state.value.copy(busy = false, error = r.message)
+                }
             }
         }
     }
@@ -743,7 +747,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                 AdminSection.Allowed -> client.removeFromSenderList(allowed = true, address = row.key)
                 AdminSection.Blocked -> client.removeFromSenderList(allowed = false, address = row.key)
                 AdminSection.Accounts, AdminSection.Queue, AdminSection.Dmarc,
-                AdminSection.Audit, AdminSection.Suppressed -> return@launch
+                AdminSection.Audit, AdminSection.Suppressed,
+                AdminSection.Groups -> return@launch
             }
             if (r is MailrsClient.Outcome.Err) {
                 _state.value = _state.value.copy(error = r.message)
@@ -751,6 +756,27 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             }
             openAdmin(section)
         }
+    }
+
+    /**
+     * The message as it arrived, headers and all.
+     *
+     * What a mail server's operator reaches for when a message did not
+     * do what it should have: the Received chain, the auth results, the
+     * exact Content-Type. Nothing else in this app shows them.
+     */
+    fun viewSource(uid: Int) {
+        _state.value = _state.value.copy(sourceOpen = true, source = null, error = null)
+        viewModelScope.launch {
+            _state.value = when (val r = client.messageSource(uid)) {
+                is MailrsClient.Outcome.Ok -> _state.value.copy(source = r.value)
+                is MailrsClient.Outcome.Err -> _state.value.copy(sourceOpen = false, error = r.message)
+            }
+        }
+    }
+
+    fun closeSource() {
+        _state.value = _state.value.copy(sourceOpen = false, source = null)
     }
 
     /** Open and close the settings screen. */
@@ -864,6 +890,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val allowedSenders: List<String> = emptyList(),
         val blockedSenders: List<String> = emptyList(),
         val suppressed: List<String> = emptyList(),
+        val groups: List<Admin.Group> = emptyList(),
+        /** The raw message being read, if any. Null while it is on its way. */
+        val sourceOpen: Boolean = false,
+        val source: String? = null,
         /** Whether the settings screen is showing. */
         val settingsOpen: Boolean = false,
         /** Light, dark, or the phone's own answer. */
@@ -898,7 +928,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         AgentKeys("Agent keys", "No keys act as this account."),
         Allowed("Always allowed", "Nothing skips the filter."),
         Blocked("Always blocked", "Nothing is refused on sight."),
-        Suppressed("Suppressed", "The sender is retrying everybody.");
+        Suppressed("Suppressed", "The sender is retrying everybody."),
+        Groups("Permission groups", "No groups are defined.");
 
         fun rows(state: UiState): List<jp.golia.mailrs.ui.AdminRow> = when (this) {
             // Not deletable here: removing an account takes its mail
@@ -982,6 +1013,20 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
             // a different action wearing the same icon.
             Suppressed -> state.suppressed.map {
                 jp.golia.mailrs.ui.AdminRow(key = it, headline = it, detail = "", deletable = false)
+            }
+            Groups -> state.groups.map { g ->
+                jp.golia.mailrs.ui.AdminRow(
+                    key = g.id.toString(),
+                    headline = g.name,
+                    // A builtin is cross-domain and cannot be edited
+                    // away, so saying which is which is the first thing
+                    // an operator needs from this list.
+                    detail = listOfNotNull(
+                        if (g.isBuiltin) "built in" else g.domain,
+                        g.description.takeIf(String::isNotBlank),
+                    ).joinToString(" · "),
+                    deletable = false,
+                )
             }
             Audit -> state.audit.map { e ->
                 jp.golia.mailrs.ui.AdminRow(

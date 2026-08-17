@@ -337,6 +337,17 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun auditLog(): Outcome<List<Admin.AuditEntry>> =
         one(get("/api/admin/audit-log"), Admin.AuditList.serializer()).map { it.items }
 
+    /**
+     * `GET /api/mail/messages/{uid}/raw` — the message as it arrived.
+     *
+     * Answered as `message/rfc822`, not JSON. A client that decoded it
+     * would fail on a message that came back perfectly well.
+     */
+    suspend fun messageSource(uid: Int): Outcome<String> = get("/api/mail/messages/$uid/raw")
+
+    suspend fun groups(): Outcome<List<Admin.Group>> =
+        one(get("/api/admin/groups"), Admin.GroupList.serializer()).map { it.items }
+
     suspend fun agentKeys(): Outcome<List<Admin.AgentKey>> =
         one(get("/api/agent/keys"), Admin.AgentKeyList.serializer()).map { it.items }
 

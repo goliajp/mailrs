@@ -445,6 +445,24 @@ class H(BaseHTTPRequestHandler):
                     if term.lower() in c["subject"].lower() or term.lower() in c["snippet"].lower()]
             self._send(hits)
             return
+        raw = re.match(r"^/api/mail/messages/(\d+)/raw$", self.path.split("?")[0])
+        if raw:
+            # `message/rfc822`, as the handler answers — a client that
+            # expected JSON here would fail to decode a message that
+            # arrived perfectly well.
+            body = (
+                f"Return-Path: <alice@example.com>\r\n"
+                f"Received: from mx.example.com by mail.golia.jp;\r\n"
+                f"Message-ID: <m{raw.group(1)}@x>\r\n"
+                f"Subject: Quarterly report\r\n"
+                f"\r\nplain fallback\r\n"
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "message/rfc822")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         attachment = re.match(
             r"^/api/mail/messages/(\d+)/attachments/(\d+)$", self.path.split("?")[0]
         )

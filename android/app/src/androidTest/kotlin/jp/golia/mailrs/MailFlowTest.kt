@@ -900,6 +900,43 @@ class MailFlowTest {
         compose.onNodeWithText("mk_a1b2c · mail.send").assertIsDisplayed()
     }
 
+    /**
+     * The message as it arrived, headers and all.
+     *
+     * The Received chain and the authentication results are what an
+     * operator reaches for when a message did not do what it should
+     * have, and nothing else in this app shows them. The endpoint
+     * answers `message/rfc822`, not JSON — a client that decoded it
+     * would fail on a message that came back perfectly well — so the
+     * assertion is on a header line being on screen.
+     */
+    @Test
+    fun a_message_can_be_read_as_it_arrived() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        tapWhenSteady("button.viewSource", 0)
+        waitForTag("text.source", "the source never arrived")
+        compose.onNodeWithTag("text.source").assertTextContains("Received:", substring = true)
+    }
+
+    /** Permission groups say which are built in, which is the first thing to know. */
+    @Test
+    fun permission_groups_say_which_are_built_in() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        compose.onNodeWithTag("admin.Groups").performScrollTo().performClick()
+        waitForTag("list.admin", "the groups never listed")
+
+        compose.onNodeWithText("Administrators").assertIsDisplayed()
+        compose.onNodeWithText("built in").assertIsDisplayed()
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
