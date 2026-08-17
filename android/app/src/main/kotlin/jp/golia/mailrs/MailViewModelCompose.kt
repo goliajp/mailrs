@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
@@ -235,7 +236,10 @@ fun MailViewModel.send() {
             client.send(
                 recipients,
                 draft.subject,
-                draft.body,
+                // Signed on the way out, not in the composer: what
+                // was typed is what is shown, and a reply that already
+                // carries a separator is left alone.
+                MailSignature.append(draft.body, _state.value.signature),
                 draft.inReplyTo,
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
@@ -246,7 +250,7 @@ fun MailViewModel.send() {
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
                 subject = draft.subject,
-                body = draft.body,
+                body = MailSignature.append(draft.body, _state.value.signature),
                 inReplyTo = draft.inReplyTo,
                 attachments = draft.attachments.map { a ->
                     MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))

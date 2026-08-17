@@ -649,6 +649,18 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/agent/keys":
             self._send({"items": AGENT_KEYS})
             return
+        if self.path.split("?")[0] == "/api/mail/signatures":
+            # A bare array, as `list_signatures` answers it. Two of
+            # them, because the client has to pick the default rather
+            # than the first — and a single-signature fixture cannot
+            # tell those apart.
+            self._send([
+                {"id": 1, "name": "Short", "html": "", "text_content": "Sent from a phone",
+                 "is_default": False, "created_at": ""},
+                {"id": 2, "name": "Work", "html": "", "text_content": "Li Hao\nGOLIA",
+                 "is_default": True, "created_at": ""},
+            ])
+            return
         if self.path.split("?")[0] == "/api/mail/drafts":
             # The delay covers drafts too: the sheet's spinner is only
             # observable while the request is out, and without it the

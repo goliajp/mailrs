@@ -9,6 +9,7 @@ import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailCache
 import jp.golia.mailrs.wire.MailList
+import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.MailListAxes
 import jp.golia.mailrs.wire.messageSource
 import jp.golia.mailrs.wire.MailrsClient
@@ -44,7 +45,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     internal var nextDraftId = 1
     internal var pending: PendingTriage? = null
     internal var undoToken = 0
-    private var searchToken = 0
+    internal var searchToken = 0
     internal var contactToken = 0
 
     /** Set only by `useFolderForTest`; null in every shipped build. */
@@ -82,8 +83,12 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     )
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+
     init {
-        if (client.session != null) refresh()
+        if (client.session != null) {
+            refresh()
+            loadSignature()
+        }
     }
 
     fun signIn(server: String, username: String, password: String) {
@@ -97,6 +102,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
                         server = client.session?.server.orEmpty(),
                     )
                     refresh()
+                    loadSignature()
                 }
                 is MailrsClient.Outcome.Err ->
                     _state.value = _state.value.copy(busy = false, error = r.message)
@@ -310,34 +316,6 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     /** The screen has handed it to another app; stop offering it. */
 
 
-    /**
-     * Search, with the server's ranking left alone.
-     *
-     * An empty term is not a search — it clears back to the inbox rather
-     * than asking the server to rank everything.
-     */
-    fun search(term: String) {
-        searchToken++
-        val token = searchToken
-        if (term.isBlank()) {
-            _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
-            return
-        }
-        _state.value = _state.value.copy(searchTerm = term, searching = true, error = null)
-        viewModelScope.launch {
-            val r = client.search(term, _state.value.list)
-            // A slower earlier search must not overwrite a later one —
-            // typing "ref" then "ref 2026" would otherwise settle on
-            // whichever request the network happened to finish last.
-            if (token != searchToken) return@launch
-            _state.value = when (r) {
-                is MailrsClient.Outcome.Ok ->
-                    _state.value.copy(results = r.value, searching = false)
-                is MailrsClient.Outcome.Err ->
-                    _state.value.copy(searching = false, error = r.message)
-            }
-        }
-    }
 
 
 
@@ -433,33 +411,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(appearance = appearance)
     }
 
-    /**
-     * The launcher's Search shortcut.
-     *
-     * State rather than a call into the screen: the shortcut can arrive
-     * before the list is composed, and a flag the list reads when it
-     * appears cannot be missed by arriving early.
-     */
-    fun openSearchFromShortcut() {
-        _state.value = _state.value.copy(
-            openSearch = true,
-            open = null,
-            composing = null,
-            settingsOpen = false,
-            draftsOpen = false,
-            adminOpen = null,
-        )
-    }
 
-    fun searchOpened() {
-        if (!_state.value.openSearch) return
-        _state.value = _state.value.copy(openSearch = false)
-    }
 
-    fun clearSearch() {
-        searchToken++
-        _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
-    }
 
     /** Put the row back and forget the action. Nothing was ever sent. */
 

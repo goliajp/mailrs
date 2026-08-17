@@ -133,6 +133,11 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun unseenCount(): Outcome<Int> =
         one(get("/api/conversations/unseen-count"), Wire.UnseenCount.serializer()).map { it.count }
 
+    suspend fun signatures(): Outcome<List<Wire.Signature>> = decode(
+        get("/api/mail/signatures"),
+        Wire.Signature.serializer(),
+    )
+
     suspend fun thread(threadId: String): Outcome<List<Wire.Message>> = decode(
         get("/api/conversations/${enc(threadId)}"),
         Wire.Message.serializer(),
