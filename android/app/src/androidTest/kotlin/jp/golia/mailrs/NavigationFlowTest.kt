@@ -448,4 +448,33 @@ class NavigationFlowTest : MailrsUiTest() {
                 .fetchSemanticsNodes().isNotEmpty()
         }
     }
+
+    /**
+     * An expired session sends you back to sign in.
+     *
+     * The server can stop accepting a token at any moment — it expires,
+     * or an operator revokes it. Until this, a 401 became a sentence
+     * and nothing else: the app went on believing it was signed in,
+     * every refresh failed with the same words, and the only way out
+     * was to find Sign out in Settings.
+     */
+    @Test
+    fun a_rejected_session_returns_to_sign_in() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        java.net.URL(stubBase() + "/debug/reject-session").openConnection()
+            .let { it as java.net.HttpURLConnection }
+            .apply { requestMethod = "POST" }
+            .inputStream.use { it.readBytes() }
+
+        compose.onNodeWithTag("button.refresh").performClick()
+
+        waitForTag("field.address", "a rejected session did not return to sign in")
+        // Scrolled to, because the sign-in screen puts its error under
+        // the fields and a short phone shows the fields first.
+        waitForTag("text.signInError", "the sign-in screen did not say why")
+        compose.onNodeWithTag("text.signInError")
+            .assertTextContains("rejected this session", substring = true)
+    }
 }

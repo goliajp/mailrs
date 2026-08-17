@@ -85,6 +85,24 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
 
     init {
+        // The server can stop accepting a session at any moment — a
+        // token expires, an operator revokes it. Until this, the app
+        // went on believing it was signed in and every request failed
+        // with the same sentence.
+        client.onSessionRejected = {
+            // No message here on purpose. The request that hit the 401
+            // writes its own — "Signed out — the server rejected this
+            // session." — onto this reset state a moment later, and a
+            // message set here would be overwritten by it. One owner
+            // for the wording; this one owns the state.
+            _state.value = UiState(
+                appearance = prefs.appearance,
+                notifyNewMail = prefs.notifyNewMail,
+            )
+            cache.clear()
+            WidgetState.clear(getApplication())
+        }
+
         if (client.session != null) {
             refresh()
             loadSignature()
