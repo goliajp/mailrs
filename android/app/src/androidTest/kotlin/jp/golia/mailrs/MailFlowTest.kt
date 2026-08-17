@@ -646,6 +646,48 @@ class MailFlowTest {
         waitForTag("field.address", "signing out did not return to sign-in")
     }
 
+    /**
+     * Leaving the composer keeps what was written, and editing it again
+     * updates the same draft.
+     *
+     * Both halves matter and the second is invisible on screen: a save
+     * that dropped the id would leave a new draft behind on every edit,
+     * and the list would look plausible while filling up with copies of
+     * one message. `/debug/draft-posts` records the id each POST carried
+     * — null the first time, the allocated id every time after.
+     */
+    @Test
+    fun leaving_the_composer_saves_a_draft_and_editing_reuses_it() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.subject", "the composer never opened")
+        compose.onNodeWithTag("field.subject").performTextInput("Half a thought")
+
+        pressBack()
+        waitForTag("list.conversations", "back did not leave the composer")
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/draft-posts").contains("null") }
+
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Drafts").performClick()
+        waitForTag("list.drafts", "the draft was not listed")
+        compose.onNodeWithText("Half a thought").assertIsDisplayed()
+
+        // Reopen, add to it, and leave again.
+        compose.onNodeWithText("Half a thought").performClick()
+        waitForTag("field.subject", "the draft did not reopen")
+        compose.onNodeWithTag("field.body").performTextInput("and the rest")
+        pressBack()
+
+        compose.waitUntil(TIMEOUT_MS) {
+            // The second post carries the id the first one was given.
+            readStub("/debug/draft-posts").contains("1")
+        }
+        val posts = readStub("/debug/draft-posts")
+        assertTrue("the second save did not name the draft: $posts", posts.contains("[null, 1]"))
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
