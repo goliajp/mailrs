@@ -117,6 +117,7 @@ pub async fn resend(
         &item.thread_id,
         &item.subject,
         &send_id,
+        resend_envelope_ref(&item),
     )?;
     Ok(Json(ResendResponse {
         send_id: new_id,
@@ -129,6 +130,19 @@ pub async fn resend(
 /// `<mid>` → `<mid>#r1` → `<mid>#r2`. Resending a resend chains off the
 /// first send rather than nesting, so the ids stay readable and the
 /// original is always the stem.
+/// Which bytes a resend points at: the original's, always.
+///
+/// A resend is the same message to someone who never received it, so it
+/// has no file of its own — it points at the one already on disk. The
+/// resend row used to be written with an empty ref instead, and an empty
+/// ref means something else entirely: `can_resend()` reads it as "the
+/// maildir write failed and the bytes are not on disk". So a resend
+/// could never be resent, and the screen said the stored copy was
+/// missing while the copy was there.
+fn resend_envelope_ref(original: &send_read::SendListItem) -> &str {
+    &original.envelope_ref
+}
+
 fn next_resend_id(send_id: &str, resent_from: Option<&str>) -> String {
     let stem = resent_from.unwrap_or(send_id);
     let stem = stem.split_once("#r").map_or(stem, |(s, _)| s);
@@ -141,7 +155,61 @@ fn next_resend_id(send_id: &str, resent_from: Option<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::next_resend_id;
+    use super::{next_resend_id, resend_envelope_ref};
+    use mailrs_core_sidestate::families::send::Status;
+    use mailrs_core_sidestate::families::send_read::SendListItem;
+
+    fn item(envelope_ref: &str) -> SendListItem {
+        SendListItem {
+            send_id: "m1@golia.jp".into(),
+            thread_id: "t1".into(),
+            subject: "s".into(),
+            to_csv: "a@x.example".into(),
+            cc_csv: String::new(),
+            created_at: 100,
+            status: Status::Failed,
+            envelope_ref: envelope_ref.into(),
+            resent_from: None,
+            recipients: Vec::new(),
+        }
+    }
+
+    /// **A resend of a resendable send must itself be resendable.**
+    ///
+    /// It was not: the row was written with an empty `envelope_ref`, and
+    /// `can_resend()` reads empty as "the bytes are not on disk". So the
+    /// failure screen offered no way to try again and said the stored
+    /// copy was missing — on 2026-08-17, to someone whose message
+    /// Microsoft had just rejected for a reason that had nothing to do
+    /// with the message.
+    #[test]
+    fn a_resend_points_at_the_bytes_the_original_already_has() {
+        let original = item("1786927055.M477814P1Q1.6e040258f1af");
+        assert!(original.can_resend(), "premise: the original has bytes");
+
+        let mut resent = item(resend_envelope_ref(&original));
+        resent.resent_from = Some(original.send_id.clone());
+        assert!(
+            resent.can_resend(),
+            "the resend row cannot be resent, so the screen says its \
+             stored copy is missing while the original's file is on disk"
+        );
+        assert_eq!(
+            resent.envelope_ref, original.envelope_ref,
+            "a resend must point at the original's file, not a copy"
+        );
+    }
+
+    /// And a send that genuinely has no bytes does not acquire any by
+    /// being resent — the refusal is about the file, not about the row.
+    #[test]
+    fn a_send_with_no_bytes_stays_unresendable() {
+        for missing in ["", "kevy:848da09d68bcd8a6@golia.jp"] {
+            let original = item(missing);
+            assert!(!original.can_resend());
+            assert!(!item(resend_envelope_ref(&original)).can_resend());
+        }
+    }
 
     /// A resend must never reuse the original's id. The envelope bytes go
     /// out unchanged, so the Message-ID inside them is the same one — and

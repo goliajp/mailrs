@@ -365,6 +365,53 @@ mod tests {
         assert!(!is_remote_hard_bounce("no MX for example.com"));
     }
 
+    /// **A 5xx about us is not a bad address.**
+    ///
+    /// 2026-08-17: Microsoft answered `550 5.7.1 Unfortunately, messages
+    /// from [52.195.89.111] weren't sent … part of their network is on
+    /// our block list (S3140)` — a statement about our egress IP. It was
+    /// recorded as a hard bounce against the *recipient*, who was
+    /// suppressed for 90 days. So after the block is lifted, mail to
+    /// that person would still be silently dropped for three months, by
+    /// us, for a reason that was never about them.
+    ///
+    /// RFC 3463 says which: the second sub-code is the subject. `5.1.x`
+    /// is address status and `5.2.x` is mailbox status — those are the
+    /// recipient. `5.7.x` is security and policy, `5.3.x` the receiving
+    /// system, `5.4.x` routing. None of those say the address is bad.
+    #[test]
+    fn a_policy_rejection_is_not_the_recipients_fault() {
+        assert!(
+            !is_remote_hard_bounce(
+                "hotmail-com.olc.protection.outlook.com 550 5.7.1 Unfortunately, messages \
+                 from [52.195.89.111] weren't sent. Please contact your Internet service \
+                 provider since part of their network is on our block list (S3140)."
+            ),
+            "an IP-reputation block suppressed the recipient it was not about"
+        );
+        // The recipient's own problems still count, and this is the
+        // shape that makes the list worth having.
+        assert!(is_remote_hard_bounce(
+            "gmail-smtp-in.l.google.com 550 5.1.1 The email account that you tried to reach does not exist."
+        ));
+        assert!(is_remote_hard_bounce(
+            "mx.example.com 550 5.2.1 mailbox disabled"
+        ));
+        // Other subjects: the receiving system, routing, content. None
+        // of them is evidence about the address.
+        for reason in [
+            "mx.example.com 550 5.3.2 system not accepting network messages",
+            "mx.example.com 550 5.4.1 no answer from host",
+            "mx.example.com 550 5.7.26 unauthenticated email is not accepted",
+        ] {
+            assert!(!is_remote_hard_bounce(reason), "{reason}");
+        }
+        // And a bare 5xx with no enhanced code keeps its old meaning:
+        // `550 no such user` is why the list exists, and the remote told
+        // us nothing more precise.
+        assert!(is_remote_hard_bounce("mx.example.com 550 no such user"));
+    }
+
     #[test]
     fn an_enhanced_code_alone_does_not_count() {
         // 5.1.1 is not a three-digit token, so a reason carrying only
