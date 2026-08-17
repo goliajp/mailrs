@@ -1,5 +1,0 @@
-jp.golia.mailrs.test.app-updated_navigation_xml-0 /Users/doracawl/workspace/stables/mailrs/android/app/build/generated/updated_navigation_xml/debugAndroidTest
-jp.golia.mailrs.test.app-packageDebugAndroidTestResources-1 /Users/doracawl/workspace/stables/mailrs/android/app/build/intermediates/incremental/debugAndroidTest/packageDebugAndroidTestResources/merged.dir
-jp.golia.mailrs.test.app-packageDebugAndroidTestResources-2 /Users/doracawl/workspace/stables/mailrs/android/app/build/intermediates/incremental/debugAndroidTest/packageDebugAndroidTestResources/stripped.dir
-jp.golia.mailrs.test.app-debugAndroidTest-3 /Users/doracawl/workspace/stables/mailrs/android/app/build/intermediates/merged_res/debugAndroidTest/mergeDebugAndroidTestResources
-gradleHome-0 /Users/doracawl/.gradle
