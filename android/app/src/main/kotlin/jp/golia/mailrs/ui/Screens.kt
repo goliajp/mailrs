@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -166,6 +167,23 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
 fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val snackbars = remember { SnackbarHostState() }
+    var searchOpen by remember { mutableStateOf(false) }
+
+    // Collapsing the bar ends the search. Leaving a stale result set
+    // behind the closed bar means re-opening it shows an answer to a
+    // question the person has stopped asking.
+    if (searchOpen) {
+        MailSearchBar(
+            state = state,
+            vm = vm,
+            expanded = true,
+            onExpandedChange = { open ->
+                searchOpen = open
+                if (!open) vm.clearSearch()
+            },
+        )
+        return
+    }
 
     // The undo snackbar. `SnackbarResult` is what makes this the
     // platform's control and not a lookalike: the action, the timeout
@@ -199,6 +217,12 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                     titleContentColor = theme.fg,
                 ),
                 actions = {
+                    IconButton(
+                        onClick = { searchOpen = true },
+                        modifier = Modifier.testTag("button.search"),
+                    ) {
+                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = theme.fgSecondary)
+                    }
                     IconButton(onClick = { vm.refresh() }, modifier = Modifier.testTag("button.refresh")) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = theme.fgSecondary)
                     }

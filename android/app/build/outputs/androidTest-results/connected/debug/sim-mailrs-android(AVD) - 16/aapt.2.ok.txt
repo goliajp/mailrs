@@ -1,7 +1,7 @@
 EXECUTING: /Users/doracawl/Library/Android/sdk/build-tools/36.0.0/aapt dump badging /Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 CURRENT_WORKING_DIRECTORY: /Users/doracawl/workspace/stables/mailrs/android
-START_TIME: 2026-08-18 00:13:53.239
-START_TIME-NANOS: 2026-08-18 00:13:53.239612000
+START_TIME: 2026-08-18 00:17:58.002
+START_TIME-NANOS: 2026-08-18 00:17:58.002898000
 ENVIRONMENT:
 
 *****************************************
@@ -22,7 +22,7 @@ supports-any-density: 'true'
 locales: '--_--' 'af' 'am' 'ar' 'as' 'az' 'be' 'bg' 'bn' 'bs' 'ca' 'cs' 'da' 'de' 'el' 'en-AU' 'en-CA' 'en-GB' 'en-IN' 'en-XC' 'es' 'es-US' 'et' 'eu' 'fa' 'fi' 'fr' 'fr-CA' 'gl' 'gu' 'hi' 'hr' 'hu' 'hy' 'in' 'is' 'it' 'iw' 'ja' 'ka' 'kk' 'km' 'kn' 'ko' 'ky' 'lo' 'lt' 'lv' 'mk' 'ml' 'mn' 'mr' 'ms' 'my' 'nb' 'ne' 'nl' 'or' 'pa' 'pl' 'pt' 'pt-BR' 'pt-PT' 'ro' 'ru' 'si' 'sk' 'sl' 'sq' 'sr' 'sr-Latn' 'sv' 'sw' 'ta' 'te' 'th' 'tl' 'tr' 'uk' 'ur' 'uz' 'vi' 'zh-CN' 'zh-HK' 'zh-TW' 'zu'
 densities: '160' '240' '320'
 ===================
-END_TIME: 2026-08-18 00:13:53.250
-END_TIME-NANOS: 2026-08-18 00:13:53.250337000
-DURATION: 10ms
+END_TIME: 2026-08-18 00:17:58.015
+END_TIME-NANOS: 2026-08-18 00:17:58.015532000
+DURATION: 12ms
 EXIT CODE: 0

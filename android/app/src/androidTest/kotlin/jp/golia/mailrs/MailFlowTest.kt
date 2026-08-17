@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -262,6 +263,43 @@ class MailFlowTest {
                 e,
             )
         }
+    }
+
+    /**
+     * Search, and in the order the server ranked it.
+     *
+     * Both fixtures carry "ref 2026" and the stub returns the **older**
+     * one first, because the endpoint hydrates ranked hit ids rather
+     * than dates. A client that re-sorts by date would put the newer
+     * thread on top and look perfectly reasonable doing it, so the
+     * assertion is on which row is first, not on how many there are.
+     */
+    @Test
+    fun search_keeps_the_servers_ranking() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onNodeWithTag("button.search").performClick()
+        compose.onNodeWithTag("search.field").performTextInput("ref 2026")
+        waitForTag("list.searchResults", "the search never returned anything")
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == 2
+        }
+
+        compose.onAllNodesWithTag("row.conversation")[0]
+            .assertTextContains("請求書のご送付につきまして")
+    }
+
+    /** A term nothing matches says so, naming the term. */
+    @Test
+    fun a_search_with_no_hits_says_which_term_missed() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onNodeWithTag("button.search").performClick()
+        compose.onNodeWithTag("search.field").performTextInput("zzzznothing")
+        waitForTag("search.empty", "an empty search never reported itself")
+        compose.onNodeWithTag("search.empty").assertTextContains("zzzznothing", substring = true)
     }
 
     private fun readStub(path: String): String {
