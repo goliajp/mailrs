@@ -64,6 +64,11 @@ class MainActivity : ComponentActivity() {
         model?.let { actOn(it, intent) }
     }
 
+    /** A cold launch without the launch — see `forgetLoadedMail`. */
+    fun forgetLoadedMailForTest() {
+        model?.forgetLoadedMail()
+    }
+
     /**
      * Attach a file without the system picker.
      *

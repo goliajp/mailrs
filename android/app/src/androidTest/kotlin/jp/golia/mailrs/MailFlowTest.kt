@@ -1168,6 +1168,69 @@ class MailFlowTest {
         waitForTag("search.field", "the shortcut did not open the search")
     }
 
+    /**
+     * A mailbox already fetched survives the network going away.
+     *
+     * The phone is the place this matters: a cold launch on a train
+     * used to be a spinner and then "Could not reach the server", for
+     * mail the device had fetched two minutes earlier. The list is
+     * fetched, the server is then pointed somewhere that does not
+     * answer, and the rows have to still be there — with **no error
+     * banner**, because they are still the last true thing anybody
+     * knew.
+     */
+    @Test
+    fun mail_already_fetched_survives_losing_the_server() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("the fixture listed nothing", before > 0)
+
+        // Nothing listens on port 1.
+        compose.activityRule.scenario.onActivity { it.useStubServer("http://127.0.0.1:1") }
+        compose.onNodeWithTag("button.refresh").performClick()
+
+        // Long enough for the connect to fail and the state to settle.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("conclusion").fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+        }
+        compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size.let {
+            assertEquals("the rows were thrown away when the server went", before, it)
+        }
+        compose.onAllNodesWithTag("conclusion").assertCountEquals(0)
+    }
+
+    /**
+     * And it comes back from **disk**, not from memory.
+     *
+     * The test above keeps rows that were already on screen, which a
+     * cache would not be needed for. This one throws the in-memory copy
+     * away first — a cold launch without the launch — and then refreshes
+     * against a server that does not answer. Rows can only come from the
+     * file the last successful fetch wrote.
+     */
+    @Test
+    fun a_cold_start_paints_from_disk_before_the_network_answers() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("the fixture listed nothing", before > 0)
+
+        compose.activityRule.scenario.onActivity {
+            it.useStubServer("http://127.0.0.1:1")
+            it.forgetLoadedMailForTest()
+        }
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().isEmpty()
+        }
+
+        compose.onNodeWithTag("button.refresh").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+        }
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
