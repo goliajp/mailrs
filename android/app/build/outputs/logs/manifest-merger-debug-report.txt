@@ -1,9 +1,20 @@
 -- Merging decision tree log ---
+provider#androidx.core.content.FileProvider
+INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:34:9-42:20
+	android:grantUriPermissions
+		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:38:13-47
+	android:authorities
+		INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml
+		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:36:13-57
+	android:exported
+		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:37:13-37
+	android:name
+		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:35:13-62
 manifest
-ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-29:12
-INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-29:12
-INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-29:12
-INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-29:12
+ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-44:12
+INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-44:12
+INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-44:12
+INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:2:1-44:12
 MERGED from [androidx.navigation:navigation-runtime-android:2.9.8] /Users/doracawl/.gradle/caches/9.7.0/transforms/6b27fa79b8f864dda6154694735e8c2a/transformed/navigation-runtime-release/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-common-android:2.9.8] /Users/doracawl/.gradle/caches/9.7.0/transforms/3d3072197f7be0894ab524cbdbae8061/transformed/navigation-common-release/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-compose-android:2.9.8] /Users/doracawl/.gradle/caches/9.7.0/transforms/68e44654288e7e30369f590082e50e42/transformed/navigation-compose-release/AndroidManifest.xml:2:1-7:12
@@ -78,8 +89,8 @@ MERGED from [com.squareup.okhttp3:okhttp-android:5.5.0] /Users/doracawl/.gradle/
 	android:name
 		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:5:22-64
 application
-ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:7:5-28:19
-INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:7:5-28:19
+ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:7:5-43:19
+INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:7:5-43:19
 MERGED from [androidx.compose.ui:ui-tooling-android:1.12.0] /Users/doracawl/.gradle/caches/9.7.0/transforms/a611689b3beb9dfe2ff9439d01846659/transformed/ui-tooling/AndroidManifest.xml:22:5-26:19
 MERGED from [androidx.compose.ui:ui-tooling-android:1.12.0] /Users/doracawl/.gradle/caches/9.7.0/transforms/a611689b3beb9dfe2ff9439d01846659/transformed/ui-tooling/AndroidManifest.xml:22:5-26:19
 MERGED from [androidx.window:window:1.5.0] /Users/doracawl/.gradle/caches/9.7.0/transforms/29d34d698e95d6df85e28b5085048835/transformed/window-1.5.0/AndroidManifest.xml:22:5-29:19
@@ -136,6 +147,12 @@ category#android.intent.category.LAUNCHER
 ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:25:17-77
 	android:name
 		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:25:27-74
+meta-data#android.support.FILE_PROVIDER_PATHS
+ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:39:13-41:54
+	android:resource
+		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:41:17-51
+	android:name
+		ADDED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml:40:17-67
 uses-sdk
 INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/doracawl/workspace/stables/mailrs/android/app/src/main/AndroidManifest.xml

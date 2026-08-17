@@ -78,6 +78,26 @@ object Wire {
         val category: String,
         @SerialName("risk_score") val riskScore: Int,
         @SerialName("risk_reason") val riskReason: String,
+        val attachments: List<Attachment> = emptyList(),
+    )
+
+    /**
+     * One entry of a message's `attachments`.
+     *
+     * `content_id` is present only for a part a `multipart/related`
+     * body references as `cid:` — an inline image, which is part of the
+     * message rather than a file offered alongside it. The server omits
+     * the field for ordinary attachments, so its absence is the test.
+     *
+     * Source: `crates/webapi/src/handlers/conversation_body.rs` — the
+     * object is built by hand there, not derived from a struct.
+     */
+    @Serializable
+    data class Attachment(
+        val filename: String,
+        @SerialName("content_type") val contentType: String,
+        val size: Long,
+        @SerialName("content_id") val contentId: String? = null,
     )
 
     /**

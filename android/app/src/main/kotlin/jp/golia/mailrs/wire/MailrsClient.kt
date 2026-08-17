@@ -147,6 +147,35 @@ class MailrsClient(private val store: TokenStore) {
         post(url("/api/conversations/${enc(threadId)}/read"), "{}", authorized = true)
     }
 
+    /**
+     * `GET /api/mail/messages/{uid}/attachments/{index}` — the bytes.
+     *
+     * **The index is the caller's, not zero.** The server identifies an
+     * attachment by its position in the message, and a client that
+     * always asked for the first one would show the right name over the
+     * wrong file. The stub records what was asked for at
+     * `/debug/fetched` precisely so a test can tell those apart.
+     */
+    suspend fun attachment(uid: Int, index: Int): Outcome<ByteArray> = withContext(Dispatchers.IO) {
+        val s = session ?: return@withContext Outcome.Err("Not signed in.")
+        val request = Request.Builder()
+            .url("${s.server}/api/mail/messages/$uid/attachments/$index")
+            .header("Authorization", "Bearer ${s.token}")
+            .get()
+            .build()
+        try {
+            http.newCall(request).execute().use { response ->
+                when {
+                    response.isSuccessful -> Outcome.Ok(response.body.bytes())
+                    response.code == 401 -> Outcome.Err("Signed out — the server rejected this session.")
+                    else -> Outcome.Err("The server answered ${response.code}.")
+                }
+            }
+        } catch (e: IOException) {
+            Outcome.Err("Could not reach the server: ${e.message}")
+        }
+    }
+
     private fun <T> decode(
         r: Outcome<String>,
         element: kotlinx.serialization.KSerializer<T>,

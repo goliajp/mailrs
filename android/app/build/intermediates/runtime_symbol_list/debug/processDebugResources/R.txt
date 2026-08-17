@@ -489,4 +489,5 @@ int styleable SplitPlaceholderRule_splitOpenAnimation 11
 int styleable SplitPlaceholderRule_splitRatio 12
 int styleable SplitPlaceholderRule_stickyPlaceholder 13
 int styleable SplitPlaceholderRule_tag 14
-int xml network_security_config 0x7f0c0000
+int xml file_paths 0x7f0c0000
+int xml network_security_config 0x7f0c0001
