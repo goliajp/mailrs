@@ -156,6 +156,7 @@ pub(crate) fn enqueue_resend(
     thread_id: &str,
     subject: &str,
     resent_from: &str,
+    envelope_ref: &str,
 ) -> Result<(), StatusCode> {
     let to: Vec<String> = recipients.to_vec();
     let empty: Vec<String> = Vec::new();
@@ -172,7 +173,16 @@ pub(crate) fn enqueue_resend(
             cc: &empty,
             // The original's maildir file holds these same bytes, so the
             // resend points at it rather than writing a second copy.
-            envelope_ref: "",
+            //
+            // It used to say that and pass `""`, which points at
+            // nothing: `can_resend()` reads an empty ref as "the maildir
+            // write failed and the bytes are not on disk", so every
+            // resent message showed "the stored copy of this message is
+            // missing, so it cannot be resent or edited" — while the
+            // original's file sat right there. Found 2026-08-17 on a
+            // resend that Microsoft rejected; the user could not try
+            // again.
+            envelope_ref,
             resent_from: Some(resent_from),
         }),
     )

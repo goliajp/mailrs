@@ -219,8 +219,54 @@ pub(super) fn extract_code(reason: &str) -> u16 {
 /// suppression check — none of which say anything about the remote
 /// mailbox. Enhanced codes like `5.1.1` are not three digits, so they
 /// cannot trigger it either.
+/// And a 5xx is only evidence about the **recipient** when the remote
+/// says so. RFC 3463's second sub-code names the subject: `5.1.x` is
+/// address status, `5.2.x` mailbox status — those are the person we are
+/// writing to. `5.7.x` is security and policy, `5.3.x` the receiving
+/// system, `5.4.x` routing, `5.6.x` content. None of those is a bad
+/// address, and suppressing on them punishes the recipient for
+/// something on our side.
+///
+/// 2026-08-17: Microsoft answered `550 5.7.1 … part of their network is
+/// on our block list (S3140)` about our egress IP, and the recipient was
+/// suppressed for 90 days. After a delisting, mail to that person would
+/// still have been dropped silently by us, for three months, for a
+/// reason that was never about them.
+///
+/// A bare 5xx with no enhanced code keeps its old meaning: `550 no such
+/// user` is why this list exists, and the remote told us nothing more
+/// precise to go on.
 pub(super) fn is_remote_hard_bounce(reason: &str) -> bool {
-    reason.split_whitespace().any(|token| {
+    let has_5xx = reason.split_whitespace().any(|token| {
         token.len() == 3 && token.starts_with('5') && token.bytes().all(|b| b.is_ascii_digit())
+    });
+    if !has_5xx {
+        return false;
+    }
+    match enhanced_subject(reason) {
+        Some(subject) => subject == 1 || subject == 2,
+        None => true,
+    }
+}
+
+/// The middle number of an RFC 3463 enhanced status code in a 5xx
+/// reason — the one that says what the failure is *about*. `None` when
+/// the remote sent no enhanced code.
+fn enhanced_subject(reason: &str) -> Option<u16> {
+    reason.split_whitespace().find_map(|token| {
+        let t = token.trim_end_matches(|c: char| !c.is_ascii_digit());
+        let mut parts = t.split('.');
+        let class = parts.next()?;
+        let subject = parts.next()?;
+        let detail = parts.next()?;
+        if class != "5" || subject.is_empty() || detail.is_empty() {
+            return None;
+        }
+        if !subject.bytes().all(|b| b.is_ascii_digit())
+            || !detail.bytes().all(|b| b.is_ascii_digit())
+        {
+            return None;
+        }
+        subject.parse().ok()
     })
 }
