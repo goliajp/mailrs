@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The splash background, in both appearances. GOLIA blue rather than
+      white: the splash is the first thing anybody sees, and a white
+      flash before a dark inbox is the one moment an app can get wrong
+      before it has drawn anything.
+    -->
+    <color name="splash_background">#3B7DDD</color>
+</resources>

@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
@@ -161,6 +162,10 @@ class MainActivity : ComponentActivity() {
     ) { /* Granted or not, the app is unchanged; the check just stays quiet. */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before `super`, which is where the API requires it: it swaps
+        // the launch theme for the real one, and after super.onCreate
+        // the window has already been made with the wrong one.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         NewMailWorker.ensureChannel(this)

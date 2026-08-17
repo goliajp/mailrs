@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      The launch theme, which is what the system shows before a single
+      frame of this app exists.
+
+      From Android 12 there is always a splash screen; an app that does
+      not describe one gets a white rectangle and a cropped icon. This
+      says what it should be instead: the app's own mark on the app's
+      own background, handing over to `Theme.Mailrs` the moment the
+      first frame is ready.
+    -->
+    <style name="Theme.Mailrs.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Mailrs</item>
+    </style>
+
     <style name="Theme.Mailrs" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>

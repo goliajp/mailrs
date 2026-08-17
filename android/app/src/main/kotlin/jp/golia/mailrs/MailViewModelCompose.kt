@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.ShareIntent
@@ -254,6 +255,12 @@ fun MailViewModel.send() {
         }
         when (r) {
             is MailrsClient.Outcome.Ok -> {
+                // The share sheet's top row is built from people
+                // actually written to. Recorded here rather than from
+                // the address book, because a sheet offering everyone
+                // this account has *received* from would put a mailing
+                // list one tap from a photo.
+                RecentRecipients.remember(getApplication(), recipients)
                 _state.value = _state.value.copy(sending = false, composing = null, sent = true)
                 refresh()
             }

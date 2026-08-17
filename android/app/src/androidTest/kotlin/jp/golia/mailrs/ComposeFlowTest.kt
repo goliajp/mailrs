@@ -342,4 +342,34 @@ class ComposeFlowTest : MailrsUiTest() {
         pressBack()
         waitForTag("list.conversations", "back did not leave the composer")
     }
+
+    /**
+     * Sending publishes the recipient to the system share sheet.
+     *
+     * The row at the top of Android's share sheet is built from an
+     * app's dynamic shortcuts, so "share this photo to Alice" only
+     * works if somebody was written to first. Published from people
+     * actually written to, never from the address book — a sheet
+     * offering everyone this account has *received* from would put a
+     * mailing list one tap away from a photo.
+     */
+    @Test
+    fun sending_puts_the_recipient_in_the_share_sheet() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+
+        compose.onNodeWithTag("field.to").performTextInput("alice@example.com")
+        compose.onNodeWithTag("field.subject").performTextInput("Shortcut please")
+        compose.onNodeWithTag("field.body").performTextInput("body")
+        compose.onNodeWithTag("button.send").performClick()
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/sent").contains("Shortcut please") }
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.waitUntil(TIMEOUT_MS) {
+            androidx.core.content.pm.ShortcutManagerCompat.getDynamicShortcuts(context)
+                .any { it.id == "recipient:alice@example.com" }
+        }
+    }
 }
