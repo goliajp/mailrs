@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.TokenStore
 import jp.golia.mailrs.wire.Wire
@@ -30,6 +31,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     private var pending: PendingTriage? = null
     private var undoToken = 0
     private var searchToken = 0
+    private var contactToken = 0
 
     /**
      * Point the app at a stub, the way the iOS suite's
@@ -163,7 +165,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     fun recipientsIn(to: String): List<String> =
         to.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
 
-    fun send(to: String, subject: String, body: String) {
+    fun send(to: String, cc: String, bcc: String, subject: String, body: String) {
         val draft = _state.value.composing ?: return
         val recipients = recipientsIn(to)
         if (recipients.isEmpty()) {
@@ -172,7 +174,16 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.value = _state.value.copy(sending = true, error = null)
         viewModelScope.launch {
-            when (val r = client.send(recipients, subject, body, draft.inReplyTo)) {
+            when (
+                val r = client.send(
+                    recipients,
+                    subject,
+                    body,
+                    draft.inReplyTo,
+                    cc = recipientsIn(cc),
+                    bcc = recipientsIn(bcc),
+                )
+            ) {
                 is MailrsClient.Outcome.Ok -> {
                     _state.value = _state.value.copy(sending = false, composing = null, sent = true)
                     refresh()
@@ -409,6 +420,41 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
+    /**
+     * Contacts for the name being typed.
+     *
+     * Asked per field, so a suggestion for Cc cannot land in To. The
+     * token rule is `RecipientAutocomplete`'s and the matching is the
+     * server's — matching again here would be a second answer to one
+     * question.
+     */
+    fun suggestContacts(field: RecipientField, line: String) {
+        val token = RecipientAutocomplete.currentToken(line)
+        if (!RecipientAutocomplete.shouldSuggest(token)) {
+            _state.value = _state.value.copy(suggestions = emptyList(), suggestingFor = null)
+            return
+        }
+        contactToken++
+        val mine = contactToken
+        viewModelScope.launch {
+            val r = client.contacts(token)
+            if (mine != contactToken) return@launch
+            _state.value = when (r) {
+                is MailrsClient.Outcome.Ok ->
+                    _state.value.copy(suggestions = r.value, suggestingFor = field)
+                // A suggestion list that cannot be fetched is not an
+                // error worth a banner: the person can type the address.
+                is MailrsClient.Outcome.Err ->
+                    _state.value.copy(suggestions = emptyList(), suggestingFor = null)
+            }
+        }
+    }
+
+    fun clearSuggestions() {
+        if (_state.value.suggestions.isEmpty()) return
+        _state.value = _state.value.copy(suggestions = emptyList(), suggestingFor = null)
+    }
+
     fun clearSearch() {
         searchToken++
         _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
@@ -484,6 +530,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val list: MailList = MailList.Inbox,
         /** Threads picked out for a bulk action. Empty means not selecting. */
         val selected: Set<String> = emptySet(),
+        /** Contact suggestions for the field named by [suggestingFor]. */
+        val suggestions: List<String> = emptyList(),
+        val suggestingFor: RecipientField? = null,
         /** Which attachment index is being fetched, if any. */
         val openingAttachment: Int? = null,
         /** A file ready to hand to another app. */
@@ -491,6 +540,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         /** Where each message's unsubscribe has got to, by uid. */
         val unsubscribing: Map<Int, Unsubscribing> = emptyMap(),
     )
+
+    /** Which recipient line a suggestion belongs to. */
+    enum class RecipientField { To, Cc, Bcc }
 
     /** How far a one-click unsubscribe has got. */
     enum class Unsubscribing { Working, Done, Failed }

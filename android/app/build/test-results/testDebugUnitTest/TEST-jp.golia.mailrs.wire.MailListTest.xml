@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="jp.golia.mailrs.wire.MailListTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-08-17T15:56:35.766Z" hostname="studio" time="0.009">
+<testsuite name="jp.golia.mailrs.wire.MailListTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-08-17T16:10:24.700Z" hostname="studio" time="0.008">
   <properties/>
-  <testcase name="archived_is_cross_folder" classname="jp.golia.mailrs.wire.MailListTest" time="0.001"/>
-  <testcase name="every_list_finishes_its_own_empty_sentence" classname="jp.golia.mailrs.wire.MailListTest" time="0.0"/>
+  <testcase name="archived_is_cross_folder" classname="jp.golia.mailrs.wire.MailListTest" time="0.0"/>
+  <testcase name="every_list_finishes_its_own_empty_sentence" classname="jp.golia.mailrs.wire.MailListTest" time="0.001"/>
   <testcase name="an_unset_flag_is_left_out_entirely" classname="jp.golia.mailrs.wire.MailListTest" time="0.007"/>
   <testcase name="the_query_is_what_the_handler_reads" classname="jp.golia.mailrs.wire.MailListTest" time="0.0"/>
   <testcase name="unread_and_starred_stay_out_of_junk" classname="jp.golia.mailrs.wire.MailListTest" time="0.0"/>

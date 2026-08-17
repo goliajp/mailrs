@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
+import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.MailViewModel
 
 /**
@@ -57,8 +59,13 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val draft = state.composing ?: return
 
     var to by remember(draft.id) { mutableStateOf(draft.to.joinToString(", ")) }
+    var cc by remember(draft.id) { mutableStateOf("") }
+    var bcc by remember(draft.id) { mutableStateOf("") }
     var subject by remember(draft.id) { mutableStateOf(draft.subject) }
     var body by remember(draft.id) { mutableStateOf(draft.body) }
+    // Hidden until wanted, because most mail has neither and two empty
+    // lines above the subject cost every message to serve a few.
+    var extraLines by remember(draft.id) { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -82,7 +89,7 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
                 } else {
                     IconButton(
-                        onClick = { vm.send(to, subject, body) },
+                        onClick = { vm.send(to, cc, bcc, subject, body) },
                         // The same rule the send uses, not a second one.
                         enabled = vm.recipientsIn(to).isNotEmpty(),
                         modifier = Modifier.testTag("button.send"),
@@ -97,8 +104,51 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
             },
         )
 
-        CompactField("To", to, "field.to") { to = it }
+        CompactField(
+            label = "To",
+            value = to,
+            tag = "field.to",
+            trailing = {
+                if (!extraLines) {
+                    TextButton(
+                        onClick = { extraLines = true },
+                        modifier = Modifier.testTag("button.ccBcc"),
+                    ) {
+                        Text("Cc/Bcc", color = theme.accent, fontSize = 12.sp)
+                    }
+                }
+            },
+        ) {
+            to = it
+            vm.suggestContacts(MailViewModel.RecipientField.To, it)
+        }
+        Suggestions(state, MailViewModel.RecipientField.To, vm) { picked ->
+            to = RecipientAutocomplete.completing(to, picked)
+        }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+
+        if (extraLines) {
+            CompactField("Cc", cc, "field.cc") {
+                cc = it
+                vm.suggestContacts(MailViewModel.RecipientField.Cc, it)
+            }
+            Suggestions(state, MailViewModel.RecipientField.Cc, vm) { picked ->
+                cc = RecipientAutocomplete.completing(cc, picked)
+            }
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            // Bcc says what it does. "Blind" is the whole point and the
+            // reason it is worth a word: a reader who confuses it with
+            // Cc has told a mailing list who else is on it.
+            CompactField("Bcc", bcc, "field.bcc") {
+                bcc = it
+                vm.suggestContacts(MailViewModel.RecipientField.Bcc, it)
+            }
+            Suggestions(state, MailViewModel.RecipientField.Bcc, vm) { picked ->
+                bcc = RecipientAutocomplete.completing(bcc, picked)
+            }
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+        }
+
         CompactField("Subject", subject, "field.subject") { subject = it }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
 
@@ -140,10 +190,16 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
 
 /** One line per field: a label, then the value, on the same row. */
 @Composable
-private fun CompactField(label: String, value: String, tag: String, onChange: (String) -> Unit) {
+private fun CompactField(
+    label: String,
+    value: String,
+    tag: String,
+    trailing: @Composable () -> Unit = {},
+    onChange: (String) -> Unit,
+) {
     val theme = LocalTheme.current
     androidx.compose.foundation.layout.Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, color = theme.fgMuted, fontSize = 14.sp, modifier = Modifier.padding(end = 10.dp))
@@ -153,7 +209,41 @@ private fun CompactField(label: String, value: String, tag: String, onChange: (S
             singleLine = true,
             textStyle = TextStyle(color = theme.fg, fontSize = 15.sp),
             cursorBrush = SolidColor(theme.accent),
-            modifier = Modifier.fillMaxWidth().testTag(tag),
+            modifier = Modifier.weight(1f).testTag(tag),
+        )
+        trailing()
+    }
+}
+
+/**
+ * Contacts for the line being typed, under that line.
+ *
+ * Under the field it belongs to rather than in one shared list: a
+ * suggestion that could land in the wrong recipient line is how a
+ * message goes to somebody who was never meant to see it.
+ */
+@Composable
+private fun Suggestions(
+    state: MailViewModel.UiState,
+    field: MailViewModel.RecipientField,
+    vm: MailViewModel,
+    onPick: (String) -> Unit,
+) {
+    val theme = LocalTheme.current
+    if (state.suggestingFor != field) return
+    for (contact in state.suggestions.take(4)) {
+        Text(
+            contact,
+            color = theme.fgSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onPick(contact)
+                    vm.clearSuggestions()
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .testTag("suggestion.contact"),
         )
     }
 }

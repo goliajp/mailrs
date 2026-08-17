@@ -560,6 +560,41 @@ class MailFlowTest {
         waitForTag("button.folders", "back did not end the selection")
     }
 
+    /**
+     * Cc and Bcc reach the wire, and a suggestion lands in its own line.
+     *
+     * The two are one test because the failure they share is the same
+     * one: a suggestion that could fill the wrong recipient line is how
+     * a message goes to somebody who was never meant to see it. The Cc
+     * here is completed from the contact list, and the assertion is that
+     * it arrived as **cc** and not as another **to**.
+     */
+    @Test
+    fun cc_and_bcc_travel_as_themselves() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+
+        compose.onNodeWithTag("field.to").performTextInput("someone@example.com")
+        compose.onNodeWithTag("button.ccBcc").performClick()
+        waitForTag("field.cc", "Cc never appeared")
+
+        compose.onNodeWithTag("field.cc").performTextInput("ali")
+        waitForTag("suggestion.contact", "no contact was suggested")
+        compose.onAllNodesWithTag("suggestion.contact").onFirst().performClick()
+
+        compose.onNodeWithTag("field.bcc").performTextInput("bob@example.com")
+        compose.onNodeWithTag("field.subject").performTextInput("Three lines")
+        compose.onNodeWithTag("field.body").performTextInput("body")
+        compose.onNodeWithTag("button.send").performClick()
+
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/sent").contains("Three lines") }
+        val sent = readStub("/debug/sent")
+        assertTrue("the Cc did not travel as a Cc: $sent", sent.contains("\"cc\": [\"alice@example.com\"]"))
+        assertTrue("the Bcc did not travel as a Bcc: $sent", sent.contains("\"bcc\": [\"bob@example.com\"]"))
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }

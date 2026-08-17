@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="jp.golia.mailrs.wire.UnsubscribeOfferTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-08-17T15:56:35.802Z" hostname="studio" time="0.003">
+<testsuite name="jp.golia.mailrs.wire.UnsubscribeOfferTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-08-17T16:10:24.740Z" hostname="studio" time="0.003">
   <properties/>
-  <testcase name="an_address_is_used_when_it_is_all_there_is" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.002"/>
-  <testcase name="a_blank_entry_is_skipped" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.001"/>
+  <testcase name="an_address_is_used_when_it_is_all_there_is" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.003"/>
+  <testcase name="a_blank_entry_is_skipped" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.0"/>
   <testcase name="nothing_advertised_is_no_offer" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.0"/>
   <testcase name="one_click_beats_a_page" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.0"/>
   <testcase name="a_page_beats_an_address" classname="jp.golia.mailrs.wire.UnsubscribeOfferTest" time="0.0"/>
