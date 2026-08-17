@@ -5,7 +5,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.MultipartBody
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -269,6 +271,51 @@ class MailrsClient(private val store: TokenStore) {
                 .build(),
         )
     }
+
+    /**
+     * `POST /api/mail/send-multipart` — a message with files.
+     *
+     * Streamed from the content resolver rather than read into a byte
+     * array first: a phone photo is a few megabytes and a video is not,
+     * and a composer that loaded every attachment into memory to send it
+     * would fail on exactly the files worth attaching.
+     */
+    suspend fun sendMultipart(
+        to: List<String>,
+        cc: List<String>,
+        bcc: List<String>,
+        subject: String,
+        body: String,
+        inReplyTo: String?,
+        attachments: List<Upload>,
+    ): Outcome<Unit> = withContext(Dispatchers.IO) {
+        val s = session ?: return@withContext Outcome.Err("Not signed in.")
+        val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+        // Repeated fields, one per address: that is what the handler
+        // reads (`parts.to.push(...)`), and a comma-joined single field
+        // would arrive as one recipient with commas in its name.
+        to.forEach { form.addFormDataPart("to", it) }
+        cc.forEach { form.addFormDataPart("cc", it) }
+        bcc.forEach { form.addFormDataPart("bcc", it) }
+        form.addFormDataPart("subject", subject)
+        form.addFormDataPart("body", body)
+        inReplyTo?.let { form.addFormDataPart("in_reply_to", it) }
+        for (a in attachments) {
+            form.addFormDataPart("attachments", a.filename, a.body)
+        }
+        val request = Request.Builder()
+            .url("${s.server}/api/mail/send-multipart")
+            .header("Authorization", "Bearer ${s.token}")
+            .post(form.build())
+            .build()
+        when (val r = send(request)) {
+            is Outcome.Ok -> Outcome.Ok(Unit)
+            is Outcome.Err -> r
+        }
+    }
+
+    /** One file on its way out: a name, a type, and a body to stream. */
+    data class Upload(val filename: String, val body: RequestBody)
 
     private fun <T> decode(
         r: Outcome<String>,

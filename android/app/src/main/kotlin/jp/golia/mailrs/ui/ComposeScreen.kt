@@ -1,5 +1,10 @@
 package jp.golia.mailrs.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +72,14 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val bcc = draft.bcc
     val subject = draft.subject
     val body = draft.body
+    // `OpenMultipleDocuments`, not `GetContent`: the document picker
+    // reaches every provider on the phone — Drive, Files, the camera
+    // roll — where `GetContent` is whichever app claims the MIME type,
+    // and it hands back a URI this app is granted to read.
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> vm.attach(uris) }
+
     // Hidden until wanted, because most mail has neither and two empty
     // lines above the subject cost every message to serve a few. Shown
     // from the start when a reopened draft already has one.
@@ -90,6 +103,12 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                 }
             },
             actions = {
+                IconButton(
+                    onClick = { picker.launch(arrayOf("*/*")) },
+                    modifier = Modifier.testTag("button.attach"),
+                ) {
+                    Icon(Icons.Filled.AttachFile, contentDescription = "Attach", tint = theme.fgSecondary)
+                }
                 if (state.sending) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
                 } else {
@@ -156,6 +175,44 @@ fun ComposeScreen(state: MailViewModel.UiState, vm: MailViewModel) {
 
         CompactField("Subject", subject, "field.subject") { vm.editDraft(subject = it) }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+
+        if (draft.attachments.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().testTag("list.draftAttachments")) {
+                for (a in draft.attachments) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.AttachFile,
+                            contentDescription = null,
+                            tint = theme.fgMuted,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Text(
+                            a.filename,
+                            color = theme.fg,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f).padding(start = 8.dp).testTag("row.draftAttachment"),
+                        )
+                        Text(humanSize(a.size), color = theme.fgMuted, fontSize = 11.sp)
+                        IconButton(
+                            onClick = { vm.detach(a) },
+                            modifier = Modifier.testTag("button.detach"),
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Remove ${a.filename}",
+                                tint = theme.fgMuted,
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+        }
 
         if (state.error != null) {
             Text(

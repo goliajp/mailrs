@@ -1,31 +1,32 @@
 <?xml version='1.0' encoding='UTF-8' ?>
-<testsuites tests="21" failures="0" errors="0" skipped="0" time="119.4" timestamp="2026-08-17T16:29:29" hostname="localhost">
-  <testsuite name="jp.golia.mailrs.MailFlowTest" tests="21" failures="0" errors="0" skipped="0" time="118.65" timestamp="2026-08-17T16:29:29" hostname="localhost">
+<testsuites tests="22" failures="0" errors="0" skipped="0" time="126.809" timestamp="2026-08-17T16:34:22" hostname="localhost">
+  <testsuite name="jp.golia.mailrs.MailFlowTest" tests="22" failures="0" errors="0" skipped="0" time="126.179" timestamp="2026-08-17T16:34:22" hostname="localhost">
     <properties>
       <property name="device" value="sim-mailrs-android(AVD) - 16" />
       <property name="flavor" value="" />
       <property name="project" value=":app" />
     </properties>
-    <testcase name="back_ends_a_selection" classname="jp.golia.mailrs.MailFlowTest" time="4.701" />
-    <testcase name="a_message_with_no_recipient_cannot_be_sent" classname="jp.golia.mailrs.MailFlowTest" time="4.959" />
-    <testcase name="back_closes_the_thread_rather_than_the_app" classname="jp.golia.mailrs.MailFlowTest" time="5.514" />
-    <testcase name="back_collapses_the_search" classname="jp.golia.mailrs.MailFlowTest" time="4.287" />
-    <testcase name="replying_sends_a_reply_and_not_a_new_message" classname="jp.golia.mailrs.MailFlowTest" time="7.708" />
-    <testcase name="a_search_with_no_hits_says_which_term_missed" classname="jp.golia.mailrs.MailFlowTest" time="5.028" />
-    <testcase name="a_long_press_selects_and_the_bar_acts_on_all_of_them" classname="jp.golia.mailrs.MailFlowTest" time="6.97" />
-    <testcase name="opening_a_conversation_shows_its_messages" classname="jp.golia.mailrs.MailFlowTest" time="5.234" />
-    <testcase name="back_cancels_the_composer" classname="jp.golia.mailrs.MailFlowTest" time="4.544" />
-    <testcase name="the_drawer_switches_which_list_is_read" classname="jp.golia.mailrs.MailFlowTest" time="5.253" />
-    <testcase name="an_unreachable_server_says_so" classname="jp.golia.mailrs.MailFlowTest" time="2.554" />
-    <testcase name="a_body_renders_and_holds_its_remote_content" classname="jp.golia.mailrs.MailFlowTest" time="5.194" />
-    <testcase name="signing_in_lists_the_inbox" classname="jp.golia.mailrs.MailFlowTest" time="4.228" />
-    <testcase name="a_swiped_row_can_be_brought_back" classname="jp.golia.mailrs.MailFlowTest" time="4.199" />
-    <testcase name="settings_holds_the_account_and_the_way_out" classname="jp.golia.mailrs.MailFlowTest" time="4.321" />
-    <testcase name="search_keeps_the_servers_ranking" classname="jp.golia.mailrs.MailFlowTest" time="5.034" />
-    <testcase name="leaving_the_composer_saves_a_draft_and_editing_reuses_it" classname="jp.golia.mailrs.MailFlowTest" time="9.957" />
-    <testcase name="the_second_attachment_is_the_one_fetched" classname="jp.golia.mailrs.MailFlowTest" time="7.995" />
-    <testcase name="unsubscribing_names_the_message_not_a_url" classname="jp.golia.mailrs.MailFlowTest" time="8.002" />
-    <testcase name="cc_and_bcc_travel_as_themselves" classname="jp.golia.mailrs.MailFlowTest" time="10.756" />
-    <testcase name="the_server_field_can_be_changed" classname="jp.golia.mailrs.MailFlowTest" time="2.212" />
+    <testcase name="back_ends_a_selection" classname="jp.golia.mailrs.MailFlowTest" time="4.619" />
+    <testcase name="a_message_with_no_recipient_cannot_be_sent" classname="jp.golia.mailrs.MailFlowTest" time="4.985" />
+    <testcase name="back_closes_the_thread_rather_than_the_app" classname="jp.golia.mailrs.MailFlowTest" time="5.441" />
+    <testcase name="back_collapses_the_search" classname="jp.golia.mailrs.MailFlowTest" time="4.359" />
+    <testcase name="replying_sends_a_reply_and_not_a_new_message" classname="jp.golia.mailrs.MailFlowTest" time="7.79" />
+    <testcase name="a_search_with_no_hits_says_which_term_missed" classname="jp.golia.mailrs.MailFlowTest" time="5.208" />
+    <testcase name="a_long_press_selects_and_the_bar_acts_on_all_of_them" classname="jp.golia.mailrs.MailFlowTest" time="5.55" />
+    <testcase name="opening_a_conversation_shows_its_messages" classname="jp.golia.mailrs.MailFlowTest" time="5.181" />
+    <testcase name="back_cancels_the_composer" classname="jp.golia.mailrs.MailFlowTest" time="4.581" />
+    <testcase name="the_drawer_switches_which_list_is_read" classname="jp.golia.mailrs.MailFlowTest" time="5.096" />
+    <testcase name="an_unreachable_server_says_so" classname="jp.golia.mailrs.MailFlowTest" time="2.575" />
+    <testcase name="a_body_renders_and_holds_its_remote_content" classname="jp.golia.mailrs.MailFlowTest" time="5.168" />
+    <testcase name="signing_in_lists_the_inbox" classname="jp.golia.mailrs.MailFlowTest" time="4.291" />
+    <testcase name="a_swiped_row_can_be_brought_back" classname="jp.golia.mailrs.MailFlowTest" time="4.695" />
+    <testcase name="settings_holds_the_account_and_the_way_out" classname="jp.golia.mailrs.MailFlowTest" time="4.816" />
+    <testcase name="search_keeps_the_servers_ranking" classname="jp.golia.mailrs.MailFlowTest" time="5.066" />
+    <testcase name="an_attached_file_arrives_with_the_message" classname="jp.golia.mailrs.MailFlowTest" time="7.857" />
+    <testcase name="leaving_the_composer_saves_a_draft_and_editing_reuses_it" classname="jp.golia.mailrs.MailFlowTest" time="10.456" />
+    <testcase name="the_second_attachment_is_the_one_fetched" classname="jp.golia.mailrs.MailFlowTest" time="7.967" />
+    <testcase name="unsubscribing_names_the_message_not_a_url" classname="jp.golia.mailrs.MailFlowTest" time="8.077" />
+    <testcase name="cc_and_bcc_travel_as_themselves" classname="jp.golia.mailrs.MailFlowTest" time="10.508" />
+    <testcase name="the_server_field_can_be_changed" classname="jp.golia.mailrs.MailFlowTest" time="1.893" />
   </testsuite>
 </testsuites>
