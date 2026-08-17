@@ -60,7 +60,7 @@ class NewMailWorkerTest : GrantsNotifications() {
         Prefs(context).lastUnseen = 1
         val result = TestListenableWorkerBuilder<NewMailWorker>(context).build().doWork()
         assertEquals(ListenableWorker.Result.success(), result)
-        assertTrue("nothing was posted for two new messages", active(context) > 0)
+        assertTrue("nothing was posted for two new messages", waitForNotification())
     }
 
     /** Switched off, it does not even ask the server. */
@@ -72,6 +72,19 @@ class NewMailWorkerTest : GrantsNotifications() {
         assertEquals(0, active(context))
         // Untouched: a check that did not run has nothing to record.
         assertEquals(1, Prefs(context).lastUnseen)
+    }
+
+    /**
+     * The system takes the notification asynchronously, so reading the
+     * active list the instant `doWork` returns is a race — it passed
+     * once and failed the next run with nothing changed. Polls instead.
+     */
+    private fun waitForNotification(): Boolean {
+        repeat(50) {
+            if (active(context) > 0) return true
+            Thread.sleep(100)
+        }
+        return false
     }
 
     private fun active(context: Context): Int {
