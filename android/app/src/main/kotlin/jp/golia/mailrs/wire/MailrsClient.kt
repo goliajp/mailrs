@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
  */
 class MailrsClient(private val store: TokenStore) {
 
-    private val http = OkHttpClient.Builder()
+    internal val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
@@ -39,6 +39,19 @@ class MailrsClient(private val store: TokenStore) {
 
     var session: TokenStore.Session? = store.read()
         private set
+
+    /**
+     * Told when the server stops accepting this session.
+     *
+     * A 401 used to become a sentence and nothing else: the app went on
+     * believing it was signed in, every refresh failed with the same
+     * words, and the only way out was to find Sign out in Settings. The
+     * token is cleared here, once, wherever the 401 arrived — a check
+     * at every call site is a check somebody forgets to add to the
+     * next one — and this hands the fact to the view model so a screen
+     * can ask for the password again.
+     */
+    var onSessionRejected: (() -> Unit)? = null
 
     /**
      * Where a test points the app.
@@ -133,10 +146,6 @@ class MailrsClient(private val store: TokenStore) {
     suspend fun unseenCount(): Outcome<Int> =
         one(get("/api/conversations/unseen-count"), Wire.UnseenCount.serializer()).map { it.count }
 
-    suspend fun signatures(): Outcome<List<Wire.Signature>> = decode(
-        get("/api/mail/signatures"),
-        Wire.Signature.serializer(),
-    )
 
     suspend fun thread(threadId: String): Outcome<List<Wire.Message>> = decode(
         get("/api/conversations/${enc(threadId)}"),
@@ -232,106 +241,11 @@ class MailrsClient(private val store: TokenStore) {
         post(url("/api/conversations/${enc(threadId)}/read"), "{}", authorized = true)
     }
 
-    /**
-     * `GET /api/mail/messages/{uid}/attachments/{index}` — the bytes.
-     *
-     * **The index is the caller's, not zero.** The server identifies an
-     * attachment by its position in the message, and a client that
-     * always asked for the first one would show the right name over the
-     * wrong file. The stub records what was asked for at
-     * `/debug/fetched` precisely so a test can tell those apart.
-     */
-    suspend fun attachment(uid: Int, index: Int): Outcome<ByteArray> = withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext Outcome.Err("Not signed in.")
-        val request = Request.Builder()
-            .url("${s.server}/api/mail/messages/$uid/attachments/$index")
-            .header("Authorization", "Bearer ${s.token}")
-            .get()
-            .build()
-        try {
-            http.newCall(request).execute().use { response ->
-                when {
-                    response.isSuccessful -> Outcome.Ok(response.body.bytes())
-                    response.code == 401 -> Outcome.Err("Signed out — the server rejected this session.")
-                    else -> Outcome.Err("The server answered ${response.code}.")
-                }
-            }
-        } catch (e: IOException) {
-            Outcome.Err("Could not reach the server: ${e.message}")
-        }
-    }
 
-    /**
-     * `POST /api/mail/unsubscribe` — the server leaves the list.
-     *
-     * Answered with `{ok, status, message}` rather than a status code,
-     * because "the sender's endpoint refused" and "we never reached it"
-     * are different things to tell a reader.
-     */
-    suspend fun unsubscribe(threadId: String, uid: Int): Outcome<Wire.UnsubscribeResult> {
-        val body = json.encodeToString(
-            Wire.UnsubscribeRequest.serializer(),
-            Wire.UnsubscribeRequest(threadId, uid),
-        )
-        return when (val r = post(url("/api/mail/unsubscribe"), body, authorized = true)) {
-            is Outcome.Ok -> runCatching {
-                json.decodeFromString(Wire.UnsubscribeResult.serializer(), r.value)
-            }.fold(
-                onSuccess = { Outcome.Ok(it) },
-                onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
-            )
-            is Outcome.Err -> r
-        }
-    }
 
-    /**
-     * `GET /api/contacts?q=` — a bare array of `Name <email>`.
-     *
-     * Substring on either half, case-insensitively, which is the
-     * server's rule and not this app's: matching here as well would
-     * mean two answers to one question.
-     */
-    suspend fun contacts(term: String): Outcome<List<String>> = decode(
-        get("/api/contacts?q=" + enc(term)),
-        kotlinx.serialization.serializer<String>(),
-    )
 
-    suspend fun drafts(): Outcome<List<Wire.Draft>> = decode(
-        get("/api/mail/drafts"),
-        Wire.Draft.serializer(),
-    )
 
-    /**
-     * `POST /api/mail/drafts` — create or update.
-     *
-     * The id decides which: present is an in-place update of the same
-     * hash field, absent allocates a new one. A composer that dropped
-     * the id on the second save would leave a trail of drafts behind
-     * one message.
-     */
-    suspend fun saveDraft(req: Wire.SaveDraftRequest): Outcome<Long> {
-        val payload = json.encodeToString(Wire.SaveDraftRequest.serializer(), req)
-        return when (val r = post(url("/api/mail/drafts"), payload, authorized = true)) {
-            is Outcome.Ok -> runCatching {
-                json.decodeFromString(Wire.SaveDraftResponse.serializer(), r.value).id
-            }.fold(
-                onSuccess = { Outcome.Ok(it) },
-                onFailure = { Outcome.Err("The server sent a shape this app could not read: ${it.message}") },
-            )
-            is Outcome.Err -> r
-        }
-    }
 
-    suspend fun deleteDraft(id: Long): Outcome<String> = withContext(Dispatchers.IO) {
-        val s = session ?: return@withContext Outcome.Err("Not signed in.")
-        send(
-            Request.Builder()
-                .url("${s.server}/api/mail/drafts/$id")
-                .header("Authorization", "Bearer ${s.token}")
-                .delete()
-                .build(),
-        )
-    }
 
     /**
      * `POST /api/mail/send-multipart` — a message with files.
@@ -395,7 +309,7 @@ class MailrsClient(private val store: TokenStore) {
         is Outcome.Err -> this
     }
 
-    private fun <T> decode(
+    internal fun <T> decode(
         r: Outcome<String>,
         element: kotlinx.serialization.KSerializer<T>,
     ): Outcome<List<T>> = when (r) {
@@ -430,7 +344,10 @@ class MailrsClient(private val store: TokenStore) {
             val text = response.body.string()
             when {
                 response.isSuccessful -> Outcome.Ok(text)
-                response.code == 401 -> Outcome.Err("Signed out — the server rejected this session.")
+                response.code == 401 -> {
+                    rejected()
+                    Outcome.Err("Signed out — the server rejected this session.")
+                }
                 else -> Outcome.Err("The server answered ${response.code}.")
             }
         }
@@ -438,6 +355,20 @@ class MailrsClient(private val store: TokenStore) {
         // Distinguished from a server error on purpose: one is worth
         // retrying where you are, the other is not.
         Outcome.Err("Could not reach the server: ${e.message}")
+    }
+
+    /**
+     * The session is gone; say so once and forget the token.
+     *
+     * Guarded because a screen makes several requests at a time — the
+     * list, the signature, the unseen count — and three 401s in the
+     * same second should not be three trips back to the sign-in screen.
+     */
+    internal fun rejected() {
+        if (session == null) return
+        session = null
+        store.clear()
+        onSessionRejected?.invoke()
     }
 
     internal fun url(path: String) = (session?.server ?: "") + path

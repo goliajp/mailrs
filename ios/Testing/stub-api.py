@@ -347,6 +347,10 @@ VERBS = []
 VERB_REFUSE = set()
 UNSUBSCRIBED = []
 UNSUB_REFUSE = [False]
+# When set, every authorized request answers 401 — a token that expired
+# or an operator who revoked it. A client that only prints the message
+# goes on believing it is signed in.
+REJECT_SESSION = [False]
 
 # The second thread arrived at an alias, which is its whole purpose
 # here: the direct address is absent, so the client has to work out that
@@ -456,7 +460,18 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _session_rejected(self):
+        """401 for anything that carries a token, once the switch is on."""
+        if not REJECT_SESSION[0]:
+            return False
+        if self.path.startswith("/debug/"):
+            return False
+        self._send({"error": "unauthorized"}, status=401)
+        return True
+
     def do_GET(self):
+        if self._session_rejected():
+            return
         if self.path.split("?")[0] == "/api/conversations/search":
             query = parse_qs(urlparse(self.path).query)
             term = query.get("q", [""])[0]
@@ -909,6 +924,8 @@ class H(BaseHTTPRequestHandler):
             self._send({}, 404)
 
     def do_POST(self):
+        if self._session_rejected():
+            return
         if self.path.split("?")[0] == "/api/agent/keys":
             WRITES.append("POST /api/agent/keys")
             length = int(self.headers.get("Content-Length", "0"))
@@ -947,6 +964,11 @@ class H(BaseHTTPRequestHandler):
             self._send({"ok": True})
             return
         if self.path.split("?")[0] == "/debug/reset":
+            # Including the session switch: a test that turned it on
+            # would otherwise 401 every test after it, and the failure
+            # would look like anything but a leftover flag.
+            REJECT_SESSION[0] = False
+            VERB_REFUSE.clear()
             FETCHED.clear()
             SENT.clear()
             DRAFTS.clear()
@@ -1043,6 +1065,9 @@ class H(BaseHTTPRequestHandler):
                         "permissions": [], "token": "stub-token"})
         elif self.path.split("?")[0].startswith("/debug/refuse-verb/"):
             VERB_REFUSE.add(self.path.rsplit("/", 1)[-1])
+            self._send({"ok": True})
+        elif self.path.split("?")[0] == "/debug/reject-session":
+            REJECT_SESSION[0] = True
             self._send({"ok": True})
         elif self.path.split("?")[0] == "/debug/unsubscribe-refuse":
             UNSUB_REFUSE[0] = True

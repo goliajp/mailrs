@@ -3,6 +3,12 @@ package jp.golia.mailrs
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.ContentUriBody
+import jp.golia.mailrs.wire.attachment
+import jp.golia.mailrs.wire.contacts
+import jp.golia.mailrs.wire.deleteDraft
+import jp.golia.mailrs.wire.drafts
+import jp.golia.mailrs.wire.saveDraft
+import jp.golia.mailrs.wire.unsubscribe
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.RecentRecipients

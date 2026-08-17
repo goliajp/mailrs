@@ -2,6 +2,7 @@ package jp.golia.mailrs
 
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailSignature
+import jp.golia.mailrs.wire.signatures
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import kotlinx.coroutines.launch
