@@ -3,6 +3,7 @@ package jp.golia.mailrs.ui
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import jp.golia.mailrs.dismissError
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.UiState
 

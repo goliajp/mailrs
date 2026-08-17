@@ -92,6 +92,9 @@ import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.StarBorder
 import jp.golia.mailrs.toggleStar
 import jp.golia.mailrs.triageOpenThread
+import jp.golia.mailrs.closeThread
+import jp.golia.mailrs.reportFailure
+import jp.golia.mailrs.viewSource
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity

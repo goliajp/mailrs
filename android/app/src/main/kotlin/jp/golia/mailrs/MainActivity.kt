@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.openThreadById
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.composeFromShare
 import android.Manifest

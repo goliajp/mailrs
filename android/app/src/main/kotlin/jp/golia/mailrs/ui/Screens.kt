@@ -91,6 +91,7 @@ import jp.golia.mailrs.triage
 import jp.golia.mailrs.undo
 import jp.golia.mailrs.clearSearch
 import jp.golia.mailrs.searchOpened
+import jp.golia.mailrs.openSettings
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity

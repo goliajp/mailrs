@@ -355,6 +355,7 @@ data class PendingTriage(
  * `serverId` is null until the draft has been saved once; after
  * that it is reused, or one message leaves a trail of drafts.
  */
+@kotlinx.serialization.Serializable
 data class Draft(
     val id: Int,
     val to: String = "",
@@ -382,6 +383,7 @@ data class Draft(
      * tomorrow with a file it can no longer read would be worse than
      * one that says it has none.
      */
+    @kotlinx.serialization.Transient
     val attachments: List<Attached> = emptyList(),
 ) {
     /** Nothing typed and nothing quoted: not worth saving. */

@@ -2,6 +2,8 @@ package jp.golia.mailrs
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
+import kotlinx.serialization.json.Json
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.widget.WidgetState
 import jp.golia.mailrs.widget.refreshInboxWidgets
@@ -38,7 +40,25 @@ import kotlinx.coroutines.launch
  * thread is open" or "what messages it has" would do the same thing
  * here, so the screens read this and hold nothing.
  */
-class MailViewModel(app: Application) : AndroidViewModel(app) {
+class MailViewModel(
+    app: Application,
+    /**
+     * Where the half-written message goes when the process does not
+     * survive.
+     *
+     * A `ViewModel` outlives a rotation and nothing else. Android
+     * reclaims a backgrounded app whenever it needs the memory — a
+     * phone call, a camera, a large game — and brings it back looking
+     * as it did, which for this app meant an empty composer where a
+     * message had been. Leaving the composer saves a server draft, but
+     * being killed is not leaving.
+     *
+     * Only the composer is kept. Everything else on screen is a copy of
+     * what the server has and comes back with the next fetch; the draft
+     * is the one thing that exists nowhere else yet.
+     */
+    private val saved: SavedStateHandle = SavedStateHandle(),
+) : AndroidViewModel(app) {
 
     internal val client = MailrsClient(TokenStore(app))
     internal val prefs = Prefs(app)
@@ -47,6 +67,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     internal var pending: PendingTriage? = null
     internal var undoToken = 0
     internal var searchToken = 0
+
+
     internal var contactToken = 0
 
     /** Set only by `useFolderForTest`; null in every shipped build. */
@@ -86,6 +108,30 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
 
     init {
+        // Restored before anything else touches the state, so a
+        // recreated process opens on the message that was being
+        // written rather than on the inbox behind it.
+        saved.get<String>(DRAFT_KEY)?.let { stored ->
+            runCatching { Json.decodeFromString(Draft.serializer(), stored) }
+                .onSuccess { draft -> _state.update { it.copy(composing = draft) } }
+        }
+
+        // **Watched in one place rather than saved at ten.** Ten
+        // functions set `composing`; a call to remember it in each is a
+        // call somebody forgets to add to the eleventh. Collecting the
+        // flow means every change is kept, including the ones written
+        // by code that has never heard of saved state.
+        //
+        // The process is not warned before it is taken, so this happens
+        // on every keystroke rather than on some later save.
+        viewModelScope.launch {
+            _state.collect { current ->
+                saved[DRAFT_KEY] = current.composing?.let {
+                    Json.encodeToString(Draft.serializer(), it)
+                }
+            }
+        }
+
         // The server can stop accepting a session at any moment — a
         // token expires, an operator revokes it. Until this, the app
         // went on believing it was signed in and every request failed
@@ -376,37 +422,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
 
 
-    /**
-     * The message as it arrived, headers and all.
-     *
-     * What a mail server's operator reaches for when a message did not
-     * do what it should have: the Received chain, the auth results, the
-     * exact Content-Type. Nothing else in this app shows them.
-     */
-    fun viewSource(uid: Int) {
-        _state.update { it.copy(sourceOpen = true, source = null, error = null) }
-        viewModelScope.launch {
-            _state.update {
-                when (val r = client.messageSource(uid)) {
-                is MailrsClient.Outcome.Ok -> it.copy(source = r.value)
-                is MailrsClient.Outcome.Err -> it.copy(sourceOpen = false, error = r.message)
-            }
-            }
-        }
-    }
 
-    fun closeSource() {
-        _state.update { it.copy(sourceOpen = false, source = null) }
-    }
 
     /** Open and close the settings screen. */
-    fun openSettings() {
-        _state.update { it.copy(settingsOpen = true, selected = emptySet()) }
-    }
 
-    fun closeSettings() {
-        _state.update { it.copy(settingsOpen = false) }
-    }
 
     /**
      * Choose light, dark, or the phone's own answer.
@@ -415,22 +434,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
      * some later save: a preference that is only in memory is one the
      * next launch forgets, and nobody sets a theme twice.
      */
-    /**
-     * Turn the periodic new-mail check on or off.
-     *
-     * Scheduling follows immediately: a switch that only takes effect
-     * next launch is a switch that looks broken.
-     */
-    fun chooseNotify(on: Boolean) {
-        prefs.notifyNewMail = on
-        NewMailWorker.schedule(getApplication(), on)
-        _state.update { it.copy(notifyNewMail = on) }
-    }
 
-    fun chooseAppearance(appearance: Prefs.Appearance) {
-        prefs.appearance = appearance
-        _state.update { it.copy(appearance = appearance) }
-    }
 
 
 
@@ -439,44 +443,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
 
 
 
-    /**
-     * Open a thread named by something outside the app — a tapped
-     * notification.
-     *
-     * The list is fetched first because a thread needs its row for the
-     * header, and the row is what the notification did not carry. If it
-     * is not there any more — read elsewhere, archived elsewhere — the
-     * inbox is what opens, which is the honest answer rather than an
-     * empty thread.
-     */
-    fun openThreadById(threadId: String) {
-        viewModelScope.launch {
-            val rows = client.conversations(_state.value.list)
-            if (rows is MailrsClient.Outcome.Ok) {
-                _state.update { it.copy(conversations = rows.value) }
-                rows.value.firstOrNull { it.threadId == threadId }?.let { open(it) }
-            }
-        }
-    }
 
-    fun closeThread() {
-        _state.update { it.copy(open = null, messages = emptyList()) }
-    }
 
-    /**
-     * Something outside this view model went wrong and is worth saying.
-     *
-     * A screen can reach the parts of Android that fail — no app to
-     * open a file, no browser for a link — and those failures belong on
-     * the same snackbar as everything else rather than in a `runCatching`
-     * nobody reads.
-     */
-    fun reportFailure(message: String) {
-        _state.update { it.copy(error = message) }
-    }
 
-    fun dismissError() {
-        _state.update { it.copy(error = null) }
-    }
 
+    internal companion object {
+        const val DRAFT_KEY = "composing"
+    }
 }

@@ -21,6 +21,7 @@ import androidx.core.net.toUri
 import jp.golia.mailrs.UiState
 import jp.golia.mailrs.Unsubscribing
 import jp.golia.mailrs.unsubscribe
+import jp.golia.mailrs.reportFailure
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.UnsubscribeOffer
 import jp.golia.mailrs.wire.Wire

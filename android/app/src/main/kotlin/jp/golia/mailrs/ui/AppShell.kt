@@ -36,6 +36,11 @@ import jp.golia.mailrs.closeAdminRow
 import jp.golia.mailrs.openAdmin
 import jp.golia.mailrs.cancelCompose
 import jp.golia.mailrs.closeDrafts
+import jp.golia.mailrs.chooseAppearance
+import jp.golia.mailrs.chooseNotify
+import jp.golia.mailrs.closeSettings
+import jp.golia.mailrs.closeSource
+import jp.golia.mailrs.closeThread
 import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
