@@ -30,16 +30,31 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Abandoned after this long. Generous relative to a container start; the cost
-/// of being wrong is one extra concurrent startup, and the cost of no timeout
-/// at all is a crashed run wedging every later one.
-const STALE_AFTER: Duration = Duration::from_secs(120);
+/// Abandoned after this long **since the holder last said it was alive**.
+///
+/// It used to mean "since the file was created", which is a different
+/// claim: a container that legitimately took longer than this to report
+/// ready had its lock broken by a waiter, which then started a second
+/// container beside it — the serialisation defeating itself under
+/// exactly the load it exists for. With a heartbeat the two are
+/// separable, so this can be short: a dead holder is now detected in
+/// seconds rather than minutes, and a slow one is never mistaken for
+/// dead however long it takes.
+const STALE_AFTER: Duration = Duration::from_secs(30);
+
+/// How often a holder touches the file to say it is still there.
+/// Comfortably inside `STALE_AFTER`, so a missed tick is not a
+/// breakage.
+const HEARTBEAT: Duration = Duration::from_secs(5);
 
 /// Held while one container comes up. Released on drop, including on panic.
-pub struct StartupLock(PathBuf);
+pub struct StartupLock(PathBuf, Option<tokio::task::JoinHandle<()>>);
 
 impl Drop for StartupLock {
     fn drop(&mut self) {
+        if let Some(h) = self.1.take() {
+            h.abort();
+        }
         let _ = std::fs::remove_file(&self.0);
     }
 }
@@ -56,7 +71,24 @@ pub async fn startup_lock() -> StartupLock {
             .create_new(true)
             .open(&path)
         {
-            Ok(_) => return StartupLock(path),
+            Ok(_) => {
+                // Say so, periodically, for as long as this is held.
+                // Without it the waiter below cannot tell a holder that
+                // is taking a long time from one that is gone.
+                let beat_path = path.clone();
+                let beat = tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(HEARTBEAT).await;
+                        // Touch by rewriting the mtime. An error means
+                        // the file is gone, and then there is nothing
+                        // left to keep alive.
+                        if filetime_now(&beat_path).is_err() {
+                            return;
+                        }
+                    }
+                });
+                return StartupLock(path, Some(beat));
+            }
             Err(_) => {
                 let abandoned = std::fs::metadata(&path)
                     .and_then(|m| m.modified())
@@ -75,9 +107,56 @@ pub async fn startup_lock() -> StartupLock {
     }
 }
 
+/// Set a file's mtime to now, without changing its contents.
+fn filetime_now(path: &std::path::Path) -> std::io::Result<()> {
+    let f = std::fs::OpenOptions::new().write(true).open(path)?;
+    // A zero-length write is not enough on every filesystem; setting the
+    // length to what it already is updates mtime and touches no bytes.
+    let len = f.metadata()?.len();
+    f.set_len(len)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **A slow holder is not a dead one**, and the file's age cannot
+    /// tell them apart on its own.
+    ///
+    /// `STALE_AFTER` exists so a crashed run does not wedge every later
+    /// one. But nothing refreshed the file, so "not modified for 120 s"
+    /// meant "created 120 s ago" — and a container that legitimately
+    /// takes longer than that to report ready had its lock taken away
+    /// by a waiter, which then started a second container beside it.
+    /// The serialisation defeated itself under exactly the load it was
+    /// written for: on 2026-08-17 three `mailrs-mailbox` tests went red
+    /// with `WaitContainer(StartupTimeout)` during a deploy gate, 541 s
+    /// for eleven tests, and the same eleven passed in 55 s alone.
+    ///
+    /// So the holder touches the file while it holds it, and the age
+    /// that matters is the age since the last touch.
+    #[tokio::test]
+    async fn a_holder_that_is_merely_slow_keeps_its_lock() {
+        let held = startup_lock().await;
+        let path = held.0.clone();
+
+        // Longer than the heartbeat, so a lock that is not refreshed
+        // shows its age here.
+        tokio::time::sleep(HEARTBEAT * 3).await;
+
+        let age = std::fs::metadata(&path)
+            .and_then(|m| m.modified())
+            .map(|t| t.elapsed().unwrap_or_default())
+            .expect("the lock file is readable while held");
+        assert!(
+            age < HEARTBEAT * 2,
+            "the lock file has not been touched for {age:?}; a waiter would \
+             read that as an abandoned lock and start a second container \
+             beside a live one"
+        );
+        drop(held);
+    }
 
     #[tokio::test]
     async fn the_lock_is_exclusive_and_releases_on_drop() {
