@@ -333,6 +333,61 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Selection mode: long-press starts it, tapping adds and removes.
+     *
+     * Android's own pattern for acting on many rows, and the reason the
+     * row tap has two meanings — while a selection is on, tapping a row
+     * changes the selection rather than opening it, which is what every
+     * list on the phone does and what a reader will expect after the
+     * first long press.
+     */
+    fun toggleSelected(threadId: String) {
+        val now = _state.value.selected
+        val next = if (threadId in now) now - threadId else now + threadId
+        _state.value = _state.value.copy(selected = next)
+    }
+
+    fun clearSelection() {
+        if (_state.value.selected.isEmpty()) return
+        _state.value = _state.value.copy(selected = emptySet())
+    }
+
+    /**
+     * Apply a verb to everything selected, in one request.
+     *
+     * The rows leave at once and the selection ends, because a
+     * selection that survived its own action would invite the same
+     * action twice. Unlike a swipe there is no undo window: the
+     * snackbar can honestly offer one undo, and a bulk action that
+     * silently deferred would leave the list disagreeing with the
+     * server for five seconds while the reader watches.
+     */
+    fun applyToSelection(verb: MailrsClient.Verb) {
+        val ids = _state.value.selected.toList()
+        if (ids.isEmpty()) return
+        val before = _state.value.conversations
+        // Read and star leave the rows where they are; the rest take
+        // them out of this list. Saying which is which here keeps the
+        // list honest about what the server was asked to do.
+        val staysInPlace = verb == MailrsClient.Verb.Read || verb == MailrsClient.Verb.Unread ||
+            verb == MailrsClient.Verb.Star || verb == MailrsClient.Verb.Unstar
+        _state.value = _state.value.copy(
+            selected = emptySet(),
+            conversations = if (staysInPlace) before else before.filterNot { it.threadId in ids },
+        )
+        viewModelScope.launch {
+            when (val r = client.batch(verb, ids)) {
+                is MailrsClient.Outcome.Ok -> if (staysInPlace) refresh()
+                is MailrsClient.Outcome.Err ->
+                    // It did not happen, so the rows come back. Mail
+                    // that vanished on a failed request is mail the
+                    // person believes they filed and did not.
+                    _state.value = _state.value.copy(conversations = before, error = r.message)
+            }
+        }
+    }
+
+    /**
      * Show another list.
      *
      * The rows on screen belong to the list that was showing, so they
@@ -344,6 +399,7 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         searchToken++
         _state.value = _state.value.copy(
             list = list,
+            selected = emptySet(),
             conversations = emptyList(),
             searchTerm = "",
             results = null,
@@ -426,6 +482,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val searching: Boolean = false,
         /** Which list is showing. Its axes scope both the list and the search. */
         val list: MailList = MailList.Inbox,
+        /** Threads picked out for a bulk action. Empty means not selecting. */
+        val selected: Set<String> = emptySet(),
         /** Which attachment index is being fetched, if any. */
         val openingAttachment: Int? = null,
         /** A file ready to hand to another app. */

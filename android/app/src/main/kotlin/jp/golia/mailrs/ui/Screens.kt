@@ -1,6 +1,7 @@
 package jp.golia.mailrs.ui
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MarkEmailRead
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
@@ -177,6 +182,12 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val snackbars = remember { SnackbarHostState() }
     var searchOpen by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
+    val selecting = state.selected.isNotEmpty()
+
+    // A selection is a mode, and back leaves a mode before it leaves
+    // the app. Without this, the gesture that everyone uses to say
+    // "never mind" closed Mailrs with the rows still picked.
+    BackHandler(enabled = selecting) { vm.clearSelection() }
     val scope = rememberCoroutineScope()
 
     // Collapsing the bar ends the search. Leaving a stale result set
@@ -207,6 +218,9 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
             MailrsClient.Verb.Read -> "Marked read"
             MailrsClient.Verb.Unarchive -> "Moved to inbox"
             MailrsClient.Verb.Unread -> "Marked unread"
+            MailrsClient.Verb.Star -> "Starred"
+            MailrsClient.Verb.Unstar -> "Unstarred"
+            MailrsClient.Verb.Delete -> "Deleted"
         }
         val result = snackbars.showSnackbar(
             message = what,
@@ -230,31 +244,73 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
         snackbarHost = { SnackbarHost(snackbars, Modifier.testTag("snackbar.undo")) },
         topBar = {
             TopAppBar(
-                title = { Text(state.list.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+                // **The bar becomes the action bar.** Android's answer
+                // to acting on many rows is that the top bar changes
+                // rather than a second one appearing: a count on the
+                // left where the title was, the actions on the right,
+                // and a close where the drawer button was.
+                title = {
+                    if (selecting) {
+                        Text("${state.selected.size}", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Text(state.list.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                },
                 navigationIcon = {
                     IconButton(
-                        onClick = { scope.launch { drawer.open() } },
-                        modifier = Modifier.testTag("button.folders"),
+                        onClick = {
+                            if (selecting) vm.clearSelection() else scope.launch { drawer.open() }
+                        },
+                        modifier = Modifier.testTag(if (selecting) "button.endSelection" else "button.folders"),
                     ) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Lists", tint = theme.fgSecondary)
+                        if (selecting) {
+                            Icon(Icons.Filled.Close, contentDescription = "Done", tint = theme.fgSecondary)
+                        } else {
+                            Icon(Icons.Filled.Menu, contentDescription = "Lists", tint = theme.fgSecondary)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = theme.bg,
+                    containerColor = if (selecting) theme.bgTertiary else theme.bg,
                     titleContentColor = theme.fg,
                 ),
                 actions = {
-                    IconButton(
-                        onClick = { searchOpen = true },
-                        modifier = Modifier.testTag("button.search"),
-                    ) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = theme.fgSecondary)
-                    }
-                    IconButton(onClick = { vm.refresh() }, modifier = Modifier.testTag("button.refresh")) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = theme.fgSecondary)
-                    }
-                    TextButton(onClick = { vm.signOut() }, modifier = Modifier.testTag("button.signOut")) {
-                        Text("Sign out", color = theme.accent, fontSize = 14.sp)
+                    if (selecting) {
+                        IconButton(
+                            onClick = { vm.applyToSelection(MailrsClient.Verb.Archive) },
+                            modifier = Modifier.testTag("button.selectionArchive"),
+                        ) {
+                            Icon(Icons.Filled.Archive, contentDescription = "Archive", tint = theme.fgSecondary)
+                        }
+                        IconButton(
+                            onClick = { vm.applyToSelection(MailrsClient.Verb.Read) },
+                            modifier = Modifier.testTag("button.selectionRead"),
+                        ) {
+                            Icon(
+                                Icons.Filled.MarkEmailRead,
+                                contentDescription = "Mark read",
+                                tint = theme.fgSecondary,
+                            )
+                        }
+                        IconButton(
+                            onClick = { vm.applyToSelection(MailrsClient.Verb.Star) },
+                            modifier = Modifier.testTag("button.selectionStar"),
+                        ) {
+                            Icon(Icons.Filled.Star, contentDescription = "Star", tint = theme.fgSecondary)
+                        }
+                    } else {
+                        IconButton(
+                            onClick = { searchOpen = true },
+                            modifier = Modifier.testTag("button.search"),
+                        ) {
+                            Icon(Icons.Filled.Search, contentDescription = "Search", tint = theme.fgSecondary)
+                        }
+                        IconButton(onClick = { vm.refresh() }, modifier = Modifier.testTag("button.refresh")) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = theme.fgSecondary)
+                        }
+                        TextButton(onClick = { vm.signOut() }, modifier = Modifier.testTag("button.signOut")) {
+                            Text("Sign out", color = theme.accent, fontSize = 14.sp)
+                        }
                     }
                 },
             )
@@ -299,11 +355,27 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                 ) {
                     LazyColumn(Modifier.fillMaxSize().testTag("list.conversations")) {
                         items(state.conversations, key = { it.threadId }) { c ->
-                            SwipeableConversationRow(
-                                onArchive = { vm.triage(c, MailrsClient.Verb.Archive) },
-                                onMarkRead = { vm.triage(c, MailrsClient.Verb.Read) },
-                            ) {
-                                ConversationRow(c) { vm.open(c) }
+                            val picked = c.threadId in state.selected
+                            if (selecting) {
+                                // No swipe while selecting: the gesture
+                                // that picks rows and the gesture that
+                                // files them cannot share a finger.
+                                ConversationRow(
+                                    c,
+                                    selected = picked,
+                                    onLongPress = { vm.toggleSelected(c.threadId) },
+                                ) { vm.toggleSelected(c.threadId) }
+                            } else {
+                                SwipeableConversationRow(
+                                    onArchive = { vm.triage(c, MailrsClient.Verb.Archive) },
+                                    onMarkRead = { vm.triage(c, MailrsClient.Verb.Read) },
+                                ) {
+                                    ConversationRow(
+                                        c,
+                                        selected = false,
+                                        onLongPress = { vm.toggleSelected(c.threadId) },
+                                    ) { vm.open(c) }
+                                }
                             }
                             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                         }
