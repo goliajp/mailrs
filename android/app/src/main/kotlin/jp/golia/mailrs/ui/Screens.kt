@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Menu
@@ -531,6 +532,12 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: MailViewModel.
                 modifier = Modifier.testTag("button.replyAll"),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = "Reply all", tint = theme.fgSecondary)
+            }
+            IconButton(
+                onClick = { vm.viewSource(m.uid) },
+                modifier = Modifier.testTag("button.viewSource"),
+            ) {
+                Icon(Icons.Filled.Code, contentDescription = "View source", tint = theme.fgSecondary)
             }
         }
     }

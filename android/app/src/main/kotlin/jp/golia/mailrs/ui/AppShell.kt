@@ -26,7 +26,7 @@ import jp.golia.mailrs.MailViewModel
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Which screen is showing, in the order they stack. */
-private enum class Screen { SignIn, List, Drafts, Settings, Admin, Thread, Compose }
+private enum class Screen { SignIn, List, Drafts, Settings, Admin, Thread, Source, Compose }
 
 /**
  * The app's one navigation decision, and the motion that goes with it.
@@ -50,19 +50,22 @@ private enum class Screen { SignIn, List, Drafts, Settings, Admin, Thread, Compo
  */
 @Composable
 fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
+    // **This order is the stack, innermost first.** Each line asks "is
+    // something on top of what the line below would show?", so a screen
+    // opened *from* another must appear above it — and getting that
+    // wrong does not look like a bug, it looks like the tap did
+    // nothing. It has happened twice: Admin under Settings, and Source
+    // under Thread, both of which left the screen unchanged because the
+    // one underneath was still open.
     val screen = when {
         !state.signedIn -> Screen.SignIn
-        // The composer sits on top of whatever opened it, so leaving it
-        // returns there rather than to the inbox.
+        // On top of whatever opened it, so cancelling returns there.
         state.composing != null -> Screen.Compose
-        state.open != null -> Screen.Thread
-        // Admin before Settings: it is opened *from* settings and sits
-        // on top of it, so back returns there rather than to the list.
-        // With the order the other way round the screen never changed at
-        // all, because settings was still open underneath.
-        state.adminOpen != null -> Screen.Admin
+        state.sourceOpen -> Screen.Source          // opened from a thread
+        state.adminOpen != null -> Screen.Admin    // opened from settings
         state.settingsOpen -> Screen.Settings
         state.draftsOpen -> Screen.Drafts
+        state.open != null -> Screen.Thread
         else -> Screen.List
     }
 
@@ -74,7 +77,8 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
 
     PredictiveBackHandler(
         enabled = screen == Screen.Thread || screen == Screen.Compose ||
-            screen == Screen.Settings || screen == Screen.Drafts || screen == Screen.Admin,
+            screen == Screen.Settings || screen == Screen.Drafts ||
+            screen == Screen.Admin || screen == Screen.Source,
     ) { progress ->
         try {
             progress.collect { backProgress = it.progress }
@@ -85,6 +89,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                 Screen.Settings -> vm.closeSettings()
                 Screen.Drafts -> vm.closeDrafts()
                 Screen.Admin -> vm.closeAdmin()
+                Screen.Source -> vm.closeSource()
                 else -> Unit
             }
         } catch (_: CancellationException) {
@@ -152,6 +157,7 @@ fun MailrsApp(vm: MailViewModel, state: MailViewModel.UiState) {
                     }
                     Screen.Compose -> Box(peeled) { ComposeScreen(state, vm) }
                     Screen.Thread -> Box(peeled) { ThreadScreen(state, vm) }
+                    Screen.Source -> Box(peeled) { SourceScreen(state, vm) }
                     Screen.List -> Box(windowModifier) { ConversationListScreen(state, vm) }
                     Screen.Drafts -> Box(peeled) { DraftsScreen(state, vm) }
                     Screen.Admin -> Box(peeled) {

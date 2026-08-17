@@ -153,6 +153,27 @@ object Admin {
     @Serializable
     data class AddSenderRequest(val address: String)
 
+    /**
+     * A permission group. `domain` is absent for the cross-domain
+     * builtins, which is why it is nullable rather than empty-by-
+     * default: "every domain" and "the empty domain" are different
+     * things to say about a group that grants administration.
+     *
+     * Backend: `crates/core-api/src/method/admin/permissions.rs`.
+     */
+    @Serializable
+    data class Group(
+        val id: Long,
+        val name: String = "",
+        val domain: String? = null,
+        val description: String = "",
+        @SerialName("is_builtin") val isBuiltin: Boolean = false,
+        @SerialName("created_at") val createdAt: Long = 0,
+    )
+
+    @Serializable
+    data class GroupList(val items: List<Group> = emptyList())
+
     @Serializable
     data class AddAliasRequest(
         @SerialName("source_address") val sourceAddress: String,
