@@ -364,12 +364,22 @@ private fun MessageCard(m: Wire.Message, vm: MailViewModel) {
                 Text(RowDate.format(m.internalDate), color = theme.fgMuted, fontSize = 11.sp)
             }
         }
-        Text(
-            m.textBody ?: m.htmlBody?.let(::stripTags) ?: "(no body)",
-            color = theme.fg,
-            fontSize = 15.sp,
-            modifier = Modifier.padding(top = 10.dp),
-        )
+        // HTML first, and not as a preference. A message that was
+        // composed as HTML and shown as its `text_body` is a different
+        // message: the fixture's plain part is the two words "plain
+        // fallback" against a newsletter, which is what this client
+        // showed until now.
+        val html = m.htmlBody
+        if (html.isNullOrBlank()) {
+            Text(
+                m.textBody.orEmpty().ifBlank { "(no body)" },
+                color = theme.fg,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        } else {
+            MessageBody(html, Modifier.padding(top = 10.dp))
+        }
         Row(Modifier.padding(top = 6.dp)) {
             IconButton(
                 onClick = { vm.compose(replyTo = m) },
@@ -445,20 +455,3 @@ private fun Conclusion(headline: String, detail: String, modifier: Modifier = Mo
         )
     }
 }
-
-/**
- * Enough to read an HTML-only message as text.
- *
- * Not a renderer: it strips tags so the words are legible when there is
- * no `text_body`. A real HTML view is its own piece of work, with its
- * own decisions about remote content, tracking pixels and whether a
- * message that declares its own colours keeps its white paper — all of
- * which `ios/DESIGN.md` settles and this does not have yet.
- */
-private fun stripTags(html: String): String =
-    html.replace(Regex("(?s)<(script|style).*?</\\1>"), " ")
-        .replace(Regex("<[^>]+>"), " ")
-        .replace(Regex("&nbsp;"), " ")
-        .replace(Regex("[ \\t]+"), " ")
-        .replace(Regex("(\\s*\\n\\s*){3,}"), "\n\n")
-        .trim()

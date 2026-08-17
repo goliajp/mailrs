@@ -46,6 +46,15 @@ data class Theme(
     val warning: Color,
     val danger: Color,
     val info: Color,
+    /**
+     * Which of the two this is.
+     *
+     * A message body needs the answer and cannot get it from the
+     * colours: it decides whether mail that declares no colours of its
+     * own may be painted on dark paper. Asking the system instead would
+     * be a second source for the same fact.
+     */
+    val isDark: Boolean,
 ) {
     companion object {
         val Light = Theme(
@@ -56,6 +65,7 @@ data class Theme(
             accent = Color(0xFF3B7DDD), accentFg = Color(0xFFFFFFFF),
             success = Color(0xFF0CA678), warning = Color(0xFFE67700),
             danger = Color(0xFFE03131), info = Color(0xFF3B7DDD),
+            isDark = false,
         )
 
         val Dark = Theme(
@@ -66,6 +76,7 @@ data class Theme(
             accent = Color(0xFF3B82F6), accentFg = Color(0xFFFFFFFF),
             success = Color(0xFF22C55E), warning = Color(0xFFF59E0B),
             danger = Color(0xFFEF4444), info = Color(0xFF3B82F6),
+            isDark = true,
         )
     }
 }
