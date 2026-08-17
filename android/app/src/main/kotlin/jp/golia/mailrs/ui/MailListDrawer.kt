@@ -7,7 +7,9 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
@@ -35,7 +37,7 @@ import jp.golia.mailrs.wire.MailList
  * on the server and nowhere a phone could reach them.
  */
 @Composable
-fun MailListDrawer(current: MailList, onChoose: (MailList) -> Unit) {
+fun MailListDrawer(current: MailList, onSettings: () -> Unit, onChoose: (MailList) -> Unit) {
     val theme = LocalTheme.current
     ModalDrawerSheet(
         drawerContainerColor = theme.bg,
@@ -65,6 +67,20 @@ fun MailListDrawer(current: MailList, onChoose: (MailList) -> Unit) {
                     .testTag("drawer.item.${list.name}"),
             )
         }
+        HorizontalDivider(color = theme.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
+        NavigationDrawerItem(
+            label = { Text("Settings", fontSize = 14.sp) },
+            icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+            selected = false,
+            onClick = onSettings,
+            colors = NavigationDrawerItemDefaults.colors(
+                unselectedTextColor = theme.fgSecondary,
+                unselectedIconColor = theme.fgSecondary,
+            ),
+            modifier = Modifier
+                .padding(NavigationDrawerItemDefaults.ItemPadding)
+                .testTag("drawer.item.Settings"),
+        )
     }
 }
 

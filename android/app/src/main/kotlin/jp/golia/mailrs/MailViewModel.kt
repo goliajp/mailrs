@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.TokenStore
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 class MailViewModel(app: Application) : AndroidViewModel(app) {
 
     private val client = MailrsClient(TokenStore(app))
+    private val prefs = Prefs(app)
     private var nextDraftId = 1
     private var pending: PendingTriage? = null
     private var undoToken = 0
@@ -49,7 +51,11 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val _state = MutableStateFlow(
-        UiState(signedIn = client.session != null, server = client.session?.server.orEmpty())
+        UiState(
+            signedIn = client.session != null,
+            server = client.session?.server.orEmpty(),
+            appearance = prefs.appearance,
+        )
     )
     val state: StateFlow<UiState> = _state.asStateFlow()
 
@@ -455,6 +461,27 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(suggestions = emptyList(), suggestingFor = null)
     }
 
+    /** Open and close the settings screen. */
+    fun openSettings() {
+        _state.value = _state.value.copy(settingsOpen = true, selected = emptySet())
+    }
+
+    fun closeSettings() {
+        _state.value = _state.value.copy(settingsOpen = false)
+    }
+
+    /**
+     * Choose light, dark, or the phone's own answer.
+     *
+     * Written through to the device store as it is chosen rather than on
+     * some later save: a preference that is only in memory is one the
+     * next launch forgets, and nobody sets a theme twice.
+     */
+    fun chooseAppearance(appearance: Prefs.Appearance) {
+        prefs.appearance = appearance
+        _state.value = _state.value.copy(appearance = appearance)
+    }
+
     fun clearSearch() {
         searchToken++
         _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
@@ -528,6 +555,10 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         val searching: Boolean = false,
         /** Which list is showing. Its axes scope both the list and the search. */
         val list: MailList = MailList.Inbox,
+        /** Whether the settings screen is showing. */
+        val settingsOpen: Boolean = false,
+        /** Light, dark, or the phone's own answer. */
+        val appearance: Prefs.Appearance = Prefs.Appearance.System,
         /** Threads picked out for a bulk action. Empty means not selecting. */
         val selected: Set<String> = emptySet(),
         /** Contact suggestions for the field named by [suggestingFor]. */

@@ -233,7 +233,13 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     ModalNavigationDrawer(
         drawerState = drawer,
         drawerContent = {
-            MailListDrawer(state.list) { chosen ->
+            MailListDrawer(
+                current = state.list,
+                onSettings = {
+                    scope.launch { drawer.close() }
+                    vm.openSettings()
+                },
+            ) { chosen ->
                 scope.launch { drawer.close() }
                 vm.show(chosen)
             }
@@ -307,9 +313,6 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
                         }
                         IconButton(onClick = { vm.refresh() }, modifier = Modifier.testTag("button.refresh")) {
                             Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = theme.fgSecondary)
-                        }
-                        TextButton(onClick = { vm.signOut() }, modifier = Modifier.testTag("button.signOut")) {
-                            Text("Sign out", color = theme.accent, fontSize = 14.sp)
                         }
                     }
                 },
