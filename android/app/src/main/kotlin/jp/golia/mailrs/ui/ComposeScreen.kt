@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,7 +93,10 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
     // Hidden until wanted, because most mail has neither and two empty
     // lines above the subject cost every message to serve a few. Shown
     // from the start when a reopened draft already has one.
-    var extraLines by remember(draft.id) { mutableStateOf(cc.isNotBlank() || bcc.isNotBlank()) }
+    // Saveable: revealing Cc and turning the phone used to hide it
+    // again, with whatever had been typed still in the draft but no
+    // field to show it.
+    var extraLines by rememberSaveable(draft.id) { mutableStateOf(cc.isNotBlank() || bcc.isNotBlank()) }
 
     Column(
         Modifier

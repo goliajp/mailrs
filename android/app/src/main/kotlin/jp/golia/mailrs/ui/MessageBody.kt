@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +72,11 @@ import jp.golia.mailrs.wire.RemoteContent
 fun MessageBody(html: String, modifier: Modifier = Modifier) {
     val theme = LocalTheme.current
     val dark = theme.isDark && MailAppearance.followsAppTheme(html)
-    var blockRemote by remember(html) { mutableStateOf(true) }
+    // Saveable: somebody who asked for the images should not have to
+    // ask again because they turned the phone. Keyed on the message, so
+    // the next one starts blocked again — the decision is per message,
+    // not a setting.
+    var blockRemote by rememberSaveable(html) { mutableStateOf(true) }
     val hasRemote = remember(html) { RemoteContent.hasRemoteReferences(html) }
 
     if (hasRemote && blockRemote) {

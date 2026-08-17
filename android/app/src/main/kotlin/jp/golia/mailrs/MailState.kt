@@ -47,8 +47,21 @@ data class UiState(
      */
     val results: List<Wire.Conversation>? = null,
     val searching: Boolean = false,
-    /** Set by the launcher shortcut; the list opens its search and clears it. */
-    val openSearch: Boolean = false,
+    /**
+     * Whether the search is open.
+     *
+     * Also what the launcher's Search shortcut sets: a durable field can
+     * be written before the list is composed and still be seen when it
+     * appears, so the one-shot flag that used to carry the shortcut —
+     * and the effect that had to consume it — are both gone.
+     *
+     * Here rather than in the list screen's own `remember`, because a
+     * rotation rebuilds that screen and Material's `SearchBar` reports
+     * "not expanded" as it is first composed — which closed the search
+     * and cleared the term while the state still said it was open. One
+     * owner, and it survives a rotation and a killed process alike.
+     */
+    val searchOpen: Boolean = false,
     /** Which list is showing. Its axes scope both the list and the search. */
     val list: MailList = MailList.Inbox,
     /** A page is on its way; the list shows a spinner at its foot. */
