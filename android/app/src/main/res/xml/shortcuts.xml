@@ -30,4 +30,16 @@
             android:targetPackage="jp.golia.mailrs"
             android:targetClass="jp.golia.mailrs.MainActivity" />
     </shortcut>
+
+    <!--
+      Direct share: the people at the top of the system share sheet.
+      Sharing a photo "to Alice" in one step is the difference between
+      a mail client the phone knows about and one it merely lists, and
+      the rows are published as the person writes to somebody rather
+      than guessed.
+    -->
+    <share-target android:targetClass="jp.golia.mailrs.MainActivity">
+        <data android:mimeType="*/*" />
+        <category android:name="jp.golia.mailrs.category.SHARE_TARGET" />
+    </share-target>
 </shortcuts>

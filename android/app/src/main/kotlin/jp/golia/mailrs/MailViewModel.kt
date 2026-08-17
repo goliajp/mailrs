@@ -11,6 +11,7 @@ import jp.golia.mailrs.wire.messageSource
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.Prefs
+import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
 import jp.golia.mailrs.wire.ShareIntent
 import jp.golia.mailrs.wire.ReplyRecipients
@@ -102,6 +103,9 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         // would paint somebody else's mail onto the next sign-in for as
         // long as the first fetch takes.
         cache.clear()
+        // And the share sheet's top row, which is a list of people this
+        // account writes to and belongs to the account.
+        RecentRecipients.clear(getApplication())
         _state.value = UiState(appearance = prefs.appearance, notifyNewMail = prefs.notifyNewMail)
         // Nothing to check for once nobody is signed in, and a count
         // left behind would make the next person's first check

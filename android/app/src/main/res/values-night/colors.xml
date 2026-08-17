@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dark palette's own background, so the splash hands over to
+         the inbox without a change of ground. -->
+    <color name="splash_background">#09090B</color>
+</resources>
