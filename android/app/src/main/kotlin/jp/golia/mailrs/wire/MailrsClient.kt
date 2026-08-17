@@ -331,6 +331,14 @@ class MailrsClient(private val store: TokenStore) {
 
     internal suspend fun post(url: String, body: String, authorized: Boolean): Outcome<String> =
         withContext(Dispatchers.IO) {
+            // Checked before the URL is built, not after. A signed-out
+            // caller arrives with a bare path — `url()` has no server to
+            // prepend — and `Request.Builder.url` throws on one, out of
+            // a coroutine, which takes the app down instead of saying
+            // "Not signed in." The check below came after the builder.
+            if (authorized && session == null) {
+                return@withContext Outcome.Err("Not signed in.")
+            }
             val b = Request.Builder().url(url).post(body.toRequestBody(JSON_MEDIA))
             if (authorized) {
                 val s = session ?: return@withContext Outcome.Err("Not signed in.")
@@ -355,6 +363,13 @@ class MailrsClient(private val store: TokenStore) {
         // Distinguished from a server error on purpose: one is worth
         // retrying where you are, the other is not.
         Outcome.Err("Could not reach the server: ${e.message}")
+    } catch (e: IllegalArgumentException) {
+        // A URL this library will not parse. Narrow on purpose — this
+        // is the one non-IO failure the boundary can produce, and it
+        // used to leave `viewModelScope.launch` uncaught, which takes
+        // the app down rather than showing a message. Found by a test
+        // that built a view model with no server set.
+        Outcome.Err("That server address is not one this app can use: ${e.message}")
     }
 
     /**
@@ -371,7 +386,19 @@ class MailrsClient(private val store: TokenStore) {
         onSessionRejected?.invoke()
     }
 
-    internal fun url(path: String) = (session?.server ?: "") + path
+    /**
+     * The full URL for a path, or the path alone when there is no
+     * session.
+     *
+     * That second half used to be silent and wrong: callers write
+     * `post(url("/api/mail/drafts"), …)`, and the URL is built before
+     * `post` gets a chance to check for a session — so signed out, the
+     * builder was handed a bare path and threw `IllegalArgumentException`
+     * out of a coroutine, which takes the app down rather than saying
+     * "Not signed in.". Found by a view model with no session that was
+     * asked to save a draft.
+     */
+    internal fun url(path: String) = session?.let { it.server + path } ?: path
 
     internal fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
 
