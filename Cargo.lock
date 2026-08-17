@@ -2013,7 +2013,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
 ]
 
 [[package]]
@@ -2981,7 +2980,7 @@ version = "1.0.0"
 dependencies = [
  "aws-lc-rs",
  "base64",
- "reqwest 0.13.4",
+ "reqwest",
  "serde_json",
  "thiserror",
  "tokio",
@@ -3088,7 +3087,7 @@ dependencies = [
  "axum",
  "mailrs-mailbox",
  "percent-encoding",
- "reqwest 0.13.4",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
@@ -3263,7 +3262,7 @@ dependencies = [
  "password-hash",
  "psl",
  "rand_core 0.6.4",
- "reqwest 0.13.4",
+ "reqwest",
  "rustls",
  "serde",
  "serde_json",
@@ -3336,7 +3335,7 @@ dependencies = [
  "async-trait",
  "criterion 0.8.2",
  "kevy-embedded",
- "reqwest 0.13.4",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
@@ -3377,7 +3376,7 @@ dependencies = [
  "mailrs-test-docker",
  "memchr",
  "proptest",
- "reqwest 0.12.28",
+ "reqwest",
  "serde",
  "testcontainers",
  "tokio",
@@ -3538,7 +3537,7 @@ dependencies = [
  "chrono",
  "criterion 0.8.2",
  "hickory-resolver",
- "reqwest 0.13.4",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
@@ -3598,7 +3597,7 @@ dependencies = [
  "mailrs-tls-reload",
  "memchr",
  "metrics",
- "reqwest 0.13.4",
+ "reqwest",
  "rustls",
  "serde",
  "serde_json",
@@ -3741,7 +3740,7 @@ dependencies = [
  "password-hash",
  "pdf-extract",
  "rand_core 0.6.4",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rrule",
  "rsa",
@@ -3961,7 +3960,7 @@ dependencies = [
  "password-hash",
  "quick-xml 0.37.5",
  "rand_core 0.6.4",
- "reqwest 0.12.28",
+ "reqwest",
  "rmcp",
  "schemars 1.2.1",
  "serde",
@@ -5109,44 +5108,6 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "reqwest"
-version = "0.12.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
-dependencies = [
- "base64",
- "bytes",
- "futures-core",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "js-sys",
- "log",
- "percent-encoding",
- "pin-project-lite",
- "quinn",
- "rustls",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper",
- "tokio",
- "tokio-rustls",
- "tower",
- "tower-http",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "webpki-roots",
-]
-
-[[package]]
-name = "reqwest"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
@@ -5809,15 +5770,15 @@ dependencies = [
 
 [[package]]
 name = "spg-crypto"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01255a426530a4322951a7c972913c18c5836251f578435d8746aa5e3f852cb8"
+checksum = "dba10f3b282feb01fe84757c141fd3a4c83da5dfdd57e80fc191cd694cde53da"
 
 [[package]]
 name = "spg-embedded"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce607693d888c4eadc61c03cd88610545b26b3be0fe2e5abdfd59a2f389d2da0"
+checksum = "743556287caa956e7e26b122375ab97bd011985e8c4e2f76a4f9c04930a73457"
 dependencies = [
  "spg-crypto",
  "spg-engine",
@@ -5828,9 +5789,9 @@ dependencies = [
 
 [[package]]
 name = "spg-embedded-tokio"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3080fc27276edd01dbc0a60f27e34969efcc33cf00c7d3ed3e97196c692c5587"
+checksum = "866e49171cb321ecf84567d401b6c03ca03c04e9f022964b6f56cc76825dc108"
 dependencies = [
  "spg-embedded",
  "spg-engine",
@@ -5839,9 +5800,9 @@ dependencies = [
 
 [[package]]
 name = "spg-engine"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bce63477dc5c8194c795e87b067207b9af02dfbca990aae9b3756b6c6772a616"
+checksum = "b122a0904a5c9011262aa8e252fb581fcabd7e2896e98a6c563821285d0082b4"
 dependencies = [
  "bumpalo",
  "hashbrown 0.15.5",
@@ -5860,24 +5821,24 @@ dependencies = [
 
 [[package]]
 name = "spg-manifest"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82d8e9bbc09c9d6d4757c54a8f38376ef7450e1804ffc9c7b066e8628388d4e2"
+checksum = "c2c8a3a2c9b353e66caf3bfb7dc823f32eb31c536166a1828c17a367cd77d93a"
 dependencies = [
  "spg-crypto",
 ]
 
 [[package]]
 name = "spg-sql"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "020af55580f6c38bcec9a928ab2073dcde4f1f2ffcf6f76ced1884666aad6d5a"
+checksum = "2c5ef2dd7de85168d12394919834ebbf8b5396d62a2249770809ff6db1367d49"
 
 [[package]]
 name = "spg-sqlx"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8af35c0d29be81c4f1c872248d20b97980a49e4adee923e32e5e933ed3f559c5"
+checksum = "8be44418eabc4d992611abb7bf157c4f7d76da5283394b1b96de56a2ecce9b73"
 dependencies = [
  "bigdecimal",
  "chrono",
@@ -5898,9 +5859,9 @@ dependencies = [
 
 [[package]]
 name = "spg-storage"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc2f534d7aa709dc2a724b84f5f3bd2daaf44ba7474e5820ab63b6969bacf8a9"
+checksum = "0a1bdabe33acd8332f464d7ff0f084be282737dda4b804274710673782415d60"
 dependencies = [
  "bumpalo",
  "spg-crypto",
@@ -5909,9 +5870,9 @@ dependencies = [
 
 [[package]]
 name = "spg-tzif"
-version = "7.37.27"
+version = "7.37.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb890853b30390c7d483fcc1201a50d89c70ccc4effbbcd20f0300c942d66af0"
+checksum = "d82a53699fa4e9f7bd5d642e48bf7e9b97c4b56be23736ca82ae40335af515f9"
 
 [[package]]
 name = "spin"

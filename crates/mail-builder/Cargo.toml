@@ -37,7 +37,7 @@ criterion = { workspace = true }
 # container and verify the stored bytes match what we sent.
 testcontainers = "0.27"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 serde = { workspace = true }
 
 [[bench]]

@@ -102,6 +102,16 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # 2026-08-03, two at different versions. Costs nothing to check.
     ./scripts/check-workspace-deps.sh
 
+    # Nothing verifies a TLS peer against a browser's roots alone.
+    # `webpki-roots` tracks Mozilla's browser program and does not ship
+    # `DigiCert Global Root CA`, which every Microsoft-hosted domain
+    # chains to — so on 2026-08-17 mail to every Microsoft 365 tenant
+    # was undeliverable, and the same choice was live in two more
+    # places: DANE's PKIX half, and reqwest 0.12's `rustls-tls` in
+    # `webapi` (identity providers, unsubscribe endpoints) and
+    # `mail-builder`.
+    ./scripts/check-tls-trust.sh
+
     # Three checks for one failure mode: a capability that exists on
     # one side of the wire and nowhere on the other, with nothing
     # saying so. Each was written on 2026-08-10 after finding its own
