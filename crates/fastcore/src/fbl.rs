@@ -109,6 +109,13 @@ pub fn maybe_record_complaint(maildir_root: &str, rcpt: &str, body: &[u8]) {
 }
 
 /// Whether `addr`'s local-part is one of the FBL report mailboxes.
+/// Test-visible alias for [`is_fbl_mailbox`], so the spool drain can
+/// assert which address it must be asked about.
+#[cfg(test)]
+pub(crate) fn is_fbl_mailbox_for_test(addr: &str) -> bool {
+    is_fbl_mailbox(addr)
+}
+
 fn is_fbl_mailbox(addr: &str) -> bool {
     let Some((local, _)) = addr.split_once('@') else {
         return false;
