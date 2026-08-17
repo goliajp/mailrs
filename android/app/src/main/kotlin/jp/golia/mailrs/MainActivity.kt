@@ -1,6 +1,9 @@
 package jp.golia.mailrs
 
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,7 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import jp.golia.mailrs.ui.LocalTheme
+import androidx.compose.runtime.LaunchedEffect
 import jp.golia.mailrs.ui.MailrsApp
+import jp.golia.mailrs.wire.ShareIntent
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.ui.MailrsTheme
 
@@ -46,6 +51,20 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Deliver an intent without going through the activity lifecycle.
+     *
+     * Calling `onNewIntent` from a test upsets `ActivityScenario`, which
+     * then waits for a DESTROYED that never comes. This is the same
+     * work with the lifecycle left alone; that the *filter* exists is
+     * asserted separately, by asking the package manager who resolves
+     * `mailto:`.
+     */
+    fun deliverForTest(intent: Intent) {
+        if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
+        model?.let { actOn(it, intent) }
+    }
+
+    /**
      * Attach a file without the system picker.
      *
      * The picker runs in another process and is the platform's, not
@@ -58,6 +77,50 @@ class MainActivity : ComponentActivity() {
         if (!BuildConfig.ALLOW_SERVER_OVERRIDE) return
         model?.attach(listOf(uri))
     }
+    /**
+     * A new intent while this activity is already up — a second share,
+     * or a shortcut tapped from the recents screen. Without this the
+     * activity keeps the one it launched with and the share appears to
+     * have done nothing.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        model?.let { actOn(it, intent) }
+    }
+
+    /**
+     * Do what another app asked.
+     *
+     * `mailto:` from a link anywhere on the phone, the share sheet with
+     * text or files, and the two launcher shortcuts. Everything lands
+     * in a draft, so leaving still saves it.
+     */
+    private fun actOn(vm: MailViewModel, intent: Intent?) {
+        when (intent?.action) {
+            Intent.ACTION_VIEW, Intent.ACTION_SENDTO -> {
+                val uri = intent.data?.toString() ?: return
+                if (!uri.startsWith("mailto:")) return
+                vm.composeFromShare(mailto = ShareIntent.mailto(uri))
+            }
+
+            Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE -> {
+                val files = buildList {
+                    intent.getParcelableExtraCompat<android.net.Uri>(Intent.EXTRA_STREAM)?.let(::add)
+                    addAll(intent.getParcelableArrayListExtraCompat(Intent.EXTRA_STREAM))
+                }
+                vm.composeFromShare(
+                    subject = intent.getStringExtra(Intent.EXTRA_SUBJECT).orEmpty(),
+                    body = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty(),
+                    attachments = files,
+                )
+            }
+
+            ACTION_COMPOSE -> vm.compose()
+            ACTION_SEARCH -> vm.openSearchFromShortcut()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -83,9 +146,41 @@ class MainActivity : ComponentActivity() {
                     // debug build; see `MailViewModel.useServer`.
                     model = vm
                     vm.useServer(intent?.getStringExtra("mailrs_base_url"))
+                    // Once per intent, not once per recomposition: the
+                    // key is the intent itself, so a rotation does not
+                    // reopen a composer the person just cancelled.
+                    LaunchedEffect(intent) { actOn(vm, intent) }
                     MailrsApp(vm, state)
                 }
             }
         }
     }
+
+    private companion object {
+        const val ACTION_COMPOSE = "jp.golia.mailrs.COMPOSE"
+        const val ACTION_SEARCH = "jp.golia.mailrs.SEARCH"
+    }
 }
+
+/**
+ * `getParcelableExtra` without the deprecation, and without losing the
+ * older devices: the typed overload arrives in API 33 and this app
+ * supports 29.
+ */
+private inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(name: String): T? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(name, T::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        getParcelableExtra(name) as? T
+    }
+
+private inline fun <reified T : Parcelable> Intent.getParcelableArrayListExtraCompat(
+    name: String,
+): List<T> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableArrayListExtra(name, T::class.java).orEmpty()
+    } else {
+        @Suppress("DEPRECATION")
+        getParcelableArrayListExtra<T>(name).orEmpty()
+    }

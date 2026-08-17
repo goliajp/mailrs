@@ -9,6 +9,7 @@ import jp.golia.mailrs.wire.MailList
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.RecipientAutocomplete
+import jp.golia.mailrs.wire.ShareIntent
 import jp.golia.mailrs.wire.ReplyRecipients
 import jp.golia.mailrs.wire.TokenStore
 import jp.golia.mailrs.wire.Wire
@@ -193,6 +194,36 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             composing = draft.copy(attachments = draft.attachments.filterNot { it.uri == a.uri }),
         )
+    }
+
+    /**
+     * Start a message another app asked for.
+     *
+     * `mailto:` from a link, or the share sheet with text and files.
+     * Anything that arrives goes into a draft, so leaving still saves
+     * it — a shared photo that vanished because the person had second
+     * thoughts about the recipient would be worse than no share target
+     * at all.
+     *
+     * Signed out, this does nothing but leave a draft waiting: the
+     * sign-in screen shows first, and the composer is there afterwards.
+     */
+    fun composeFromShare(
+        mailto: ShareIntent.Mailto? = null,
+        subject: String = "",
+        body: String = "",
+        attachments: List<android.net.Uri> = emptyList(),
+    ) {
+        val draft = Draft(
+            id = nextDraftId++,
+            to = mailto?.to.orEmpty(),
+            cc = mailto?.cc.orEmpty(),
+            bcc = mailto?.bcc.orEmpty(),
+            subject = mailto?.subject?.takeIf(String::isNotBlank) ?: subject,
+            body = mailto?.body?.takeIf(String::isNotBlank) ?: body,
+        )
+        _state.value = _state.value.copy(composing = draft, error = null)
+        if (attachments.isNotEmpty()) attach(attachments)
     }
 
     /** Every keystroke, straight into the one copy of the draft. */
@@ -920,6 +951,29 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(appearance = appearance)
     }
 
+    /**
+     * The launcher's Search shortcut.
+     *
+     * State rather than a call into the screen: the shortcut can arrive
+     * before the list is composed, and a flag the list reads when it
+     * appears cannot be missed by arriving early.
+     */
+    fun openSearchFromShortcut() {
+        _state.value = _state.value.copy(
+            openSearch = true,
+            open = null,
+            composing = null,
+            settingsOpen = false,
+            draftsOpen = false,
+            adminOpen = null,
+        )
+    }
+
+    fun searchOpened() {
+        if (!_state.value.openSearch) return
+        _state.value = _state.value.copy(openSearch = false)
+    }
+
     fun clearSearch() {
         searchToken++
         _state.value = _state.value.copy(searchTerm = "", results = null, searching = false)
@@ -991,6 +1045,8 @@ class MailViewModel(app: Application) : AndroidViewModel(app) {
          */
         val results: List<Wire.Conversation>? = null,
         val searching: Boolean = false,
+        /** Set by the launcher shortcut; the list opens its search and clears it. */
+        val openSearch: Boolean = false,
         /** Which list is showing. Its axes scope both the list and the search. */
         val list: MailList = MailList.Inbox,
         /** Saved drafts, newest first, and whether their list is showing. */

@@ -1070,6 +1070,104 @@ class MailFlowTest {
         compose.onNodeWithText("lihao@golia.jp · mail.read").assertIsDisplayed()
     }
 
+    /**
+     * A `mailto:` link opens the composer already addressed.
+     *
+     * Driven through the activity's real intent path, not by calling
+     * the view model: what is worth testing is that the manifest filter
+     * and the parsing meet, and a test that skipped the intent would
+     * pass with the filter missing.
+     */
+    @Test
+    fun a_mailto_link_opens_an_addressed_composer() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.deliverForTest(
+                android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("mailto:a%2Btag@x.test?subject=Hello%20there"),
+                ),
+            )
+        }
+
+        waitForTag("field.to", "the composer never opened")
+        compose.onNodeWithTag("field.to").assertTextContains("a+tag@x.test")
+        compose.onNodeWithTag("field.subject").assertTextContains("Hello there")
+    }
+
+    /**
+     * A shared file arrives attached, and the text arrives as the body.
+     *
+     * The share sheet is the other half of being a mail client on this
+     * phone: a photo shared to Mailrs has to end up on a message.
+     */
+    @Test
+    fun a_shared_file_arrives_attached() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.activityRule.scenario.onActivity { activity ->
+            val dir = java.io.File(activity.cacheDir, "attachments/shared")
+            dir.mkdirs()
+            val file = java.io.File(dir, "shared.txt")
+            file.writeText("from another app")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                activity,
+                activity.packageName + ".files",
+                file,
+            )
+            activity.deliverForTest(
+                android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Look at this")
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                },
+            )
+        }
+
+        waitForTag("row.draftAttachment", "the shared file was never taken on")
+        compose.onNodeWithText("shared.txt").assertIsDisplayed()
+        compose.onNodeWithTag("field.subject").assertTextContains("Look at this")
+    }
+
+    /**
+     * The manifest actually offers to handle these.
+     *
+     * The behaviour tests deliver an intent straight to the activity,
+     * which would pass just as well with no `<intent-filter>` at all —
+     * and then nothing on the phone would ever send one. This asks the
+     * package manager the question a link tap asks.
+     */
+    @Test
+    fun the_manifest_offers_to_handle_mail_intents() {
+        val pm = InstrumentationRegistry.getInstrumentation().targetContext.packageManager
+        val mailto = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("mailto:a@x.test"),
+        )
+        val share = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+        for ((what, intent) in listOf("mailto" to mailto, "share" to share)) {
+            val ours = pm.queryIntentActivities(intent, 0).any {
+                it.activityInfo.packageName == "jp.golia.mailrs"
+            }
+            assertTrue("nothing in this app answers a $what intent", ours)
+        }
+    }
+
+    /** The launcher's Search shortcut opens the search, not the inbox. */
+    @Test
+    fun the_search_shortcut_opens_the_search() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.deliverForTest(android.content.Intent("jp.golia.mailrs.SEARCH"))
+        }
+        waitForTag("search.field", "the shortcut did not open the search")
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }

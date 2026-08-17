@@ -182,6 +182,15 @@ fun ConversationListScreen(state: MailViewModel.UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val snackbars = remember { SnackbarHostState() }
     var searchOpen by remember { mutableStateOf(false) }
+
+    // The launcher's Search shortcut. Read here rather than called into
+    // the screen, because the shortcut can arrive before this list is
+    // composed and a flag cannot be missed by being early.
+    LaunchedEffect(state.openSearch) {
+        if (!state.openSearch) return@LaunchedEffect
+        searchOpen = true
+        vm.searchOpened()
+    }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val selecting = state.selected.isNotEmpty()
 
