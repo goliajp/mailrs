@@ -2,6 +2,7 @@ package jp.golia.mailrs
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Surface
@@ -61,6 +62,18 @@ class MainActivity : ComponentActivity() {
                     model = vm
                     vm.useServer(intent?.getStringExtra("mailrs_base_url"))
                     val state by vm.state.collectAsStateWithLifecycle()
+                    // **Back is navigation, not exit.** On iOS the
+                    // chevron is the way out and the edge swipe follows
+                    // it; on Android the gesture *is* the way out, so a
+                    // screen that does not take it closes the app
+                    // instead of the thread. Registered in the same
+                    // order the screens stack, and only for the screen
+                    // that is showing, so the system falls through to
+                    // its own behaviour — leaving the app — only from
+                    // the inbox.
+                    BackHandler(enabled = state.composing != null) { vm.cancelCompose() }
+                    BackHandler(enabled = state.composing == null && state.open != null) { vm.closeThread() }
+
                     when {
                         !state.signedIn -> SignInScreen(state.busy, state.error) { s, u, p -> vm.signIn(s, u, p) }
                         // The composer is on top of whatever it was

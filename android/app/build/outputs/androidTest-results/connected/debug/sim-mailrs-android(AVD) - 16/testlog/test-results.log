@@ -4,38 +4,20 @@ INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
 INSTRUMENTATION_STATUS: numtests=1
 INSTRUMENTATION_STATUS: stream=
 jp.golia.mailrs.MailFlowTest:
-INSTRUMENTATION_STATUS: test=the_second_attachment_is_the_one_fetched
+INSTRUMENTATION_STATUS: test=back_collapses_the_search
 INSTRUMENTATION_STATUS_CODE: 1
 INSTRUMENTATION_STATUS: class=jp.golia.mailrs.MailFlowTest
 INSTRUMENTATION_STATUS: current=1
 INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
 INSTRUMENTATION_STATUS: numtests=1
-INSTRUMENTATION_STATUS: stack=androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
-at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)
-at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)
-at jp.golia.mailrs.MailFlowTest.the_second_attachment_is_the_one_fetched(MailFlowTest.kt:359)
-
-INSTRUMENTATION_STATUS: stream=
-Error in the_second_attachment_is_the_one_fetched(jp.golia.mailrs.MailFlowTest):
-androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
-at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)
-at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)
-at jp.golia.mailrs.MailFlowTest.the_second_attachment_is_the_one_fetched(MailFlowTest.kt:359)
-
-INSTRUMENTATION_STATUS: test=the_second_attachment_is_the_one_fetched
-INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=back_collapses_the_search
+INSTRUMENTATION_STATUS_CODE: 0
 INSTRUMENTATION_RESULT: stream=
 
-Time: 21.297
-There was 1 failure:
-1) the_second_attachment_is_the_one_fetched(jp.golia.mailrs.MailFlowTest)
-androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
-at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)
-at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)
-at jp.golia.mailrs.MailFlowTest.the_second_attachment_is_the_one_fetched(MailFlowTest.kt:359)
+Time: 4.741
 
-FAILURES!!!
-Tests run: 1,  Failures: 1
+OK (1 test)
 
 
 INSTRUMENTATION_CODE: -1

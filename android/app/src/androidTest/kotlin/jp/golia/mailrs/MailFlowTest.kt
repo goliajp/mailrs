@@ -363,6 +363,56 @@ class MailFlowTest {
         )
     }
 
+    /**
+     * Back is navigation on Android, not exit.
+     *
+     * On iOS the chevron is the way out and the edge swipe follows it;
+     * here the gesture *is* the way out, and a screen that does not take
+     * it closes the app instead of the thread. Driven through the
+     * activity's own `OnBackPressedDispatcher`, which is what the system
+     * dispatches to, so this fails for the same reason a person's swipe
+     * would.
+     */
+    @Test
+    fun back_closes_the_thread_rather_than_the_app() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        pressBack()
+        waitForTag("list.conversations", "back did not return to the inbox")
+    }
+
+    /** And the composer goes back to whatever opened it. */
+    @Test
+    fun back_cancels_the_composer() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+
+        pressBack()
+        waitForTag("list.conversations", "back did not leave the composer")
+    }
+
+    /** And it collapses the search rather than leaving. */
+    @Test
+    fun back_collapses_the_search() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.search").performClick()
+        waitForTag("search.field", "the search never opened")
+
+        pressBack()
+        waitForTag("list.conversations", "back did not return to the inbox")
+    }
+
+    private fun pressBack() {
+        compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+    }
+
     private fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
