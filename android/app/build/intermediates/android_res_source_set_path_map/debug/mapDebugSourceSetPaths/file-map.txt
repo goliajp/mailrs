@@ -1,0 +1,8 @@
+jp.golia.mailrs.app-pngs-0 /Users/doracawl/workspace/stables/mailrs/android/app/build/generated/res/pngs/debug
+jp.golia.mailrs.app-updated_navigation_xml-1 /Users/doracawl/workspace/stables/mailrs/android/app/build/generated/updated_navigation_xml/debug
+jp.golia.mailrs.app-packageDebugResources-2 /Users/doracawl/workspace/stables/mailrs/android/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+jp.golia.mailrs.app-packageDebugResources-3 /Users/doracawl/workspace/stables/mailrs/android/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+jp.golia.mailrs.app-debug-4 /Users/doracawl/workspace/stables/mailrs/android/app/build/intermediates/merged_res/debug/mergeDebugResources
+jp.golia.mailrs.app-debug-5 /Users/doracawl/workspace/stables/mailrs/android/app/src/debug/res
+jp.golia.mailrs.app-main-6 /Users/doracawl/workspace/stables/mailrs/android/app/src/main/res
+gradleHome-0 /Users/doracawl/.gradle
