@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +63,10 @@ import jp.golia.mailrs.MailViewModel
 fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
     val theme = LocalTheme.current
     val editable = detail.section == AdminSection.EmailGroups
-    var adding by remember { mutableStateOf(false) }
-    var address by remember { mutableStateOf("") }
+    // A rotation mid-dialog kept neither the dialog nor what had been
+    // typed into it.
+    var adding by rememberSaveable { mutableStateOf(false) }
+    var address by rememberSaveable { mutableStateOf("") }
 
     if (adding) {
         AlertDialog(

@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -70,7 +71,8 @@ import jp.golia.mailrs.MailViewModel
 fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val fields = vm.addFields(section)
-    var adding by remember { mutableStateOf(false) }
+    // Kept across a rotation, like every other dialog here.
+    var adding by rememberSaveable { mutableStateOf(false) }
 
     if (adding) {
         AddRowDialog(

@@ -75,7 +75,7 @@ fun MailViewModel.search(term: String) {
  */
 fun MailViewModel.openSearchFromShortcut() {
     _state.update { it.copy(
-        openSearch = true,
+        searchOpen = true,
         open = null,
         composing = null,
         settingsOpen = false,
@@ -84,9 +84,11 @@ fun MailViewModel.openSearchFromShortcut() {
     ) }
 }
 
-fun MailViewModel.searchOpened() {
-    if (!_state.value.openSearch) return
-    _state.update { it.copy(openSearch = false) }
+/** Open the search, or close it and forget what was asked. */
+fun MailViewModel.setSearchOpen(open: Boolean) {
+    if (_state.value.searchOpen == open) return
+    _state.update { it.copy(searchOpen = open) }
+    if (!open) clearSearch()
 }
 
 fun MailViewModel.clearSearch() {

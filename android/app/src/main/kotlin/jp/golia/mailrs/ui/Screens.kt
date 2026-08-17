@@ -59,9 +59,10 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,8 +91,8 @@ import jp.golia.mailrs.toggleSelected
 import jp.golia.mailrs.triage
 import jp.golia.mailrs.undo
 import jp.golia.mailrs.clearSearch
-import jp.golia.mailrs.searchOpened
 import jp.golia.mailrs.openSettings
+import jp.golia.mailrs.setSearchOpen
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity
@@ -111,8 +112,14 @@ import jp.golia.mailrs.wire.Wire
 @Composable
 fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, String) -> Unit) {
     val theme = LocalTheme.current
-    var server by remember { mutableStateOf("mail.golia.jp") }
-    var username by remember { mutableStateOf("") }
+    // **Saveable, so a rotation does not empty the form** — typing an
+    // address and turning the phone should not start it again.
+    var server by rememberSaveable { mutableStateOf("mail.golia.jp") }
+    var username by rememberSaveable { mutableStateOf("") }
+    // **Except the password.** Saved state is a Bundle, and a Bundle
+    // goes to disk in the saved instance state; a password that
+    // survives a rotation by being written there is a password on the
+    // device. Retyping it is the cheaper cost.
     var password by remember { mutableStateOf("") }
 
     Column(
@@ -198,16 +205,11 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
 fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
     val snackbars = remember { SnackbarHostState() }
-    var searchOpen by remember { mutableStateOf(false) }
+
 
     // The launcher's Search shortcut. Read here rather than called into
     // the screen, because the shortcut can arrive before this list is
     // composed and a flag cannot be missed by being early.
-    LaunchedEffect(state.openSearch) {
-        if (!state.openSearch) return@LaunchedEffect
-        searchOpen = true
-        vm.searchOpened()
-    }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val selecting = state.selected.isNotEmpty()
 
@@ -220,15 +222,12 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
     // Collapsing the bar ends the search. Leaving a stale result set
     // behind the closed bar means re-opening it shows an answer to a
     // question the person has stopped asking.
-    if (searchOpen) {
+    if (state.searchOpen) {
         MailSearchBar(
             state = state,
             vm = vm,
             expanded = true,
-            onExpandedChange = { open ->
-                searchOpen = open
-                if (!open) vm.clearSearch()
-            },
+            onExpandedChange = { open -> vm.setSearchOpen(open) },
         )
         return
     }
@@ -347,7 +346,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                         }
                     } else {
                         IconButton(
-                            onClick = { searchOpen = true },
+                            onClick = { vm.setSearchOpen(true) },
                             modifier = Modifier.testTag("button.search"),
                         ) {
                             Icon(Icons.Filled.Search, contentDescription = "Search", tint = theme.fgSecondary)
