@@ -1,5 +1,5 @@
 # proto-message: google.testing.platform.proto.api.core.TestSuiteResult
-# 2026-08-17T15:28:49.333734Z:
+# 2026-08-17T15:31:30.619124Z:
 test_suite_meta_data {
   scheduled_test_case_count: 1
   device {
@@ -7,38 +7,33 @@ test_suite_meta_data {
     friendly_name: "primary"
   }
 }
-test_status: FAILED
+test_status: PASSED
 test_result {
   test_case {
     test_class: "MailFlowTest"
     test_package: "jp.golia.mailrs"
-    test_method: "the_second_attachment_is_the_one_fetched"
+    test_method: "back_collapses_the_search"
     start_time {
-      seconds: 1786980507
-      nanos: 509000000
+      seconds: 1786980685
+      nanos: 348000000
     }
     end_time {
-      seconds: 1786980528
-      nanos: 792000000
+      seconds: 1786980690
+      nanos: 63000000
     }
     device {
       id: "emulator-5570"
       friendly_name: "primary"
     }
   }
-  test_status: FAILED
-  error {
-    error_message: "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms\nat androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)\nat androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)\nat jp.golia.mailrs.MailFlowTest.the_second_attachment_is_the_one_fetched(MailFlowTest.kt:359)\n"
-    error_type: "androidx.compose.ui.test.ComposeTimeoutException"
-    stack_trace: "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms\nat androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)\nat androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)\nat jp.golia.mailrs.MailFlowTest.the_second_attachment_is_the_one_fetched(MailFlowTest.kt:359)\n"
-  }
+  test_status: PASSED
   output_artifact {
     label {
       label: "logcat"
       namespace: "android"
     }
     source_path {
-      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-the_second_attachment_is_the_one_fetched.txt"
+      path: "/Users/doracawl/workspace/stables/mailrs/android/app/build/outputs/androidTest-results/connected/debug/sim-mailrs-android(AVD) - 16/logcat-jp.golia.mailrs.MailFlowTest-back_collapses_the_search.txt"
     }
   }
   output_artifact {

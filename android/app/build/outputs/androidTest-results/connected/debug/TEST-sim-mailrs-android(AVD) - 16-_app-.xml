@@ -1,17 +1,11 @@
 <?xml version='1.0' encoding='UTF-8' ?>
-<testsuites tests="1" failures="1" errors="0" skipped="0" time="21.812" timestamp="2026-08-17T15:28:49" hostname="localhost">
-  <testsuite name="jp.golia.mailrs.MailFlowTest" tests="1" failures="1" errors="0" skipped="0" time="21.281" timestamp="2026-08-17T15:28:49" hostname="localhost">
+<testsuites tests="1" failures="0" errors="0" skipped="0" time="5.259" timestamp="2026-08-17T15:31:30" hostname="localhost">
+  <testsuite name="jp.golia.mailrs.MailFlowTest" tests="1" failures="0" errors="0" skipped="0" time="4.715" timestamp="2026-08-17T15:31:30" hostname="localhost">
     <properties>
       <property name="device" value="sim-mailrs-android(AVD) - 16" />
       <property name="flavor" value="" />
       <property name="project" value=":app" />
     </properties>
-    <testcase name="the_second_attachment_is_the_one_fetched" classname="jp.golia.mailrs.MailFlowTest" time="21.281">
-      <failure>androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
-at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)
-at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)
-at jp.golia.mailrs.MailFlowTest.the_second_attachment_is_the_one_fetched(MailFlowTest.kt:359)
-</failure>
-    </testcase>
+    <testcase name="back_collapses_the_search" classname="jp.golia.mailrs.MailFlowTest" time="4.715" />
   </testsuite>
 </testsuites>
