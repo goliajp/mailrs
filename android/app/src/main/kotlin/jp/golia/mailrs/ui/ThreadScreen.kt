@@ -87,6 +87,10 @@ import jp.golia.mailrs.dismissUndo
 import jp.golia.mailrs.toggleSelected
 import jp.golia.mailrs.triage
 import jp.golia.mailrs.undo
+import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.StarBorder
+import jp.golia.mailrs.toggleStar
+import jp.golia.mailrs.triageOpenThread
 import jp.golia.mailrs.MailViewModel
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SenderIdentity
@@ -138,6 +142,40 @@ fun ThreadScreen(state: UiState, vm: MailViewModel) {
                 navigationIcon = {
                     IconButton(onClick = { vm.closeThread() }, modifier = Modifier.testTag("button.back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = theme.fgSecondary)
+                    }
+                },
+                // **Filing without going back first.** Reading a message
+                // and wanting it out of the way is the commonest thing
+                // that happens next, and it used to mean back, find the
+                // row again, swipe. Archive uses the same deferred
+                // triage a swipe does, so the undo snackbar on the list
+                // offers it back.
+                actions = {
+                    IconButton(
+                        onClick = { vm.toggleStar(open) },
+                        modifier = Modifier.testTag("button.star"),
+                    ) {
+                        Icon(
+                            if (open.flagged) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            contentDescription = if (open.flagged) "Unstar" else "Star",
+                            tint = if (open.flagged) theme.warning else theme.fgSecondary,
+                        )
+                    }
+                    IconButton(
+                        onClick = { vm.triageOpenThread(MailrsClient.Verb.Unread) },
+                        modifier = Modifier.testTag("button.markUnread"),
+                    ) {
+                        Icon(
+                            Icons.Filled.MarkEmailUnread,
+                            contentDescription = "Mark unread",
+                            tint = theme.fgSecondary,
+                        )
+                    }
+                    IconButton(
+                        onClick = { vm.triageOpenThread(MailrsClient.Verb.Archive) },
+                        modifier = Modifier.testTag("button.archive"),
+                    ) {
+                        Icon(Icons.Filled.Archive, contentDescription = "Archive", tint = theme.fgSecondary)
                     }
                 },
             )

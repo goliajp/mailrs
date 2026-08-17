@@ -322,4 +322,48 @@ class NavigationFlowTest : MailrsUiTest() {
         waitForTag("list.messages", "the notification did not open the thread")
         compose.onNodeWithText("Alice Smith").assertIsDisplayed()
     }
+
+    /**
+     * A message can be filed without going back to the list first.
+     *
+     * Reading something and wanting it out of the way is the commonest
+     * thing that happens next, and it used to mean back, find the row
+     * again, swipe. Archive from the thread uses the same deferred
+     * triage a swipe does, so the undo is still on offer — which is
+     * what the second half asserts.
+     */
+    @Test
+    fun a_thread_can_be_archived_and_the_undo_still_offered() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        compose.onNodeWithTag("button.archive").performClick()
+        waitForTag("list.conversations", "archiving did not return to the list")
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before - 1
+        }
+
+        compose.onNodeWithText("Undo").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size == before
+        }
+    }
+
+    /**
+     * Starring from the thread reaches the server and survives going
+     * back — the icon changing is not the same as the star being kept.
+     */
+    @Test
+    fun starring_a_thread_reaches_the_server() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        compose.onNodeWithTag("button.star").performClick()
+        compose.waitUntil(TIMEOUT_MS) { readStub("/debug/verbs").contains("star t1") }
+    }
 }
