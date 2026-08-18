@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.openSent
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -158,6 +159,10 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                 onDrafts = {
                     scope.launch { drawer.close() }
                     vm.openDrafts()
+                },
+                onSent = {
+                    scope.launch { drawer.close() }
+                    vm.openSent()
                 },
                 onSettings = {
                     scope.launch { drawer.close() }

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.SendJoin
 import jp.golia.mailrs.ui.AdminRow
 import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.MailList
@@ -71,6 +72,17 @@ data class UiState(
     /** Saved drafts, newest first, and whether their list is showing. */
     val drafts: List<Wire.Draft> = emptyList(),
     val draftsOpen: Boolean = false,
+
+    /**
+     * What was sent, and whether it arrived, and whether its list is
+     * showing.
+     *
+     * Not one of the folder lists: the sent axis and the delivery
+     * projection are separate endpoints joined on Message-ID, and
+     * neither is a mailbox. See [jp.golia.mailrs.wire.SendJoin].
+     */
+    val sentMail: List<SendJoin.Row> = emptyList(),
+    val sentOpen: Boolean = false,
     /** A draft was just saved; the list screen says so once. */
     val draftSaved: Boolean = false,
     /** The operator list showing, if any, and what it holds. */

@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -41,6 +42,7 @@ import jp.golia.mailrs.wire.MailList
 fun MailListDrawer(
     current: MailList,
     onDrafts: () -> Unit,
+    onSent: () -> Unit,
     onSettings: () -> Unit,
     onChoose: (MailList) -> Unit,
 ) {
@@ -78,6 +80,23 @@ fun MailListDrawer(
         // not a folder of received mail, and putting them in the same
         // group would make "Inbox, Junk, Drafts" read as three places
         // mail arrives.
+        // Above Drafts, because it is the one people look for: what
+        // did I send, and did it arrive. Not in the folder group for
+        // the same reason Drafts is not — neither is a place mail
+        // arrives, and the sent axis is not even a mailbox.
+        NavigationDrawerItem(
+            label = { Text("Sent", fontSize = 14.sp) },
+            icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+            selected = false,
+            onClick = onSent,
+            colors = NavigationDrawerItemDefaults.colors(
+                unselectedTextColor = theme.fgSecondary,
+                unselectedIconColor = theme.fgSecondary,
+            ),
+            modifier = Modifier
+                .padding(NavigationDrawerItemDefaults.ItemPadding)
+                .testTag("drawer.item.Sent"),
+        )
         NavigationDrawerItem(
             label = { Text("Drafts", fontSize = 14.sp) },
             icon = { Icon(Icons.Filled.DriveFileRenameOutline, contentDescription = null) },

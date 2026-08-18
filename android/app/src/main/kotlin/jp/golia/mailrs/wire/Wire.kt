@@ -253,4 +253,32 @@ object Wire {
         val action: String,
         @SerialName("thread_ids") val threadIds: List<String>,
     )
+
+    /**
+     * `GET /api/mail/sent` — the sent axis, a bare array.
+     *
+     * What the maildir sweep has filed. Half of the Send list; the
+     * other half is [Send], which knows whether it arrived.
+     */
+    @Serializable
+    data class SentMessage(
+        val uid: Int,
+        @SerialName("message_id") val messageId: String,
+        @SerialName("thread_id") val threadId: String,
+        val to: String,
+        val subject: String,
+        @SerialName("internal_date") val internalDate: Long,
+    )
+
+    /** `GET /api/mail/sends` — the delivery projection. */
+    @Serializable
+    data class Send(
+        @SerialName("send_id") val sendId: String,
+        @SerialName("thread_id") val threadId: String,
+        val subject: String,
+        val to: List<String> = emptyList(),
+        @SerialName("created_at") val createdAt: Long,
+        val status: String,
+        @SerialName("resent_from") val resentFrom: String? = null,
+    )
 }

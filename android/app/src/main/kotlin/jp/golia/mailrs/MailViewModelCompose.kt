@@ -1,5 +1,8 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.sends
+import jp.golia.mailrs.wire.sentMessages
+import jp.golia.mailrs.wire.SendJoin
 import kotlinx.coroutines.flow.update
 import android.app.Application
 import androidx.lifecycle.viewModelScope
@@ -452,4 +455,26 @@ fun MailViewModel.suggestContacts(field: RecipientField, line: String) {
 fun MailViewModel.clearSuggestions() {
     if (_state.value.suggestions.isEmpty()) return
     _state.update { it.copy(suggestions = emptyList(), suggestingFor = null) }
+}
+
+/**
+ * What was sent.
+ *
+ * Two requests, because the answer is two things: what the maildir
+ * sweep has filed and what the delivery projection knows. A failure of
+ * either is not a failure of the screen — a list with no statuses is
+ * still the list, and no statuses is what every mailbox older than the
+ * projection looks like anyway.
+ */
+fun MailViewModel.openSent() {
+    _state.update { it.copy(sentOpen = true, busy = true, error = null) }
+    viewModelScope.launch {
+        val messages = (client.sentMessages() as? MailrsClient.Outcome.Ok)?.value.orEmpty()
+        val sends = (client.sends() as? MailrsClient.Outcome.Ok)?.value.orEmpty()
+        _state.update { it.copy(busy = false, sentMail = SendJoin.join(messages, sends)) }
+    }
+}
+
+fun MailViewModel.closeSent() {
+    _state.update { it.copy(sentOpen = false) }
 }
