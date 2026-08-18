@@ -273,8 +273,18 @@ fun MailViewModel.editSavedDraft(d: Wire.Draft) {
 }
 
 fun MailViewModel.discardDraft(d: Wire.Draft) {
-    _state.update { it.copy(drafts = _state.value.drafts.filterNot { it.id == d.id }) }
-    viewModelScope.launch { client.deleteDraft(d.id) }
+    // Optimistic, and rightly so — a discard that waits for the server
+    // feels broken. But the answer has to be read: dropping it showed
+    // a draft discarded and left it on the server, to reappear next
+    // time the list was opened with no account of where it had been.
+    val before = _state.value.drafts
+    _state.update { it.copy(drafts = before.filterNot { row -> row.id == d.id }) }
+    viewModelScope.launch {
+        when (val r = client.deleteDraft(d.id)) {
+            is MailrsClient.Outcome.Ok -> Unit
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(drafts = before, error = r.message) }
+        }
+    }
 }
 
 /**

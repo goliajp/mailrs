@@ -987,6 +987,16 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             return
         draft = re.match(r"^/api/mail/drafts/(\d+)$", self.path.split("?")[0])
+        if draft and "discard" in VERB_REFUSE:
+            # Refused on purpose. The row is already gone from the
+            # screen, so a client that drops this answer shows a draft
+            # discarded and leaves it on the server.
+            self.send_response(409)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(b'{"error":"draft is locked"}')
+            return
         if draft:
             DRAFTS.pop(int(draft.group(1)), None)
             self.send_response(204)
