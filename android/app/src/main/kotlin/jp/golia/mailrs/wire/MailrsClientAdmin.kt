@@ -91,6 +91,24 @@ suspend fun MailrsClient.agentKeys(): MailrsClient.Outcome<List<Admin.AgentKey>>
 
 suspend fun MailrsClient.deleteAgentKey(id: Long): MailrsClient.Outcome<String> = delete("/api/agent/keys/$id")
 
+/**
+ * `POST /api/agent/keys` — and the secret comes back once.
+ *
+ * The list returns a prefix and nothing else ever returns the key
+ * again, so the caller must show what this returns or lose it.
+ */
+suspend fun MailrsClient.createAgentKey(
+    name: String,
+    scopes: List<String>,
+): MailrsClient.Outcome<Admin.CreatedAgentKey> = one(
+    post(
+        url("/api/agent/keys"),
+        json.encodeToString(Admin.CreateAgentKeyRequest.serializer(), Admin.CreateAgentKeyRequest(name, scopes)),
+        authorized = true,
+    ),
+    Admin.CreatedAgentKey.serializer(),
+)
+
 suspend fun MailrsClient.suppressions(): MailrsClient.Outcome<List<String>> =
     one(get("/api/admin/suppressions"), Admin.SuppressionList.serializer()).map { it.items }
 

@@ -444,4 +444,41 @@ class AdminFlowTest : MailrsUiTest() {
             compose.onAllNodesWithText("0/500 passing · golia.jp").fetchSemanticsNodes().size,
         )
     }
+
+    /**
+     * A new agent key is shown once, because there is no second time.
+     *
+     * The server keeps a hash; the list returns a prefix. Creating one
+     * and not showing the secret at that moment destroys the only copy
+     * — and the app could delete keys it could not make, which is the
+     * asymmetry that made this visible.
+     */
+    @Test
+    fun a_new_agent_key_is_shown_once() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.AgentKeys", "settings never listed agent keys")
+        compose.onNodeWithTag("admin.AgentKeys").performClick()
+        waitForTag("list.admin", "the keys never listed")
+
+        compose.onNodeWithTag("button.addAdminRow").performClick()
+        waitForTag("field.admin0", "the form never opened")
+        compose.onNodeWithTag("field.admin0").performTextInput("Nightly digest")
+        compose.onNodeWithTag("field.admin1").performTextInput("mail.send, mail.read")
+        compose.onNodeWithTag("button.confirmAdmin").performClick()
+
+        waitForTag("text.newAgentKey", "the secret was never shown")
+        // The whole key, not the prefix the list will carry from now on.
+        compose.onNodeWithTag("text.newAgentKey").assertTextContains("mk_", substring = true)
+        compose.onNodeWithTag("button.copyAgentKey").performClick()
+
+        // And it is gone: the list has the name and the prefix.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("Nightly digest").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodesWithTag("text.newAgentKey").assertCountEquals(0)
+    }
 }

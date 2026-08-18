@@ -135,6 +135,20 @@ object Admin {
     @Serializable
     data class AgentKeyList(val items: List<AgentKey> = emptyList())
 
+    /** What `POST /api/agent/keys` takes. */
+    @Serializable
+    data class CreateAgentKeyRequest(val name: String, val scopes: List<String> = emptyList())
+
+    /**
+     * What it answers.
+     *
+     * **The secret travels exactly once.** The server keeps a hash and
+     * the list only ever returns a prefix, so a screen that does not
+     * show this the moment it arrives has destroyed the only copy.
+     */
+    @Serializable
+    data class CreatedAgentKey(val id: Long = 0, val secret: String = "")
+
     /** Addresses the sender refuses to try again. */
     @Serializable
     data class SuppressionList(val items: List<String> = emptyList())
