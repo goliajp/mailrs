@@ -1,5 +1,13 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
@@ -287,7 +295,32 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                     LaunchedEffect(nearTheEnd, state.conversations.size) {
                         if (nearTheEnd) vm.loadMore()
                     }
-                    LazyColumn(state = rows, modifier = Modifier.fillMaxSize().testTag("list.conversations")) {
+                    // **A keyboard does the two things people do most.**
+                    // This app has a two-pane layout because it runs on
+                    // tablets and opened foldables, and those are the
+                    // devices that arrive with a keyboard — where `c`
+                    // and `/` are what every mail client answers. The
+                    // list is focusable so it can receive them at all;
+                    // a key that reaches nothing is why a keyboard on
+                    // Android so often does nothing.
+                    val listFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { listFocus.requestFocus() }
+                    LazyColumn(
+                        state = rows,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .focusRequester(listFocus)
+                            .focusable()
+                            .onPreviewKeyEvent { event ->
+                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                when (event.key) {
+                                    Key.C -> { vm.compose(); true }
+                                    Key.Slash -> { vm.setSearchOpen(true); true }
+                                    else -> false
+                                }
+                            }
+                            .testTag("list.conversations"),
+                    ) {
                         items(state.conversations, key = { it.threadId }) { c ->
                             val picked = c.threadId in state.selected
                             if (selecting) {
