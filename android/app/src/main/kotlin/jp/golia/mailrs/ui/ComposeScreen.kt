@@ -114,7 +114,19 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             .imePadding(),
     ) {
         TopAppBar(
-            title = { Text(if (draft.inReplyTo != null) "Reply" else "New message", fontSize = 17.sp) },
+            title = {
+                // Says which of the three this is. A re-edit of a send
+                // that failed called itself "New message", which is the
+                // one thing it is not — the recipient, the subject and
+                // the attachments all came from the message that did
+                // not go.
+                val what = when {
+                    draft.redraftOf != null -> "Edit"
+                    draft.inReplyTo != null -> "Reply"
+                    else -> "New message"
+                }
+                Text(what, fontSize = 17.sp)
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = theme.bg,
                 titleContentColor = theme.fg,

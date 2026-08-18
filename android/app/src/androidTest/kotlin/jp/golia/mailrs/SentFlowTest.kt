@@ -164,6 +164,9 @@ class SentFlowTest : MailrsUiTest() {
         compose.onAllNodesWithTag("button.redraft").onFirst().performClick()
         waitForTag("field.to", "editing the send never opened a composer")
         compose.onNodeWithTag("field.to").assertTextContains("carol@example.com", substring = true)
+        // And it says what it is. Called "New message", which is the
+        // one thing a re-edit is not.
+        compose.onNodeWithText("Edit").assertIsDisplayed()
         // The file it is carrying, named rather than downloaded.
         waitForTag("row.carriedAttachment", "the carried attachment was not shown")
 
