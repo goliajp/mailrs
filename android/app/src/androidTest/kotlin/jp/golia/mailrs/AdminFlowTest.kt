@@ -481,4 +481,44 @@ class AdminFlowTest : MailrsUiTest() {
         }
         compose.onAllNodesWithTag("text.newAgentKey").assertCountEquals(0)
     }
+
+    /**
+     * The suppression list can be emptied, and says that is what it is.
+     *
+     * The addresses the sender has given up on were visible and
+     * permanent — the server offers only to clear the whole key, so a
+     * delete on a row would have read as "stop suppressing this one"
+     * and emptied all of them. A list-level action, asked first,
+     * because there is no undo and every address starts being tried
+     * again.
+     */
+    @Test
+    fun the_suppression_list_can_be_cleared_after_asking() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Aliases", "settings never opened")
+        compose.onNodeWithTag("admin.Suppressed").performScrollTo().performClick()
+        waitForTag("list.admin", "the suppressions never listed")
+
+        val before = compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size
+        assertTrue("the fixture suppresses nobody", before > 0)
+
+        compose.onNodeWithTag("button.clearSuppressions").performClick()
+        // Asked, not done: cancelling leaves them suppressed.
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(
+            "cancelling cleared them anyway",
+            before,
+            compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size,
+        )
+
+        compose.onNodeWithTag("button.clearSuppressions").performClick()
+        compose.onNodeWithTag("button.confirmClear").performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().isEmpty()
+        }
+    }
 }

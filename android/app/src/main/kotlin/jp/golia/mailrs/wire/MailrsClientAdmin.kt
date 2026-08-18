@@ -109,6 +109,16 @@ suspend fun MailrsClient.createAgentKey(
     Admin.CreatedAgentKey.serializer(),
 )
 
+/**
+ * `DELETE /api/admin/suppressions` — **the whole list, not one entry.**
+ *
+ * There is no per-address route: the handler deletes the key. So this
+ * cannot be a delete button on a row, which would read as "stop
+ * suppressing this one" and would empty the list instead.
+ */
+suspend fun MailrsClient.clearSuppressions(): MailrsClient.Outcome<String> =
+    delete("/api/admin/suppressions")
+
 suspend fun MailrsClient.suppressions(): MailrsClient.Outcome<List<String>> =
     one(get("/api/admin/suppressions"), Admin.SuppressionList.serializer()).map { it.items }
 
