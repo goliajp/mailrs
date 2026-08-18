@@ -50,7 +50,15 @@ import org.junit.runner.RunWith
 abstract class MailrsUiTest : GrantsNotifications() {
 
 
-    @get:Rule
+    // Ordered, because one rule has to run before the other. Anything
+    // that changes the configuration has to be in place *before* the
+    // activity launches: changing it afterwards recreates the activity
+    // and the compose rule is left holding one that no longer exists,
+    // which reads as "No compose hierarchies found in the app".
+    @get:Rule(order = 0)
+    val configuration = SystemConfiguration()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()
 
     /**

@@ -140,8 +140,8 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
             // the system bars: without these the Sign in button sits
             // beneath the IME on a short screen, and the only way to
             // reach it is to dismiss the keyboard first.
-            .imePadding()
             .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(horizontal = 24.dp)
             .padding(top = 72.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
