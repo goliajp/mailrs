@@ -1,5 +1,9 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.widget.OpenMailrs
+import jp.golia.mailrs.wire.NewMailWorker
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertEquals
 import androidx.glance.testing.unit.hasText
 import androidx.glance.appwidget.testing.unit.runGlanceAppWidgetUnitTest
 import androidx.test.core.app.ApplicationProvider
@@ -104,5 +108,24 @@ class InboxWidgetTest {
             .getInstalledProvidersForPackage(context.packageName, null)
             .single { it.provider.className == InboxWidgetReceiver::class.java.name }
         assertNotEquals("the widget offers the picker no preview", 0, info.previewLayout)
+    }
+
+    /**
+     * A tapped row asks for that conversation, by the same route a
+     * notification does.
+     *
+     * Two ways into one activity is how one of them ends up handled
+     * and the other forgotten — this asserts the widget uses the
+     * notification's extra rather than an extra of its own.
+     */
+    @Test
+    fun a_row_opens_its_own_conversation() {
+        assertEquals(
+            "a tapped row must ask for its own conversation",
+            "t7",
+            OpenMailrs.intent(context, "t7").getStringExtra(NewMailWorker.EXTRA_THREAD_ID),
+        )
+        // And the whole-widget tap still means "just open the app".
+        assertNull(OpenMailrs.intent(context).getStringExtra(NewMailWorker.EXTRA_THREAD_ID))
     }
 }
