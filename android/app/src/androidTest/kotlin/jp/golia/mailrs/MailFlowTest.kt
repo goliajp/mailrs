@@ -402,4 +402,46 @@ class MailFlowTest : MailrsUiTest() {
         assertTrue("the reply-all was addressed back at me: $sent",
             !sent.substringAfter("\"to\"").substringBefore("]").contains("me@golia.jp"))
     }
+
+    /**
+     * A sender's brand mark, where there is one.
+     *
+     * The web and iOS both draw it and this app drew initials for
+     * everybody. The interesting half is the other one: the handler
+     * answers 204 for "no icon anywhere", which is an answer — a
+     * client that forgets it walks the server's whole cascade again
+     * for every row on every scroll.
+     */
+    @Test
+    fun a_sender_with_a_brand_mark_shows_it_and_the_answer_is_remembered() {
+        // The cache lives as long as the app process, which is longer
+        // than a test: whichever test runs first does the asking, and
+        // this one then measures an empty list. Cleared so the count
+        // below is this test's own.
+        jp.golia.mailrs.wire.SenderIcons.clear()
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        // **The unmerged tree.** A row is one clickable node, so a tag
+        // on anything inside it is merged away — the icon was on
+        // screen and the query could not see it, which reads exactly
+        // like an icon that never loaded.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag("image.senderIcon", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // The stub gives one domain an icon and answers 204 for the
+        // rest, so both paths are on screen at once: not every row can
+        // have drawn one.
+        val marks = compose.onAllNodesWithTag("image.senderIcon", useUnmergedTree = true)
+            .fetchSemanticsNodes().size
+        val rows = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        assertTrue("every sender drew a mark: $marks of $rows", marks < rows)
+
+        // Asked once each. Scrolling the list must not re-ask, which is
+        // what a client that treats 204 as a failure does.
+        val asked = readStub("/debug/icon-asks")
+        val duplicated = Regex("example\\.com").findAll(asked).count()
+        assertEquals("the same domain was asked more than once: $asked", 1, duplicated)
+    }
 }
