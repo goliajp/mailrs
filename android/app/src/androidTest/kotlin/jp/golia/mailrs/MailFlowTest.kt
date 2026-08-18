@@ -69,6 +69,13 @@ class MailFlowTest : MailrsUiTest() {
 
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("list.messages", "the thread never opened")
+        // The container is not the content: an empty list carries the
+        // same tag, and this test's name promises the messages. The
+        // fixture's first message is from Alice.
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("Alice Smith", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
 
         // And back, because a screen you cannot leave is not a screen.
         compose.onNodeWithTag("button.back").performClick()
