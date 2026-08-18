@@ -114,6 +114,15 @@ data class UiState(
     val dmarcSources: List<Wire.DmarcSource> = emptyList(),
     val audit: List<Admin.AuditEntry> = emptyList(),
     val agentKeys: List<Admin.AgentKey> = emptyList(),
+    /**
+     * A key just created, shown once.
+     *
+     * The server keeps a hash and the list returns a prefix; this is
+     * the only moment the secret exists anywhere the reader can see
+     * it. Held in state rather than passed to a screen so a rotation
+     * mid-read does not take it away.
+     */
+    val newAgentKey: String? = null,
     val allowedSenders: List<String> = emptyList(),
     val blockedSenders: List<String> = emptyList(),
     val suppressed: List<String> = emptyList(),

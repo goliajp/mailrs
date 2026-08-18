@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.createAgentKey
 import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.ui.AdminRow
@@ -252,6 +253,9 @@ fun MailViewModel.addFields(section: AdminSection): List<String> = when (section
     AdminSection.Aliases -> listOf("Source address", "Target address")
     AdminSection.Domains -> listOf("Domain name")
     AdminSection.Allowed, AdminSection.Blocked -> listOf("Address")
+    // A key is worth nothing without a name to know it by later, and
+    // dangerous without scopes to bound it.
+    AdminSection.AgentKeys -> listOf("Name", "Scopes, comma separated")
     else -> emptyList()
 }
 
@@ -286,6 +290,24 @@ fun MailViewModel.addAdminRow(section: AdminSection, values: List<String>) {
                 val address = values.getOrElse(0) { "" }.trim()
                 if (address.isEmpty()) return@launch
                 client.addToSenderList(section == AdminSection.Allowed, address)
+            }
+            AdminSection.AgentKeys -> {
+                val name = values.getOrElse(0) { "" }.trim()
+                if (name.isEmpty()) return@launch
+                val scopes = values.getOrElse(1) { "" }
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                when (val made = client.createAgentKey(name, scopes)) {
+                    // **Shown now or lost.** The list returns a prefix
+                    // and the server keeps only a hash; this is the one
+                    // moment the secret exists where it can be read.
+                    is MailrsClient.Outcome.Ok -> {
+                        _state.update { it.copy(newAgentKey = made.value.secret) }
+                        made
+                    }
+                    is MailrsClient.Outcome.Err -> made
+                }
             }
             else -> return@launch
         }
@@ -324,4 +346,9 @@ fun MailViewModel.deleteAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.
         }
         openAdmin(section)
     }
+}
+
+/** The new key has been read, and is gone for good. */
+fun MailViewModel.newAgentKeySeen() {
+    _state.update { it.copy(newAgentKey = null) }
 }

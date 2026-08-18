@@ -1,5 +1,9 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalClipboard
+import jp.golia.mailrs.newAgentKeySeen
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
@@ -85,6 +89,60 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
             onConfirm = { values ->
                 adding = false
                 vm.addAdminRow(section, values)
+            },
+        )
+    }
+
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    // The one moment the secret exists where it can be read: the list
+    // returns a prefix and the server keeps a hash. A dialog rather
+    // than a snackbar, because this one has to be dismissed on
+    // purpose — a message that times out while somebody is copying it
+    // is the same as never showing it.
+    state.newAgentKey?.let { secret ->
+        AlertDialog(
+            onDismissRequest = { vm.newAgentKeySeen() },
+            containerColor = theme.surface,
+            title = { Text("Copy this key now", fontSize = 16.sp, color = theme.fg) },
+            text = {
+                Column {
+                    Text(
+                        secret,
+                        fontSize = 14.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = theme.fg,
+                        modifier = Modifier.testTag("text.newAgentKey"),
+                    )
+                    Text(
+                        "It is not shown again — the server keeps only a hash.",
+                        fontSize = 12.sp,
+                        color = theme.fgMuted,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(
+                                androidx.compose.ui.platform.ClipEntry(
+                                    android.content.ClipData.newPlainText("Agent key", secret),
+                                ),
+                            )
+                        }
+                        vm.newAgentKeySeen()
+                    },
+                    modifier = Modifier.testTag("button.copyAgentKey"),
+                ) {
+                    Text("Copy", color = theme.accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.newAgentKeySeen() }) {
+                    Text("Done", color = theme.fgSecondary)
+                }
             },
         )
     }
