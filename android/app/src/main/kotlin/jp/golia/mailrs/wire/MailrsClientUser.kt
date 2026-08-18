@@ -165,3 +165,15 @@ suspend fun MailrsClient.cancelScheduled(id: String): MailrsClient.Outcome<Strin
  */
 suspend fun MailrsClient.markAllRead(list: MailList): MailrsClient.Outcome<String> =
     post(url("/api/conversations/mark-all-read?" + list.axes.query()), "{}", authorized = true)
+
+/**
+ * `POST /api/mail/sends/{id}/resend` — re-enqueue the stored bytes,
+ * unchanged.
+ *
+ * Only for a row whose `can_resend` the server set: it reads an empty
+ * envelope reference as "the bytes are not on disk" and answers 409,
+ * and a button that produces a 409 after the tap is worse than no
+ * button.
+ */
+suspend fun MailrsClient.resend(sendId: String): MailrsClient.Outcome<String> =
+    post(url("/api/mail/sends/${enc(sendId)}/resend"), "{}", authorized = true)

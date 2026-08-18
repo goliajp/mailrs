@@ -289,6 +289,14 @@ object Wire {
         @SerialName("created_at") val createdAt: Long,
         val status: String,
         @SerialName("resent_from") val resentFrom: String? = null,
+        /**
+         * Whether the server still holds the bytes to send again.
+         *
+         * Its judgement, not one this side can make: it reads an empty
+         * envelope reference as "the bytes are not on disk", and a
+         * button offered against that answers 409 after the tap.
+         */
+        @SerialName("can_resend") val canResend: Boolean = false,
     )
 
     /** `GET /api/scheduled` — the caller's own future-dated sends. */

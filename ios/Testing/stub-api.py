@@ -934,6 +934,10 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if self._session_rejected():
             return
+        if re.match(r"^/api/mail/sends/[^/]+/resend$", self.path.split("?")[0]):
+            WRITES.append("POST " + self.path.split("?")[0])
+            self._send({"send_id": "resent@golia.jp"})
+            return
         if self.path.split("?")[0] == "/api/conversations/mark-all-read":
             # The **whole** path, query and all. Everywhere else the
             # query is dropped, and here it is the assertion: the same

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import org.junit.Assert.assertEquals
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -58,6 +59,37 @@ class SentFlowTest : MailrsUiTest() {
         val badges = compose.onAllNodesWithTag("text.sendStatus").fetchSemanticsNodes().size
         val rows = compose.onAllNodesWithTag("row.sent").fetchSemanticsNodes().size
         assertTrue("every row claimed a delivery status: $badges of $rows", badges < rows)
+    }
+
+    /**
+     * A failed send can be tried again — and only that one.
+     *
+     * `can_resend` is the server's judgement, not a guess this side can
+     * make: it reads an empty envelope reference as "the bytes are not
+     * on disk" and answers 409. A button offered against that fails
+     * after the tap, which is worse than not offering it. The stub's
+     * fixture has one row where it is true and one where it is false,
+     * so counting the buttons is the assertion.
+     */
+    @Test
+    fun only_a_send_the_server_still_holds_can_be_sent_again() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        waitForTag("list.sent", "the sent list never opened")
+
+        val offers = compose.onAllNodesWithTag("button.resend").fetchSemanticsNodes().size
+        assertEquals("only the failed send holds its bytes", 1, offers)
+
+        compose.onAllNodesWithTag("button.resend").onFirst().performClick()
+        // `unfiled@golia.jp` arrives percent-encoded, which is what a
+        // path segment holding an address looks like on the wire.
+        compose.waitUntil(TIMEOUT_MS) {
+            val writes = readStub("/debug/writes")
+            writes.contains("/resend") && writes.contains("unfiled")
+        }
     }
 
     /**

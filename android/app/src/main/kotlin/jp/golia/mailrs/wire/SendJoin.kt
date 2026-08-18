@@ -26,6 +26,13 @@ object SendJoin {
          * the web view settled on.
          */
         val status: String?,
+        /**
+         * The projection's own id, needed to ask for a resend — and
+         * null for a row that only the maildir knows about, which is
+         * exactly the mail the server cannot send again.
+         */
+        val sendId: String?,
+        val canResend: Boolean,
         val key: String,
     )
 
@@ -56,13 +63,16 @@ object SendJoin {
         for (message in messages) {
             val key = joinKey(message.messageId)
             if (key.isEmpty()) continue
+            val send = byMessage[key]
             rows[key] = Row(
                 threadId = message.threadId,
                 uid = message.uid,
                 subject = message.subject,
                 to = message.to,
                 date = message.internalDate,
-                status = byMessage[key]?.status,
+                status = send?.status,
+                sendId = send?.sendId,
+                canResend = send?.canResend == true,
                 key = key,
             )
         }
@@ -79,6 +89,8 @@ object SendJoin {
                 to = send.to.joinToString(", "),
                 date = send.createdAt,
                 status = send.status,
+                sendId = send.sendId,
+                canResend = send.canResend,
                 key = key,
             )
         }

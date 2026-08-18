@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.resend
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.SendJoin
@@ -50,6 +51,23 @@ fun MailViewModel.cancelScheduled(send: Wire.ScheduledSend) {
     _state.update { it.copy(scheduled = it.scheduled.filterNot { s -> s.id == send.id }) }
     viewModelScope.launch {
         when (val r = client.cancelScheduled(send.id)) {
+            is MailrsClient.Outcome.Ok -> openSent()
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
+        }
+    }
+}
+
+/**
+ * Send it again, byte for byte.
+ *
+ * The list is re-read afterwards rather than adjusted here: a resend
+ * makes a *new* row with its own status, and guessing at that shape
+ * would put a second line on screen that the server never agreed to.
+ */
+fun MailViewModel.resend(row: SendJoin.Row) {
+    val id = row.sendId ?: return
+    viewModelScope.launch {
+        when (val r = client.resend(id)) {
             is MailrsClient.Outcome.Ok -> openSent()
             is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
         }

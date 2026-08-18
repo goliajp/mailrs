@@ -1,6 +1,8 @@
 package jp.golia.mailrs.wire
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -20,6 +22,7 @@ class SendJoinTest {
         at: Long,
         status: String,
         resentFrom: String? = null,
+        canResend: Boolean = false,
     ) = Wire.Send(
         sendId = id,
         threadId = "t1",
@@ -28,6 +31,7 @@ class SendJoinTest {
         createdAt = at,
         status = status,
         resentFrom = resentFrom,
+        canResend = canResend,
     )
 
     @Test
@@ -78,5 +82,22 @@ class SendJoinTest {
             sends = emptyList(),
         )
         assertEquals(listOf("newer", "older"), rows.map { it.subject })
+    }
+
+    @Test
+    fun `only the server decides whether a message can be sent again`() {
+        val rows = SendJoin.join(
+            messages = listOf(sent("<m1@x>", at = 100), sent("<gone@x>", at = 90)),
+            sends = listOf(send("m1@x", at = 100, status = "failed", canResend = true)),
+        )
+        val again = rows.single { it.key == "m1@x" }
+        assertEquals("m1@x", again.sendId)
+        assertTrue(again.canResend)
+
+        // Known only to the maildir: no projection row, so no id to
+        // ask with and nothing to offer.
+        val onlyFiled = rows.single { it.key == "gone@x" }
+        assertNull(onlyFiled.sendId)
+        assertFalse(onlyFiled.canResend)
     }
 }

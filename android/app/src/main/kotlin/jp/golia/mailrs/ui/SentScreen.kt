@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.resend
 import androidx.compose.material3.TextButton
 import jp.golia.mailrs.wire.Wire
 import jp.golia.mailrs.cancelScheduled
@@ -108,7 +109,11 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                         }
                     }
                     items(state.sentMail, key = SendJoin.Row::key) { row ->
-                        SentRow(row) { vm.openThreadById(row.threadId) }
+                        SentRow(
+                            row,
+                            onOpen = { vm.openThreadById(row.threadId) },
+                            onResend = { vm.resend(row) },
+                        )
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                     }
                 }
@@ -157,7 +162,7 @@ private fun ScheduledRow(send: Wire.ScheduledSend, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun SentRow(row: SendJoin.Row, onOpen: () -> Unit) {
+private fun SentRow(row: SendJoin.Row, onOpen: () -> Unit, onResend: () -> Unit) {
     val theme = LocalTheme.current
     Row(
         Modifier
@@ -196,6 +201,14 @@ private fun SentRow(row: SendJoin.Row, onOpen: () -> Unit) {
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.testTag("text.sendStatus"),
                 )
+            }
+            // Only where the server says the bytes are still there.
+            // Offered against anything else it answers 409, and a
+            // button that fails after the tap is worse than none.
+            if (row.canResend) {
+                TextButton(onClick = onResend, modifier = Modifier.testTag("button.resend")) {
+                    Text("Send again", color = theme.accent, fontSize = 12.sp)
+                }
             }
         }
     }
