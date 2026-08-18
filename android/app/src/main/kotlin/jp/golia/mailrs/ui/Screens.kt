@@ -1,5 +1,11 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import jp.golia.mailrs.markAllRead
 import jp.golia.mailrs.openSent
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
@@ -242,6 +248,35 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                         }
                         IconButton(onClick = { vm.refresh() }, modifier = Modifier.testTag("button.refresh")) {
                             Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = theme.fgSecondary)
+                        }
+                        // The overflow, which is where Android puts what
+                        // is wanted occasionally — a permanent button
+                        // for "mark all read" would sit next to Search
+                        // and Refresh being pressed by accident.
+                        var menuOpen by rememberSaveable { mutableStateOf(false) }
+                        IconButton(
+                            onClick = { menuOpen = true },
+                            modifier = Modifier.testTag("button.listMenu"),
+                        ) {
+                            Icon(
+                                Icons.Filled.MoreVert,
+                                contentDescription = "More",
+                                tint = theme.fgSecondary,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false },
+                            containerColor = theme.surface,
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Mark all read", color = theme.fg, fontSize = 14.sp) },
+                                onClick = {
+                                    menuOpen = false
+                                    vm.markAllRead()
+                                },
+                                modifier = Modifier.testTag("menu.markAllRead"),
+                            )
                         }
                     }
                 },

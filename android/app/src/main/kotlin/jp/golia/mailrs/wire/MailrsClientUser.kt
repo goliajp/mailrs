@@ -153,3 +153,15 @@ suspend fun MailrsClient.scheduledSends(): MailrsClient.Outcome<List<Wire.Schedu
 
 suspend fun MailrsClient.cancelScheduled(id: String): MailrsClient.Outcome<String> =
     post(url("/api/scheduled/${enc(id)}/cancel"), "{}", authorized = true)
+
+/**
+ * `POST /api/conversations/mark-all-read`, scoped to one list.
+ *
+ * The axes are not optional in practice: with none the handler marks
+ * the whole mailbox, so pressing this inside Notifications would
+ * silence the inbox as well. Scoped server-side rather than by naming
+ * threads, because a client can only name the page it has loaded —
+ * marking 50 of 1,458 looks finished and is not.
+ */
+suspend fun MailrsClient.markAllRead(list: MailList): MailrsClient.Outcome<String> =
+    post(url("/api/conversations/mark-all-read?" + list.axes.query()), "{}", authorized = true)

@@ -934,6 +934,14 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if self._session_rejected():
             return
+        if self.path.split("?")[0] == "/api/conversations/mark-all-read":
+            # The **whole** path, query and all. Everywhere else the
+            # query is dropped, and here it is the assertion: the same
+            # four axes the list takes decide whether this marks one
+            # list or the entire mailbox.
+            WRITES.append("POST " + self.path)
+            self._send({"marked": 3})
+            return
         if re.match(r"^/api/scheduled/[^/]+/cancel$", self.path.split("?")[0]):
             # Calling a message back before it leaves. Recorded, because
             # the row goes from the list optimistically and the only

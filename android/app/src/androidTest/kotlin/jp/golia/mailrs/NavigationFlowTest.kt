@@ -452,4 +452,36 @@ class NavigationFlowTest : MailrsUiTest() {
         runCatching { compose.waitUntil(TIMEOUT_MS, condition) }
             .onFailure { throw AssertionError(complaint) }
     }
+
+    /**
+     * Mark everything read — the list being read, not the mailbox.
+     *
+     * The endpoint takes the same four axes the list does, and the
+     * handler says why: "mark all as read" pressed inside Notifications
+     * should not silence the inbox. A client that sends no scope gets
+     * the whole mailbox, which is a different and much larger action
+     * than the one the button appears to offer.
+     */
+    @Test
+    fun mark_all_read_marks_the_list_it_was_pressed_in() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.NP").performClick()
+        waitForTag("list.conversations", "the notifications list never opened")
+
+        compose.onNodeWithTag("button.listMenu").performClick()
+        compose.onNodeWithText("Mark all read").performClick()
+
+        var writes = ""
+        awaiting("mark-all-read never reached the server; the stub saw <$writes>") {
+            writes = readStub("/debug/writes")
+            writes.contains("mark-all-read")
+        }
+        assertTrue(
+            "it marked the whole mailbox rather than the list: $writes",
+            writes.contains("folder=NP"),
+        )
+    }
 }

@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.markAllRead
 import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
@@ -181,3 +182,21 @@ fun MailViewModel.triageOpenThread(verb: MailrsClient.Verb) {
     triage(conversation, verb)
 }
 
+/**
+ * Mark everything in the list being read.
+ *
+ * The list, not the mailbox: the axes travel with the request, because
+ * "mark all as read" pressed inside Notifications should not silence
+ * the inbox. Refreshed afterwards rather than adjusted here — the
+ * server decides how many it touched, and guessing at counts is how a
+ * badge and a list end up disagreeing.
+ */
+fun MailViewModel.markAllRead() {
+    val list = _state.value.list
+    viewModelScope.launch {
+        when (val r = client.markAllRead(list)) {
+            is MailrsClient.Outcome.Ok -> refresh()
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
+        }
+    }
+}
