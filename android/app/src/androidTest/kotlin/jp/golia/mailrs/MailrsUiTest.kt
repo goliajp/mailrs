@@ -153,14 +153,31 @@ abstract class MailrsUiTest : GrantsNotifications() {
         }
     }
 
+    /**
+     * Tap something that sits under a message body.
+     *
+     * The WebView finds its height after its content loads, and
+     * everything below it slides — a tap computed before that lands
+     * somewhere else, and reads as "the composer never opened".
+     *
+     * **Three samples, spaced.** Two consecutive equal readings are
+     * satisfied by the gap between two reflows: content loads, wraps,
+     * then images resolve, and the pause in the middle looks like
+     * rest. That false positive appeared the moment a wide message
+     * started wrapping — the body grew tall enough to reflow in more
+     * stages — and showed up as one unrelated test failing per full
+     * run while passing alone.
+     */
     protected fun tapWhenSteady(tag: String, index: Int) {
         compose.onAllNodesWithTag(tag)[index].performScrollTo()
         var last = Float.NaN
+        var same = 0
         compose.waitUntil(TIMEOUT_MS) {
             val top = compose.onAllNodesWithTag(tag)[index].fetchSemanticsNode().positionInRoot.y
-            val steady = top == last
+            same = if (top == last) same + 1 else 0
             last = top
-            steady
+            if (same < 3) Thread.sleep(120)
+            same >= 3
         }
         compose.onAllNodesWithTag(tag)[index].performClick()
     }
