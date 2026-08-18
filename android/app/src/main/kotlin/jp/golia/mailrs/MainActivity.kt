@@ -1,5 +1,7 @@
 package jp.golia.mailrs
 
+import androidx.compose.runtime.CompositionLocalProvider
+import jp.golia.mailrs.ui.LocalMailrsClient
 import jp.golia.mailrs.openThreadById
 import jp.golia.mailrs.compose
 import jp.golia.mailrs.composeFromShare
@@ -212,6 +214,11 @@ class MainActivity : ComponentActivity() {
                 Prefs.Appearance.Dark -> true
             }
             MailrsTheme(dark = dark) {
+                // Set once, here, so an avatar anywhere below can ask
+                // for its sender's brand mark without every screen in
+                // between having to carry a network client it does not
+                // use.
+                CompositionLocalProvider(LocalMailrsClient provides vm.client) {
                 Surface(color = LocalTheme.current.bg) {
                     // `am start … --es mailrs_base_url http://10.0.2.2:6039`
                     // is this app's `-mailrsBaseURL`. Ignored outside a
@@ -240,6 +247,7 @@ class MainActivity : ComponentActivity() {
                     MailrsApp(vm, state)
                 }
             }
+                }
         }
     }
 

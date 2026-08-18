@@ -279,6 +279,9 @@ DRAFT_POSTS = []
 # answer 204 with no body, so which of them fired — and how many times —
 # is invisible on screen; the tests read it here.
 WRITES = []
+# Every domain an icon was asked for, so a test can prove a "no icon"
+# answer is remembered rather than asked again on every scroll.
+ICON_ASKS = []
 
 # How many times the unseen count was asked for — the badge's input.
 # The badge itself belongs to the OS and no test can read the icon, so
@@ -588,6 +591,33 @@ class H(BaseHTTPRequestHandler):
                      "content_type": "application/pdf", "size": 8192},
                 ],
             })
+            return
+        if self.path.startswith("/api/icon/"):
+            domain = self.path.split("?")[0][len("/api/icon/"):]
+            ICON_ASKS.append(domain)
+            if domain != "example.com":
+                # 204 is the handler's answer for "no icon anywhere" —
+                # not an error, and a client must remember it rather
+                # than asking again on every scroll.
+                self.send_response(204)
+                self.send_header("Connection", "close")
+                self.end_headers()
+                return
+            # A 1×1 PNG: the smallest thing `BitmapFactory` will decode,
+            # which is what the client can actually render.
+            png = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+                "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(png)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(png)
+            return
+        if self.path.split("?")[0] == "/debug/icon-asks":
+            self._send({"asked": ICON_ASKS})
             return
         if self.path.split("?")[0] == "/api/mail/sent":
             self._send([
@@ -1032,6 +1062,7 @@ class H(BaseHTTPRequestHandler):
             DRAFT_COUNTER[0] = 0
             DRAFT_POSTS.clear()
             WRITES.clear()
+            ICON_ASKS.clear()
             UNSEEN_FETCHES[0] = 0
             LIST_FETCHES[0] = 0
             LIST_DELAY_MS[0] = 0

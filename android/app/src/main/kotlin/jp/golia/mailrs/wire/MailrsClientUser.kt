@@ -181,3 +181,36 @@ suspend fun MailrsClient.resend(sendId: String): MailrsClient.Outcome<String> =
 /** `GET /api/mail/sends/{id}/redraft` — the fields, to edit and send again. */
 suspend fun MailrsClient.redraft(sendId: String): MailrsClient.Outcome<Wire.Redraft> =
     one(get("/api/mail/sends/${enc(sendId)}/redraft"), Wire.Redraft.serializer())
+
+/**
+ * `GET /api/icon/{domain}` — a brand icon, or nothing.
+ *
+ * **204 is the answer, not a failure**: the handler never says 4xx for
+ * "no icon anywhere", it says no content, and a client that treated
+ * that as an error would retry a question already answered. Null means
+ * the letter avatar stands.
+ */
+suspend fun MailrsClient.senderIcon(domain: String): MailrsClient.Outcome<ByteArray?> =
+    withContext(Dispatchers.IO) {
+        val s = session ?: return@withContext MailrsClient.Outcome.Err("Not signed in.")
+        val request = Request.Builder()
+            .url("${s.server}/api/icon/${enc(domain)}")
+            .header("Authorization", "Bearer ${s.token}")
+            .get()
+            .build()
+        try {
+            http.newCall(request).execute().use { response ->
+                when {
+                    response.code == 204 -> MailrsClient.Outcome.Ok(null)
+                    response.isSuccessful -> MailrsClient.Outcome.Ok(response.body.bytes())
+                    response.code == 401 -> {
+                        rejected()
+                        MailrsClient.Outcome.Err("Signed out — the server rejected this session.")
+                    }
+                    else -> MailrsClient.Outcome.Err("The server answered ${response.code}.")
+                }
+            }
+        } catch (e: IOException) {
+            MailrsClient.Outcome.Err("Could not reach the server: ${e.message}")
+        }
+    }

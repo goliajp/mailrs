@@ -1,5 +1,17 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.runtime.staticCompositionLocalOf
+import jp.golia.mailrs.wire.MailrsClient
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import jp.golia.mailrs.wire.SenderIconDomain
+import jp.golia.mailrs.wire.SenderIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -80,20 +92,44 @@ object SenderAvatar {
 @Composable
 fun SenderAvatarView(sender: String, size: Dp = 36.dp, unread: Boolean = false) {
     val theme = LocalTheme.current
+    // The sender's brand mark where there is one, and the letter where
+    // there is not. Asked once per domain and remembered — including
+    // the answer "there is none", which is an answer and not a failure.
+    val domain = remember(sender) { SenderIconDomain.of(sender) }
+    var icon by remember(domain) { mutableStateOf(domain?.let { SenderIcons.cached(it) }) }
+    if (domain != null && !SenderIcons.known(domain)) {
+        val client = LocalMailrsClient.current
+        LaunchedEffect(domain, client) {
+            if (client != null) icon = SenderIcons.fetch(client, domain)
+        }
+    }
     Box(contentAlignment = Alignment.TopEnd) {
         Box(
             Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(SenderAvatar.colorFor(sender)),
+                .background(if (icon == null) SenderAvatar.colorFor(sender) else Color.White),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                SenderAvatar.initialFor(sender),
-                color = Color.White,
-                fontSize = (size.value * 0.42f).sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            val mark = icon
+            if (mark == null) {
+                Text(
+                    SenderAvatar.initialFor(sender),
+                    color = Color.White,
+                    fontSize = (size.value * 0.42f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            } else {
+                Image(
+                    bitmap = mark,
+                    // Named by the sender, not by the picture: a screen
+                    // reader announcing "logo" for every row would be
+                    // noise, and the row already says who it is from.
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(size * 0.72f).testTag("image.senderIcon"),
+                )
+            }
         }
         if (unread) {
             Box(
@@ -107,3 +143,15 @@ fun SenderAvatarView(sender: String, size: Dp = 36.dp, unread: Boolean = false) 
         }
     }
 }
+
+/**
+ * The client an avatar asks for its icon, or null where there is none.
+ *
+ * A composition local rather than a parameter threaded through every
+ * list, row and header that draws an avatar: the icon is a detail of
+ * this one composable, and passing a network client down four levels
+ * to reach it would make every caller aware of something none of them
+ * cares about. Null by default, so a preview or a test that renders an
+ * avatar without an app around it simply shows the letter.
+ */
+val LocalMailrsClient = staticCompositionLocalOf<MailrsClient?> { null }
