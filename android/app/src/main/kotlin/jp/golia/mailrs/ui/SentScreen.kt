@@ -1,11 +1,12 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.combinedClickable
+import jp.golia.mailrs.viewSendSource
 import jp.golia.mailrs.redraft
 import jp.golia.mailrs.resend
 import androidx.compose.material3.TextButton
 import jp.golia.mailrs.wire.Wire
 import jp.golia.mailrs.cancelScheduled
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -115,6 +116,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                             onOpen = { vm.openThreadById(row.threadId) },
                             onResend = { vm.resend(row) },
                             onRedraft = { vm.redraft(row) },
+                            onSource = { vm.viewSendSource(row) },
                         )
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                     }
@@ -169,12 +171,21 @@ private fun SentRow(
     onOpen: () -> Unit,
     onResend: () -> Unit,
     onRedraft: () -> Unit,
+    onSource: () -> Unit,
 ) {
     val theme = LocalTheme.current
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .combinedClickable(
+                onClick = onOpen,
+                // The bytes that actually left, on a long press — the
+                // same gesture the conversation list uses for its own
+                // second meaning, and not worth a permanent button on
+                // a row that already carries two.
+                onLongClick = onSource,
+                onLongClickLabel = "View source",
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("row.sent"),
         verticalAlignment = Alignment.CenterVertically,

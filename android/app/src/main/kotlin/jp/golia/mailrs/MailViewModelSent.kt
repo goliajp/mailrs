@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.sendSource
 import jp.golia.mailrs.wire.redraft
 import jp.golia.mailrs.wire.resend
 import androidx.lifecycle.viewModelScope
@@ -108,6 +109,20 @@ fun MailViewModel.redraft(row: SendJoin.Row) {
                 )
             }
             is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
+        }
+    }
+}
+
+/** The bytes a send actually put on the wire. */
+fun MailViewModel.viewSendSource(row: SendJoin.Row) {
+    val id = row.sendId ?: return
+    _state.update { it.copy(sourceOpen = true, source = null, error = null) }
+    viewModelScope.launch {
+        _state.update {
+            when (val r = client.sendSource(id)) {
+                is MailrsClient.Outcome.Ok -> it.copy(source = r.value)
+                is MailrsClient.Outcome.Err -> it.copy(sourceOpen = false, error = r.message)
+            }
         }
     }
 }

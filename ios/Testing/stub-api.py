@@ -559,6 +559,22 @@ class H(BaseHTTPRequestHandler):
                  "recipient": "alice@example.com", "subject": "Monday morning note"},
             ]})
             return
+        if re.match(r"^/api/mail/sends/[^/]+/source$", self.path.split("?")[0]):
+            # The bytes that left, as they left. `message/rfc822`, not
+            # JSON — the client reads the body rather than decoding it.
+            raw = ("From: me@golia.jp\r\n"
+                   "To: carol@example.com\r\n"
+                   "Subject: Never left the queue\r\n"
+                   "Message-ID: <unfiled@golia.jp>\r\n\r\n"
+                   "Trying again.\r\n")
+            body = raw.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "message/rfc822")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if re.match(r"^/api/mail/sends/[^/]+/redraft$", self.path.split("?")[0]):
             # Compose fields plus attachment *metadata*: the bytes stay
             # here and the following send names what to keep by index.

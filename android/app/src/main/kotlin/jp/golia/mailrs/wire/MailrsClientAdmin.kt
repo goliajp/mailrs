@@ -136,3 +136,13 @@ private suspend fun MailrsClient.delete(path: String): MailrsClient.Outcome<Stri
             .build(),
     )
 }
+
+/**
+ * `GET /api/mail/sends/{id}/source` — the bytes that actually left.
+ *
+ * The counterpart to a received message's raw view, and the one worth
+ * reaching for when a send failed: what the queue holds is what resend
+ * would re-enqueue, headers and all.
+ */
+suspend fun MailrsClient.sendSource(sendId: String): MailrsClient.Outcome<String> =
+    get("/api/mail/sends/${enc(sendId)}/source")
