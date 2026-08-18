@@ -663,6 +663,17 @@ class H(BaseHTTPRequestHandler):
             self._send({"items": DMARC_REPORTS})
             return
         if self.path.split("?")[0] == "/api/admin/dmarc/sources":
+            # One source that passes and one that does not, because the
+            # screen exists to tell them apart: 0 of 500 from an
+            # unknown IP sending as the domain is the finding.
+            self._send({"items": [
+                {"source_ip": "203.0.113.7", "total": 500, "passing": 500,
+                 "domains": ["golia.jp"]},
+                {"source_ip": "198.51.100.42", "total": 500, "passing": 0,
+                 "domains": ["golia.jp"]},
+            ], "total": 1000, "passing": 500})
+            return
+        if self.path.split("?")[0] == "/api/admin/dmarc/sources":
             self._send(DMARC_SOURCES)
             return
         if self.path.split("?")[0] == "/api/admin/queues":

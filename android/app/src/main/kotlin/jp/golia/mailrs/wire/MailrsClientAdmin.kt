@@ -146,3 +146,7 @@ private suspend fun MailrsClient.delete(path: String): MailrsClient.Outcome<Stri
  */
 suspend fun MailrsClient.sendSource(sendId: String): MailrsClient.Outcome<String> =
     get("/api/mail/sends/${enc(sendId)}/source")
+
+/** `GET /api/admin/dmarc/sources` — a rollup per sending IP. */
+suspend fun MailrsClient.dmarcSources(): MailrsClient.Outcome<Wire.DmarcSourceList> =
+    one(get("/api/admin/dmarc/sources"), Wire.DmarcSourceList.serializer())

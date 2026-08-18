@@ -102,6 +102,16 @@ data class UiState(
     val domains: List<Admin.Domain> = emptyList(),
     val queue: List<Admin.QueueJob> = emptyList(),
     val dmarc: List<Admin.DmarcReport> = emptyList(),
+    /**
+     * Who has been sending as these domains, per IP.
+     *
+     * Above the reports rather than behind another tap: a report says
+     * how much passed, and this says *who* — which is the question an
+     * operator opens DMARC to answer, and the one that finds a
+     * forwarder breaking alignment or somebody sending as the domain
+     * who should not be.
+     */
+    val dmarcSources: List<Wire.DmarcSource> = emptyList(),
     val audit: List<Admin.AuditEntry> = emptyList(),
     val agentKeys: List<Admin.AgentKey> = emptyList(),
     val allowedSenders: List<String> = emptyList(),
@@ -221,7 +231,17 @@ enum class AdminSection(val title: String, val emptyMessage: String) {
                 deletable = false,
             )
         }
-        Dmarc -> state.dmarc.map { r ->
+        Dmarc -> state.dmarcSources.map { s ->
+            jp.golia.mailrs.ui.AdminRow(
+                key = "src-${s.sourceIp}",
+                headline = s.sourceIp,
+                // Passing against total again, and the domains it sent
+                // as: a source at 0/500 is either a forwarder or an
+                // impostor, and which one depends on the domain.
+                detail = "${s.passing}/${s.total} passing · ${s.domains.joinToString(", ")}",
+                deletable = false,
+            )
+        } + state.dmarc.map { r ->
             jp.golia.mailrs.ui.AdminRow(
                 key = r.sid,
                 headline = r.orgName.ifBlank { r.sid },

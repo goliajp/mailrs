@@ -350,4 +350,24 @@ object Wire {
         @SerialName("content_type") val contentType: String = "",
         val size: Int = 0,
     )
+
+    /**
+     * `GET /api/admin/dmarc/sources` — who has been sending as these
+     * domains, rolled up per IP over a window.
+     */
+    @Serializable
+    data class DmarcSourceList(
+        val items: List<DmarcSource> = emptyList(),
+        val total: Long = 0,
+        val passing: Long = 0,
+    )
+
+    @Serializable
+    data class DmarcSource(
+        @SerialName("source_ip") val sourceIp: String,
+        val total: Long = 0,
+        val passing: Long = 0,
+        /** The policy domains this source sent as. */
+        val domains: List<String> = emptyList(),
+    )
 }
