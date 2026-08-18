@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
@@ -185,7 +186,11 @@ private fun SentRow(
     onSource: () -> Unit,
 ) {
     val theme = LocalTheme.current
-    Row(
+    // Stacked, not two columns. With the date, the status and two
+    // buttons all stacked on the right, a failed row grew tall enough
+    // to push its own text off centre and the order read as an
+    // accident — the screenshot showed it and no assertion could.
+    Column(
         Modifier
             .fillMaxWidth()
             .combinedClickable(
@@ -197,28 +202,29 @@ private fun SentRow(
                 onLongClick = onSource,
                 onLongClickLabel = "View source",
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp)
             .testTag("row.sent"),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 row.subject.ifBlank { "(no subject)" },
                 color = theme.fg,
                 fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            Text(RowDate.format(row.date), color = theme.fgMuted, fontSize = 11.sp)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "To ${row.to}",
                 color = theme.fgMuted,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(RowDate.format(row.date), color = theme.fgMuted, fontSize = 11.sp)
             // Absent for anything the projection never saw, and absent
             // is what it says — no badge at all rather than a hopeful
             // one.
@@ -231,20 +237,21 @@ private fun SentRow(
                     modifier = Modifier.testTag("text.sendStatus"),
                 )
             }
-            // Only where the server says the bytes are still there.
-            // Offered against anything else it answers 409, and a
-            // button that fails after the tap is worse than none.
-            if (row.canResend) {
-                Row {
-                    // Edit first: a send that failed because the address
-                    // was wrong fails again unchanged, and "Send again"
-                    // sends the stored bytes exactly as they were.
-                    TextButton(onClick = onRedraft, modifier = Modifier.testTag("button.redraft")) {
-                        Text("Edit", color = theme.accent, fontSize = 12.sp)
-                    }
-                    TextButton(onClick = onResend, modifier = Modifier.testTag("button.resend")) {
-                        Text("Send again", color = theme.accent, fontSize = 12.sp)
-                    }
+        }
+        // Their own line, at the end, where a row that has them is a
+        // row that failed. Only where the server says the bytes are
+        // still there: offered against anything else it answers 409,
+        // and a button that fails after the tap is worse than none.
+        if (row.canResend) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                // Edit first: a send that failed because the address was
+                // wrong fails again unchanged, and "Send again" sends
+                // the stored bytes exactly as they were.
+                TextButton(onClick = onRedraft, modifier = Modifier.testTag("button.redraft")) {
+                    Text("Edit", color = theme.accent, fontSize = 12.sp)
+                }
+                TextButton(onClick = onResend, modifier = Modifier.testTag("button.resend")) {
+                    Text("Send again", color = theme.accent, fontSize = 12.sp)
                 }
             }
         }

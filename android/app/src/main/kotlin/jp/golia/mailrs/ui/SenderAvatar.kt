@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.staticCompositionLocalOf
 import jp.golia.mailrs.wire.MailrsClient
 import androidx.compose.foundation.Image
@@ -126,8 +127,13 @@ fun SenderAvatarView(sender: String, size: Dp = 36.dp, unread: Boolean = false) 
                     // reader announcing "logo" for every row would be
                     // noise, and the row already says who it is from.
                     contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(size * 0.72f).testTag("image.senderIcon"),
+                    // **Filled and clipped round**, like every other
+                    // avatar in the list and like the iOS client. Fit
+                    // inside a white circle drew a square on a ring —
+                    // correct by every test and visibly not one of the
+                    // same family of circles beside it.
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape).testTag("image.senderIcon"),
                 )
             }
         }
