@@ -1,5 +1,8 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.cancelScheduled
+import jp.golia.mailrs.wire.scheduledSends
+import jp.golia.mailrs.wire.SendSchedule
 import jp.golia.mailrs.wire.sends
 import jp.golia.mailrs.wire.sentMessages
 import jp.golia.mailrs.wire.SendJoin
@@ -274,7 +277,12 @@ fun MailViewModel.discardDraft(d: Wire.Draft) {
     viewModelScope.launch { client.deleteDraft(d.id) }
 }
 
-fun MailViewModel.send() {
+/**
+ * @param schedule when it should leave. [SendSchedule.Now] sends at
+ *   once; anything else hands the server a `scheduled_at` and the
+ *   sender's sweep promotes it when it is due.
+ */
+fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
     val draft = _state.value.composing ?: return
     val recipients = recipientsIn(draft.to)
     if (recipients.isEmpty()) {
@@ -296,6 +304,7 @@ fun MailViewModel.send() {
                 cc = recipientsIn(draft.cc),
                 bcc = recipientsIn(draft.bcc),
                 forwardAttachmentsFrom = draft.forwardFrom,
+                scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
             )
         } else {
             client.sendMultipart(
@@ -308,6 +317,7 @@ fun MailViewModel.send() {
                 attachments = draft.attachments.map { a ->
                     MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))
                 },
+                scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
             )
         }
         when (r) {
@@ -455,26 +465,4 @@ fun MailViewModel.suggestContacts(field: RecipientField, line: String) {
 fun MailViewModel.clearSuggestions() {
     if (_state.value.suggestions.isEmpty()) return
     _state.update { it.copy(suggestions = emptyList(), suggestingFor = null) }
-}
-
-/**
- * What was sent.
- *
- * Two requests, because the answer is two things: what the maildir
- * sweep has filed and what the delivery projection knows. A failure of
- * either is not a failure of the screen — a list with no statuses is
- * still the list, and no statuses is what every mailbox older than the
- * projection looks like anyway.
- */
-fun MailViewModel.openSent() {
-    _state.update { it.copy(sentOpen = true, busy = true, error = null) }
-    viewModelScope.launch {
-        val messages = (client.sentMessages() as? MailrsClient.Outcome.Ok)?.value.orEmpty()
-        val sends = (client.sends() as? MailrsClient.Outcome.Ok)?.value.orEmpty()
-        _state.update { it.copy(busy = false, sentMail = SendJoin.join(messages, sends)) }
-    }
-}
-
-fun MailViewModel.closeSent() {
-    _state.update { it.copy(sentOpen = false) }
 }

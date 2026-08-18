@@ -32,6 +32,19 @@ class NewMailWorkerTest : GrantsNotifications() {
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
 
+    /**
+     * Leave the shade as it was found.
+     *
+     * This class posts notifications, one of them on the
+     * high-importance channel, which arrives as a heads-up window over
+     * whatever is in front. Clearing only at the start of each test
+     * leaves the last one up for whoever runs next.
+     */
+    @org.junit.After
+    fun theShadeIsLeftEmpty() {
+        NotificationManagerCompatShim.clear(appContext)
+    }
+
     @Before
     fun signedInAgainstTheStub() {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")

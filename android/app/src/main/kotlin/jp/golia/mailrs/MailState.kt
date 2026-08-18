@@ -83,6 +83,16 @@ data class UiState(
      */
     val sentMail: List<SendJoin.Row> = emptyList(),
     val sentOpen: Boolean = false,
+
+    /**
+     * Mail that has not left yet, soonest first.
+     *
+     * Shown above what has already gone, because it is the half a
+     * person can still do something about — `cancel` and `reschedule`
+     * had existed for months with no caller anywhere, since nothing
+     * could list what there was to cancel.
+     */
+    val scheduled: List<Wire.ScheduledSend> = emptyList(),
     /** A draft was just saved; the list screen says so once. */
     val draftSaved: Boolean = false,
     /** The operator list showing, if any, and what it holds. */

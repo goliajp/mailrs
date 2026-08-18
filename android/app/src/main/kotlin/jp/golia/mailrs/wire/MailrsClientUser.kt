@@ -136,3 +136,20 @@ suspend fun MailrsClient.sends(): MailrsClient.Outcome<List<Wire.Send>> = decode
     get("/api/mail/sends"),
     Wire.Send.serializer(),
 )
+
+/**
+ * Mail that has not left yet.
+ *
+ * `cancel` and `reschedule` have existed since G13.3 with no caller
+ * anywhere, because nothing could list what there was to cancel — the
+ * listing was an MCP tool. A phone that can schedule a message and not
+ * un-schedule it is worse than one that cannot schedule at all.
+ */
+suspend fun MailrsClient.scheduledSends(): MailrsClient.Outcome<List<Wire.ScheduledSend>> =
+    when (val r = one(get("/api/scheduled"), Wire.ScheduledListResponse.serializer())) {
+        is MailrsClient.Outcome.Ok -> MailrsClient.Outcome.Ok(r.value.items)
+        is MailrsClient.Outcome.Err -> r
+    }
+
+suspend fun MailrsClient.cancelScheduled(id: String): MailrsClient.Outcome<String> =
+    post(url("/api/scheduled/${enc(id)}/cancel"), "{}", authorized = true)
