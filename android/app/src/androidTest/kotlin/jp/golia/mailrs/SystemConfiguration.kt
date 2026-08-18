@@ -38,15 +38,21 @@ class SystemConfiguration : ExternalResource() {
 
     override fun before() {
         fontScale?.let {
-            settle("font scale $it", "settings put system font_scale $it", "settings get system font_scale") {
-                v -> v.trim() == it
+            // Checked against the **system configuration**, not against
+            // `settings get`. The setting reads back at once and the
+            // configuration follows later, so waiting on the setting
+            // let an activity launch at 1.0 while the rule believed it
+            // had 2.0 — caught by the test's own witness, which is the
+            // same quantity this now waits for.
+            settle("font scale $it", "settings put system font_scale $it") {
+                android.content.res.Resources.getSystem().configuration.fontScale.toString().startsWith(it)
             }
         }
         displaySize?.let {
-            settle("display size $it", "wm size $it", "wm size") { v -> v.contains("Override size: $it") }
+            settle("display size $it", "wm size $it") { shell("wm size").contains("Override size: $it") }
         }
         density?.let {
-            settle("density $it", "wm density $it", "wm density") { v -> v.contains("Override density: $it") }
+            settle("density $it", "wm density $it") { shell("wm density").contains("Override density: $it") }
         }
     }
 
@@ -70,17 +76,19 @@ class SystemConfiguration : ExternalResource() {
      * have no account of why, so the write is repeated rather than
      * explained, and the message says how many times it was asked.
      */
-    private fun settle(what: String, ask: String, check: String, settled: (String) -> Boolean) {
-        var last = ""
+    private fun settle(what: String, ask: String, settled: () -> Boolean) {
         repeat(ATTEMPTS) { attempt ->
             shell(ask)
             repeat(10) {
-                last = shell(check)
-                if (settled(last)) return
+                if (settled()) return
                 Thread.sleep(100)
             }
             if (attempt == ATTEMPTS - 1) {
-                error("$what never took effect after $ATTEMPTS attempts; the device said <${last.trim()}>")
+                error(
+                    "$what never took effect after $ATTEMPTS attempts; " +
+                        "the system reads font scale " +
+                        android.content.res.Resources.getSystem().configuration.fontScale,
+                )
             }
         }
     }

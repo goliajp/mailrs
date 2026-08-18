@@ -410,6 +410,19 @@ data class Draft(
      */
     val forwardFrom: Int? = null,
     /**
+     * The send this is a re-edit of, and which of its files to keep.
+     *
+     * The bytes stay on the server — a re-edit describes its
+     * attachments rather than downloading and re-uploading them. Null
+     * `redraftKeep` keeps every carried file and an empty list keeps
+     * none, which is the distinction the handler makes and the reason
+     * this is nullable: collapsing them would silently re-attach files
+     * somebody had just removed.
+     */
+    val redraftOf: String? = null,
+    val carried: List<Wire.RedraftAttachment> = emptyList(),
+    val carriedDropped: Set<Int> = emptySet(),
+    /**
      * Files picked to go with it.
      *
      * In memory only, and deliberately: a server draft has nowhere

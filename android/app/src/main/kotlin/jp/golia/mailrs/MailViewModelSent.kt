@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.redraft
 import jp.golia.mailrs.wire.resend
 import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.wire.MailrsClient
@@ -69,6 +70,43 @@ fun MailViewModel.resend(row: SendJoin.Row) {
     viewModelScope.launch {
         when (val r = client.resend(id)) {
             is MailrsClient.Outcome.Ok -> openSent()
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
+        }
+    }
+}
+
+/**
+ * Open a sent message for editing, and send it again changed.
+ *
+ * The other half of resend, and the half that fixes anything: a resend
+ * re-enqueues the stored bytes **unchanged**, so a message that failed
+ * because the address was wrong fails again. This one comes back as a
+ * draft.
+ *
+ * Its attachments are carried rather than fetched — the server holds
+ * the bytes and the send names which to keep by index.
+ */
+fun MailViewModel.redraft(row: SendJoin.Row) {
+    val id = row.sendId ?: return
+    viewModelScope.launch {
+        when (val r = client.redraft(id)) {
+            is MailrsClient.Outcome.Ok -> _state.update {
+                it.copy(
+                    sentOpen = false,
+                    composing = Draft(
+                        id = nextDraftId++,
+                        to = r.value.to.joinToString(", "),
+                        cc = r.value.cc.joinToString(", "),
+                        bcc = r.value.bcc.joinToString(", "),
+                        subject = r.value.subject,
+                        body = r.value.body,
+                        inReplyTo = r.value.inReplyTo,
+                        redraftOf = r.value.redraftOf,
+                        carried = r.value.attachments,
+                    ),
+                    error = null,
+                )
+            }
             is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
         }
     }

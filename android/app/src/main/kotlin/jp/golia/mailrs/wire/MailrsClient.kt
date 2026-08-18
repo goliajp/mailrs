@@ -161,6 +161,8 @@ class MailrsClient(private val store: TokenStore) {
         bcc: List<String> = emptyList(),
         forwardAttachmentsFrom: Int? = null,
         scheduledAt: Long? = null,
+        redraftOf: String? = null,
+        redraftKeep: List<Int>? = null,
     ): Outcome<Unit> {
         val payload = json.encodeToString(
             Wire.SendRequest.serializer(),
@@ -173,6 +175,8 @@ class MailrsClient(private val store: TokenStore) {
                 inReplyTo = inReplyTo,
                 forwardAttachmentsFrom = forwardAttachmentsFrom,
                 scheduledAt = scheduledAt,
+                redraftOf = redraftOf,
+                redraftKeep = redraftKeep,
             ),
         )
         return when (val r = post(url("/api/mail/send"), payload, authorized = true)) {
@@ -266,6 +270,8 @@ class MailrsClient(private val store: TokenStore) {
         inReplyTo: String?,
         attachments: List<Upload>,
         scheduledAt: Long? = null,
+        redraftOf: String? = null,
+        redraftKeep: List<Int>? = null,
     ): Outcome<Unit> = withContext(Dispatchers.IO) {
         val s = session ?: return@withContext Outcome.Err("Not signed in.")
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -282,6 +288,13 @@ class MailrsClient(private val store: TokenStore) {
         // parses. Anything it cannot parse it treats as "not
         // scheduling" — silently sending at once.
         scheduledAt?.let { form.addFormDataPart("scheduled_at", it.toString()) }
+        redraftOf?.let { form.addFormDataPart("redraft_of", it) }
+        // **One comma-separated field, not a repeated one** — the
+        // handler says why: repeating it cannot express "keep none",
+        // because zero occurrences and an empty selection both arrive
+        // as no field at all and they mean opposite things.
+        // Present-but-empty says none; absent says all.
+        redraftKeep?.let { form.addFormDataPart("redraft_keep", it.joinToString(",")) }
         for (a in attachments) {
             form.addFormDataPart("attachments", a.filename, a.body)
         }

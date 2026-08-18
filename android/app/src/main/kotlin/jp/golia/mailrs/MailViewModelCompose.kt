@@ -305,6 +305,8 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 bcc = recipientsIn(draft.bcc),
                 forwardAttachmentsFrom = draft.forwardFrom,
                 scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
+                redraftOf = draft.redraftOf,
+                redraftKeep = draft.keptCarried(),
             )
         } else {
             client.sendMultipart(
@@ -318,6 +320,8 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                     MailrsClient.Upload(a.filename, ContentUriBody(resolver, a.uri))
                 },
                 scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
+                redraftOf = draft.redraftOf,
+                redraftKeep = draft.keptCarried(),
             )
         }
         when (r) {
@@ -465,4 +469,26 @@ fun MailViewModel.suggestContacts(field: RecipientField, line: String) {
 fun MailViewModel.clearSuggestions() {
     if (_state.value.suggestions.isEmpty()) return
     _state.update { it.copy(suggestions = emptyList(), suggestingFor = null) }
+}
+
+/**
+ * Which carried files survive an edit, or null when nothing was
+ * carried.
+ *
+ * Null and empty are not the same on the wire: absent keeps every
+ * carried attachment and `[]` keeps none. A draft that never carried
+ * anything must send absent, or the server would read "keep none" as
+ * an instruction about files it is not holding.
+ */
+fun Draft.keptCarried(): List<Int>? {
+    if (redraftOf == null || carried.isEmpty()) return null
+    return carried.map { it.index }.filterNot { it in carriedDropped }
+}
+
+/** Drop one of the files the server is holding for this re-edit. */
+fun MailViewModel.dropCarried(index: Int) {
+    _state.update { s ->
+        val draft = s.composing ?: return@update s
+        s.copy(composing = draft.copy(carriedDropped = draft.carriedDropped + index))
+    }
 }

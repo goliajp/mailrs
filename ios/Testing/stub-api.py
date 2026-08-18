@@ -559,6 +559,20 @@ class H(BaseHTTPRequestHandler):
                  "recipient": "alice@example.com", "subject": "Monday morning note"},
             ]})
             return
+        if re.match(r"^/api/mail/sends/[^/]+/redraft$", self.path.split("?")[0]):
+            # Compose fields plus attachment *metadata*: the bytes stay
+            # here and the following send names what to keep by index.
+            self._send({
+                "redraft_of": "unfiled@golia.jp",
+                "to": ["carol@example.com"], "cc": [], "bcc": [],
+                "subject": "Never left the queue", "body": "Trying again.",
+                "html_body": "", "in_reply_to": None,
+                "attachments": [
+                    {"index": 0, "filename": "invoice.pdf",
+                     "content_type": "application/pdf", "size": 8192},
+                ],
+            })
+            return
         if self.path.split("?")[0] == "/api/mail/sent":
             self._send([
                 {"uid": 41, "message_id": "<filed@golia.jp>", "thread_id": "t1",
