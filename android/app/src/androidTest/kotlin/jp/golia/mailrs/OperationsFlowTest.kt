@@ -75,7 +75,7 @@ class OperationsFlowTest : MailrsUiTest() {
      *
      * A DMARC report says how much passed; this says who sent it, and
      * that is the question an operator opens the screen to answer. A
-     * source at 0 of 500 is either a forwarder breaking alignment or
+     * A source at 8 of 10 is either a forwarder breaking alignment or
      * somebody sending as the domain who should not be — and either
      * way it is invisible in the pass rate alone.
      */
@@ -90,14 +90,16 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("admin.Dmarc").performClick()
         waitForTag("list.admin", "the DMARC list never opened")
 
-        compose.onNodeWithText("198.51.100.42").assertIsDisplayed()
-        // Both sources sent 500, so "0/500" alone matches the passing
-        // one's text too — the assertion is the pair, on one row.
-        compose.onNodeWithText("500/500 passing", substring = true).assertIsDisplayed()
+        // The fixture is the one the iOS suite reads too — a second
+        // `/api/admin/dmarc/sources` branch written for this test sat
+        // above the first and shadowed it, and the iOS assertions on
+        // the older numbers went red. One stub, one set of numbers.
+        compose.onNodeWithText("198.51.100.7").assertIsDisplayed()
+        compose.onNodeWithText("150/150 passing", substring = true).assertIsDisplayed()
         assertEquals(
             "the failing source was not distinguished from the passing one",
             1,
-            compose.onAllNodesWithText("0/500 passing · golia.jp").fetchSemanticsNodes().size,
+            compose.onAllNodesWithText("8/10 passing · golia.jp").fetchSemanticsNodes().size,
         )
     }
 

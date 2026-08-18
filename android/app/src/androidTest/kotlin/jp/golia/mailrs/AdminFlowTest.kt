@@ -190,9 +190,9 @@ class AdminFlowTest : MailrsUiTest() {
      * it.
      *
      * The sieve script is the reason this screen exists — an operator
-     * asking "why did that go to Ops" wants to read the rule. All three
-     * are read-only, and the webhook's signing secret is on the wire and
-     * deliberately not on the screen.
+     * asking "why did that go to Ops" wants to read the rule. The sieve
+     * and the webhooks are read-only, and the webhook's signing secret
+     * is on the wire and deliberately not on the screen.
      */
     @Test
     fun an_account_opens_to_its_quota_sieve_and_webhooks() {
@@ -214,6 +214,61 @@ class AdminFlowTest : MailrsUiTest() {
         // The secret proves a delivery came from this server. A screen
         // that prints it turns a glance over a shoulder into a forgery.
         compose.onAllNodesWithText("whsec_x", substring = true).assertCountEquals(0)
+    }
+
+    /**
+     * The storage limit can be changed from here.
+     *
+     * The assertion is the number the *server* answers with afterwards,
+     * not the one typed: the screen re-reads the account, so a client that
+     * only wrote to its own state would keep showing the old value and
+     * this would fail.
+     *
+     * Clearing the field lifts the cap, which is the second half — a
+     * limit that can only be raised is not an edit anybody trusts.
+     */
+    @Test
+    fun an_accounts_storage_limit_can_be_changed_and_lifted() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Accounts", "settings never listed the accounts")
+        compose.onNodeWithTag("admin.Accounts").performClick()
+        waitForTag("list.admin", "the accounts never listed")
+        compose.onAllNodesWithTag("row.admin").onFirst().performClick()
+        waitForTag("account.detail", "the account never opened")
+
+        compose.onNodeWithTag("account.quota").performClick()
+        waitForTag("field.quota", "the storage limit never opened")
+        compose.onNodeWithTag("field.quota").performTextClearance()
+        compose.onNodeWithTag("field.quota").performTextInput("3")
+        compose.onNodeWithTag("button.saveQuota").performClick()
+
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("account.quota")
+                .fetchSemanticsNodes()
+                .any { node ->
+                    node.config.getOrNull(SemanticsProperties.Text)
+                        ?.any { it.text.contains("3.0 GB") } == true
+                }
+        }
+
+        // And back to no cap, by clearing the field rather than by a
+        // control that only exists for it.
+        compose.onNodeWithTag("account.quota").performClick()
+        waitForTag("field.quota", "the storage limit never reopened")
+        compose.onNodeWithTag("field.quota").performTextClearance()
+        compose.onNodeWithTag("button.saveQuota").performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("account.quota")
+                .fetchSemanticsNodes()
+                .any { node ->
+                    node.config.getOrNull(SemanticsProperties.Text)
+                        ?.any { it.text == "No limit" } == true
+                }
+        }
     }
 
     @Test

@@ -78,6 +78,7 @@ abstract class MailrsUiTest : GrantsNotifications() {
      */
     @Before
     fun startSignedOut() {
+        resetStub()
         compose.activityRule.scenario.onActivity { it.signOutForTest() }
         // Displayed, not merely present. Signing out slides the sign-in
         // screen back in, and a field that exists but is still off the
@@ -223,6 +224,28 @@ abstract class MailrsUiTest : GrantsNotifications() {
     /** Where the stub is, for the tests that poke its debug routes. */
     protected fun stubBase(): String =
         InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
+
+    /**
+     * Put the stub back the way it started.
+     *
+     * The paragraph above this class's `@Before` has said since it was
+     * written that the stub keeps what it was sent — and nothing
+     * called this. It went unnoticed while every test that wrote to
+     * the stub asserted relatively ("one shorter than before"). The
+     * first one to assert an absolute value found it at once: a test
+     * that lifted an account's storage limit left the *next* test
+     * reading "No limit" where the fixture says 5.4 GB.
+     */
+    protected fun resetStub() {
+        try {
+            java.net.URL(stubBase() + "/debug/reset").openStream().use { it.readBytes() }
+        } catch (e: java.io.IOException) {
+            // The stub is started by `scripts/android-build.sh`; if it
+            // is not there the tests fail for that reason a moment
+            // later, with a better message than this would give.
+            android.util.Log.w("MailrsUiTest", "stub reset failed", e)
+        }
+    }
 
     protected fun readStub(path: String): String {
         val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
