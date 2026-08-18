@@ -114,6 +114,27 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
     // showing when it was composed.
     val current by rememberUpdatedState(screen)
 
+    /**
+     * What back does, from wherever we are.
+     *
+     * Named once so the gesture and the Escape key cannot drift: two
+     * copies of "which screen closes to what" is how one of them ends
+     * up missing the screen added last.
+     */
+    fun goBack() {
+        when (current) {
+            Screen.Compose -> vm.cancelCompose()
+            Screen.Thread -> vm.closeThread()
+            Screen.Settings -> vm.closeSettings()
+            Screen.Drafts -> vm.closeDrafts()
+            Screen.Admin -> vm.closeAdmin()
+            Screen.Source -> vm.closeSource()
+            Screen.GroupDetail -> vm.closeAdminRow()
+            Screen.AccountDetail -> vm.closeAccount()
+            else -> Unit
+        }
+    }
+
     PredictiveBackHandler(
         enabled = screen == Screen.Thread || screen == Screen.Compose ||
             screen == Screen.Settings || screen == Screen.Drafts ||
@@ -123,17 +144,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
         try {
             progress.collect { backProgress = it.progress }
             backProgress = 0f
-            when (current) {
-                Screen.Compose -> vm.cancelCompose()
-                Screen.Thread -> vm.closeThread()
-                Screen.Settings -> vm.closeSettings()
-                Screen.Drafts -> vm.closeDrafts()
-                Screen.Admin -> vm.closeAdmin()
-                Screen.Source -> vm.closeSource()
-                Screen.GroupDetail -> vm.closeAdminRow()
-                Screen.AccountDetail -> vm.closeAccount()
-                else -> Unit
-            }
+            goBack()
         } catch (_: CancellationException) {
             // Let go without committing. The screen returns to where it
             // was, which is the whole point of showing the peek.

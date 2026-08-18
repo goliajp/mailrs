@@ -31,6 +31,27 @@ import jp.golia.mailrs.ui.MailrsTheme
 class MainActivity : ComponentActivity() {
 
     /**
+     * Escape is back, on a keyboard.
+     *
+     * Through the back dispatcher rather than through a key handler in
+     * the composition: back already knows what every screen closes to,
+     * including the search field's own handling inside Material's
+     * search bar, and a second copy of that would fall behind the
+     * first. It has to be here because Compose only routes key events
+     * along the focus path, and a screen that has just opened holds no
+     * focus at all — the key reached nothing.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE &&
+            event.action == android.view.KeyEvent.ACTION_UP
+        ) {
+            onBackPressedDispatcher.onBackPressed()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    /**
      * The view model this activity is showing, so an instrumented test
      * can point it at the stub after launch — the rule launches the
      * activity itself, so there is no intent to put an extra on.
