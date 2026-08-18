@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import jp.golia.mailrs.widget.InboxWidgetContent
 import jp.golia.mailrs.widget.WidgetState
 import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.widget.InboxWidgetReceiver
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -86,5 +88,21 @@ class InboxWidgetTest {
         provideComposable { InboxWidgetContent(WidgetState.read(context)) }
 
         onNode(hasText("Sign in to Mailrs")).assertExists()
+    }
+
+    /**
+     * The widget picker shows what the widget looks like.
+     *
+     * Without `previewLayout` the picker falls back to
+     * `initialLayout`, which for a Glance widget is its loading state —
+     * an empty box, shown at the one moment somebody is deciding
+     * whether to put this on their home screen.
+     */
+    @Test
+    fun the_picker_has_something_to_show() {
+        val info = android.appwidget.AppWidgetManager.getInstance(context)
+            .getInstalledProvidersForPackage(context.packageName, null)
+            .single { it.provider.className == InboxWidgetReceiver::class.java.name }
+        assertNotEquals("the widget offers the picker no preview", 0, info.previewLayout)
     }
 }

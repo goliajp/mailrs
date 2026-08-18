@@ -9,4 +9,9 @@
     <string name="shortcut_search_short">Search</string>
     <string name="shortcut_search_long">Search mail</string>
     <string name="widget_description">Unread mail at a glance</string>
+    <string name="widget_preview_heading">3 unread</string>
+    <string name="widget_preview_sender_one">Alice Smith</string>
+    <string name="widget_preview_subject_one">Quarterly report</string>
+    <string name="widget_preview_sender_two">Postmaster</string>
+    <string name="widget_preview_subject_two">Certificate renewed</string>
 </resources>
