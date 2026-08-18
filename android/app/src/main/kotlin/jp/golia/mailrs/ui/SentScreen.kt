@@ -1,5 +1,8 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.material3.TextButton
+import jp.golia.mailrs.wire.Wire
+import jp.golia.mailrs.cancelScheduled
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,12 +90,68 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                     )
 
                 else -> LazyColumn(Modifier.fillMaxSize().testTag("list.sent")) {
+                    // Above what has already gone, because this is the
+                    // half a person can still do something about.
+                    if (state.scheduled.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Waiting to send",
+                                color = theme.fgMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(state.scheduled, key = Wire.ScheduledSend::id) { waiting ->
+                            ScheduledRow(waiting) { vm.cancelScheduled(waiting) }
+                            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        }
+                    }
                     items(state.sentMail, key = SendJoin.Row::key) { row ->
                         SentRow(row) { vm.openThreadById(row.threadId) }
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * A message that has not left yet.
+ *
+ * With the one thing worth doing to it. A phone that can schedule a
+ * message and not un-schedule it is worse than one that cannot
+ * schedule at all.
+ */
+@Composable
+private fun ScheduledRow(send: Wire.ScheduledSend, onCancel: () -> Unit) {
+    val theme = LocalTheme.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("row.scheduled"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                send.subject.ifBlank { "(no subject)" },
+                color = theme.fg,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "To ${send.recipient} · ${RowDate.format(send.scheduledAt)}",
+                color = theme.warning,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        TextButton(onClick = onCancel, modifier = Modifier.testTag("button.cancelScheduled")) {
+            Text("Cancel", color = theme.accent, fontSize = 13.sp)
         }
     }
 }

@@ -195,6 +195,15 @@ object Wire {
         val body: String,
         @SerialName("in_reply_to") val inReplyTo: String? = null,
         /**
+         * When it should leave, in epoch **seconds**, or null for now.
+         *
+         * An integer, not a formatted time: the handler reads anything
+         * it cannot parse as "not scheduling", which is how the web's
+         * ISO 8601 string once made every scheduled send go out at
+         * once.
+         */
+        @SerialName("scheduled_at") val scheduledAt: Long? = null,
+        /**
          * The message being forwarded, by uid.
          *
          * The server re-extracts its attachments and carries them,
@@ -281,4 +290,23 @@ object Wire {
         val status: String,
         @SerialName("resent_from") val resentFrom: String? = null,
     )
+
+    /** `GET /api/scheduled` — the caller's own future-dated sends. */
+    @Serializable
+    data class ScheduledListResponse(val items: List<ScheduledSend> = emptyList())
+
+    @Serializable
+    data class ScheduledSend(
+        val id: String,
+        @SerialName("scheduled_at") val scheduledAt: Long,
+        val recipient: String,
+        val subject: String,
+    )
+
+    /**
+     * `POST /api/scheduled/{id}/reschedule`. Epoch seconds and in the
+     * future — the handler answers 400 for a time already passed.
+     */
+    @Serializable
+    data class RescheduleRequest(@SerialName("scheduled_at") val scheduledAt: Long)
 }

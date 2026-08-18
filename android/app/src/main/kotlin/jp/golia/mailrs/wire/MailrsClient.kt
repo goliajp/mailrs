@@ -160,6 +160,7 @@ class MailrsClient(private val store: TokenStore) {
         cc: List<String> = emptyList(),
         bcc: List<String> = emptyList(),
         forwardAttachmentsFrom: Int? = null,
+        scheduledAt: Long? = null,
     ): Outcome<Unit> {
         val payload = json.encodeToString(
             Wire.SendRequest.serializer(),
@@ -171,6 +172,7 @@ class MailrsClient(private val store: TokenStore) {
                 body = body,
                 inReplyTo = inReplyTo,
                 forwardAttachmentsFrom = forwardAttachmentsFrom,
+                scheduledAt = scheduledAt,
             ),
         )
         return when (val r = post(url("/api/mail/send"), payload, authorized = true)) {
@@ -263,6 +265,7 @@ class MailrsClient(private val store: TokenStore) {
         body: String,
         inReplyTo: String?,
         attachments: List<Upload>,
+        scheduledAt: Long? = null,
     ): Outcome<Unit> = withContext(Dispatchers.IO) {
         val s = session ?: return@withContext Outcome.Err("Not signed in.")
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
@@ -275,6 +278,10 @@ class MailrsClient(private val store: TokenStore) {
         form.addFormDataPart("subject", subject)
         form.addFormDataPart("body", body)
         inReplyTo?.let { form.addFormDataPart("in_reply_to", it) }
+        // A decimal string of epoch seconds, which is what the handler
+        // parses. Anything it cannot parse it treats as "not
+        // scheduling" — silently sending at once.
+        scheduledAt?.let { form.addFormDataPart("scheduled_at", it.toString()) }
         for (a in attachments) {
             form.addFormDataPart("attachments", a.filename, a.body)
         }

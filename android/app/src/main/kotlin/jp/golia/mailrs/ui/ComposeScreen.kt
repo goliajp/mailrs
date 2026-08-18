@@ -1,5 +1,10 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
@@ -128,16 +133,45 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 if (state.sending) {
                     CircularProgressIndicator(Modifier.padding(end = 16.dp).size(20.dp), color = theme.accent)
                 } else {
-                    IconButton(
-                        onClick = { vm.send() },
-                        // The same rule the send uses, not a second one.
-                        enabled = vm.recipientsIn(to).isNotEmpty(),
-                        modifier = Modifier.testTag("button.send"),
+                    // **Long-press for when.** Android's own answer for
+                    // a secondary meaning on a primary control, and the
+                    // right one here: sending now is what almost every
+                    // press means, and a second button for scheduling
+                    // would spend a permanent corner of the bar on the
+                    // rarer choice.
+                    var pickingTime by rememberSaveable { mutableStateOf(false) }
+                    // A Box rather than an `IconButton`: the button
+                    // owns its own click, and a `combinedClickable`
+                    // wrapped around it never sees the press at all —
+                    // the long press did nothing and looked like a
+                    // sheet that would not open.
+                    val ready = vm.recipientsIn(to).isNotEmpty()
+                    Box(
+                        Modifier
+                            .minimumInteractiveComponentSize()
+                            .clip(CircleShape)
+                            .combinedClickable(
+                                enabled = ready,
+                                onClick = { vm.send() },
+                                onLongClick = { pickingTime = true },
+                                onLongClickLabel = "Choose when to send",
+                            )
+                            .testTag("button.send"),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send",
-                            tint = if (vm.recipientsIn(to).isNotEmpty()) theme.accent else theme.fgMuted,
+                            tint = if (ready) theme.accent else theme.fgMuted,
+                        )
+                    }
+                    if (pickingTime) {
+                        SendTimeSheet(
+                            onDismiss = { pickingTime = false },
+                            onPick = { choice ->
+                                pickingTime = false
+                                vm.send(choice)
+                            },
                         )
                     }
                 }

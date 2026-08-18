@@ -551,6 +551,14 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/debug/unseen-fetches":
             self._send({"fetches": UNSEEN_FETCHES[0]})
             return
+        if self.path.split("?")[0] == "/api/scheduled":
+            # Mail that has not left yet. `{"items": [...]}`, soonest
+            # first — the shape `list_scheduled` answers with.
+            self._send({"items": [
+                {"id": "sch1", "scheduled_at": 1754500000,
+                 "recipient": "alice@example.com", "subject": "Monday morning note"},
+            ]})
+            return
         if self.path.split("?")[0] == "/api/mail/sent":
             self._send([
                 {"uid": 41, "message_id": "<filed@golia.jp>", "thread_id": "t1",
@@ -925,6 +933,13 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self._session_rejected():
+            return
+        if re.match(r"^/api/scheduled/[^/]+/cancel$", self.path.split("?")[0]):
+            # Calling a message back before it leaves. Recorded, because
+            # the row goes from the list optimistically and the only
+            # evidence the request happened is here.
+            WRITES.append("POST " + self.path.split("?")[0])
+            self._send({"ok": True})
             return
         if self.path.split("?")[0] == "/api/agent/keys":
             WRITES.append("POST /api/agent/keys")

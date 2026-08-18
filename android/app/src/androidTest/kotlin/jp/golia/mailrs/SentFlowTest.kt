@@ -1,5 +1,9 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -54,5 +58,49 @@ class SentFlowTest : MailrsUiTest() {
         val badges = compose.onAllNodesWithTag("text.sendStatus").fetchSemanticsNodes().size
         val rows = compose.onAllNodesWithTag("row.sent").fetchSemanticsNodes().size
         assertTrue("every row claimed a delivery status: $badges of $rows", badges < rows)
+    }
+
+    /**
+     * A message can be told to leave later, and called back.
+     *
+     * The server has taken `scheduled_at` since scheduling existed and
+     * `cancel` has been there for months with no caller anywhere,
+     * because nothing could list what there was to cancel. A phone
+     * that can schedule and not un-schedule is worse than one that
+     * cannot schedule at all — so both halves are one test.
+     */
+    @Test
+    fun a_message_can_be_scheduled_and_called_back() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened")
+        compose.onNodeWithTag("field.to").performTextInput("alice@example.com")
+        compose.onNodeWithTag("field.subject").performTextInput("Not yet")
+
+        // Long press, which is where Android puts a second meaning on a
+        // primary control.
+        compose.onNodeWithTag("button.send").performTouchInput { longClick() }
+        waitForTag("sheet.sendTime", "long-pressing send offered no times")
+        compose.onNodeWithTag("sendTime.TomorrowMorning").performClick()
+        waitForTag("list.conversations", "the composer never closed after scheduling")
+
+        val sent = readStub("/debug/sent")
+        assertTrue("the send carried no scheduled_at: $sent", sent.contains("scheduled_at"))
+        // In the future, and by more than the few seconds this test
+        // takes: a time already passed is a 400, and the handler reads
+        // anything it cannot parse as "send now".
+        val at = Regex("\"scheduled_at\": (\\d+)").find(sent)?.groupValues?.get(1)?.toLong()
+        assertTrue("scheduled_at was $at", at != null && at > System.currentTimeMillis() / 1000 + 3600)
+
+        // And the other half: what is waiting can be called back.
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        waitForTag("row.scheduled", "nothing was listed as waiting to send")
+        compose.onAllNodesWithTag("button.cancelScheduled").onFirst().performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            readStub("/debug/writes").contains("/api/scheduled/sch1/cancel")
+        }
     }
 }
