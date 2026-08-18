@@ -1,5 +1,7 @@
 package jp.golia.mailrs.widget
 
+import androidx.glance.appwidget.SizeMode
+import androidx.glance.LocalSize
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
@@ -41,6 +43,16 @@ import jp.golia.mailrs.wire.SenderIdentity
  * posts the notification.
  */
 class InboxWidget : GlanceAppWidget() {
+
+    /**
+     * Recompose per size, not once for the largest.
+     *
+     * `Exact` asks the launcher for the real size on every change,
+     * which is what makes [WidgetRows] mean anything — with the
+     * default the content is laid out once against a single size and a
+     * resize changes nothing on screen.
+     */
+    override val sizeMode = SizeMode.Exact
 
     /**
      * Reading is all this does; the drawing is [InboxWidgetContent].
@@ -105,7 +117,15 @@ fun InboxWidgetContent(
                     fontWeight = FontWeight.Medium,
                 ),
             )
-            for (row in snapshot.rows.take(3)) {
+            // As many as the size the launcher gave us will hold. The
+            // widget declares itself resizable and drew three rows
+            // whatever it was dragged to — a resize handle that
+            // changes nothing.
+            val rows = WidgetRows.fitting(
+                heightDp = LocalSize.current.height.value.toInt(),
+                available = snapshot.rows.size,
+            )
+            for (row in snapshot.rows.take(rows)) {
                 val rowModifier = GlanceModifier.fillMaxWidth().padding(top = 8.dp)
                 Column(onRow?.let { rowModifier.clickable(it(row.threadId)) } ?: rowModifier) {
                     Text(

@@ -41,6 +41,13 @@ object WidgetState {
         return runCatching { json.decodeFromString(Snapshot.serializer(), raw) }.getOrDefault(Snapshot())
     }
 
+    /**
+     * Enough for the tallest widget a launcher will hand out. Kept
+     * small: this is a preference blob read on every redraw, not a
+     * mailbox.
+     */
+    const val MAX_ROWS = 9
+
     /** Called with whatever the caller has just fetched anyway. */
     fun write(context: Context, signedIn: Boolean, conversations: List<Wire.Conversation>) {
         val unread = conversations.count { it.unreadCount > 0 }
@@ -50,7 +57,11 @@ object WidgetState {
             rows = conversations
                 .filter { it.unreadCount > 0 }
                 .sortedByDescending { it.lastDate }
-                .take(3)
+                // As many as the tallest widget can show, not as many
+                // as the smallest: what is stored has to cover every
+                // size the launcher may give, and three was the number
+                // the *drawing* used before it learned to measure.
+                .take(MAX_ROWS)
                 .map { Row(it.threadId, it.participants.firstOrNull().orEmpty(), it.subject) },
         )
         prefs(context).edit()

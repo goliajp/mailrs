@@ -1,5 +1,7 @@
 package jp.golia.mailrs
 
+import org.junit.Assert.assertTrue
+import androidx.compose.ui.unit.dp
 import jp.golia.mailrs.widget.OpenMailrs
 import jp.golia.mailrs.wire.NewMailWorker
 import org.junit.Assert.assertNull
@@ -95,6 +97,32 @@ class InboxWidgetTest {
     }
 
     /**
+     * A taller widget shows more mail.
+     *
+     * It declares itself resizable in both directions and drew three
+     * rows whatever it was dragged to — a resize handle that changes
+     * nothing. The arithmetic is `WidgetRows`; this is the wiring,
+     * which is the half that can be absent while the rule is right.
+     *
+     * Two tests rather than one, because a size can only be set before
+     * the content is provided and each environment allows it once.
+     */
+    @Test
+    fun a_short_widget_draws_one_row() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(androidx.compose.ui.unit.DpSize(200.dp, 110.dp))
+        provideComposable { InboxWidgetContent(sixMessages()) }
+        assertEquals(1, (1..6).count { runCatching { onNode(hasText("Subject $it")).assertExists() }.isSuccess })
+    }
+
+    @Test
+    fun a_tall_widget_draws_several() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(androidx.compose.ui.unit.DpSize(200.dp, 300.dp))
+        provideComposable { InboxWidgetContent(sixMessages()) }
+        val drawn = (1..6).count { runCatching { onNode(hasText("Subject $it")).assertExists() }.isSuccess }
+        assertTrue("a tall widget drew $drawn rows", drawn >= 5)
+    }
+
+    /**
      * The widget picker shows what the widget looks like.
      *
      * Without `previewLayout` the picker falls back to
@@ -127,5 +155,16 @@ class InboxWidgetTest {
         )
         // And the whole-widget tap still means "just open the app".
         assertNull(OpenMailrs.intent(context).getStringExtra(NewMailWorker.EXTRA_THREAD_ID))
+    }
+
+    private fun sixMessages(): WidgetState.Snapshot {
+        WidgetState.write(
+            context,
+            signedIn = true,
+            conversations = (1..6).map {
+                conversation("Subject $it", unread = 1, date = 100L * it, sender = "S$it <s$it@example.com>")
+            },
+        )
+        return WidgetState.read(context)
     }
 }
