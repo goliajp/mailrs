@@ -5,6 +5,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -47,5 +48,23 @@ class FontScaleTest : MailrsUiTest() {
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("list.messages", "the message did not open at 200% text")
         compose.onNodeWithTag("button.back").assertIsDisplayed()
+    }
+
+    /**
+     * The composer is the densest form here — four labelled lines above
+     * the message — and the one where text growing past its row would
+     * cost somebody the Send button.
+     */
+    @Test
+    fun a_message_can_be_written_and_sent() {
+        signIn()
+        waitForTag("button.compose", "the compose button never appeared at 200% text")
+        compose.onNodeWithTag("button.compose").performClick()
+        waitForTag("field.to", "the composer never opened at 200% text")
+        compose.onNodeWithTag("field.to").performTextInput("someone@golia.jp")
+        compose.onNodeWithTag("field.subject").performTextInput("Large type")
+        compose.onNodeWithTag("field.body").performTextInput("Readable.")
+        compose.onNodeWithTag("button.send").assertIsDisplayed().performClick()
+        waitForTag("list.conversations", "sending never came back to the list at 200% text")
     }
 }
