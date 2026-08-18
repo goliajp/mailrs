@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import jp.golia.mailrs.wire.clearSuppressions
 import jp.golia.mailrs.wire.createAgentKey
 import kotlinx.coroutines.flow.update
 import androidx.lifecycle.viewModelScope
@@ -351,4 +352,21 @@ fun MailViewModel.deleteAdminRow(section: AdminSection, row: jp.golia.mailrs.ui.
 /** The new key has been read, and is gone for good. */
 fun MailViewModel.newAgentKeySeen() {
     _state.update { it.copy(newAgentKey = null) }
+}
+
+/**
+ * Let the sender try everybody again.
+ *
+ * The list is what the sender refuses to retry — bounced or closed
+ * addresses — and the only thing the server offers is to empty it
+ * whole. Re-read afterwards rather than cleared locally: the server
+ * decides whether it took.
+ */
+fun MailViewModel.clearSuppressions() {
+    viewModelScope.launch {
+        when (val r = client.clearSuppressions()) {
+            is MailrsClient.Outcome.Ok -> openAdmin(AdminSection.Suppressed)
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
+        }
+    }
 }

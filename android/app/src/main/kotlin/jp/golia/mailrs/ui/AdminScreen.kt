@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.clearSuppressions
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalClipboard
@@ -93,6 +94,39 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
         )
     }
 
+    // Asked first, because it cannot be undone and it is the whole
+    // list: every address the sender has given up on starts being
+    // tried again.
+    var clearing by rememberSaveable { mutableStateOf(false) }
+    if (clearing) {
+        AlertDialog(
+            onDismissRequest = { clearing = false },
+            containerColor = theme.surface,
+            title = { Text("Retry every suppressed address?", fontSize = 16.sp, color = theme.fg) },
+            text = {
+                Text(
+                    "There is no per-address undo — the sender starts trying all of them again.",
+                    fontSize = 13.sp,
+                    color = theme.fgMuted,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clearing = false
+                        vm.clearSuppressions()
+                    },
+                    modifier = Modifier.testTag("button.confirmClear"),
+                ) {
+                    Text("Clear all", color = theme.danger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { clearing = false }) { Text("Cancel", color = theme.fgSecondary) }
+            },
+        )
+    }
+
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     // The one moment the secret exists where it can be read: the list
@@ -182,6 +216,20 @@ fun AdminScreen(section: AdminSection, state: UiState, vm: MailViewModel) {
                             contentDescription = "Back",
                             tint = theme.fgSecondary,
                         )
+                    }
+                },
+                actions = {
+                    // Only here, and only as a list-level action: the
+                    // server offers no per-address route, so a delete
+                    // on a row would read as "stop suppressing this
+                    // one" and empty the list instead.
+                    if (section == AdminSection.Suppressed && section.rows(state).isNotEmpty()) {
+                        TextButton(
+                            onClick = { clearing = true },
+                            modifier = Modifier.testTag("button.clearSuppressions"),
+                        ) {
+                            Text("Clear all", color = theme.accent, fontSize = 13.sp)
+                        }
                     }
                 },
             )
