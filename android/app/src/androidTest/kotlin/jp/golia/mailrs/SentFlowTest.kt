@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.assertTextContains
 import org.junit.Assert.assertEquals
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performTextInput
@@ -134,5 +135,46 @@ class SentFlowTest : MailrsUiTest() {
         compose.waitUntil(TIMEOUT_MS) {
             readStub("/debug/writes").contains("/api/scheduled/sch1/cancel")
         }
+    }
+
+    /**
+     * A failed send can be fixed and sent again.
+     *
+     * The other half of resend, and the half that fixes anything: a
+     * resend re-enqueues the stored bytes **unchanged**, so a message
+     * that failed because the address was wrong fails again. This one
+     * comes back as a draft.
+     *
+     * Its attachments are carried, not downloaded — the bytes stay on
+     * the server and the send names which to keep by index. Dropping
+     * one has to send `redraft_keep` *empty* rather than omitting it:
+     * absent means keep everything, and the two are opposite
+     * instructions about files somebody has just removed.
+     */
+    @Test
+    fun a_failed_send_can_be_edited_and_sent_again() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        waitForTag("list.sent", "the sent list never opened")
+
+        compose.onAllNodesWithTag("button.redraft").onFirst().performClick()
+        waitForTag("field.to", "editing the send never opened a composer")
+        compose.onNodeWithTag("field.to").assertTextContains("carol@example.com", substring = true)
+        // The file it is carrying, named rather than downloaded.
+        waitForTag("row.carriedAttachment", "the carried attachment was not shown")
+
+        compose.onAllNodesWithTag("button.dropCarried").onFirst().performClick()
+        compose.onNodeWithTag("field.body").performTextInput("Fixed the address. ")
+        compose.onNodeWithTag("button.send").performClick()
+        waitForTag("list.conversations", "the composer never closed after sending")
+
+        val sent = readStub("/debug/sent")
+        assertTrue("the send did not say what it was a re-edit of: $sent", sent.contains("unfiled"))
+        // Empty, not absent: every carried file was removed, and absent
+        // would put the one just dropped back on the message.
+        assertTrue("dropping the file did not reach the server: $sent", sent.contains("redraft_keep"))
     }
 }

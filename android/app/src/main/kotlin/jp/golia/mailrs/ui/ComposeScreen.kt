@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.dropCarried
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.draw.clip
@@ -228,6 +229,48 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
 
+        // Files the server is holding for this re-edit. Listed like any
+        // other attachment because that is what they are to the reader,
+        // and removable — a re-edit that could not drop a file would
+        // make "edit and send again" mean "send the same thing with
+        // different words".
+        val carried = draft.carried.filterNot { it.index in draft.carriedDropped }
+        if (carried.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().testTag("list.carriedAttachments")) {
+                for (a in carried) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.AttachFile,
+                            contentDescription = null,
+                            tint = theme.fgMuted,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Text(
+                            a.filename,
+                            color = theme.fg,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f).padding(start = 8.dp).testTag("row.carriedAttachment"),
+                        )
+                        Text(humanSize(a.size.toLong()), color = theme.fgMuted, fontSize = 11.sp)
+                        IconButton(
+                            onClick = { vm.dropCarried(a.index) },
+                            modifier = Modifier.testTag("button.dropCarried"),
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Remove ${a.filename}",
+                                tint = theme.fgMuted,
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
         if (draft.attachments.isNotEmpty()) {
             Column(Modifier.fillMaxWidth().testTag("list.draftAttachments")) {
                 for (a in draft.attachments) {

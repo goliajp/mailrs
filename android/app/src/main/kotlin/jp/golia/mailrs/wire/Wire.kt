@@ -203,6 +203,17 @@ object Wire {
          * once.
          */
         @SerialName("scheduled_at") val scheduledAt: Long? = null,
+        /** The send this is a re-edit of; the server carries its bytes. */
+        @SerialName("redraft_of") val redraftOf: String? = null,
+        /**
+         * Which carried attachments to keep, by index.
+         *
+         * **Absent and empty mean different things** — absent keeps
+         * every carried attachment, an empty list keeps none — so this
+         * is nullable rather than defaulted, and a re-edit that removed
+         * every file must send `[]` and not nothing.
+         */
+        @SerialName("redraft_keep") val redraftKeep: List<Int>? = null,
         /**
          * The message being forwarded, by uid.
          *
@@ -317,4 +328,26 @@ object Wire {
      */
     @Serializable
     data class RescheduleRequest(@SerialName("scheduled_at") val scheduledAt: Long)
+
+    /** `GET /api/mail/sends/{id}/redraft` — a sent message, to edit. */
+    @Serializable
+    data class Redraft(
+        @SerialName("redraft_of") val redraftOf: String,
+        val to: List<String> = emptyList(),
+        val cc: List<String> = emptyList(),
+        val bcc: List<String> = emptyList(),
+        val subject: String = "",
+        val body: String = "",
+        @SerialName("in_reply_to") val inReplyTo: String? = null,
+        /** Described, not transferred: the bytes stay on the server. */
+        val attachments: List<RedraftAttachment> = emptyList(),
+    )
+
+    @Serializable
+    data class RedraftAttachment(
+        val index: Int,
+        val filename: String,
+        @SerialName("content_type") val contentType: String = "",
+        val size: Int = 0,
+    )
 }

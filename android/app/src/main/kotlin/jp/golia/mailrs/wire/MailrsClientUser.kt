@@ -177,3 +177,7 @@ suspend fun MailrsClient.markAllRead(list: MailList): MailrsClient.Outcome<Strin
  */
 suspend fun MailrsClient.resend(sendId: String): MailrsClient.Outcome<String> =
     post(url("/api/mail/sends/${enc(sendId)}/resend"), "{}", authorized = true)
+
+/** `GET /api/mail/sends/{id}/redraft` — the fields, to edit and send again. */
+suspend fun MailrsClient.redraft(sendId: String): MailrsClient.Outcome<Wire.Redraft> =
+    one(get("/api/mail/sends/${enc(sendId)}/redraft"), Wire.Redraft.serializer())

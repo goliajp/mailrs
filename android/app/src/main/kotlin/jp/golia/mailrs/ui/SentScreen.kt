@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.redraft
 import jp.golia.mailrs.resend
 import androidx.compose.material3.TextButton
 import jp.golia.mailrs.wire.Wire
@@ -113,6 +114,7 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                             row,
                             onOpen = { vm.openThreadById(row.threadId) },
                             onResend = { vm.resend(row) },
+                            onRedraft = { vm.redraft(row) },
                         )
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                     }
@@ -162,7 +164,12 @@ private fun ScheduledRow(send: Wire.ScheduledSend, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun SentRow(row: SendJoin.Row, onOpen: () -> Unit, onResend: () -> Unit) {
+private fun SentRow(
+    row: SendJoin.Row,
+    onOpen: () -> Unit,
+    onResend: () -> Unit,
+    onRedraft: () -> Unit,
+) {
     val theme = LocalTheme.current
     Row(
         Modifier
@@ -206,8 +213,16 @@ private fun SentRow(row: SendJoin.Row, onOpen: () -> Unit, onResend: () -> Unit)
             // Offered against anything else it answers 409, and a
             // button that fails after the tap is worse than none.
             if (row.canResend) {
-                TextButton(onClick = onResend, modifier = Modifier.testTag("button.resend")) {
-                    Text("Send again", color = theme.accent, fontSize = 12.sp)
+                Row {
+                    // Edit first: a send that failed because the address
+                    // was wrong fails again unchanged, and "Send again"
+                    // sends the stored bytes exactly as they were.
+                    TextButton(onClick = onRedraft, modifier = Modifier.testTag("button.redraft")) {
+                        Text("Edit", color = theme.accent, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = onResend, modifier = Modifier.testTag("button.resend")) {
+                        Text("Send again", color = theme.accent, fontSize = 12.sp)
+                    }
                 }
             }
         }
