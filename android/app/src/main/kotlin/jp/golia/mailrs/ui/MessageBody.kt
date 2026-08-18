@@ -191,7 +191,15 @@ private fun documentFor(html: String, dark: Boolean, theme: Theme): String {
           img{max-width:100%;height:auto;}
           a{color:$link;}
           pre{white-space:pre-wrap;}
-          table{max-width:100%;}
+          /* **Anything with a width, not just tables.** A newsletter
+             is a 760px table with a 760px div inside it, and
+             constraining only the table left the div to run off the
+             right edge — every line cut mid-word, at any font size and
+             unmissably at 200%. `width:auto` overrides the inline
+             attribute; the max-width keeps what is narrower narrow. */
+          table,div,td,th,section,article{max-width:100% !important;}
+          [width],[style*="width"]{max-width:100% !important;}
+          table,div{width:auto !important;}
         </style></head><body>$body</body></html>
     """.trimIndent()
 }
