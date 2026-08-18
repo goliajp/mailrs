@@ -413,4 +413,35 @@ class AdminFlowTest : MailrsUiTest() {
         styled.recycle()
         assertTrue("the splash theme does not hand over to another", handover != 0)
     }
+
+    /**
+     * Who has been sending as these domains.
+     *
+     * A DMARC report says how much passed; this says who sent it, and
+     * that is the question an operator opens the screen to answer. A
+     * source at 0 of 500 is either a forwarder breaking alignment or
+     * somebody sending as the domain who should not be — and either
+     * way it is invisible in the pass rate alone.
+     */
+    @Test
+    fun the_dmarc_screen_names_the_sources() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Dmarc", "settings never listed DMARC")
+        compose.onNodeWithTag("admin.Dmarc").performClick()
+        waitForTag("list.admin", "the DMARC list never opened")
+
+        compose.onNodeWithText("198.51.100.42").assertIsDisplayed()
+        // Both sources sent 500, so "0/500" alone matches the passing
+        // one's text too — the assertion is the pair, on one row.
+        compose.onNodeWithText("500/500 passing", substring = true).assertIsDisplayed()
+        assertEquals(
+            "the failing source was not distinguished from the passing one",
+            1,
+            compose.onAllNodesWithText("0/500 passing · golia.jp").fetchSemanticsNodes().size,
+        )
+    }
 }

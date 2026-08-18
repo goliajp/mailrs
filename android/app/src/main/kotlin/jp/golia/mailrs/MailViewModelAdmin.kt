@@ -20,6 +20,7 @@ import jp.golia.mailrs.wire.deleteAgentKey
 import jp.golia.mailrs.wire.deleteAlias
 import jp.golia.mailrs.wire.deleteDomain
 import jp.golia.mailrs.wire.dmarcReports
+import jp.golia.mailrs.wire.dmarcSources
 import jp.golia.mailrs.wire.domains
 import jp.golia.mailrs.wire.emailGroupMembers
 import jp.golia.mailrs.wire.emailGroups
@@ -57,6 +58,14 @@ import kotlinx.coroutines.launch
 fun MailViewModel.openAdmin(section: AdminSection) {
     _state.update { it.copy(adminOpen = section, busy = true, error = null) }
     viewModelScope.launch {
+        // DMARC is two questions — how much passed, and who sent it —
+        // and one `when` branch can only answer with one state, so the
+        // sources are fetched alongside. A failure here is not a
+        // failure of the screen: the reports still say what passed.
+        if (section == AdminSection.Dmarc) {
+            val sources = (client.dmarcSources() as? MailrsClient.Outcome.Ok)?.value
+            _state.update { it.copy(dmarcSources = sources?.items.orEmpty()) }
+        }
         _state.update {
             when (section) {
             AdminSection.Accounts -> when (val r = client.accounts()) {
