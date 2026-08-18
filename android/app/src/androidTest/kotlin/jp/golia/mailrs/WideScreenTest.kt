@@ -1,5 +1,8 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
@@ -52,5 +55,29 @@ class WideScreenTest : MailrsUiTest() {
         waitForTag("list.messages", "the message did not open")
         // The list is still there. On a phone it would have gone.
         compose.onNodeWithTag("list.conversations").assertIsDisplayed()
+    }
+
+    /**
+     * A keyboard can start a message and a search.
+     *
+     * The two-pane layout exists because this app runs on tablets and
+     * opened foldables, and those are the devices that come with a
+     * keyboard attached. Every mail client worth using answers `c` and
+     * `/` there; without them the keyboard is decoration, and reaching
+     * for the screen is the only way to do the two things people do
+     * most.
+     */
+    @Test
+    fun the_keyboard_starts_a_message_and_a_search() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+
+        compose.onNodeWithTag("list.conversations").performKeyInput { pressKey(Key.C) }
+        waitForTag("field.to", "the c key did not start a message")
+        compose.onNodeWithTag("button.cancel").performClick()
+        waitForTag("list.conversations", "the composer never closed")
+
+        compose.onNodeWithTag("list.conversations").performKeyInput { pressKey(Key.Slash) }
+        waitForTag("search.field", "the slash key did not open the search")
     }
 }
