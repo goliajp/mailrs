@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import jp.golia.mailrs.closeSent
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -182,6 +184,21 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
     previous[0] = screen.ordinal
     val enterFrom = if (forward) 1 else -1
 
+    // **Where a failure is said on the screens that cannot say it.**
+    // Settings, a group, an account and a source view take neither the
+    // state nor the view model — they are given exactly what they draw
+    // — so their errors had nowhere to appear. Rather than widen four
+    // signatures to carry a snackbar each, one host lives here and
+    // covers them.
+    val shellSnackbars = remember { SnackbarHostState() }
+    FailureSnackbar(
+        state,
+        vm,
+        shellSnackbars,
+        hasContent = screen == Screen.Settings || screen == Screen.GroupDetail ||
+            screen == Screen.AccountDetail || screen == Screen.Source,
+    )
+
     Box(Modifier.fillMaxSize()) {
         for (candidate in Screen.entries) {
             AnimatedVisibility(
@@ -265,5 +282,9 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                 }
             }
         }
-    }
+            SnackbarHost(
+            shellSnackbars,
+            Modifier.align(Alignment.BottomCenter).testTag("snackbar.shell"),
+        )
+}
 }

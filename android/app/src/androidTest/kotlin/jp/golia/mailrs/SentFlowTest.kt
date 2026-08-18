@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertTextContains
 import org.junit.Assert.assertEquals
 import androidx.compose.ui.test.onFirst
@@ -198,5 +199,37 @@ class SentFlowTest : MailrsUiTest() {
         compose.onAllNodesWithTag("row.sent").onFirst().performTouchInput { longClick() }
         waitForTag("text.source", "the source never opened")
         compose.onNodeWithText("Message-ID", substring = true).assertIsDisplayed()
+    }
+
+    /**
+     * A refused cancel is said out loud.
+     *
+     * The row goes optimistically — the message is a draft on the
+     * server either way and a row that lingers reads as a cancel that
+     * did not work — so if the server refuses and nobody says so, the
+     * screen shows exactly what success looks like and the message
+     * goes out anyway.
+     *
+     * Seven screens set an error and none of them displayed one; the
+     * snackbar built for this was wired to three others.
+     */
+    @Test
+    fun a_refused_cancel_says_so() {
+        java.net.URL(stubBase() + "/debug/refuse-verb/cancel").openConnection()
+            .let { it as java.net.HttpURLConnection }
+            .apply { requestMethod = "POST" }
+            .inputStream.use { it.readBytes() }
+
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        waitForTag("row.scheduled", "nothing was listed as waiting to send")
+
+        compose.onAllNodesWithTag("button.cancelScheduled").onFirst().performClick()
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithText("409", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }
