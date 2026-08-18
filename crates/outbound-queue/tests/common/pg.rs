@@ -15,6 +15,11 @@ use mailrs_outbound_queue::BackendPool;
 use sqlx::postgres::PgPoolOptions;
 #[cfg(not(feature = "spg"))]
 use testcontainers::ContainerAsync;
+// Guarded like every other import here: the spg axis starts no
+// container, so an unguarded one is an unused import and `-D warnings`
+// makes that a build failure. It cost this axis a red on the next
+// version bump, which is the only time anybody runs it.
+#[cfg(not(feature = "spg"))]
 use testcontainers::ImageExt;
 #[cfg(not(feature = "spg"))]
 use testcontainers_modules::postgres::Postgres;
