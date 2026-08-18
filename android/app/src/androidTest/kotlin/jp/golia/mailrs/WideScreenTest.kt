@@ -74,10 +74,40 @@ class WideScreenTest : MailrsUiTest() {
 
         compose.onNodeWithTag("list.conversations").performKeyInput { pressKey(Key.C) }
         waitForTag("field.to", "the c key did not start a message")
-        compose.onNodeWithTag("button.cancel").performClick()
-        waitForTag("list.conversations", "the composer never closed")
+        pressEscape()
+        waitForTag("list.conversations", "escape did not close the composer")
 
         compose.onNodeWithTag("list.conversations").performKeyInput { pressKey(Key.Slash) }
         waitForTag("search.field", "the slash key did not open the search")
+
+        // And the key that closes things. Without it the keyboard can
+        // open two screens and leave neither — which is worse than not
+        // opening them, because the hand is already off the screen.
+        pressEscape()
+        waitForTag("list.conversations", "escape did not close the search")
+    }
+
+    /**
+     * A key from the window, not from a node.
+     *
+     * `performKeyInput` needs the node it is called on to hold focus,
+     * and a composer that has just opened holds none — so the key went
+     * nowhere and read as "escape did nothing". Dispatching to the
+     * activity is what a keyboard actually does.
+     */
+    private fun pressEscape() {
+        compose.activityRule.scenario.onActivity { activity ->
+            val down = android.view.KeyEvent(
+                android.view.KeyEvent.ACTION_DOWN,
+                android.view.KeyEvent.KEYCODE_ESCAPE,
+            )
+            val up = android.view.KeyEvent(
+                android.view.KeyEvent.ACTION_UP,
+                android.view.KeyEvent.KEYCODE_ESCAPE,
+            )
+            activity.dispatchKeyEvent(down)
+            activity.dispatchKeyEvent(up)
+        }
+        compose.waitForIdle()
     }
 }
