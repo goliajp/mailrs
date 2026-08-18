@@ -26,8 +26,7 @@ abstract class GrantsNotifications {
      */
     @Before
     fun resetTheStub() {
-        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
-            ?: "http://127.0.0.1:6039"
+        val stub = StubServer.base()
         runCatching {
             val c = java.net.URL("$stub/debug/reset").openConnection() as java.net.HttpURLConnection
             c.requestMethod = "POST"
