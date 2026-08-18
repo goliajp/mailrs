@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The message as it arrived, headers and all.
+/// A message as it arrived — or as it left, headers and all.
 ///
 /// The one screen in this app that shows what the server was given
 /// rather than what it made of it — which is where the answer lives
@@ -8,7 +8,12 @@ import SwiftUI
 /// not. `Authentication-Results` is the line worth finding, and it is
 /// near the top.
 struct MessageSourceSheet: View {
-    let uid: UInt32
+    /// A received message, fetched by uid.
+    var uid: UInt32?
+    /// A sent one, already fetched — the Send list asks by send id,
+    /// which is not a uid, so it hands the bytes over rather than
+    /// teaching this sheet a second way to ask.
+    var text: String?
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var source = ""
@@ -53,7 +58,12 @@ struct MessageSourceSheet: View {
                 }
             }
             .task {
-                guard let client = session.client else {
+                if let text {
+                    source = text
+                    loading = false
+                    return
+                }
+                guard let client = session.client, let uid else {
                     failure = "Not signed in."
                     loading = false
                     return

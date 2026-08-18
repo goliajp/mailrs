@@ -419,8 +419,20 @@ final class ThreadFlowTests: MailrsUITestCase {
             if !moved { Thread.sleep(forTimeInterval: 0.25) }
         }
         XCTAssertTrue(moved, "the chevron did not move to the next thread")
-        XCTAssertFalse(app.buttons["Next thread"].isEnabled,
-                       "the last thread offered a next")
+
+        // The end of the walk is the end of the *list*, not the second
+        // row: the fixture grew a third conversation and this assertion
+        // silently became one about how many rows there are. Step until
+        // the chevron goes dead, then say so.
+        XCTAssertTrue(app.buttons["Next thread"].isEnabled,
+                      "a middle thread offered no next")
+        app.buttons["Next thread"].tap()
+        var atEnd = false
+        for _ in 0..<20 where !atEnd {
+            atEnd = !app.buttons["Next thread"].isEnabled
+            if !atEnd { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        XCTAssertTrue(atEnd, "the last thread offered a next")
         var writes: [String] = []
         for _ in 0..<20 {
             writes = recordedWrites().filter { $0 == "POST /api/conversations/t2/read" }

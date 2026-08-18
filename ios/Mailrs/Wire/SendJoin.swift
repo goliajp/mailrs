@@ -20,6 +20,11 @@ enum SendJoin {
         /// nothing rather than claiming delivery — the honest rendering
         /// the web view settled on.
         let status: String?
+        /// The projection's own id, needed to ask for a resend — and
+        /// `nil` for a row only the maildir knows about, which is
+        /// exactly the mail the server cannot send again.
+        let sendId: String?
+        let canResend: Bool
 
         var id: String { key }
         let key: String
@@ -61,6 +66,8 @@ enum SendJoin {
                 to: message.to,
                 date: message.internalDate,
                 status: send?.status,
+                sendId: send?.sendId,
+                canResend: send?.canResend ?? false,
                 key: key
             )
         }
@@ -76,6 +83,8 @@ enum SendJoin {
                 to: send.to.joined(separator: ", "),
                 date: send.createdAt,
                 status: send.status,
+                sendId: send.sendId,
+                canResend: send.canResend,
                 key: key
             )
         }

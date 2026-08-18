@@ -332,8 +332,8 @@ final class ComposeFlowTests: MailrsUITestCase {
         XCTAssertTrue(app.staticTexts["One and two"].waitForExistence(timeout: 10),
                       "the draft did not keep the latest text")
         // From the server, not `app.cells`: the conversation list stays
-        // mounted under the sheet, so its two rows are counted too and
-        // one draft reads as three.
+        // mounted under the sheet, so its rows are counted too and one
+        // draft reads as several.
         XCTAssertEqual(storedDrafts().count, 1,
                        "autosave left more than one draft for a single compose")
     }

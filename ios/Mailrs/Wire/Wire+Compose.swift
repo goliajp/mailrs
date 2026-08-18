@@ -177,3 +177,59 @@ extension Wire {
     }
 }
 
+extension Wire {
+    /// `GET /api/mail/sends/{id}/redraft` — a sent message, to edit.
+    struct Redraft: Decodable, Identifiable, Sendable {
+        /// The send it re-edits — unique per row, which is what
+        /// `sheet(item:)` needs to know one presentation from another.
+        var id: String { redraftOf }
+
+        let redraftOf: String
+        let to: [String]
+        let cc: [String]
+        let bcc: [String]
+        let subject: String
+        let body: String
+        let inReplyTo: String?
+        /// Described, not transferred: the bytes stay on the server and
+        /// the send that follows names which to keep by index.
+        let attachments: [RedraftAttachment]
+
+        enum CodingKeys: String, CodingKey {
+            case redraftOf = "redraft_of"
+            case to, cc, bcc, subject, body, attachments
+            case inReplyTo = "in_reply_to"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            redraftOf = try c.decode(String.self, forKey: .redraftOf)
+            to = try c.decodeIfPresent([String].self, forKey: .to) ?? []
+            cc = try c.decodeIfPresent([String].self, forKey: .cc) ?? []
+            bcc = try c.decodeIfPresent([String].self, forKey: .bcc) ?? []
+            subject = try c.decodeIfPresent(String.self, forKey: .subject) ?? ""
+            body = try c.decodeIfPresent(String.self, forKey: .body) ?? ""
+            inReplyTo = try c.decodeIfPresent(String.self, forKey: .inReplyTo)
+            attachments = try c.decodeIfPresent([RedraftAttachment].self, forKey: .attachments) ?? []
+        }
+    }
+
+    struct RedraftAttachment: Decodable, Identifiable, Sendable {
+        let index: Int
+        let filename: String
+        let size: Int
+
+        var id: Int { index }
+
+        enum CodingKeys: String, CodingKey {
+            case index, filename, size
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            index = try c.decode(Int.self, forKey: .index)
+            filename = try c.decodeIfPresent(String.self, forKey: .filename) ?? ""
+            size = try c.decodeIfPresent(Int.self, forKey: .size) ?? 0
+        }
+    }
+}

@@ -8,6 +8,12 @@ import SwiftUI
 struct ComposeView: View {
     /// A draft being resumed, if this is not a blank compose.
     var resuming: Wire.Draft?
+    /// A sent message being edited before it goes again.
+    ///
+    /// Its attachments are carried rather than downloaded — the server
+    /// holds the bytes and the send names which to keep by index — so
+    /// they are described here and never become `FilePart`s.
+    var redrafting: Wire.Redraft?
 
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
@@ -33,6 +39,8 @@ struct ComposeView: View {
     @State private var suggestions: [String] = []
     @State private var suggestionTask: Task<Void, Never>?
     @State private var attachments: [MultipartForm.FilePart] = []
+    /// Which carried files the reader has taken off this re-edit.
+    @State private var droppedCarried: Set<Int> = []
     @FocusState private var focus: ComposerField?
 
     var body: some View {
@@ -57,6 +65,40 @@ struct ComposeView: View {
                     .focused($focus, equals: .body)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                // Files the server is holding for this re-edit. Listed
+                // like any other attachment because that is what they
+                // are to the reader, and removable — a re-edit that
+                // could not drop a file would make "edit and send
+                // again" mean "send the same thing with different
+                // words".
+                if let carried = redrafting?.attachments.filter({ !droppedCarried.contains($0.index) }),
+                   !carried.isEmpty {
+                    Divider()
+                    VStack(spacing: 4) {
+                        ForEach(carried) { file in
+                            HStack(spacing: 8) {
+                                Image(systemName: "paperclip")
+                                    .foregroundStyle(.secondary)
+                                Text(file.filename)
+                                    .font(.footnote)
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                                Text(file.size.formatted(.byteCount(style: .file)))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Button {
+                                    droppedCarried.insert(file.index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .accessibilityLabel("Remove \(file.filename)")
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
                 if !attachments.isEmpty {
                     Divider()
                     VStack(spacing: 4) {
@@ -131,6 +173,14 @@ struct ComposeView: View {
                     body_ = resuming.body
                     draftId = resuming.id
                 }
+                if let redrafting {
+                    to = redrafting.to.joined(separator: ", ")
+                    cc = redrafting.cc.joined(separator: ", ")
+                    bcc = redrafting.bcc.joined(separator: ", ")
+                    showsCopies = !redrafting.cc.isEmpty || !redrafting.bcc.isEmpty
+                    subject = redrafting.subject
+                    body_ = redrafting.body
+                }
                 focus = .to
             }
             .onChange(of: [to, cc, bcc, subject, body_]) { _, _ in scheduleAutosave() }
@@ -177,6 +227,18 @@ struct ComposeView: View {
         )
     }
 
+    /// Which carried files survive the edit, or `nil` when nothing was
+    /// carried.
+    ///
+    /// `nil` and `[]` are not the same on the wire: absent keeps every
+    /// carried attachment and an empty list keeps none. A compose that
+    /// never carried anything must send absent, or the server reads
+    /// "keep none" as an instruction about files it is not holding.
+    private var keptCarried: [Int]? {
+        guard let redrafting, !redrafting.attachments.isEmpty else { return nil }
+        return redrafting.attachments.map(\.index).filter { !droppedCarried.contains($0) }
+    }
+
     private func send(schedule: SendSchedule) async {
         sending = true
         failure = nil
@@ -186,7 +248,9 @@ struct ComposeView: View {
                 bcc: AddressList.parse(bcc), subject: subject,
                 body: MailSignature.append(body: body_, signature: session.signature),
                 attachments: attachments,
-                scheduledAt: schedule.fireDate(after: Date(), calendar: .current)
+                scheduledAt: schedule.fireDate(after: Date(), calendar: .current),
+                redraftOf: redrafting?.redraftOf,
+                redraftKeep: keptCarried
             )
             // Sent, so it is no longer a draft. Cancel the pending
             // autosave first or it recreates the one just deleted.
