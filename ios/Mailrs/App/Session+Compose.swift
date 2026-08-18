@@ -71,11 +71,18 @@ extension Session {
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
         subject: String, body: String,
         attachments: [MultipartForm.FilePart] = [],
-        scheduledAt: Int64? = nil
+        scheduledAt: Int64? = nil,
+        redraftOf: String? = nil,
+        redraftKeep: [Int]? = nil
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
-            if attachments.isEmpty {
+            // A re-edit goes the multipart way even with no file of its
+            // own: `redraft_keep` is a form field, and the JSON route
+            // has nowhere to put it — sent without it the server keeps
+            // every carried attachment, including the ones just
+            // removed.
+            if attachments.isEmpty && redraftOf == nil {
                 return try await client.sendNew(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                     scheduledAt: scheduledAt
@@ -85,7 +92,8 @@ extension Session {
             // field for them.
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                attachments: attachments, scheduledAt: scheduledAt
+                attachments: attachments, scheduledAt: scheduledAt,
+                redraftOf: redraftOf, redraftKeep: redraftKeep
             )
         }
     }
@@ -157,6 +165,53 @@ extension Session {
             banner = error.localizedDescription
         }
         initialLoading = false
+    }
+
+
+    /// Send it again, byte for byte.
+    ///
+    /// Only offered where `can_resend` is set — the server reads an
+    /// empty envelope reference as "the bytes are not on disk" and
+    /// answers 409. The list is re-read afterwards rather than
+    /// adjusted here: a resend makes a *new* row with its own status,
+    /// and guessing at that shape would put a line on screen the
+    /// server never agreed to.
+    func resend(_ row: SendJoin.Row) async {
+        guard let client, let sendId = row.sendId else { return }
+        do {
+            try await client.resend(sendId: sendId)
+            await loadSendRows()
+        } catch {
+            banner = error.localizedDescription
+        }
+    }
+
+
+    /// The fields of a sent message, to edit before it goes again.
+    ///
+    /// The half that fixes anything: a resend re-enqueues the stored
+    /// bytes unchanged, so a message that failed because the address
+    /// was wrong fails again.
+    func redraft(_ row: SendJoin.Row) async -> Wire.Redraft? {
+        guard let client, let sendId = row.sendId else { return nil }
+        do {
+            return try await client.redraft(sendId: sendId)
+        } catch {
+            banner = error.localizedDescription
+            return nil
+        }
+    }
+
+
+    /// The bytes a send actually put on the wire.
+    func sendSource(_ row: SendJoin.Row) async -> String? {
+        guard let client, let sendId = row.sendId else { return nil }
+        do {
+            return try await client.sendSource(sendId: sendId)
+        } catch {
+            banner = error.localizedDescription
+            return nil
+        }
     }
 }
 

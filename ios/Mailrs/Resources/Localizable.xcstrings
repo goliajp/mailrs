@@ -1489,6 +1489,38 @@
         }
       }
     },
+    "Edit": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編集"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        }
+      }
+    },
+    "Edit and send again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編集して再送信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑后重新发送"
+          }
+        }
+      }
+    },
     "Every domain": {
       "localizations": {
         "ja": {
@@ -3104,6 +3136,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已发送"
+          }
+        }
+      }
+    },
+    "Send again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再送信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新发送"
           }
         }
       }

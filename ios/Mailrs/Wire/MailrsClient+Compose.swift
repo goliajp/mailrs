@@ -63,7 +63,9 @@ extension MailrsClient {
         replyToThreadId: String? = nil,
         forwardMessageId: String? = nil,
         forwardAttachmentsFrom: UInt32? = nil,
-        scheduledAt: Int64? = nil
+        scheduledAt: Int64? = nil,
+        redraftOf: String? = nil,
+        redraftKeep: [Int]? = nil
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
         // Repeated fields, one per address, exactly as `to` is — the
@@ -87,6 +89,15 @@ extension MailrsClient {
         // having posted ISO 8601 here and had every scheduled send go
         // out at once.
         if let scheduledAt { fields.append(("scheduled_at", String(scheduledAt))) }
+        if let redraftOf { fields.append(("redraft_of", redraftOf)) }
+        // **One comma-separated field, not a repeated one**, and the
+        // handler says why: repeating it cannot express "keep none",
+        // because zero occurrences and an empty selection both arrive
+        // as no field at all and they mean opposite things.
+        // Present-but-empty says none; absent says all.
+        if let redraftKeep {
+            fields.append(("redraft_keep", redraftKeep.map(String.init).joined(separator: ",")))
+        }
         let form = MultipartForm.encode(fields: fields, files: attachments, boundary: boundary)
         let url = baseURL.appendingPathComponent("/api/mail/send-multipart")
         let (data, response) = try await send(

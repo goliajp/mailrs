@@ -201,6 +201,13 @@ extension Wire {
         let createdAt: Int64
         let status: String
         let resentFrom: String?
+        /// Whether the server still holds the bytes to send again.
+        ///
+        /// Its judgement, not one this side can make: it reads an empty
+        /// envelope reference as "the bytes are not on disk" and
+        /// answers 409, so a button offered against that fails after
+        /// the tap.
+        let canResend: Bool
 
         enum CodingKeys: String, CodingKey {
             case sendId = "send_id"
@@ -210,6 +217,19 @@ extension Wire {
             case createdAt = "created_at"
             case status
             case resentFrom = "resent_from"
+            case canResend = "can_resend"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            sendId = try c.decode(String.self, forKey: .sendId)
+            threadId = try c.decode(String.self, forKey: .threadId)
+            subject = try c.decode(String.self, forKey: .subject)
+            to = try c.decodeIfPresent([String].self, forKey: .to) ?? []
+            createdAt = try c.decode(Int64.self, forKey: .createdAt)
+            status = try c.decode(String.self, forKey: .status)
+            resentFrom = try c.decodeIfPresent(String.self, forKey: .resentFrom)
+            canResend = try c.decodeIfPresent(Bool.self, forKey: .canResend) ?? false
         }
     }
 }

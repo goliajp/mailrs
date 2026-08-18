@@ -118,6 +118,46 @@ extension MailrsClient {
     }
 
 
+    /// `POST /api/mail/sends/{id}/resend` — re-enqueue the stored
+    /// bytes, unchanged.
+    ///
+    /// Only for a row whose `can_resend` the server set: it reads an
+    /// empty envelope reference as "the bytes are not on disk" and
+    /// answers 409. Unchanged is also the limit of it — a send that
+    /// failed because the address was wrong fails again, which is what
+    /// `redraft` is for.
+    func resend(sendId: String) async throws {
+        try await verb("POST", "/api/mail/sends/\(MailrsClient.segment(sendId))/resend")
+    }
+
+
+    /// `GET /api/mail/sends/{id}/redraft` — the fields, to edit and
+    /// send again. Attachments are described, not transferred: the
+    /// bytes stay on the server and the following send names which to
+    /// keep by index.
+    func redraft(sendId: String) async throws -> Wire.Redraft {
+        try await getJSON("/api/mail/sends/\(MailrsClient.segment(sendId))/redraft")
+    }
+
+
+    /// `GET /api/mail/sends/{id}/source` — the bytes that actually
+    /// left. The counterpart to a received message's raw view, and the
+    /// thing worth reading when a send failed: what the queue holds is
+    /// what a resend would put back on the wire.
+    func sendSource(sendId: String) async throws -> String {
+        let (data, response) = try await send(
+            "GET", "/api/mail/sends/\(MailrsClient.segment(sendId))/source",
+            body: nil, authorized: true)
+        guard let http = response as? HTTPURLResponse else {
+            throw MailrsError.transport("No HTTP response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw MailrsError.server(status: http.statusCode)
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+
     /// `GET /api/conversations/search` — ranked, and already hydrated
     /// into the same row shape the list uses.
     ///

@@ -57,7 +57,13 @@ struct SendListSection: View {
 }
 
 private struct SendRowView: View {
+    @Environment(Session.self) private var session
     let row: SendJoin.Row
+
+    @State private var redrafting: Wire.Redraft?
+    /// The bytes that left, once fetched. A wrapper because
+    /// `sheet(item:)` needs an identity and a `String` has none.
+    @State private var source: SourceText?
 
     /// The first recipient wears the avatar — a sent row's face is who
     /// it went to, mirroring the inbox where the face is who it came
@@ -98,6 +104,56 @@ private struct SendRowView: View {
             }
         }
         .padding(.vertical, 2)
+        // Offered only where the server says the bytes are still
+        // there: against anything else it answers 409, and a button
+        // that fails after the tap is worse than no button.
+        .swipeActions(edge: .leading) {
+            if row.canResend {
+                // Edit first, and not destructive: a send that failed
+                // because the address was wrong fails again unchanged,
+                // which is what "Send again" does.
+                Button {
+                    Task { redrafting = await session.redraft(row) }
+                } label: {
+                    Label("Edit", systemImage: "square.and.pencil")
+                }
+                .tint(.accentColor)
+                Button {
+                    Task { await session.resend(row) }
+                } label: {
+                    Label("Send again", systemImage: "arrow.clockwise")
+                }
+                .tint(.orange)
+            }
+        }
+        .contextMenu {
+            if row.canResend {
+                Button("Edit and send again", systemImage: "square.and.pencil") {
+                    Task { redrafting = await session.redraft(row) }
+                }
+                Button("Send again", systemImage: "arrow.clockwise") {
+                    Task { await session.resend(row) }
+                }
+            }
+            // The bytes that actually left. Worth reading when a send
+            // failed: they are what a resend would put back on the
+            // wire.
+            if row.sendId != nil {
+                Button("View source", systemImage: "doc.plaintext") {
+                    Task {
+                        if let text = await session.sendSource(row) {
+                            source = SourceText(text: text)
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(item: $redrafting) { draft in
+            ComposeView(redrafting: draft)
+        }
+        .sheet(item: $source) { held in
+            MessageSourceSheet(text: held.text)
+        }
     }
 
     private var edgeColor: Color {
@@ -206,4 +262,10 @@ private struct ScheduledRowView: View {
             }
         }
     }
+}
+
+/// The source of one send, carried to a sheet that needs an identity.
+private struct SourceText: Identifiable {
+    let text: String
+    let id = UUID()
 }

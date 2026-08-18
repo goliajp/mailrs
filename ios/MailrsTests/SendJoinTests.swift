@@ -15,12 +15,13 @@ struct SendJoinTests {
     }
 
     private func send(
-        _ id: String, status: String, resentFrom: String? = nil, created: Int64 = 100
+        _ id: String, status: String, resentFrom: String? = nil, created: Int64 = 100,
+        canResend: Bool = false
     ) -> Wire.Send {
         let resent = resentFrom.map { "\"\($0)\"" } ?? "null"
         let json = """
         {"send_id":"\(id)","thread_id":"t1","subject":"S","to":["a@b.jp"],
-         "created_at":\(created),"status":"\(status)","can_resend":false,
+         "created_at":\(created),"status":"\(status)","can_resend":\(canResend),
          "resent_from":\(resent),"recipients":[]}
         """
         return try! JSONDecoder().decode(Wire.Send.self, from: Data(json.utf8))
@@ -73,5 +74,24 @@ struct SendJoinTests {
             sends: []
         )
         #expect(rows.map(\.date) == [200, 100])
+    }
+
+    /// Only the server decides whether a message can be sent again: it
+    /// reads an empty envelope reference as "the bytes are not on
+    /// disk" and answers 409, so a button offered against that fails
+    /// after the tap. A row the projection never saw has no id to ask
+    /// with either, and the two absences agree by construction.
+    @Test func onlyTheServerDecidesWhatCanBeSentAgain() {
+        let rows = SendJoin.join(
+            messages: [message("<m1@x>"), message("<gone@x>", date: 90)],
+            sends: [send("m1@x", status: "failed", canResend: true)]
+        )
+        let again = rows.first { $0.key == "m1@x" }!
+        #expect(again.sendId == "m1@x")
+        #expect(again.canResend)
+
+        let onlyFiled = rows.first { $0.key == "gone@x" }!
+        #expect(onlyFiled.sendId == nil)
+        #expect(!onlyFiled.canResend)
     }
 }
