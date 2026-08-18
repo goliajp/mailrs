@@ -55,9 +55,18 @@ class WidgetStateTest {
         assertTrue(s.rows.isEmpty())
     }
 
-    /** Only unread rows, newest first, and never more than three. */
+    /**
+     * Only unread rows, newest first, and no more than the tallest
+     * widget can draw.
+     *
+     * The cap used to be three, which was the number the *drawing*
+     * used before it learned to measure — so a widget dragged taller
+     * had nothing more to show. Storing is now bounded by
+     * `MAX_ROWS`; what appears is decided at draw time by the size the
+     * launcher gives.
+     */
     @Test
-    fun it_keeps_the_newest_unread_and_no_more_than_three() {
+    fun it_keeps_the_newest_unread_up_to_the_cap() {
         WidgetState.write(
             context,
             signedIn = true,
@@ -72,8 +81,8 @@ class WidgetStateTest {
         val s = WidgetState.read(context)
         assertTrue(s.signedIn)
         assertEquals("four unread threads", 4, s.unread)
-        assertEquals(3, s.rows.size)
-        assertEquals(listOf("newest", "middle", "fourth"), s.rows.map { it.subject })
+        assertEquals("all four unread are kept, under the cap", 4, s.rows.size)
+        assertEquals(listOf("newest", "middle", "fourth", "oldest"), s.rows.map { it.subject })
     }
 
     /** Signing out empties it, or the next launcher shows this account's mail. */
@@ -105,5 +114,23 @@ class WidgetStateTest {
         )
         val snapshot = WidgetState.read(context)
         assertEquals(listOf("t7", "t8"), snapshot.rows.map { it.threadId })
+    }
+
+    /**
+     * The cap is real, and it is not the number of rows anybody draws.
+     *
+     * This is a preference blob read on every redraw, not a mailbox —
+     * and the tallest widget a launcher hands out is what it has to
+     * cover, nothing more.
+     */
+    @Test
+    fun it_stores_no_more_than_the_tallest_widget_can_show() {
+        WidgetState.write(
+            context,
+            signedIn = true,
+            conversations = (1..40).map { row("t$it", unread = 1, date = it.toLong(), subject = "s$it") },
+        )
+        assertEquals(WidgetState.MAX_ROWS, WidgetState.read(context).rows.size)
+        assertEquals("forty unread are still counted", 40, WidgetState.read(context).unread)
     }
 }
