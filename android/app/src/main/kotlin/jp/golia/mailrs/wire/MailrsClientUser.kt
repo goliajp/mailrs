@@ -124,3 +124,15 @@ suspend fun MailrsClient.deleteDraft(id: Long): MailrsClient.Outcome<String> = w
             .build(),
     )
 }
+
+/** `GET /api/mail/sent` — what the maildir sweep has filed. */
+suspend fun MailrsClient.sentMessages(): MailrsClient.Outcome<List<Wire.SentMessage>> = decode(
+    get("/api/mail/sent"),
+    Wire.SentMessage.serializer(),
+)
+
+/** `GET /api/mail/sends` — delivery status for what left. */
+suspend fun MailrsClient.sends(): MailrsClient.Outcome<List<Wire.Send>> = decode(
+    get("/api/mail/sends"),
+    Wire.Send.serializer(),
+)
