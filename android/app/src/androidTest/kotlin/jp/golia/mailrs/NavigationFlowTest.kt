@@ -415,4 +415,41 @@ class NavigationFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("text.signInError")
             .assertTextContains("rejected this session", substring = true)
     }
+
+    /**
+     * Leaving the app commits what was swiped away.
+     *
+     * The undo window holds the request for five seconds, and a person
+     * who swipes and then leaves is gone long before that — so the
+     * archive was never sent, and the row was back next time they
+     * looked. Watching a message leave and finding it returned is
+     * exactly the kind of thing that makes a mail client feel
+     * untrustworthy.
+     */
+    @Test
+    fun leaving_the_app_commits_a_swipe() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput {
+            swipeRight(startX = centerX, endX = right)
+        }
+        awaiting("the swipe never offered an undo") {
+            compose.onAllNodesWithText("Undo").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Away, well inside the five seconds.
+        compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+
+        var writes = ""
+        awaiting("leaving the app never sent the archive; the stub saw <$writes>") {
+            writes = readStub("/debug/writes")
+            writes.contains("conversations/batch")
+        }
+    }
+
+    /** `waitUntil` with something to say when it gives up. */
+    private fun awaiting(complaint: String, condition: () -> Boolean) {
+        runCatching { compose.waitUntil(TIMEOUT_MS, condition) }
+            .onFailure { throw AssertionError(complaint) }
+    }
 }
