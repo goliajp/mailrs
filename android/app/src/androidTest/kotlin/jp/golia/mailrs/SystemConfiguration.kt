@@ -22,12 +22,30 @@ class SystemConfiguration : ExternalResource() {
      */
     var fontScale: String? = null
 
+    /**
+     * `WIDTHxHEIGHT`, as `wm size` takes it, with [density] in dpi.
+     *
+     * Resizing the display *while the app runs* is what the two-pane
+     * test used to do, and it hung the suite twice: the app came back
+     * idle and Compose's `waitForIdle` sat waiting for a frame the
+     * reconfigured display never produced. Nothing was spinning — the
+     * main thread was parked in its looper — so it looked like a
+     * fluke, and it was not. Set before the activity launches, there
+     * is no reconfiguration to survive.
+     */
+    var displaySize: String? = null
+    var density: String? = null
+
     override fun before() {
         fontScale?.let { shell("settings put system font_scale $it") }
+        displaySize?.let { shell("wm size $it") }
+        density?.let { shell("wm density $it") }
     }
 
     override fun after() {
         if (fontScale != null) shell("settings put system font_scale 1.0")
+        if (displaySize != null) shell("wm size reset")
+        if (density != null) shell("wm density reset")
     }
 
     private fun shell(command: String) {

@@ -100,6 +100,10 @@ class MailViewModel(
         UiState(
             signedIn = client.session != null,
             server = client.session?.server.orEmpty(),
+            // Also here, not only after a fresh sign-in: a launch that
+            // restores a session must know the address too, or reply-all
+            // starts excluding nobody again the moment the app restarts.
+            myAddress = client.session?.address.orEmpty(),
             appearance = prefs.appearance,
             notifyNewMail = prefs.notifyNewMail,
         )
@@ -165,6 +169,7 @@ class MailViewModel(
                         signedIn = true,
                         busy = false,
                         server = client.session?.server.orEmpty(),
+                        myAddress = client.session?.address.orEmpty(),
                     ) }
                     refresh()
                     loadSignature()
