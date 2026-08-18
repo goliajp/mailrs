@@ -86,6 +86,7 @@ class NewMailWorker(
             text = newest?.subject?.ifBlank { "(no subject)" } ?: NewMailRule.text(arrived),
             summary = if (arrived > 1) NewMailRule.text(arrived) else null,
             threadId = newest?.threadId,
+            channelId = NewMailRule.channelFor(newest?.importanceLevel.orEmpty()),
         )
         return Result.success()
     }
@@ -102,17 +103,31 @@ class NewMailWorker(
          * app's start and the worker rather than tracked.
          */
         fun ensureChannel(context: Context) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "New mail",
-                // Default, not high: mail is worth a glance, not an
-                // interruption that takes over the screen. Somebody who
-                // wants more can change it — the channel is theirs, and
-                // that is the whole point of channels.
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = "When mail arrives while the app is closed" }
-            ContextCompat.getSystemService(context, NotificationManager::class.java)
-                ?.createNotificationChannel(channel)
+            val manager = ContextCompat.getSystemService(context, NotificationManager::class.java)
+                ?: return
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "New mail",
+                    // Default, not high: ordinary mail is worth a
+                    // glance, not an interruption that takes over the
+                    // screen. Somebody who wants more can change it —
+                    // the channel is theirs, and that is the whole
+                    // point of channels.
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply { description = "When mail arrives while the app is closed" },
+            )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    NewMailRule.IMPORTANT_CHANNEL,
+                    "Important mail",
+                    // High, so it arrives as a heads-up. The separation
+                    // is the point: with one channel, silencing the
+                    // ordinary silences this too, and that decision
+                    // belongs to the reader rather than to this app.
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply { description = "Mail the server marked important or critical" },
+            )
         }
 
         /**
@@ -130,6 +145,7 @@ class NewMailWorker(
             text: String,
             summary: String? = null,
             threadId: String? = null,
+            channelId: String = CHANNEL_ID,
         ) {
             ensureChannel(context)
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -147,7 +163,7 @@ class NewMailWorker(
                     ?.putExtra(EXTRA_THREAD_ID, threadId),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            val note = NotificationCompat.Builder(context, CHANNEL_ID)
+            val note = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(title)
                 .setContentText(text)

@@ -40,4 +40,23 @@ object NewMailRule {
      * number that is true.
      */
     fun text(count: Int): String = if (count == 1) "1 new message" else "$count new messages"
+
+    /**
+     * Which notification channel a thread's arrival belongs in.
+     *
+     * Two channels, because a channel is the only thing a person can
+     * actually tune: with one, silencing the ordinary silences the
+     * important as well, and that is the choice this app makes on
+     * their behalf if it ships a single channel. The list already
+     * marks these two levels with an icon, so the notification is
+     * saying the same thing the inbox says rather than inventing a
+     * distinction.
+     */
+    fun channelFor(importanceLevel: String): String = when (importanceLevel) {
+        "critical", "important" -> IMPORTANT_CHANNEL
+        else -> ORDINARY_CHANNEL
+    }
+
+    const val ORDINARY_CHANNEL = "new-mail"
+    const val IMPORTANT_CHANNEL = "important-mail"
 }

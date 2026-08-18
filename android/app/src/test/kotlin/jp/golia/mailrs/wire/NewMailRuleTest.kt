@@ -41,4 +41,16 @@ class NewMailRuleTest {
         assertEquals("1 new message", NewMailRule.text(1))
         assertEquals("2 new messages", NewMailRule.text(2))
     }
+
+    @Test
+    fun `important mail gets its own channel`() {
+        assertEquals(NewMailRule.IMPORTANT_CHANNEL, NewMailRule.channelFor("critical"))
+        assertEquals(NewMailRule.IMPORTANT_CHANNEL, NewMailRule.channelFor("important"))
+        assertEquals(NewMailRule.ORDINARY_CHANNEL, NewMailRule.channelFor("normal"))
+        // Anything the server starts sending that this app has not
+        // heard of is ordinary — a new level must not silently become
+        // a heads-up interruption.
+        assertEquals(NewMailRule.ORDINARY_CHANNEL, NewMailRule.channelFor("urgent-ish"))
+        assertEquals(NewMailRule.ORDINARY_CHANNEL, NewMailRule.channelFor(""))
+    }
 }
