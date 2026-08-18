@@ -91,6 +91,14 @@
             android:name=".wire.ArchiveFromNotification"
             android:exported="false" />
 
+        <!-- Direct reply, from the notification shade. Also not
+             exported: the PendingIntent that carries the typed text is
+             mutable so the system can fill it in, which is exactly why
+             nothing else may send this. -->
+        <receiver
+            android:name=".wire.ReplyFromNotification"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

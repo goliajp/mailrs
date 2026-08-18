@@ -35,13 +35,14 @@ class TokenStore(context: Context) {
         val server = prefs.getString(KEY_SERVER, null) ?: return null
         val blob = prefs.getString(KEY_TOKEN, null) ?: return null
         val token = decrypt(blob) ?: return null
-        return Session(server, token)
+        return Session(server, token, prefs.getString(KEY_ADDRESS, null).orEmpty())
     }
 
     fun write(session: Session) {
         prefs.edit()
             .putString(KEY_SERVER, session.server)
             .putString(KEY_TOKEN, encrypt(session.token))
+            .putString(KEY_ADDRESS, session.address)
             .apply()
     }
 
@@ -87,13 +88,21 @@ class TokenStore(context: Context) {
 
     private fun unb64(s: String) = android.util.Base64.decode(s, android.util.Base64.NO_WRAP)
 
-    /** Where we are signed in, and as whom. */
-    data class Session(val server: String, val token: String)
+    /**
+     * Where we are signed in, and as whom.
+     *
+     * The address is stored because the app has no other way to learn
+     * it — and two things need it: Settings, to say whose mailbox this
+     * is, and reply-all, which excludes yourself by comparing against
+     * it. It was absent for long enough that both were quietly wrong.
+     */
+    data class Session(val server: String, val token: String, val address: String)
 
     private companion object {
         const val PREFS = "mailrs.session"
         const val KEY_SERVER = "server"
         const val KEY_TOKEN = "token"
+        const val KEY_ADDRESS = "address"
         const val KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "mailrs.session.key"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

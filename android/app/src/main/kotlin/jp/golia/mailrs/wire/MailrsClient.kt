@@ -78,7 +78,7 @@ class MailrsClient(private val store: TokenStore) {
             // request, or it does not mean anything.
             val current = session ?: return
             if (value == null || value == current.server) return
-            session = TokenStore.Session(value, current.token)
+            session = TokenStore.Session(value, current.token, current.address)
         }
 
     fun signOut() {
@@ -94,7 +94,7 @@ class MailrsClient(private val store: TokenStore) {
                 json.decodeFromString(Wire.LoginResponse.serializer(), r.value)
             }.fold(
                 onSuccess = {
-                    val s = TokenStore.Session(base, it.token)
+                    val s = TokenStore.Session(base, it.token, username)
                     store.write(s)
                     session = s
                     Outcome.Ok(Unit)

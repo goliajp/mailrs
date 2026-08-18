@@ -350,4 +350,56 @@ class MailFlowTest : MailrsUiTest() {
 
         waitForTag("list.conversations", "the keyboard's Done key did not sign in")
     }
+
+    /**
+     * The app knows whose mailbox it is showing.
+     *
+     * `myAddress` was read in two places and written in none, so it was
+     * always the empty string: Settings said the account was "—", and
+     * reply-all, which excludes yourself by comparing against it,
+     * excluded nobody — a reply to everyone arrived addressed back at
+     * the person who sent it.
+     */
+    @Test
+    fun the_signed_in_address_is_known_to_the_app() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Settings").performClick()
+        waitForTag("admin.Aliases", "settings never opened")
+        compose.onNodeWithText("me@golia.jp").assertIsDisplayed()
+    }
+
+    /**
+     * Reply-all does not address the reply back at me.
+     *
+     * The rule excludes yourself by comparing each recipient against
+     * the signed-in address — which the app did not know, so it
+     * excluded nobody and every reply-all arrived in its own sender's
+     * inbox. The stub's second message is addressed to me and to Bob,
+     * so the answer must reach Bob and the sender and stop there.
+     */
+    @Test
+    fun reply_all_leaves_me_off_the_recipients() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the thread never opened")
+
+        // The **second** message: the first is addressed only to me,
+        // so a reply-all to it cannot show the difference between
+        // excluding me and having nobody else to exclude.
+        tapWhenSteady("button.replyAll", 1)
+        waitForTag("field.body", "the composer never opened")
+        compose.onNodeWithTag("field.body").performTextInput("Answering everyone.")
+        compose.onNodeWithTag("button.send").performClick()
+        waitForTag("list.messages", "the composer did not return to the thread after sending")
+
+        val sent = readStub("/debug/sent")
+        assertTrue("the reply-all did not reach the other recipient: $sent",
+            sent.contains("bob@example.com"))
+        assertTrue("the reply-all was addressed back at me: $sent",
+            !sent.substringAfter("\"to\"").substringBefore("]").contains("me@golia.jp"))
+    }
 }

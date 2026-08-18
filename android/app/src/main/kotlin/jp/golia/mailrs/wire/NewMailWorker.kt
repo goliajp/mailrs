@@ -151,6 +151,10 @@ class NewMailWorker(
                 .setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(title)
                 .setContentText(text)
+                // Expanded, the whole subject rather than one clipped
+                // line. A subject is the only thing that says whether
+                // this is worth opening, and mail subjects are long.
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .apply { if (summary != null) setSubText(summary) }
                 .setContentIntent(open)
                 .setAutoCancel(true)
@@ -160,6 +164,10 @@ class NewMailWorker(
                     // away, and making that two taps instead of five is
                     // the point of the action.
                     if (threadId != null) {
+                        // Reply first: it is the action a thumb reaches
+                        // for, and on a watch or in a car it is the
+                        // only one that means anything.
+                        addAction(ReplyFromNotification.action(context, threadId))
                         addAction(
                             NotificationCompat.Action.Builder(
                                 android.R.drawable.ic_menu_delete,
