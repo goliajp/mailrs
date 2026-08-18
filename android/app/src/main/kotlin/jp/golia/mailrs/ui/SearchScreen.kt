@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -129,9 +130,11 @@ private fun SearchResults(state: UiState, vm: MailViewModel) {
             }
 
         else -> LazyColumn(Modifier.fillMaxSize().testTag("list.searchResults")) {
-            items(results, key = Wire.Conversation::threadId) { c ->
+            itemsIndexed(results, key = { _, c -> c.threadId }) { index, c ->
                 ConversationRow(c) { vm.open(c) }
-                HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                if (index < results.lastIndex) {
+                    HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                }
             }
             // **Said, not hidden.** Search has no keyset parameter, so
             // there is no next page to fetch — a full result set is a
