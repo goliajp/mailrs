@@ -20,7 +20,12 @@ import kotlinx.serialization.json.Json
 object WidgetState {
 
     @Serializable
-    data class Row(val sender: String, val subject: String)
+    /**
+     * @param threadId what tapping this row opens. A home screen that
+     *   lists three subjects and opens the same inbox for all of them
+     *   is naming things it cannot reach.
+     */
+    data class Row(val threadId: String, val sender: String, val subject: String)
 
     @Serializable
     data class Snapshot(
@@ -46,7 +51,7 @@ object WidgetState {
                 .filter { it.unreadCount > 0 }
                 .sortedByDescending { it.lastDate }
                 .take(3)
-                .map { Row(it.participants.firstOrNull().orEmpty(), it.subject) },
+                .map { Row(it.threadId, it.participants.firstOrNull().orEmpty(), it.subject) },
         )
         prefs(context).edit()
             .putString(KEY, json.encodeToString(Snapshot.serializer(), snapshot))

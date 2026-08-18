@@ -58,7 +58,9 @@ class InboxWidget : GlanceAppWidget() {
             // that reached for it could not be rendered by a test at
             // all. "No default context" was the whole failure.
             Box(GlanceModifier.fillMaxSize().clickable(OpenMailrs.action(context))) {
-                InboxWidgetContent(snapshot)
+                InboxWidgetContent(snapshot) { threadId ->
+                    OpenMailrs.action(context, threadId)
+                }
             }
         }
     }
@@ -76,7 +78,17 @@ class InboxWidget : GlanceAppWidget() {
  * showing nothing at all looks broken.
  */
 @Composable
-fun InboxWidgetContent(snapshot: WidgetState.Snapshot) {
+fun InboxWidgetContent(
+    snapshot: WidgetState.Snapshot,
+    /**
+     * What tapping a row does. Passed in rather than built here for
+     * the same reason the whole-widget tap is: building an action
+     * needs a `Context`, and `LocalContext` has no default in Glance's
+     * test environment — so a content that reached for it could not be
+     * rendered by a test at all.
+     */
+    onRow: ((String) -> androidx.glance.action.Action)? = null,
+) {
     GlanceTheme {
         Column(
             GlanceModifier
@@ -94,7 +106,8 @@ fun InboxWidgetContent(snapshot: WidgetState.Snapshot) {
                 ),
             )
             for (row in snapshot.rows.take(3)) {
-                Column(GlanceModifier.fillMaxWidth().padding(top = 8.dp)) {
+                val rowModifier = GlanceModifier.fillMaxWidth().padding(top = 8.dp)
+                Column(onRow?.let { rowModifier.clickable(it(row.threadId)) } ?: rowModifier) {
                     Text(
                         // A name, not an address: a home screen has room
                         // for "Alice Smith" and not for the rest of it.

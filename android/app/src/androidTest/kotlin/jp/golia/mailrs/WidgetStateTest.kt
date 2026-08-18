@@ -84,4 +84,26 @@ class WidgetStateTest {
         WidgetState.clear(context)
         assertTrue(WidgetState.read(context).rows.isEmpty())
     }
+
+    /**
+     * A row on the widget remembers which conversation it is.
+     *
+     * Three subjects on a home screen that all open the same inbox is
+     * a list that names things and cannot open them. The thread id is
+     * what makes the row a link, and it is stored because the widget
+     * draws what was last fetched and never fetches.
+     */
+    @Test
+    fun a_stored_row_carries_its_thread() {
+        WidgetState.write(
+            context,
+            signedIn = true,
+            conversations = listOf(
+                row("t7", unread = 1, date = 300, subject = "Quarterly report"),
+                row("t8", unread = 1, date = 200, subject = "Certificate renewed"),
+            ),
+        )
+        val snapshot = WidgetState.read(context)
+        assertEquals(listOf("t7", "t8"), snapshot.rows.map { it.threadId })
+    }
 }
