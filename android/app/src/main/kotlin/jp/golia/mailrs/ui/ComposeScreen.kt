@@ -1,6 +1,9 @@
 package jp.golia.mailrs.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.AttachFile
@@ -186,7 +189,9 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
         }
 
-        CompactField("Subject", subject, "field.subject") { vm.editDraft(subject = it) }
+        CompactField("Subject", subject, "field.subject", keyboardType = KeyboardType.Text) {
+            vm.editDraft(subject = it)
+        }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
 
         if (draft.attachments.isNotEmpty()) {
@@ -269,6 +274,12 @@ private fun CompactField(
     label: String,
     value: String,
     tag: String,
+    /**
+     * Addresses get the address keyboard, which puts `@` and `.` on the
+     * base layer — three lines of this form are addresses and the
+     * fourth is prose, so it is worth saying which is which.
+     */
+    keyboardType: KeyboardType = KeyboardType.Email,
     trailing: @Composable () -> Unit = {},
     onChange: (String) -> Unit,
 ) {
@@ -282,6 +293,9 @@ private fun CompactField(
             value = value,
             onValueChange = onChange,
             singleLine = true,
+            // Next, not Done: every one of these lines has another
+            // below it, ending at the message itself.
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
             textStyle = TextStyle(color = theme.fg, fontSize = 15.sp),
             cursorBrush = SolidColor(theme.accent),
             modifier = Modifier.weight(1f).testTag(tag),

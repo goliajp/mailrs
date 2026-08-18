@@ -12,6 +12,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
@@ -329,5 +330,24 @@ class MailFlowTest : MailrsUiTest() {
 
         compose.onNodeWithTag("list.searchResults").performScrollToNode(hasTestTag("search.capped"))
         compose.onNodeWithTag("search.capped").assertTextContains("Narrow the search", substring = true)
+    }
+
+    /**
+     * The keyboard's own key signs in.
+     *
+     * A sign-in form where the last field's Done key does nothing makes
+     * the reader dismiss the keyboard to reach a button that was under
+     * it — which is the arrangement every other Android form avoids.
+     */
+    @Test
+    fun the_keyboard_can_finish_the_sign_in() {
+        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL") ?: DEFAULT_STUB
+        compose.activityRule.scenario.onActivity { it.useStubServer(stub) }
+
+        compose.onNodeWithTag("field.address").performTextInput("me@golia.jp")
+        compose.onNodeWithTag("field.password").performTextInput("anything")
+        compose.onNodeWithTag("field.password").performImeAction()
+
+        waitForTag("list.conversations", "the keyboard's Done key did not sign in")
     }
 }
