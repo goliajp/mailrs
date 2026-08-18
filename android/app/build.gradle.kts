@@ -17,6 +17,12 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // A test that hangs must come back as a failure with a name.
+        // One did not: the suite sat at 54 of 73 for fifty-two minutes
+        // with the app spinning at full CPU, and the only thing that
+        // ended it was killing the process by hand. Five minutes is
+        // twenty times the slowest test here.
+        testInstrumentationRunnerArguments["timeout_msec"] = "300000"
     }
 
     buildTypes {

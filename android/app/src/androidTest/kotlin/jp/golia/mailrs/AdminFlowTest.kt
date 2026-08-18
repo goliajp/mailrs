@@ -2,6 +2,7 @@ package jp.golia.mailrs
 
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -147,7 +148,9 @@ class AdminFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("field.admin0").performTextInput("help@golia.jp")
         compose.onNodeWithTag("button.confirmAdmin").assertIsNotEnabled()
         compose.onNodeWithTag("field.admin1").performTextInput("lihao@golia.jp")
-        compose.onNodeWithTag("button.confirmAdmin").performClick()
+        // The last field's Done key adds it — the button is right there
+        // and this is the key a thumb is already on.
+        compose.onNodeWithTag("field.admin1").performImeAction()
 
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size == before + 1

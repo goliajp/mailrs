@@ -3,6 +3,11 @@ package jp.golia.mailrs.ui
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -122,12 +127,23 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
     // device. Retyping it is the cheaper cost.
     var password by remember { mutableStateOf("") }
 
+    val ready = !busy && username.isNotBlank() && password.isNotBlank()
+    fun submit() {
+        if (ready) onSignIn(server, username, password)
+    }
+
     Column(
         Modifier
             .fillMaxSize()
             .background(theme.bg)
+            // Edge to edge puts this under the keyboard as well as under
+            // the system bars: without these the Sign in button sits
+            // beneath the IME on a short screen, and the only way to
+            // reach it is to dismiss the keyboard first.
+            .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
-            .padding(top = 72.dp),
+            .padding(top = 72.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AppMark(size = 64.dp)
@@ -151,7 +167,10 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
             onValueChange = { server = it },
             label = { Text("Server") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Next,
+            ),
             modifier = Modifier.fillMaxWidth().testTag("field.server"),
         )
         OutlinedTextField(
@@ -159,8 +178,18 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
             onValueChange = { username = it },
             label = { Text("Address") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("field.address"),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next,
+            ),
+            // Named to the autofill service, so a password manager can
+            // offer the saved account rather than the reader retyping an
+            // address into a phone keyboard.
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .semantics { contentType = ContentType.EmailAddress }
+                .testTag("field.address"),
         )
         OutlinedTextField(
             value = password,
@@ -168,8 +197,18 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
             label = { Text("Password") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("field.password"),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                // The last field, so the keyboard offers Go rather than
+                // a newline — and it does what the button does.
+                imeAction = ImeAction.Go,
+            ),
+            keyboardActions = KeyboardActions(onGo = { submit() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .semantics { contentType = ContentType.Password }
+                .testTag("field.password"),
         )
 
         if (error != null) {
@@ -182,8 +221,8 @@ fun SignInScreen(busy: Boolean, error: String?, onSignIn: (String, String, Strin
         }
 
         Button(
-            onClick = { onSignIn(server, username, password) },
-            enabled = !busy && username.isNotBlank() && password.isNotBlank(),
+            onClick = { submit() },
+            enabled = ready,
             colors = ButtonDefaults.buttonColors(containerColor = theme.accent, contentColor = theme.accentFg),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(48.dp).testTag("button.signIn"),

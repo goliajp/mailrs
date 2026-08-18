@@ -1,6 +1,9 @@
 package jp.golia.mailrs.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -183,6 +186,10 @@ private fun AddRowDialog(
 ) {
     val theme = LocalTheme.current
     val values = remember(fields) { mutableStateListOf(*Array(fields.size) { "" }) }
+    val ready = values.all { it.isNotBlank() }
+    fun submit() {
+        if (ready) onConfirm(values.toList())
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = theme.surface,
@@ -195,6 +202,14 @@ private fun AddRowDialog(
                         onValueChange = { values[i] = it },
                         label = { Text(label, fontSize = 13.sp) },
                         singleLine = true,
+                        // The last field's key adds; the others move on.
+                        // A dialog whose keyboard offers a newline in a
+                        // one-line field is asking to be dismissed
+                        // before the button can be reached.
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = if (i == fields.lastIndex) ImeAction.Done else ImeAction.Next,
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { submit() }),
                         modifier = Modifier.fillMaxWidth().testTag("field.admin$i"),
                     )
                 }
@@ -205,8 +220,8 @@ private fun AddRowDialog(
                 // Every field, not just the first: a half-filled form
                 // that the server answers 400 to is a worse answer than
                 // a button that has not lit up yet.
-                enabled = values.all { it.isNotBlank() },
-                onClick = { onConfirm(values.toList()) },
+                enabled = ready,
+                onClick = { submit() },
                 modifier = Modifier.testTag("button.confirmAdmin"),
             ) {
                 Text("Add", color = theme.accent)

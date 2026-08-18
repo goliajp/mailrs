@@ -1,6 +1,10 @@
 package jp.golia.mailrs.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,6 +72,13 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
     var adding by rememberSaveable { mutableStateOf(false) }
     var address by rememberSaveable { mutableStateOf("") }
 
+    fun add() {
+        if (address.isBlank()) return
+        adding = false
+        vm.addGroupMember(address)
+        address = ""
+    }
+
     if (adding) {
         AlertDialog(
             onDismissRequest = { adding = false },
@@ -79,17 +90,18 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                     onValueChange = { address = it },
                     label = { Text("Address", fontSize = 13.sp) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { add() }),
                     modifier = Modifier.fillMaxWidth().testTag("field.member"),
                 )
             },
             confirmButton = {
                 TextButton(
                     enabled = address.isNotBlank(),
-                    onClick = {
-                        adding = false
-                        vm.addGroupMember(address)
-                        address = ""
-                    },
+                    onClick = { add() },
                     modifier = Modifier.testTag("button.confirmMember"),
                 ) {
                     Text("Add", color = theme.accent)
