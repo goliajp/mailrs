@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,12 +118,19 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                                 modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
                             )
                         }
-                        items(state.scheduled, key = Wire.ScheduledSend::id) { waiting ->
+                        itemsIndexed(state.scheduled, key = { _, w -> w.id }) { index, waiting ->
                             ScheduledRow(waiting) { vm.cancelScheduled(waiting) }
-                            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                            // The last waiting row still divides — from
+                            // what has already gone, below it. Unless
+                            // nothing has: then it is the end of the
+                            // list and a rule under it is a line with
+                            // nothing beneath.
+                            if (index < state.scheduled.lastIndex || state.sentMail.isNotEmpty()) {
+                                HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                            }
                         }
                     }
-                    items(state.sentMail, key = SendJoin.Row::key) { row ->
+                    itemsIndexed(state.sentMail, key = { _, row -> row.key }) { index, row ->
                         SentRow(
                             row,
                             onOpen = { vm.openThreadById(row.threadId) },
@@ -130,7 +138,9 @@ fun SentScreen(state: UiState, vm: MailViewModel) {
                             onRedraft = { vm.redraft(row) },
                             onSource = { vm.viewSendSource(row) },
                         )
-                        HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        if (index < state.sentMail.lastIndex) {
+                            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        }
                     }
                 }
             }

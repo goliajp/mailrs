@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
@@ -370,7 +371,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                             }
                             .testTag("list.conversations"),
                     ) {
-                        items(state.conversations, key = { it.threadId }) { c ->
+                        itemsIndexed(state.conversations, key = { _, c -> c.threadId }) { index, c ->
                             val picked = c.threadId in state.selected
                             if (selecting) {
                                 // No swipe while selecting: the gesture
@@ -395,7 +396,18 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                     ) { vm.open(c) }
                                 }
                             }
-                            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                            // Between rows, not after every one: a rule
+                            // under the last row draws a line with
+                            // nothing beneath it, which reads as a list
+                            // that has been cut off rather than one that
+                            // has ended.
+                            if (index < state.conversations.lastIndex) {
+                                HorizontalDivider(
+                                    color = theme.border,
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.testTag("divider.row"),
+                                )
+                            }
                         }
                         if (state.loadingMore) {
                             item {

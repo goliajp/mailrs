@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -180,7 +181,7 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                         }
                     }
                     item { Heading("Members") }
-                    items(detail.members) { member ->
+                    itemsIndexed(detail.members) { index, member ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -203,7 +204,9 @@ fun GroupDetailScreen(detail: AdminDetail, vm: MailViewModel) {
                                 }
                             }
                         }
-                        HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        if (index < detail.members.lastIndex) {
+                            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        }
                     }
                 }
             }

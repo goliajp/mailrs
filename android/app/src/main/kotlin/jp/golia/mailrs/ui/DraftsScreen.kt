@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -103,9 +104,12 @@ fun DraftsScreen(state: UiState, vm: MailViewModel) {
                     )
 
                 else -> LazyColumn(Modifier.fillMaxSize().testTag("list.drafts")) {
-                    items(state.drafts, key = Wire.Draft::id) { d ->
+                    itemsIndexed(state.drafts, key = { _, d -> d.id }) { index, d ->
                         DraftRow(d, onOpen = { vm.editSavedDraft(d) }, onDiscard = { vm.discardDraft(d) })
-                        HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        // Between rows only — see the conversation list.
+                        if (index < state.drafts.lastIndex) {
+                            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        }
                     }
                 }
             }
