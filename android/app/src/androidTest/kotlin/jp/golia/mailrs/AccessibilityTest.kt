@@ -102,6 +102,39 @@ class AccessibilityTest : GrantsNotifications() {
      * and an empty one that has not been typed into yet is not a
      * defect.
      */
+    /**
+     * Triage is reachable without a gesture.
+     *
+     * Archive and mark-read are on a swipe, and a swipe is the one
+     * thing a screen reader takes over: TalkBack consumes the gesture
+     * for its own navigation, so a row whose only path to filing is a
+     * swipe has no path at all for the person using it. Android's
+     * answer is a custom accessibility action, which TalkBack offers
+     * from its actions menu.
+     */
+    @Test
+    fun a_row_can_be_filed_without_swiping() {
+        signIn()
+        waitUntilDisplayed("list.conversations")
+        val row = compose.onAllNodesWithTag("row.conversation")
+            .fetchSemanticsNodes()
+            .first()
+        val actions = row.config.getOrNull(SemanticsActions.CustomActions).orEmpty().map { it.label }
+        assertTrue("a row offers no way to file it but a swipe: $actions", "Archive" in actions)
+        assertTrue("a row offers no way to mark it read but a swipe: $actions", "Mark read" in actions)
+
+        // Present is not the same as wired. An action whose lambda goes
+        // nowhere reads exactly like one that works, from here and from
+        // TalkBack alike.
+        val before = compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size
+        compose.runOnUiThread {
+            row.config[SemanticsActions.CustomActions].first { it.label == "Archive" }.action()
+        }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("row.conversation").fetchSemanticsNodes().size < before
+        }
+    }
+
     private fun assertEveryClickableIsNamed(where: String) {
         val unnamed = mutableListOf<String>()
         walk(compose.onRoot().fetchSemanticsNode()) { node ->

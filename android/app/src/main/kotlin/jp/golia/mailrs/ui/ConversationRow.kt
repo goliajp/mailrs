@@ -1,6 +1,9 @@
 package jp.golia.mailrs.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -57,6 +60,17 @@ fun ConversationRow(
     c: Wire.Conversation,
     selected: Boolean = false,
     onLongPress: (() -> Unit)? = null,
+    /**
+     * Triage without a gesture.
+     *
+     * Archive and mark-read live on a swipe, and TalkBack takes swipes
+     * over for its own navigation — so a row whose only path to filing
+     * is a swipe has no path at all for the person using a screen
+     * reader. Declared on this node rather than on the swipe container
+     * around it, because this is the node a screen reader focuses.
+     */
+    onArchive: (() -> Unit)? = null,
+    onMarkRead: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -74,6 +88,12 @@ fun ConversationRow(
             .combinedClickable(onLongClick = onLongPress, onClick = onClick)
             .background(if (selected) theme.accent.copy(alpha = 0.14f) else theme.bg)
             .testTag("row.conversation")
+            .semantics {
+                customActions = listOfNotNull(
+                    onArchive?.let { CustomAccessibilityAction("Archive") { it(); true } },
+                    onMarkRead?.let { CustomAccessibilityAction("Mark read") { it(); true } },
+                )
+            }
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .alpha(if (unread) 1f else 0.7f),
         verticalAlignment = Alignment.Top,
