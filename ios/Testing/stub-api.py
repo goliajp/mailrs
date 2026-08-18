@@ -77,6 +77,15 @@ def convo(tid, subject, snippet, ts):
         "received_count": 1, "sent_count": 0,
     }
 
+# Deliberately extreme, because layout breaks at the edges and the
+# fixtures above are all comfortable: a subject longer than any screen,
+# a sender list of forty, and a word with no spaces in it — the three
+# things that turn a tidy row into a ragged one.
+LONG_SUBJECT = ("Re: Fwd: Re: quarterly planning, the follow-up notes, "
+                "and every action item anybody mentioned in the meeting " * 3)
+MANY = [f"person{i}@example.com" for i in range(40)]
+UNBREAKABLE = "supercalifragilistic" * 8
+
 CONVOS = [{
     "thread_id": "t1", "subject": "Quarterly report and the follow-up notes",
     "participants": ["Alice Smith <alice@example.com>"],
@@ -92,6 +101,17 @@ CONVOS = [{
     "snippet": "ご確認ください。ref 2026", "pinned": False, "archived": False,
     "importance_level": "normal", "importance_score": 0.2, "requires_action": False,
     "received_count": 1, "sent_count": 0,
+}, {
+    # Last, and oldest on purpose: the extreme row must not become the
+    # newest unread, which is what the notification names and what
+    # half the flow tests open first.
+    "thread_id": "t9", "subject": LONG_SUBJECT,
+    "participants": MANY,
+    "message_count": 40, "unread_count": 0,
+    "last_date": 1754200000, "category": "inbox", "flagged": False,
+    "snippet": UNBREAKABLE, "pinned": False, "archived": False,
+    "importance_level": "normal", "importance_score": 0.1, "requires_action": False,
+    "received_count": 40, "sent_count": 0,
 }]
 
 # A one-pixel PNG, so the attachment path carries real bytes with a real
