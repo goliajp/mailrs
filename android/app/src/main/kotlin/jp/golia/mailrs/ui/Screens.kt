@@ -1,5 +1,7 @@
 package jp.golia.mailrs.ui
 
+import jp.golia.mailrs.UNDO_WINDOW_MS
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.MoreVert
@@ -149,11 +151,18 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
             MailrsClient.Verb.Unstar -> "Unstarred"
             MailrsClient.Verb.Delete -> "Deleted"
         }
-        val result = snackbars.showSnackbar(
-            message = what,
-            actionLabel = "Undo",
-            duration = androidx.compose.material3.SnackbarDuration.Short,
-        )
+        // **The banner lasts exactly as long as the undo does.**
+        // `Short` is four seconds and the window is five, so for one
+        // second the action could still be taken back and there was
+        // nothing left to take it back with. One number, not two:
+        // indefinite, bounded by the window itself.
+        val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
+            snackbars.showSnackbar(
+                message = what,
+                actionLabel = "Undo",
+                duration = androidx.compose.material3.SnackbarDuration.Indefinite,
+            )
+        }
         if (result == SnackbarResult.ActionPerformed) vm.undo() else vm.dismissUndo()
     }
 
