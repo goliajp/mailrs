@@ -1,5 +1,9 @@
 package jp.golia.mailrs.wire
 
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -29,6 +33,17 @@ object SenderIcons {
 
     /** Present with a null value = asked, and there is none. */
     private val cache = LinkedHashMap<String, ImageBitmap?>()
+
+    /**
+     * Asks that have gone out and not come back.
+     *
+     * Without this, a list where many senders share one domain — a
+     * company, a mailing list, the ordinary case — sends one request
+     * per row on the first paint: every avatar looks in the cache
+     * before any of them has answered, and they all miss. The second
+     * caller now waits for the first instead of asking again.
+     */
+    private val inFlight = HashMap<String, Deferred<ImageBitmap?>>()
     private val lock = Mutex()
 
     /** What is already known, without asking. Safe to call while composing. */
@@ -36,14 +51,24 @@ object SenderIcons {
 
     fun known(domain: String): Boolean = cache.containsKey(domain)
 
-    suspend fun fetch(client: MailrsClient, domain: String): ImageBitmap? {
-        lock.withLock { if (cache.containsKey(domain)) return cache[domain] }
+    suspend fun fetch(client: MailrsClient, domain: String): ImageBitmap? = coroutineScope {
+        val waiting = lock.withLock {
+            if (cache.containsKey(domain)) return@coroutineScope cache[domain]
+            inFlight[domain] ?: async(Dispatchers.IO) { ask(client, domain) }.also { inFlight[domain] = it }
+        }
+        waiting.await()
+    }
+
+    private suspend fun ask(client: MailrsClient, domain: String): ImageBitmap? {
         val bytes = when (val r = client.senderIcon(domain)) {
             is MailrsClient.Outcome.Ok -> r.value
             // Not remembered: a network failure is not an answer about
             // this domain, and caching it would hide the icon for as
             // long as the app is open.
-            is MailrsClient.Outcome.Err -> return null
+            is MailrsClient.Outcome.Err -> {
+                lock.withLock { inFlight.remove(domain) }
+                return null
+            }
         }
         val image = bytes?.let {
             runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull()
@@ -51,12 +76,16 @@ object SenderIcons {
         lock.withLock {
             if (cache.size >= MAX) cache.remove(cache.keys.first())
             cache[domain] = image
+            inFlight.remove(domain)
         }
         return image
     }
 
     /** Only the tests need this; the cache is otherwise for the app's life. */
-    internal fun clear() = cache.clear()
+    internal fun clear() {
+        cache.clear()
+        inFlight.clear()
+    }
 
     private const val MAX = 256
 }
