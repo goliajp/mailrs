@@ -484,4 +484,34 @@ class NavigationFlowTest : MailrsUiTest() {
             writes.contains("folder=NP"),
         )
     }
+
+    /**
+     * The undo lasts as long as the undo lasts.
+     *
+     * Material's `Short` is four seconds and the window before the
+     * archive is committed is five, so there was a second in which the
+     * action could still be taken back and nothing on screen offered
+     * to. Two numbers describing one fact; now the banner is bounded
+     * by the window itself.
+     */
+    @Test
+    fun the_undo_is_offered_for_as_long_as_it_is_possible() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performTouchInput {
+            swipeRight(startX = centerX, endX = right)
+        }
+        awaiting("the swipe never offered an undo") {
+            compose.onAllNodesWithText("Undo").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Past four seconds, where the banner used to have gone, and
+        // still inside the five the app waits before committing.
+        compose.mainClock.advanceTimeBy(4_500)
+        compose.waitForIdle()
+        assertTrue(
+            "the undo went before the window did",
+            compose.onAllNodesWithText("Undo").fetchSemanticsNodes().isNotEmpty(),
+        )
+    }
 }
