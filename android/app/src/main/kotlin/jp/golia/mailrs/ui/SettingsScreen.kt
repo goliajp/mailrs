@@ -1,5 +1,6 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll

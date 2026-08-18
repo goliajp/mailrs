@@ -1017,6 +1017,16 @@ class H(BaseHTTPRequestHandler):
             WRITES.append("POST " + self.path)
             self._send({"marked": 3})
             return
+        if re.match(r"^/api/scheduled/[^/]+/cancel$", self.path.split("?")[0]) and "cancel" in VERB_REFUSE:
+            # Refused on purpose, so a test can see whether the app says
+            # so. A screen that swallows this leaves somebody believing
+            # a message was called back when it is still going out.
+            self.send_response(409)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(b'{"error":"too late to cancel"}')
+            return
         if re.match(r"^/api/scheduled/[^/]+/cancel$", self.path.split("?")[0]):
             # Calling a message back before it leaves. Recorded, because
             # the row goes from the list optimistically and the only

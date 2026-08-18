@@ -1,5 +1,8 @@
 package jp.golia.mailrs.ui
 
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.combinedClickable
 import jp.golia.mailrs.viewSendSource
 import jp.golia.mailrs.redraft
@@ -55,8 +58,16 @@ import jp.golia.mailrs.wire.SendJoin
 @Composable
 fun SentScreen(state: UiState, vm: MailViewModel) {
     val theme = LocalTheme.current
+    val snackbars = remember { SnackbarHostState() }
+    // Seven screens could set an error and none of them said one out
+    // loud; the snackbar built for exactly that was wired to three
+    // others. A refused cancel here looks identical to a successful
+    // one — the row is already gone.
+    FailureSnackbar(state, vm, snackbars, hasContent = state.sentMail.isNotEmpty() || state.scheduled.isNotEmpty())
+
     Scaffold(
         containerColor = theme.bg,
+        snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(
                 title = { Text("Sent", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
