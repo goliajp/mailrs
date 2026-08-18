@@ -241,7 +241,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                                 VerticalDivider(color = LocalTheme.current.border, thickness = 0.5.dp)
                                 Box(Modifier.weight(1f).fillMaxHeight().testTag("pane.detail")) {
                                     if (state.open != null) {
-                                        ThreadScreen(state, vm)
+                                        ThreadScreen(state, vm, besideTheList = true)
                                     } else {
                                         // Not blank: a pane with nothing
                                         // in it and no explanation looks

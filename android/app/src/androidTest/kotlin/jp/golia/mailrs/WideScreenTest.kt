@@ -1,5 +1,6 @@
 package jp.golia.mailrs
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -109,5 +110,25 @@ class WideScreenTest : MailrsUiTest() {
             activity.dispatchKeyEvent(up)
         }
         compose.waitForIdle()
+    }
+
+    /**
+     * Beside the list, the message has no way back.
+     *
+     * There is nowhere to go: the list is already on screen. Android's
+     * list-detail guidance says the detail pane carries no back
+     * affordance when both are showing, and an arrow pointing at
+     * something already visible is a control whose meaning has to be
+     * guessed. The phone layout keeps its arrow — `back_closes_the_
+     * thread_rather_than_the_app` is that half.
+     */
+    @Test
+    fun the_message_beside_the_list_offers_no_way_back() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the message did not open")
+
+        compose.onAllNodesWithTag("button.back").assertCountEquals(0)
     }
 }

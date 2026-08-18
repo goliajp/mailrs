@@ -103,7 +103,20 @@ import jp.golia.mailrs.wire.Wire
 /** A thread: messages as cards on the grouped background. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ThreadScreen(state: UiState, vm: MailViewModel) {
+fun ThreadScreen(
+    state: UiState,
+    vm: MailViewModel,
+    /**
+     * Beside the list rather than over it.
+     *
+     * With two panes there is nowhere to go back *to* — the list is
+     * already on screen — and Android's list-detail guidance says the
+     * detail pane carries no back affordance when both are showing. An
+     * arrow that points at something already visible is a control
+     * whose meaning has to be guessed.
+     */
+    besideTheList: Boolean = false,
+) {
     val theme = LocalTheme.current
     val open = state.open ?: return
     val context = LocalContext.current
@@ -152,8 +165,17 @@ fun ThreadScreen(state: UiState, vm: MailViewModel) {
                     titleContentColor = theme.fg,
                 ),
                 navigationIcon = {
-                    IconButton(onClick = { vm.closeThread() }, modifier = Modifier.testTag("button.back")) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = theme.fgSecondary)
+                    if (!besideTheList) {
+                        IconButton(
+                            onClick = { vm.closeThread() },
+                            modifier = Modifier.testTag("button.back"),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = theme.fgSecondary,
+                            )
+                        }
                     }
                 },
                 // **Filing without going back first.** Reading a message
