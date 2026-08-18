@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import jp.golia.mailrs.ui.AdminRow
 import jp.golia.mailrs.wire.Admin
 import jp.golia.mailrs.wire.accountQuota
+import jp.golia.mailrs.wire.saveAccountQuota
 import jp.golia.mailrs.wire.accountSieve
 import jp.golia.mailrs.wire.accountWebhooks
 import jp.golia.mailrs.wire.accounts
@@ -190,6 +191,23 @@ private fun MailViewModel.openAccount(address: String) {
                 loading = false,
             ),
         ) }
+    }
+}
+
+/**
+ * Change how much an account may hold.
+ *
+ * The screen is re-read from the server rather than patched here: a
+ * quota the server rounded, refused or already had is what the row
+ * must show, and writing the typed number into state would show the
+ * operator their own input back as though it had been accepted.
+ */
+fun MailViewModel.setAccountQuota(address: String, bytes: Long) {
+    viewModelScope.launch {
+        when (val r = client.saveAccountQuota(address, bytes)) {
+            is MailrsClient.Outcome.Ok -> openAccount(address)
+            is MailrsClient.Outcome.Err -> _state.update { it.copy(error = r.message) }
+        }
     }
 }
 

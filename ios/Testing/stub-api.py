@@ -683,17 +683,6 @@ class H(BaseHTTPRequestHandler):
             self._send({"items": DMARC_REPORTS})
             return
         if self.path.split("?")[0] == "/api/admin/dmarc/sources":
-            # One source that passes and one that does not, because the
-            # screen exists to tell them apart: 0 of 500 from an
-            # unknown IP sending as the domain is the finding.
-            self._send({"items": [
-                {"source_ip": "203.0.113.7", "total": 500, "passing": 500,
-                 "domains": ["golia.jp"]},
-                {"source_ip": "198.51.100.42", "total": 500, "passing": 0,
-                 "domains": ["golia.jp"]},
-            ], "total": 1000, "passing": 500})
-            return
-        if self.path.split("?")[0] == "/api/admin/dmarc/sources":
             self._send(DMARC_SOURCES)
             return
         if self.path.split("?")[0] == "/api/admin/queues":
@@ -1038,6 +1027,24 @@ class H(BaseHTTPRequestHandler):
         if re.match(r"^/api/mail/sends/[^/]+/resend$", self.path.split("?")[0]):
             WRITES.append("POST " + self.path.split("?")[0])
             self._send({"send_id": "resent@golia.jp"})
+            return
+        acct_quota = re.match(r"^/api/admin/accounts/(.+)/quota$", self.path.split("?")[0])
+        if acct_quota:
+            # Written into the fixture, not just recorded: the screen
+            # re-reads the account afterwards, so a stub that answered
+            # 204 and kept the old number would show the old number and
+            # a passing test would prove nothing.
+            who = unquote(acct_quota.group(1))
+            WRITES.append("POST " + self.path.split("?")[0])
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            for a in ACCOUNTS:
+                if a["address"] == who:
+                    a["quota_bytes"] = body.get("quota_bytes", 0)
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.send_header("Connection", "close")
+            self.end_headers()
             return
         if self.path.split("?")[0] == "/api/conversations/mark-all-read":
             # The **whole** path, query and all. Everywhere else the

@@ -76,6 +76,17 @@ suspend fun MailrsClient.accountQuota(address: String): MailrsClient.Outcome<Lon
     one(get("/api/admin/accounts/" + enc(address) + "/quota"), Admin.Quota.serializer())
         .map { it.quotaBytes }
 
+/**
+ * `POST /api/admin/accounts/{address}/quota` — 0 means no limit, which
+ * is the same thing the GET answers with and the same thing the detail
+ * screen prints.
+ */
+suspend fun MailrsClient.saveAccountQuota(address: String, bytes: Long): MailrsClient.Outcome<String> = post(
+    url("/api/admin/accounts/" + enc(address) + "/quota"),
+    json.encodeToString(Admin.Quota.serializer(), Admin.Quota(quotaBytes = bytes)),
+    authorized = true,
+)
+
 suspend fun MailrsClient.accountSieve(address: String): MailrsClient.Outcome<String> =
     one(get("/api/admin/accounts/" + enc(address) + "/sieve"), Admin.Sieve.serializer())
         .map { it.script }
