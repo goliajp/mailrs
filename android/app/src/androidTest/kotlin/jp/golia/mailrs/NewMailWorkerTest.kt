@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
+import jp.golia.mailrs.wire.NewMailRule
 import jp.golia.mailrs.wire.NewMailWorker
 import jp.golia.mailrs.wire.Prefs
 import jp.golia.mailrs.wire.ReplyFromNotification
@@ -159,6 +160,58 @@ class NewMailWorkerTest : GrantsNotifications() {
         // address — is what a reply answers, not the thread's first.
         assertTrue("the reply did not answer the newest message: $sent", sent.contains("<m2@x>"))
         assertTrue("the reply went to the wrong person: $sent", sent.contains("spoofed@example.com"))
+    }
+
+    /**
+     * Important mail arrives on the channel a person can keep loud.
+     *
+     * Two channels only matter if the notification actually goes to
+     * the right one — a single-channel app that *names* a second
+     * channel gives the reader a switch that does nothing.
+     */
+    @Test
+    fun importance_decides_the_channel() {
+        // Each half starts from an empty shade. Without this the first
+        // reading is whatever an earlier test left behind, which is a
+        // notification with the same id and the wrong channel — the
+        // measurement, not the code, and it looked exactly like a
+        // defect.
+        clearShade()
+        NewMailWorker.notify(
+            appContext,
+            title = "Alice Smith",
+            text = "Quarterly report",
+            channelId = NewMailRule.channelFor("critical"),
+        )
+        assertEquals(NewMailRule.IMPORTANT_CHANNEL, postedChannel())
+
+        clearShade()
+        NewMailWorker.notify(
+            appContext,
+            title = "Alice Smith",
+            text = "Quarterly report",
+            channelId = NewMailRule.channelFor("normal"),
+        )
+        assertEquals(NewMailWorker.CHANNEL_ID, postedChannel())
+    }
+
+    private fun clearShade() {
+        val nm = appContext.getSystemService(NotificationManager::class.java)
+        nm.cancel(NewMailWorker.NOTIFICATION_ID)
+        repeat(40) {
+            if (nm.activeNotifications.none { it.id == NewMailWorker.NOTIFICATION_ID }) return
+            Thread.sleep(100)
+        }
+    }
+
+    private fun postedChannel(): String {
+        val nm = appContext.getSystemService(NotificationManager::class.java)
+        repeat(40) {
+            val posted = nm.activeNotifications.firstOrNull { it.id == NewMailWorker.NOTIFICATION_ID }
+            if (posted != null) return posted.notification.channelId
+            Thread.sleep(100)
+        }
+        return "nothing was posted"
     }
 
     /** This class has no compose rule, so it fetches its own. */
