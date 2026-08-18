@@ -175,8 +175,7 @@ class AccessibilityTest : GrantsNotifications() {
      * than shared, because the two classes reach the rule differently.
      */
     private fun signIn() {
-        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
-            ?: "http://127.0.0.1:6039"
+        val stub = StubServer.base()
         compose.activityRule.scenario.onActivity { it.useStubServer(stub) }
         waitUntilDisplayed("field.address")
         compose.onNodeWithTagOrFail("field.address").performTextInput("me@golia.jp")

@@ -47,8 +47,7 @@ class NewMailWorkerTest : GrantsNotifications() {
 
     @Before
     fun signedInAgainstTheStub() {
-        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
-            ?: "http://127.0.0.1:6039"
+        val stub = StubServer.base()
         TokenStore(appContext).write(TokenStore.Session(stub, "test-token", "me@golia.jp"))
         Prefs(appContext).notifyNewMail = true
         Prefs(appContext).lastUnseen = null
@@ -229,8 +228,7 @@ class NewMailWorkerTest : GrantsNotifications() {
 
     /** This class has no compose rule, so it fetches its own. */
     private fun readStub(path: String): String {
-        val stub = InstrumentationRegistry.getArguments().getString("mailrsBaseURL")
-            ?: "http://127.0.0.1:6039"
+        val stub = StubServer.base()
         return java.net.URL(stub + path).openStream().bufferedReader().use { it.readText() }
     }
 }

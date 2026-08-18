@@ -220,7 +220,7 @@ abstract class MailrsUiTest : GrantsNotifications() {
          * connections through it stalls a connect every so often, which
          * arrives as one unrelated test failing per run.
          */
-        const val DEFAULT_STUB = "http://127.0.0.1:6039"
+        const val DEFAULT_STUB = StubServer.DEFAULT
         const val TIMEOUT_MS = 15_000L
     }
 }
