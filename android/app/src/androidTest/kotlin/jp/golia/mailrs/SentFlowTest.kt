@@ -177,4 +177,26 @@ class SentFlowTest : MailrsUiTest() {
         // would put the one just dropped back on the message.
         assertTrue("dropping the file did not reach the server: $sent", sent.contains("redraft_keep"))
     }
+
+    /**
+     * What actually left, headers and all.
+     *
+     * The counterpart to a received message's raw view, and the thing
+     * worth reading when a send failed: resend re-enqueues these exact
+     * bytes, so they are the difference between "try again" and "try
+     * the same mistake again".
+     */
+    @Test
+    fun a_sent_message_can_be_read_as_it_left() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed")
+        compose.onNodeWithTag("button.folders").performClick()
+        waitForTag("drawer.lists", "the drawer never opened")
+        compose.onNodeWithTag("drawer.item.Sent").performClick()
+        waitForTag("list.sent", "the sent list never opened")
+
+        compose.onAllNodesWithTag("row.sent").onFirst().performTouchInput { longClick() }
+        waitForTag("text.source", "the source never opened")
+        compose.onNodeWithText("Message-ID", substring = true).assertIsDisplayed()
+    }
 }
