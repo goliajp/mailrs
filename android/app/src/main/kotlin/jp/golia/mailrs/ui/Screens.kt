@@ -471,6 +471,8 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                                         c,
                                         selected = false,
                                         onLongPress = { vm.toggleSelected(c.threadId) },
+                                        onArchive = { vm.triage(c, MailrsClient.Verb.Archive) },
+                                        onMarkRead = { vm.triage(c, MailrsClient.Verb.Read) },
                                     ) { vm.open(c) }
                                 }
                             }
