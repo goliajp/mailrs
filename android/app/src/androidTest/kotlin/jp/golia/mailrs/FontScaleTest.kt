@@ -67,4 +67,42 @@ class FontScaleTest : MailrsUiTest() {
         compose.onNodeWithTag("button.send").assertIsDisplayed().performClick()
         waitForTag("list.conversations", "sending never came back to the list at 200% text")
     }
+
+    /**
+     * The message itself grows too.
+     *
+     * A mail body is HTML in a WebView, and a WebView ignores the
+     * system font scale — its text zoom is 100 until something says
+     * otherwise. So at 200% the app's own chrome doubled and the words
+     * somebody actually came to read stayed exactly as small as
+     * before, which is the one part that mattered.
+     */
+    @Test
+    fun the_message_body_grows_with_the_system_text_size() {
+        signIn()
+        waitForTag("list.conversations", "the inbox never listed at 200% text")
+        compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
+        waitForTag("list.messages", "the message did not open at 200% text")
+
+        val zoom = webViewTextZoom()
+        assertEquals("the mail body ignored the system text size", 200, zoom)
+    }
+
+    /** The text zoom of the one WebView on screen. */
+    private fun webViewTextZoom(): Int {
+        var found: Int? = null
+        compose.activityRule.scenario.onActivity { activity ->
+            found = firstWebView(activity.window.decorView)?.settings?.textZoom
+        }
+        return found ?: error("no message body was on screen to measure")
+    }
+
+    private fun firstWebView(view: android.view.View): android.webkit.WebView? {
+        if (view is android.webkit.WebView) return view
+        if (view !is android.view.ViewGroup) return null
+        for (i in 0 until view.childCount) {
+            firstWebView(view.getChildAt(i))?.let { return it }
+        }
+        return null
+    }
 }
