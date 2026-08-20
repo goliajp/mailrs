@@ -396,6 +396,15 @@ pub(crate) fn ingest_delivered_file(
     // delivery is the hot path, the list is append-only by design, and the
     // self-heal reads it back before allocating anything.
     crate::uidlist::record(addr, uid, blob_ref);
+    // The invitation, if this is one. Read from the whole body rather
+    // than the 16 KB header window above: a calendar part routinely
+    // sits past it, and a window-only extractor finds nothing on
+    // exactly the invites that matter.
+    let invite = crate::invites::find(body);
+    if let Some(found) = &invite {
+        crate::invites::store(state, &message_id, found);
+        crate::invites::file_event(state, addr, found);
+    }
     let wire = mailrs_core_api::method::message::MessageWire {
         id: 0,
         mailbox_id: 0,
@@ -411,6 +420,10 @@ pub(crate) fn ingest_delivered_file(
         message_id: message_id.clone(),
         in_reply_to,
         sender_trust: extract_sender_trust(body),
+        invite_method: invite
+            .as_ref()
+            .map(|i| i.method.clone())
+            .unwrap_or_default(),
         thread_id: root.clone(),
         modseq: 0,
         user_address: addr.to_string(),
@@ -491,6 +504,87 @@ Please review the attached figures before Friday. The numbers moved.\r\n";
                 .starts_with("Please review the attached figures"),
             "preview was {:?}",
             row.latest_preview
+        );
+    }
+
+    /// An invitation carries `text/calendar`, and the row must say so.
+    ///
+    /// This is the assertion the defect hid behind. Extractor, parser,
+    /// RSVP routes and web card were all built; the step that reads the
+    /// calendar part out of an *arriving* message lived in the lane that
+    /// stopped being built, so production ingested invitations and
+    /// stored nothing about them. Nothing failed, because nothing asked.
+    ///
+    /// The fixture is the corpus's Outlook REQUEST — Exchange's shape,
+    /// which is what a Teams invite arrives as.
+    #[test]
+    fn an_invitation_leaves_its_method_on_the_row_and_its_event_beside_it() {
+        const OUTLOOK_REQUEST: &[u8] =
+            include_bytes!("../../ical/tests/fixtures/itip/outlook/request.eml");
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "invite.eml", OUTLOOK_REQUEST, "INBOX");
+
+        let (mid, tid) = {
+            let head =
+                String::from_utf8_lossy(&OUTLOOK_REQUEST[..OUTLOOK_REQUEST.len().min(16_384)]);
+            let mid = head
+                .lines()
+                .find_map(|l| l.strip_prefix("Message-ID:"))
+                .expect("fixture has a Message-ID")
+                .trim()
+                .trim_start_matches('<')
+                .trim_end_matches('>')
+                .to_string();
+            (mid.clone(), mid)
+        };
+
+        let rows = state
+            .mailbox
+            .list_thread_messages(user, &tid)
+            .expect("read the thread");
+        let wire: mailrs_core_api::method::message::MessageWire =
+            serde_json::from_slice(rows.first().expect("the message is there"))
+                .expect("the row is a MessageWire");
+        assert_eq!(
+            wire.invite_method, "REQUEST",
+            "an invitation arrived and the row does not say so"
+        );
+
+        let payload = crate::invites::payload_json(&state, &mid)
+            .expect("the event was stored beside the message");
+        assert!(
+            payload.contains("\"summary\""),
+            "the stored payload is not a typed invite: {payload}"
+        );
+        // And the instant, resolved through the invite's own VTIMEZONE
+        // at ingest. Without it a client has only a wall-clock string
+        // and a zone name it cannot evaluate, and the web's answer to
+        // that was to read the string as UTC — seven hours out for a
+        // Pacific meeting read in Tokyo.
+        assert!(
+            payload.contains("\"dtstart_utc\":\""),
+            "the stored payload has no resolved instant: {payload}"
+        );
+    }
+
+    /// And ordinary mail says nothing about calendars — otherwise the
+    /// assertion above passes on a field that is simply always set.
+    #[test]
+    fn ordinary_mail_leaves_no_invite_method() {
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX");
+        let rows = state
+            .mailbox
+            .list_thread_messages(user, "m1@example.com")
+            .expect("read the thread");
+        let wire: mailrs_core_api::method::message::MessageWire =
+            serde_json::from_slice(rows.first().expect("the message is there"))
+                .expect("the row is a MessageWire");
+        assert_eq!(
+            wire.invite_method, "",
+            "a plain message claimed to carry an invitation"
         );
     }
 }

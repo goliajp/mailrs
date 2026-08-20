@@ -1,21 +1,24 @@
 import type { CalDateTime } from '@/lib/invite-time'
+import type { Attendee } from '@/lib/invite-types'
 
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, Check, Clock, MapPin, Users, X } from 'lucide-react'
+import { Calendar, Check, Clock, MapPin, Users, Video, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { formatCompactRange, formatDateTime, formatLocalRange, pickIso } from '@/lib/invite-time'
+import { answerWanted, inviteBadge } from '@/lib/invite-badge'
+import { guestSummary, partstatDot, partstatWord } from '@/lib/invite-guests'
+import { joinLinkOf } from '@/lib/invite-join'
+import {
+  formatCompactRange,
+  formatDateTime,
+  formatLocalRange,
+  formatOrganiserTime,
+  pickIso,
+  zoneNameOf,
+} from '@/lib/invite-time'
 import { queryClient } from '@/lib/query-client'
 import { calendarKeys, messageKeys } from '@/lib/query-keys'
 import { adminListGet, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
-
-type Attendee = {
-  cn: null | string
-  email: string
-  partstat: string
-  role: string
-  rsvp: boolean
-}
 
 type ConflictRow = {
   dtend: null | string
@@ -30,7 +33,12 @@ type InvitePayload = {
   attendees?: Attendee[]
   description?: null | string
   dtend?: CalDateTime | null
+  /// The instant, resolved on the server against the invitation's own
+  /// VTIMEZONE. Absent for an all-day event, which has no instant, and
+  /// for mail ingested before 2026-08-20.
+  dtend_utc?: null | string
   dtstart?: CalDateTime
+  dtstart_utc?: null | string
   location?: null | string
   method: string
   organizer?: null | Person
@@ -164,11 +172,26 @@ export function InviteCard({
   }
 
   const payload = detail?.invite_payload
-  const badge = useMemo(() => (payload ? methodBadge(payload.method) : null), [payload])
+  const badge = useMemo(
+    () => (payload ? inviteBadge(payload.method, payload.sequence) : null),
+    [payload]
+  )
 
   if (!payload || !badge) return null
 
-  const range = formatLocalRange(payload.dtstart, payload.dtend)
+  // The resolved instant when the server has one, the wall-clock only
+  // when it does not (all-day, floating, or mail ingested before the
+  // resolution existed). Reading a zoned wall-clock as UTC is what put
+  // a 16:00 Santa Clara meeting at 01:00 in Tokyo.
+  const startAt: CalDateTime | null | undefined = payload.dtstart_utc
+    ? { Utc: payload.dtstart_utc }
+    : payload.dtstart
+  const endAt: CalDateTime | null | undefined = payload.dtend_utc
+    ? { Utc: payload.dtend_utc }
+    : payload.dtend
+  const organiserTime = formatOrganiserTime(payload.dtstart, zoneNameOf(payload.dtstart))
+  const joinUrl = joinLinkOf(payload.location, payload.description)
+  const range = formatLocalRange(startAt, endAt)
   const cancelled = payload.method.toUpperCase() === 'CANCEL'
   // When the invite carries a RECURRENCE-ID, the organizer is targeting one
   // specific occurrence of a recurring series — RSVP applies to that
@@ -187,7 +210,7 @@ export function InviteCard({
     // the narrow timeline card. compactRange drops year + same-day duplicate
     // and falls back to truncate via `min-w-0 truncate` if it still doesn't
     // fit a particularly narrow viewport.
-    const compactR = formatCompactRange(payload.dtstart, payload.dtend)
+    const compactR = formatCompactRange(startAt, endAt)
     return (
       <div className="border-border text-fg-muted my-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
         <Calendar className="h-3 w-3 shrink-0" />
@@ -224,6 +247,11 @@ export function InviteCard({
           <div className="text-fg-muted mt-1 flex items-center gap-1 text-sm">
             <Clock className="h-3.5 w-3.5" />
             {range}
+            {/* The organiser's own zone beside the reader's, when they
+                differ. "08:00" alone is a different claim from "08:00
+                here, 16:00 where it was scheduled", and the second is
+                what somebody joining across an ocean checks. */}
+            {organiserTime && <span className="text-fg-muted/70">· {organiserTime}</span>}
           </div>
         )}
         {payload.location && (
@@ -241,11 +269,36 @@ export function InviteCard({
           </div>
         )}
         {payload.attendees && payload.attendees.length > 0 && (
-          <div className="text-fg-muted mt-1 flex items-center gap-1 text-xs">
-            <Users className="h-3 w-3" />
-            {payload.attendees.length} attendee
-            {payload.attendees.length === 1 ? '' : 's'}
-          </div>
+          <details className="text-fg-muted mt-1 text-xs">
+            {/* A count answers "how many"; the states answer "is this
+                happening", which is the question somebody deciding
+                whether to go actually has. Gmail shows both, and the
+                summary line keeps the count for a glance. */}
+            <summary className="flex cursor-pointer items-center gap-1">
+              <Users className="h-3 w-3" />
+              {guestSummary(payload.attendees)}
+            </summary>
+            <ul className="mt-1 ml-4 space-y-0.5">
+              {payload.attendees.map((a) => (
+                <li className="flex items-center gap-1.5" key={a.email}>
+                  <span className={partstatDot(a.partstat)}>●</span>
+                  <span className="truncate">{a.cn ?? a.email}</span>
+                  <span className="opacity-60">{partstatWord(a.partstat)}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {joinUrl && !cancelled && (
+          <a
+            className="text-accent mt-2 inline-flex items-center gap-1 text-xs hover:underline"
+            href={joinUrl}
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            <Video className="h-3 w-3" />
+            Join the meeting
+          </a>
         )}
       </div>
 
@@ -283,7 +336,7 @@ export function InviteCard({
         </div>
       )}
 
-      {!cancelled && showPersisted && (
+      {answerWanted(payload.method) && !cancelled && showPersisted && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <RsvpStatusPill at={detail?.rsvp_at ?? null} partstat={persistedStatus!} />
           <button
@@ -296,7 +349,7 @@ export function InviteCard({
         </div>
       )}
 
-      {!cancelled && !showPersisted && (
+      {answerWanted(payload.method) && !cancelled && !showPersisted && (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
@@ -404,23 +457,8 @@ function compactStatusLabel(partstat: string): null | { className: string; label
   }
 }
 
-function methodBadge(method: string): { className: string; label: string } {
-  switch (method.toUpperCase()) {
-    case 'CANCEL':
-      return { className: 'bg-red-500/15 text-red-300', label: 'Cancelled' }
-    case 'COUNTER':
-      return { className: 'bg-amber-500/15 text-amber-300', label: 'Counter-proposed' }
-    case 'REPLY':
-      return { className: 'bg-blue-500/15 text-blue-300', label: 'Reply' }
-    case 'REQUEST':
-      return { className: 'bg-emerald-500/15 text-emerald-300', label: 'New invite' }
-    case 'UPDATE':
-      return { className: 'bg-sky-500/15 text-sky-300', label: 'Updated' }
-    default:
-      return { className: 'bg-zinc-500/15 text-zinc-300', label: method }
-  }
-}
-
+/// "4 guests · 1 yes, 2 awaiting" — the shape Gmail uses, because the
+/// count alone does not say whether the meeting is happening.
 function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string }) {
   const label =
     partstat === 'ACCEPTED'

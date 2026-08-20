@@ -34,6 +34,7 @@ mod idle_backoff;
 mod imap;
 mod importance;
 mod ingest;
+pub mod invites;
 mod junk_ttl;
 mod keywords;
 pub mod live_sync;

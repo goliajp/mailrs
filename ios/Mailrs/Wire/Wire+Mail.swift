@@ -57,6 +57,16 @@ extension Wire {
         /// Present when the message carries `List-Unsubscribe`. 42.6%
         /// of real mail does.
         let unsubscribe: Unsubscribe?
+        /// iTIP method of the message's `text/calendar` part, upper-case
+        /// — REQUEST / REPLY / CANCEL / PUBLISH / COUNTER — or empty for
+        /// the mail that carries no calendar part, which is nearly all
+        /// of it.
+        ///
+        /// Carried on every message of the thread, like `senderTrust`
+        /// beside it, so a timeline can mark an invitation without
+        /// fetching one. The event itself is a separate request, made
+        /// only when the card opens.
+        let inviteMethod: String
 
         var id: UInt32 { uid }
 
@@ -72,6 +82,51 @@ extension Wire {
             case htmlBody = "html_body"
             case attachments
             case unsubscribe
+            case inviteMethod = "invite_method"
+        }
+
+        /// Spelled out because the custom `init(from:)` below removes
+        /// the synthesised one, and tests build these by hand.
+        /// `inviteMethod` defaults so that every existing call site
+        /// keeps compiling and means what it always meant: no calendar
+        /// part.
+        init(
+            uid: UInt32, sender: String, senderTrust: String, recipients: String,
+            subject: String, internalDate: Int64, messageId: String,
+            textBody: String?, htmlBody: String?, attachments: [Attachment],
+            unsubscribe: Unsubscribe?, inviteMethod: String = ""
+        ) {
+            self.uid = uid
+            self.sender = sender
+            self.senderTrust = senderTrust
+            self.recipients = recipients
+            self.subject = subject
+            self.internalDate = internalDate
+            self.messageId = messageId
+            self.textBody = textBody
+            self.htmlBody = htmlBody
+            self.attachments = attachments
+            self.unsubscribe = unsubscribe
+            self.inviteMethod = inviteMethod
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            uid = try c.decode(UInt32.self, forKey: .uid)
+            sender = try c.decode(String.self, forKey: .sender)
+            senderTrust = try c.decodeIfPresent(String.self, forKey: .senderTrust) ?? ""
+            recipients = try c.decode(String.self, forKey: .recipients)
+            subject = try c.decode(String.self, forKey: .subject)
+            internalDate = try c.decode(Int64.self, forKey: .internalDate)
+            messageId = try c.decode(String.self, forKey: .messageId)
+            textBody = try c.decodeIfPresent(String.self, forKey: .textBody)
+            htmlBody = try c.decodeIfPresent(String.self, forKey: .htmlBody)
+            attachments = try c.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
+            unsubscribe = try c.decodeIfPresent(Unsubscribe.self, forKey: .unsubscribe)
+            // Absent on mail stored before the field existed, and on the
+            // dormant lane, which does not compute it. Empty means "no
+            // calendar part", which renders as an ordinary message.
+            inviteMethod = try c.decodeIfPresent(String.self, forKey: .inviteMethod) ?? ""
         }
     }
 

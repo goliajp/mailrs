@@ -48,9 +48,11 @@
 //! [`mailrs-smtp-client`]: https://crates.io/crates/mailrs-smtp-client
 //! [`mailrs-imap-proto`]: https://crates.io/crates/mailrs-imap-proto
 
+pub mod instants;
 #[cfg(feature = "mime")]
 pub mod mime_part;
 pub mod parse;
+pub mod reply;
 pub mod semantics;
 #[allow(clippy::module_inception)]
 pub mod serialize;
@@ -61,10 +63,10 @@ mod tests;
 
 use chrono::{DateTime, Utc};
 use compact_str::CompactString;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// iTIP method (RFC 5546 §1.4 + §3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Method {
     /// `REQUEST` — invitation or update.
     Request,
@@ -87,7 +89,7 @@ pub enum Method {
 }
 
 /// Calendar date-time tri-state (RFC 5545 §3.3.5).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalDateTime {
     /// Floating local time — no timezone attached. e.g. `DTSTART:19980118T230000`.
     Floating(chrono::NaiveDateTime),
@@ -109,7 +111,7 @@ pub enum CalDateTime {
 }
 
 /// PARTSTAT parameter (RFC 5545 §3.2.12).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PartStat {
     /// `NEEDS-ACTION` — not yet responded.
     NeedsAction,
@@ -128,7 +130,7 @@ pub enum PartStat {
 }
 
 /// ROLE parameter (RFC 5545 §3.2.16).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Role {
     /// `CHAIR` — meeting chair.
     Chair,
@@ -141,7 +143,7 @@ pub enum Role {
 }
 
 /// One ATTENDEE row from a VEVENT.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attendee {
     /// Mailto address (stripped of the `mailto:` prefix).
     pub email: String,
@@ -158,7 +160,7 @@ pub struct Attendee {
 }
 
 /// ORGANIZER or any other CAL-ADDRESS-shaped property.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Person {
     /// Mailto address.
     pub email: String,
@@ -169,7 +171,7 @@ pub struct Person {
 }
 
 /// STATUS property values for a VEVENT (RFC 5545 §3.8.1.11).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventStatus {
     /// `CONFIRMED` — event is confirmed.
     Confirmed,
@@ -183,7 +185,7 @@ pub enum EventStatus {
 ///
 /// Self-built: STANDARD / DAYLIGHT children captured raw; conversion to a
 /// usable offset function lives in [`vtimezone`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VTimezone {
     /// TZID property — the timezone identifier this block defines.
     ///
@@ -196,7 +198,7 @@ pub struct VTimezone {
 }
 
 /// Generic raw component captured by the AST parser before semantic typing.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawComponent {
     /// Component name (e.g. `VEVENT`, `VALARM`, `STANDARD`).
     ///
@@ -210,7 +212,7 @@ pub struct RawComponent {
 }
 
 /// Single iCalendar property with its value + parameters.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawProperty {
     /// Property name (e.g. `DTSTART`, `SUMMARY`, `ATTENDEE`).
     ///
@@ -229,7 +231,7 @@ pub struct RawProperty {
 
 /// Fully-typed iTIP invite, the boundary between this module and the rest of
 /// the server (MRS-3..MRS-9 all consume this).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParsedInvite {
     /// iTIP method (REQUEST/REPLY/CANCEL/...).
     pub method: Method,

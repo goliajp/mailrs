@@ -24,6 +24,11 @@ pub struct ThreadMessageResponse {
     /// ingested before the signal existed. Self-hosted cryptographic
     /// auth result, no model.
     pub sender_trust: String,
+    /// iTIP method of the message's calendar part, or empty. Carried on
+    /// every message of the thread so the timeline can mark an invite
+    /// without a second request; the event itself is fetched only when
+    /// the card opens.
+    pub invite_method: String,
     pub recipients: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cc: Option<String>,
@@ -93,6 +98,7 @@ impl ThreadMessageResponse {
             // idempotent rfc2047 pass for pre-fix rows (see summary conv)
             sender: mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
             sender_trust: w.sender_trust.clone(),
+            invite_method: w.invite_method.clone(),
             recipients: mailrs_rfc2047::decode(w.recipients.as_bytes()).into_owned(),
             cc: None,
             subject: w.subject,

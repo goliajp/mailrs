@@ -114,25 +114,21 @@ pub async fn get_conflicts(
         let key = format!("calendar_event:{user_c}:{uid}");
         let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
             .unwrap_or_default();
-        let mut row = EventRow {
-            uid: uid.clone(),
-            ..Default::default()
+        // Through the shared reader, which is also what the writers
+        // now go through. This loop used to live here and looked only
+        // for flat fields, while the feed sync wrote the whole row into
+        // a single `json` — so a subscribed calendar's events read as
+        // blank rows and never conflicted with anything.
+        let stored = mailrs_core_sidestate::families::calendar_events::from_flat(&uid, &flat);
+        let row = EventRow {
+            uid: stored.uid,
+            summary: stored.summary,
+            dtstart: stored.dtstart,
+            dtend: stored.dtend,
+            organizer: stored.organizer,
+            status: stored.status,
+            source: Some(stored.source).filter(|s| !s.is_empty()),
         };
-        let mut i = 0;
-        while i + 1 < flat.len() {
-            let k = String::from_utf8_lossy(&flat[i]);
-            let v = String::from_utf8_lossy(&flat[i + 1]).to_string();
-            match k.as_ref() {
-                "summary" => row.summary = v,
-                "dtstart" => row.dtstart = Some(v),
-                "dtend" => row.dtend = Some(v),
-                "organizer" => row.organizer = Some(v),
-                "status" => row.status = Some(v),
-                "source" => row.source = Some(v),
-                _ => {}
-            }
-            i += 2;
-        }
         // Window overlap check.
         let s_ts = row
             .dtstart

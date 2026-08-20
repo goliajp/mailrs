@@ -4585,6 +4585,14 @@ export interface components {
             action_items?: Record<string, never>;
             ai_analyzed: boolean;
             clean_text?: string;
+            /** @description iTIP method of the message's text/calendar part, upper-case (REQUEST / REPLY / CANCEL / PUBLISH / COUNTER). Empty for mail that carries no calendar part, which is nearly all of it. Computed at ingest and carried on every message read, so a list can mark an invitation without fetching one. */
+            invite_method?: string;
+            /** @description The typed invitation, present only when invite_method is set. Fields follow RFC 5545 (uid, sequence, summary, location, organizer, attendees, dtstart, dtend, rrule, recurrence_id, status), plus dtstart_utc / dtend_utc: the instants resolved on the server against the invitation's own VTIMEZONE. Clients must prefer those — a zoned wall-clock plus a Windows zone name such as "Pacific Standard Time" is not a moment a browser can evaluate. */
+            invite_payload?: Record<string, never> | null;
+            /** @description The answer this reader already gave: ACCEPTED / TENTATIVE / DECLINED, or null. */
+            rsvp_status?: string | null;
+            /** @description Unix seconds, as a string, of when that answer was recorded. */
+            rsvp_at?: string | null;
         };
         AttachmentInfo: {
             index: number;

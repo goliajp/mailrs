@@ -106,6 +106,12 @@ vi.mock('@/lib/query-keys', () => ({
     sent: () => ['mail', 'sent'],
     thread: (tid: null | string) => ['mail', 'thread', tid ?? ''],
   },
+  // Reached by the invite card and by the dates offered from a body:
+  // both read one message's detail, and share this key so opening a
+  // message costs one request rather than two.
+  messageKeys: {
+    detail: (uid: number) => ['message', uid],
+  },
 }))
 
 Element.prototype.scrollIntoView = vi.fn()

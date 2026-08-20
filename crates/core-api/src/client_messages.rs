@@ -70,6 +70,18 @@ impl Client {
         self.get_authed(path, "get_message_by_uid_for_user").await
     }
 
+    /// GET /v1/users/{user}/messages/by-uid/{uid}/invite — the typed
+    /// invitation this message carries, as JSON, or 404 when it carries
+    /// none.
+    ///
+    /// Returned untyped because the shape is `mailrs_ical::ParsedInvite`
+    /// and the caller hands it straight to the browser; re-declaring it
+    /// here would buy nothing and add a second place for it to drift.
+    pub async fn get_invite(&self, user: &str, uid: u32) -> ApiResult<serde_json::Value> {
+        let path = format!("/v1/users/{}/messages/by-uid/{uid}/invite", Self::enc(user));
+        self.get_authed(path, "get_invite").await
+    }
+
     /// GET /v1/users/{user}/messages/by-message-id/{message_id} —
     /// resolve a MessageWire from its RFC 5322 Message-ID. Used by
     /// webapi's `/api/mail/send` when the compose request carries

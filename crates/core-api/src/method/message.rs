@@ -18,6 +18,13 @@ pub const PATH_GET_MESSAGE_BY_UID: &str = "/v1/mailboxes/{id}/messages/uid/{uid}
 /// Fastcore-native by-user variant — resolves the message via the per-user
 /// uid → message_id index instead of a mailbox scan.
 pub const PATH_GET_MESSAGE_BY_UID_USER: &str = "/v1/users/{user}/messages/by-uid/{uid}";
+/// The invitation a message carries, typed, as stored at ingest.
+///
+/// Separate from the message read because it is a few kilobytes that
+/// only an opened message needs, and because the row already says
+/// whether there is one (`MessageWire::invite_method`) — a list can
+/// mark every invite without fetching a single event.
+pub const PATH_GET_INVITE: &str = "/v1/users/{user}/messages/by-uid/{uid}/invite";
 pub const PATH_LIST_MESSAGES: &str = "/v1/mailboxes/{id}/messages";
 pub const PATH_FIND_BY_MESSAGE_ID: &str = "/v1/users/{user}/messages/by-message-id/{message_id}";
 pub const PATH_QUERY_MESSAGES: &str = "/v1/users/{user}/messages:query";
@@ -115,6 +122,18 @@ pub struct MessageWire {
     /// `mailrs_inbound::sender_trust`, no model involved.
     #[serde(default)]
     pub sender_trust: String,
+    /// iTIP method of the message's `text/calendar` part, upper-case
+    /// (`REQUEST` / `REPLY` / `CANCEL` / `PUBLISH` / `COUNTER`), or
+    /// empty for the overwhelming majority of mail, which carries no
+    /// calendar part at all.
+    ///
+    /// Computed once at ingest, like [`Self::sender_trust`] beside it,
+    /// and carried on every message read so a list can mark an invite
+    /// without fetching one. The event itself is not here — it is a
+    /// few kilobytes and only the opened message needs it — see
+    /// `mailrs:invite:{message_id}`.
+    #[serde(default)]
+    pub invite_method: String,
     /// Resolved thread identifier.
     pub thread_id: ThreadId,
     /// CONDSTORE per-message MODSEQ.
@@ -145,6 +164,9 @@ impl From<&mailrs_mailbox::types::MessageMeta> for MessageWire {
             // monolith (PG) path does not persist auth results yet;
             // empty means "no verdict", which renders as no badge.
             sender_trust: String::new(),
+            // Neither PG-lane type carries it; empty means "no calendar
+            // part", which renders as an ordinary message.
+            invite_method: String::new(),
             thread_id: m.thread_id.clone(),
             modseq: m.modseq,
             // MessageMeta has no user_address — caller fills if needed.
@@ -172,6 +194,9 @@ impl From<&mailrs_mailbox::types::Message> for MessageWire {
             // monolith (PG) path does not persist auth results yet;
             // empty means "no verdict", which renders as no badge.
             sender_trust: String::new(),
+            // Neither PG-lane type carries it; empty means "no calendar
+            // part", which renders as an ordinary message.
+            invite_method: String::new(),
             thread_id: m.thread_id.clone(),
             modseq: m.modseq,
             user_address: m.user_address.clone(),

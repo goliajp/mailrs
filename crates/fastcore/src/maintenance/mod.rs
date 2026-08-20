@@ -17,8 +17,9 @@ mod cleanup;
 mod idx_advice;
 pub(crate) use idx_advice::idx_advice_route;
 mod backfill_group_columns;
+mod backfill_invites;
 mod backfill_read_state;
-mod recompute_sender_trust;
+pub(crate) mod recompute_sender_trust;
 mod reindex;
 mod repair_blob_refs;
 mod shadow_axes;
@@ -30,6 +31,7 @@ mod uidlist_ops;
 
 pub(crate) use backfill_admin::*;
 pub(crate) use backfill_group_columns::*;
+pub(crate) use backfill_invites::*;
 pub(crate) use backfill_messages::*;
 pub(crate) use backfill_read_state::*;
 pub(crate) use backfill_threading::*;

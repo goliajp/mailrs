@@ -145,6 +145,64 @@ pub async fn get_message_single(
     // fastcore's kevy-only architecture). Callers must use `uid` as
     // the per-user unique identity. See ThreadMessageResponse for the
     // matching rationale.
+    // The invitation, when the row says there is one. Asked of the
+    // core rather than read here: the event lives in fastcore's
+    // embedded kevy and this process talks to the *network* one — the
+    // distinction that made `mark_not_junk` write into a store nobody
+    // read.
+    let invite_payload = if w.invite_method.is_empty() {
+        None
+    } else {
+        state.core.get_invite(&user, w.uid).await.ok()
+    };
+    // The answer this reader already gave, if any. Written by
+    // `handlers::invites` into the *network* store under
+    // `rsvp:{user}:{uid}` — keyed by uid because that is what the route
+    // takes and what the client sends.
+    let (rsvp_status, rsvp_at) = if w.invite_method.is_empty() {
+        (None, None)
+    } else {
+        let key = format!("rsvp:{user}:{}", w.uid);
+        with_kevy(move |c| {
+            let partstat = c
+                .hget(key.as_bytes(), b"partstat")?
+                .map(|v| String::from_utf8_lossy(&v).into_owned());
+            let at = c
+                .hget(key.as_bytes(), b"replied_at")?
+                .map(|v| String::from_utf8_lossy(&v).into_owned());
+            Ok((partstat, at))
+        })
+        .unwrap_or((None, None))
+    };
+    // Dates a person wrote in prose, for mail that carries no calendar
+    // part — which is most mail about a meeting. Computed when a
+    // message is opened rather than at delivery: it is one pass over a
+    // body that is already in hand here, and putting it on the ingest
+    // path would spend it on every newsletter that will never be read.
+    //
+    // Proposals, not events. Nothing is filed until somebody says so.
+    let date_suggestions: Vec<serde_json::Value> = if w.invite_method.is_empty() {
+        let reference = chrono::DateTime::from_timestamp(w.internal_date, 0)
+            .map(|d| d.date_naive())
+            .unwrap_or_else(|| chrono::Utc::now().date_naive());
+        let body = text_body.as_deref().unwrap_or_default();
+        mailrs_datefind::find(body, reference)
+            .into_iter()
+            .map(|c| {
+                serde_json::json!({
+                    "text": c.text,
+                    "date": c.date.to_string(),
+                    // Wall-clock, deliberately: the writer meant their
+                    // own hour, and this side does not know which zone
+                    // that is. The client renders it as local, which is
+                    // the same guess the reader would make.
+                    "datetime": c.naive().map(|d| d.format("%Y-%m-%dT%H:%M:%S").to_string()),
+                })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     Ok(Json(serde_json::json!({
         "uid": w.uid,
         "sender": mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
@@ -155,6 +213,14 @@ pub async fn get_message_single(
         "text_body": text_body,
         "html_body": html_body,
         "flags": w.flags,
+        // Empty string, not null, for the overwhelming majority that
+        // carry no calendar part: the field is a method name or it is
+        // absent, and the client tests it for truthiness either way.
+        "invite_method": w.invite_method,
+        "invite_payload": invite_payload,
+        "rsvp_status": rsvp_status,
+        "rsvp_at": rsvp_at,
+        "date_suggestions": date_suggestions,
     })))
 }
 

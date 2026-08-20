@@ -112,6 +112,8 @@ pub fn build_router(state: Arc<FastcoreState>) -> Router {
                 msg::PATH_GET_MESSAGE_BY_UID_USER,
                 get(get_message_by_uid_for_user),
             )
+            .route(msg::PATH_GET_INVITE, get(get_invite)
+            )
             // ── shared side-state (network kevy): drafts / signatures /
             // templates — same keys webapi + pg-core read (v2 point 3) ──
             .route(

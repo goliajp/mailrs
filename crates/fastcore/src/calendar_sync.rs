@@ -217,30 +217,37 @@ fn apply(state: &Arc<FastcoreState>, user: &str, feed_id: &str, text: &str) -> u
         else {
             continue;
         };
-        let row = serde_json::json!({
-            "uid": parsed.uid,
-            "summary": parsed.summary,
-            "dtstart": dtstart.to_rfc3339(),
-            "dtend": parsed.dtend.as_ref().and_then(|d| {
-                mailrs_ical::vtimezone::caldatetime_to_utc(d, &parsed.vtimezones)
-            }).map(|d| d.to_rfc3339()),
-            "organizer": parsed.organizer.as_ref().map(|o| o.email.clone()),
-            "status": parsed.status.as_ref().map(|s| format!("{s:?}")),
+        // One shape, shared with the reader. This used to write the
+        // whole row into a single `json` field while the conflicts
+        // reader looked for flat columns, so a subscribed calendar's
+        // events read as blank and conflicted with nothing.
+        use mailrs_core_sidestate::families::calendar_events as ev;
+        let row = ev::StoredEvent {
+            uid: parsed.uid.clone(),
+            summary: parsed.summary.clone(),
+            dtstart: Some(dtstart.to_rfc3339()),
+            dtend: parsed
+                .dtend
+                .as_ref()
+                .and_then(|d| mailrs_ical::vtimezone::caldatetime_to_utc(d, &parsed.vtimezones))
+                .map(|d| d.to_rfc3339()),
+            organizer: parsed.organizer.as_ref().map(|o| o.email.clone()),
+            status: parsed.status.as_ref().map(|s| format!("{s:?}")),
             // Which subscription put it here, so unsubscribing could remove
             // its events and a hand-made event is never mistaken for one.
-            "source": format!("feed:{feed_id}"),
-        });
-        let Ok(json) = serde_json::to_vec(&row) else {
-            continue;
+            source: format!("feed:{feed_id}"),
+            sequence: parsed.sequence,
         };
-        let key = format!("calendar_event:{user}:{}", parsed.uid);
-        if conn
-            .hset(key.as_bytes(), &[(b"json".as_slice(), json.as_slice())])
-            .is_err()
-        {
+        let written = ev::fields(&row);
+        let pairs: Vec<(&[u8], &[u8])> = written
+            .iter()
+            .map(|(k, v)| (k.as_bytes(), v.as_bytes()))
+            .collect();
+        let key = ev::event_key(user, &parsed.uid);
+        if conn.hset(key.as_bytes(), &pairs).is_err() {
             continue;
         }
-        let index = format!("calendar_events:{user}");
+        let index = ev::index_key(user);
         if conn
             .zadd(
                 index.as_bytes(),

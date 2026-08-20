@@ -1,6 +1,7 @@
 package jp.golia.mailrs.wire
 
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.Serializable
 
 /**
@@ -80,6 +81,75 @@ object Wire {
         @SerialName("risk_reason") val riskReason: String,
         val attachments: List<Attachment> = emptyList(),
         val unsubscribe: Unsubscribe? = null,
+        /**
+         * iTIP method of the message's `text/calendar` part, upper-case
+         * — REQUEST / REPLY / CANCEL / PUBLISH / COUNTER — or empty for
+         * mail with no calendar part, which is nearly all of it.
+         *
+         * Carried on every message of the thread, like [senderTrust]
+         * above it, so the timeline can mark an invitation without
+         * fetching one. The event itself is a separate request, made
+         * only when the card opens.
+         */
+        @SerialName("invite_method") val inviteMethod: String = "",
+    )
+
+    /**
+     * A meeting invitation, as the server read it out of the message.
+     *
+     * Backend: `crates/webapi/src/handlers/complete.rs` —
+     * `get_message_single`'s `invite_payload`.
+     */
+    @Serializable
+    data class Invite(
+        val uid: String = "",
+        /**
+         * Higher on every re-send. Exchange does not send
+         * `METHOD:UPDATE` — it re-sends the whole invitation as a
+         * `REQUEST` with a higher sequence — so this is what tells an
+         * update from a first invitation.
+         */
+        val sequence: Int = 0,
+        val summary: String = "",
+        val location: String? = null,
+        val organizer: Person? = null,
+        val attendees: List<InviteAttendee> = emptyList(),
+        val status: String? = null,
+        /**
+         * **The instant, resolved on the server** against the
+         * invitation's own `VTIMEZONE`, RFC 3339.
+         *
+         * Read this, not the wall-clock. A `TZID` is routinely a
+         * Windows name — `Pacific Standard Time`, which says "Standard"
+         * while the event is in daylight time — and no client-side
+         * parser can evaluate one. Null for an all-day event, which has
+         * no instant: a date has no offset, and giving it one moves it
+         * a day.
+         */
+        @SerialName("dtstart_utc") val startsAt: String? = null,
+        @SerialName("dtend_utc") val endsAt: String? = null,
+        /** The wall-clock and zone the organiser wrote, for the second line. */
+        val dtstart: JsonElement? = null,
+    )
+
+    @Serializable
+    data class Person(val cn: String? = null, val email: String = "")
+
+    @Serializable
+    data class InviteAttendee(
+        val cn: String? = null,
+        val email: String = "",
+        /** `NEEDS-ACTION` / `ACCEPTED` / `DECLINED` / `TENTATIVE`. */
+        val partstat: String = "NEEDS-ACTION",
+    )
+
+    /** The single-message read, of which this client wants the invitation. */
+    @Serializable
+    data class MessageDetail(
+        @SerialName("invite_method") val inviteMethod: String = "",
+        @SerialName("invite_payload") val invite: Invite? = null,
+        /** `ACCEPTED` / `TENTATIVE` / `DECLINED`, or null if unanswered. */
+        @SerialName("rsvp_status") val rsvpStatus: String? = null,
     )
 
     /**

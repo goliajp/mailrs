@@ -371,6 +371,64 @@ Error responses:
 
 ---
 
+## Meeting invitations (inbound iTIP)
+
+A message carrying a `text/calendar` part is parsed at delivery. Two
+things come out of it, deliberately apart: the **method** travels on
+every message read, so a list can mark an invitation without fetching
+one, and the **event** is fetched only when a message is opened.
+
+```
+GET /api/mail/messages/{uid}
+{
+  "invite_method": "REQUEST",       // "" for mail with no calendar part
+  "invite_payload": {
+    "uid": "040000008200E00074C5B7101A82E008...",
+    "sequence": 9,                  // an update; the organiser re-sent it
+    "summary": "Product sync",
+    "location": "H-120 Teams Room",
+    "organizer": { "cn": "Chair", "email": "chair@example.com" },
+    "attendees": [ { "email": "me@example.com", "partstat": "NEEDS-ACTION", "rsvp": true } ],
+    "dtstart": { "Zoned": { "local": "2026-08-20T16:00:00", "tz_name": "Pacific Standard Time" } },
+    "dtstart_utc": "2026-08-20T23:00:00+00:00",
+    "dtend_utc":   "2026-08-20T23:50:00+00:00"
+  },
+  "rsvp_status": null,              // this reader has not answered yet
+  "rsvp_at": null
+}
+```
+
+**Use `dtstart_utc` / `dtend_utc`.** `dtstart` is the wall-clock the
+organiser wrote plus the zone they named, and that name is routinely a
+*Windows* one — `Pacific Standard Time`, which says "Standard" while
+the event is in daylight time. The instants are resolved on the server
+against the invitation's own `VTIMEZONE`, which is the only authority
+for it. An all-day event has no instant and carries none: a date has no
+offset, and giving it one moves it a day.
+
+`sequence > 0` on a `REQUEST` means the organiser re-sent the meeting —
+Exchange does not send `METHOD:UPDATE`. Show it as an update, not as a
+new invitation.
+
+Answer with:
+
+```
+curl -X POST -H "Authorization: Bearer <API_KEY>" \
+     -H "Content-Type: application/json" \
+     -d '{"partstat":"ACCEPTED"}' \
+     "https://mail.golia.ai/api/invites/{uid}/rsvp"
+```
+
+`partstat` is `ACCEPTED`, `TENTATIVE` or `DECLINED`. The choice is
+recorded **and** an iTIP `REPLY` is queued to the organiser. A `202`
+means the choice was recorded but the reply could not be sent, and the
+body says why — a `200` is the only answer that means the organiser
+will hear about it.
+
+Only a `REQUEST` asks for an answer. A `PUBLISH` is a notice and a
+`REPLY` is somebody else's answer arriving; replying to either sends a
+message to a party that did not ask for one.
+
 ## DMARC aggregate reports (inbound)
 
 Receivers that get mail claiming one of your domains send back daily

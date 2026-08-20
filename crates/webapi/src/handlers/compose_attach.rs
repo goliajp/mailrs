@@ -386,6 +386,7 @@ mod reply_threading_tests {
             message_id: message_id.into(),
             in_reply_to: String::new(),
             sender_trust: String::new(),
+            invite_method: String::new(),
             thread_id: "t".into(),
             modseq: 0,
             user_address: "me@x.com".into(),
