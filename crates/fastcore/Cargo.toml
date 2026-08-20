@@ -96,7 +96,7 @@ psl = "2.1.222"
 
 # Calendar feed parsing — the same stone the monolith's feed worker uses,
 # including the VEVENT splitter.
-mailrs-ical = { path = "../ical", version = "2" }
+mailrs-ical = { path = "../ical", version = "2", features = ["mime"] }
 # Webhook delivery signing (HMAC-SHA256), same stone the monolith uses.
 mailrs-webhook-signature = { path = "../webhook-signature", version = "1" }
 

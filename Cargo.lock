@@ -3285,6 +3285,7 @@ dependencies = [
  "compact_str",
  "criterion 0.8.2",
  "icalendar",
+ "mailrs-mime",
  "rrule",
  "serde",
 ]

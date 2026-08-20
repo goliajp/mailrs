@@ -60,7 +60,7 @@ pub(crate) struct FlagUpdate {
 /// When the stored row has NULL for these columns and we have the raw
 /// maildir bytes in hand anyway (the surrounding handler reads them to
 /// render the body), parse the `text/calendar` part now via
-/// `crate::calendar::invite_extract` + `mailrs_ical::parse_invite` and
+/// `mailrs_ical::mime_part` + `mailrs_ical::parse_invite` and
 /// `UPDATE messages` so the next read hits the populated columns.
 ///
 /// Returns the freshly-parsed (payload_json, method_str) tuple on success;
@@ -71,7 +71,7 @@ async fn try_lazy_backfill_invite(
     message_id: i64,
     raw_bytes: &[u8],
 ) -> Option<(serde_json::Value, String)> {
-    let extracted = crate::calendar::invite_extract::extract_invite_part(raw_bytes)?;
+    let extracted = mailrs_ical::mime_part::extract_invite_part(raw_bytes)?;
     let parsed = mailrs_ical::parse_invite(&extracted.ics_bytes).ok()?;
     let payload_json = serde_json::to_value(&parsed).ok()?;
     let method_str = format!("{:?}", parsed.method).to_uppercase();

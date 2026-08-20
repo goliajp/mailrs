@@ -24,6 +24,19 @@ serde = { version = "1", features = ["derive"] }
 # Standard iCal names ("VEVENT", "DTSTART", "America/New_York" etc) all
 # fit in the 24-byte inline buffer.
 compact_str = { version = "0.9", features = ["serde"] }
+# Optional, behind `mime`: locating the `text/calendar` part of a message.
+# This crate's contract is "no MIME parsing" and stays that way by
+# default — a consumer that only wants RFC 5545 pays nothing. The
+# alternative was leaving the extractor in one server's private module,
+# which is where it was, and where only the lane that no longer runs
+# could reach it.
+mailrs-mime = { path = "../mime", version = "2", optional = true }
+
+[features]
+default = []
+# Adds `mime_part::extract_invite_part` — find the `text/calendar` part
+# of a delivered message, so both server lanes read invites the same way.
+mime = ["dep:mailrs-mime"]
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }

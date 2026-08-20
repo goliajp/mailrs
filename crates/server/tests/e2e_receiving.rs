@@ -37,9 +37,10 @@ use tokio::net::tcp::OwnedWriteHalf;
 use tokio::sync::broadcast::Receiver;
 
 const SCHEMA_SQL: &str = include_str!("../../../scripts/init-schema.sql");
-/// Known-good Google iTIP REQUEST, also consumed by the ical / calendar
-/// unit tests, so it is guaranteed to parse through the invite path.
-const ITIP_REQUEST: &[u8] = include_bytes!("fixtures/itip/google/request.eml");
+/// Known-good Google iTIP REQUEST. The corpus lives beside the
+/// extractor in `mailrs-ical` now, so one file serves both lanes rather
+/// than each keeping a copy that can drift.
+const ITIP_REQUEST: &[u8] = include_bytes!("../../ical/tests/fixtures/itip/google/request.eml");
 
 const USER: &str = "alice@example.com";
 

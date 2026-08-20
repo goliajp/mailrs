@@ -54,7 +54,7 @@ html2text = "0.17"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
 hickory-resolver = { workspace = true }
 mailrs-jmap = { path = "../jmap" }
-mailrs-ical = { path = "../ical" }
+mailrs-ical = { path = "../ical", features = ["mime"] }
 async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 rmcp = { version = "1.7", features = ["server", "macros", "transport-streamable-http-server", "schemars"] }

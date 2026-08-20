@@ -48,6 +48,8 @@
 //! [`mailrs-smtp-client`]: https://crates.io/crates/mailrs-smtp-client
 //! [`mailrs-imap-proto`]: https://crates.io/crates/mailrs-imap-proto
 
+#[cfg(feature = "mime")]
+pub mod mime_part;
 pub mod parse;
 pub mod semantics;
 #[allow(clippy::module_inception)]
