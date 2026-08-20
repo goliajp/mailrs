@@ -8,6 +8,8 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Mail, MessageSquare, Reply } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { DateSuggestionsForMessage } from '@/components/date-suggestions'
+import { InviteCard } from '@/components/invite-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
 import { SenderAvatar } from '@/components/sender-avatar'
@@ -315,6 +317,22 @@ function MobileThreadView() {
                 </div>
               </div>
             </div>
+
+            {/* The meeting, above the body — it is what the message is
+                about and the HTML around it is packaging. The phone
+                needs this more than the desktop does: the join link is
+                buried in a wall of Teams boilerplate that takes three
+                scrolls to pass. */}
+            {selectedMsg.invite_method && (
+              <div className="px-4">
+                <InviteCard messageUid={selectedMsg.uid} />
+              </div>
+            )}
+            {!selectedMsg.invite_method && (
+              <div className="px-4">
+                <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
+              </div>
+            )}
 
             {/* email content */}
             <div className="px-0">

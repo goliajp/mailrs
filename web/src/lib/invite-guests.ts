@@ -5,6 +5,21 @@
 
 import type { Attendee } from '@/lib/invite-types'
 
+/// The one-word verdict on a timeline row, where there is space for a
+/// pill and not for a sentence.
+export function compactStatusLabel(partstat: string): null | { className: string; label: string } {
+  switch (partstat) {
+    case 'ACCEPTED':
+      return { className: 'bg-emerald-500/15 text-emerald-300', label: 'Accepted' }
+    case 'DECLINED':
+      return { className: 'bg-red-500/15 text-red-300', label: 'Declined' }
+    case 'TENTATIVE':
+      return { className: 'bg-amber-500/15 text-amber-300', label: 'Tentative' }
+    default:
+      return null
+  }
+}
+
 export function guestSummary(attendees: Attendee[]): string {
   const n = attendees.length
   const head = `${n} guest${n === 1 ? '' : 's'}`

@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -100,12 +104,24 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
             // card instead of asserting about it.
             invite.joinUrl?.takeIf { !cancelled }?.let { link ->
                 val uriHandler = LocalUriHandler.current
-                TextButton(
+                // The most-used thing on a meeting invitation, and it
+                // was a line of 12sp text between two other lines of
+                // 12sp text. A filled target the width of the card:
+                // on a phone the reader is usually two minutes late and
+                // holding it one-handed. 48dp is Material's floor.
+                Button(
                     onClick = { uriHandler.openUri(link) },
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.testTag("invite.join"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = theme.accent,
+                        contentColor = theme.accentFg,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .padding(top = 6.dp)
+                        .testTag("invite.join"),
                 ) {
-                    Text("Join the meeting", color = theme.accent, fontSize = 12.sp)
+                    Text("Join the meeting", fontSize = 14.sp)
                 }
             }
             invite.organizer?.let {
@@ -130,13 +146,19 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
                     modifier = Modifier.testTag("invite.answered"),
                 )
             } else if (InviteRules.wantsAnswer(method) && !cancelled) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Equal thirds, each 48dp tall. They were text buttons
+                // at their natural width — three targets of three sizes
+                // with the most consequential answer the smallest.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
                     for ((label, partstat) in listOf(
                         "Yes" to "ACCEPTED",
                         "Maybe" to "TENTATIVE",
                         "No" to "DECLINED",
                     )) {
-                        TextButton(
+                        OutlinedButton(
                             onClick = {
                                 scope.launch {
                                     failure = null
@@ -153,9 +175,12 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
                                     }
                                 }
                             },
-                            modifier = Modifier.testTag("invite.${partstat.lowercase()}"),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("invite.${partstat.lowercase()}"),
                         ) {
-                            Text(label, color = theme.accent, fontSize = 12.sp)
+                            Text(label, color = theme.accent, fontSize = 13.sp)
                         }
                     }
                 }
