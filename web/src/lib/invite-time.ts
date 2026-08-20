@@ -55,6 +55,23 @@ export function formatDateTime(dt: CalDateTime | null | undefined): string {
   })
 }
 
+/// When an answer was recorded, as a person reads it.
+///
+/// `rsvp_at` is stored as **Unix seconds in a string** — the server
+/// writes `now_secs().to_string()` — and `formatDateTime` reads ISO
+/// strings, so it handed the digits straight back and the card said
+/// "You accepted 1787223869". Anything that is all digits is seconds.
+export function formatEpochOrIso(v: null | string | undefined): string {
+  if (!v) return ''
+  if (/^\d+$/.test(v)) {
+    const d = new Date(Number(v) * 1000)
+    return isNaN(d.getTime())
+      ? ''
+      : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  }
+  return formatDateTime(v)
+}
+
 export function formatLocalRange(
   start: CalDateTime | null | undefined,
   end: CalDateTime | null | undefined
