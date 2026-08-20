@@ -344,11 +344,10 @@ export function ThreadContentPane({
                 <AiAnalysisPanel message={selectedMsg} />
 
                 {/* invite card (full RSVP UI) — timeline shows a compact one-liner */}
-                {selectedMsg.invite_method && (
-                  <div className="px-4">
-                    <InviteCard messageUid={selectedMsg.uid} />
-                  </div>
-                )}
+                {/* No wrapper padding: the card is already a bordered,
+                    rounded area with its own `p-4` and `my-3`. A second
+                    frame around it draws the same box twice. */}
+                {selectedMsg.invite_method && <InviteCard messageUid={selectedMsg.uid} />}
 
                 {/* And for the rest of the mail about meetings — the
                     kind with no calendar part at all, which is most of

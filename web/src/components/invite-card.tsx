@@ -11,6 +11,7 @@ import { joinLinkOf } from '@/lib/invite-join'
 import {
   formatCompactRange,
   formatDateTime,
+  formatEpochOrIso,
   formatLocalRange,
   formatOrganiserTime,
   pickIso,
@@ -481,7 +482,7 @@ function RsvpStatusPill({ at, partstat }: { at: null | string; partstat: string 
       : partstat === 'DECLINED'
         ? 'bg-red-500/15 text-red-300'
         : 'bg-amber-500/15 text-amber-300'
-  const when = at ? formatDateTime(at) : ''
+  const when = formatEpochOrIso(at)
   return (
     <span className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${cls}`}>
       {label}

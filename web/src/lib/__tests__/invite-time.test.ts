@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatDateTime,
+  formatEpochOrIso,
   formatOrganiserTime,
   isDateOnly,
   toLocalDate,
@@ -55,5 +56,19 @@ describe('invite times', () => {
     // 3.3.5), so it must not be shifted.
     const d = toLocalDate({ Floating: '2026-08-20T16:00:00' })
     expect(d?.getHours()).toBe(16)
+  })
+
+  // What the card printed on production the first time anybody answered
+  // an invitation: "You accepted 1787223869". `rsvp_at` is Unix seconds
+  // in a string — the server writes `now_secs().to_string()` — and the
+  // ISO formatter handed the digits straight back.
+  it('reads a stored answer time, which is seconds and not ISO', () => {
+    const shown = formatEpochOrIso('1787223869')
+    expect(shown).not.toBe('1787223869')
+    expect(shown).toMatch(/2026/)
+
+    // And still reads an ISO string, which is what everything else sends.
+    expect(formatEpochOrIso('2026-08-20T23:00:00Z')).toMatch(/2026/)
+    expect(formatEpochOrIso(null)).toBe('')
   })
 })
