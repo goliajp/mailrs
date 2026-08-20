@@ -29,6 +29,11 @@ extension Wire {
         /// moves it a day.
         let startsAt: Date?
         let endsAt: Date?
+        /// The way into the meeting, resolved on the server: RFC 5545
+        /// has no field for it, so Teams writes it into the description
+        /// and Zoom into the location, and one implementation of "which
+        /// URL is a meeting" beats three.
+        let joinURL: URL?
         /// The zone the organiser wrote the time in, to show beside the
         /// reader's own when they differ.
         let organiserZone: String?
@@ -69,6 +74,7 @@ extension Wire {
             case organizer
             case attendees
             case status
+            case joinURL = "join_url"
             case dtstartUtc = "dtstart_utc"
             case dtendUtc = "dtend_utc"
             case dtstart
@@ -83,6 +89,7 @@ extension Wire {
             organizer = try c.decodeIfPresent(Person.self, forKey: .organizer)
             attendees = try c.decodeIfPresent([Attendee].self, forKey: .attendees) ?? []
             status = try c.decodeIfPresent(String.self, forKey: .status)
+            joinURL = (try c.decodeIfPresent(String.self, forKey: .joinURL)).flatMap(URL.init)
             startsAt = Wire.Invite.instant(try c.decodeIfPresent(String.self, forKey: .dtstartUtc))
             endsAt = Wire.Invite.instant(try c.decodeIfPresent(String.self, forKey: .dtendUtc))
             // The original wall-clock and its zone, for the second line.

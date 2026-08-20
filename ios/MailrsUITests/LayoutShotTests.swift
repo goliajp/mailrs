@@ -80,6 +80,13 @@ final class LayoutShotTests: MailrsUITestCase {
         app.swipeUp()
         shoot(app, "03-thread-scrolled")
 
+        // The invitation, which is on the second message. Photographed
+        // because the card's whole job is to be read at a glance, and
+        // no assertion can say whether it is.
+        if app.staticTexts["Product sync"].waitForExistence(timeout: 10) {
+            shoot(app, "03b-invite")
+        }
+
         // The wide message — a 760px newsletter table, which is the
         // shape most real mail has and the one the fit-to-width path
         // exists for. It opens folded, so no shot had ever contained

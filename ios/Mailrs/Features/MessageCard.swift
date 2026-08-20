@@ -225,7 +225,6 @@ struct MessageCard: View {
             if !message.inviteMethod.isEmpty {
                 InviteCard(uid: message.uid, method: message.inviteMethod)
             }
-
             switch MessageContent.body(html: message.htmlBody, text: message.textBody) {
             case .html(let html):
                 // Faded in once measured rather than popping at full

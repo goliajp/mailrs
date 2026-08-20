@@ -39,6 +39,10 @@ type InvitePayload = {
   dtend_utc?: null | string
   dtstart?: CalDateTime
   dtstart_utc?: null | string
+  /// The way into the meeting, resolved on the server. RFC 5545 has no
+  /// field for it and producers put it wherever, so one implementation
+  /// rather than three.
+  join_url?: null | string
   location?: null | string
   method: string
   organizer?: null | Person
@@ -190,7 +194,10 @@ export function InviteCard({
     ? { Utc: payload.dtend_utc }
     : payload.dtend
   const organiserTime = formatOrganiserTime(payload.dtstart, zoneNameOf(payload.dtstart))
-  const joinUrl = joinLinkOf(payload.location, payload.description)
+  // From the server, which resolved it once for all three clients —
+  // the local rule stays only as a fallback for events stored before
+  // the field existed.
+  const joinUrl = payload.join_url ?? joinLinkOf(payload.location, payload.description)
   const range = formatLocalRange(startAt, endAt)
   const cancelled = payload.method.toUpperCase() === 'CANCEL'
   // When the invite carries a RECURRENCE-ID, the organizer is targeting one

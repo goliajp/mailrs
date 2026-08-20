@@ -128,6 +128,13 @@ object Wire {
          */
         @SerialName("dtstart_utc") val startsAt: String? = null,
         @SerialName("dtend_utc") val endsAt: String? = null,
+        /**
+         * The way into the meeting, resolved on the server: RFC 5545
+         * has no field for it, so Teams writes it into the description
+         * and Zoom into the location, and one implementation of "which
+         * URL is a meeting" beats three.
+         */
+        @SerialName("join_url") val joinUrl: String? = null,
         /** The wall-clock and zone the organiser wrote, for the second line. */
         val dtstart: JsonElement? = null,
     )

@@ -21,13 +21,31 @@ struct InviteCard: View {
     @State private var failure: String?
 
     var body: some View {
-        Group {
+        // A `VStack`, not a `Group`: a `Group` whose branches are all
+        // false produces nothing at all, and a `.task` attached to
+        // nothing never runs. The card mounted, the field said
+        // REQUEST, and the fetch never happened — which looked exactly
+        // like a message carrying no invitation.
+        VStack(alignment: .leading, spacing: 0) {
             if let invite = detail?.invite {
                 card(invite)
+            } else if let failure {
+                Label(failure, systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(theme.danger)
+                    .accessibilityIdentifier("invite.failure")
             }
         }
         .task(id: uid) {
-            detail = try? await session.client?.invite(uid: uid)
+            // Said, not swallowed. `try?` here meant a card that failed
+            // to load looked exactly like a message carrying no
+            // invitation — the silence this whole change exists to
+            // remove, reproduced in the code that removes it.
+            do {
+                detail = try await session.client?.invite(uid: uid)
+            } catch {
+                failure = error.localizedDescription
+            }
         }
     }
 
@@ -55,6 +73,16 @@ struct InviteCard: View {
                     .font(.caption)
                     .foregroundStyle(theme.fgSecondary)
                     .lineLimit(2)
+            }
+            // The way in, which is the most-used thing on a meeting
+            // invitation and was missing until somebody looked at the
+            // card instead of asserting about it.
+            if let join = invite.joinURL, !cancelled {
+                Link(destination: join) {
+                    Label("Join the meeting", systemImage: "video")
+                        .font(.caption.weight(.medium))
+                }
+                .accessibilityIdentifier("invite.join")
             }
             if let organizer = invite.organizer {
                 Text("From \(organizer.cn ?? organizer.email)")

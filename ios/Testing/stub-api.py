@@ -337,7 +337,49 @@ def msg(uid, sender, trust, html):
             "people": {}, "dates": {}, "amounts": {}, "action_items": [],
             "ai_analyzed": False, "importance_level": "normal", "importance_score": 0.1,
             "is_bulk_sender": False, "has_tracking_pixel": False,
-            "requires_action": False, "sender_intent": ""}
+            "requires_action": False, "sender_intent": "",
+            # uid 2 is the invitation. Attached to a message that
+            # already exists rather than added as a new conversation:
+            # a new row shifts every ordinal the two suites assert on,
+            # which is the lesson `a-fixture-is-an-interface` was
+            # written from.
+            "invite_method": "REQUEST" if uid == 2 else ""}
+
+
+# One invitation, in the shape `get_message_single` answers with: the
+# parsed event plus the instants the server resolved against its own
+# VTIMEZONE. The zone is deliberately the Windows name Exchange writes —
+# it says "Standard" while August is in daylight time, and a client that
+# reads the name rather than the instant is an hour out for half the
+# year. 16:00 in Santa Clara is 23:00 UTC, which is 08:00 the next
+# morning in Tokyo.
+INVITE = {
+    "uid": "040000008200E00074C5B7101A82E00800000000EXAMPLE",
+    "sequence": 9,
+    "summary": "Product sync",
+    "location": "SCL.H-120 (11) Teams Room (Santa Clara)",
+    "description": "Microsoft Teams meeting\nJoin: https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0",
+    "method": "REQUEST",
+    "organizer": {"cn": "Chris Dai", "email": "chair@example.com"},
+    "attendees": [
+        {"cn": "Me", "email": "me@golia.jp", "partstat": "NEEDS-ACTION",
+         "role": "REQ-PARTICIPANT", "rsvp": True},
+        {"cn": "Shu Wang", "email": "shu@example.com", "partstat": "ACCEPTED",
+         "role": "REQ-PARTICIPANT", "rsvp": True},
+        {"cn": "Minhao Jin", "email": "minhao@example.com", "partstat": "NEEDS-ACTION",
+         "role": "REQ-PARTICIPANT", "rsvp": True},
+    ],
+    "status": "CONFIRMED",
+    "dtstart": {"Zoned": {"local": "2026-08-20T16:00:00", "tz_name": "Pacific Standard Time"}},
+    "dtend": {"Zoned": {"local": "2026-08-20T16:50:00", "tz_name": "Pacific Standard Time"}},
+    # Resolved by the server out of the description, because RFC 5545
+    # has no field for it and Teams writes it into the body.
+    "join_url": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0",
+    "dtstart_utc": "2026-08-20T23:00:00+00:00",
+    "dtend_utc": "2026-08-20T23:50:00+00:00",
+    "rrule": None,
+    "recurrence_id": None,
+}
 
 MESSAGES = [msg(1, "Alice Smith <alice@example.com>", "verified", WIDE),
             msg(2, "spoofed@example.com", "suspicious", "<p>Short reply, narrow body.</p>")]
@@ -521,6 +563,25 @@ class H(BaseHTTPRequestHandler):
             hits = [c for c in reversed(CONVOS)
                     if term.lower() in c["subject"].lower() or term.lower() in c["snippet"].lower()]
             self._send(hits[:limit])
+            return
+        one = re.match(r"^/api/mail/messages/(\d+)$", self.path.split("?")[0])
+        if one:
+            uid = int(one.group(1))
+            body = {"uid": uid, "sender": "chair@example.com",
+                    "recipients": "me@golia.jp", "subject": "Product sync",
+                    "internal_date": 1754400000, "message_id": f"<m{uid}@x>",
+                    "text_body": "See you then.", "html_body": "", "flags": 0,
+                    "invite_method": "REQUEST" if uid == 2 else "",
+                    "invite_payload": INVITE if uid == 2 else None,
+                    "rsvp_status": None, "rsvp_at": None,
+                    # The dates a person wrote in prose, for the mail
+                    # that carries no calendar part — which is most mail
+                    # about a meeting.
+                    "date_suggestions": [] if uid == 2 else [
+                        {"text": "August 21 at 2pm", "date": "2026-08-21",
+                         "datetime": "2026-08-21T14:00:00"}
+                    ]}
+            self._send(body)
             return
         raw = re.match(r"^/api/mail/messages/(\d+)/raw$", self.path.split("?")[0])
         if raw:
