@@ -222,9 +222,11 @@ struct MessageCard: View {
 
             // Above the body, because the meeting is what the message
             // is about and the HTML around it is packaging.
-            if !message.inviteMethod.isEmpty {
-                InviteCard(uid: message.uid, method: message.inviteMethod)
-            }
+            // One view for both: an invitation when the message
+            // carries a calendar part, and the dates written in the
+            // prose when it does not — which is most mail about a
+            // meeting.
+            InviteCard(uid: message.uid, method: message.inviteMethod)
             switch MessageContent.body(html: message.htmlBody, text: message.textBody) {
             case .html(let html):
                 // Faded in once measured rather than popping at full

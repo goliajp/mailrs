@@ -481,6 +481,22 @@
         }
       }
     },
+    "Add to calendar": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カレンダーに追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入日历"
+          }
+        }
+      }
+    },
     "Added to mail sent from this account, above any quoted text.": {
       "localizations": {
         "ja": {
