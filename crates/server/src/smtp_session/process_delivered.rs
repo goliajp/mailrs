@@ -186,7 +186,7 @@ async fn process_delivered(msg: DeliveredMessage, deps: &ProcessDeps) {
     // payload onto messages.invite_payload so the web client / macapp can
     // render an invite card without re-parsing.
     if let Some(uid) = indexed_uid
-        && let Some(extracted) = crate::calendar::invite_extract::extract_invite_part(&full_message)
+        && let Some(extracted) = mailrs_ical::mime_part::extract_invite_part(&full_message)
     {
         if let Ok(parsed) = mailrs_ical::parse_invite(&extracted.ics_bytes) {
             if let Ok(payload_json) = serde_json::to_value(&parsed) {

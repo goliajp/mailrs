@@ -1,5 +1,12 @@
 //! Locate the `text/calendar` MIME part in an inbound message.
 //!
+//! Behind the `mime` feature, because this crate's contract is otherwise
+//! "no MIME parsing" and a consumer that only wants RFC 5545 should not
+//! pay for a MIME parser. It lives here rather than in one server's
+//! private module so that both lanes — and the vendor corpus beside it —
+//! read an invite out of a message the same way. It spent its first life
+//! inside the monolith, which is why production never extracted one.
+//!
 //! Real-world iTIP / iMIP invitations land in two shapes:
 //! 1. **Inline** (RFC 6047 §2.1 recommended): `multipart/alternative` with
 //!    `text/plain`, `text/html`, and `text/calendar; method=REQUEST` parts.
@@ -13,6 +20,7 @@
 //! conformant.
 
 /// What the inbound pipeline gets back when it finds a calendar part.
+#[derive(Debug, Clone)]
 pub struct ExtractedInvite {
     /// Raw `text/calendar` body bytes (post-MIME-decode).
     pub ics_bytes: Vec<u8>,
@@ -21,7 +29,6 @@ pub struct ExtractedInvite {
     /// producers omit and stash the method only inside the iCalendar
     /// body. MRS-7 (state machine) cross-checks this against the body
     /// METHOD for tampering detection; left unread today.
-    #[allow(dead_code)]
     pub content_type_method: String,
 }
 
