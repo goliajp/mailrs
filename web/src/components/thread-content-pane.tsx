@@ -23,6 +23,7 @@ import { useMemo } from 'react'
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
 import { Copyable } from '@/components/copy-button'
+import { DateSuggestionsForMessage } from '@/components/date-suggestions'
 import { InviteCard } from '@/components/invite-card'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
@@ -346,6 +347,16 @@ export function ThreadContentPane({
                 {selectedMsg.invite_method && (
                   <div className="px-4">
                     <InviteCard messageUid={selectedMsg.uid} />
+                  </div>
+                )}
+
+                {/* And for the rest of the mail about meetings — the
+                    kind with no calendar part at all, which is most of
+                    it — the dates somebody wrote in the body, offered
+                    rather than filed. */}
+                {!selectedMsg.invite_method && (
+                  <div className="px-4">
+                    <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
                   </div>
                 )}
 

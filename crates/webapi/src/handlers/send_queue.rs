@@ -332,6 +332,10 @@ pub(crate) async fn mirror_send_to_sender_view(
         // the user's own outbound copy — sender authentication is not a
         // meaningful question for mail we are sending ourselves.
         sender_trust: String::new(),
+        // Empty until this client can *send* an invitation. When it can,
+        // the copy filed here is the one the sender's own calendar reads
+        // back, so it will have to be filled in the same breath.
+        invite_method: String::new(),
         thread_id: thread_id.clone(),
         modseq: 0,
         user_address: user.to_string(),

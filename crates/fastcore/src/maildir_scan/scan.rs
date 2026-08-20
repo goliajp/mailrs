@@ -40,6 +40,14 @@ pub(crate) struct MailFile {
     /// Sender-auth verdict from the file's `Authentication-Results`
     /// header (`verified` / `suspicious` / `unverified` / `""`).
     pub(crate) sender_trust: String,
+    /// The message's iTIP method, if it carries a calendar part.
+    ///
+    /// Read here as well as at ingest because a row rebuilt from disk
+    /// must come back with everything the delivered one had. A field
+    /// only the delivery path writes is a field that disappears the
+    /// first time a mailbox is healed — which is the whole reason this
+    /// scan exists.
+    pub(crate) invite: Option<crate::invites::FoundInvite>,
 }
 
 /// Every mail file in `user`'s maildir, parsed far enough to thread it.
@@ -174,6 +182,7 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
             seen: maildir_seen_flag(&bare),
             keywords: maildir_keyword_bits(&bare),
             sender_trust: extract_sender_trust(&bytes),
+            invite: crate::invites::find(&bytes),
         });
     }
     parsed

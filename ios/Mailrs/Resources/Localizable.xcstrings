@@ -881,6 +881,22 @@
         }
       }
     },
+    "Cancelled": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャンセル済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消"
+          }
+        }
+      }
+    },
     "Cc": {
       "localizations": {
         "ja": {
@@ -1233,6 +1249,22 @@
         }
       }
     },
+    "Counter-proposed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代替案を提示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已提议改期"
+          }
+        }
+      }
+    },
     "Create": {
       "localizations": {
         "ja": {
@@ -1521,6 +1553,22 @@
         }
       }
     },
+    "Event": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "予定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日程"
+          }
+        }
+      }
+    },
     "Every domain": {
       "localizations": {
         "ja": {
@@ -1709,6 +1757,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "收件箱"
+          }
+        }
+      }
+    },
+    "Invitation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "招待"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邀请"
           }
         }
       }
@@ -2020,6 +2084,22 @@
         }
       }
     },
+    "Maybe": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待定"
+          }
+        }
+      }
+    },
     "Members": {
       "localizations": {
         "ja": {
@@ -2260,6 +2340,22 @@
         }
       }
     },
+    "New invite": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい招待"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新邀请"
+          }
+        }
+      }
+    },
     "New key": {
       "localizations": {
         "ja": {
@@ -2336,6 +2432,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "下周"
+          }
+        }
+      }
+    },
+    "No": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不参加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不参加"
           }
         }
       }
@@ -3940,6 +4052,22 @@
         }
       }
     },
+    "Updated invite": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新された招待"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新后的邀请"
+          }
+        }
+      }
+    },
     "Use password instead": {
       "localizations": {
         "ja": {
@@ -4032,6 +4160,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "允许的操作"
+          }
+        }
+      }
+    },
+    "Yes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参加"
           }
         }
       }

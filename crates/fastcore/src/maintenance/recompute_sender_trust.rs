@@ -258,7 +258,12 @@ fn overwrites(stored: &str, fresh: &str) -> bool {
 
 /// Which folder a mailbox path names, as a `blob_ref` would spell it:
 /// the `.Junk`-style leaf for a subfolder, empty for the root INBOX.
-fn folder_of(path: &std::path::Path) -> String {
+///
+/// Shared with `backfill_invites`, which walks the same maildirs the
+/// same way: two copies of "how a blob_ref spells a folder" is two
+/// things to keep in step, and the whole reason either route can find a
+/// file at all.
+pub(super) fn folder_of(path: &std::path::Path) -> String {
     match path.file_name().and_then(|n| n.to_str()) {
         Some(leaf) if leaf.starts_with('.') => leaf.to_string(),
         _ => String::new(),

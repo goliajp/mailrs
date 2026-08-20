@@ -233,10 +233,20 @@ pub(crate) fn heal_missing_messages(
                 message_id: m.message_id.clone(),
                 in_reply_to: m.in_reply_to.clone(),
                 sender_trust: m.sender_trust.clone(),
+                // Read back off the file by the scan, so a healed row
+                // carries what the delivered one did.
+                invite_method: m
+                    .invite
+                    .as_ref()
+                    .map(|i| i.method.clone())
+                    .unwrap_or_default(),
                 thread_id: tid.to_string(),
                 modseq: 0,
                 user_address: user.to_string(),
             };
+            if let Some(found) = &m.invite {
+                crate::invites::store(state, &m.message_id, found);
+            }
             let payload = match serde_json::to_vec(&wire) {
                 Ok(p) => p,
                 Err(_) => continue,

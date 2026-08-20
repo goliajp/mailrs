@@ -123,6 +123,13 @@ pub(crate) fn heal_membership_rows(
                     message_id: m.message_id.clone(),
                     in_reply_to: m.in_reply_to.clone(),
                     sender_trust: m.sender_trust.clone(),
+                    // As in `heal_messages`: a row rebuilt from disk
+                    // comes back with what the delivered one had.
+                    invite_method: m
+                        .invite
+                        .as_ref()
+                        .map(|i| i.method.clone())
+                        .unwrap_or_default(),
                     thread_id: root.clone(),
                     modseq: 0,
                     user_address: user.to_string(),

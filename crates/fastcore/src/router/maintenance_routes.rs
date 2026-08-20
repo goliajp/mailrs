@@ -90,6 +90,14 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-sender-trust",
             post(crate::maintenance::recompute_sender_trust_route),
         )
+        // Reads the calendar part out of mail that arrived before
+        // anybody looked at one — which is all of it, since production
+        // ingested invitations for a year and stored nothing about
+        // them. `?dry_run=true` reports first.
+        .route(
+            "/v1/admin/maintenance:backfill-invites",
+            post(crate::maintenance::backfill_invites_route),
+        )
         .route(
             "/v1/admin/maintenance:repair-blob-refs",
             post(repair_blob_refs_route),

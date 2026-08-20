@@ -3,6 +3,7 @@
 
 pub mod admin_state;
 pub mod analysis;
+pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod contacts;
 pub mod groups_admin;

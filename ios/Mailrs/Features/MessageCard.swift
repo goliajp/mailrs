@@ -220,6 +220,12 @@ struct MessageCard: View {
                 .accessibilityIdentifier("load-images")
             }
 
+            // Above the body, because the meeting is what the message
+            // is about and the HTML around it is packaging.
+            if !message.inviteMethod.isEmpty {
+                InviteCard(uid: message.uid, method: message.inviteMethod)
+            }
+
             switch MessageContent.body(html: message.htmlBody, text: message.textBody) {
             case .html(let html):
                 // Faded in once measured rather than popping at full

@@ -355,6 +355,31 @@ pub(crate) async fn get_message_by_uid_for_user(
     }
 }
 
+/// `GET /v1/users/{user}/messages/by-uid/{uid}/invite` — the typed
+/// invitation the message carries, stored at ingest.
+///
+/// 404 when the message carries none, which is nearly all mail. The
+/// row's `invite_method` already told the caller whether to ask, so a
+/// 404 here means the two disagree — worth noticing rather than
+/// answering `null`.
+pub(crate) async fn get_invite(
+    State(state): State<Arc<FastcoreState>>,
+    Path((user, uid)): Path<(String, u32)>,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    let bytes = state
+        .mailbox
+        .get_message_by_uid(&user, uid)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let wire: mailrs_core_api::method::message::MessageWire =
+        serde_json::from_slice(&bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let payload =
+        crate::invites::payload_json(&state, &wire.message_id).ok_or(StatusCode::NOT_FOUND)?;
+    Ok(([("content-type", "application/json")], payload).into_response())
+}
+
 /// `GET /v1/users/{user}/mailboxes` — returns the INBOX + standard IMAP
 /// folders. Counts derived from kevy zsets so no spg touch.
 /// This is a minimum-viable shape — future phase populates true

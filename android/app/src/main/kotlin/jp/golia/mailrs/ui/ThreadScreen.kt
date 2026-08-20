@@ -267,6 +267,11 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
         // message: the fixture's plain part is the two words "plain
         // fallback" against a newsletter, which is what this client
         // showed until now.
+        // Above the body, because the meeting is what the message is
+        // about and the HTML around it is packaging.
+        if (m.inviteMethod.isNotEmpty()) {
+            InviteCard(m.uid, m.inviteMethod, vm)
+        }
         val html = m.htmlBody
         if (html.isNullOrBlank()) {
             Text(
