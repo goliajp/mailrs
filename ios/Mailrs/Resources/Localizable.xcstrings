@@ -1793,6 +1793,22 @@
         }
       }
     },
+    "Join the meeting": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会議に参加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入会议"
+          }
+        }
+      }
+    },
     "Junk": {
       "localizations": {
         "ja": {

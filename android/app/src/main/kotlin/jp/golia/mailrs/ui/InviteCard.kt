@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -18,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -85,6 +87,19 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
             }
             invite.location?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = theme.fgSecondary, fontSize = 12.sp, maxLines = 2)
+            }
+            // The way in, which is the most-used thing on a meeting
+            // invitation and was missing until somebody looked at the
+            // card instead of asserting about it.
+            invite.joinUrl?.takeIf { !cancelled }?.let { link ->
+                val uriHandler = LocalUriHandler.current
+                TextButton(
+                    onClick = { uriHandler.openUri(link) },
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.testTag("invite.join"),
+                ) {
+                    Text("Join the meeting", color = theme.accent, fontSize = 12.sp)
+                }
             }
             invite.organizer?.let {
                 Text("From ${it.cn ?: it.email}", color = theme.fgMuted, fontSize = 11.sp)

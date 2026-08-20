@@ -73,6 +73,13 @@ pub(crate) fn find(body: &[u8]) -> Option<FoundInvite> {
     if let Some(obj) = payload.as_object_mut() {
         obj.insert("dtstart_utc".into(), start.map(|t| t.to_rfc3339()).into());
         obj.insert("dtend_utc".into(), end.map(|t| t.to_rfc3339()).into());
+        // And the way in. Resolved here rather than in each client:
+        // three implementations of "which URL is a meeting" is three
+        // chances to offer a button that goes somewhere else.
+        obj.insert(
+            "join_url".into(),
+            mailrs_ical::instants::join_link(&parsed).into(),
+        );
     }
     let payload_json = serde_json::to_string(&payload).ok()?;
     Some(FoundInvite {

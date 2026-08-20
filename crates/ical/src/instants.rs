@@ -53,3 +53,47 @@ pub fn instants_of(invite: &ParsedInvite) -> (Option<DateTime<Utc>>, Option<Date
     };
     (start, end)
 }
+
+/// The link a meeting is actually joined by.
+///
+/// RFC 5545 has no field for it, so producers put it wherever: Teams
+/// writes it into the description and names a physical room in
+/// `LOCATION`, Zoom puts the URL in `LOCATION` itself. Reading only one
+/// of the two finds a room in Santa Clara and no way to attend from
+/// Tokyo.
+///
+/// Resolved here rather than in each client, because three
+/// implementations of "which URL is a meeting" is three chances to
+/// offer a button that goes somewhere else — and not every `https://`
+/// in a mail body is a way in. Only hosts that are conferencing
+/// services count.
+pub fn join_link(invite: &ParsedInvite) -> Option<String> {
+    const HOSTS: [&str; 5] = [
+        "teams.microsoft.com",
+        "zoom.us",
+        "meet.google.com",
+        "webex.com",
+        "whereby.com",
+    ];
+    for field in [invite.location.as_deref(), invite.description.as_deref()] {
+        let Some(text) = field else { continue };
+        for token in text.split([' ', '\t', '\r', '\n', '<', '>', '"']) {
+            let trimmed = token.trim_end_matches(['.', ',', ')', ']']);
+            if !trimmed.starts_with("https://") {
+                continue;
+            }
+            let host = trimmed
+                .trim_start_matches("https://")
+                .split('/')
+                .next()
+                .unwrap_or_default();
+            if HOSTS
+                .iter()
+                .any(|h| host == *h || host.ends_with(&format!(".{h}")))
+            {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}

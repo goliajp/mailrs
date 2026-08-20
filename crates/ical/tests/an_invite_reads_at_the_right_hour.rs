@@ -270,3 +270,49 @@ fn the_reply_message_is_addressed_to_the_organiser_and_carries_the_method() {
     assert_eq!(parsed.uid, request.uid);
     assert_eq!(parsed.attendees.len(), 1);
 }
+
+/// Which URL is a way into the meeting.
+///
+/// RFC 5545 has no field for it, so Teams writes it into the
+/// description and names a room in LOCATION, while Zoom puts the URL in
+/// LOCATION. Reading only one finds a room in Santa Clara and no way to
+/// attend from Tokyo. And not every link in a mail body is a way in: an
+/// agenda or an unsubscribe footer sent somebody to the wrong place at
+/// the moment they were trying to join.
+#[test]
+fn the_link_a_meeting_is_joined_by() {
+    use mailrs_ical::instants::join_link;
+
+    let teams = INVITE.replace(
+        "LOCATION;LANGUAGE=en-US:H-120 Teams Room\r\n",
+        "LOCATION;LANGUAGE=en-US:H-120 Teams Room\r\n\
+         DESCRIPTION:Microsoft Teams meeting\\nJoin: \
+         https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0\\nID: 228 349\r\n",
+    );
+    let parsed = parse_invite(teams.as_bytes()).unwrap();
+    assert_eq!(
+        join_link(&parsed).as_deref(),
+        Some("https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0")
+    );
+
+    // Zoom puts it in the location, which is where Zoom puts it.
+    let zoom = INVITE.replace(
+        "LOCATION;LANGUAGE=en-US:H-120 Teams Room",
+        "LOCATION:https://example.zoom.us/j/123456789?pwd=abc",
+    );
+    let parsed = parse_invite(zoom.as_bytes()).unwrap();
+    assert_eq!(
+        join_link(&parsed).as_deref(),
+        Some("https://example.zoom.us/j/123456789?pwd=abc")
+    );
+
+    // A room is not a link, and a link is not always a way in.
+    let none = parse_invite(INVITE.as_bytes()).unwrap();
+    assert_eq!(join_link(&none), None);
+    let agenda = INVITE.replace(
+        "LOCATION;LANGUAGE=en-US:H-120 Teams Room\r\n",
+        "DESCRIPTION:Agenda at https://example.com/agenda\r\n",
+    );
+    let parsed = parse_invite(agenda.as_bytes()).unwrap();
+    assert_eq!(join_link(&parsed), None, "an agenda is not a meeting link");
+}
