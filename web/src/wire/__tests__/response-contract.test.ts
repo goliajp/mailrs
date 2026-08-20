@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { adminResultSchema } from '../schemas/admin'
 import { wireThreadListResponseSchema } from '../schemas/conversation'
 import { sendsSchema } from '../schemas/sends'
 
@@ -56,6 +57,30 @@ describe('response contract', () => {
     expect(() => wireThreadListResponseSchema.parse({ items: raw })).not.toThrow()
   })
 
+  /**
+   * Answering an invitation. `message` is absent on success, not null:
+   * `adminResultSchema` declares it `z.string().optional()`, which
+   * admits a missing key and refuses a null one — and the handler's
+   * `Option<String>` used to serialise to null, so every successful
+   * RSVP came back failing validation and the card printed "Response
+   * failed validation (1 issue)" under buttons that had just worked.
+   *
+   * `crates/webapi/tests/response_contract.rs` asserts the handler's own
+   * type still serialises to this shape, so neither side can pass by
+   * agreeing with itself.
+   */
+  it('an rsvp result parses, and says nothing rather than saying null', () => {
+    const raw = fixture('rsvp-result') as Record<string, unknown>
+    expect('message' in raw).toBe(false)
+    const parsed = adminResultSchema.parse(raw)
+    expect(parsed.success).toBe(true)
+    expect(parsed.message).toBeUndefined()
+
+    // The shape that used to arrive, which the client cannot read. Kept
+    // as an assertion rather than a comment: it is the exact failure.
+    expect(() => adminResultSchema.parse({ message: null, success: true })).toThrow()
+  })
+
   it('the send list parses, keeping the fields the Send tab acts on', () => {
     const items = sendsSchema.parse(fixture('send-list'))
     expect(items).toHaveLength(1)
@@ -82,6 +107,11 @@ describe('response contract', () => {
       .filter((f) => f.endsWith('.json'))
       .map((f) => f.replace(/\.json$/, ''))
       .sort()
-    expect(present).toEqual(['conversation-categories', 'conversation-list', 'send-list'])
+    expect(present).toEqual([
+      'conversation-categories',
+      'conversation-list',
+      'rsvp-result',
+      'send-list',
+    ])
   })
 })

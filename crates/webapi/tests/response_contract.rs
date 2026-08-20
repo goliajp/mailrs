@@ -123,10 +123,53 @@ fn send_list_keys_match() {
     }
 }
 
+/// What answering an invitation sends back.
+///
+/// `message` is **absent** on success, not null. `Option<String>`
+/// serialises to `null` by default and the client's schema declares it
+/// `z.string().optional()`, which admits a missing key and refuses a
+/// null one — so every successful RSVP came back failing validation and
+/// the card printed "Response failed validation (1 issue)" under
+/// buttons that had just worked. Found in production, on the first
+/// answer anybody sent.
+#[test]
+fn an_rsvp_result_says_nothing_rather_than_saying_null() {
+    let ok = handlers::invites::RsvpResponse {
+        success: true,
+        message: None,
+    };
+    let json = serde_json::to_value(&ok).expect("serialises");
+    assert_eq!(
+        keys(&json),
+        keys(&fixture("rsvp-result")),
+        "the success shape drifted from the fixture the client parses"
+    );
+    assert!(
+        json.get("message").is_none(),
+        "message must be absent, not null: {json}"
+    );
+
+    // And when there is something to say, it is a string.
+    let failed = handlers::invites::RsvpResponse {
+        success: false,
+        message: Some("the reply could not be queued".into()),
+    };
+    let json = serde_json::to_value(&failed).expect("serialises");
+    assert_eq!(
+        json.get("message").and_then(|m| m.as_str()),
+        Some("the reply could not be queued")
+    );
+}
+
 /// Every fixture is checked by a test above.
 #[test]
 fn every_response_fixture_has_a_test() {
-    const CHECKED: &[&str] = &["conversation-categories", "conversation-list", "send-list"];
+    const CHECKED: &[&str] = &[
+        "conversation-categories",
+        "conversation-list",
+        "rsvp-result",
+        "send-list",
+    ];
     let dir = format!(
         "{}/../../wire-contract/responses",
         env!("CARGO_MANIFEST_DIR")
