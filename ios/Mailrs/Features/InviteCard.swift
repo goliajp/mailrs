@@ -83,10 +83,18 @@ struct InviteCard: View {
             // invitation and was missing until somebody looked at the
             // card instead of asserting about it.
             if let join = invite.joinURL, !cancelled {
+                // The most-used thing on a meeting invitation, and it
+                // was a line of caption text between two other lines of
+                // caption text. A filled target the width of the card:
+                // on a phone the reader is usually two minutes late and
+                // holding it one-handed.
                 Link(destination: join) {
                     Label("Join the meeting", systemImage: "video")
-                        .font(.caption.weight(.medium))
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 2)
                 .accessibilityIdentifier("invite.join")
             }
             if let organizer = invite.organizer {
@@ -123,6 +131,13 @@ struct InviteCard: View {
         .accessibilityIdentifier("invite.card")
     }
 
+    /// Three equal thirds, each 44pt tall.
+    ///
+    /// They were `.bordered` at their natural width, which on a phone
+    /// is three small targets of different sizes with gaps between
+    /// them — and the smallest target next to the most consequential
+    /// answer. 44pt is the smallest Apple's own guidance allows, and
+    /// equal thirds mean the thumb lands where it aimed.
     private var answerButtons: some View {
         HStack(spacing: 8) {
             answer("Yes", "ACCEPTED", .green)
@@ -152,7 +167,8 @@ struct InviteCard: View {
                 sending = false
             }
         }
-        .font(.caption.weight(.medium))
+        .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity, minHeight: 44)
         .buttonStyle(.bordered)
         .tint(tint)
         .accessibilityIdentifier("invite.\(partstat.lowercased())")

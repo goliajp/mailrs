@@ -6,7 +6,7 @@ import { Calendar, Check, Clock, MapPin, Users, Video, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { answerWanted, inviteBadge } from '@/lib/invite-badge'
-import { guestSummary, partstatDot, partstatWord } from '@/lib/invite-guests'
+import { compactStatusLabel, guestSummary, partstatDot, partstatWord } from '@/lib/invite-guests'
 import { joinLinkOf } from '@/lib/invite-join'
 import {
   formatCompactRange,
@@ -299,12 +299,17 @@ export function InviteCard({
         )}
         {joinUrl && !cancelled && (
           <a
-            className="text-accent mt-2 inline-flex items-center gap-1 text-xs hover:underline"
+            /* The most-used thing on a meeting invitation, and on a
+               phone it was a line of 12px text between two other lines
+               of 12px text. A filled target at 44px on small screens,
+               back to a quiet link on a desktop where the pointer is
+               precise and the row is not the only thing on screen. */
+            className="bg-accent text-accent-fg sm:text-accent mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md text-sm font-medium sm:mt-2 sm:inline-flex sm:min-h-0 sm:w-auto sm:justify-start sm:bg-transparent sm:text-xs sm:font-normal sm:hover:underline"
             href={joinUrl}
             rel="noreferrer noopener"
             target="_blank"
           >
-            <Video className="h-3 w-3" />
+            <Video className="h-4 w-4 sm:h-3 sm:w-3" />
             Join the meeting
           </a>
         )}
@@ -359,9 +364,14 @@ export function InviteCard({
 
       {answerWanted(payload.method) && !cancelled && !showPersisted && (
         <>
+          {/* Equal thirds on a phone, natural width on a desktop. Three
+              buttons that wrap onto two lines put "Decline" alone under
+              the other two, which is where a thumb goes by accident.
+              `min-h-11` is 44px — the smallest target Apple and Google
+              both agree on, and these were 32. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
-              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 sm:min-h-0 sm:flex-none"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('ACCEPTED')}
               type="button"
@@ -370,7 +380,7 @@ export function InviteCard({
               Accept
             </button>
             <button
-              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 sm:min-h-0 sm:flex-none"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('TENTATIVE')}
               type="button"
@@ -378,7 +388,7 @@ export function InviteCard({
               Tentative
             </button>
             <button
-              className="border-border text-fg hover:bg-bg-tertiary flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
+              className="border-border text-fg hover:bg-bg-tertiary flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 sm:min-h-0 sm:flex-none"
               disabled={rsvp === 'pending' || rsvp === 'sent'}
               onClick={() => void send('DECLINED')}
               type="button"
@@ -450,19 +460,6 @@ export function InviteCard({
       )}
     </div>
   )
-}
-
-function compactStatusLabel(partstat: string): null | { className: string; label: string } {
-  switch (partstat) {
-    case 'ACCEPTED':
-      return { className: 'bg-emerald-500/15 text-emerald-300', label: 'Accepted' }
-    case 'DECLINED':
-      return { className: 'bg-red-500/15 text-red-300', label: 'Declined' }
-    case 'TENTATIVE':
-      return { className: 'bg-amber-500/15 text-amber-300', label: 'Tentative' }
-    default:
-      return null
-  }
 }
 
 /// "4 guests · 1 yes, 2 awaiting" — the shape Gmail uses, because the
