@@ -150,6 +150,27 @@ object Wire {
         val partstat: String = "NEEDS-ACTION",
     )
 
+    /**
+     * A date somebody wrote in the body, offered as an event.
+     *
+     * Most mail about a meeting is not an invitation: no calendar part,
+     * no UID, nothing to accept — just a sentence with a time in it.
+     */
+    @Serializable
+    data class DateSuggestion(
+        /** `YYYY-MM-DD`. */
+        val date: String = "",
+        /**
+         * Wall-clock `YYYY-MM-DDTHH:MM:SS`, or null when only a day was
+         * written. Deliberately not an instant: "2pm" in a sentence
+         * means the writer's own afternoon and neither side knows which
+         * zone that was.
+         */
+        val datetime: String? = null,
+        /** What they wrote, quoted back rather than reformatted. */
+        val text: String = "",
+    )
+
     /** The single-message read, of which this client wants the invitation. */
     @Serializable
     data class MessageDetail(
@@ -157,6 +178,8 @@ object Wire {
         @SerialName("invite_payload") val invite: Invite? = null,
         /** `ACCEPTED` / `TENTATIVE` / `DECLINED`, or null if unanswered. */
         @SerialName("rsvp_status") val rsvpStatus: String? = null,
+        /** Dates found in the body, for mail carrying no calendar part. */
+        @SerialName("date_suggestions") val dateSuggestions: List<DateSuggestion> = emptyList(),
     )
 
     /**
