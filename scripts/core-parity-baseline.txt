@@ -1,3 +1,4 @@
+GET /v1/users/{user}/messages/by-uid/{uid}/invite
 GET /v1/users/{user}/sent-messages
 GET /v1/users/{user}/threads/by-message-id/{message_id}
 POST /v1/admin/backfill-threading
