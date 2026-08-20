@@ -53,6 +53,16 @@ pub struct RsvpRequest {
 #[derive(Debug, Serialize)]
 pub struct RsvpResponse {
     pub success: bool,
+    /// Absent rather than null when there is nothing to say.
+    ///
+    /// `Option<String>` serialises to `null` by default, and the web's
+    /// wire schema declares this `z.string().optional()` — which admits
+    /// a missing key and refuses a null one. So every successful answer
+    /// came back failing validation and the card said
+    /// "Response failed validation (1 issue)" under buttons that had
+    /// just worked. Two spellings of "nothing" on one wire is one too
+    /// many; this sends the one the reader already agreed to.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 
