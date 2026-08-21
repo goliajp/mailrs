@@ -359,20 +359,6 @@ pub(crate) fn ingest_delivered_file(
         .as_deref()
         .map(|t| mailrs_clean::preview_line(t, 120))
         .unwrap_or_default();
-    let arrival = mailrs_mailbox_kevy::MessageArrival {
-        thread_id: &root,
-        user: addr,
-        subject: &subject,
-        senders_csv: &from,
-        latest_date: date,
-        latest_preview: &preview,
-        category,
-        unread,
-        is_own,
-    };
-    if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
-        tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
-    }
     // Side effect, never a filter — same shape as the FBL and TLS-RPT
     // hooks in the drain. No-op until MAILRS_APNS_* is configured.
     crate::push::maybe_notify(addr, &from, &subject, category, is_own);
@@ -453,6 +439,33 @@ pub(crate) fn ingest_delivered_file(
             }
         }
         Err(e) => tracing::warn!(error = %e, "drain ingest: wire serialize failed"),
+    }
+
+    // **The message row first, the arrival second** — the same ordering
+    // `deliver_message` documents, and which this path did not have.
+    //
+    // Two of the membership row's declared columns, `is_sender` and
+    // `sent_only`, are derived from the aggregate index over the message
+    // rows of the thread. Recording the arrival before writing this
+    // message's row asks that index a question about a message it cannot
+    // see yet, so every message arriving through the spool — which is
+    // every message — was counted without itself. A reply the user sent
+    // landed in its thread, showed the right sender, and never reached
+    // the Sent list, because the column the Sent axis reads still said
+    // the user had not written here.
+    let arrival = mailrs_mailbox_kevy::MessageArrival {
+        thread_id: &root,
+        user: addr,
+        subject: &wire.subject,
+        senders_csv: &wire.sender,
+        latest_date: date,
+        latest_preview: &preview,
+        category,
+        unread,
+        is_own,
+    };
+    if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
+        tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
     // register this message's id → thread so future replies that cite it
     // (In-Reply-To / References) resolve into the same conversation.
@@ -565,6 +578,48 @@ Please review the attached figures before Friday. The numbers moved.\r\n";
         assert!(
             payload.contains("\"dtstart_utc\":\""),
             "the stored payload has no resolved instant: {payload}"
+        );
+    }
+
+    /// A reply the user writes into a thread somebody else started
+    /// reaches the Sent axis.
+    ///
+    /// The production shape, and the one a fresh-thread test cannot
+    /// see: the thread already exists with `is_sender` false, because
+    /// the first message came from outside. If recording the arrival
+    /// does not re-derive that column, the reply lands in its thread,
+    /// shows the right sender, and never appears in Send — which is how
+    /// this was found, by sending one and looking for it.
+    #[test]
+    fn a_reply_into_someone_elses_thread_reaches_the_sent_axis() {
+        const INBOUND: &[u8] = b"From: Support <support@example.com>\r\n\
+To: bob@golia.jp\r\n\
+Subject: Your request\r\n\
+Message-ID: <ticket1@example.com>\r\n\
+Date: Tue, 5 Aug 2026 09:00:00 +0900\r\n\
+\r\n\
+we have reviewed it\r\n";
+        const REPLY: &[u8] = b"From: Hao Li <bob@golia.jp>\r\n\
+To: support@example.com\r\n\
+Subject: RE: Your request\r\n\
+Message-ID: <myreply@golia.jp>\r\n\
+In-Reply-To: <ticket1@example.com>\r\n\
+References: <ticket1@example.com>\r\n\
+Date: Tue, 5 Aug 2026 10:00:00 +0900\r\n\
+\r\n\
+four days on, still blocked\r\n";
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "ticket1.eml", INBOUND, "INBOX");
+        ingest_delivered_file(&state, user, "myreply.eml", REPLY, "INBOX");
+
+        let sent = state
+            .mailbox
+            .list_thread_ids_by_flag_via_table(user, "is_sender", 50, 0, None)
+            .expect("read the sent axis");
+        assert!(
+            sent.contains(&"ticket1@example.com".to_string()),
+            "the user replied in this thread and it is not on the Sent axis: {sent:?}"
         );
     }
 
