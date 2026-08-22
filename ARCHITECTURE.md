@@ -1,6 +1,6 @@
 # Architecture
 
-mailrs is a Cargo workspace of **68 crates** — 61 reusable library crates
+mailrs is a Cargo workspace of **73 crates** — 66 reusable library crates
 (most of them published on [crates.io](https://crates.io/users/golia-jp))
 plus seven binary crates: `mailrs-fastcore` (kevy-backed core RPC +
 IMAP/POP3), `mailrs-webapi` (REST + web UI), `mailrs-receiver` (SMTP
@@ -90,6 +90,11 @@ full benchmark ledger.
 
 | Crate | What it does |
 |---|---|
+| `mailrs-secretbox` | Sealing a credential with a deployment key — XChaCha20-Poly1305, fingerprinted so a rotated key says so rather than failing as corruption |
+| `mailrs-mailprovider` | Where the common providers' mail servers are and how they want to be asked, plus ordered autodiscovery for everything else |
+| `mailrs-imap-client` | Reading somebody else's IMAP mailbox: response parsing and the uid bookkeeping that decides what is new |
+| `mailrs-pop3-client` | Reading a mailbox that only offers POP3 — UIDL-based deduplication, because message numbers renumber per session |
+| `mailrs-jmap-client` | Reading a JMAP mailbox: the session object, `Email/changes`, and blob URLs |
 | `mailrs-smtp-client` | Outbound SMTP client: MX resolution, DANE/STARTTLS, response parsing — async, transport-agnostic |
 | `mailrs-maildir` | Maildir filesystem primitives: atomic delivery, directory scans, flag parsing |
 | `mailrs-mailbox` | Mailbox metadata storage: `MailboxStore` trait + PostgreSQL reference impl |

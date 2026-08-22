@@ -36,7 +36,7 @@ const BUSY_INTERVAL: Duration = Duration::from_secs(60);
 /// every account and read every key once a minute forever.
 const IDLE_INTERVAL: Duration = Duration::from_secs(300);
 
-fn now_secs() -> i64 {
+pub(crate) fn now_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -157,13 +157,22 @@ async fn sync_one(
     user: &str,
     row: &AccountRow,
 ) -> Result<usize, String> {
-    if row.incoming.protocol != "imap" {
-        return Err(format!(
-            "{} is not a protocol this can read yet",
-            row.incoming.protocol
-        ));
-    }
     let secret = open_secret(state, user, &row.id)?;
+    match row.incoming.protocol.as_str() {
+        "imap" => sync_imap(state, user, row, &secret).await,
+        "pop3" => crate::external_sync_pop3::sync_pop3(state, user, row, &secret).await,
+        "jmap" => crate::external_sync_jmap::sync_jmap(state, user, row, &secret).await,
+        other => Err(format!("{other} is not a protocol this can read yet")),
+    }
+}
+
+/// Read one IMAP account.
+async fn sync_imap(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    row: &AccountRow,
+    secret: &str,
+) -> Result<usize, String> {
     let tls = match row.incoming.tls {
         ext::Tls::Implicit => imap::Tls::Implicit,
         ext::Tls::StartTls => imap::Tls::StartTls,
@@ -176,11 +185,11 @@ async fn sync_one(
     let login_name = row.username.clone().unwrap_or_else(|| row.email.clone());
     match row.auth {
         ext::AuthKind::OAuth2 => session
-            .authenticate_xoauth2(&login_name, &secret)
+            .authenticate_xoauth2(&login_name, secret)
             .await
             .map_err(|e| e.to_string())?,
         _ => session
-            .login(&login_name, &secret)
+            .login(&login_name, secret)
             .await
             .map_err(|e| e.to_string())?,
     }
@@ -265,7 +274,7 @@ async fn read_folder(
 }
 
 /// A folder name that is safe in a blob reference.
-fn sanitise(folder: &str) -> String {
+pub(crate) fn sanitise(folder: &str) -> String {
     folder
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })

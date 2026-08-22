@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-jmap-client"
+version = "1.0.0"
+edition = "2024"
+description = "Reading a JMAP mailbox: the session object, Email/changes, and blob URLs — zero I/O."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-jmap-client"
+authors = ["GOLIA K.K."]
+keywords = ["jmap", "email", "client", "rfc8620", "rfc8621"]
+categories = ["email"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json = "1"
