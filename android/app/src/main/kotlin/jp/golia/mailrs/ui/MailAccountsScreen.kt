@@ -33,8 +33,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import jp.golia.mailrs.wire.AccountSettings
+import jp.golia.mailrs.wire.ExternalAccount
 import jp.golia.mailrs.wire.MailrsClient
-import jp.golia.mailrs.wire.Wire
 import jp.golia.mailrs.wire.accountSettings
 import jp.golia.mailrs.wire.colourOf
 import jp.golia.mailrs.wire.connectAccount
@@ -55,11 +56,11 @@ import jp.golia.mailrs.wire.looksLikeAnAddress
 fun MailAccountsScreen(client: MailrsClient) {
     val theme = LocalTheme.current
     val uri = LocalUriHandler.current
-    var accounts by remember { mutableStateOf<List<Wire.ExternalAccount>>(emptyList()) }
+    var accounts by remember { mutableStateOf<List<ExternalAccount>>(emptyList()) }
     var email by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
-    var settings by remember { mutableStateOf<Wire.AccountSettings?>(null) }
+    var settings by remember { mutableStateOf<AccountSettings?>(null) }
     var failure by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
 
@@ -167,7 +168,7 @@ fun MailAccountsScreen(client: MailrsClient) {
 }
 
 @Composable
-private fun AccountRow(a: Wire.ExternalAccount, onRemove: suspend () -> Unit) {
+private fun AccountRow(a: ExternalAccount, onRemove: suspend () -> Unit) {
     val theme = LocalTheme.current
     Row(
         Modifier.fillMaxWidth().testTag("account.${a.id}"),

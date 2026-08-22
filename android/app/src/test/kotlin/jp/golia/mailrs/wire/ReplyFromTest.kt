@@ -6,7 +6,7 @@ import org.junit.Test
 
 class ReplyFromTest {
     private fun acct(id: String, email: String, state: String = "ok") =
-        Wire.ExternalAccount(id = id, email = email, displayName = "", state = state)
+        ExternalAccount(id = id, email = email, displayName = "", state = state)
 
     private val own = "me@golia.jp"
     private val all = fromAddresses(own, listOf(acct("ext_g", "me@gmail.com"), acct("ext_q", "me@qq.com")))

@@ -10,7 +10,7 @@ data class FromAddress(val accountId: String, val address: String, val label: St
  * would produce a message that cannot be sent, and offering a choice
  * that fails is worse than not offering it.
  */
-fun fromAddresses(own: String, accounts: List<Wire.ExternalAccount>): List<FromAddress> {
+fun fromAddresses(own: String, accounts: List<ExternalAccount>): List<FromAddress> {
     val out = mutableListOf<FromAddress>()
     if (own.isNotEmpty()) out += FromAddress("", own, own)
     for (a in accounts) {
