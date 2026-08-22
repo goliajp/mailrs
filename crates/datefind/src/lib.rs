@@ -74,6 +74,100 @@ pub fn find(text: &str, reference: NaiveDate) -> Vec<Candidate> {
 /// The cap on how many dates one message can propose.
 pub const LIMIT: usize = 8;
 
+/// The most distinct dates a message can offer and still be read as a
+/// proposal. Above this it is a listing, and a listing offers nothing.
+pub const MOST_A_PROPOSAL_NAMES: usize = 3;
+
+/// The dates in `text` that read as somebody proposing a time.
+///
+/// [`find`] answers "is this a date". This answers the different and
+/// harder question the reader actually has — "is somebody suggesting we
+/// meet then" — and the two must not be conflated. A support reply
+/// quoting eight SMTP rejection timestamps contains eight dates and
+/// proposes nothing; offering all eight is worse than offering none,
+/// because the reader now has to judge each one.
+///
+/// Four things disqualify a date, each of them a shape rather than a
+/// guess about meaning:
+///
+/// - **It is in quoted text.** A line beginning `>`, or anything below
+///   an `On … wrote:` / `-----Original Message-----` boundary, was
+///   written by somebody else in another context. This alone removed
+///   every chip in the 2026-08-21 report.
+/// - **It is a machine timestamp** — an ISO instant carrying a clock,
+///   sub-seconds or a zone. `2026-08-25T04:00:00.123Z` is a log line.
+/// - **It has already happened.** A proposal is about the future;
+///   `reference` is the message's own date, so this reads the same way
+///   tomorrow.
+/// - **There are too many.** Past [`MOST_A_PROPOSAL_NAMES`] distinct
+///   days, the message is enumerating, not asking.
+///
+/// Repeats of the same day and hour collapse to one, so writing
+/// "the 25th … all of the 25th" offers one event rather than two.
+pub fn propose(text: &str, reference: NaiveDate) -> Vec<Candidate> {
+    let own = writers_own_text(text);
+    let mut out: Vec<Candidate> = Vec::new();
+    for c in find(own, reference) {
+        if c.date < reference || is_machine_timestamp(own, &c) {
+            continue;
+        }
+        if out.iter().any(|k| k.date == c.date && k.time == c.time) {
+            continue;
+        }
+        out.push(c);
+    }
+    if out.len() > MOST_A_PROPOSAL_NAMES {
+        return Vec::new();
+    }
+    out
+}
+
+/// Everything above the first quote or reply boundary.
+///
+/// Deliberately crude: the boundary forms below cover what mail
+/// clients actually emit, and a missed boundary costs a stray offer
+/// while an over-eager one silently loses a real proposal. When in
+/// doubt this keeps text.
+fn writers_own_text(text: &str) -> &str {
+    let mut end = text.len();
+    for (i, line) in line_offsets(text) {
+        let t = line.trim_start();
+        let quoted = t.starts_with('>');
+        let boundary = t.starts_with("-----Original Message")
+            || t.starts_with("________________________________")
+            || (t.starts_with("On ") && t.trim_end().ends_with("wrote:"))
+            || (t.starts_with("At ") && t.trim_end().ends_with("wrote:"));
+        if quoted || boundary {
+            end = i;
+            break;
+        }
+    }
+    &text[..end]
+}
+
+/// `(byte offset, line)` for each line, newline excluded.
+fn line_offsets(text: &str) -> impl Iterator<Item = (usize, &str)> {
+    let mut at = 0usize;
+    text.split_inclusive('\n').map(move |l| {
+        let start = at;
+        at += l.len();
+        (start, l.trim_end_matches(['\n', '\r']))
+    })
+}
+
+/// Whether the match sits inside an ISO 8601 instant.
+///
+/// The tell is what follows the date: `T` and a clock. A person
+/// proposing a time writes "on the 25th at 4pm", not `T04:00:00.123Z`.
+fn is_machine_timestamp(text: &str, c: &Candidate) -> bool {
+    let after = &text[c.span.1..];
+    let b = after.as_bytes();
+    b.len() >= 3
+        && (b[0] == b'T' || b[0] == b't')
+        && b[1].is_ascii_digit()
+        && b[2].is_ascii_digit()
+}
+
 fn is_boundary(b: u8) -> bool {
     !b.is_ascii_alphanumeric()
 }

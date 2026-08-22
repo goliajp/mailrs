@@ -175,7 +175,12 @@ pub async fn get_message_single(
         .unwrap_or((None, None))
     };
     // Dates a person wrote in prose, for mail that carries no calendar
-    // part — which is most mail about a meeting. Computed when a
+    // part — which is most mail about a meeting.
+    //
+    // `propose`, not `find`: reading a date and reading a proposal are
+    // different questions, and asking only the first one put eight
+    // chips on a support reply whose dates were all quoted SMTP
+    // rejection timestamps. Computed when a
     // message is opened rather than at delivery: it is one pass over a
     // body that is already in hand here, and putting it on the ingest
     // path would spend it on every newsletter that will never be read.
@@ -186,7 +191,7 @@ pub async fn get_message_single(
             .map(|d| d.date_naive())
             .unwrap_or_else(|| chrono::Utc::now().date_naive());
         let body = text_body.as_deref().unwrap_or_default();
-        mailrs_datefind::find(body, reference)
+        mailrs_datefind::propose(body, reference)
             .into_iter()
             .map(|c| {
                 serde_json::json!({

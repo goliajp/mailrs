@@ -41,10 +41,18 @@ describe('dates offered from the body', () => {
     expect(ics).not.toContain('T00')
   })
 
-  it('quotes back what was written, rather than reformatting it', () => {
+  // This used to assert the opposite — that the chip shows the writer's
+  // own words. It did, and a row of eight of them read as noise:
+  // `Aug 21 2026` beside `2026-08-20` beside `2026-08-21`, reported
+  // 2026-08-21. The row now carries one shape and the written form
+  // moves to the chip's title, where it is still there to be checked.
+  it('shows one shape in the row and keeps the written words on it', () => {
     render(
       <DateSuggestions suggestions={[{ date: '2026-08-21', datetime: null, text: '8月21日' }]} />
     )
-    expect(screen.getByText('8月21日')).toBeTruthy()
+    const chip = screen.getByTitle('8月21日')
+    expect(chip).toBeTruthy()
+    expect(chip.textContent).not.toContain('8月21日')
+    expect(chip.textContent).toContain('21')
   })
 })
