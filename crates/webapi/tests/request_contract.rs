@@ -416,6 +416,24 @@ fn unsubscribe_body_matches() {
     assert_eq!(v.uid, 41);
 }
 
+/// The body a set-up screen posts to connect a mailbox somewhere else.
+///
+/// Only three fields, and that is the claim being pinned: a phone sends
+/// an address and a secret, and the server fills the rest in from the
+/// provider table. If this fixture ever needs a host and a port, the
+/// set-up screen has grown six fields.
+#[test]
+fn external_account_create() {
+    let v: serde_json::Value = parse("external-account-create");
+    assert_eq!(v["email"], "someone@qq.com");
+    assert!(v["secret"].as_str().is_some_and(|s| !s.is_empty()));
+    assert!(
+        v.get("incoming").is_none(),
+        "the client should not need to know the host"
+    );
+    assert!(v.get("outgoing").is_none());
+}
+
 #[test]
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
@@ -426,6 +444,7 @@ fn every_fixture_has_a_test() {
         "agent-key-create",
         "alias-create",
         "domain-create",
+        "external-account-create",
         "group-permissions-set",
         "push-register",
         "ai-polish",
