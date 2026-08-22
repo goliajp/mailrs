@@ -39,6 +39,15 @@ object Wire {
     /** One row of `GET /api/conversations` — a bare JSON array. */
     @Serializable
     data class Conversation(
+        /**
+         * Which connected mailbox this arrived at, empty for this
+         * server's own. It decides which address a reply leaves by.
+         *
+         * Defaulted rather than required: a row stored before
+         * connected mailboxes existed carries none, and its absence
+         * reads as ours, which is what it is.
+         */
+        @SerialName("account_id") val accountId: String = "",
         @SerialName("thread_id") val threadId: String,
         val subject: String,
         val participants: List<String>,
@@ -325,6 +334,15 @@ object Wire {
      */
     @Serializable
     data class SendRequest(
+        /**
+         * Which address this leaves by, or empty for the signed-in one.
+         *
+         * A reply to mail that arrived at a connected Gmail has to go
+         * out through that Gmail: sent from anywhere else it lands in
+         * the conversation as a stranger, and half the time the
+         * recipient's provider refuses it outright.
+         */
+        val from: String = "",
         val to: List<String>,
         val cc: List<String> = emptyList(),
         val bcc: List<String> = emptyList(),
