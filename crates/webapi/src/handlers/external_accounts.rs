@@ -122,6 +122,68 @@ pub async fn create(
     Ok(Json(serde_json::to_value(&row).unwrap_or_default()))
 }
 
+/// Store an account connected by OAuth, with its tokens sealed.
+///
+/// **One sealed blob, not two secrets.** An access token and a refresh
+/// token are two things that can be half-deleted, half-rotated or
+/// half-read; keeping them in one JSON value under one key means they
+/// arrive and leave together, which is the only state either is useful
+/// in.
+pub(crate) fn connect_oauth_account(
+    user: &str,
+    provider_key: &str,
+    email: &str,
+    access_token: &str,
+    refresh_token: &str,
+    expires_in: i64,
+) -> Result<(), (StatusCode, String)> {
+    let key = sealing_key()?;
+    let now = now_secs();
+    let preset = mailrs_mailprovider::preset_for_domain(
+        email.rsplit_once('@').map(|(_, d)| d).unwrap_or_default(),
+    );
+    let id = format!("ext_{now}_{}", stable_suffix(email));
+    let row = ext::AccountRow {
+        colour: Some(ext::colour_for(&id).to_string()),
+        id: id.clone(),
+        email: email.to_string(),
+        display_name: email.to_string(),
+        provider: provider_key.to_string(),
+        incoming: preset.map(|p| endpoint_of(&p.imap)).unwrap_or_default(),
+        outgoing: preset.map(|p| endpoint_of(&p.smtp)).unwrap_or_default(),
+        auth: ext::AuthKind::OAuth2,
+        created_at: now,
+        sort: now,
+        ..ext::AccountRow::default()
+    };
+    ext::validate(&row).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+
+    // The absolute instant, not the duration: a stored `expires_in`
+    // means nothing an hour after it was written, and the worker asks
+    // "is it due" rather than "how long was it good for".
+    let sealed = mailrs_secretbox::seal(
+        &key,
+        serde_json::json!({
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": now + expires_in,
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let (accounts_key, secret_key) = (keys::accounts(user), keys::secret(user, &id));
+    let json = serde_json::to_string(&row).unwrap_or_default();
+    with_kevy(move |c| {
+        c.set(secret_key.as_bytes(), sealed.as_bytes())?;
+        c.hset(accounts_key.as_bytes(), &[(id.as_bytes(), json.as_bytes())])?;
+        Ok(())
+    })
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(())
+}
+
 /// `DELETE /api/accounts/external/{id}` — remove one, and its secret.
 pub async fn delete(
     Extension(AuthedUser(user)): Extension<AuthedUser>,

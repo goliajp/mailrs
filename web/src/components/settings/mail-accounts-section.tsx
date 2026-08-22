@@ -253,10 +253,20 @@ function AccountState({ account }: { account: WireExternalAccount }) {
 function ProviderNote({ preset }: { preset: NonNullable<PresetOf> }) {
   if (preset.auth === 'oauth2') {
     return (
-      <p className="text-fg-muted text-xs">
-        {preset.label} does not accept a password for mail clients — connecting it opens a sign-in
-        page.
-      </p>
+      <div className="space-y-2">
+        <p className="text-fg-muted text-xs">
+          {preset.label} does not accept a password for mail apps — connecting it opens its own
+          sign-in page.
+        </p>
+        {/* A link, not a fetch: the provider's consent screen has to be
+            a real navigation, and coming back is a redirect it controls. */}
+        <a
+          className={btnPrimary}
+          href={`/api/accounts/external/oauth/${preset.id === 'gmail' ? 'google' : 'microsoft'}`}
+        >
+          Sign in to {preset.label}
+        </a>
+      </div>
     )
   }
   const help = preset.secret_help
