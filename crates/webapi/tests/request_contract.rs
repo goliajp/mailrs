@@ -17,26 +17,9 @@
 //! Read at runtime rather than `include_str!` so the crate stays packageable
 //! — the files live above `CARGO_MANIFEST_DIR`.
 
+mod common;
+use common::{fixture, parse};
 use mailrs_webapi::handlers;
-
-fn fixture(name: &str) -> String {
-    let path = format!(
-        "{}/../../wire-contract/requests/{}.json",
-        env!("CARGO_MANIFEST_DIR"),
-        name
-    );
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"))
-}
-
-/// Deserialize a fixture into `T`, failing with the serde error verbatim.
-///
-/// The error is the useful part: "missing field `sender`" names both the
-/// struct's expectation and the client's omission in one line.
-fn parse<T: serde::de::DeserializeOwned>(name: &str) -> T {
-    let raw = fixture(name);
-    serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("{name}.json does not fit the handler's struct: {e}"))
-}
 
 #[test]
 fn push_register_body_matches() {
@@ -59,24 +42,6 @@ fn feedback_body_matches() {
 }
 
 #[test]
-fn greylist_add_body_matches() {
-    let v: handlers::complete::CreateGreylistRequest = parse("greylist-local-add");
-    assert_eq!(v.kind, "domain");
-    assert_eq!(v.list, "blacklist");
-    assert_eq!(v.value, "spam.example.com");
-    assert_eq!(v.note, None);
-}
-
-#[test]
-fn email_group_create_body_matches() {
-    let v: handlers::groups::CreateEmailGroupRequest = parse("email-group-create");
-    assert_eq!(v.address, "team@golia.jp");
-    // The two that were silently dropped until 2026-07-30.
-    assert_eq!(v.domain, "golia.jp");
-    assert_eq!(v.description, "engineering");
-}
-
-#[test]
 fn signature_save_body_matches() {
     let v: mailrs_core_api::method::admin::SaveSignatureRequest = parse("signature-save");
     assert_eq!(v.name, "default");
@@ -87,10 +52,6 @@ fn signature_save_body_matches() {
 
 /// The address the client sends is the field the handler reads.
 ///
-/// `spam:{user}:whitelist` is live — marking a conversation *not junk*
-/// adds a sender and the inbound pipeline reads the set on delivery —
-/// and until v2.55 no client called these routes at all, so nothing
-/// had ever checked the shape either.
 #[test]
 fn sender_list_add_body_matches() {
     let v: handlers::spam_lists::AddRequest = parse("sender-list-add");
@@ -166,11 +127,6 @@ fn batch_mutation_body_matches() {
 
 /// The three writing-assistance bodies.
 ///
-/// `reply-suggest` is the reason these exist. Its three `original_*` fields
-/// are required, and the client sent `sender` and `subject` instead — serde
-/// dropped both, `original_sender` was then missing, and every call was a
-/// 422. The button had never worked on the lane that had the route, and the
-/// lane production runs had no route at all.
 #[test]
 fn ai_bodies_match() {
     let polish: mailrs_intelligence::assist::PolishRequest = parse("ai-polish");
@@ -194,10 +150,6 @@ fn ai_bodies_match() {
 
 /// The draft autosave, which runs every three seconds while composing.
 ///
-/// The client sent an untyped `Record<string, unknown>` here, so a renamed
-/// field compiled and serde dropped it. `id` is the field that matters
-/// most: absent allocates a new draft, present upserts the same one, so
-/// losing it turns one draft into one per tick.
 #[test]
 fn draft_save_body_matches() {
     let v: mailrs_core_api::method::admin::SaveDraftRequest = parse("draft-save");
@@ -215,167 +167,26 @@ fn draft_save_body_matches() {
 
 /// Alias creation — the admin write with the worst failure mode.
 ///
-/// Every non-account address on these domains resolves through an alias, so
-/// a dropped field here is mail that goes nowhere. All four are required on
-/// the handler; the admin page sends exactly these and nothing checked that
-/// until now.
-#[test]
-fn alias_create_body_matches() {
-    let v: mailrs_core_api::method::admin::AddAliasRequest = parse("alias-create");
-    assert_eq!(v.source_address, "devops@golia.jp");
-    assert_eq!(v.target_address, "lihao@golia.jp");
-    assert_eq!(v.domain, "golia.jp");
-    assert_eq!(v.alias_type, "forward");
-}
-
-/// Account provisioning. A dropped field here is an account that cannot
-/// log in — `password` is hashed server-side, so losing it stores an
-/// account with no usable credential rather than failing.
-#[test]
-fn account_create_body_matches() {
-    let v: mailrs_core_api::method::admin::AddAccountRequest = parse("account-create");
-    assert_eq!(v.address.as_str(), "qa@golia.jp");
-    assert_eq!(v.display_name, "QA");
-    assert_eq!(v.password, "not-a-real-password");
-}
-
-#[test]
-fn domain_create_body_matches() {
-    let v: mailrs_core_api::method::admin::AddDomainRequest = parse("domain-create");
-    assert_eq!(v.name, "golia.jp");
-}
-
-/// Saving a group's permissions. This was a 405 in production until
-/// 2026-07-31 because the lane registered POST while the page sends PUT,
-/// so the body had never reached the handler to be checked.
-#[test]
-fn group_permissions_body_matches() {
-    let v: handlers::groups::SetGroupPermissionsRequest = parse("group-permissions-set");
-    assert_eq!(v.permissions, vec!["admin.accounts", "admin.aliases"]);
-}
-
-/// The credential bodies. A fixture with a fake password is worth having:
-/// these are the paths where a dropped field means nobody can log in, and
-/// "it sends a secret" is a reason to write the fixture carefully, not a
-/// reason to leave the shape unchecked.
-#[test]
-fn credential_bodies_match() {
-    let login: handlers::auth::LoginRequest = parse("login");
-    assert_eq!(login.address, "lihao@golia.jp");
-    assert_eq!(login.password, "not-a-real-password");
-    // Absent unless the account has TOTP; present-and-absent must both parse.
-    assert_eq!(login.totp_code, None);
-
-    let change: handlers::auth::ChangePasswordRequest = parse("change-password");
-    assert_eq!(change.current_password, "not-a-real-old-password");
-    assert_eq!(change.new_password, "not-a-real-new-password");
-
-    let reset: handlers::auth_recovery::ResetPasswordRequest = parse("reset-password");
-    assert_eq!(reset.token, "0197f3c2-4a1b-7d31-9e55-2c8a1f0b6d44");
-    assert_eq!(reset.new_password, "not-a-real-password");
-}
-
-/// Recovery email — one of the nine wrong on 2026-07-30, where a new
-/// account's setting threw.
 #[test]
 fn recovery_email_body_matches() {
     let v: handlers::auth_recovery::SetRecoveryEmailRequest = parse("recovery-email-set");
     assert_eq!(v.recovery_email.as_deref(), Some("backup@example.com"));
 }
 
-/// An agent key's scopes decide what a machine caller may do. Dropping the
-/// list would create a key with none, or with whatever the handler defaults
-/// to — neither is what the operator asked for.
-#[test]
-fn agent_key_create_body_matches() {
-    let v: handlers::apps_keys::CreateAgentKeyRequest = parse("agent-key-create");
-    assert_eq!(v.name, "ci-bot");
-    assert_eq!(v.scopes, vec!["mail.read", "mail.send"]);
-}
-
-/// Reactions are keyed by the emoji itself, so it has to survive the round
-/// trip as typed — a multi-byte character that arrives mangled is a
-/// reaction nobody can remove, because removing it sends the same string.
 #[test]
 fn reaction_toggle_body_matches() {
     let v: mailrs_core_api::method::admin::ToggleReactionRequest = parse("reaction-toggle");
     assert_eq!(v.emoji, "\u{1f44d}");
 }
 
-/// The remaining admin writes. Each is small, and each drops silently:
-/// serde ignores what it does not name, so a renamed field leaves the
-/// operator looking at a form that said it saved.
-#[test]
-fn remaining_admin_bodies_match() {
-    let account: handlers::admin_directory::UpdateAccountRequest = parse("account-update");
-    assert_eq!(account.display_name.as_deref(), Some("QA Team"));
-
-    let group: handlers::groups::CreateGroupRequest = parse("group-create");
-    assert_eq!(group.name, "admins");
-    assert_eq!(group.description, "Full administrative access");
-
-    let member: handlers::groups::AddGroupMemberRequest = parse("group-members-add");
-    assert_eq!(member.address, "qa@golia.jp");
-
-    // The email-group membership body has the same one field and its own
-    // handler, so it gets its own fixture rather than sharing one — two
-    // paths that happen to agree today are not one contract.
-    let eg_member: handlers::groups::AddGroupMemberRequest = parse("email-group-members-add");
-    assert_eq!(eg_member.address, "qa@golia.jp");
-}
-
-/// TOTP enable and disable send the same one-field body to two handlers.
-///
-/// One fixture, because it is one shape — but both call sites are asserted
-/// on the client side, since two paths agreeing today is not one contract.
 #[test]
 fn totp_code_body_matches() {
     let v: handlers::auth_recovery::TotpCodeRequest = parse("totp-code");
     assert_eq!(v.code, "123456");
 }
 
-/// A sieve script is submitted whole and whitespace is significant — the
-/// rules are line-oriented, so a body that arrives reflowed is a filter
-/// that no longer parses.
-#[test]
-fn account_sieve_body_matches() {
-    let v: handlers::admin_ops::SetSieveRequest = parse("account-sieve-set");
-    assert!(v.script.starts_with("require [\"fileinto\"];\n"));
-    assert!(v.script.contains("fileinto \"Notifications\";"));
-    assert!(v.script.ends_with('\n'), "the trailing newline survives");
-}
-
-/// `{value}`, not a bare string. The handler took a `serde_json::Value` and
-/// stored `body.as_str()` with the whole document's JSON text as its
-/// fallback, so every setting would have been stored as the literal
-/// `{"value":"..."}` — never seen because the route took POST while the page
-/// sends PUT and the request was a 405.
-#[test]
-fn system_config_body_matches() {
-    let v: handlers::system_config::SetSystemConfigRequest = parse("system-config-set");
-    assert_eq!(v.value, "mailrs");
-}
-
-/// Removing a sign-in method.
-///
-/// The body names the identity; the account comes from the session and never
-/// from here. Both ends state that rule — the handler takes the address from
-/// `AuthedUser` and `unlink` refuses when the link belongs to someone else —
-/// because it is the one that keeps a link from being detached by whoever
-/// can guess it.
-#[test]
-fn identity_unlink_body_matches() {
-    let v: handlers::external_login::UnlinkRequest = parse("identity-unlink");
-    assert_eq!(v.issuer, "https://accounts.google.com");
-    assert_eq!(v.subject, "1029384756");
-}
-
 /// An unknown field is refused, by name.
 ///
-/// The point of `deny_unknown_fields` is that the failure says which field.
-/// Without it serde drops what it does not recognise and the request
-/// succeeds having ignored part of what the user asked for — nine bodies
-/// were doing exactly that on 2026-07-30, five of them silently.
 #[test]
 fn an_unknown_field_is_named_rather_than_dropped() {
     let mut body: serde_json::Value =
@@ -406,9 +217,6 @@ fn an_unknown_field_is_named_rather_than_dropped() {
 /// against itself.
 /// The body names a message, never a URL.
 ///
-/// The endpoint posts to whatever `List-Unsubscribe` that message
-/// carried; a body that carried the URL instead would make the server a
-/// request forwarder for anything a caller could name.
 #[test]
 fn unsubscribe_body_matches() {
     let v: handlers::unsubscribe::UnsubscribeRequest = parse("unsubscribe");
@@ -418,10 +226,6 @@ fn unsubscribe_body_matches() {
 
 /// The body a set-up screen posts to connect a mailbox somewhere else.
 ///
-/// Only three fields, and that is the claim being pinned: a phone sends
-/// an address and a secret, and the server fills the rest in from the
-/// provider table. If this fixture ever needs a host and a port, the
-/// set-up screen has grown six fields.
 #[test]
 fn external_account_create() {
     let v: serde_json::Value = parse("external-account-create");
