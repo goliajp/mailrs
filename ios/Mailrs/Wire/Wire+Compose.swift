@@ -111,8 +111,17 @@ extension Wire {
         /// every scheduled send went out immediately and nothing said
         /// so. It is a 400 now — hence an `Int64`, never a date string.
         let scheduledAt: Int64?
+        /// Which address this leaves by, or empty for the signed-in
+        /// one.
+        ///
+        /// A reply to mail that arrived at a connected Gmail has to go
+        /// out through that Gmail: sent from anywhere else it lands in
+        /// the conversation as a stranger, and half the time the
+        /// recipient's provider refuses it outright.
+        var from: String = ""
 
         enum CodingKeys: String, CodingKey {
+            case from
             case to
             case cc
             case bcc
