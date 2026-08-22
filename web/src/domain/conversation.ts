@@ -38,6 +38,14 @@ export type Category =
  * object after canonicalization.
  */
 export type ConversationFilter = {
+  /**
+   * Which connected mailboxes to narrow to.
+   *
+   * Absent is every account. An empty array is somebody who unticked
+   * them all, and the two must key differently or that person is
+   * served the unfiltered list out of cache.
+   */
+  readonly accounts?: null | readonly string[]
   readonly archived?: boolean
   readonly beforeTs?: number
   readonly category?: Category
@@ -146,6 +154,8 @@ export const FLAG_FLAGGED = 1 << 7
  * intent MUST produce the same key. See RFC §2.4.
  */
 export function canonicaliseFilter(f: ConversationFilter | undefined): {
+  /** `null` = every account; a list (even empty) = narrowed to it. */
+  readonly accounts: null | string
   readonly archived: boolean
   readonly beforeTs: null | number
   readonly category: Category | null
@@ -157,7 +167,11 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly unread: boolean | null
 } {
   const domains = [...(f?.domains ?? [])].sort()
+  // Bracketed, so the empty selection is a value and not the absence
+  // of one: `null` and `"[]"` are different keys.
+  const accounts = f?.accounts ? `[${[...f.accounts].sort().join(',')}]` : null
   return {
+    accounts,
     archived: f?.archived ?? false,
     beforeTs: f?.beforeTs ?? null,
     category: f?.category ?? null,

@@ -10,6 +10,13 @@
 //   3. Future per-namespace gcTime / staleTime overrides are localized.
 
 export type MailListFilters = {
+  /**
+   * Which connected mailboxes to narrow to. `undefined`/`null` is every
+   * account; an empty array is a filter nothing satisfies, and the two
+   * must key differently or unticking every box would serve the
+   * unfiltered cache.
+   */
+  accounts?: null | string[]
   archived?: boolean
   category?: null | string
   domains?: string[]
@@ -26,6 +33,10 @@ export type MailListFilters = {
 // the array, so consistency matters.
 function normalizeFilters(f: MailListFilters): Record<string, boolean | number | string> {
   const out: Record<string, boolean | number | string> = {}
+  // `null` and `[]` are different questions, so they must produce
+  // different keys: a falsy check here would let "no accounts" read the
+  // cache for "every account".
+  if (f.accounts) out.accounts = `[${[...f.accounts].sort().join(',')}]`
   if (f.archived) out.archived = 1
   if (f.category) out.category = f.category
   if (f.domains && f.domains.length > 0) out.domains = [...f.domains].sort().join(',')
