@@ -162,10 +162,7 @@ fn line_offsets(text: &str) -> impl Iterator<Item = (usize, &str)> {
 fn is_machine_timestamp(text: &str, c: &Candidate) -> bool {
     let after = &text[c.span.1..];
     let b = after.as_bytes();
-    b.len() >= 3
-        && (b[0] == b'T' || b[0] == b't')
-        && b[1].is_ascii_digit()
-        && b[2].is_ascii_digit()
+    b.len() >= 3 && (b[0] == b'T' || b[0] == b't') && b[1].is_ascii_digit() && b[2].is_ascii_digit()
 }
 
 fn is_boundary(b: u8) -> bool {
