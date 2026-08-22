@@ -28,6 +28,7 @@ pub use boot::run;
 pub mod bounce;
 mod calendar_sync;
 pub mod dmarc_ingest;
+mod external_sync;
 pub mod fbl;
 mod headers;
 mod idle_backoff;
