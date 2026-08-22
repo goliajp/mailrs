@@ -3873,6 +3873,7 @@ dependencies = [
 name = "mailrs-smtp-client"
 version = "2.0.1"
 dependencies = [
+ "base64",
  "compact_str",
  "criterion 0.8.2",
  "hickory-resolver",
