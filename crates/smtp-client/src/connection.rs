@@ -345,6 +345,25 @@ impl SmtpConnection {
             .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "DATA response timeout"))?
     }
 
+    /// `AUTH PLAIN`, for submitting as a user rather than delivering to
+    /// an MX.
+    ///
+    /// **Refuses over a plaintext connection.** The credential is
+    /// base64, which is not encryption — sending one in the clear hands
+    /// it to anything on the path, and a server offering AUTH before
+    /// STARTTLS is a server to walk away from rather than to humour.
+    pub async fn auth_plain(&mut self, user: &str, secret: &str) -> io::Result<SmtpResponse> {
+        if !self.is_tls() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "refusing to send a password over a connection with no TLS",
+            ));
+        }
+        let payload = crate::auth_plain_payload(user, secret);
+        self.send_command(&format!("AUTH PLAIN {payload}\r\n"))
+            .await
+    }
+
     /// send QUIT
     pub async fn quit(&mut self) -> io::Result<()> {
         let _ = self.send_command("QUIT\r\n").await;

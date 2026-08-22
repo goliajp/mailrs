@@ -90,3 +90,21 @@ pub use mx::{MxCache, MxRecord, TokioResolver, fallback_to_domain, resolve_mx, s
 pub use response::{SmtpResponse, parse_response};
 pub use tls_outcome::{StarttlsResult, TlsOutcome};
 pub use trust::{default_pkix_client_config, pkix_root_store};
+
+/// The base64 blob an `AUTH PLAIN` command carries.
+///
+/// RFC 4616: authorisation identity, authentication identity and
+/// password, separated by NUL bytes, then base64. The separator is the
+/// trap — spaces authenticate as nobody and the server answers with
+/// what reads as a wrong password. The authorisation identity is left
+/// empty, because repeating the username there is accepted by some
+/// servers and refused by Gmail.
+pub fn auth_plain_payload(user: &str, secret: &str) -> String {
+    use base64::Engine as _;
+    let mut raw = Vec::with_capacity(user.len() + secret.len() + 2);
+    raw.push(0);
+    raw.extend_from_slice(user.as_bytes());
+    raw.push(0);
+    raw.extend_from_slice(secret.as_bytes());
+    base64::engine::general_purpose::STANDARD.encode(raw)
+}
