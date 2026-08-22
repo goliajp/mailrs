@@ -111,6 +111,7 @@ pub async fn export_mbox(
     // list call with a large limit).
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
         filter: mailrs_core_api::types::ConversationFilter {
+            accounts: None,
             limit: 10_000,
             before_ts: None,
             category: None,

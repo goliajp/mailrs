@@ -167,6 +167,8 @@ async fn main() {
         loop {
             let req = ListConversationsRequest {
                 filter: ConversationFilter {
+                    // Every account: a dump is not a filtered view.
+                    accounts: None,
                     limit: page_size,
                     before_ts,
                     category: None,

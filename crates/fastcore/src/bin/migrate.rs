@@ -81,6 +81,7 @@ struct ThreadRowJson {
 impl From<ThreadRowJson> for ThreadRow {
     fn from(j: ThreadRowJson) -> Self {
         ThreadRow {
+            account_id: String::new(),
             thread_id: j.thread_id,
             subject: j.subject,
             senders_csv: j.senders_csv,

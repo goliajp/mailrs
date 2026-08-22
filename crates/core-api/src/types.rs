@@ -170,6 +170,15 @@ pub struct ConversationFilter {
     /// One of: `important` / `other` / `null` (UI section tabs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
+    /// Only conversations that arrived at these connected mailboxes.
+    ///
+    /// Absent is every account, which is what the unified lists mean.
+    /// An empty list is a filter nothing satisfies — somebody who has
+    /// unchecked every box is not asking for all of them. This
+    /// deployment's own mail is the empty string, so it can be
+    /// switched off like any other.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accounts: Option<Vec<String>>,
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -244,6 +253,7 @@ mod tests {
     #[test]
     fn conversation_filter_full_roundtrip() {
         let f = ConversationFilter {
+            accounts: None,
             limit: 50,
             before_ts: Some(1_700_000_000),
             category: Some("personal".into()),
