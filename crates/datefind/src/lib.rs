@@ -3,6 +3,10 @@
 
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime};
 
+mod meeting;
+pub use meeting::MEETING_WORDS;
+use meeting::mentions_meeting;
+
 /// A date, and the time beside it if the writer gave one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
@@ -138,62 +142,6 @@ pub fn propose(text: &str, reference: NaiveDate) -> Vec<Candidate> {
         return Vec::new();
     }
     out
-}
-
-/// The words that make a message about meeting somebody.
-///
-/// Deliberately about *arranging* rather than about calendars: "予定"
-/// and "schedule" alone appear in delivery notices, so the list leans
-/// on the vocabulary of asking — meet, call, free, いかが, ご都合.
-///
-/// Matched case-insensitively over the writer's own text. A list this
-/// short will miss phrasings; missing one costs a chip that had to be
-/// typed by hand, while guessing wrongly puts a calendar button on a
-/// bank statement, and only one of those was ever reported.
-pub const MEETING_WORDS: [&str; 34] = [
-    // English — arranging
-    "meet",
-    "meeting",
-    "call",
-    "sync",
-    "catch up",
-    "chat",
-    "appointment",
-    "interview",
-    "schedule a",
-    "reschedule",
-    "book a",
-    "slot",
-    "are you free",
-    "if you are free",
-    "available",
-    "availability",
-    "works for you",
-    "how about",
-    "shall we",
-    "let us know a time",
-    "calendar invite",
-    "invite for",
-    // 日本語
-    "打ち合わせ",
-    "ミーティング",
-    "面談",
-    "面接",
-    "会議",
-    "ご都合",
-    "都合はいかが",
-    "空いてい",
-    "お時間",
-    "アポ",
-    // 中文
-    "会议",
-    "开会",
-];
-
-/// Whether the writer's own text is about arranging to meet.
-fn mentions_meeting(text: &str) -> bool {
-    let lower = text.to_lowercase();
-    MEETING_WORDS.iter().any(|w| lower.contains(w))
 }
 
 /// Everything above the first quote or reply boundary.
