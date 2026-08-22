@@ -52,7 +52,14 @@ for path in web + glob.glob("ios/Mailrs/**/*.swift", recursive=True):
     # reached from an `href`, and this is how it was being missed.
     text = re.sub(r"\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", "{}", text)
     text = re.sub(r"\\\([^()]*(?:\([^()]*\)[^()]*)*\)", "{}", text)
-    for m in re.finditer(r"""['"`](/(?:api/)?[a-zA-Z0-9/_{}$.:%-]*)['"`]""", text):
+    # A path may be followed by its query string inside the same
+    # literal — `path: `/contacts?q=${q}&limit=${n}``. `?` is not a
+    # path character, so a regex anchored on the closing quote saw
+    # none of those: 19 paths across the tree were invisible, and a
+    # route reached only that way looked dead. Terminate on `?` too.
+    for m in re.finditer(
+        r"""['"`](/(?:api/)?[a-zA-Z0-9/_{}$.:%-]*)(?:\?[^'"`]*)?['"`]""", text
+    ):
         raw = m.group(1)
         if not raw.startswith("/api"):
             raw = "/api" + raw
