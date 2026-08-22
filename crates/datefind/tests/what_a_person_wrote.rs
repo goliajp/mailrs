@@ -162,7 +162,10 @@ fn a_person_proposing_two_times_still_gets_both() {
 #[test]
 fn the_same_day_written_twice_is_offered_once() {
     let reference = NaiveDate::from_ymd_opt(2026, 8, 21).unwrap();
-    let text = "Shall we say 2026-08-25? I am free all of 2026-08-25.";
+    // Both halves carry the hour now: a bare day is no longer offered
+    // at all, so a dedupe test written without one would pass for the
+    // wrong reason.
+    let text = "Shall we say 2026-08-25 at 14:00? I am free on 2026-08-25 at 14:00.";
     assert_eq!(mailrs_datefind::propose(text, reference).len(), 1);
 }
 
@@ -229,4 +232,72 @@ fn today_with_an_hour_is_still_a_proposal() {
         1,
         "somebody asking about this afternoon got nothing"
     );
+}
+
+// ── it must read as a meeting, not merely as a date ─────────────────
+//
+// 2026-08-23: "不要这么敏感，我只要能做好那种标准的 mtg 预约就行了".
+// Every gate until now excluded a bad shape — quoted, machine, past,
+// too many — so anything left through was offered, and a future date
+// in prose is very often a deadline, a renewal or a delivery window.
+//
+// The gate is now positive: an hour, and a message that says somewhere
+// that it is about meeting. A standard booking has both.
+
+#[test]
+fn a_deadline_with_an_hour_is_not_a_meeting() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "The report is due September 1 at 5pm — please send it before then.";
+    assert!(mailrs_datefind::propose(text, reference).is_empty());
+}
+
+#[test]
+fn a_renewal_notice_is_not_a_meeting() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "Your subscription renews on 2026-09-10 at 09:00 JST.";
+    assert!(mailrs_datefind::propose(text, reference).is_empty());
+}
+
+#[test]
+fn a_delivery_window_is_not_a_meeting() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "お届け予定日は9月2日 14:00〜16:00です。";
+    assert!(mailrs_datefind::propose(text, reference).is_empty());
+}
+
+#[test]
+fn a_meeting_without_an_hour_is_not_offered() {
+    // Deliberate. An all-day chip for a meeting is not what anybody
+    // wants, and a bare day is the shape every false positive took.
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "Let's meet on August 25 — I'll send an invite later.";
+    assert!(mailrs_datefind::propose(text, reference).is_empty());
+}
+
+#[test]
+fn the_standard_booking_still_works_in_english() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "Could we meet on August 25 at 2pm? If that is bad for you, \
+                August 26 at 10am also works for me.";
+    let got = mailrs_datefind::propose(text, reference);
+    assert_eq!(
+        got.len(),
+        2,
+        "{:?}",
+        got.iter().map(|c| &c.text).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn the_standard_booking_still_works_in_japanese() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "打ち合わせの件、9月2日 14:00 はいかがでしょうか。";
+    assert_eq!(mailrs_datefind::propose(text, reference).len(), 1);
+}
+
+#[test]
+fn an_interview_slot_is_a_meeting() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+    let text = "We would like to schedule the interview for September 3 at 11:00.";
+    assert_eq!(mailrs_datefind::propose(text, reference).len(), 1);
 }

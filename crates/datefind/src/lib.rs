@@ -78,7 +78,7 @@ pub const LIMIT: usize = 8;
 /// proposal. Above this it is a listing, and a listing offers nothing.
 pub const MOST_A_PROPOSAL_NAMES: usize = 3;
 
-/// The dates in `text` that read as somebody proposing a time.
+/// The dates in `text` that read as somebody proposing a meeting.
 ///
 /// [`find`] answers "is this a date". This answers the different and
 /// harder question the reader actually has — "is somebody suggesting we
@@ -87,8 +87,20 @@ pub const MOST_A_PROPOSAL_NAMES: usize = 3;
 /// proposes nothing; offering all eight is worse than offering none,
 /// because the reader now has to judge each one.
 ///
-/// Four things disqualify a date, each of them a shape rather than a
-/// guess about meaning:
+/// Two things must be true before anything is offered, because a
+/// future date in prose is far more often a deadline, a renewal or a
+/// delivery window than an invitation:
+///
+/// - **The date carries an hour.** A standard booking names one; there
+///   is nothing to agree to otherwise, and an all-day chip for a
+///   meeting is not what anybody wants. Every false positive reported
+///   so far took the bare-day shape.
+/// - **The message says somewhere that it is about meeting** — see
+///   [`MEETING_WORDS`]. Checked over the whole of the writer's own
+///   text rather than beside each date, so the second option in "the
+///   25th at 2pm, or the 26th at 10am" is offered too.
+///
+/// And four shapes disqualify a date that got past those:
 ///
 /// - **It is in quoted text.** A line beginning `>`, or anything below
 ///   an `On … wrote:` / `-----Original Message-----` boundary, was
@@ -106,15 +118,15 @@ pub const MOST_A_PROPOSAL_NAMES: usize = 3;
 /// "the 25th … all of the 25th" offers one event rather than two.
 pub fn propose(text: &str, reference: NaiveDate) -> Vec<Candidate> {
     let own = writers_own_text(text);
+    if !mentions_meeting(own) {
+        return Vec::new();
+    }
     let mut out: Vec<Candidate> = Vec::new();
     for c in find(own, reference) {
-        // Today, with no hour beside it, is a statement about now
-        // rather than a question about later: a proposal for today has
-        // to name a time or there is nothing to agree to. A bank's
-        // 「8月22日に…がありました」 was offered as an event on the day
-        // it arrived, 2026-08-22.
-        let states_today = c.date == reference && c.time.is_none();
-        if c.date < reference || states_today || is_machine_timestamp(own, &c) {
+        if c.time.is_none() {
+            continue;
+        }
+        if c.date < reference || is_machine_timestamp(own, &c) {
             continue;
         }
         if out.iter().any(|k| k.date == c.date && k.time == c.time) {
@@ -126,6 +138,62 @@ pub fn propose(text: &str, reference: NaiveDate) -> Vec<Candidate> {
         return Vec::new();
     }
     out
+}
+
+/// The words that make a message about meeting somebody.
+///
+/// Deliberately about *arranging* rather than about calendars: "予定"
+/// and "schedule" alone appear in delivery notices, so the list leans
+/// on the vocabulary of asking — meet, call, free, いかが, ご都合.
+///
+/// Matched case-insensitively over the writer's own text. A list this
+/// short will miss phrasings; missing one costs a chip that had to be
+/// typed by hand, while guessing wrongly puts a calendar button on a
+/// bank statement, and only one of those was ever reported.
+pub const MEETING_WORDS: [&str; 34] = [
+    // English — arranging
+    "meet",
+    "meeting",
+    "call",
+    "sync",
+    "catch up",
+    "chat",
+    "appointment",
+    "interview",
+    "schedule a",
+    "reschedule",
+    "book a",
+    "slot",
+    "are you free",
+    "if you are free",
+    "available",
+    "availability",
+    "works for you",
+    "how about",
+    "shall we",
+    "let us know a time",
+    "calendar invite",
+    "invite for",
+    // 日本語
+    "打ち合わせ",
+    "ミーティング",
+    "面談",
+    "面接",
+    "会議",
+    "ご都合",
+    "都合はいかが",
+    "空いてい",
+    "お時間",
+    "アポ",
+    // 中文
+    "会议",
+    "开会",
+];
+
+/// Whether the writer's own text is about arranging to meet.
+fn mentions_meeting(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    MEETING_WORDS.iter().any(|w| lower.contains(w))
 }
 
 /// Everything above the first quote or reply boundary.
