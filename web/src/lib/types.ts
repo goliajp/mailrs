@@ -71,6 +71,12 @@ export type ConversationLine = {
 
 // conversation API types
 export type ConversationSummary = {
+  /**
+   * Which connected mailbox this arrived at; empty is this server's
+   * own. Optional because rows stored before connected mailboxes
+   * existed carry none, and that absence reads as ours.
+   */
+  account_id?: string
   archived: boolean
   category: string
   flagged: boolean
