@@ -3,9 +3,9 @@ package jp.golia.mailrs.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -26,11 +26,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.MailViewModel
+import jp.golia.mailrs.wire.DateChip
 import jp.golia.mailrs.wire.InviteIntent
 import jp.golia.mailrs.wire.InviteRules
 import jp.golia.mailrs.wire.MailrsClient
@@ -244,9 +247,14 @@ private fun DateSuggestions(suggestions: List<Wire.DateSuggestion>) {
             TextButton(
                 onClick = { context.startActivity(InviteIntent.insert(s)) },
                 contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.testTag("suggestion.${s.date}"),
+                modifier =
+                    Modifier.testTag("suggestion.${s.date}").semantics {
+                        // The row is uniform; what the writer actually
+                        // typed stays reachable to anyone who asks.
+                        contentDescription = s.text
+                    },
             ) {
-                Text(s.text, color = theme.accent, fontSize = 12.sp, maxLines = 1)
+                Text(DateChip.label(s), color = theme.accent, fontSize = 12.sp, maxLines = 1)
             }
         }
     }

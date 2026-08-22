@@ -23,11 +23,14 @@ struct DateSuggestions: View {
                 ForEach(suggestions) { s in
                     if let file = InviteICS.write(s) {
                         ShareLink(item: file) {
-                            Label(s.text, systemImage: "calendar.badge.plus")
+                            Label(DateChip.label(s), systemImage: "calendar.badge.plus")
                                 .font(.caption)
                                 .lineLimit(1)
                         }
                         .accessibilityIdentifier("suggestion.\(s.date)")
+                        // The row is uniform; what the writer actually
+                        // typed stays reachable to anyone who asks.
+                        .accessibilityLabel(s.text)
                     }
                 }
             }

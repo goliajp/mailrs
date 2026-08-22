@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { CalendarPlus } from 'lucide-react'
 
+import { chipLabel } from '@/lib/date-chip'
 import { messageKeys } from '@/lib/query-keys'
 import { adminObjectGet } from '@/wire/endpoints/admin'
 
@@ -37,10 +38,11 @@ export function DateSuggestions({ suggestions }: { suggestions: DateSuggestion[]
           className="border-border text-fg-muted hover:text-fg inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs"
           download={`${s.date}.ics`}
           href={icsHref(s)}
-          key={`${s.date}-${s.text}`}
+          key={`${s.date}-${s.datetime ?? 'allday'}`}
+          title={s.text}
         >
           <CalendarPlus className="h-3 w-3" />
-          {s.text}
+          {chipLabel(s)}
         </a>
       ))}
     </div>
