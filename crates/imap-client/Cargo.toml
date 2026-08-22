@@ -15,4 +15,21 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+# The socket half. Off by default so the parsing and the bookkeeping
+# stay usable — and testable — without pulling in a TLS stack.
+net = ["dep:tokio", "dep:tokio-rustls", "dep:rustls", "dep:mailrs-smtp-client", "dep:base64"]
+
 [dependencies]
+base64 = { version = "0.22", optional = true }
+tokio = { version = "1", features = ["net", "io-util", "time"], optional = true }
+tokio-rustls = { version = "0.26", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
+# For the trust anchors: the platform store *and* the Mozilla set, which
+# is the same pair SMTP verifies against. Getting this wrong stopped mail
+# on 2026-08-17, and there is no reason for IMAP to learn it separately.
+mailrs-smtp-client = { path = "../smtp-client", version = "2", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "io-util", "net", "time"] }

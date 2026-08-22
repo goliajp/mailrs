@@ -3274,6 +3274,7 @@ dependencies = [
  "mailrs-dkim",
  "mailrs-dmarc",
  "mailrs-ical",
+ "mailrs-imap-client",
  "mailrs-imap-codec",
  "mailrs-imap-format",
  "mailrs-imap-proto",
@@ -3287,6 +3288,7 @@ dependencies = [
  "mailrs-outbound-queue",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
+ "mailrs-secretbox",
  "mailrs-sieve",
  "mailrs-smtp-client",
  "mailrs-srs",
@@ -3329,6 +3331,13 @@ dependencies = [
 [[package]]
 name = "mailrs-imap-client"
 version = "1.0.0"
+dependencies = [
+ "base64",
+ "mailrs-smtp-client",
+ "rustls",
+ "tokio",
+ "tokio-rustls",
+]
 
 [[package]]
 name = "mailrs-imap-codec"
