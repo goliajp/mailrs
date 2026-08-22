@@ -13,9 +13,9 @@ import { useCurrentThreadMessages } from '@/hooks/use-current-list'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/hooks/use-drafts'
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
-import { replyFromFor, useFromAddresses } from '@/lib/from-addresses'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
+import { useReplyFrom } from '@/lib/use-reply-from'
 import { authAtom } from '@/store/auth'
 import { wirePolishText, wireReplySuggest } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
@@ -70,14 +70,7 @@ export function ReplyBox({
   threadId,
 }: ReplyBoxProps) {
   const auth = useAtomValue(authAtom)
-  // Which address this leaves by. Defaults to the account the mail
-  // arrived at and follows it when the reader moves to another
-  // conversation — until they pick one by hand, which is theirs to
-  // keep for as long as this box is open.
-  const { addresses } = useFromAddresses()
-  const suggestedFrom = replyFromFor(accountId, addresses)
-  const [chosenFrom, setChosenFrom] = useState<null | string>(null)
-  const from = chosenFrom ?? suggestedFrom
+  const { from, setFrom } = useReplyFrom(accountId)
   // From the server, not from `localStorage`: the atom that used to
   // feed this was written by no UI anywhere, so the composer's
   // signature was permanently empty while Settings → Signatures saved
@@ -415,7 +408,7 @@ export function ReplyBox({
       {/* Renders nothing until there is a second address, so a person
           with one mailbox never sees a control with one option in it. */}
       <div className="empty:hidden">
-        <FromPicker onChange={setChosenFrom} value={from} />
+        <FromPicker onChange={setFrom} value={from} />
       </div>
 
       {mode === 'forward' && (
