@@ -108,7 +108,13 @@ pub fn propose(text: &str, reference: NaiveDate) -> Vec<Candidate> {
     let own = writers_own_text(text);
     let mut out: Vec<Candidate> = Vec::new();
     for c in find(own, reference) {
-        if c.date < reference || is_machine_timestamp(own, &c) {
+        // Today, with no hour beside it, is a statement about now
+        // rather than a question about later: a proposal for today has
+        // to name a time or there is nothing to agree to. A bank's
+        // 「8月22日に…がありました」 was offered as an event on the day
+        // it arrived, 2026-08-22.
+        let states_today = c.date == reference && c.time.is_none();
+        if c.date < reference || states_today || is_machine_timestamp(own, &c) {
             continue;
         }
         if out.iter().any(|k| k.date == c.date && k.time == c.time) {

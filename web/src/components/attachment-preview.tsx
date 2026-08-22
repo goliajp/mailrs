@@ -32,12 +32,11 @@ export function AttachmentPreview({
   const others = visible.filter(({ att }) => !isImageAttachment(att))
 
   return (
-    <div className="border-border border-t px-4 py-3">
+    <div className="px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-fg-muted text-xs font-medium tracking-wide uppercase select-none">
           Attachments ({visible.length})
         </span>
-        <div className="bg-border h-px flex-1" />
       </div>
 
       {/* image thumbnails grid */}
