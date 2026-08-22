@@ -229,6 +229,7 @@ mod backfill_source_tests {
         let u = "alice@x.com";
 
         let mut row = thread_row::ThreadRow {
+            account_id: String::new(),
             thread_id: "t1".into(),
             subject: "s".into(),
             senders_csv: "bob@y.com".into(),

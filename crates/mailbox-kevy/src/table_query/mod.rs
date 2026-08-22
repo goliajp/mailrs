@@ -16,6 +16,7 @@ use super::KevyMailboxStore;
 use super::keys;
 use super::table_spec::thread_user_spec;
 
+mod account;
 mod flag;
 mod orderpath;
 
@@ -166,14 +167,54 @@ impl KevyMailboxStore {
         clause: &kevy_index::WhereClause,
         limit: usize,
     ) -> io::Result<Vec<String>> {
+        self.run_orderpath_for_account(index, user, clause, limit, None)
+    }
+
+    /// The same walk, narrowed to one connected mailbox.
+    ///
+    /// `account_id` is a stored value rather than part of any
+    /// ORDERPATH prefix — putting it there would double every
+    /// composite for a predicate most people never use — so this is a
+    /// FILTER over the same range, which is what stored values are
+    /// for. `None` reads every account, which is what a unified list
+    /// means.
+    fn run_orderpath_for_account(
+        &self,
+        index: &[u8],
+        user: &str,
+        clause: &kevy_index::WhereClause,
+        limit: usize,
+        account: Option<&str>,
+    ) -> io::Result<Vec<String>> {
         let (lo, hi) = self.composite_bounds_for(index, clause)?;
-        let (rows, _cursor) = self.store.idx_query(
-            index,
-            &kevy_embedded::IndexValue::Str(lo),
-            &kevy_embedded::IndexValue::Str(hi),
-            None,
-            limit,
-        )?;
+        let (lo, hi) = (
+            kevy_embedded::IndexValue::Str(lo),
+            kevy_embedded::IndexValue::Str(hi),
+        );
+        let rows = match account {
+            None => self.store.idx_query(index, &lo, &hi, None, limit)?.0,
+            Some(id) => {
+                self.store
+                    .idx_query_claused(
+                        index,
+                        &lo,
+                        &hi,
+                        None,
+                        limit,
+                        kevy_embedded::ScalarQueryOpts {
+                            filters: &[kevy_embedded::ValueFilter::Eq {
+                                field: b"account_id",
+                                value: id.as_bytes(),
+                            }],
+                            sort: None,
+                            distinct: None,
+                            facets: &[],
+                            offset: 0,
+                        },
+                    )?
+                    .rows
+            }
+        };
 
         // The row key is `mailrs:threaduser:{user}:{tid}`; the tid can
         // itself contain colons (it is a Message-ID), so split off the

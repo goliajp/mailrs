@@ -315,6 +315,7 @@ mod table_spec_tests {
     #[test]
     fn written_fields_cover_declared_columns() {
         let row = thread_row::ThreadRow {
+            account_id: String::new(),
             thread_id: "t1".into(),
             subject: String::new(),
             senders_csv: String::new(),

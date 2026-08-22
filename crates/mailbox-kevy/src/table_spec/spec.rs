@@ -48,6 +48,13 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
         "unread",
         "has_action",
         "snoozed_until",
+        // Stored beside every index as well as keyed by its own, so
+        // "Starred, and only this mailbox" is one walk. Without it
+        // here, the account could be keyed on but never filtered on,
+        // and every stacked query would silently ignore it —
+        // `is_sender_is_the_only_flag_that_must_be_the_key` is the
+        // test that says so.
+        "account_id",
     ]
     .iter()
     .map(|c| c.as_bytes().to_vec())
@@ -82,6 +89,11 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
             col("bucket", ValType::Str),
             col("category", ValType::Str),
             col("activity", ValType::I64),
+            // Which connected mailbox the conversation arrived at,
+            // empty for this deployment's own. Stored and filtered on,
+            // never keyed: putting it in an ORDERPATH would double
+            // every composite for a predicate most people never use.
+            col("account_id", ValType::Str),
             col("sent_only", ValType::I64),
             col("is_sender", ValType::I64),
             col("starred", ValType::I64),
@@ -119,6 +131,14 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
             // due — which is what makes waking cost nothing on the
             // calls where nothing has to happen.
             "snoozed_until",
+            // Which connected mailbox the conversation arrived at.
+            // Keyed like the flags rather than folded into an
+            // ORDERPATH: "only these accounts" is N walks on this
+            // index — the engine's value filters have `Eq` and no
+            // `In` — and each carries `user` and `activity` beside it,
+            // so one walk answers the page and its count the way the
+            // flag axes already do.
+            "account_id",
         ]
         .iter()
         .map(|c| TableIndex {

@@ -60,6 +60,15 @@ pub struct ListThreadsFilter<'a> {
     pub has_action: bool,
     /// Only threads with `starred = true`.
     pub starred: bool,
+    /// Only threads that arrived at one of these connected mailboxes.
+    ///
+    /// `None` is every account, which is what a unified list means.
+    /// `Some(vec![])` is a filter nothing satisfies — somebody who has
+    /// just unchecked every box is asking for nothing, and answering
+    /// with everything would be answering a question they did not ask.
+    /// This deployment's own mail is the empty string, so it can be
+    /// asked for and switched off like any other.
+    pub accounts: Option<Vec<String>>,
     /// Cursor for pagination: only return threads with `latest_date <
     /// before_ts`. `activity` is the component right after the equality
     /// columns in every declared composite, which is the one position a
@@ -247,6 +256,70 @@ impl KevyMailboxStore {
     /// Returns `(rows, total_in_index)`. `total_in_index` is the
     /// pre-pagination count of the chosen index — exactly the
     /// "X / Y conversations" badge the UI shows.
+    /// One account's page under the rest of the filter.
+    ///
+    /// Keyed on the account index and given every other predicate as a
+    /// value filter, which is the flag axes' shape — so a narrowed
+    /// Inbox, or Starred within one mailbox, is still one walk and its
+    /// total is still an index count rather than a page read twice.
+    fn list_for_account(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        want: usize,
+        account_id: &str,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let scope = filter.scope();
+        if scope == Scope::Contradiction {
+            return Ok((Vec::new(), 0));
+        }
+        // The predicates the account index carries beside itself.
+        // `archived` is always one of them: every list but Archived
+        // excludes archived threads, and leaving it to a post-filter is
+        // what once answered "Inbox" with archived threads in it.
+        let archived = if filter.archived { "1" } else { "0" };
+        let mut extra: Vec<(&str, &str)> = vec![("archived", archived)];
+        for (col, on) in [
+            ("starred", filter.starred),
+            ("pinned", filter.pinned),
+            ("unread", filter.has_unread),
+            ("has_action", filter.has_action),
+        ] {
+            if on {
+                extra.push((col, "1"));
+            }
+        }
+        // `All`, `NotJunk` and `Np` are several buckets or none, and
+        // this index keys on the account rather than the bucket — so
+        // they are answered by the account walk and narrowed below,
+        // where the rows are in hand.
+        let scoped = match &scope {
+            Scope::Bucket(b) => Some(("bucket", (*b).to_string())),
+            Scope::Category(c) => Some(("category", c.clone())),
+            _ => None,
+        };
+        if let Some((col, ref val)) = scoped {
+            extra.push((col, val));
+        }
+        let total = self.count_thread_ids_by_account(user, account_id, &extra)?;
+        if want == 0 {
+            return Ok((Vec::new(), total));
+        }
+        let tids =
+            self.list_thread_ids_by_account(user, account_id, &extra, want, 0, filter.before_ts)?;
+        let (mut rows, _) = self.hydrate_page(user, &tids, total)?;
+        // The multi-bucket scopes, applied where the rows are.
+        let keep: Option<&[&str]> = match scope {
+            Scope::NotJunk => Some(&NON_JUNK_BUCKETS),
+            Scope::Np => Some(&NP_BUCKETS),
+            _ => None,
+        };
+        if let Some(buckets) = keep {
+            rows.retain(|r| buckets.contains(&keys::bucket_of(&r.category).name()));
+        }
+        Ok((rows, total))
+    }
+
     pub fn list_threads_by_activity(
         &self,
         user: &str,
@@ -254,6 +327,39 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        // Narrowed to some of the connected mailboxes, this is the same
+        // question asked once per account and merged by recency — the
+        // shape `list_buckets_via_table` already uses for the two-bucket
+        // views, and for the same reason: a stored value can be an `Eq`
+        // filter but there is no `In`, so N accounts are N walks.
+        //
+        // Taking `offset + limit` from each guarantees the merged prefix
+        // is right however they interleave.
+        if let Some(accounts) = filter.accounts.as_ref() {
+            let mut merged: Vec<ThreadRow> = Vec::new();
+            let mut total = 0usize;
+            for id in accounts {
+                let one = ListThreadsFilter {
+                    accounts: None,
+                    ..filter.clone()
+                };
+                let (rows, n) = self.list_for_account(user, &one, offset + limit, id)?;
+                total += n;
+                merged.extend(rows);
+            }
+            merged.sort_by(|a, b| {
+                b.latest_date
+                    .cmp(&a.latest_date)
+                    .then_with(|| a.thread_id.cmp(&b.thread_id))
+            });
+            if offset >= merged.len() {
+                return Ok((Vec::new(), total));
+            }
+            merged.drain(..offset);
+            merged.truncate(limit);
+            return Ok((merged, total));
+        }
+
         // One dispatcher, total over the filter space. Every branch ends
         // in a declared index; nothing falls through, because what it
         // used to fall through to — the hand-maintained zsets — is gone,

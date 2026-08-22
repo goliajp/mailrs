@@ -205,7 +205,15 @@ impl KevyMailboxStore {
         }
         // create the new thread's aggregate
         let is_own = crate::thread_row::senders_csv_contains_user(&sender, user);
+        // Which mailbox this conversation arrived at follows the thread
+        // it was split from: rethreading moves messages between
+        // conversations, never between accounts.
+        let account_id = self
+            .get_thread(&old_tid)?
+            .map(|r| r.account_id)
+            .unwrap_or_default();
         let row = crate::thread_row::ThreadRow {
+            account_id,
             thread_id: new_tid.clone(),
             subject,
             senders_csv: sender,

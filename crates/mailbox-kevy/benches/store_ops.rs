@@ -58,6 +58,7 @@ const CATEGORIES: [&str; 4] = ["inbox", "notification", "promotion", "general"];
 
 fn row(tid: &str, activity: i64, category: &str) -> ThreadRow {
     ThreadRow {
+        account_id: String::new(),
         thread_id: tid.into(),
         subject: "quarterly forecast renewal approval ticket".into(),
         senders_csv: "sender7@example0.com".into(),

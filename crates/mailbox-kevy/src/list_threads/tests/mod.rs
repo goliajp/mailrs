@@ -6,6 +6,7 @@
 
 #![cfg(test)]
 
+mod account_filter;
 mod archive_scope;
 mod bucket_axis;
 mod filters;
