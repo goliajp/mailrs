@@ -92,6 +92,13 @@ pub struct ConversationSummaryWire {
     pub importance_score: f32,
     pub requires_action: bool,
     pub sent_count: u32,
+    /// Which connected mailbox this arrived at, empty for our own.
+    ///
+    /// The client needs it for two things a unified list cannot do
+    /// without: the colour dot beside the row, and choosing which
+    /// address a reply leaves by.
+    #[serde(default)]
+    pub account_id: String,
     /// Epoch seconds this reader put the thread away until, or `0`.
     ///
     /// On the row so a client can say *Snoozed until Tuesday* rather
@@ -106,6 +113,11 @@ pub struct ConversationSummaryWire {
 impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWire {
     fn from(s: &mailrs_mailbox::types::ConversationSummary) -> Self {
         Self {
+            // The mailbox stone has no account concept — connected
+            // mailboxes are a fastcore-side feature — so everything
+            // arriving through it is this deployment's own, which is
+            // what the empty string means.
+            account_id: String::new(),
             thread_id: s.thread_id.clone(),
             subject: s.subject.clone(),
             participants: s.participants.clone(),
@@ -228,6 +240,7 @@ mod tests {
     #[test]
     fn conversation_summary_wire_roundtrip() {
         let w = ConversationSummaryWire {
+            account_id: String::new(),
             thread_id: "tid-1".into(),
             subject: "hello".into(),
             participants: "a@x.com,b@y.com".into(),
