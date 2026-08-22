@@ -43,6 +43,10 @@ export const wireThreadSummarySchema = z.object({
   message_count: z.number().int().min(0).default(0),
   participants: z.array(wireParticipantSchema).default([]),
   pinned: z.boolean().default(false),
+  // Which connected mailbox this arrived at; empty is this server's
+  // own. Defaulted, so a row written before connected mailboxes
+  // existed reads as ours rather than failing the whole list.
+  account_id: z.string().default(''),
   received_count: z.number().int().min(0).default(0),
   requires_action: z.boolean().default(false),
   sent_count: z.number().int().min(0).default(0),

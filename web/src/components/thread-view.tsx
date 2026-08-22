@@ -17,6 +17,7 @@ import {
 } from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
+import { useThreadAccountId } from '@/hooks/use-thread-account'
 import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { extractEmail } from '@/lib/avatar'
@@ -77,6 +78,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   // effect, which is two copies of one list.
   const rows = useCurrentListRows()
   const setSelectedId = useSelectThreadId()
+  // Which mailbox this conversation arrived at, so a reply leaves by
+  // the same door it came in.
+  const threadAccountId = useThreadAccountId(selectedId)
   const currentIdx = selectedId ? rows.findIndex((r) => r.threadId === selectedId) : -1
   const hasPrev = currentIdx > 0
   const hasNext = currentIdx >= 0 && currentIdx < rows.length - 1
@@ -339,6 +343,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   const replyCtx: ThreadReplyContext = {
+    accountId: threadAccountId,
     forwardAttachmentsUid: fwdUid,
     forwardMessageId: fwdMessageId,
     lastMessageId: fwdLastMessageId,
