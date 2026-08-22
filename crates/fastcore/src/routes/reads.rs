@@ -41,6 +41,7 @@ pub(crate) fn threads_filter(
         has_action: false,
         starred: f.starred.unwrap_or(false),
         before_ts: f.before_ts,
+        accounts: f.accounts.clone(),
     }
 }
 

@@ -123,6 +123,7 @@ pub async fn mark_all_read(
     let scoped = q.folder.is_some() || q.unread.is_some() || q.starred.is_some() || q.archived;
     let flipped = if scoped {
         let filter = mailrs_core_api::types::ConversationFilter {
+            accounts: None,
             limit: 0,
             before_ts: None,
             category: q.category,

@@ -111,6 +111,7 @@ pub async fn semantic_search(
 
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
         filter: mailrs_core_api::types::ConversationFilter {
+            accounts: None,
             limit: SCAN_CEILING,
             before_ts: None,
             category: None,

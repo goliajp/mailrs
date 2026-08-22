@@ -119,6 +119,7 @@ pub(crate) async fn run_ingest_once(
             .unwrap_or(0);
         let req = ListConversationsRequest {
             filter: ConversationFilter {
+                accounts: None,
                 limit: 200,
                 before_ts: None,
                 category: None,
@@ -201,6 +202,7 @@ pub(crate) async fn run_ingest_once(
                 continue;
             }
             let row = mailrs_mailbox_kevy::ThreadRow {
+                account_id: String::new(),
                 thread_id: s.thread_id.clone(),
                 subject: s.subject.clone(),
                 senders_csv: s.participants.clone(),

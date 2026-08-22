@@ -30,6 +30,7 @@ impl MailrsMcpService {
         let limit = params.limit.unwrap_or(50).min(500);
         let req = mailrs_core_api::method::conversation::ListConversationsRequest {
             filter: mailrs_core_api::types::ConversationFilter {
+                accounts: None,
                 limit,
                 before_ts: params.before_ts,
                 category: params.category,
@@ -123,6 +124,7 @@ impl MailrsMcpService {
         let limit = params.limit.unwrap_or(20).min(100);
         let req = mailrs_core_api::method::conversation::ListConversationsRequest {
             filter: mailrs_core_api::types::ConversationFilter {
+                accounts: None,
                 limit: 20_000,
                 before_ts: None,
                 category: None,

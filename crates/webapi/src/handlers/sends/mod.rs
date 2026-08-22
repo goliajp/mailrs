@@ -156,6 +156,7 @@ pub async fn shadow_sends(
     // The old axis lives behind the core, which owns the embedded store.
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
         filter: mailrs_core_api::types::ConversationFilter {
+            accounts: None,
             limit: 2000,
             before_ts: None,
             category: None,

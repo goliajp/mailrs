@@ -47,10 +47,67 @@ pub struct ListQuery {
     pub unread: Option<bool>,
     pub starred: Option<bool>,
     pub section: Option<String>,
+    /// Comma-separated account ids to narrow the list to.
+    ///
+    /// A query string, so the empty string is a real value and means
+    /// "this deployment's own mail" — which is why the parameter is
+    /// absent rather than empty when nothing is being narrowed. Sent
+    /// as `accounts=` + ids so a link can carry it.
+    pub accounts: Option<String>,
 }
 
 fn default_limit() -> u32 {
     50
+}
+
+/// The `accounts=` parameter, as the core reads it.
+///
+/// Absent is every account. Present and empty is a filter nothing
+/// satisfies, and that distinction is the whole point: somebody who
+/// unchecked every box gets an empty list, not the unfiltered one.
+/// A single empty id — `accounts=,` would be two — is this
+/// deployment's own mail, which is an account like the rest.
+fn parse_accounts(raw: Option<&str>) -> Option<Vec<String>> {
+    let raw = raw?;
+    if raw.is_empty() {
+        return Some(Vec::new());
+    }
+    Some(raw.split(',').map(|s| s.trim().to_string()).collect())
+}
+
+#[cfg(test)]
+mod account_param_tests {
+    use super::parse_accounts;
+
+    #[test]
+    fn absent_is_every_account() {
+        assert_eq!(parse_accounts(None), None);
+    }
+
+    /// Unchecking every box is a question with an empty answer, not a
+    /// question that was never asked.
+    #[test]
+    fn empty_is_a_filter_nothing_satisfies() {
+        assert_eq!(parse_accounts(Some("")), Some(Vec::new()));
+    }
+
+    #[test]
+    fn ids_are_split_and_trimmed() {
+        assert_eq!(
+            parse_accounts(Some("ext_a, ext_b")),
+            Some(vec!["ext_a".to_string(), "ext_b".to_string()])
+        );
+    }
+
+    /// The empty id is this server's own mail, so a list containing it
+    /// is not the same as an empty list.
+    #[test]
+    fn our_own_mail_can_be_named() {
+        assert_eq!(
+            parse_accounts(Some(",ext_a")),
+            Some(vec![String::new(), "ext_a".to_string()])
+        );
+    }
 }
 
 /// Wire shape the React UI expects for /api/conversations.
@@ -119,6 +176,7 @@ pub async fn get_conversations(
 ) -> Result<Json<Vec<ConversationResponse>>, StatusCode> {
     let req = wire::ListConversationsRequest {
         filter: ConversationFilter {
+            accounts: parse_accounts(q.accounts.as_deref()),
             limit: q.limit,
             before_ts: q.before_ts,
             category: q.category,
