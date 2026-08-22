@@ -275,6 +275,20 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/queue/{id}/retry",
             post(handlers::complete::queue_retry),
         )
+        // Mailboxes somewhere else — see
+        // .claude/rfcs/20260823-external-accounts.md
+        .route(
+            "/api/accounts/external",
+            get(handlers::external_accounts::list).post(handlers::external_accounts::create),
+        )
+        .route(
+            "/api/accounts/external/{id}",
+            delete(handlers::external_accounts::delete),
+        )
+        .route(
+            "/api/accounts/external/settings",
+            get(handlers::external_accounts::settings_for),
+        )
         .route(
             "/api/calendar/feeds",
             get(handlers::calendar::list_feeds).post(handlers::calendar::create_feed),
