@@ -3280,12 +3280,14 @@ dependencies = [
  "mailrs-imap-proto",
  "mailrs-inbound",
  "mailrs-intelligence",
+ "mailrs-jmap-client",
  "mailrs-keywords",
  "mailrs-mailbox-kevy",
  "mailrs-maildir",
  "mailrs-mime",
  "mailrs-mta-sts",
  "mailrs-outbound-queue",
+ "mailrs-pop3-client",
  "mailrs-rfc2047",
  "mailrs-rfc5322",
  "mailrs-secretbox",
@@ -3404,6 +3406,13 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailrs-jmap-client"
+version = "1.0.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -3586,6 +3595,16 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mailrs-pop3-client"
+version = "1.0.0"
+dependencies = [
+ "mailrs-smtp-client",
+ "rustls",
+ "tokio",
+ "tokio-rustls",
 ]
 
 [[package]]

@@ -237,16 +237,32 @@ pub fn parse_token_response(p: &Provider, body: &[u8]) -> Result<TokenResponse, 
             .get("id_token")
             .and_then(|t| t.as_str())
             .map(str::to_string),
+        refresh_token: v
+            .get("refresh_token")
+            .and_then(|t| t.as_str())
+            .map(str::to_string),
+        expires_in: v.get("expires_in").and_then(|t| t.as_i64()),
     })
 }
 
 /// What a token exchange returned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenResponse {
-    /// For calling userinfo.
+    /// For calling userinfo, and for IMAP's `AUTHENTICATE XOAUTH2`.
     pub access_token: String,
     /// Present on OIDC providers.
     pub id_token: Option<String>,
+    /// The long-lived half, present on the **first** exchange when the
+    /// scopes asked for it.
+    ///
+    /// A refresh answer usually omits it, and that means *keep the one
+    /// already held*. Reading its absence as "this account has no
+    /// refresh token" logs somebody out an hour later.
+    pub refresh_token: Option<String>,
+    /// Seconds the access token is good for, from the moment of the
+    /// answer. Absent from some providers' refresh answers, which is
+    /// why a caller stores an absolute instant rather than this.
+    pub expires_in: Option<i64>,
 }
 
 /// The claims payload of a JWT, undecoded and **unverified**.
@@ -405,6 +421,61 @@ pub fn identity_from_github(
                     .map(str::to_string)
             }),
     })
+}
+
+/// How long before expiry a token is renewed.
+///
+/// A minute is enough to finish a sync that has already started and
+/// short enough that a clock a little out of step does not renew on
+/// every tick. The number matters less than which side of expiry it
+/// is on: **before**, always.
+pub const RENEW_WITHIN_SECS: i64 = 300;
+
+/// Whether an access token should be renewed now.
+///
+/// An unknown expiry (`0`) is due rather than assumed fresh: it is
+/// either from before this existed or was written by something that
+/// did not say, and asking once is cheaper than a mailbox that quietly
+/// stops.
+pub fn needs_refresh(expires_at: i64, now: i64) -> bool {
+    expires_at == 0 || now + RENEW_WITHIN_SECS >= expires_at
+}
+
+/// The scopes a provider needs for its mail, or empty for one whose
+/// mailbox this cannot read.
+///
+/// `offline_access` is not decoration: without it the provider returns
+/// **no refresh token at all**, and the account works for one hour and
+/// then asks to sign in again with nothing in the flow saying why.
+/// Google spells the same thing `access_type=offline`, which
+/// [`authorize_url`] adds for that provider.
+pub fn mailbox_scopes(provider_key: &str) -> String {
+    match provider_key {
+        "google" => "https://mail.google.com/".into(),
+        "microsoft" => concat!(
+            "offline_access ",
+            "https://outlook.office.com/IMAP.AccessAsUser.All ",
+            "https://outlook.office.com/SMTP.Send"
+        )
+        .into(),
+        _ => String::new(),
+    }
+}
+
+/// The body that renews an access token.
+///
+/// The same shape as [`token_request_body`] with `grant_type` swapped:
+/// providers differ on almost everything else and agree on this.
+pub fn refresh_request_body(p: &Provider, refresh_token: &str, client_secret: &str) -> String {
+    let mut body = format!(
+        "grant_type=refresh_token&refresh_token={}&client_id={}",
+        encode(refresh_token),
+        encode(&p.client_id)
+    );
+    if !client_secret.is_empty() {
+        body.push_str(&format!("&client_secret={}", encode(client_secret)));
+    }
+    body
 }
 
 #[cfg(test)]

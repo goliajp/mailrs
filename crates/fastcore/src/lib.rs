@@ -29,6 +29,8 @@ pub mod bounce;
 mod calendar_sync;
 pub mod dmarc_ingest;
 mod external_sync;
+mod external_sync_jmap;
+mod external_sync_pop3;
 pub mod fbl;
 mod headers;
 mod idle_backoff;

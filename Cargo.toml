@@ -31,6 +31,8 @@ members = [
     "crates/postmaster",
     "crates/shield",
     "crates/jmap",
+    "crates/pop3-client",
+    "crates/jmap-client",
     "crates/dav",
     "crates/inbound",
     "crates/rate-limit",
