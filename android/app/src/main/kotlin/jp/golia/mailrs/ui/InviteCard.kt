@@ -33,8 +33,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.MailViewModel
-import jp.golia.mailrs.wire.DateChip
-import jp.golia.mailrs.wire.InviteIntent
 import jp.golia.mailrs.wire.InviteRules
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.Wire
@@ -64,12 +62,7 @@ fun InviteCard(uid: Int, method: String, vm: MailViewModel) {
         detail = (vm.client.invite(uid) as? MailrsClient.Outcome.Ok)?.value
     }
 
-    val invite = detail?.invite ?: run {
-        // No calendar part, but a date in the prose — which is what
-        // most mail about a meeting is. One fetch serves both.
-        DateSuggestions(detail?.dateSuggestions.orEmpty())
-        return
-    }
+    val invite = detail?.invite ?: return
     val cancelled = method.uppercase() == "CANCEL"
 
     Card(
@@ -228,34 +221,3 @@ private fun wallClockOf(dtstart: kotlinx.serialization.json.JsonElement?): Strin
         }
     }.getOrNull()
 
-/**
- * The dates somebody wrote in the body, offered as events.
- *
- * **It offers; it does not file.** `ACTION_INSERT` opens the calendar's
- * own new-event screen with the fields filled in, so the reader sees
- * what is about to be saved and no calendar permission is asked for —
- * nothing is written on their behalf.
- */
-@Composable
-private fun DateSuggestions(suggestions: List<Wire.DateSuggestion>) {
-    if (suggestions.isEmpty()) return
-    val theme = LocalTheme.current
-    val context = LocalContext.current
-    Column(Modifier.padding(top = 8.dp).testTag("suggestions")) {
-        Text("Add to calendar", color = theme.fgMuted, fontSize = 11.sp)
-        for (s in suggestions) {
-            TextButton(
-                onClick = { context.startActivity(InviteIntent.insert(s)) },
-                contentPadding = PaddingValues(0.dp),
-                modifier =
-                    Modifier.testTag("suggestion.${s.date}").semantics {
-                        // The row is uniform; what the writer actually
-                        // typed stays reachable to anyone who asks.
-                        contentDescription = s.text
-                    },
-            ) {
-                Text(DateChip.label(s), color = theme.accent, fontSize = 12.sp, maxLines = 1)
-            }
-        }
-    }
-}

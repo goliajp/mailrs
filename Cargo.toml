@@ -14,7 +14,6 @@ members = [
     "crates/storage-maildir",
     "crates/uidlist",
     "crates/keywords",
-    "crates/datefind",
     "crates/textguard",
     "crates/threadstate",
     "crates/message-store",

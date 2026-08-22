@@ -8,7 +8,6 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { ArrowLeft, Mail, MessageSquare, Reply } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { DateSuggestionsForMessage } from '@/components/date-suggestions'
 import { InviteCard } from '@/components/invite-card'
 import { MessageBubble } from '@/components/message-bubble'
 import { ReplyBox, type ReplyMode } from '@/components/reply-box'
@@ -331,9 +330,6 @@ function MobileThreadView() {
               <div className="px-4">
                 <InviteCard messageUid={selectedMsg.uid} />
               </div>
-            )}
-            {!selectedMsg.invite_method && (
-              <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
             )}
 
             {/* email content */}

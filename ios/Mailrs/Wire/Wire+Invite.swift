@@ -134,28 +134,11 @@ extension Wire {
     ///
     /// Most mail about a meeting is not an invitation: no calendar
     /// part, no UID, nothing to accept — just a sentence with a time in
-    /// it. Apple Mail has offered to file those since 2007.
-    struct DateSuggestion: Decodable, Sendable, Identifiable {
-        /// `YYYY-MM-DD`.
-        let date: String
-        /// Wall-clock `YYYY-MM-DDTHH:MM:SS`, or nil when only a day was
-        /// written. Deliberately not an instant: "2pm" in a sentence
-        /// means the writer's own afternoon and neither side knows
-        /// which zone that was.
-        let datetime: String?
-        /// What they wrote, quoted back rather than reformatted.
-        let text: String
-
-        var id: String { "\(date)-\(text)" }
-    }
-
     /// The single-message read, of which this client wants the
     /// invitation and the reader's own answer.
     struct MessageDetail: Decodable, Sendable {
         let inviteMethod: String
         let invite: Invite?
-        /// Dates found in the body, for mail carrying no calendar part.
-        let dateSuggestions: [DateSuggestion]
         /// `ACCEPTED` / `TENTATIVE` / `DECLINED`, or nil when this
         /// reader has not answered.
         let rsvpStatus: String?
@@ -164,7 +147,6 @@ extension Wire {
             case inviteMethod = "invite_method"
             case invite = "invite_payload"
             case rsvpStatus = "rsvp_status"
-            case dateSuggestions = "date_suggestions"
         }
 
         init(from decoder: Decoder) throws {
@@ -172,11 +154,6 @@ extension Wire {
             inviteMethod = try c.decodeIfPresent(String.self, forKey: .inviteMethod) ?? ""
             invite = try? c.decodeIfPresent(Invite.self, forKey: .invite)
             rsvpStatus = try c.decodeIfPresent(String.self, forKey: .rsvpStatus)
-            // Offered, not required: mail stored before this existed
-            // has none, and a shape this cannot read is not worth
-            // failing the whole message over.
-            dateSuggestions = ((try? c.decodeIfPresent(
-                [DateSuggestion].self, forKey: .dateSuggestions)) ?? nil) ?? []
         }
     }
 }

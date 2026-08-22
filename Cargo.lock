@@ -3126,13 +3126,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mailrs-datefind"
-version = "1.0.0"
-dependencies = [
- "chrono",
-]
-
-[[package]]
 name = "mailrs-dav"
 version = "1.1.2"
 dependencies = [
@@ -3957,7 +3950,6 @@ dependencies = [
  "mailrs-clean",
  "mailrs-core-api",
  "mailrs-core-sidestate",
- "mailrs-datefind",
  "mailrs-ical",
  "mailrs-intelligence",
  "mailrs-jmap",
