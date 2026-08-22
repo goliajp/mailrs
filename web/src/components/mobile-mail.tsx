@@ -299,7 +299,11 @@ function MobileThreadView() {
             <div className="border-border border-t-accent h-6 w-6 animate-spin rounded-full border-2" />
           </div>
         ) : selectedMsg ? (
-          <div>
+          // One rule for separation: the column draws the lines between
+          // its sections and no section draws its own. Two sections that
+          // each drew one produced the doubled hairlines reported
+          // 2026-08-22, and two that drew none produced no line at all.
+          <div className="divide-border divide-y">
             {/* sender metadata */}
             <div className="px-4 py-3">
               <div className="flex items-center gap-3">
@@ -329,9 +333,7 @@ function MobileThreadView() {
               </div>
             )}
             {!selectedMsg.invite_method && (
-              <div className="px-4">
-                <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
-              </div>
+              <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
             )}
 
             {/* email content */}
@@ -354,7 +356,7 @@ function MobileThreadView() {
 
             {/* conversation hint */}
             {messages.length > 1 && (
-              <div className="border-border border-t px-4 py-3">
+              <div className="px-4 py-3">
                 <button
                   className="text-accent flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium"
                   onClick={() => setMobileView('conversation')}

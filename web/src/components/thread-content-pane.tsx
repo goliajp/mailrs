@@ -222,7 +222,11 @@ export function ThreadContentPane({
               every element, and .select-text only rescues the element it's
               on — nested spans/divs stay unselectable (Chromium). gds's
               [data-selectable] * rule opts the whole reading pane back in. */}
-          <div className="min-w-0 flex-1 overflow-y-auto" data-selectable ref={contentScrollRef}>
+          <div
+            className="divide-border min-w-0 flex-1 divide-y overflow-y-auto"
+            data-selectable
+            ref={contentScrollRef}
+          >
             {selectedMsg ? (
               <>
                 {/* Email header (sender info). Each of the four info rows
@@ -232,7 +236,7 @@ export function ThreadContentPane({
                     no longer shifts the body downward.
                     Tags below use inline-flex h-4 leading-none so their
                     padding can't add vertical space beyond the row's box. */}
-                <div className="border-border shrink-0 border-b px-4 py-2">
+                <div className="shrink-0 px-4 py-2">
                   <div className="flex items-start gap-2.5">
                     {/* A spoof wearing your address would otherwise be
                         drawn with your own avatar, which is the most
@@ -354,14 +358,12 @@ export function ThreadContentPane({
                     it — the dates somebody wrote in the body, offered
                     rather than filed. */}
                 {!selectedMsg.invite_method && (
-                  <div className="px-4">
-                    <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
-                  </div>
+                  <DateSuggestionsForMessage messageUid={selectedMsg.uid} />
                 )}
 
                 {/* email body */}
                 {showHtml && (
-                  <div className="border-border border-b">
+                  <div>
                     <MessageBubble
                       attachments={EMPTY_ATTACHMENTS}
                       htmlBody={selectedMsg.html_body}

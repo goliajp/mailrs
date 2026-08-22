@@ -24,7 +24,7 @@ export function StructuredDataCard({ data }: { data: StructuredData }) {
   if (!hasContent) return null
 
   return (
-    <div className="border-border border-b px-5 py-3">
+    <div className="border-border px-5 py-3">
       <p className="text-fg-muted mb-2 text-xs font-medium tracking-wider uppercase">
         Structured Data
       </p>

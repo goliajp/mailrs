@@ -31,7 +31,7 @@ export type DateSuggestion = {
 export function DateSuggestions({ suggestions }: { suggestions: DateSuggestion[] }) {
   if (suggestions.length === 0) return null
   return (
-    <div className="border-border mt-3 flex flex-wrap items-center gap-2 border-t pt-2">
+    <div className="flex flex-wrap items-center gap-2 px-4 py-2">
       <span className="text-fg-muted text-xs">Add to calendar:</span>
       {suggestions.map((s) => (
         <a

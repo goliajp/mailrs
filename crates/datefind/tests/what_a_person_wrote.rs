@@ -201,3 +201,32 @@ fn find_itself_still_reads_every_date_it_is_given() {
     let reference = NaiveDate::from_ymd_opt(2026, 8, 21).unwrap();
     assert!(mailrs_datefind::find(SUPPORT_REPLY, reference).len() >= 5);
 }
+
+/// A bank notice naming today is telling you what happened, not asking.
+///
+/// 2026-08-22, from a screenshot: a deposit notification carried an
+/// "Add to calendar" chip for `8月22日`, its own arrival day. The
+/// sentence is past tense — 「8月22日に…振込入金がありました」 — and the
+/// date has no hour beside it, which is what a statement about today
+/// looks like. A proposal for today names an hour, because otherwise
+/// there is nothing to agree to.
+#[test]
+fn a_bare_date_that_is_todays_date_states_rather_than_asks() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 22).unwrap();
+    let text = "2026年8月22日に、お客さまの代表口座円普通預金への振込入金がありました。";
+    assert!(
+        mailrs_datefind::propose(text, reference).is_empty(),
+        "a deposit notice was offered as an event"
+    );
+}
+
+#[test]
+fn today_with_an_hour_is_still_a_proposal() {
+    let reference = NaiveDate::from_ymd_opt(2026, 8, 22).unwrap();
+    let text = "Are you free today, August 22 at 3pm?";
+    assert_eq!(
+        mailrs_datefind::propose(text, reference).len(),
+        1,
+        "somebody asking about this afternoon got nothing"
+    );
+}
