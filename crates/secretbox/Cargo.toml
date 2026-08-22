@@ -1,0 +1,21 @@
+[package]
+name = "mailrs-secretbox"
+version = "1.0.0"
+edition = "2024"
+description = "Sealing a credential with a deployment key — XChaCha20-Poly1305, versioned and fingerprinted so the key can be rotated."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-secretbox"
+authors = ["GOLIA K.K."]
+keywords = ["encryption", "secrets", "xchacha20poly1305", "credentials"]
+categories = ["cryptography", "email"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+sha2 = "0.10"
