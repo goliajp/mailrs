@@ -135,6 +135,8 @@ pub struct ConversationResponse {
     pub requires_action: bool,
     pub received_count: u32,
     pub sent_count: u32,
+    /// Which connected mailbox this arrived at, empty for our own.
+    pub account_id: String,
 }
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
@@ -147,6 +149,7 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             .collect();
         let received_count = w.message_count.saturating_sub(w.sent_count);
         Self {
+            account_id: w.account_id,
             thread_id: w.thread_id,
             subject: w.subject,
             participants,
