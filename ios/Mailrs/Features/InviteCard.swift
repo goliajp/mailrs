@@ -29,11 +29,6 @@ struct InviteCard: View {
         VStack(alignment: .leading, spacing: 0) {
             if let invite = detail?.invite {
                 card(invite)
-            } else if !(detail?.dateSuggestions ?? []).isEmpty {
-                // No calendar part, but a date in the prose. One fetch
-                // serves both: the message read that carries the
-                // invitation carries these too.
-                DateSuggestions(suggestions: detail?.dateSuggestions ?? [])
             } else if let failure {
                 Label(failure, systemImage: "exclamationmark.triangle")
                     .font(.caption2)

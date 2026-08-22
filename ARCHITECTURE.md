@@ -1,6 +1,6 @@
 # Architecture
 
-mailrs is a Cargo workspace of **69 crates** — 62 reusable library crates
+mailrs is a Cargo workspace of **68 crates** — 61 reusable library crates
 (most of them published on [crates.io](https://crates.io/users/golia-jp))
 plus seven binary crates: `mailrs-fastcore` (kevy-backed core RPC +
 IMAP/POP3), `mailrs-webapi` (REST + web UI), `mailrs-receiver` (SMTP
@@ -54,7 +54,6 @@ full benchmark ledger.
 | `mailrs-mime` | RFC 2045/2046 MIME body-tree parser |
 | `mailrs-mail-builder` | RFC 5322 / 2046 / 2047 / 2231 outbound mail builder |
 | `mailrs-ical` | RFC 5545 iCalendar parser, serializer, and iTIP semantics (VTIMEZONE + RRULE); behind `mime`, finding the calendar part of a message |
-| `mailrs-datefind` | The dates a person wrote in prose — "August 21 at 2pm", "8月21日 14:00" — so a client can offer to file them. Proposes; never files |
 | `mailrs-jmap` | JMAP (RFC 8620 + 8621) server-side dispatcher — framework-agnostic, bring-your-own store |
 | `mailrs-dav` | CalDAV (RFC 4791) + CardDAV (RFC 6352) server-side handlers, BYO data layer |
 | `mailrs-sieve-core` | Native RFC 5228 Sieve interpreter — tokenizer + parser + evaluator |

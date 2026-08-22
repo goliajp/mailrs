@@ -174,40 +174,6 @@ pub async fn get_message_single(
         })
         .unwrap_or((None, None))
     };
-    // Dates a person wrote in prose, for mail that carries no calendar
-    // part — which is most mail about a meeting.
-    //
-    // `propose`, not `find`: reading a date and reading a proposal are
-    // different questions, and asking only the first one put eight
-    // chips on a support reply whose dates were all quoted SMTP
-    // rejection timestamps. Computed when a
-    // message is opened rather than at delivery: it is one pass over a
-    // body that is already in hand here, and putting it on the ingest
-    // path would spend it on every newsletter that will never be read.
-    //
-    // Proposals, not events. Nothing is filed until somebody says so.
-    let date_suggestions: Vec<serde_json::Value> = if w.invite_method.is_empty() {
-        let reference = chrono::DateTime::from_timestamp(w.internal_date, 0)
-            .map(|d| d.date_naive())
-            .unwrap_or_else(|| chrono::Utc::now().date_naive());
-        let body = text_body.as_deref().unwrap_or_default();
-        mailrs_datefind::propose(body, reference)
-            .into_iter()
-            .map(|c| {
-                serde_json::json!({
-                    "text": c.text,
-                    "date": c.date.to_string(),
-                    // Wall-clock, deliberately: the writer meant their
-                    // own hour, and this side does not know which zone
-                    // that is. The client renders it as local, which is
-                    // the same guess the reader would make.
-                    "datetime": c.naive().map(|d| d.format("%Y-%m-%dT%H:%M:%S").to_string()),
-                })
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
     Ok(Json(serde_json::json!({
         "uid": w.uid,
         "sender": mailrs_rfc2047::decode(w.sender.as_bytes()).into_owned(),
@@ -225,7 +191,6 @@ pub async fn get_message_single(
         "invite_payload": invite_payload,
         "rsvp_status": rsvp_status,
         "rsvp_at": rsvp_at,
-        "date_suggestions": date_suggestions,
     })))
 }
 

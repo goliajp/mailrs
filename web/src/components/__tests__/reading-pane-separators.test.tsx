@@ -2,7 +2,6 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { AttachmentPreview } from '../attachment-preview'
-import { DateSuggestions } from '../date-suggestions'
 
 /// One rule for separation in the reading pane: the column draws the
 /// lines between its sections, and no section draws its own.
@@ -24,13 +23,6 @@ describe('a section does not draw its own separator', () => {
       .flatMap((n) => [...n.classList])
       .filter((c) => /^border-[tb]$/.test(c) || /^border-[tb]-/.test(c))
 
-  it('the date suggestions row draws none', () => {
-    const { container } = render(
-      <DateSuggestions suggestions={[{ date: '2026-08-25', datetime: null, text: 'the 25th' }]} />
-    )
-    expect(edges(container.firstElementChild!)).toEqual([])
-  })
-
   it('the attachments section draws none', () => {
     const { container } = render(
       <AttachmentPreview
@@ -40,21 +32,5 @@ describe('a section does not draw its own separator', () => {
       />
     )
     expect(edges(container.firstElementChild!)).toEqual([])
-  })
-
-  it('the suggestions row carries its own section padding', () => {
-    // It is a direct child of the divided column now, so nothing else
-    // will indent it.
-    const { container } = render(
-      <DateSuggestions suggestions={[{ date: '2026-08-25', datetime: null, text: 'the 25th' }]} />
-    )
-    const cls = [...container.firstElementChild!.classList]
-    expect(cls.some((c) => c.startsWith('px-'))).toBe(true)
-    expect(cls.some((c) => c.startsWith('py-'))).toBe(true)
-  })
-
-  it('an empty suggestion list renders nothing, so no divider is drawn for it', () => {
-    const { container } = render(<DateSuggestions suggestions={[]} />)
-    expect(container.firstElementChild).toBeNull()
   })
 })

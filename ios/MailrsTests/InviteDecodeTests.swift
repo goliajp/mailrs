@@ -84,8 +84,7 @@ struct InviteDecodeTests {
     "recurrence_id": null
   },
   "rsvp_status": null,
-  "rsvp_at": null,
-  "date_suggestions": []
+  "rsvp_at": null
 }
 """#
 
