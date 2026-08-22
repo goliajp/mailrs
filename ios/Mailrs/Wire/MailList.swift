@@ -13,6 +13,14 @@ struct MailListAxes: Equatable, Sendable {
     var unread: Bool?
     var starred: Bool?
     var archived: Bool = false
+    /// Which connected mailboxes to narrow to.
+    ///
+    /// `nil` is every account, and it is not the same as an empty
+    /// array: somebody who has unticked every box is asking for
+    /// nothing, and answering with everything would answer a question
+    /// they did not ask. This server's own mail is the empty string,
+    /// so it can be switched off like any other.
+    var accounts: [String]?
 }
 
 extension MailListAxes {
@@ -33,6 +41,12 @@ extension MailListAxes {
         }
         if let starred {
             items.append(URLQueryItem(name: "starred", value: MailListAxes.flag(starred)))
+        }
+        // Sent whenever the filter is narrowed — including to nothing,
+        // which is the parameter present and empty. The server reads an
+        // absent one as every account, so the two cannot be collapsed.
+        if let accounts {
+            items.append(URLQueryItem(name: "accounts", value: accounts.joined(separator: ",")))
         }
         return items
     }
