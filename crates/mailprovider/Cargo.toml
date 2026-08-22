@@ -1,0 +1,19 @@
+[package]
+name = "mailrs-mailprovider"
+version = "1.0.0"
+edition = "2024"
+description = "Where a mail provider's IMAP/POP/SMTP/JMAP servers are, and how it wants to be authenticated — presets for the common ones, autodiscovery for the rest."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-mailprovider"
+authors = ["GOLIA K.K."]
+keywords = ["email", "imap", "smtp", "autoconfig", "oauth2"]
+categories = ["email"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
