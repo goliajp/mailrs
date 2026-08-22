@@ -153,6 +153,17 @@ pub(super) async fn try_deliver(
         return Outcome::Permanent(format!("recipient on suppression list: {recipient}"));
     }
 
+    // A connected mailbox submits through its own provider rather than
+    // delivering to the recipient's MX. Sent from our IP as
+    // `someone@gmail.com` it fails SPF and DMARC at every receiver, so
+    // the MX path below is not an option for it — this is not a
+    // preference.
+    if let Some(sub) =
+        crate::submit_as::submission_for(sender, &crate::submit_as::all_accounts(&cfg.kevy_url))
+    {
+        return submit_through_provider(cfg, &sub, sender, recipient, message).await;
+    }
+
     let resolver = match TokioResolver::builder_tokio() {
         Ok(b) => match b.build() {
             Ok(r) => r,
@@ -394,4 +405,74 @@ pub(super) async fn try_deliver(
     }
 
     Outcome::Transient(last_err)
+}
+
+/// Hand one message to a provider's submission server.
+///
+/// The credential is the account's, opened from the sealed store. A
+/// refused login is **permanent**: waiting cannot fix a password that
+/// changed, and some providers count the attempts and lock the account.
+async fn submit_through_provider(
+    cfg: &Cfg,
+    sub: &crate::submit_as::Submission,
+    sender: &str,
+    recipient: &str,
+    message: &[u8],
+) -> Outcome {
+    let Some(key) = cfg.account_key.as_ref() else {
+        return Outcome::Permanent(
+            "MAILRS_ACCOUNT_KEY is not set on this server, so a connected \
+             mailbox's password cannot be opened"
+                .into(),
+        );
+    };
+    let Some(secret) = crate::submit_as::open_secret(&cfg.kevy_url, key, &sub.account_id) else {
+        return Outcome::Permanent(format!("no stored password for {}", sub.user));
+    };
+
+    let mut conn = match mailrs_smtp_client::SmtpConnection::connect(&sub.host, sub.port).await {
+        Ok(c) => c,
+        Err(e) => return Outcome::Transient(format!("connect {}: {e}", sub.host)),
+    };
+    if !sub.implicit_tls {
+        conn = match conn.try_starttls(&sub.host).await {
+            mailrs_smtp_client::StarttlsResult::Success(c) => c,
+            // No downgrade to plaintext. A password would go out in the
+            // clear, and `auth_plain` refuses that anyway — better to
+            // retry later than to hand the credential to the path.
+            mailrs_smtp_client::StarttlsResult::Rejected { code, message, .. } => {
+                return Outcome::Transient(format!(
+                    "{} refused STARTTLS: {code} {message}",
+                    sub.host
+                ));
+            }
+            mailrs_smtp_client::StarttlsResult::HandshakeFailed { source, .. } => {
+                return Outcome::Transient(format!("{} TLS handshake: {source}", sub.host));
+            }
+        };
+    }
+    if let Err(e) = conn.ehlo(&cfg.helo).await {
+        return Outcome::Transient(format!("ehlo: {e}"));
+    }
+    match conn.auth_plain(&sub.user, &secret).await {
+        Ok(r) if r.is_positive() => {}
+        Ok(r) => {
+            let _ = conn.quit().await;
+            return Outcome::Permanent(format!("{} refused the password: {}", sub.host, r.code));
+        }
+        Err(e) => {
+            let _ = conn.quit().await;
+            return Outcome::Transient(format!("auth: {e}"));
+        }
+    }
+    let out = match conn.deliver(sender, &[recipient], message).await {
+        Ok(r) if r.is_positive() => Outcome::Delivered,
+        Ok(r) if (500..600).contains(&r.code) => {
+            Outcome::Permanent(format!("{} said {}", sub.host, r.code))
+        }
+        Ok(r) => Outcome::Transient(format!("{} said {}", sub.host, r.code)),
+        Err(e) => Outcome::Transient(format!("submit: {e}")),
+    };
+    let _ = conn.quit().await;
+    out
 }

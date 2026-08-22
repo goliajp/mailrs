@@ -7,6 +7,10 @@ use super::*;
 #[derive(Clone)]
 pub(super) struct Cfg {
     pub(super) kevy_url: String,
+    /// Opens the sealed password of a connected mailbox, when one is
+    /// configured. `None` means connected accounts cannot send — which
+    /// is said in the failure rather than worked around.
+    pub(super) account_key: Option<Arc<mailrs_secretbox::Key>>,
     /// EHLO name announced on outbound sessions. Must match the PTR of
     /// the sending IP — receivers check forward-confirmed reverse DNS.
     pub(super) helo: String,

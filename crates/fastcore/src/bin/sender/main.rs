@@ -32,6 +32,7 @@ mod deliver;
 mod outcome;
 mod queue;
 mod retry;
+mod submit_as;
 
 use config::*;
 use deliver::*;
@@ -62,6 +63,13 @@ impl Cfg {
         Self {
             kevy_url: std::env::var("MAILRS_KEVY_URL")
                 .expect("MAILRS_KEVY_URL required (kevy://host:port)"),
+            // The same key webapi seals with. Absent means connected
+            // mailboxes cannot send, and the queue says so rather than
+            // trying and failing at the provider.
+            account_key: std::env::var("MAILRS_ACCOUNT_KEY")
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+                .map(|v| Arc::new(mailrs_secretbox::Key::from_passphrase(&v))),
             helo: std::env::var("MAILRS_HELO_HOSTNAME")
                 .unwrap_or_else(|_| "mail.golia.jp".to_string()),
             dsn_from_domain: mailrs_fastcore::bounce::dsn_identity().1,
