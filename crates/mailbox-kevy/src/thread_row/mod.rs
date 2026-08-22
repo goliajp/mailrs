@@ -86,6 +86,14 @@ pub struct ThreadRow {
     /// conversation away would have done it for everyone who could
     /// see it, if anything had read the field at all.
     pub snoozed_until: i64,
+    /// Which connected mailbox this conversation arrived at, or empty
+    /// for this deployment's own.
+    ///
+    /// Per conversation rather than per message, deliberately: a
+    /// thread that somehow spans two accounts takes the one its most
+    /// recent message arrived at, which is what a unified inbox shows
+    /// and what a filter for "only this account" is asking about.
+    pub account_id: String,
 }
 
 impl ThreadRow {
@@ -116,6 +124,7 @@ impl ThreadRow {
             b"has_action",
             b"sent_count",
             b"starred",
+            b"account_id",
         ]
     }
 
@@ -138,6 +147,11 @@ impl ThreadRow {
             kv!("importance_level", self.importance_level.clone()),
             kv!("importance_score", self.importance_score.to_string()),
             kv!("requires_action", (self.requires_action as u8).to_string()),
+            // Which connected mailbox this arrived at. On the shared
+            // hash rather than the membership row because it is a
+            // property of the conversation, the same for everyone who
+            // can see it — unlike `starred` and the flags below.
+            kv!("account_id", self.account_id.clone()),
             // `pinned`, `archived`, `has_action` and `starred` are not
             // written here any more: they are one user's state and they
             // live on that user's membership row. What the shared hash
@@ -151,6 +165,9 @@ impl ThreadRow {
     }
 
     pub(crate) fn from_pairs(thread_id: String, pairs: &[(Vec<u8>, Vec<u8>)]) -> Option<Self> {
+        // Empty for every row written before connected mailboxes
+        // existed, which is the right reading: this deployment's own.
+        let mut account_id = String::new();
         if pairs.is_empty() {
             return None;
         }
@@ -188,10 +205,12 @@ impl ThreadRow {
                 "has_action" => has_action = vv == "1",
                 "sent_count" => sent_count = vv.parse().unwrap_or(0),
                 "starred" => starred = vv == "1",
+                "account_id" => account_id = vv.into(),
                 _ => {}
             }
         }
         Some(Self {
+            account_id,
             thread_id,
             subject,
             senders_csv,
@@ -233,6 +252,7 @@ impl ThreadRow {
             return None;
         }
         let mut row = Self {
+            account_id: String::new(),
             thread_id,
             subject: String::new(),
             senders_csv: String::new(),
@@ -403,6 +423,7 @@ pub(crate) fn thread_user_pairs(
             b"activity".to_vec(),
             row.latest_date.to_string().into_bytes(),
         ),
+        (b"account_id".to_vec(), row.account_id.as_bytes().to_vec()),
         (b"sent_only".to_vec(), flag(sent_only).to_vec()),
         (b"is_sender".to_vec(), flag(is_sender).to_vec()),
         // `starred`, `archived`, `pinned`, `has_action` and `unread` are
@@ -627,6 +648,7 @@ mod tests {
 
     fn sample(tid: &str) -> ThreadRow {
         ThreadRow {
+            account_id: String::new(),
             thread_id: tid.into(),
             subject: "Hello".into(),
             senders_csv: "alice@x.com,bob@y.com".into(),

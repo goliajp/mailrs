@@ -23,6 +23,7 @@ fn store() -> KevyMailboxStore {
 
 fn row(tid: &str, activity: i64, category: &str) -> ThreadRow {
     ThreadRow {
+        account_id: String::new(),
         thread_id: tid.into(),
         subject: "s".into(),
         senders_csv: "a@x.com".into(),

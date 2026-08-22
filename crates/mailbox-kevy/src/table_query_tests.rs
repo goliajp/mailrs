@@ -14,6 +14,7 @@ mod orderpath_read_tests {
 
     fn row(tid: &str, activity: i64, category: &str) -> thread_row::ThreadRow {
         thread_row::ThreadRow {
+            account_id: String::new(),
             thread_id: tid.into(),
             subject: String::new(),
             senders_csv: String::new(),
@@ -115,6 +116,7 @@ mod flag_axis_tests {
 
     fn flagged(tid: &str, activity: i64, starred: bool) -> thread_row::ThreadRow {
         thread_row::ThreadRow {
+            account_id: String::new(),
             thread_id: tid.into(),
             subject: String::new(),
             senders_csv: String::new(),

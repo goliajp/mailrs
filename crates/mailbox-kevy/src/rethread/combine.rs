@@ -49,6 +49,10 @@ pub(crate) fn combine_rows(
         importance_score = b.importance_score;
     }
     crate::thread_row::ThreadRow {
+        // Carried from the thread being rebuilt: rethreading moves
+        // messages between conversations, it does not move them
+        // between accounts.
+        account_id: latest.account_id.clone(),
         thread_id: into_tid.to_string(),
         subject: latest.subject,
         senders_csv: senders.join(","),
@@ -116,6 +120,7 @@ mod search_tests {
 
     fn row(tid: &str, subject: &str, senders: &str, preview: &str) -> ThreadRow {
         ThreadRow {
+            account_id: String::new(),
             thread_id: tid.into(),
             subject: subject.into(),
             senders_csv: senders.into(),
