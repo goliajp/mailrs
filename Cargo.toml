@@ -58,6 +58,7 @@ members = [
     "crates/mta-sts",
     "crates/tls-rpt",
     "crates/smtp-codec",
+    "crates/imap-client",
     "crates/imap-codec",
     "crates/imap-format",
     "crates/attachment-extract",
