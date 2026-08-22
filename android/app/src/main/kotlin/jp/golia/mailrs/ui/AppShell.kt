@@ -35,6 +35,7 @@ import jp.golia.mailrs.AccountDetail
 import jp.golia.mailrs.UiState
 import jp.golia.mailrs.closeAccount
 import jp.golia.mailrs.closeAdmin
+import jp.golia.mailrs.openMailAccounts
 import jp.golia.mailrs.closeAdminRow
 import jp.golia.mailrs.openAdmin
 import jp.golia.mailrs.cancelCompose
@@ -266,6 +267,12 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                         state.adminOpen?.let { AdminScreen(it, state, vm) }
                     }
                     Screen.Settings -> Box(peeled) {
+                        // The screen the button opens. Without this the
+                        // row is a control that does nothing, which is
+                        // the shape `one-side-of-the-wire.md` names.
+                        if (state.mailAccountsOpen) {
+                            MailAccountsScreen(vm.client)
+                        } else
                         SettingsScreen(
                             state = state,
                             appearance = state.appearance,
@@ -273,6 +280,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                             onNotify = { vm.chooseNotify(it) },
                             onClose = { vm.closeSettings() },
                             onAdmin = { vm.openAdmin(it) },
+                            onMailAccounts = { vm.openMailAccounts() },
                             onSignOut = {
                                 vm.closeSettings()
                                 vm.signOut()

@@ -57,6 +57,7 @@ fun SettingsScreen(
     onNotify: (Boolean) -> Unit,
     onClose: () -> Unit,
     onAdmin: (AdminSection) -> Unit,
+    onMailAccounts: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -136,6 +137,21 @@ fun SettingsScreen(
                     checked = state.notifyNewMail,
                     onCheckedChange = onNotify,
                     modifier = Modifier.testTag("switch.notify"),
+                )
+            }
+
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+            // Above Administration: connecting a Gmail is something any
+            // reader does for themselves, not an operator task.
+            TextButton(
+                onClick = onMailAccounts,
+                modifier = Modifier.fillMaxWidth().testTag("settings.mailAccounts"),
+            ) {
+                Text(
+                    "Mail accounts",
+                    color = theme.fg,
+                    fontSize = 14.sp,
+                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
                 )
             }
 

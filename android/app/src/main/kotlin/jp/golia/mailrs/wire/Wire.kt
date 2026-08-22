@@ -150,6 +150,66 @@ object Wire {
         val partstat: String = "NEEDS-ACTION",
     )
 
+    /**
+     * A mailbox somewhere else, as the server stores it.
+     *
+     * **There is no secret on it.** The password goes to the server
+     * once, sealed there, and no route returns it — not even to the
+     * person who typed it.
+     */
+    @Serializable
+    data class ExternalAccount(
+        val id: String = "",
+        val email: String = "",
+        @SerialName("display_name") val displayName: String = "",
+        val provider: String = "custom",
+        /** `#rrggbb`, chosen by the server so all clients agree. */
+        val colour: String? = null,
+        /** `ok` / `needs_auth` / `error` / `paused`. */
+        val state: String = "ok",
+        @SerialName("last_error") val lastError: String? = null,
+    ) {
+        /**
+         * What the row says on screen. The two failures need different
+         * words: one is a button to press, the other is waiting.
+         */
+        val trouble: String?
+            get() = when (state) {
+                "needs_auth" -> "Sign in again"
+                "error" -> "Not syncing"
+                "paused" -> "Paused"
+                else -> null
+            }
+    }
+
+    /** What a set-up screen should fill in for an address. */
+    @Serializable
+    data class AccountSettings(
+        val known: Boolean = false,
+        val preset: Preset? = null,
+    ) {
+        @Serializable
+        data class Preset(
+            val id: String = "",
+            val label: String = "",
+            /** `password` / `app_password` / `oauth2`. */
+            val auth: String = "password",
+            @SerialName("secret_help") val secretHelp: SecretHelp? = null,
+        )
+
+        /** Where to get what this provider wants, in its own words. */
+        @Serializable
+        data class SecretHelp(val what: String = "", val url: String = "")
+    }
+
+    /** The body that connects a mailbox: an address and a secret. */
+    @Serializable
+    data class ConnectAccountRequest(
+        val email: String,
+        val secret: String,
+        @SerialName("display_name") val displayName: String? = null,
+    )
+
     /** The single-message read, of which this client wants the invitation. */
     @Serializable
     data class MessageDetail(

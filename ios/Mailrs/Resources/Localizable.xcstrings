@@ -1,6 +1,22 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ does not accept a password for mail apps — connecting it opens a sign-in page.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はメールアプリのパスワードを受け付けません。接続するとサインイン画面が開きます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 不接受邮件应用的密码——连接时会打开登录页面。"
+          }
+        }
+      }
+    },
     "%@ stops working immediately.": {
       "localizations": {
         "ja": {
@@ -13,6 +29,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 将立即失效。"
+          }
+        }
+      }
+    },
+    "%@ wants a %@, not your login password.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ が必要とするのは %@ で、ログインパスワードではありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 需要的是%@，不是你的登录密码。"
           }
         }
       }
@@ -993,6 +1025,70 @@
         }
       }
     },
+    "Connect": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
+    "Connect an account": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを接続"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接账号"
+          }
+        }
+      }
+    },
+    "Connected": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続済み"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接"
+          }
+        }
+      }
+    },
+    "Connecting…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接中…"
+          }
+        }
+      }
+    },
     "Copied": {
       "localizations": {
         "ja": {
@@ -1681,6 +1777,22 @@
         }
       }
     },
+    "Get one": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取得する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去获取"
+          }
+        }
+      }
+    },
     "Groups": {
       "localizations": {
         "ja": {
@@ -1805,6 +1917,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "它不会被保存,也无法再次显示。若丢失,请吊销该密钥并重新创建。"
+          }
+        }
+      }
+    },
+    "Its server settings will be discovered from DNS when the account is added.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバー設定は、追加時に DNS から自動検出されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器设置将在添加时通过 DNS 自动发现。"
           }
         }
       }
@@ -1949,6 +2077,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "加载图片"
+          }
+        }
+      }
+    },
+    "Mail accounts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールアカウント"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮件账号"
           }
         }
       }
@@ -2324,6 +2468,22 @@
         }
       }
     },
+    "Name it (optional)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前をつける（任意）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "起个名字（可选）"
+          }
+        }
+      }
+    },
     "New account": {
       "localizations": {
         "ja": {
@@ -2596,6 +2756,22 @@
         }
       }
     },
+    "No other accounts connected yet.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続されているアカウントはまだありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有连接其他账号。"
+          }
+        }
+      }
+    },
     "No recipient": {
       "localizations": {
         "ja": {
@@ -2656,6 +2832,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "不是垃圾邮件"
+          }
+        }
+      }
+    },
+    "Not syncing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同期していません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未在同步"
           }
         }
       }
@@ -2832,6 +3024,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "密码"
+          }
+        }
+      }
+    },
+    "Paused": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一時停止中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停"
           }
         }
       }
@@ -3504,6 +3712,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "登录"
+          }
+        }
+      }
+    },
+    "Sign in again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再度サインイン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新登录"
           }
         }
       }
@@ -4272,6 +4496,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "someone@example.com"
+          }
+        }
+      }
+    },
+    "you@gmail.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@gmail.com"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@gmail.com"
           }
         }
       }

@@ -97,6 +97,13 @@ data class UiState(
     val draftSaved: Boolean = false,
     /** The operator list showing, if any, and what it holds. */
     val adminOpen: AdminSection? = null,
+    /**
+     * Whether the connected-mailbox screen is showing.
+     *
+     * Beside `adminOpen` rather than inside it: connecting a Gmail is
+     * something any reader does for themselves, not an operator task.
+     */
+    val mailAccountsOpen: Boolean = false,
     val accounts: List<Admin.Account> = emptyList(),
     val aliases: List<Admin.Alias> = emptyList(),
     val domains: List<Admin.Domain> = emptyList(),

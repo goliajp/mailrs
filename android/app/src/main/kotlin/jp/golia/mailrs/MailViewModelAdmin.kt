@@ -132,6 +132,16 @@ fun MailViewModel.closeAdmin() {
     _state.update { it.copy(adminOpen = null, adminDetail = null, accountDetail = null) }
 }
 
+/** Show the connected-mailbox screen. */
+fun MailViewModel.openMailAccounts() {
+    _state.update { it.copy(mailAccountsOpen = true) }
+}
+
+/** Hide it. */
+fun MailViewModel.closeMailAccounts() {
+    _state.update { it.copy(mailAccountsOpen = false) }
+}
+
 /**
  * Open one group and read who is in it.
  *
