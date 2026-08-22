@@ -198,10 +198,57 @@ extension Wire {
         let requiresAction: Bool
         let receivedCount: Int
         let sentCount: Int
+        /// Which connected mailbox this arrived at. It decides which
+        /// address a reply leaves by.
+        ///
+        /// **Optional, not defaulted.** Swift's synthesised decoder
+        /// ignores a default and still demands the key, so a row cached
+        /// before connected mailboxes existed failed to decode — which
+        /// is what `MailCacheTests` caught. Read it through
+        /// `arrivedAtAccount`, where absent means this server's own.
+        let accountId: String?
+
+        /// The account this arrived at, with absent read as ours.
+        var arrivedAtAccount: String { accountId ?? "" }
+
+        /// Written out so `accountId` can be omitted.
+        ///
+        /// Declaring the property removed the synthesised memberwise
+        /// init from every existing call site at once; spelling one out
+        /// keeps them, and gives the new field the default the wire
+        /// gives it.
+        init(
+            threadId: String, subject: String, participants: [String], messageCount: Int,
+            unreadCount: Int, lastDate: Int64, category: String, flagged: Bool,
+            snippet: String, pinned: Bool, archived: Bool, snoozedUntil: Int64?,
+            importanceLevel: String, importanceScore: Double, requiresAction: Bool,
+            receivedCount: Int, sentCount: Int, accountId: String? = nil
+        ) {
+            self.threadId = threadId
+            self.subject = subject
+            self.participants = participants
+            self.messageCount = messageCount
+            self.unreadCount = unreadCount
+            self.lastDate = lastDate
+            self.category = category
+            self.flagged = flagged
+            self.snippet = snippet
+            self.pinned = pinned
+            self.archived = archived
+            self.snoozedUntil = snoozedUntil
+            self.importanceLevel = importanceLevel
+            self.importanceScore = importanceScore
+            self.requiresAction = requiresAction
+            self.receivedCount = receivedCount
+            self.sentCount = sentCount
+            self.accountId = accountId
+        }
+
 
         var id: String { threadId }
 
         enum CodingKeys: String, CodingKey {
+            case accountId = "account_id"
             case threadId = "thread_id"
             case subject
             case participants
