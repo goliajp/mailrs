@@ -29,7 +29,7 @@ use crate::handlers::kevy_util::with_kevy;
 /// How long a browser has to come back from the provider.
 const FLOW_TTL: std::time::Duration = std::time::Duration::from_secs(600);
 
-fn random_hex(n: usize) -> String {
+pub(crate) fn random_hex(n: usize) -> String {
     let mut bytes = vec![0u8; n];
     rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()

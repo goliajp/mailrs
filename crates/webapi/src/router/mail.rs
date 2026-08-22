@@ -285,6 +285,16 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/accounts/external/{id}",
             delete(handlers::external_accounts::delete),
         )
+        // Gmail and Outlook refuse passwords for mail clients, so
+        // this is the only way to connect one at all.
+        .route(
+            "/api/accounts/external/oauth/callback",
+            get(handlers::account_oauth::callback),
+        )
+        .route(
+            "/api/accounts/external/oauth/{provider}",
+            get(handlers::account_oauth::start),
+        )
         .route(
             "/api/accounts/external/settings",
             get(handlers::external_accounts::settings_for),
