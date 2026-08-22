@@ -1,0 +1,18 @@
+[package]
+name = "mailrs-imap-client"
+version = "1.0.0"
+edition = "2024"
+description = "Reading somebody else's IMAP mailbox: response parsing, UID bookkeeping and the fetch loop, with the I/O left to the caller."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-imap-client"
+authors = ["GOLIA K.K."]
+keywords = ["imap", "email", "client", "rfc3501", "rfc9051"]
+categories = ["email", "parser-implementations"]
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
