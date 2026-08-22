@@ -19,9 +19,11 @@ for line in ["* 231 EXISTS", "* OK [UIDVALIDITY 1234567890] .", "* OK [UIDNEXT 4
     if let Some(u) = parse_line(line) { state.apply(&u); }
 }
 
-// What to ask for, given what we saw last time.
-let plan = plan_fetch(&state, Some(4300));
-assert_eq!(plan.map(|p| p.range), Some("4300:*".into()));
+// What to ask for, given what we saw last time. This folder was never
+// synced under this validity, so the answer is a full read rather than
+// a range — the uids we hold were issued under some other numbering.
+let plan = plan_fetch(&state, Some(4300)).expect("something to do");
+assert_eq!(plan.range(), "1:*");
 ```
 
 ## The bookkeeping is the whole feature

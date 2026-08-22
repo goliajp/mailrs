@@ -3327,6 +3327,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-imap-client"
+version = "1.0.0"
+
+[[package]]
 name = "mailrs-imap-codec"
 version = "1.0.1"
 dependencies = [
