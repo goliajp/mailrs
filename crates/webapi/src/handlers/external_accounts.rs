@@ -93,7 +93,13 @@ pub async fn create(
     Json(body): Json<NewAccount>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let key = sealing_key()?;
-    let row = build_row(&body, now_secs());
+    let mut row = build_row(&body, now_secs());
+    // A domain with no preset gets looked up rather than guessed at.
+    // Without this the row was written with an empty host and failed
+    // every sync afterwards, saying nothing a person could act on.
+    if row.incoming.host.trim().is_empty() || row.outgoing.host.trim().is_empty() {
+        discover_into(&mut row).await;
+    }
     ext::validate(&row).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let secret = body.secret.as_deref().filter(|s| !s.is_empty()).ok_or((
@@ -274,4 +280,66 @@ fn stable_suffix(v: &str) -> String {
         h = h.wrapping_mul(0x100_0000_01b3);
     }
     format!("{:08x}", h as u32)
+}
+
+/// Fill a row's servers from DNS, then from the conventional names.
+///
+/// The order is the point: a provider's own SRV records are
+/// authoritative and the conventional hostname is a guess. Trying the
+/// guess first ships settings that appear to work until they do not.
+///
+/// Whatever it ends with, the person can correct on the form — a guess
+/// offered and editable beats a failure with no next step.
+async fn discover_into(row: &mut ext::AccountRow) {
+    let Some(domain) = row.email.rsplit_once('@').map(|(_, d)| d.to_string()) else {
+        return;
+    };
+    let resolver = hickory_resolver::TokioResolver::builder_tokio()
+        .ok()
+        .and_then(|b| b.build().ok());
+    for step in Autodiscover::for_domain(&domain) {
+        match step {
+            Autodiscover::Srv { name, .. } => {
+                let Some(r) = resolver.as_ref() else { continue };
+                let Ok(answer) = r
+                    .lookup(name.as_str(), hickory_resolver::proto::rr::RecordType::SRV)
+                    .await
+                else {
+                    continue;
+                };
+                for record in answer.answers() {
+                    let hickory_resolver::proto::rr::RData::SRV(rec) = &record.data else {
+                        continue;
+                    };
+                    let target = rec.target.to_utf8();
+                    let Some(e) = mailrs_mailprovider::from_srv(&name, &target, rec.port) else {
+                        continue;
+                    };
+                    let slot = match e.protocol {
+                        mailrs_mailprovider::Protocol::Smtp => &mut row.outgoing,
+                        _ => &mut row.incoming,
+                    };
+                    // First answer wins: SRV priority is the provider's
+                    // own ordering and the resolver hands them back in
+                    // it.
+                    if slot.host.trim().is_empty() {
+                        *slot = endpoint_of(&e);
+                    }
+                }
+            }
+            // The community database needs an HTTP fetch, which this
+            // does not do — a lookup on the set-up path should not wait
+            // on somebody else's web server. The guess below covers the
+            // same ground for the servers that follow convention.
+            Autodiscover::Ispdb { .. } => {}
+            Autodiscover::Guess { imap, smtp } => {
+                if row.incoming.host.trim().is_empty() {
+                    row.incoming = endpoint_of(&imap);
+                }
+                if row.outgoing.host.trim().is_empty() {
+                    row.outgoing = endpoint_of(&smtp);
+                }
+            }
+        }
+    }
 }
