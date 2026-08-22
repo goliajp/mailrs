@@ -179,3 +179,27 @@ impl Autodiscover {
         ]
     }
 }
+
+/// The endpoint an SRV answer describes, if it describes one.
+///
+/// `None` for a record this does not serve, and — the one that matters
+/// — for the `.` target RFC 6186 §3.1 defines as "this service is not
+/// offered here". Reading that as a hostname produces an account that
+/// cannot connect and a person who is told their password is wrong.
+pub fn from_srv(record: &str, target: &str, port: u16) -> Option<Endpoint> {
+    let host = target.trim().trim_end_matches('.');
+    if host.is_empty() || port == 0 {
+        return None;
+    }
+    let name = record.split('.').next().unwrap_or_default();
+    let (protocol, tls) = match name {
+        "_imaps" => (Protocol::Imap, Tls::Implicit),
+        "_imap" => (Protocol::Imap, Tls::StartTls),
+        "_pop3s" => (Protocol::Pop3, Tls::Implicit),
+        "_pop3" => (Protocol::Pop3, Tls::StartTls),
+        "_submissions" => (Protocol::Smtp, Tls::Implicit),
+        "_submission" => (Protocol::Smtp, Tls::StartTls),
+        _ => return None,
+    };
+    Some(Endpoint::new(protocol, host.to_string(), port, tls))
+}
