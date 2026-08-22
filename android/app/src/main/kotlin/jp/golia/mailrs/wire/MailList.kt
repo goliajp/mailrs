@@ -17,6 +17,16 @@ data class MailListAxes(
     val unread: Boolean? = null,
     val starred: Boolean? = null,
     val archived: Boolean = false,
+    /**
+     * Which connected mailboxes to narrow to.
+     *
+     * `null` is every account, and it is not the same as an empty
+     * list: somebody who has unticked every box is asking for nothing,
+     * and answering with everything would answer a question they did
+     * not ask. This server's own mail is the empty string, so it can
+     * be switched off like any other.
+     */
+    val accounts: List<String>? = null,
 ) {
     /**
      * The query string both `/api/conversations` and its `/search` take.
@@ -32,6 +42,10 @@ data class MailListAxes(
         folder?.let { items += "folder=$it" }
         unread?.let { items += "unread=$it" }
         starred?.let { items += "starred=$it" }
+        // Sent whenever the filter is narrowed — including to nothing,
+        // which is the parameter present and empty. The server reads an
+        // absent one as every account, so the two cannot be collapsed.
+        accounts?.let { items += "accounts=" + it.joinToString(",") }
         return items.joinToString("&")
     }
 }
