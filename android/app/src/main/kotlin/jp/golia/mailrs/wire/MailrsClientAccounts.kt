@@ -14,8 +14,8 @@ import okhttp3.Request
  */
 
 /** `GET /api/accounts/external` — the mailboxes this person connected. */
-suspend fun MailrsClient.externalAccounts(): MailrsClient.Outcome<List<Wire.ExternalAccount>> =
-    one(get("/api/accounts/external"), ListSerializer(Wire.ExternalAccount.serializer()))
+suspend fun MailrsClient.externalAccounts(): MailrsClient.Outcome<List<ExternalAccount>> =
+    one(get("/api/accounts/external"), ListSerializer(ExternalAccount.serializer()))
 
 /**
  * `GET /api/accounts/external/settings` — what to fill in for an
@@ -27,8 +27,8 @@ suspend fun MailrsClient.externalAccounts(): MailrsClient.Outcome<List<Wire.Exte
  * from; typing it into one labelled "Password" and being told
  * `LOGIN failed` is not.
  */
-suspend fun MailrsClient.accountSettings(email: String): MailrsClient.Outcome<Wire.AccountSettings> =
-    one(get("/api/accounts/external/settings?email=" + enc(email)), Wire.AccountSettings.serializer())
+suspend fun MailrsClient.accountSettings(email: String): MailrsClient.Outcome<AccountSettings> =
+    one(get("/api/accounts/external/settings?email=" + enc(email)), AccountSettings.serializer())
 
 /**
  * `POST /api/accounts/external` — connect one.
@@ -43,8 +43,8 @@ suspend fun MailrsClient.connectAccount(
 ): MailrsClient.Outcome<String> = post(
     url("/api/accounts/external"),
     json.encodeToString(
-        Wire.ConnectAccountRequest.serializer(),
-        Wire.ConnectAccountRequest(
+        ConnectAccountRequest.serializer(),
+        ConnectAccountRequest(
             email = email,
             secret = secret,
             displayName = name.ifEmpty { null },
