@@ -78,6 +78,18 @@ export const composingNewAtom = atom(false)
 export const searchQueryAtom = atom('')
 export const categoryFilterAtom = atom<null | string>(null)
 export const selectedDomainsAtom = atom<string[]>([])
+/**
+ * Which connected mailboxes the lists are narrowed to.
+ *
+ * `null` is every account, and it is not the same as a list holding
+ * every id: no filter sends no parameter, which is one less thing for
+ * the server to walk. An empty array is somebody who unticked every
+ * box, and the honest answer to that is an empty list.
+ *
+ * The empty string is this deployment's own mail — an account in the
+ * filter like the rest, so it can be switched off too.
+ */
+export const selectedAccountsAtom = atom<null | string[]>(null)
 export type MobileView = 'conversation' | 'list' | 'reply' | 'thread'
 export const mobileViewAtom = atom<MobileView>('list')
 

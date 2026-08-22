@@ -24,6 +24,7 @@ import {
   categoryFilterAtom,
   importanceSectionAtom,
   searchQueryAtom,
+  selectedAccountsAtom,
   selectedDomainsAtom,
 } from '@/store/ui'
 
@@ -34,6 +35,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const list = useAtomValue(activeListAtom)
   const categoryFilter = useAtomValue(categoryFilterAtom)
   const selectedDomains = useAtomValue(selectedDomainsAtom)
+  const selectedAccounts = useAtomValue(selectedAccountsAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
   const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS)
@@ -45,12 +47,16 @@ export function useCurrentMailFilters(): MailListFilters | null {
     // refinements stacked on top of whichever list is showing.
     return {
       ...axes,
+      // `null` passes through as `null`: no filter. It is deliberately
+      // not collapsed with `[]`, which is somebody who unticked every
+      // account and must not be served the unfiltered list.
+      accounts: selectedAccounts,
       category: categoryFilter,
       domains: selectedDomains.length > 0 ? selectedDomains : undefined,
       query: debouncedSearch || undefined,
       section: importanceSection,
     }
-  }, [list, categoryFilter, selectedDomains, debouncedSearch, importanceSection])
+  }, [list, categoryFilter, selectedAccounts, selectedDomains, debouncedSearch, importanceSection])
 }
 
 /**

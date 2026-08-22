@@ -45,6 +45,7 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
     enabled,
     initialPageParam: undefined,
     queryKey: conversationKeys.infinite({
+      accounts: filters.accounts,
       archived: filters.archived,
       category: filters.category as never,
       domains: filters.domains,
@@ -136,6 +137,19 @@ export function useThreadQuery(threadId: null | string, domains: string[]) {
   })
 }
 
+/**
+ * The `accounts=` parameter, or nothing.
+ *
+ * Sent whenever the filter is narrowed — including when it is narrowed
+ * to nothing, which is `accounts=` with an empty value. The server
+ * reads an absent parameter as every account and an empty one as none,
+ * so the two cannot be collapsed here.
+ */
+function accountsParam(filters: MailListFilters): string {
+  if (!filters.accounts) return ''
+  return `&accounts=${encodeURIComponent(filters.accounts.join(','))}`
+}
+
 // Build the API path for a paginated conversation list. Mirrors the old
 // chat.tsx `buildPath` but pure — no React state.
 function listPath(filters: MailListFilters, before?: number): string {
@@ -153,6 +167,7 @@ function listPath(filters: MailListFilters, before?: number): string {
     if (filters.unread) p += '&unread=true'
     if (filters.starred) p += '&starred=true'
     if (filters.archived) p += '&archived=true'
+    p += accountsParam(filters)
     return p
   }
   let p = `/conversations?limit=${PAGE_SIZE}`
@@ -166,5 +181,6 @@ function listPath(filters: MailListFilters, before?: number): string {
   if (filters.unread) p += '&unread=true'
   if (filters.starred) p += '&starred=true'
   if (filters.section) p += `&section=${encodeURIComponent(filters.section)}`
+  p += accountsParam(filters)
   return p
 }
