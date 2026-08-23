@@ -43,9 +43,30 @@ impl FolderState {
 /// What to fetch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FetchPlan {
-    /// Every message in the folder: never synced, or renumbered.
+    /// Every message in the folder, bodies and all.
+    ///
+    /// A folder nobody has synced before: there is nothing held to
+    /// align against, so the envelope pass would be a round trip that
+    /// could only answer "none of them".
     Everything {
-        /// Why, for the log line that explains a sudden full download.
+        /// Why, for the log line and the row that explain a sudden
+        /// download.
+        because: &'static str,
+    },
+    /// Envelopes first, then only the bodies we do not hold.
+    ///
+    /// What a `UIDVALIDITY` change asks for. The uids are worthless —
+    /// uid 5 may now be a different message — and IMAP offers no
+    /// mapping from the old numbering to the new, so the folder has to
+    /// be read again. But the **Message-IDs** survive the reset, and
+    /// an ENVELOPE is a few hundred bytes where a body is the whole
+    /// message.
+    ///
+    /// A ten-year mailbox is several gigabytes re-downloaded to
+    /// discover that 99% of it is already here; this asks the cheap
+    /// question first.
+    Realign {
+        /// Why the uids stopped meaning anything.
         because: &'static str,
     },
     /// Everything above the uid we already have.
@@ -59,8 +80,27 @@ impl FetchPlan {
     /// The `UID FETCH` range this plan asks for.
     pub fn range(&self) -> String {
         match self {
-            Self::Everything { .. } => "1:*".to_string(),
+            Self::Everything { .. } | Self::Realign { .. } => "1:*".to_string(),
             Self::Since { from } => format!("{from}:*"),
+        }
+    }
+
+    /// What to ask for about each message in that range.
+    ///
+    /// The whole point of the split: `Realign` asks for identities and
+    /// decides afterwards which bodies it actually needs.
+    pub fn items(&self) -> &'static str {
+        match self {
+            Self::Realign { .. } => "(UID ENVELOPE)",
+            _ => "(UID FLAGS BODY.PEEK[])",
+        }
+    }
+
+    /// Why this is not an incremental fetch, when it is not.
+    pub fn because(&self) -> Option<&'static str> {
+        match self {
+            Self::Everything { because } | Self::Realign { because } => Some(because),
+            Self::Since { .. } => None,
         }
     }
 }
@@ -78,7 +118,7 @@ pub fn plan_fetch(state: &FolderState, highest_held: Option<u32>) -> Option<Fetc
     };
     match (state.uidvalidity, state.remembered_uidvalidity) {
         // The server renumbered. Every uid we hold means nothing now.
-        (Some(now), Some(then)) if now != then => Some(FetchPlan::Everything {
+        (Some(now), Some(then)) if now != then => Some(FetchPlan::Realign {
             because: "the server changed UIDVALIDITY, so the uids we held mean nothing",
         }),
         // We have numbers but never recorded which validity they were

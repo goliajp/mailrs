@@ -42,10 +42,10 @@ fn the_scopes_ask_for_long_lived_access() {
 fn an_unregistered_deployment_has_no_provider() {
     // Nothing is set in the test environment, which is the same state
     // a fresh deployment is in.
-    assert!(mailrs_webapi::handlers::account_oauth::mail_provider("google").is_none());
-    assert!(mailrs_webapi::handlers::account_oauth::mail_provider("microsoft").is_none());
+    assert!(mailrs_oauth_client::mail_provider("google").is_none());
+    assert!(mailrs_oauth_client::mail_provider("microsoft").is_none());
     // And a provider nobody has heard of is not one either.
-    assert!(mailrs_webapi::handlers::account_oauth::mail_provider("yahoo").is_none());
+    assert!(mailrs_oauth_client::mail_provider("yahoo").is_none());
 }
 
 /// The refusal has to say what to do, not just that it failed: these

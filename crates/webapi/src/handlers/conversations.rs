@@ -67,6 +67,13 @@ fn default_limit() -> u32 {
 /// unchecked every box gets an empty list, not the unfiltered one.
 /// A single empty id — `accounts=,` would be two — is this
 /// deployment's own mail, which is an account like the rest.
+///
+/// **No client produces the empty form**: all three refuse to untick
+/// the last box, because a list narrowed to no accounts is a blank
+/// screen whose only way back is the control that produced it. The
+/// branch stays because a link can carry it, and because dropping it
+/// would make `accounts=` mean "every account" — which is the one
+/// reading that loses the distinction.
 fn parse_accounts(raw: Option<&str>) -> Option<Vec<String>> {
     let raw = raw?;
     if raw.is_empty() {

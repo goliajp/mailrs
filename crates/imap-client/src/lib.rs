@@ -9,5 +9,7 @@ mod net;
 #[cfg(feature = "net")]
 pub use net::{Error as NetError, Session, Tls};
 
-pub use parse::{Fetch, List, Untagged, is_authentication_failure, parse_line};
+pub use parse::{
+    Envelope, Fetch, List, Untagged, is_authentication_failure, parse_envelope, parse_line,
+};
 pub use plan::{FetchPlan, FolderState, plan_fetch};

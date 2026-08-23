@@ -238,6 +238,20 @@ fn external_account_create() {
     assert!(v.get("outgoing").is_none());
 }
 
+/// Stopping or resuming one account.
+///
+/// A bool, not a verb in the path: the two directions are the same
+/// change to the same field, and a client that can only pause is a
+/// client somebody has to delete an account to undo.
+#[test]
+fn external_account_paused() {
+    let v: serde_json::Value = parse("external-account-paused");
+    assert!(
+        v["paused"].is_boolean(),
+        "the handler deserialises a bool; a string would be a 422"
+    );
+}
+
 #[test]
 fn every_fixture_has_a_test() {
     const CHECKED: &[&str] = &[
@@ -249,6 +263,7 @@ fn every_fixture_has_a_test() {
         "alias-create",
         "domain-create",
         "external-account-create",
+        "external-account-paused",
         "group-permissions-set",
         "push-register",
         "ai-polish",

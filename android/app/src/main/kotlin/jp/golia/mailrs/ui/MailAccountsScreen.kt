@@ -38,8 +38,17 @@ import jp.golia.mailrs.wire.ExternalAccount
 import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.accountSettings
 import jp.golia.mailrs.wire.colourOf
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+
+import jp.golia.mailrs.wire.ManualEndpoint
+import jp.golia.mailrs.wire.accountSubtitle
 import jp.golia.mailrs.wire.connectAccount
+import jp.golia.mailrs.wire.wireEndpoints
 import jp.golia.mailrs.wire.disconnectAccount
+import jp.golia.mailrs.wire.setAccountPaused
 import jp.golia.mailrs.wire.externalAccounts
 import jp.golia.mailrs.wire.looksLikeAnAddress
 
@@ -63,9 +72,28 @@ fun MailAccountsScreen(client: MailrsClient) {
     var settings by remember { mutableStateOf<AccountSettings?>(null) }
     var failure by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    // Shut unless somebody opens it: a form that opens with eight
+    // empty boxes teaches everybody that connecting mail is hard.
+    var manual by remember { mutableStateOf(false) }
+    var incoming by remember { mutableStateOf(ManualEndpoint(proto = "imap")) }
+    var outgoing by remember { mutableStateOf(ManualEndpoint(proto = "smtp")) }
+    var login by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
+    // A failure here is not an empty list: it said nothing and showed
+    // nothing, so a decoding fault was indistinguishable from having
+    // connected no mailboxes.
     suspend fun reload() {
-        accounts = (client.externalAccounts() as? MailrsClient.Outcome.Ok)?.value.orEmpty()
+        when (val r = client.externalAccounts()) {
+            is MailrsClient.Outcome.Ok -> {
+                accounts = r.value
+                failure = ""
+            }
+            is MailrsClient.Outcome.Err -> {
+                accounts = emptyList()
+                failure = r.message
+            }
+        }
     }
 
     LaunchedEffect(Unit) { reload() }
@@ -91,14 +119,25 @@ fun MailAccountsScreen(client: MailrsClient) {
             Text("No other accounts connected yet.", color = theme.fgMuted, fontSize = 13.sp)
         }
         for (a in accounts) {
-            AccountRow(a) {
-                busy = true
-                failure = ""
-                val out = client.disconnectAccount(a.id)
-                if (out is MailrsClient.Outcome.Err) failure = out.message
-                reload()
-                busy = false
-            }
+            AccountRow(
+                a,
+                onPause = {
+                    busy = true
+                    failure = ""
+                    val out = client.setAccountPaused(a.id, a.state != "paused")
+                    if (out is MailrsClient.Outcome.Err) failure = out.message
+                    reload()
+                    busy = false
+                },
+                onRemove = {
+                    busy = true
+                    failure = ""
+                    val out = client.disconnectAccount(a.id)
+                    if (out is MailrsClient.Outcome.Err) failure = out.message
+                    reload()
+                    busy = false
+                },
+            )
         }
 
         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
@@ -113,12 +152,22 @@ fun MailAccountsScreen(client: MailrsClient) {
         )
         if (looksLikeAnAddress(email)) {
             when {
-                preset?.auth == "oauth2" -> Text(
-                    "${preset.label} does not accept a password for mail apps — " +
-                        "connecting it opens a sign-in page.",
-                    color = theme.fgMuted,
-                    fontSize = 12.sp,
-                )
+                preset?.auth == "oauth2" -> Column(
+                    Modifier.testTag("account.oauthUnavailable")
+                ) {
+                    Text(
+                        "${preset.label} does not accept a password for mail apps.",
+                        color = theme.fgMuted,
+                        fontSize = 12.sp,
+                    )
+                    // Said here rather than discovered at the end of a
+                    // sign-in that could not have finished.
+                    Text(
+                        "This server cannot connect ${preset.label} accounts yet.",
+                        color = theme.fgMuted,
+                        fontSize = 12.sp,
+                    )
+                }
                 preset?.secretHelp != null -> Column {
                     Text(
                         "${preset.label} wants a ${preset.secretHelp.what}, " +
@@ -152,8 +201,69 @@ fun MailAccountsScreen(client: MailrsClient) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("account.name"),
                 )
+                // The whole row, not just the box: tapping the words
+                // that name a checkbox is what everybody does, and it
+                // did nothing.
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { manual = !manual }
+                        .testTag("account.manual"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = manual, onCheckedChange = { manual = it })
+                    Text("Enter the server settings myself", color = theme.fgMuted, fontSize = 12.sp)
+                }
+                if (manual) {
+                    EndpointFields("Incoming", incoming, listOf("imap", "pop3", "jmap")) { incoming = it }
+                    EndpointFields("Outgoing", outgoing, listOf("smtp")) { outgoing = it }
+                    OutlinedTextField(
+                        value = login,
+                        onValueChange = { login = it },
+                        label = { Text("Login name, if it is not the address") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("account.login"),
+                    )
+                }
                 Button(
-                    onClick = {},
+                    onClick = {
+                        // This was an empty lambda: the button was
+                        // there, it looked enabled, and pressing it
+                        // did nothing at all.
+                        val servers = when {
+                            manual -> wireEndpoints(incoming, outgoing)
+                            else -> null
+                        }
+                        when {
+                            manual && servers == null ->
+                                failure = "Both servers need a name and a port"
+                            else -> scope.launch {
+                                busy = true
+                                failure = ""
+                                val out = client.connectAccount(
+                                    email = email,
+                                    secret = secret,
+                                    name = name,
+                                    servers = servers,
+                                    login = if (manual) login else "",
+                                )
+                                when (out) {
+                                    is MailrsClient.Outcome.Err -> failure = out.message
+                                    else -> {
+                                        email = ""
+                                        secret = ""
+                                        name = ""
+                                        login = ""
+                                        manual = false
+                                        incoming = ManualEndpoint(proto = "imap")
+                                        outgoing = ManualEndpoint(proto = "smtp")
+                                        reload()
+                                    }
+                                }
+                                busy = false
+                            }
+                        }
+                    },
                     enabled = !busy && secret.isNotEmpty(),
                     modifier = Modifier.testTag("account.connect"),
                 ) {
@@ -167,8 +277,72 @@ fun MailAccountsScreen(client: MailrsClient) {
     }
 }
 
+/** One server's boxes, when autodiscovery cannot reach it. */
 @Composable
-private fun AccountRow(a: ExternalAccount, onRemove: suspend () -> Unit) {
+private fun EndpointFields(
+    label: String,
+    endpoint: ManualEndpoint,
+    protocols: List<String>,
+    onChange: (ManualEndpoint) -> Unit,
+) {
+    val theme = LocalTheme.current
+    val tag = label.lowercase()
+    OutlinedTextField(
+        value = endpoint.host,
+        onValueChange = { onChange(endpoint.copy(host = it)) },
+        label = { Text("$label server") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().testTag("account.$tag.host"),
+    )
+    OutlinedTextField(
+        value = endpoint.port,
+        onValueChange = { onChange(endpoint.copy(port = it)) },
+        label = { Text("Port") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth().testTag("account.$tag.port"),
+    )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (protocols.size > 1) {
+            for (p in protocols) {
+                Text(
+                    p.uppercase(),
+                    color = if (endpoint.proto == p) theme.fg else theme.fgMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .clickable { onChange(endpoint.copy(proto = p)) }
+                        .testTag("account.$tag.protocol.$p"),
+                )
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((value, shown) in TLS_CHOICES) {
+            Text(
+                shown,
+                color = if (endpoint.tls == value) theme.fg else theme.fgMuted,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { onChange(endpoint.copy(tls = value)) }
+                    .testTag("account.$tag.tls.$value"),
+            )
+        }
+    }
+}
+
+private val TLS_CHOICES = listOf(
+    "implicit" to "TLS",
+    "starttls" to "STARTTLS",
+    "none" to "None",
+)
+
+@Composable
+private fun AccountRow(
+    a: ExternalAccount,
+    onPause: suspend () -> Unit,
+    onRemove: suspend () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
     val theme = LocalTheme.current
     Row(
         Modifier.fillMaxWidth().testTag("account.${a.id}"),
@@ -180,7 +354,46 @@ private fun AccountRow(a: ExternalAccount, onRemove: suspend () -> Unit) {
         )
         Column(Modifier.weight(1f)) {
             Text(a.displayName.ifEmpty { a.email }, color = theme.fg, fontSize = 14.sp)
-            Text(a.email, color = theme.fgMuted, fontSize = 12.sp)
+            // Only when it says something the line above did not: an
+            // account with no name showed its address twice.
+            accountSubtitle(a.displayName, a.email)?.let {
+                Text(it, color = theme.fgMuted, fontSize = 12.sp)
+            }
+            // The reason, on the screen somebody actually reads.
+            val why = a.lastError.orEmpty()
+            if (a.state != "ok" && why.isNotEmpty()) {
+                Text(
+                    if (why.length > 200) why.take(200) + "…" else why,
+                    color = theme.fgMuted,
+                    fontSize = 11.sp,
+                    modifier = Modifier.testTag("account.why.${a.id}"),
+                )
+            }
+            // Work, not a fault: a re-read after the server renumbered
+            // a folder takes as long as the mailbox is big, and silence
+            // for that long reads as a stall.
+            val note = a.progress.orEmpty()
+            if (note.isNotEmpty()) {
+                Text(
+                    note,
+                    color = theme.fgMuted,
+                    fontSize = 11.sp,
+                    modifier = Modifier.testTag("account.progress.${a.id}"),
+                )
+            }
+        }
+        // Not offered for a rejected credential: pausing cannot fix
+        // that, and resuming would put it back on a timer that cannot
+        // succeed.
+        if (a.state != "needs_auth") {
+            Text(
+                if (a.state == "paused") "Resume" else "Pause",
+                color = theme.accent,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .clickable { scope.launch { onPause() } }
+                    .testTag("account.pause.${a.id}"),
+            )
         }
         // A broken account has to say so where it was added. Silence
         // means somebody believes they are seeing all their mail when

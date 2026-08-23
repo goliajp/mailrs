@@ -213,6 +213,42 @@ impl Session {
         }
     }
 
+    /// Fetch identities without bodies.
+    ///
+    /// The cheap half of a re-alignment: a few hundred bytes per
+    /// message where `BODY.PEEK[]` is the whole thing. A ten-year
+    /// mailbox answers this in seconds and the full fetch in
+    /// gigabytes.
+    ///
+    /// Lines this cannot read are skipped rather than guessed at. A
+    /// wrong Message-ID is worse than a missing one: the missing
+    /// message is fetched again, and the wrong one is filed as a
+    /// different message or merged into somebody else's thread.
+    pub async fn fetch_envelopes(&mut self, range: &str) -> Result<Vec<crate::Envelope>, Error> {
+        let tag = self.next_tag();
+        self.raw(&format!("{tag} UID FETCH {range} (UID ENVELOPE)\r\n"))
+            .await?;
+        let mut out = Vec::new();
+        loop {
+            let line = self.read_line().await?;
+            if line.starts_with(&format!("{tag} ")) {
+                let rest = line[tag.len() + 1..].trim().to_string();
+                return match rest.split(' ').next() {
+                    Some("OK") => Ok(out),
+                    _ => Err(Error::Server(line.trim().to_string())),
+                };
+            }
+            // An ENVELOPE may be folded across lines by a server that
+            // sends literals for a header it cannot represent inline.
+            // Those are rare and this does not stitch them; the message
+            // is simply fetched in full, which is correct and only
+            // costs one message's bytes.
+            if let Some(e) = crate::parse_envelope(line.trim_end()) {
+                out.push(e);
+            }
+        }
+    }
+
     async fn command(&mut self, cmd: &str) -> Result<(String, Vec<String>), Error> {
         let tag = self.next_tag();
         self.raw(&format!("{tag} {cmd}\r\n")).await?;

@@ -172,3 +172,98 @@ fn word_after<'a>(haystack: &'a str, key: &str) -> Option<&'a str> {
     let rest = haystack[at..].trim_start();
     Some(rest.split([' ', ')']).next().unwrap_or(rest))
 }
+
+/// One message's identity, without its body.
+///
+/// `UID FETCH … (ENVELOPE)` answers a few hundred bytes per message
+/// where `BODY.PEEK[]` answers the whole thing — which is the whole
+/// point: after a `UIDVALIDITY` change the uids we hold are worthless,
+/// but the Message-IDs are not, and they are the only identity that
+/// survives the reset.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Envelope {
+    /// The new uid, in the server's new numbering.
+    pub uid: u32,
+    /// `Message-ID`, as the server reports it — with the angle
+    /// brackets, which is how the store holds it too.
+    pub message_id: String,
+}
+
+/// Read a `FETCH (… ENVELOPE …)` line.
+///
+/// The envelope's ninth field is the Message-ID (RFC 3501 §7.4.2), and
+/// counting to it through nested parenthesised address lists is what
+/// makes this worth a function with tests rather than a regex: an
+/// address list contains parentheses and quoted strings, and a naive
+/// split lands in the middle of somebody's display name.
+pub fn parse_envelope(line: &str) -> Option<Envelope> {
+    let Some(Untagged::Fetch(f)) = parse_line(line) else {
+        return None;
+    };
+    let uid = f.uid?;
+    let body = line.split_once("ENVELOPE ")?.1;
+    let fields = split_parenthesised(body)?;
+    // date, subject, from, sender, reply-to, to, cc, bcc, in-reply-to,
+    // message-id — the tenth, counting from one.
+    let raw = fields.get(9)?.trim();
+    if raw.eq_ignore_ascii_case("NIL") {
+        return None;
+    }
+    Some(Envelope {
+        uid,
+        message_id: raw.trim_matches('"').to_string(),
+    })
+}
+
+/// The top-level fields of a parenthesised list, respecting nesting
+/// and quoted strings.
+///
+/// Written out rather than split on spaces because an ENVELOPE holds
+/// address lists — `(("Ann Lee" NIL "ann" "x.com"))` — and a display
+/// name may contain a space, a parenthesis, or an escaped quote.
+fn split_parenthesised(s: &str) -> Option<Vec<String>> {
+    let s = s.trim_start().strip_prefix('(')?;
+    let (mut out, mut depth, mut cur) = (Vec::new(), 0usize, String::new());
+    let (mut quoted, mut escaped) = (false, false);
+    for c in s.chars() {
+        if escaped {
+            cur.push(c);
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' if quoted => {
+                escaped = true;
+                cur.push(c);
+            }
+            '"' => {
+                quoted = !quoted;
+                cur.push(c);
+            }
+            '(' if !quoted => {
+                depth += 1;
+                cur.push(c);
+            }
+            ')' if !quoted => {
+                if depth == 0 {
+                    if !cur.trim().is_empty() {
+                        out.push(cur.trim().to_string());
+                    }
+                    return Some(out);
+                }
+                depth -= 1;
+                cur.push(c);
+            }
+            ' ' if !quoted && depth == 0 => {
+                if !cur.trim().is_empty() {
+                    out.push(cur.trim().to_string());
+                }
+                cur.clear();
+            }
+            _ => cur.push(c),
+        }
+    }
+    // Ran off the end without the closing paren: a truncated line, and
+    // guessing at what it meant is how a wrong Message-ID gets stored.
+    None
+}

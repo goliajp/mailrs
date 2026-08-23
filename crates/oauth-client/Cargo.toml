@@ -11,7 +11,17 @@ categories = ["authentication", "web-programming"]
 [lints]
 workspace = true
 
+[features]
+default = []
+# The one HTTP call this crate makes on its own: renewing an access
+# token. Off by default so the URL building, the PKCE derivation and
+# the claim reading stay testable without a network stack — and on
+# for the two callers that renew, so they share one renewal rather
+# than each writing their own.
+net = ["dep:reqwest"]
+
 [dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["rustls"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.11"

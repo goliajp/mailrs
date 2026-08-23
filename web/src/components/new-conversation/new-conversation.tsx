@@ -9,6 +9,7 @@ import { X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
+import { FromPicker } from '@/components/from-picker'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
 import { useDeleteDraftMutation, useSaveDraftMutation } from '@/hooks/use-drafts'
@@ -18,6 +19,7 @@ import { escapeHtml } from '@/lib/html-utils'
 import { queryClient } from '@/lib/query-client'
 import { mailKeys } from '@/lib/query-keys'
 import { epochSecondsFromLocalInput, parseAddressList, sendMail } from '@/lib/send-mail'
+import { useReplyFrom } from '@/lib/use-reply-from'
 import { authAtom, getToken } from '@/store/auth'
 import {
   composeDraftSourceAtom,
@@ -82,6 +84,10 @@ export function NewConversation() {
   const [sending, setSending] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [generatingSubject, setGeneratingSubject] = useState(false)
+  // Which address it leaves by. A new conversation defaults to this
+  // mailbox; a reply reopened from Drafts follows the account the
+  // thread arrived at, the same rule the reply box uses.
+  const { from, setFrom } = useReplyFrom(replySource?.accountId)
   const [error, setError] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
   const [showSchedulePicker, setShowSchedulePicker] = useState(false)
@@ -265,7 +271,7 @@ export function NewConversation() {
         bcc: parseAddressList(bcc),
         body: content.fullText,
         cc: parseAddressList(cc),
-        from: auth?.address ?? '',
+        from: from || (auth?.address ?? ''),
         htmlBody: content.fullHtml,
         inReplyTo: replySource?.messageId ?? redraftSource?.inReplyTo,
         redraftKeep: carriedSelection(redraftSource, keptCarried),
@@ -357,6 +363,8 @@ export function NewConversation() {
           {error}
         </div>
       )}
+
+      <FromPicker onChange={setFrom} value={from} />
 
       <AddressFields
         bcc={bcc}

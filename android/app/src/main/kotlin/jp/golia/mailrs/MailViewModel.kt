@@ -227,7 +227,7 @@ class MailViewModel(
             conversations = cached ?: _state.value.conversations,
         ) }
         viewModelScope.launch {
-            when (val r = client.conversations(testFolder ?: list.axes)) {
+            when (val r = client.conversations((testFolder ?: list.axes).copy(accounts = _state.value.selectedAccounts))) {
                 is MailrsClient.Outcome.Ok -> {
                     cache.writeConversations(r.value, list.name)
                     // The home-screen widget draws what was last
@@ -269,7 +269,7 @@ class MailViewModel(
         val list = state.list
         _state.update { it.copy(loadingMore = true) }
         viewModelScope.launch {
-            when (val r = client.conversations(testFolder ?: list.axes, before = before)) {
+            when (val r = client.conversations((testFolder ?: list.axes).copy(accounts = _state.value.selectedAccounts), before = before)) {
                 is MailrsClient.Outcome.Ok -> {
                     // The list may have been switched while this was out.
                     if (_state.value.list != list) return@launch

@@ -38,6 +38,7 @@ export const externalAccountSchema = z.object({
   last_sync: z.number().default(0),
   next_attempt: z.number().default(0),
   outgoing: externalEndpointSchema,
+  progress: z.string().nullish(),
   provider: z.string(),
   sort: z.number().default(0),
   // A row written before a state existed reads as working, which is the

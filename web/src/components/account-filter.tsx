@@ -3,6 +3,7 @@ import { useAtom } from 'jotai'
 import { Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { filterLabel, toggledAccounts } from '@/lib/account-filter-rules'
 import { settingsKeys } from '@/lib/query-keys'
 import { selectedAccountsAtom } from '@/store/ui'
 import { wireListExternalAccounts } from '@/wire/endpoints/external-accounts'
@@ -54,12 +55,9 @@ export function AccountFilter() {
   const on = selected ?? all
   const narrowed = selected !== null && on.length !== all.length
 
-  const toggle = (id: string) => {
-    const next = on.includes(id) ? on.filter((v) => v !== id) : [...on, id]
-    // Back to everything is no filter at all, so the request goes out
-    // without the parameter rather than with every id in it.
-    setSelected(next.length === all.length ? null : next)
-  }
+  // The rule is shared with both phones — a filter that behaves
+  // differently on a phone is a filter nobody trusts.
+  const toggle = (id: string) => setSelected(toggledAccounts(selected, all, id))
 
   return (
     <div className="relative" ref={box}>
@@ -76,7 +74,7 @@ export function AccountFilter() {
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
-        {narrowed ? `${on.length} of ${all.length} accounts` : 'All accounts'}
+        {filterLabel(selected, all)}
       </button>
       {open && (
         <div className="border-border bg-bg absolute z-20 mt-1 w-56 rounded-md border py-1 shadow-lg">

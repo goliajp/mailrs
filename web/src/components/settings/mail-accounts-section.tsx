@@ -1,8 +1,10 @@
+import type { ManualEndpoint } from '@/lib/manual-endpoints'
 import type { WireExternalAccount } from '@/wire/schemas/external-accounts'
 
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { emptyEndpoint, manualEndpoints } from '@/lib/manual-endpoints'
 import { queryClient } from '@/lib/query-client'
 import { settingsKeys } from '@/lib/query-keys'
 import {
@@ -10,9 +12,11 @@ import {
   wireExternalSettingsFor,
   wireListExternalAccounts,
   wireRemoveExternalAccount,
+  wireSetExternalAccountPaused,
 } from '@/wire/endpoints/external-accounts'
 
 import { btnPrimary, inputClass, SectionHeader } from './_shared'
+import { ManualServerFields } from './manual-server-fields'
 
 type PresetOf = Extract<
   Awaited<ReturnType<typeof wireExternalSettingsFor>>,
@@ -46,6 +50,13 @@ export function MailAccountsSection() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
+  // Shut unless somebody opens it: autodiscovery covers the providers
+  // people use, and a form that opens with eight empty boxes teaches
+  // everybody that connecting mail is hard.
+  const [manual, setManual] = useState(false)
+  const [incoming, setIncoming] = useState<ManualEndpoint>(emptyEndpoint('imap'))
+  const [outgoing, setOutgoing] = useState<ManualEndpoint>(emptyEndpoint('smtp'))
+  const [username, setUsername] = useState('')
 
   // Looked up as the address is typed, but only once it is an address:
   // a lookup on every keystroke of "s", "so", "som" is noise.
@@ -80,19 +91,41 @@ export function MailAccountsSection() {
     }
     setAdding(true)
     try {
+      const endpoints = manual ? manualEndpoints(incoming, outgoing) : null
+      if (manual && !endpoints) {
+        setError('Both servers need a name and a port')
+        setAdding(false)
+        return
+      }
       await wireAddExternalAccount({
         display_name: name.trim() || undefined,
         email: email.trim(),
         secret: secret.trim(),
+        username: manual && username.trim() ? username.trim() : undefined,
+        ...(endpoints ?? {}),
       })
       setEmail('')
       setSecret('')
       setName('')
+      setManual(false)
+      setIncoming(emptyEndpoint('imap'))
+      setOutgoing(emptyEndpoint('smtp'))
+      setUsername('')
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'could not add the account')
     } finally {
       setAdding(false)
+    }
+  }
+
+  const handlePause = async (a: WireExternalAccount) => {
+    setError('')
+    try {
+      await wireSetExternalAccountPaused(a.id, a.state !== 'paused')
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not change the account')
     }
   }
 
@@ -123,7 +156,12 @@ export function MailAccountsSection() {
 
       <ul className="space-y-2" data-testid="external-account-list">
         {accounts.map((a) => (
-          <AccountRow account={a} key={a.id} onRemove={() => void handleRemove(a)} />
+          <AccountRow
+            account={a}
+            key={a.id}
+            onPause={() => void handlePause(a)}
+            onRemove={() => void handleRemove(a)}
+          />
         ))}
         {accounts.length === 0 && !accountsQuery.isFetching && (
           <li className="text-fg-muted text-sm">No other accounts connected yet.</li>
@@ -173,6 +211,23 @@ export function MailAccountsSection() {
               type="text"
               value={name}
             />
+            <button
+              className="text-fg-muted hover:text-fg text-xs underline"
+              onClick={() => setManual(!manual)}
+              type="button"
+            >
+              {manual ? 'Discover the servers for me' : 'Enter the server settings myself'}
+            </button>
+            {manual && (
+              <ManualServerFields
+                incoming={incoming}
+                onIncoming={setIncoming}
+                onOutgoing={setOutgoing}
+                onUsername={setUsername}
+                outgoing={outgoing}
+                username={username}
+              />
+            )}
           </>
         )}
 
@@ -189,7 +244,15 @@ export function MailAccountsSection() {
   )
 }
 
-function AccountRow({ account, onRemove }: { account: WireExternalAccount; onRemove: () => void }) {
+function AccountRow({
+  account,
+  onPause,
+  onRemove,
+}: {
+  account: WireExternalAccount
+  onPause: () => void
+  onRemove: () => void
+}) {
   return (
     <li
       className="border-border flex items-center gap-3 rounded-md border px-3 py-2"
@@ -205,8 +268,36 @@ function AccountRow({ account, onRemove }: { account: WireExternalAccount; onRem
       <span className="min-w-0 flex-1">
         <span className="text-fg block truncate text-sm">{account.display_name}</span>
         <span className="text-fg-muted block truncate text-xs">{account.email}</span>
+        {/* The reason, where somebody reads it. It was in a `title`,
+            which is a hover tooltip — invisible on a phone, and this
+            is the one line that says what to do next. */}
+        {account.state !== 'ok' && account.last_error && (
+          <span className="text-fg-muted mt-0.5 block text-xs break-words">
+            {truncate(account.last_error)}
+          </span>
+        )}
+        {/* Work in progress, not a fault: a re-read after the server
+            renumbered a folder moves a mailbox's worth of mail, and
+            silence for that long reads as a stall. */}
+        {account.progress && (
+          <span className="text-fg-muted mt-0.5 block text-xs break-words">
+            {truncate(account.progress)}
+          </span>
+        )}
       </span>
       <AccountState account={account} />
+      {/* Not offered for an account whose credential was refused:
+          pausing cannot fix that, and resuming would put it back on a
+          timer that cannot succeed. */}
+      {account.state !== 'needs_auth' && (
+        <button
+          aria-label={`${account.state === 'paused' ? 'Resume' : 'Pause'} ${account.email}`}
+          className="text-fg-muted hover:text-fg text-xs"
+          onClick={onPause}
+        >
+          {account.state === 'paused' ? 'Resume' : 'Pause'}
+        </button>
+      )}
       <button
         aria-label={`Remove ${account.email}`}
         className="text-fg-muted hover:text-danger text-xs"
@@ -284,4 +375,15 @@ function ProviderNote({ preset }: { preset: NonNullable<PresetOf> }) {
 /** The provider's own word for what to type, or a plain one. */
 function secretLabel(what: null | string | undefined): string {
   return what && what.length > 0 ? what : 'Password'
+}
+
+/**
+ * A provider's refusal, cut to a row.
+ *
+ * Usually one sentence; IMAP servers have been known to answer with a
+ * paragraph and a URL, and a row that grows to fill the screen is its
+ * own problem.
+ */
+function truncate(v: string): string {
+  return v.length > 200 ? `${v.slice(0, 200)}…` : v
 }

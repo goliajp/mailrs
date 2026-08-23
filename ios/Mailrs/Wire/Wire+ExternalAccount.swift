@@ -7,6 +7,17 @@ extension Wire {
     /// once, sealed there, and no route returns it — not even to the
     /// person who typed it, who has it already and would only be
     /// putting it through another log.
+    /// What `GET /api/accounts/external` answers.
+    ///
+    /// **An object with one key, not a bare array.** Decoding it as an
+    /// array throws, and the screen caught that and showed an empty
+    /// list — which reads as "you have not connected anything" rather
+    /// than as a fault. No test caught it because the shared stub did
+    /// not serve this route at all.
+    struct ExternalAccountList: Decodable, Sendable {
+        let accounts: [ExternalAccount]
+    }
+
     struct ExternalAccount: Decodable, Sendable, Identifiable {
         let id: String
         let email: String
@@ -20,11 +31,15 @@ extension Wire {
         let state: String
         /// Why the last sync failed, for a row that is not `ok`.
         let lastError: String?
+        /// What it is doing right now — a full re-read moves a
+        /// mailbox's worth of data, and silence there reads as a stall.
+        let progress: String?
 
         enum CodingKeys: String, CodingKey {
             case id, email, provider, colour, state
             case displayName = "display_name"
             case lastError = "last_error"
+            case progress
         }
 
         init(from decoder: Decoder) throws {
@@ -38,6 +53,7 @@ extension Wire {
             // which is the same default the server takes.
             state = try c.decodeIfPresent(String.self, forKey: .state) ?? "ok"
             lastError = try? c.decodeIfPresent(String.self, forKey: .lastError)
+            progress = try? c.decodeIfPresent(String.self, forKey: .progress)
         }
 
         /// What the row says on screen, and what a person can do about

@@ -17,7 +17,16 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+
+import jp.golia.mailrs.wire.FilterRow
+import jp.golia.mailrs.wire.filterLabel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -41,6 +50,9 @@ import jp.golia.mailrs.wire.MailList
 @Composable
 fun MailListDrawer(
     current: MailList,
+    accountRows: List<FilterRow>,
+    selectedAccounts: List<String>?,
+    onToggleAccount: (String) -> Unit,
     onDrafts: () -> Unit,
     onSent: () -> Unit,
     onSettings: () -> Unit,
@@ -74,6 +86,42 @@ fun MailListDrawer(
                     .padding(NavigationDrawerItemDefaults.ItemPadding)
                     .testTag("drawer.item.${list.name}"),
             )
+        }
+        // Nothing to narrow with one mailbox, and a filter over one
+        // thing is furniture.
+        if (accountRows.size > 1) {
+            HorizontalDivider(
+                color = theme.border,
+                thickness = 0.5.dp,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+            Text(
+                filterLabel(selectedAccounts, accountRows.map { it.id }),
+                color = theme.fgMuted,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .padding(start = 28.dp, bottom = 4.dp)
+                    .testTag("drawer.accountFilter"),
+            )
+            for (row in accountRows) {
+                val on = selectedAccounts?.contains(row.id) ?: true
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleAccount(row.id) }
+                        .padding(start = 28.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+                        .testTag("drawer.account.${row.id.ifEmpty { "own" }}"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(checked = on, onCheckedChange = { onToggleAccount(row.id) })
+                    Text(
+                        row.label,
+                        color = if (on) theme.fg else theme.fgMuted,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
         }
         HorizontalDivider(color = theme.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
         // Below the rule with Settings, not among the lists: drafts are

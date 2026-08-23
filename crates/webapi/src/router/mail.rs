@@ -285,6 +285,12 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/accounts/external/{id}",
             delete(handlers::external_accounts::delete),
         )
+        // Pausing, so an account can be switched off without throwing
+        // away its credential and its sync markers.
+        .route(
+            "/api/accounts/external/{id}/paused",
+            post(handlers::external_accounts::set_paused),
+        )
         // Gmail and Outlook refuse passwords for mail clients, so
         // this is the only way to connect one at all.
         .route(

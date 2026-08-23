@@ -897,6 +897,22 @@
         }
       }
     },
+    "Both servers need a name and a port": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信・送信どちらのサーバーにも名前とポートが必要です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收信和发信服务器都需要填写地址和端口"
+          }
+        }
+      }
+    },
     "Built in": {
       "localizations": {
         "ja": {
@@ -1569,6 +1585,22 @@
         }
       }
     },
+    "Discover the servers for me": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバー設定を自動で調べる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动查找服务器设置"
+          }
+        }
+      }
+    },
     "Display name": {
       "localizations": {
         "ja": {
@@ -1665,6 +1697,22 @@
         }
       }
     },
+    "Enter the server settings myself": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分でサーバー設定を入力"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自行填写服务器设置"
+          }
+        }
+      }
+    },
     "Event": {
       "localizations": {
         "ja": {
@@ -1757,6 +1805,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "转发"
+          }
+        }
+      }
+    },
+    "From": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差出人"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发件人"
           }
         }
       }
@@ -1885,6 +1949,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "收件箱"
+          }
+        }
+      }
+    },
+    "Incoming encryption": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信の暗号化"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收信加密"
+          }
+        }
+      }
+    },
+    "Incoming protocol": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信プロトコル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收信协议"
+          }
+        }
+      }
+    },
+    "Incoming server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信サーバー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收信服务器"
           }
         }
       }
@@ -2077,6 +2189,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "加载图片"
+          }
+        }
+      }
+    },
+    "Login name, if it is not the address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールアドレスと違う場合はログイン名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录名（与地址不同时填写）"
           }
         }
       }
@@ -2820,6 +2948,22 @@
         }
       }
     },
+    "None": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "なし"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不加密"
+          }
+        }
+      }
+    },
     "Not junk": {
       "localizations": {
         "ja": {
@@ -2996,6 +3140,54 @@
         }
       }
     },
+    "Outgoing encryption": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信の暗号化"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发信加密"
+          }
+        }
+      }
+    },
+    "Outgoing protocol": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信プロトコル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发信协议"
+          }
+        }
+      }
+    },
+    "Outgoing server": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信サーバー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发信服务器"
+          }
+        }
+      }
+    },
     "Partial": {
       "localizations": {
         "ja": {
@@ -3104,6 +3296,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已置顶"
+          }
+        }
+      }
+    },
+    "Port": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ポート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口"
           }
         }
       }
@@ -3392,6 +3600,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "吊销这个密钥？"
+          }
+        }
+      }
+    },
+    "STARTTLS": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STARTTLS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STARTTLS"
           }
         }
       }
@@ -3920,6 +4144,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "跟随系统"
+          }
+        }
+      }
+    },
+    "TLS from the first byte": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最初からTLS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从第一个字节起用 TLS"
           }
         }
       }

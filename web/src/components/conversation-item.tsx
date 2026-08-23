@@ -8,6 +8,7 @@ import { memo, useMemo } from 'react'
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
 import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-menu'
 import { SenderAvatar } from '@/components/sender-avatar'
+import { useAccountColours } from '@/lib/account-colours'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
 import {
@@ -56,6 +57,9 @@ export const ConversationItem = memo(function ConversationItem({
   // (2026-07-17). Only a self-only thread falls back to Me.
   const others = convo.participants.filter((p) => extractEmail(p) !== myEmail)
   const displayParticipant = others[0] ?? convo.participants[0] ?? ''
+  // Which mailbox this arrived at, on a list that merges several.
+  // Empty with one mailbox, so the mark is absent rather than uniform.
+  const accountColour = useAccountColours().get(convo.account_id ?? '') ?? null
   const isOwn = others.length === 0
   const name = isOwn ? 'Me' : extractName(displayParticipant)
   const extraParticipants = Math.max(0, others.length - 1)
@@ -213,7 +217,19 @@ export const ConversationItem = memo(function ConversationItem({
             </div>
           </div>
         )}
-        <SenderAvatar sender={displayParticipant} size={36} />
+        {/* Which mailbox this arrived at, on a list that merges
+            several. Only when there is more than one — a mark on
+            every row that means nothing is furniture. */}
+        <span className="relative shrink-0">
+          <SenderAvatar sender={displayParticipant} size={36} />
+          {accountColour && (
+            <span
+              aria-hidden
+              className="border-bg absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2"
+              style={{ backgroundColor: accountColour }}
+            />
+          )}
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className={getSenderClass({ hasUnread, isOwn })}>

@@ -426,8 +426,15 @@ async fn submit_through_provider(
                 .into(),
         );
     };
-    let Some(secret) = crate::submit_as::open_secret(&cfg.kevy_url, key, &sub.account_id) else {
-        return Outcome::Permanent(format!("no stored password for {}", sub.user));
+    let Some(cred) = crate::submit_as::open_secret(&cfg.kevy_url, key, &sub.account_id) else {
+        return Outcome::Permanent(format!("no stored credential for {}", sub.user));
+    };
+    // An access token that lapses between syncs would be refused here,
+    // and a refused token reads as a wrong password. Renew before
+    // connecting, on the same rule the sync worker uses.
+    let cred = match crate::submit_as::renewed_if_due(&cfg.kevy_url, key, sub, cred).await {
+        Ok(c) => c,
+        Err(e) => return e,
     };
 
     let mut conn = match mailrs_smtp_client::SmtpConnection::connect(&sub.host, sub.port).await {
@@ -454,11 +461,19 @@ async fn submit_through_provider(
     if let Err(e) = conn.ehlo(&cfg.helo).await {
         return Outcome::Transient(format!("ehlo: {e}"));
     }
-    match conn.auth_plain(&sub.user, &secret).await {
+    // An OAuth account authenticates with the token and its own verb.
+    // Sending it through `AUTH PLAIN` is refused, and the person is
+    // then told their password is wrong.
+    let authed = match crate::submit_as::verb_for(&cred) {
+        crate::submit_as::Verb::Xoauth2 => conn.auth_xoauth2(&sub.user, cred.secret()).await,
+        crate::submit_as::Verb::Plain => conn.auth_plain(&sub.user, cred.secret()).await,
+    };
+    match authed {
         Ok(r) if r.is_positive() => {}
         Ok(r) => {
             let _ = conn.quit().await;
-            return Outcome::Permanent(format!("{} refused the password: {}", sub.host, r.code));
+            let what = crate::submit_as::verb_for(&cred).what_was_refused();
+            return Outcome::Permanent(format!("{} refused the {what}: {}", sub.host, r.code));
         }
         Err(e) => {
             let _ = conn.quit().await;

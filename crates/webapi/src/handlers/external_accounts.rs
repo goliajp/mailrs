@@ -19,6 +19,7 @@ use mailrs_mailprovider::{Autodiscover, preset_for};
 use serde::Deserialize;
 
 use crate::handlers::conversations::AuthedUser;
+use crate::handlers::external_account_test::prove_it_works;
 use crate::handlers::kevy_util::with_kevy;
 
 mod keys {
@@ -106,6 +107,10 @@ pub async fn create(
         StatusCode::BAD_REQUEST,
         "no password or authorisation code was given".to_string(),
     ))?;
+    // Before the seal and the row, which are written together — so a
+    // refusal here leaves nothing behind.
+    prove_it_works(&row, secret).await?;
+
     let sealed = mailrs_secretbox::seal(&key, secret.as_bytes())
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -154,6 +159,9 @@ pub(crate) fn connect_oauth_account(
         auth: ext::AuthKind::OAuth2,
         created_at: now,
         sort: now,
+        // Says so rather than looking like nothing happened: the
+        // loop may be up to five minutes from its next pass.
+        progress: Some(ext::FIRST_SYNC_NOTE.to_string()),
         ..ext::AccountRow::default()
     };
     ext::validate(&row).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
@@ -184,14 +192,76 @@ pub(crate) fn connect_oauth_account(
     Ok(())
 }
 
+/// `POST /api/accounts/external/{id}/paused` — stop or resume syncing.
+///
+/// `Paused` was a state with a reader and no writer: `is_due` honours
+/// it, the account list renders it, and nothing anywhere could ever
+/// set it. So an account that was noisy, or rate-limiting, or simply
+/// somewhere a person did not want read this week, could only be
+/// deleted — which throws away the credential and the sync markers to
+/// achieve something temporary.
+///
+/// Sending is deliberately unaffected. Pausing stops the reading; the
+/// credential is still held and still valid, and refusing to send from
+/// an address a person owns would be a second, unasked-for meaning.
+pub async fn set_paused(
+    Extension(AuthedUser(user)): Extension<AuthedUser>,
+    Path(id): Path<String>,
+    Json(body): Json<PausedBody>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let accounts_key = keys::accounts(&user);
+    let want = body.paused;
+    let updated = with_kevy(move |c| {
+        let Some(raw) = c.hget(accounts_key.as_bytes(), id.as_bytes())? else {
+            return Ok(None);
+        };
+        let Ok(row) = serde_json::from_slice::<ext::AccountRow>(&raw) else {
+            return Ok(None);
+        };
+        // The rules live beside the row, where they can be tested
+        // without a store: a rejected credential is left alone, a
+        // resumed account is due at once, and sending is untouched.
+        let row = ext::with_paused(row, want);
+        let payload = serde_json::to_vec(&row).unwrap_or_default();
+        c.hset(
+            accounts_key.as_bytes(),
+            &[(id.as_bytes(), payload.as_slice())],
+        )?;
+        Ok(Some(row))
+    })
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let Some(row) = updated else {
+        return Err((StatusCode::NOT_FOUND, "no such account".into()));
+    };
+    Ok(Json(serde_json::to_value(&row).unwrap_or_default()))
+}
+
+/// Whether to stop syncing this account.
+#[derive(serde::Deserialize)]
+pub struct PausedBody {
+    /// `true` stops the reading; `false` resumes it and makes the
+    /// account due at once.
+    pub paused: bool,
+}
+
 /// `DELETE /api/accounts/external/{id}` — remove one, and its secret.
 pub async fn delete(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let (accounts_key, secret_key) = (keys::accounts(&user), keys::secret(&user, &id));
+    // Named by folder, and an account's folders are only known to the
+    // account — so they are found rather than listed. `KEYS` is O(N)
+    // over the keyspace, which is why this belongs in a delete and not
+    // in a loop.
+    let marker_glob = format!("ext:sync:{id}:*");
     with_kevy(move |c| {
         c.hdel(accounts_key.as_bytes(), &[id.as_bytes()])?;
+        let markers = c.keys(marker_glob.as_bytes())?;
+        if !markers.is_empty() {
+            let refs: Vec<&[u8]> = markers.iter().map(Vec::as_slice).collect();
+            c.del(&refs)?;
+        }
         // The secret goes with it. A row removed while its sealed
         // token stays behind is a credential nobody can see and nobody
         // will delete.
@@ -302,6 +372,9 @@ fn build_row(body: &NewAccount, now: i64) -> ext::AccountRow {
         email: body.email.clone(),
         created_at: now,
         sort: now,
+        // Says so rather than looking like nothing happened: the
+        // loop may be up to five minutes from its next pass.
+        progress: Some(ext::FIRST_SYNC_NOTE.to_string()),
         ..ext::AccountRow::default()
     }
 }

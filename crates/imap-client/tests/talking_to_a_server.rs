@@ -146,3 +146,42 @@ async fn a_closed_connection_says_so() {
     let err = s.login("me@x.com", "p").await.expect_err("accepted");
     assert!(!err.is_permanent(), "{err:?}");
 }
+
+/// The cheap half of a re-alignment: identities, no bodies.
+#[tokio::test]
+async fn envelopes_come_back_without_bodies() {
+    let script = concat!(
+        r#"* 1 FETCH (UID 7 ENVELOPE ("d" "s" (("A" NIL "a" "x.com")) (("A" NIL "a" "x.com")) NIL (("B" NIL "b" "y.com")) NIL NIL NIL "<one@x.com>"))"#,
+        "\r\n",
+        r#"* 2 FETCH (UID 9 ENVELOPE ("d" "s" (("A" NIL "a" "x.com")) (("A" NIL "a" "x.com")) NIL (("B" NIL "b" "y.com")) NIL NIL NIL "<two@x.com>"))"#,
+        "\r\n{tag} OK done\r\n",
+    );
+    let (port, _) = server(vec!["{tag} OK ok\r\n", script]).await;
+    let mut s = connect(port).await;
+    s.login("me@x.com", "p").await.expect("login");
+    let got = s.fetch_envelopes("1:*").await.expect("envelopes");
+    assert_eq!(got.len(), 2);
+    assert_eq!(got[0].uid, 7);
+    assert_eq!(got[1].message_id, "<two@x.com>");
+}
+
+/// A line this cannot read is skipped, not guessed at — and the
+/// messages around it still arrive. A wrong Message-ID would file a
+/// message as a different one or merge it into somebody else's thread.
+#[tokio::test]
+async fn an_unreadable_envelope_does_not_lose_the_others() {
+    let script = concat!(
+        r#"* 1 FETCH (UID 7 ENVELOPE ("d" "s" (("A" NIL "a" "x.com")) (("A" NIL "a" "x.com")) NIL (("B" NIL "b" "y.com")) NIL NIL NIL "<one@x.com>"))"#,
+        "\r\n",
+        "* 2 FETCH (UID 8 ENVELOPE (truncated\r\n",
+        r#"* 3 FETCH (UID 9 ENVELOPE ("d" "s" (("A" NIL "a" "x.com")) (("A" NIL "a" "x.com")) NIL (("B" NIL "b" "y.com")) NIL NIL NIL "<three@x.com>"))"#,
+        "\r\n{tag} OK done\r\n",
+    );
+    let (port, _) = server(vec!["{tag} OK ok\r\n", script]).await;
+    let mut s = connect(port).await;
+    s.login("me@x.com", "p").await.expect("login");
+    let got = s.fetch_envelopes("1:*").await.expect("envelopes");
+    assert_eq!(got.len(), 2, "the readable ones were lost with the bad one");
+    assert_eq!(got[0].message_id, "<one@x.com>");
+    assert_eq!(got[1].message_id, "<three@x.com>");
+}

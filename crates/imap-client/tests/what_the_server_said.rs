@@ -41,10 +41,15 @@ fn a_changed_uidvalidity_forces_a_full_resync() {
     // injection caught it doing.
     s.remembered_uidvalidity = Some(42);
     let plan = plan_fetch(&s, Some(4300)).expect("something to do");
+    // `Realign` since the envelope pass landed: the folder is still
+    // read from the start, because the uids we hold mean nothing — but
+    // the Message-IDs survive the reset, so it asks which messages are
+    // there before asking for any of them.
     assert!(
-        matches!(plan, FetchPlan::Everything { .. }),
+        matches!(plan, FetchPlan::Realign { .. }),
         "carried on from a uid that no longer means anything: {plan:?}"
     );
+    assert_eq!(plan.range(), "1:*", "it must still read the whole folder");
 }
 
 #[test]
@@ -169,4 +174,39 @@ fn nonsense_is_ignored_rather_than_panicking() {
     ] {
         let _ = parse_line(line);
     }
+}
+
+/// A renumbered folder is re-read, but not re-downloaded: the uids are
+/// worthless and the Message-IDs are not, so the cheap question comes
+/// first.
+#[test]
+fn a_changed_uidvalidity_asks_for_identities_before_bodies() {
+    let mut s = opened(&["* OK [UIDVALIDITY 999] .", "* OK [UIDNEXT 4392] ."]);
+    s.remembered_uidvalidity = Some(42);
+    let plan = plan_fetch(&s, Some(4300)).expect("something to do");
+    assert!(matches!(plan, FetchPlan::Realign { .. }), "{plan:?}");
+    assert_eq!(plan.range(), "1:*");
+    assert_eq!(plan.items(), "(UID ENVELOPE)");
+}
+
+/// A folder never synced has nothing to align against: the envelope
+/// pass would be a round trip that could only answer "none of them".
+#[test]
+fn a_first_sync_fetches_bodies_directly() {
+    let s = opened(&["* OK [UIDVALIDITY 999] .", "* 12 EXISTS"]);
+    let plan = plan_fetch(&s, None).expect("something to do");
+    assert!(matches!(plan, FetchPlan::Everything { .. }), "{plan:?}");
+    assert_eq!(plan.items(), "(UID FLAGS BODY.PEEK[])");
+}
+
+/// An ordinary incremental fetch is unchanged, and has no reason to
+/// give — nothing surprising is happening.
+#[test]
+fn an_incremental_fetch_asks_for_bodies_and_explains_nothing() {
+    let mut s = opened(&["* OK [UIDVALIDITY 999] .", "* OK [UIDNEXT 4392] ."]);
+    s.remembered_uidvalidity = Some(999);
+    let plan = plan_fetch(&s, Some(4300)).expect("something to do");
+    assert_eq!(plan.range(), "4301:*");
+    assert_eq!(plan.items(), "(UID FLAGS BODY.PEEK[])");
+    assert_eq!(plan.because(), None);
 }

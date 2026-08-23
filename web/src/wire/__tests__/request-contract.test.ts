@@ -198,6 +198,12 @@ describe('request bodies match the shared contract', () => {
     expect(body).toEqual(fixture('external-account-create'))
   })
 
+  it('external account paused', async () => {
+    const { wireSetExternalAccountPaused } = await import('../endpoints/external-accounts')
+    const body = await bodyOf(() => wireSetExternalAccountPaused('acc_1', true))
+    expect(body).toEqual(fixture('external-account-paused'))
+  })
+
   it('domain create', async () => {
     const { adminPost } = await import('../endpoints/admin')
     const body = await bodyOf(() => adminPost('/admin/domains', { name: 'golia.jp' }))

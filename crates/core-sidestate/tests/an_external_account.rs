@@ -5,8 +5,8 @@
 //! are exercised by the fastcore suite.
 
 use mailrs_core_sidestate::families::external_accounts::{
-    AccountRow, AuthKind, Endpoint, State, Tls, colour_for, is_due, next_backoff, validate,
-    with_failure, with_success,
+    AccountRow, AuthKind, Endpoint, FIRST_SYNC_NOTE, State, Tls, colour_for, is_due, next_backoff,
+    validate, with_failure, with_paused, with_success,
 };
 
 fn a_row() -> AccountRow {
@@ -171,4 +171,182 @@ fn a_rejected_credential_asks_for_attention_rather_than_retrying_forever() {
         !is_due(&row, 1_000_000_000),
         "a broken password was retried on a timer"
     );
+}
+
+/// Switched off by its owner, and honoured.
+///
+/// `Paused` was a state with a reader and no writer until 2026-08-23:
+/// `is_due` respected it and the account list rendered it, and nothing
+/// anywhere could set it. So this is the first test it has ever had.
+#[test]
+fn a_paused_account_is_not_read() {
+    let mut row = a_row();
+    row.state = State::Paused;
+    row.last_sync = 0;
+    assert!(
+        !is_due(&row, 1_000_000_000),
+        "a never-synced account is due at once, and pausing has to beat that"
+    );
+    row.last_sync = 1;
+    row.next_attempt = 0;
+    assert!(!is_due(&row, 1_000_000_000), "a paused account was read");
+}
+
+/// Pausing stops the reading and nothing else.
+///
+/// The credential is still held and still valid; refusing to send from
+/// an address somebody owns would be a second meaning nobody asked
+/// for. Nothing in the row says otherwise — this pins that.
+#[test]
+fn pausing_leaves_the_way_out_alone() {
+    let before = a_row();
+    let row = with_paused(before.clone(), true);
+    assert_eq!(row.state, State::Paused);
+    assert_eq!(row.email, before.email);
+    assert_eq!(row.outgoing, before.outgoing, "the way out was changed");
+    assert_eq!(row.username, before.username);
+}
+
+/// Resuming is not "un-pause and wait": somebody who pressed it is
+/// waiting for mail, and the failure that preceded the pause is no
+/// longer what the row is about.
+#[test]
+fn resuming_makes_it_due_at_once() {
+    let failed = with_failure(a_row(), 1_000, "connection refused");
+    assert!(failed.next_attempt > 1_000, "a failure set no retry time");
+    let back = with_paused(with_paused(failed, true), false);
+    assert_eq!(back.state, State::Ok);
+    assert_eq!(
+        back.next_attempt, 0,
+        "resuming left it waiting out a backoff"
+    );
+    assert_eq!(back.last_error, None, "an old reason survived the resume");
+    assert!(is_due(&back, 1_000), "a resumed account was not read");
+}
+
+/// A rejected credential is not something pausing can fix, and
+/// resuming one would put it back on a timer that cannot succeed.
+#[test]
+fn a_rejected_credential_cannot_be_paused_or_resumed() {
+    let broken = with_failure(a_row(), 1_000, "AUTHENTICATIONFAILED");
+    assert_eq!(broken.state, State::NeedsAuth);
+    assert_eq!(with_paused(broken.clone(), true).state, State::NeedsAuth);
+    let resumed = with_paused(broken.clone(), false);
+    assert_eq!(
+        resumed.state,
+        State::NeedsAuth,
+        "a refused password was resumed"
+    );
+    assert_eq!(
+        resumed.last_error, broken.last_error,
+        "the reason was cleared"
+    );
+}
+
+/// A re-read that was running when somebody paused is not still
+/// running afterwards, and the row must not go on saying it is.
+#[test]
+fn pausing_clears_what_it_was_doing() {
+    let mut row = a_row();
+    row.last_sync = 1_000;
+    row.progress = Some("reading Inbox again from the start".into());
+    assert_eq!(with_paused(row.clone(), true).progress, None);
+    // Resuming an account that has synced before has nothing to wait
+    // for either. The never-synced case is the exception, and it has
+    // its own test.
+    assert_eq!(with_paused(row, false).progress, None);
+}
+
+/// A pause that outlives a failure must not resurrect the retry timer.
+#[test]
+fn pausing_a_failing_account_stops_the_retries() {
+    let failed = with_failure(a_row(), 1_000, "connection refused");
+    assert!(
+        is_due(&failed, failed.next_attempt),
+        "a failure stopped retrying"
+    );
+    let mut paused = failed.clone();
+    paused.state = State::Paused;
+    assert!(
+        !is_due(&paused, 1_000_000_000),
+        "pausing a failing account left it on the backoff timer"
+    );
+}
+
+/// A newly connected account says what it is waiting for.
+///
+/// The sync loop rests for up to five minutes when nothing has been
+/// due, so connecting an account and seeing nothing happen is the
+/// normal case rather than a fault — and the screen said nothing about
+/// it at all. The note is cleared by the first success, like every
+/// other progress note; a row still saying it a day later is a row
+/// nobody updated.
+#[test]
+fn the_first_sync_note_goes_away_when_it_syncs() {
+    let mut row = a_row();
+    row.progress = Some(FIRST_SYNC_NOTE.to_string());
+    row.last_sync = 0;
+    assert!(
+        is_due(&row, 1),
+        "a never-synced account must be due at once"
+    );
+
+    let done = with_success(row, 1_000);
+    assert_eq!(done.progress, None, "the waiting note outlived the wait");
+    assert_eq!(done.last_sync, 1_000);
+}
+
+/// And a failure does not turn it into the reason: one is work, the
+/// other is a fault, and the row has a field for each.
+#[test]
+fn a_failure_does_not_become_the_waiting_note() {
+    let mut row = a_row();
+    row.progress = Some(FIRST_SYNC_NOTE.to_string());
+    let failed = with_failure(row, 1_000, "connection refused");
+    assert!(
+        failed.last_error.is_some(),
+        "a failure with no reason is a row that says nothing"
+    );
+    assert_ne!(
+        failed.progress.as_deref(),
+        Some("connection refused"),
+        "the reason was written into the progress note"
+    );
+}
+
+/// Resuming an account that has never synced puts it back in the wait
+/// it was in — so it must go on saying so.
+///
+/// `with_paused` cleared the note unconditionally at first, which is
+/// right for a re-read that a pause interrupted and wrong here: the
+/// row went silent again for as long as the loop's rest, which is the
+/// silence the note exists to break.
+#[test]
+fn resuming_a_never_synced_account_still_says_it_is_waiting() {
+    let mut row = a_row();
+    row.last_sync = 0;
+    row.progress = Some(FIRST_SYNC_NOTE.to_string());
+
+    let paused = with_paused(row, true);
+    assert_eq!(
+        paused.progress, None,
+        "a paused account said it was working"
+    );
+
+    let back = with_paused(paused, false);
+    assert_eq!(
+        back.progress.as_deref(),
+        Some(FIRST_SYNC_NOTE),
+        "a resumed account went silent while it waited"
+    );
+}
+
+/// An account that has synced before has nothing to wait for, so
+/// resuming it says nothing rather than inventing a first read.
+#[test]
+fn resuming_an_account_that_has_synced_says_nothing() {
+    let mut row = a_row();
+    row.last_sync = 1_000;
+    let back = with_paused(with_paused(row, true), false);
+    assert_eq!(back.progress, None);
 }

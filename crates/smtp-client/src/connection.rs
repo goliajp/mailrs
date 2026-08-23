@@ -364,6 +364,37 @@ impl SmtpConnection {
             .await
     }
 
+    /// `AUTH XOAUTH2`, for an account connected with OAuth.
+    ///
+    /// An access token is not a password and does not survive
+    /// `AUTH PLAIN`: the provider refuses it, and the person is told
+    /// their password is wrong for an account whose credentials are
+    /// perfectly good.
+    ///
+    /// **The failure protocol is the reason this is not one line.** A
+    /// provider that rejects the token answers `334` with a base64
+    /// error object instead of a final code, and will not send one
+    /// until the client sends an empty line. Returning that `334`
+    /// would read as "keep going"; leaving it unanswered hangs the
+    /// connection. So a `334` here means refused, and the empty line
+    /// is sent to collect the real answer.
+    pub async fn auth_xoauth2(&mut self, user: &str, token: &str) -> io::Result<SmtpResponse> {
+        if !self.is_tls() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "refusing to send an access token over a connection with no TLS",
+            ));
+        }
+        let payload = crate::auth_xoauth2_payload(user, token);
+        let first = self
+            .send_command(&format!("AUTH XOAUTH2 {payload}\r\n"))
+            .await?;
+        if first.code != 334 {
+            return Ok(first);
+        }
+        self.send_command("\r\n").await
+    }
+
     /// send QUIT
     pub async fn quit(&mut self) -> io::Result<()> {
         let _ = self.send_command("QUIT\r\n").await;

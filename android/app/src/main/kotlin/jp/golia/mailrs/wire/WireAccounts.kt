@@ -31,6 +31,8 @@ data class ExternalAccount(
     /** `ok` / `needs_auth` / `error` / `paused`. */
     val state: String = "ok",
     @SerialName("last_error") val lastError: String? = null,
+    /** What it is doing right now — a re-read is work, not a fault. */
+    @SerialName("progress") val progress: String? = null,
 ) {
     /**
      * What the row says on screen. The two failures need different
@@ -66,9 +68,37 @@ data class AccountSettings(
 }
 
 /** The body that connects a mailbox: an address and a secret. */
+/**
+ * What `GET /api/accounts/external` answers.
+ *
+ * **An object with one key, not a bare array.** Deserialising it as a
+ * list fails, and the screen showed an empty list — which reads as
+ * "you have not connected anything" rather than as a fault. No test
+ * caught it because the shared stub did not serve this route at all.
+ */
+@Serializable
+data class ExternalAccountList(
+    val accounts: List<ExternalAccount> = emptyList(),
+)
+
 @Serializable
 data class ConnectAccountRequest(
     val email: String,
     val secret: String,
     @SerialName("display_name") val displayName: String? = null,
+    /** The account's own name on that server, when it is not the address. */
+    val username: String? = null,
+    /** Where to read from, when nobody could work it out. */
+    val incoming: WireEndpoint? = null,
+    /** Where to send through. */
+    val outgoing: WireEndpoint? = null,
+)
+
+/** One server, as the API wants it. */
+@Serializable
+data class WireEndpoint(
+    val host: String,
+    val port: Int,
+    val protocol: String,
+    val tls: String,
 )

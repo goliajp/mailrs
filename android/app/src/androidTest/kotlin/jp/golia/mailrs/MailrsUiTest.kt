@@ -140,6 +140,35 @@ abstract class MailrsUiTest : GrantsNotifications() {
      * screen transitions turned two search tests red without touching
      * search — the failure was in the waiting, not the app.
      */
+    /**
+     * Wait for a tag to exist, then bring it into view.
+     *
+     * `waitForTag` requires the node to be **displayed**, which is
+     * right for something that should already be on screen and wrong
+     * for a row in a long list. Settings has thirteen operator
+     * sections; the eighth is past the fold, so
+     * `waitForTag("admin.Allowed")` timed out — the test was written
+     * when the list was shorter and had been red ever since, saying
+     * "settings never listed the allow list" about a list that was
+     * there all along.
+     *
+     * Scrolling here rather than in each test means the next section
+     * added to that enum does not turn another one red.
+     */
+    protected fun scrollToTag(tag: String, what: String) {
+        try {
+            compose.waitUntil(TIMEOUT_MS) {
+                compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithTag(tag).performScrollTo()
+        } catch (e: Throwable) {
+            throw AssertionError(
+                what + "\n" + compose.onRoot().printToString(maxDepth = 12).take(2500),
+                e,
+            )
+        }
+    }
+
     protected fun waitForTag(tag: String, what: String) {
         try {
             compose.waitUntil(TIMEOUT_MS) {
