@@ -417,6 +417,22 @@
         }
       }
     },
+    "Add a mailbox": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールボックスを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加邮箱"
+          }
+        }
+      }
+    },
     "Add account": {
       "localizations": {
         "ja": {
@@ -973,6 +989,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "抄送"
+          }
+        }
+      }
+    },
+    "Checking…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在验证…"
           }
         }
       }
@@ -2257,6 +2289,22 @@
         }
       }
     },
+    "Mailboxes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールボックス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮箱"
+          }
+        }
+      }
+    },
     "Mailrs": {
       "shouldTranslate": false
     },
@@ -2900,6 +2948,54 @@
         }
       }
     },
+    "No other mailboxes yet.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほかのメールボックスはまだありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有添加其它邮箱。"
+          }
+        }
+      }
+    },
+    "No preset for this domain — the usual server names are filled in below, correct them if they are wrong.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このドメインの設定は未登録です。一般的なサーバー名を下に入れてあるので、違っていれば直してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个域名没有预设——下面填的是常见服务器名，不对就改掉。"
+          }
+        }
+      }
+    },
+    "No preset for this domain. This will try:": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このドメインの設定は未登録です。次を試します:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个域名没有预设，将尝试："
+          }
+        }
+      }
+    },
     "No recipient": {
       "localizations": {
         "ja": {
@@ -3104,6 +3200,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "Open the settings below if that is not right.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "違っていれば下の設定を開いてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不对的话请打开下面的设置。"
           }
         }
       }
@@ -4736,6 +4848,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "someone@example.com"
+          }
+        }
+      }
+    },
+    "you@example.com": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@example.com"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@example.com"
           }
         }
       }

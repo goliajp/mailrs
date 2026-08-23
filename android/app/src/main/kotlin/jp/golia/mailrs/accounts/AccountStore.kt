@@ -1,0 +1,137 @@
+package jp.golia.mailrs.accounts
+
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+
+/**
+ * The accounts this person has added, and their secrets.
+ *
+ * Two stores, deliberately apart. The **rows** are ordinary
+ * preferences — they hold no secret and a person may want to see them.
+ * The **credentials** are encrypted with a key the app never sees,
+ * which is what makes "delete the account" also mean "the password is
+ * gone" rather than leaving a secret nobody can see and nobody will
+ * remove.
+ *
+ * The same shape as `TokenStore`, and for the reason recorded there:
+ * `EncryptedSharedPreferences` is deprecated as of security-crypto
+ * 1.1.0, so this does the thing it wrapped — an AES-GCM key in the
+ * Android Keystore and the ciphertext in ordinary private
+ * preferences. The key material stays in the TEE, so a copied prefs
+ * file is useless.
+ *
+ * Its own key alias, not the session's: clearing one must not make the
+ * other undecryptable, and a mail password outlives a session by
+ * design.
+ */
+class AccountStore(context: Context) {
+    private val prefs = context.applicationContext
+        .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun load(): List<MailAccount> {
+        val raw = prefs.getString(ROWS, null) ?: return emptyList()
+        return runCatching {
+            json.decodeFromString(ListSerializer(MailAccount.serializer()), raw)
+        }.getOrDefault(emptyList()).sortedBy { it.sort }
+    }
+
+    fun save(accounts: List<MailAccount>) {
+        prefs.edit()
+            .putString(ROWS, json.encodeToString(ListSerializer(MailAccount.serializer()), accounts))
+            .apply()
+    }
+
+    /** Add or replace one, keeping the list in order. */
+    fun upsert(account: MailAccount) {
+        save(load().filterNot { it.id == account.id } + account)
+    }
+
+    /**
+     * Remove one **and its secret**.
+     *
+     * Both, always: a row removed while its stored credential stays
+     * behind is a secret nobody can see and nobody will delete.
+     */
+    fun remove(id: String) {
+        save(load().filterNot { it.id == id })
+        prefs.edit().remove(secretKeyName(id)).apply()
+    }
+
+    fun saveSecret(secret: String, id: String) {
+        prefs.edit().putString(secretKeyName(id), encrypt(secret)).apply()
+    }
+
+    /**
+     * The secret, or null.
+     *
+     * Null covers both "there is none" and "the key is gone" — the
+     * latter happens when app data is cleared, and it reads as "sign
+     * in again", which is the truthful outcome.
+     */
+    fun secret(id: String): String? =
+        prefs.getString(secretKeyName(id), null)?.let { decrypt(it) }
+
+    private fun secretKeyName(id: String) = "secret.$id"
+
+    private fun key(): SecretKey {
+        val ks = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+        (ks.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build(),
+        )
+        return generator.generateKey()
+    }
+
+    /** `base64(iv) : base64(ciphertext)`. The IV is not a secret. */
+    private fun encrypt(plain: String): String {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, key())
+        val body = cipher.doFinal(plain.toByteArray())
+        return b64(cipher.iv) + ":" + b64(body)
+    }
+
+    private fun decrypt(blob: String): String? {
+        val parts = blob.split(":")
+        if (parts.size != 2) return null
+        return runCatching {
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                key(),
+                GCMParameterSpec(TAG_BITS, unb64(parts[0])),
+            )
+            String(cipher.doFinal(unb64(parts[1])))
+        }.getOrNull()
+    }
+
+    private fun b64(bytes: ByteArray) =
+        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+
+    private fun unb64(s: String) =
+        android.util.Base64.decode(s, android.util.Base64.NO_WRAP)
+
+    private companion object {
+        const val PREFS = "mailrs.accounts"
+        const val ROWS = "rows.v1"
+        const val KEYSTORE = "AndroidKeyStore"
+        const val KEY_ALIAS = "mailrs.account.secret.v1"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val TAG_BITS = 128
+    }
+}

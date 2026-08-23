@@ -13,6 +13,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingSignature = false
     @State private var showingSenders = false
+    @State private var showingMailboxes = false
     @State private var signatureDraft = ""
     @State private var showingAliases = false
     @State private var showingAccounts = false
@@ -64,6 +65,14 @@ struct SettingsView: View {
                         showingSenders = true
                     } label: {
                         LucideRow(title: "Senders", icon: Lucide.shieldCheck)
+                    }
+                    // Under the reader's own settings rather than the
+                    // operator sections: connecting a mailbox is
+                    // something any reader does for themselves.
+                    Button {
+                        showingMailboxes = true
+                    } label: {
+                        LucideRow(title: "Mailboxes", icon: Lucide.mails)
                     }
                 }
 
@@ -185,6 +194,7 @@ struct SettingsView: View {
                 SignatureEditor(text: $signatureDraft)
             }
             .sheet(isPresented: $showingSenders) { SenderListsView() }
+            .sheet(isPresented: $showingMailboxes) { MailAccountsView() }
             .sheet(isPresented: $showingAudit) { AuditLogView() }
             .sheet(isPresented: $showingPermissions) { PermissionGroupsView() }
             .task {
