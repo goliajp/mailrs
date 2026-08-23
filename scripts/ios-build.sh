@@ -165,9 +165,27 @@ if [ -n "${2:-}" ]; then
     ONLY="-only-testing:$2"
     echo "    (only $2)"
 fi
+# **The status comes from xcodebuild, not from the filter.** This was
+# `xcodebuild … | grep … || true`, and a pipeline's status is its last
+# command's: the script exited 0 whether the tests passed or failed, so
+# a run could only ever be read by eye. It was read by eye, and the
+# grep it was read with (`✘`) does not match a test that *crashes* —
+# swift-testing reports those under `Failing tests:` with no `✘` at all,
+# and prints `Suite … passed` above them. Four crashed tests read as
+# green on 2026-08-24.
+TEST_LOG=/tmp/mailrs-ios-test.log
+TEST_STATUS=0
 # shellcheck disable=SC2086 # ONLY is one flag or nothing, not a word list
 xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" $ONLY test \
-  | grep -E "✔|✘|error:|\*\* TEST" || true
+  > "$TEST_LOG" 2>&1 || TEST_STATUS=$?
+grep -E "✔|✘|error:|\*\* TEST" "$TEST_LOG" || true
+if [ "$TEST_STATUS" -ne 0 ]; then
+    echo "!! tests failed (xcodebuild exit $TEST_STATUS)"
+    # The crash list, which no ✔/✘ line carries.
+    grep -A20 "Failing tests:" "$TEST_LOG" || true
+    echo "!! full log: $TEST_LOG"
+    exit "$TEST_STATUS"
+fi
 
 if [ "${1:-}" = "run" ]; then
     # `-showBuildSettings` rather than `find` over DerivedData: the path
