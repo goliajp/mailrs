@@ -142,6 +142,16 @@ fun MailViewModel.closeMailAccounts() {
     _state.update { it.copy(mailAccountsOpen = false) }
 }
 
+/** Show the merged list of mail from every connected mailbox. */
+fun MailViewModel.openMergedMail() {
+    _state.update { it.copy(mergedMailOpen = true) }
+}
+
+/** Hide it. */
+fun MailViewModel.closeMergedMail() {
+    _state.update { it.copy(mergedMailOpen = false) }
+}
+
 /**
  * Open one group and read who is in it.
  *

@@ -43,6 +43,14 @@ enum Lucide {
         .rect(x: 7, y: 3, w: 15, h: 12, r: 2),
     ]
 
+    /// `inbox` — mail that has arrived, wherever it arrived from.
+    static let inbox: [Element] = [
+        .path("M22 12h-6l-2 3h-4l-2-3H2"),
+        .path(
+            "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89"
+                + "A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"),
+    ]
+
     static let globe: [Element] = [
         .circle(x: 12, y: 12, r: 10),
         .path("M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"),

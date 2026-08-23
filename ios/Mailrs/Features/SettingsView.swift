@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showingSignature = false
     @State private var showingSenders = false
     @State private var showingMailboxes = false
+    @State private var showingMergedMail = false
     @State private var signatureDraft = ""
     @State private var showingAliases = false
     @State private var showingAccounts = false
@@ -73,6 +74,15 @@ struct SettingsView: View {
                         showingMailboxes = true
                     } label: {
                         LucideRow(title: "Mailboxes", icon: Lucide.mails)
+                    }
+                    // The mail itself, one list across every connected
+                    // mailbox. Beside the place they are added, because
+                    // a screen reached from nowhere is a screen nobody
+                    // finds.
+                    Button {
+                        showingMergedMail = true
+                    } label: {
+                        LucideRow(title: "Other mail", icon: Lucide.inbox)
                     }
                 }
 
@@ -195,6 +205,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingSenders) { SenderListsView() }
             .sheet(isPresented: $showingMailboxes) { MailAccountsView() }
+            .sheet(isPresented: $showingMergedMail) { MailboxesView() }
             .sheet(isPresented: $showingAudit) { AuditLogView() }
             .sheet(isPresented: $showingPermissions) { PermissionGroupsView() }
             .task {

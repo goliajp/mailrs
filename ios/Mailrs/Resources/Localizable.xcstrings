@@ -193,6 +193,22 @@
         }
       }
     },
+    "(no sender)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(差出人なし)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（无发件人）"
+          }
+        }
+      }
+    },
     "(no subject)": {
       "localizations": {
         "ja": {
@@ -525,6 +541,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加成员"
+          }
+        }
+      }
+    },
+    "Add one in Settings to read it here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定から追加すると、ここで読めます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「设置」中添加后即可在这里阅读。"
           }
         }
       }
@@ -1809,6 +1841,22 @@
         }
       }
     },
+    "Fetch mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールを取得"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收取邮件"
+          }
+        }
+      }
+    },
     "Filter": {
       "localizations": {
         "ja": {
@@ -2916,6 +2964,38 @@
         }
       }
     },
+    "No mail yet. Pull to fetch.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールはまだありません。引き下げて取得します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有邮件，下拉即可收取。"
+          }
+        }
+      }
+    },
+    "No mailboxes yet": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メールボックスがありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有邮箱"
+          }
+        }
+      }
+    },
     "No members": {
       "localizations": {
         "ja": {
@@ -3092,6 +3172,22 @@
         }
       }
     },
+    "Nothing from the mailboxes you picked.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択したメールボックスには何もありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选邮箱里没有邮件。"
+          }
+        }
+      }
+    },
     "Nothing here": {
       "localizations": {
         "ja": {
@@ -3232,6 +3328,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "运维"
+          }
+        }
+      }
+    },
+    "Other mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ほかのメール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其它邮件"
           }
         }
       }

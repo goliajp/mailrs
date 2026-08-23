@@ -44,7 +44,10 @@ fun MailViewModel.openSettings() {
 }
 
 fun MailViewModel.closeSettings() {
-    _state.update { it.copy(settingsOpen = false) }
+    // Its sub-screens close with it. Otherwise re-opening Settings
+    // lands on whichever one was showing when it was last left, which
+    // reads as the button having opened the wrong thing.
+    _state.update { it.copy(settingsOpen = false, mailAccountsOpen = false, mergedMailOpen = false) }
 }
 
 /**
