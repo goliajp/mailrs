@@ -74,14 +74,15 @@ struct MailboxesView: View {
         }
         .task { model.load() }
         .sheet(item: $opened) { row in
-            MessageView(row: row, account: model.account(for: row)) { loaded in
+            MessageView(row: row, account: model.account(for: row)) { loaded, all in
                 // The reply leaves by the account the message arrived
                 // at. Replying from a different address than the one
                 // that was written to is a mistake nobody notices
                 // until the answer goes missing.
                 guard let account = model.account(for: row) else { return }
                 writing = Writing(
-                    draft: ReplyDraft.make(to: loaded.headers, from: account, quoting: loaded.text),
+                    draft: ReplyDraft.make(
+                        to: loaded.headers, from: account, quoting: loaded.text, all: all),
                     accountId: account.id)
                 opened = nil
             }
@@ -103,6 +104,12 @@ struct MailboxesView: View {
     /// a prompt to fetch, while nothing from the chosen mailboxes is a
     /// prompt to widen the filter.
     private var emptyListText: LocalizedStringKey {
+        // Three different nothings, and each leads somewhere different:
+        // fetch, widen the filter, or know that a local search cannot
+        // see what was never fetched.
+        if !model.query.isEmpty {
+            return "Nothing here matches. Only mail already fetched is searched."
+        }
         if model.only.isEmpty { return "No mail yet. Pull to fetch." }
         return "Nothing from the mailboxes you picked."
     }
@@ -143,10 +150,30 @@ struct MailboxesView: View {
                     MailboxRowView(row: row, account: model.account(for: row))
                 }
                 .buttonStyle(.plain)
+                // The gesture every mail client uses, and the two
+                // directions are chosen the way they are everywhere:
+                // the destructive one is the one nobody reaches for by
+                // accident.
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        Task { await model.delete(row) }
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+                .swipeActions(edge: .leading) {
+                    Button {
+                        Task { await model.markUnread(row) }
+                    } label: {
+                        Label("Unread", systemImage: "envelope.badge")
+                    }
+                    .tint(.blue)
+                }
             }
         }
         .listStyle(.plain)
         .refreshable { await model.sync() }
+        .searchable(text: $model.query, prompt: "Search")
     }
 
     /// One chip per account. None selected is the ordinary state and

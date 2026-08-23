@@ -79,7 +79,7 @@ object MessageBody {
      * for mail readers that cannot do MIME at all, and neither is part
      * of the message.
      */
-    private fun pieces(body: ByteArray, boundary: String): List<ByteArray> {
+    internal fun pieces(body: ByteArray, boundary: String): List<ByteArray> {
         val delimiter = "--$boundary".toByteArray()
         // The delimiter must begin a line, or a boundary string that
         // happens to appear inside a part cuts it in half.
@@ -112,7 +112,7 @@ object MessageBody {
         return Display(string(bytes, type.params["charset"]), type.subtype == "html")
     }
 
-    private fun decodeTransfer(body: ByteArray, cte: String): ByteArray = when (cte) {
+    internal fun decodeTransfer(body: ByteArray, cte: String): ByteArray = when (cte) {
         "base64" -> Base64Body.decode(body)
         "quoted-printable" -> QuotedPrintable.decode(body)
         else -> body
@@ -161,7 +161,7 @@ object MessageBody {
         )
     }
 
-    private fun encoding(header: String): String =
+    internal fun encoding(header: String): String =
         valueOf("content-transfer-encoding", header)?.trim()?.lowercase().orEmpty()
 
     private fun valueOf(name: String, header: String): String? {

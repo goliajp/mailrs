@@ -11,6 +11,8 @@ final class MailboxesModel {
     /// filter** — the ordinary case, and the one a person gets without
     /// choosing anything.
     var only: Set<String> = []
+    /// What is being searched for, if anything.
+    var query = ""
     private(set) var syncing = false
     /// What went wrong per account, last pass. An account missing from
     /// here is an account that worked, including one that fetched
@@ -28,8 +30,10 @@ final class MailboxesModel {
 
     /// The rows to show, filtered and newest first.
     var visible: [MailboxRow] {
-        MailboxMerge.newestFirst(
-            MailboxMerge.onlyAccounts(rows, only.isEmpty ? nil : only))
+        var filter: Set<String>?
+        if !only.isEmpty { filter = only }
+        return MailboxSearch.matches(
+            MailboxMerge.newestFirst(MailboxMerge.onlyAccounts(rows, filter)), query)
     }
 
     var unread: Int { MailboxMerge.unreadCount(visible) }
@@ -60,5 +64,26 @@ final class MailboxesModel {
             rows = AccountStore.rows()
         }
         syncing = false
+    }
+
+    /// Move one message to its account's trash.
+    ///
+    /// The row goes when the **server** says it has: one that vanishes
+    /// first and then fails to move comes back on the next fetch,
+    /// looking like a bug rather than like the failure it was.
+    func delete(_ row: MailboxRow) async {
+        guard let account = account(for: row) else { return }
+        switch await MailboxActions.delete(row, from: account) {
+        case .done: rows = AccountStore.rows()
+        case let .failed(why): failures[account.id] = why
+        }
+    }
+
+    func markUnread(_ row: MailboxRow) async {
+        guard let account = account(for: row) else { return }
+        switch await MailboxActions.markUnread(row, from: account) {
+        case .done: rows = AccountStore.rows()
+        case let .failed(why): failures[account.id] = why
+        }
     }
 }

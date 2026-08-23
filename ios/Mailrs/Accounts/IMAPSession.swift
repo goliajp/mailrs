@@ -253,11 +253,78 @@ actor IMAPSession {
 
     /// Mark a message read on the server, because somebody read it.
     func markSeen(uid: UInt32) async throws {
+        try await store(uid: uid, op: "+FLAGS", flag: "\\Seen")
+    }
+
+    /// Mark it unread again.
+    ///
+    /// `-FLAGS`, not a `FLAGS` that names what should remain: the
+    /// second replaces the whole set, so it would quietly clear
+    /// `\Flagged`, `\Answered` and every keyword the person or another
+    /// client had put there.
+    func markUnseen(uid: UInt32) async throws {
+        try await store(uid: uid, op: "-FLAGS", flag: "\\Seen")
+    }
+
+    private func store(uid: UInt32, op: String, flag: String) async throws {
         let t = nextTag()
-        try await send("\(t) UID STORE \(uid) +FLAGS (\\Seen)\r\n")
+        try await send("\(t) UID STORE \(uid) \(op) (\(flag))\r\n")
+        try await awaitCompletion(t)
+    }
+
+    /// What the server said it can do.
+    ///
+    /// Read rather than assumed: the two commands below exist only on
+    /// some servers, and asking for one that is not there is an error
+    /// the person sees rather than a fallback they do not.
+    func capabilities() async throws -> Set<String> {
+        let (untagged, done) = try await command("CAPABILITY")
+        if case let .no(d) = done { throw Failure.server(d) }
+        if case let .bad(d) = done { throw Failure.server(d) }
+        var out: Set<String> = []
+        for line in untagged {
+            if case let .capabilities(names) = line {
+                for name in names { out.insert(name.uppercased()) }
+            }
+        }
+        return out
+    }
+
+    /// Put a message in another folder.
+    ///
+    /// `MOVE` (RFC 6851) where the server has it, and the older
+    /// three-step dance where it does not — and the difference matters
+    /// more than it looks:
+    ///
+    /// **A bare `EXPUNGE` removes every message in the folder flagged
+    /// `\Deleted`**, including ones somebody else's client flagged and
+    /// has not expunged yet. `UID EXPUNGE` (RFC 4315) removes only the
+    /// one named. Where neither `MOVE` nor `UIDPLUS` is offered, the
+    /// message is flagged and **left** rather than expunged: it
+    /// disappears from the list either way, and no other message is
+    /// taken with it.
+    func moveTo(uid: UInt32, folder: String, capabilities: Set<String>) async throws {
+        if capabilities.contains("MOVE") {
+            let t = nextTag()
+            try await send("\(t) UID MOVE \(uid) \(IMAP.quoted(folder))\r\n")
+            try await awaitCompletion(t)
+            return
+        }
+        let copy = nextTag()
+        try await send("\(copy) UID COPY \(uid) \(IMAP.quoted(folder))\r\n")
+        try await awaitCompletion(copy)
+        try await store(uid: uid, op: "+FLAGS", flag: "\\Deleted")
+        if capabilities.contains("UIDPLUS") {
+            let expunge = nextTag()
+            try await send("\(expunge) UID EXPUNGE \(uid)\r\n")
+            try await awaitCompletion(expunge)
+        }
+    }
+
+    private func awaitCompletion(_ tag: String) async throws {
         while true {
             let line = try await readLine()
-            if let done = IMAP.completion(of: line, tag: t) {
+            if let done = IMAP.completion(of: line, tag: tag) {
                 switch done {
                 case .ok: return
                 case let .no(d): throw Failure.server(d)

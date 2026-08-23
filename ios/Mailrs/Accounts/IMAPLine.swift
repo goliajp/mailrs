@@ -16,6 +16,12 @@ enum IMAP {
         case uidValidity(UInt32)
         /// `* OK [UIDNEXT 4391] ...`
         case uidNext(UInt32)
+        /// What the server says it can do.
+        ///
+        /// Announced in two places — the greeting and a `CAPABILITY`
+        /// reply — and a client that reads only the second asks a
+        /// question it already has the answer to.
+        case capabilities([String])
         /// Anything this client has no use for.
         case other
     }
@@ -53,6 +59,17 @@ enum IMAP {
 
         if body.uppercased().hasPrefix("LIST ") {
             return parseList(body)
+        }
+        if body.uppercased().hasPrefix("CAPABILITY") {
+            return .capabilities(body.split(separator: " ").dropFirst().map(String.init))
+        }
+        // Also announced inside the greeting's response code, which is
+        // where a server that offers no `CAPABILITY` at all says it.
+        if let open = body.range(of: "[CAPABILITY ", options: .caseInsensitive),
+            let close = body[open.upperBound...].firstIndex(of: "]")
+        {
+            return .capabilities(
+                body[open.upperBound..<close].split(separator: " ").map(String.init))
         }
         // `* 42 EXISTS` — a count, then the word.
         let parts = body.split(separator: " ", maxSplits: 1)

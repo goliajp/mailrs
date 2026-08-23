@@ -14,17 +14,30 @@ enum ReplyDraft {
     /// - The subject gains one `Re:` and never a second.
     /// - Threading is carried, or the reply starts a new conversation
     ///   in every client that reads it.
+    /// - Parameter all: copy everyone who was already on it. Off by
+    ///   default, and a separate button rather than a setting: whether
+    ///   the rest of a list should see an answer is a decision per
+    ///   message, and a client that decides it once decides it wrong
+    ///   half the time.
     static func make(
-        to headers: MessageHeaders.Parsed, from account: MailAccount, quoting body: String = ""
+        to headers: MessageHeaders.Parsed, from account: MailAccount, quoting body: String = "",
+        all: Bool = false
     ) -> OutgoingMessage.Draft {
         var chain = headers.references
         if !headers.messageId.isEmpty, !chain.contains(headers.messageId) {
             chain.append(headers.messageId)
         }
+        let primary = recipient(headers)
+        var copies: [String] = []
+        if all {
+            copies = MailAddresses.replyAll(
+                to: headers.to, cc: headers.cc, primary: primary, mine: account.address)
+        }
         return OutgoingMessage.Draft(
             from: account.address,
             fromName: account.displayName,
-            to: [recipient(headers)],
+            to: [primary],
+            cc: copies,
             subject: subject(headers.subject),
             body: quoted(body, from: headers),
             inReplyTo: headers.messageId,

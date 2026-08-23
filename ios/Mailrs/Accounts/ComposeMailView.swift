@@ -15,6 +15,13 @@ struct ComposeMailView: View {
     @Environment(\.theme) private var theme
     @State private var from: MailAccount?
     @State private var to = ""
+    @State private var cc = ""
+    @State private var bcc = ""
+    /// Collapsed until asked for: most messages have neither, and two
+    /// empty boxes above the subject is two more things to read past
+    /// every time. Opened already if the draft arrived with a Cc — a
+    /// reply-all that hides what it is copying is worse than a box.
+    @State private var showCopies = false
     @State private var subject = ""
     @State private var message = ""
     @State private var sending = false
@@ -40,6 +47,24 @@ struct ComposeMailView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("compose.to")
+                    if showCopies {
+                        TextField("Cc", text: $cc)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("compose.cc")
+                        TextField("Bcc", text: $bcc)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("compose.bcc")
+                    } else {
+                        Button("Cc / Bcc") { showCopies = true }
+                            .font(.footnote)
+                            .accessibilityIdentifier("compose.showCopies")
+                    }
                     TextField("Subject", text: $subject)
                         .accessibilityIdentifier("compose.subject")
                 }
@@ -80,6 +105,8 @@ struct ComposeMailView: View {
         .task {
             from = accounts.first { $0.id == initialAccountId } ?? accounts.first
             to = initial.to.joined(separator: ", ")
+            cc = initial.cc.joined(separator: ", ")
+            showCopies = !initial.cc.isEmpty
             subject = initial.subject
             message = initial.body
         }
@@ -123,12 +150,18 @@ struct ComposeMailView: View {
         var draft = initial
         draft.from = account.address
         draft.fromName = account.displayName
-        draft.to = to.split(separator: ",").map {
-            $0.trimmingCharacters(in: .whitespaces)
-        }.filter { !$0.isEmpty }
+        func addresses(_ text: String) -> [String] {
+            text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        }
+        draft.to = addresses(to)
+        draft.cc = addresses(cc)
         draft.subject = subject
         draft.body = message
-        switch await AccountSender.send(draft, from: account) {
+        // Bcc goes to the sender as the envelope's extra recipients and
+        // never into the headers — that is what makes a blind copy
+        // blind.
+        switch await AccountSender.send(draft, from: account, bcc: addresses(bcc)) {
         case .sent: dismiss()
         case let .failed(why):
             failure = why

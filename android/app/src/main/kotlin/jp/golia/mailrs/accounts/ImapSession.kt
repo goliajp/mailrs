@@ -267,12 +267,87 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
     }
 
     /** Mark a message read on the server, because somebody read it. */
-    suspend fun markSeen(uid: Long) = withContext(Dispatchers.IO) {
+    suspend fun markSeen(uid: Long) = store(uid, "+FLAGS", "\\Seen")
+
+    /**
+     * Mark it unread again.
+     *
+     * `-FLAGS`, not a `FLAGS` that names what should remain: the
+     * second replaces the whole set, so it would quietly clear
+     * `\Flagged`, `\Answered` and every keyword the person or another
+     * client had put there.
+     */
+    suspend fun markUnseen(uid: Long) = store(uid, "-FLAGS", "\\Seen")
+
+    private suspend fun store(uid: Long, op: String, flag: String) = withContext(Dispatchers.IO) {
         val t = nextTag()
-        write("$t UID STORE $uid +FLAGS (\\Seen)\r\n")
+        write("$t UID STORE $uid $op ($flag)\r\n")
         while (true) {
             val line = readLine()
             Imap.completion(line, t)?.let { done ->
+                when (done) {
+                    is Imap.Completion.Ok -> return@withContext
+                    is Imap.Completion.No -> throw Failure.Server(done.detail)
+                    is Imap.Completion.Bad -> throw Failure.Server(done.detail)
+                }
+            }
+        }
+    }
+
+    /**
+     * What the server said it can do.
+     *
+     * Read rather than assumed: the two commands below exist only on
+     * some servers, and asking for one that is not there is an error
+     * the person sees rather than a fallback they do not.
+     */
+    suspend fun capabilities(): Set<String> = withContext(Dispatchers.IO) {
+        val (untagged, done) = command("CAPABILITY")
+        refuseIfNotOk(done)
+        untagged.filterIsInstance<Imap.Untagged.Capabilities>()
+            .flatMap { it.names }
+            .map { it.uppercase() }
+            .toSet()
+    }
+
+    /**
+     * Put a message in another folder.
+     *
+     * `MOVE` (RFC 6851) where the server has it, and the older
+     * three-step dance where it does not — and the difference matters
+     * more than it looks:
+     *
+     * **A bare `EXPUNGE` removes every message in the folder flagged
+     * `\Deleted`**, including ones somebody else's client flagged and
+     * has not expunged yet. `UID EXPUNGE` (RFC 4315) removes only the
+     * one named. Where neither `MOVE` nor `UIDPLUS` is offered, the
+     * message is flagged and **left** rather than expunged: it
+     * disappears from the list either way, and no other message is
+     * taken with it.
+     */
+    suspend fun moveTo(uid: Long, folder: String, capabilities: Set<String>) =
+        withContext(Dispatchers.IO) {
+            if ("MOVE" in capabilities) {
+                val t = nextTag()
+                write("$t UID MOVE $uid ${Imap.quoted(folder)}\r\n")
+                awaitCompletion(t)
+                return@withContext
+            }
+            val copy = nextTag()
+            write("$copy UID COPY $uid ${Imap.quoted(folder)}\r\n")
+            awaitCompletion(copy)
+            store(uid, "+FLAGS", "\\Deleted")
+            if ("UIDPLUS" in capabilities) {
+                val expunge = nextTag()
+                write("$expunge UID EXPUNGE $uid\r\n")
+                awaitCompletion(expunge)
+            }
+        }
+
+    private suspend fun awaitCompletion(tag: String) = withContext(Dispatchers.IO) {
+        while (true) {
+            val line = readLine()
+            Imap.completion(line, tag)?.let { done ->
                 when (done) {
                     is Imap.Completion.Ok -> return@withContext
                     is Imap.Completion.No -> throw Failure.Server(done.detail)

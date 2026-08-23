@@ -1025,6 +1025,22 @@
         }
       }
     },
+    "Cc / Bcc": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cc / Bcc"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "抄送 / 密送"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "ja": {
@@ -3220,6 +3236,22 @@
         }
       }
     },
+    "Nothing here matches. Only mail already fetched is searched.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致するものはありません。取得済みのメールのみを検索します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配项。只搜索已经取回的邮件。"
+          }
+        }
+      }
+    },
     "Nothing recorded": {
       "localizations": {
         "ja": {
@@ -3716,6 +3748,22 @@
         }
       }
     },
+    "Reply all": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全員に返信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部回复"
+          }
+        }
+      }
+    },
     "Reports": {
       "localizations": {
         "ja": {
@@ -3904,6 +3952,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Scheduler"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索"
           }
         }
       }
