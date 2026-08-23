@@ -12,6 +12,16 @@ import java.util.UUID
  * written for another machine.
  */
 object AccountSender {
+    /**
+     * How a session is made.
+     *
+     * Injectable so the builder and the wire can be checked together.
+     * Both halves are tested apart, and the seam between them is where
+     * **a Bcc would leak** — the address belongs in `RCPT TO` and
+     * nowhere in the DATA block, and only an end-to-end look can say
+     * that it is so.
+     */
+    internal var openSmtp: (String, Int) -> SmtpSession = { host, port -> SmtpSession(host, port) }
     sealed class Outcome {
         object Sent : Outcome()
         data class Failed(val why: String) : Outcome()
@@ -31,7 +41,7 @@ object AccountSender {
         val message = OutgoingMessage.text(
             draft, identity(account), nowSeconds, TimeZone.getDefault(),
         )
-        val session = SmtpSession(account.smtpHost, account.smtpPort)
+        val session = openSmtp(account.smtpHost, account.smtpPort)
         return try {
             // The domain of the address, not the device's name: a HELO
             // naming somebody's phone is refused by a fair number of

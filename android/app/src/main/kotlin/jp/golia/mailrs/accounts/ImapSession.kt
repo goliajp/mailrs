@@ -66,6 +66,18 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
 
     /** Open the connection and read the greeting. */
     suspend fun connect(timeoutMs: Int = 20_000) = withContext(Dispatchers.IO) {
+        // A scripted server has no socket to open. This branch was
+        // missing at first and nothing noticed: the unit tests call
+        // `list` and `login` directly and never `connect`, so the seam
+        // had a hole exactly where no test crossed it — and the first
+        // end-to-end run went off and dialled localhost:993.
+        if (transport != null) {
+            val greeting = readLine()
+            if (greeting.uppercase().startsWith("* BYE")) {
+                throw Failure.Server(greeting.removePrefix("* "))
+            }
+            return@withContext
+        }
         try {
             val plain = Socket()
             plain.connect(java.net.InetSocketAddress(host, port), timeoutMs)
