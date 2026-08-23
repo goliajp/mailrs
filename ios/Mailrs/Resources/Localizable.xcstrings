@@ -913,6 +913,22 @@
         }
       }
     },
+    "Attached": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添付"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附件"
+          }
+        }
+      }
+    },
     "Audit log": {
       "localizations": {
         "ja": {

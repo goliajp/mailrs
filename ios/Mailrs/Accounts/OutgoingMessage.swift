@@ -144,7 +144,18 @@ enum OutgoingMessage {
     /// keeps it as UTF-8, which every current reader accepts and which
     /// is what the alternative degrades to anyway.
     private static func headerSafe(_ name: String) -> String {
-        String(name.filter { $0 != "\"" && $0 != "\\" && $0 != "\r" && $0 != "\n" })
+        // **By scalar, not by character.** In Swift a CRLF is one
+        // `Character` — a grapheme cluster — so filtering Characters
+        // against `"\r"` and `"\n"` matches neither and the line break
+        // survives. The identical code in Kotlin is correct, because a
+        // Kotlin `Char` is a UTF-16 unit; here it let a filename inject
+        // a header, and the assertion that caught it was written for
+        // exactly that.
+        String(
+            String.UnicodeScalarView(
+                name.unicodeScalars.filter {
+                    $0 != "\"" && $0 != "\\" && $0.value >= 0x20 && $0.value != 0x7F
+                }))
     }
 
     /// Base64 at 76 characters, as RFC 2045 asks.
