@@ -77,7 +77,7 @@ enum MessageBody {
     /// everything after the closing one is the epilogue; both are
     /// there for mail readers that cannot do MIME at all, and neither
     /// is part of the message.
-    private static func pieces(of body: Data, boundary: String) -> [Data] {
+    static func pieces(of body: Data, boundary: String) -> [Data] {
         let delimiter = Data("--\(boundary)".utf8)
         var out: [Data] = []
         var starts = ranges(of: delimiter, in: body)
@@ -117,7 +117,7 @@ enum MessageBody {
         return Display(text: text, isHTML: type.subtype == "html")
     }
 
-    private static func decodeTransfer(_ body: Data, as cte: String) -> Data {
+    static func decodeTransfer(_ body: Data, as cte: String) -> Data {
         switch cte {
         case "base64": return Base64Body.decode(body)
         case "quoted-printable": return QuotedPrintable.decode(body)
@@ -172,7 +172,7 @@ enum MessageBody {
         return out
     }
 
-    private static func encoding(_ header: String) -> String {
+    static func encoding(_ header: String) -> String {
         value(of: "content-transfer-encoding", in: header)?
             .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
     }

@@ -13,6 +13,7 @@ import jp.golia.mailrs.wire.sentMessages
 import jp.golia.mailrs.wire.SendJoin
 import kotlinx.coroutines.flow.update
 import android.app.Application
+import jp.golia.mailrs.accounts.SafeFilename
 import jp.golia.mailrs.wire.ContentUriBody
 import jp.golia.mailrs.wire.attachment
 import jp.golia.mailrs.wire.contacts
@@ -348,10 +349,13 @@ fun MailViewModel.attachmentOpened() {
 private fun MailViewModel.writeToCache(uid: Int, index: Int, filename: String, bytes: ByteArray): java.io.File {
     val dir = java.io.File(getApplication<Application>().cacheDir, "attachments/$uid-$index")
     dir.mkdirs()
-    // The sender chose this name. A name that walks out of the
-    // directory — "../../databases/x" — must land in the directory
-    // anyway, so only the last path component is kept.
-    val safe = filename.substringAfterLast('/').ifBlank { "attachment" }
+    // The sender chose this name, so it goes through the same rule as
+    // a connected mailbox's attachments. This used to be
+    // `substringAfterLast('/')`, which handles `../../databases/x` and
+    // **not** a name of exactly `..` — that has no slash in it, so the
+    // whole string survives and the file is written at the parent.
+    // Nor did it handle a NUL, or a name too long for the filesystem.
+    val safe = SafeFilename.of(filename)
     val file = java.io.File(dir, safe)
     file.writeBytes(bytes)
     return file

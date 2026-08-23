@@ -30,6 +30,13 @@ object MessageReader {
          * which no list has ever displayed.
          */
         val headers: MessageHeaders.Parsed = MessageHeaders.Parsed(),
+        /**
+         * What came with it. Out of the same bytes the body came from,
+         * so listing them costs nothing beyond the fetch already made
+         * — a second request to find out whether there is an
+         * attachment is a second request on somebody's data.
+         */
+        val attachments: List<MessageAttachments.Attachment> = emptyList(),
     )
 
     /** What a reader gets: the message, or a sentence about why not. */
@@ -70,7 +77,8 @@ object MessageReader {
     fun display(raw: ByteArray): Loaded {
         val body = MessageBody.extract(raw)
         val headers = MessageHeaders.parse(String(raw, Charsets.UTF_8))
-        if (!body.isHtml) return Loaded(body.text, false, headers)
-        return Loaded(HtmlText.plain(body.text), true, headers)
+        val attached = MessageAttachments.of(raw)
+        if (!body.isHtml) return Loaded(body.text, false, headers, attached)
+        return Loaded(HtmlText.plain(body.text), true, headers, attached)
     }
 }

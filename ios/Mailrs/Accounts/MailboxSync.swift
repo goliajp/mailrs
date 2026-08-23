@@ -13,6 +13,10 @@ enum MailboxSync {
         /// Folders whose numbering changed, so their held rows are
         /// worthless and must be replaced rather than merged.
         var renumbered: Set<String>
+        /// Per folder, the flags the server reports for uids this
+        /// device already held — and, by their absence from it, which
+        /// of those uids the server no longer has.
+        var refreshed: [String: [UInt32: Bool]] = [:]
     }
 
     /// Read the folders worth reading, and say what to keep.
@@ -24,7 +28,11 @@ enum MailboxSync {
     static func pass(
         account: MailAccount,
         session: IMAPSession,
-        marks: [String: FolderMark]
+        marks: [String: FolderMark],
+        /// What this device already holds, per folder. Asked about
+        /// again each pass so a message read or deleted on another
+        /// device stops being wrong here — see `MailboxRefresh`.
+        held: [String: [UInt32]] = [:]
     ) async throws -> Result {
         var out = Result(rows: [], marks: marks, renumbered: [])
         let folders = try await session.list()
@@ -55,29 +63,46 @@ enum MailboxSync {
                 // them for good, and nothing afterwards would ask for
                 // them again.
                 out.marks[folder.name] = FolderMark(uidValidity: validity, highestUid: highest)
+
+                // And what happened to the ones already here. Cheap —
+                // flags only — and the only way this device notices a
+                // message read on a laptop or deleted from a phone.
+                // Skipped on a renumbering, where the old uids mean
+                // nothing and every row for the folder is replaced.
+                let already = held[folder.name] ?? []
+                if plan != .renumbered, !already.isEmpty {
+                    out.refreshed[folder.name] = try await session.flags(uids: already)
+                }
             } catch {
                 continue
             }
         }
         return out
     }
-
-    /// Whether a folder is worth reading.
+    /// Whether a folder belongs in a merged **inbox**.
     ///
     /// `\Noselect` cannot be opened at all — it is a node in the tree
     /// rather than a mailbox. A provider's view holding a copy of
     /// everything doubles every message, and its Trash and Spam are
     /// the two a person would skip themselves.
+    ///
+    /// **Sent and Drafts are skipped too**, and that is a decision
+    /// rather than an omission: this list is what arrived. A draft is
+    /// not a message at all — it has not been sent to anybody — and a
+    /// copy of everything the person wrote, interleaved by date with
+    /// what they received, is what every "all inboxes" view in every
+    /// mail client deliberately does not show.
+    ///
+    /// A server with no special-use markers is read whole, which is
+    /// the right default: a folder nobody has labelled is a folder
+    /// somebody made, and those are where filed mail lives.
     static func worthReading(
         _ folder: (name: String, attributes: [String]), skip: [String]
     ) -> Bool {
-        let attributes = Set(folder.attributes.map { $0.uppercased() })
-        if attributes.contains("\\NOSELECT") { return false }
-        if attributes.contains("\\ALL") || attributes.contains("\\TRASH")
-            || attributes.contains("\\JUNK")
-        {
-            return false
-        }
-        return !skip.contains { $0.caseInsensitiveCompare(folder.name) == .orderedSame }
+        let upper = Set(folder.attributes.map { $0.uppercased() })
+        if upper.contains("\\NOSELECT") { return false }
+        let notAnInbox: Set<String> = ["\\ALL", "\\TRASH", "\\JUNK", "\\SENT", "\\DRAFTS"]
+        if !upper.isDisjoint(with: notAnInbox) { return false }
+        return !skip.contains { $0.lowercased() == folder.name.lowercased() }
     }
 }

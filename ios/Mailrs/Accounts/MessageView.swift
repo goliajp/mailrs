@@ -10,6 +10,15 @@ struct MessageView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
     @State private var outcome: MessageReader.Outcome?
+    /// The attachment being previewed, if any.
+    @State private var previewing: PreviewFile?
+    @State private var openFailure = ""
+
+    /// A file on disk, identified for `.sheet(item:)`.
+    private struct PreviewFile: Identifiable {
+        let url: URL
+        var id: String { url.path }
+    }
 
     var body: some View {
         NavigationStack {
@@ -50,12 +59,38 @@ struct MessageView: View {
                 }
             }
         }
+        .sheet(item: $previewing) { file in
+            QuickLookSheet(url: file.url) { previewing = nil }
+        }
         .task {
             guard let account else {
                 outcome = .failed("This mailbox is no longer connected")
                 return
             }
             outcome = await MessageReader.load(account: account, row: row)
+        }
+    }
+
+    /// Write the bytes out and preview them.
+    ///
+    /// A per-message directory, because **the filename is the
+    /// sender's and is not unique**: two messages carrying
+    /// `invoice.pdf` would otherwise overwrite each other's.
+    private func open(_ attachment: MessageAttachments.Attachment) {
+        openFailure = ""
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(AttachmentFile.safeName(for: row.id))
+        do {
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
+            let url = directory.appendingPathComponent(
+                AttachmentFile.safeName(for: attachment.filename))
+            try attachment.bytes.write(to: url, options: .atomic)
+            previewing = PreviewFile(url: url)
+        } catch {
+            // Said rather than swallowed: a tap that does nothing at
+            // all reads as a broken button.
+            openFailure = "This attachment could not be opened."
         }
     }
 
@@ -120,6 +155,47 @@ struct MessageView: View {
                         .font(.body)
                         .textSelection(.enabled)
                         .accessibilityIdentifier("message.body")
+                }
+                if !loaded.attachments.isEmpty {
+                    Divider()
+                    ForEach(loaded.attachments) { attachment in
+                        // A tap writes it out and hands it to Quick
+                        // Look, which already knows every format a
+                        // phone can show — and an attachment this app
+                        // cannot preview is still worth being able to
+                        // share out of it.
+                        Button {
+                            open(attachment)
+                        } label: {
+                            // Named, sized and typed — the three
+                            // things somebody needs to decide whether
+                            // to open it, and the size especially: a
+                            // 40 MB file on a phone on mobile data is
+                            // a decision, not a tap. `.byteCount` is
+                            // what the rest of this app and the
+                            // phone's own file manager use; a second
+                            // formatter would be a second answer to
+                            // one question.
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(attachment.filename).font(.subheadline)
+                                Text(
+                                    "\(attachment.mimeType) · "
+                                        + attachment.size.formatted(.byteCount(style: .file))
+                                )
+                                .font(.caption2)
+                                .foregroundStyle(theme.fgMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("message.attachment")
+                    }
+                    if !openFailure.isEmpty {
+                        Text(openFailure)
+                            .font(.caption2)
+                            .foregroundStyle(theme.fgMuted)
+                    }
                 }
                 if loaded.fromHTML {
                     // Said plainly rather than hidden: a formatted
