@@ -17,6 +17,14 @@ data class AccountsDraft(
      * empty boxes teaches everybody that connecting mail is hard.
      */
     val manual: Boolean = false,
+    /**
+     * How mail is read, when the servers are typed by hand.
+     *
+     * Only offered there: a preset knows its own answer, and asking
+     * somebody to choose a protocol for Gmail is asking a question
+     * whose answer is already on file.
+     */
+    val incoming: Incoming = Incoming.IMAP,
     val imapHost: String = "",
     val imapPort: String = "",
     val smtpHost: String = "",
@@ -57,8 +65,14 @@ data class AccountsDraft(
         }
         val ih = imapHost.trim()
         val sh = smtpHost.trim()
-        if (ih.isEmpty() || sh.isEmpty()) return null
+        if (ih.isEmpty()) return null
         val ip = port(imapPort) ?: return null
+        // JMAP has one endpoint and no separate outgoing server — it
+        // submits over the same API. Demanding an SMTP host there is
+        // asking for something that does not exist, and somebody will
+        // type the incoming one again to get past the form.
+        if (incoming == Incoming.JMAP) return Endpoints(ih, ip, "", 0)
+        if (sh.isEmpty()) return null
         val sp = port(smtpPort) ?: return null
         return Endpoints(ih, ip, sh, sp)
     }
@@ -72,9 +86,17 @@ data class AccountsDraft(
     fun prefilled(): AccountsDraft {
         if (!addressLooksComplete) return this
         val a = MailAccount.make(address)
+        // The default port follows the protocol, because the two are
+        // not independent: 993 in a POP3 form is a number somebody has
+        // to know is wrong.
+        val defaultIncomingPort = when (incoming) {
+            Incoming.POP3 -> "995"
+            Incoming.JMAP -> "443"
+            Incoming.IMAP -> a.imapPort.toString()
+        }
         return copy(
             imapHost = imapHost.ifEmpty { a.imapHost },
-            imapPort = imapPort.ifEmpty { a.imapPort.toString() },
+            imapPort = imapPort.ifEmpty { defaultIncomingPort },
             smtpHost = smtpHost.ifEmpty { a.smtpHost },
             smtpPort = smtpPort.ifEmpty { a.smtpPort.toString() },
         )
@@ -97,6 +119,7 @@ data class AccountsDraft(
                 imapHost = e.imapHost, imapPort = e.imapPort,
                 smtpHost = e.smtpHost, smtpPort = e.smtpPort,
                 login = login.trim(),
+                incoming = incoming,
                 provider = "custom",
             )
         }

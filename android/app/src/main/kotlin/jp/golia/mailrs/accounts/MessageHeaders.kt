@@ -14,6 +14,16 @@ object MessageHeaders {
         val subject: String = "",
         val date: String = "",
         val inReplyTo: String = "",
+        /**
+         * Where a reply goes when it is not back to the sender — a
+         * mailing list, or a no-reply address that names a real one.
+         */
+        val replyTo: String = "",
+        /**
+         * The conversation so far, oldest first. A reply that drops it
+         * starts a new conversation in every client that reads it.
+         */
+        val references: List<String> = emptyList(),
     )
 
     /**
@@ -32,6 +42,21 @@ object MessageHeaders {
             val value = line.substring(colon + 1).trim()
             out = when (name) {
                 "message-id" -> if (out.messageId.isEmpty()) out.copy(messageId = value) else out
+                "reply-to" ->
+                    when {
+                        out.replyTo.isEmpty() -> out.copy(replyTo = EncodedWord.decode(value))
+                        else -> out
+                    }
+                "references" ->
+                    when {
+                        // Whitespace-separated, and folded over several
+                        // lines on any conversation of length — which is
+                        // why this reads unfolded headers rather than
+                        // lines.
+                        out.references.isEmpty() ->
+                            out.copy(references = value.split(Regex("\\s+")).filter { it.isNotEmpty() })
+                        else -> out
+                    }
                 "from" -> if (out.from.isEmpty()) out.copy(from = EncodedWord.decode(value)) else out
                 // Decoded here rather than at the call site: every reader
                 // of a subject wants the text, and one that forgets

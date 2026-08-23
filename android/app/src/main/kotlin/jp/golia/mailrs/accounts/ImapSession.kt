@@ -38,6 +38,27 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
         class Closed : Failure("the server closed the connection")
     }
 
+    /**
+     * Where the bytes go.
+     *
+     * A seam, so the conversation above it can be tested without a
+     * server. Every rule this session enforces — a tag prefix that must
+     * not match `a10` when it asked as `a1`, a literal read by the byte
+     * count the server announced, a folder name at the end of a LIST
+     * line — is a rule about what arrives, and none of them can be
+     * checked by connecting to a real server and hoping it sends the
+     * awkward case.
+     */
+    interface Transport {
+        fun readLine(): String
+        fun readBytes(count: Int): String
+        fun write(text: String)
+        fun close()
+    }
+
+    /** Swapped in by tests; null means the real socket. */
+    internal var transport: Transport? = null
+
     private var socket: SSLSocket? = null
     private var reader: BufferedReader? = null
     private var writer: Writer? = null
@@ -57,7 +78,15 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
             s.sslParameters = s.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
             s.startHandshake()
             socket = s
-            reader = BufferedReader(InputStreamReader(s.inputStream, Charsets.UTF_8))
+            // **ISO-8859-1, deliberately.** It maps every byte to the
+            // code point of the same value, so what is read back is
+            // exactly what arrived and nothing has been decided yet. A
+            // UTF-8 reader here settles a message's charset before the
+            // header declaring it has been read, and every Shift_JIS
+            // and windows-1252 body arrives as replacement characters.
+            // `Wire.utf8` turns it back into text where text is what is
+            // wanted.
+            reader = BufferedReader(InputStreamReader(s.inputStream, Charsets.ISO_8859_1))
             writer = s.outputStream.writer(Charsets.UTF_8)
         } catch (e: Exception) {
             throw Failure.Unreachable(e.message ?: e.toString())
@@ -69,6 +98,10 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
     }
 
     override fun close() {
+        transport?.let {
+            runCatching { it.close() }
+            return
+        }
         runCatching { socket?.close() }
         socket = null
     }
@@ -194,16 +227,68 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
             // A flags-only reply: nothing to read, and nothing a row
             // can show that it does not already have.
             val count = announced.literalBytes ?: continue
-            val raw = readBytes(count)
-            val headers = MessageHeaders.parse(raw)
+            val headers = MessageHeaders.parse(Wire.utf8(readBytes(count)))
             out += Fetched(uid, announced.seen, headers, MailDate.epochSeconds(headers.date))
         }
         @Suppress("UNREACHABLE_CODE")
         out
     }
 
+    /**
+     * One message, whole.
+     *
+     * `BODY.PEEK[]` rather than `BODY[]` for the same reason the header
+     * fetch peeks: opening a message is the reader's decision, and a
+     * client that marks mail read for having looked at it takes that
+     * decision away. Marking read is a separate, deliberate call.
+     */
+    suspend fun fetchRaw(uid: Long): ByteArray = withContext(Dispatchers.IO) {
+        val t = nextTag()
+        write("$t UID FETCH $uid (BODY.PEEK[])\r\n")
+        var out = ByteArray(0)
+        while (true) {
+            val line = readLine()
+            Imap.completion(line, t)?.let { done ->
+                when (done) {
+                    is Imap.Completion.Ok -> return@withContext out
+                    is Imap.Completion.No -> throw Failure.Server(done.detail)
+                    is Imap.Completion.Bad -> throw Failure.Server(done.detail)
+                }
+            }
+            val announced = Imap.fetchLine(line) ?: continue
+            val count = announced.literalBytes ?: continue
+            // The announced byte count, never a scan for a terminator: a
+            // message contains every byte sequence a terminator could be
+            // made of.
+            out = Wire.bytes(readBytes(count))
+        }
+        @Suppress("UNREACHABLE_CODE")
+        out
+    }
+
+    /** Mark a message read on the server, because somebody read it. */
+    suspend fun markSeen(uid: Long) = withContext(Dispatchers.IO) {
+        val t = nextTag()
+        write("$t UID STORE $uid +FLAGS (\\Seen)\r\n")
+        while (true) {
+            val line = readLine()
+            Imap.completion(line, t)?.let { done ->
+                when (done) {
+                    is Imap.Completion.Ok -> return@withContext
+                    is Imap.Completion.No -> throw Failure.Server(done.detail)
+                    is Imap.Completion.Bad -> throw Failure.Server(done.detail)
+                }
+            }
+        }
+    }
+
     /** Exactly [count] bytes, whatever they contain. */
     private fun readBytes(count: Int): String {
+        transport?.let { return it.readBytes(count) }
+        return readBytesFromSocket(count)
+    }
+
+    private fun readBytesFromSocket(count: Int): String {
         val buf = CharArray(count)
         var read = 0
         val r = reader ?: throw Failure.Closed()
@@ -232,11 +317,17 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
     }
 
     private fun write(text: String) {
+        transport?.let {
+            it.write(text)
+            return
+        }
         val w = writer ?: throw Failure.Closed()
         w.write(text)
         w.flush()
     }
 
-    private fun readLine(): String =
-        reader?.readLine() ?: throw Failure.Closed()
+    private fun readLine(): String {
+        transport?.let { return it.readLine() }
+        return reader?.readLine() ?: throw Failure.Closed()
+    }
 }

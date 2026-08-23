@@ -2,6 +2,7 @@ package jp.golia.mailrs.accounts
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -106,6 +107,65 @@ class AccountsDraftTest {
         assertEquals("custom", a.provider)
         assertEquals("mine.example.jp", a.imapHost)
     }
+
+    /**
+     * JMAP has one endpoint and no separate outgoing server — it
+     * submits over the same API. Demanding an SMTP host there asks for
+     * something that does not exist, and somebody will type the
+     * incoming one again to get past the form.
+     */
+    @Test
+    fun `a jmap account needs no outgoing server`() {
+        val draft = AccountsDraft(
+            address = "me@example.com",
+            manual = true,
+            incoming = Incoming.JMAP,
+            imapHost = "mail.example.com",
+            imapPort = "443",
+        )
+        val endpoints = draft.endpoints()
+        assertNotNull(endpoints)
+        assertEquals("mail.example.com", endpoints!!.imapHost)
+        assertTrue(draft.account(0).isSuccess)
+        assertEquals(Incoming.JMAP, draft.account(0).getOrThrow().incoming)
+    }
+
+    /** An IMAP or POP3 account still needs both, because it has both. */
+    @Test
+    fun `every other kind still needs an outgoing server`() {
+        val draft = AccountsDraft(
+            address = "me@example.com",
+            manual = true,
+            incoming = Incoming.POP3,
+            imapHost = "pop.example.com",
+            imapPort = "995",
+        )
+        assertNull(draft.endpoints())
+        assertTrue(draft.account(0).isFailure)
+    }
+
+    /**
+     * The default port follows the protocol: 993 in a POP3 form is a
+     * number somebody has to already know is wrong.
+     */
+    @Test
+    fun `the prefilled port follows the protocol`() {
+        val base = AccountsDraft(address = "me@example.com", manual = true)
+        assertEquals("995", base.copy(incoming = Incoming.POP3).prefilled().imapPort)
+        assertEquals("443", base.copy(incoming = Incoming.JMAP).prefilled().imapPort)
+        assertEquals("993", base.copy(incoming = Incoming.IMAP).prefilled().imapPort)
+    }
+
+    /** What is typed is never overwritten by a default. */
+    @Test
+    fun `a typed port survives a protocol default`() {
+        val draft = AccountsDraft(
+            address = "me@example.com", manual = true,
+            incoming = Incoming.POP3, imapPort = "1100",
+        )
+        assertEquals("1100", draft.prefilled().imapPort)
+    }
+
 }
 
 /**

@@ -116,6 +116,21 @@ object MailboxApply {
      * A row left behind when its account is removed is mail nobody can
      * open — the credential and the server it came from are both gone.
      */
+    /**
+     * Mark one row read, wherever it is in the list.
+     *
+     * The server was told; this is the same fact on this device, so the
+     * list stops showing it as unread without waiting for the next
+     * fetch.
+     */
+    fun markSeen(rows: List<MailboxRow>, id: String): List<MailboxRow> =
+        rows.map { row ->
+            when (row.id) {
+                id -> row.copy(seen = true)
+                else -> row
+            }
+        }
+
     fun withoutAccount(rows: List<MailboxRow>, accountId: String): List<MailboxRow> =
         rows.filterNot { it.accountId == accountId }
 }

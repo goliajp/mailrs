@@ -34,17 +34,62 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
         class Closed : Failure("the server closed the connection")
     }
 
+    /**
+     * Where the bytes go.
+     *
+     * A seam, so the conversation above it can be tested without a
+     * server. The rules this session enforces — the fourth character of
+     * a reply is what says whether more is coming, a 334 is a refusal
+     * and not a success, a body line beginning with a dot must be
+     * stuffed — are rules about what arrives, and a real server is
+     * exactly the thing that will not send the awkward case on demand.
+     */
+    interface Transport {
+        fun readLine(): String
+        fun write(text: String)
+        fun close()
+    }
+
+    /** Swapped in by tests; null means the real socket. */
+    internal var transport: Transport? = null
+
     private var socket: SSLSocket? = null
     private var reader: BufferedReader? = null
     private var writer: Writer? = null
 
+    /**
+     * Open the connection, encrypt it, and greet.
+     *
+     * Two ways in, because the world has two: **465 is encrypted from
+     * the first byte**, and **587 starts in the clear and upgrades**.
+     * Refusing the second is not caution — Outlook and iCloud are
+     * 587-only, and the provider table hands out that port, so a
+     * session that refuses it is a mailbox that can never send.
+     *
+     * **No downgrade either way.** If the upgrade does not happen the
+     * connection is dropped rather than used: an unencrypted
+     * submission carries the password in the clear, and the point of
+     * refusing is that nobody can make it happen by standing in the
+     * middle and removing STARTTLS from the capability list.
+     */
     suspend fun connect(helo: String, timeoutMs: Int = 20_000) = withContext(Dispatchers.IO) {
-        // Only implicit TLS for now. **No downgrade**: a server that
-        // will not encrypt from the first byte is a server this
-        // credential does not go to, and STARTTLS on 587 is a second
-        // path that has to be written and tested rather than assumed.
+        if (transport != null) {
+            // A scripted server: the conversation is what is under
+            // test, and there is no socket to upgrade. The conversation
+            // is otherwise the same one, **including the second EHLO**
+            // — a test path that skips a command is a test of a
+            // different protocol.
+            readReply()
+            val greeted = command("EHLO $helo")
+            if (port != 465) {
+                startTls(helo, greeted)
+                command("EHLO $helo")
+            }
+            return@withContext
+        }
         if (port != 465) {
-            throw Failure.Rejected(0, "only port 465 is supported yet", true)
+            connectWithStartTls(helo, timeoutMs)
+            return@withContext
         }
         try {
             val plain = Socket()
@@ -64,7 +109,66 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
         command("EHLO $helo")
     }
 
+    /** 587 and friends: greet in the clear, upgrade, greet again. */
+    private fun connectWithStartTls(helo: String, timeoutMs: Int) {
+        val plain: Socket
+        try {
+            plain = Socket()
+            plain.connect(InetSocketAddress(host, port), timeoutMs)
+            plain.soTimeout = 60_000
+            reader = BufferedReader(InputStreamReader(plain.inputStream, Charsets.ISO_8859_1))
+            writer = plain.outputStream.writer(Charsets.UTF_8)
+        } catch (e: Exception) {
+            throw Failure.Unreachable(e.message ?: e.toString())
+        }
+        readReply()
+        val greeted = command("EHLO $helo")
+        startTls(helo, greeted)
+        try {
+            val s = (SSLSocketFactory.getDefault() as SSLSocketFactory)
+                .createSocket(plain, host, port, true) as SSLSocket
+            // Names are checked against the certificate. Without this
+            // any certificate a machine on the path can produce is
+            // accepted, which is the whole of the protection gone.
+            s.sslParameters = s.sslParameters.apply {
+                endpointIdentificationAlgorithm = "HTTPS"
+            }
+            s.startHandshake()
+            socket = s
+            reader = BufferedReader(InputStreamReader(s.inputStream, Charsets.ISO_8859_1))
+            writer = s.outputStream.writer(Charsets.UTF_8)
+        } catch (e: Exception) {
+            runCatching { plain.close() }
+            throw Failure.Unreachable(e.message ?: e.toString())
+        }
+        // Again, because everything the server said before the upgrade
+        // was said by whoever was on the wire at the time.
+        command("EHLO $helo")
+    }
+
+    /**
+     * Ask for the upgrade, and refuse to go on without it.
+     *
+     * The capability list is read from the greeting rather than
+     * trusted: a server that does not offer STARTTLS is not asked, and
+     * one that offers it and then refuses is dropped. Neither case
+     * continues in the clear.
+     */
+    private fun startTls(helo: String, greeted: Smtp.Reply) {
+        if (!greeted.text.uppercase().contains("STARTTLS")) {
+            throw Failure.Refused("the server did not offer to encrypt the connection")
+        }
+        val upgrade = command("STARTTLS")
+        if (upgrade.code != 220) {
+            throw Failure.Refused("the server refused to encrypt the connection")
+        }
+    }
+
     override fun close() {
+        transport?.let {
+            runCatching { it.close() }
+            return
+        }
         runCatching { socket?.close() }
         socket = null
     }
@@ -84,11 +188,18 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
             } else {
                 command("AUTH PLAIN ${Smtp.authPlain(user, secret)}")
             }
-            if (reply.isPositive) return@withContext
+            // **334 first.** It is inside the 2xx-3xx range that
+            // `isPositive` calls success, so testing that first made
+            // this branch unreachable and reported every refused token
+            // as signed in — which is precisely what the note above
+            // says must not happen. Caught by a scripted server, never
+            // by a real one: a real one only sends 334 when a token is
+            // genuinely bad.
             if (reply.code == 334) {
                 val final = command("")
                 throw Failure.Refused(final.text)
             }
+            if (reply.isPositive) return@withContext
             throw if (Smtp.isAuthenticationFailure(reply.code, reply.text)) {
                 Failure.Refused(reply.text)
             } else {
@@ -134,16 +245,34 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
      * then reads somebody else's answer.
      */
     private fun readReply(): Smtp.Reply {
+        // **Every line, joined.** A multi-line reply is one reply, and
+        // throwing away all but the last discards the EHLO capability
+        // list — which is the only place `STARTTLS` is announced, and
+        // the only way to know whether an upgrade is even possible. It
+        // is also where a server explains a refusal, in the lines
+        // before the one carrying the code.
+        val gathered = StringBuilder()
         while (true) {
-            val line = reader?.readLine() ?: throw Failure.Closed()
+            val line = readLine()
             val r = Smtp.reply(line) ?: continue
-            if (!r.more) return r
+            if (gathered.isNotEmpty()) gathered.append('\n')
+            gathered.append(r.text)
+            if (!r.more) return r.copy(text = gathered.toString())
         }
     }
 
     private fun write(text: String) {
+        transport?.let {
+            it.write(text)
+            return
+        }
         val w = writer ?: throw Failure.Closed()
         w.write(text)
         w.flush()
+    }
+
+    private fun readLine(): String {
+        transport?.let { return it.readLine() }
+        return reader?.readLine() ?: throw Failure.Closed()
     }
 }

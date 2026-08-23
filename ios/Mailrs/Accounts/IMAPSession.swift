@@ -25,7 +25,7 @@ actor IMAPSession {
         case timedOut
     }
 
-    private let connection: NWConnection
+    private let transport: ByteTransport
     private var tag = 0
     private var buffer = Data()
     /// How long any one command may take before it is a timeout.
@@ -34,36 +34,26 @@ actor IMAPSession {
     private let commandTimeout: Duration = .seconds(60)
 
     init(host: String, port: UInt16) {
-        let tls = NWProtocolTLS.Options()
-        let params = NWParameters(tls: tls, tcp: .init())
-        connection = NWConnection(
-            host: .init(host),
-            port: .init(rawValue: port) ?? 993,
-            using: params
-        )
+        transport = TLSTransport(host: host, port: port)
+    }
+
+    /// For tests: a scripted server, and the conversation under test.
+    ///
+    /// Every rule this session enforces — a tag that must not be
+    /// matched by its own prefix, a literal read by the byte count the
+    /// server announced, a folder name at the end of a LIST line — is
+    /// a rule about what arrives, and a real server will not send the
+    /// awkward case on demand.
+    init(transport: ByteTransport) {
+        self.transport = transport
     }
 
     /// Open the connection and read the greeting.
     func connect() async throws {
-        // `stateUpdateHandler` fires more than once and from another
-        // queue, and a continuation may be resumed exactly once —
-        // resuming twice is a crash, not a warning. The box is what
-        // makes "first one wins" true across threads.
-        let once = ResumeOnce()
-        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    once.resume(k, with: .success(()))
-                case let .failed(e):
-                    once.resume(k, with: .failure(Failure.unreachable(e.localizedDescription)))
-                case .cancelled:
-                    once.resume(k, with: .failure(Failure.closed))
-                default:
-                    break
-                }
-            }
-            connection.start(queue: .global(qos: .userInitiated))
+        do {
+            try await transport.connect()
+        } catch let e as TransportFailure {
+            throw failure(e)
         }
         // The greeting. A server that refuses the connection says so
         // here — `* BYE`, often with a reason worth showing.
@@ -73,8 +63,16 @@ actor IMAPSession {
         }
     }
 
-    func close() {
-        connection.cancel()
+    func close() async {
+        await transport.close()
+    }
+
+    private func failure(_ e: TransportFailure) -> Failure {
+        switch e {
+        case let .unreachable(why): return .unreachable(why)
+        case .closed: return .closed
+        case .cannotUpgrade: return .unreachable("this connection could not be encrypted")
+        }
     }
 
     /// Sign in.
@@ -206,6 +204,15 @@ actor IMAPSession {
 
     /// Exactly `count` bytes, whatever they contain.
     private func readBytes(_ count: Int) async throws -> String {
+        String(decoding: try await readRaw(count), as: UTF8.self)
+    }
+
+    /// Exactly `count` bytes, undecoded.
+    ///
+    /// A body is not text until something has read the charset it
+    /// declares, and that header is inside the bytes. Decoding here
+    /// would settle the question before it has been asked.
+    private func readRaw(_ count: Int) async throws -> Data {
         while buffer.count < count {
             let chunk = try await receive()
             if chunk.isEmpty { throw Failure.closed }
@@ -213,7 +220,51 @@ actor IMAPSession {
         }
         let body = buffer.prefix(count)
         buffer.removeFirst(count)
-        return String(decoding: body, as: UTF8.self)
+        return Data(body)
+    }
+
+    /// One message, whole.
+    ///
+    /// `BODY.PEEK[]` rather than `BODY[]` for the same reason the
+    /// header fetch peeks: opening a message is the reader's decision,
+    /// and a client that marks mail read for having looked at it takes
+    /// that decision away. Marking read is a separate, deliberate call.
+    func fetchRaw(uid: UInt32) async throws -> Data {
+        let t = nextTag()
+        try await send("\(t) UID FETCH \(uid) (BODY.PEEK[])\r\n")
+        var out = Data()
+        while true {
+            let line = try await readLine()
+            if let done = IMAP.completion(of: line, tag: t) {
+                switch done {
+                case .ok: return out
+                case let .no(d): throw Failure.server(d)
+                case let .bad(d): throw Failure.server(d)
+                }
+            }
+            guard let announced = IMAP.fetchLine(line), let count = announced.literalBytes
+            else { continue }
+            // The announced byte count, never a scan for a terminator:
+            // a message contains every byte sequence a terminator could
+            // be made of.
+            out = try await readRaw(count)
+        }
+    }
+
+    /// Mark a message read on the server, because somebody read it.
+    func markSeen(uid: UInt32) async throws {
+        let t = nextTag()
+        try await send("\(t) UID STORE \(uid) +FLAGS (\\Seen)\r\n")
+        while true {
+            let line = try await readLine()
+            if let done = IMAP.completion(of: line, tag: t) {
+                switch done {
+                case .ok: return
+                case let .no(d): throw Failure.server(d)
+                case let .bad(d): throw Failure.server(d)
+                }
+            }
+        }
     }
 
     // MARK: - the wire
@@ -240,16 +291,10 @@ actor IMAPSession {
     }
 
     private func send(_ text: String) async throws {
-        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
-            connection.send(
-                content: Data(text.utf8),
-                completion: .contentProcessed { error in
-                    if let error {
-                        k.resume(throwing: Failure.unreachable(error.localizedDescription))
-                    } else {
-                        k.resume()
-                    }
-                })
+        do {
+            try await transport.send(Data(text.utf8))
+        } catch let e as TransportFailure {
+            throw failure(e)
         }
     }
 
@@ -272,19 +317,10 @@ actor IMAPSession {
     }
 
     private func receive() async throws -> Data {
-        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Data, Error>) in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
-                data, _, isComplete, error in
-                if let error {
-                    k.resume(throwing: Failure.unreachable(error.localizedDescription))
-                    return
-                }
-                if let data, !data.isEmpty {
-                    k.resume(returning: data)
-                    return
-                }
-                k.resume(returning: isComplete ? Data() : Data())
-            }
+        do {
+            return try await transport.receive()
+        } catch let e as TransportFailure {
+            throw failure(e)
         }
     }
 }

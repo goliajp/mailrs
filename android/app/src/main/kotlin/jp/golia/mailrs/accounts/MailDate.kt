@@ -47,6 +47,42 @@ object MailDate {
      * reading `26` as year 26 puts the message two thousand years in
      * the past and sorts the whole list around it.
      */
+    /**
+     * The other direction: a `Date:` header.
+     *
+     * A numeric offset, never a zone name. `JST` and the rest are
+     * obsolete by RFC 5322 §4.3 and ambiguous in practice — `CST` is
+     * three different zones — so a receiving client is entitled to read
+     * them as UTC, which moves a message by hours.
+     */
+    fun rfc5322(epochSeconds: Long, zone: java.util.TimeZone): String {
+        val calendar = java.util.Calendar.getInstance(zone, java.util.Locale.US)
+        calendar.timeInMillis = epochSeconds * 1000
+        val days = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+        val months = listOf(
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        )
+        val offset = zone.getOffset(calendar.timeInMillis) / 1000
+        val sign = when {
+            offset < 0 -> "-"
+            else -> "+"
+        }
+        val magnitude = kotlin.math.abs(offset)
+        return String.format(
+            java.util.Locale.US,
+            "%s, %d %s %04d %02d:%02d:%02d %s%02d%02d",
+            days[calendar.get(java.util.Calendar.DAY_OF_WEEK) - 1],
+            calendar.get(java.util.Calendar.DAY_OF_MONTH),
+            months[calendar.get(java.util.Calendar.MONTH)],
+            calendar.get(java.util.Calendar.YEAR),
+            calendar.get(java.util.Calendar.HOUR_OF_DAY),
+            calendar.get(java.util.Calendar.MINUTE),
+            calendar.get(java.util.Calendar.SECOND),
+            sign, magnitude / 3600, (magnitude % 3600) / 60,
+        )
+    }
+
     private fun year(s: String): Int? {
         val n = s.toIntOrNull() ?: return null
         return when {
@@ -95,6 +131,16 @@ object MailDate {
      * Days from 1970-01-01 — Howard Hinnant's civil-from-days, which
      * is exact and has no library behind it to disagree with.
      */
+    /** Seconds since the epoch for a UTC wall clock. */
+    fun epochFromCivil(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        minute: Int,
+        second: Int,
+    ): Long = daysFromCivil(year, month, day) * 86_400L + hour * 3600L + minute * 60L + second
+
     private fun daysFromCivil(y0: Int, m: Int, d: Int): Long {
         val y = if (m <= 2) y0 - 1 else y0
         val era = (if (y >= 0) y else y - 399) / 400

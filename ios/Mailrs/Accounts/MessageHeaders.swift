@@ -12,6 +12,12 @@ enum MessageHeaders {
         var subject = ""
         var date = ""
         var inReplyTo = ""
+        /// Where a reply goes when it is not back to the sender — a
+        /// mailing list, or a no-reply address that names a real one.
+        var replyTo = ""
+        /// The conversation so far, oldest first. A reply that drops it
+        /// starts a new conversation in every client that reads it.
+        var references: [String] = []
     }
 
     /// Read the header block.
@@ -35,6 +41,16 @@ enum MessageHeaders {
             case "subject": if out.subject.isEmpty { out.subject = EncodedWord.decode(value) }
             case "date": if out.date.isEmpty { out.date = value }
             case "in-reply-to": if out.inReplyTo.isEmpty { out.inReplyTo = value }
+            case "reply-to": if out.replyTo.isEmpty { out.replyTo = EncodedWord.decode(value) }
+            case "references":
+                if out.references.isEmpty {
+                    // Whitespace-separated, and folded over several
+                    // lines on any conversation of length — which is
+                    // why this reads unfolded headers rather than
+                    // lines.
+                    out.references = value.split(whereSeparator: { $0.isWhitespace })
+                        .map(String.init)
+                }
             default: break
             }
         }

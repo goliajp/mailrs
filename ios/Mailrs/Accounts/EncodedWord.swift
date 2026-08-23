@@ -55,6 +55,45 @@ enum EncodedWord {
     /// the `?` that `?=` is made of, so the closing delimiter is no
     /// longer there to find. That is not a subtle failure — it decodes
     /// nothing at all, and every encoded subject stays raw on screen.
+    /// The other direction: a header value that a receiving client
+    /// can read.
+    ///
+    /// **ASCII passes through untouched.** Encoding a plain subject
+    /// makes it unreadable in the raw message and gains nothing —
+    /// which is why this checks rather than always encoding.
+    ///
+    /// Base64 rather than quoted-printable, because a subject that
+    /// needs encoding at all is usually not Latin: a CJK subject in
+    /// quoted-printable is three `=XX` per character and grows past
+    /// the line limit almost at once.
+    static func encode(_ text: String) -> String {
+        guard text.contains(where: { !$0.isASCII }) else { return text }
+        // 75 is the RFC 2047 limit for a whole encoded word including
+        // its `=?utf-8?B?` and `?=`, and base64 is 4 characters per 3
+        // bytes, so each chunk may carry 45 bytes at most.
+        let chunks = utf8Chunks(text, bytes: 45)
+        return chunks.map { "=?utf-8?B?\($0.base64EncodedString())?=" }
+            .joined(separator: "\r\n ")
+    }
+
+    /// Split into runs of at most `bytes`, **never through a
+    /// character**. Cutting UTF-8 mid-sequence produces an encoded word
+    /// that decodes to a replacement character on every client.
+    private static func utf8Chunks(_ text: String, bytes limit: Int) -> [Data] {
+        var out: [Data] = []
+        var current = Data()
+        for character in text {
+            let encoded = Data(String(character).utf8)
+            if current.count + encoded.count > limit, !current.isEmpty {
+                out.append(current)
+                current = Data()
+            }
+            current.append(encoded)
+        }
+        if !current.isEmpty { out.append(current) }
+        return out
+    }
+
     private static func readWord(_ s: Substring) -> Word? {
         let body = s.dropFirst(2)
         guard let firstQ = body.firstIndex(of: "?") else { return nil }

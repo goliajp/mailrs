@@ -1857,6 +1857,22 @@
         }
       }
     },
+    "Fetching…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取得中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在获取…"
+          }
+        }
+      }
+    },
     "Filter": {
       "localizations": {
         "ja": {
@@ -2521,13 +2537,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "本文"
+            "value": "メッセージ"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正文"
+            "value": "邮件"
           }
         }
       }
@@ -2793,7 +2809,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新規メール"
+            "value": "新規メッセージ"
           }
         },
         "zh-Hans": {
@@ -3929,13 +3945,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "送信済み"
+            "value": "送信"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已发送"
+            "value": "发送"
           }
         }
       }
@@ -4144,6 +4160,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "显示引用内容"
+          }
+        }
+      }
+    },
+    "Shown as text. Images and formatting are not loaded.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テキストとして表示しています。画像と書式は読み込みません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以纯文本显示，不加载图片与格式。"
           }
         }
       }
@@ -4436,6 +4468,22 @@
         }
       }
     },
+    "This mailbox is no longer connected": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメールボックスは接続されていません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该邮箱已不再连接"
+          }
+        }
+      }
+    },
     "This message has no readable content.": {
       "localizations": {
         "ja": {
@@ -4448,6 +4496,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这封邮件没有可显示的正文。"
+          }
+        }
+      }
+    },
+    "This message has no text to show.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このメッセージに表示できるテキストはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这封邮件没有可显示的文本。"
           }
         }
       }
