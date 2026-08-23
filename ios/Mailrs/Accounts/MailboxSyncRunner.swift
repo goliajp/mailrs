@@ -6,6 +6,22 @@ import Foundation
 /// renumbering — is `MailboxSync`, which needs no network. This is the
 /// part that opens sockets, and it holds no decisions of its own.
 enum MailboxSyncRunner {
+    /// How a session is made.
+    ///
+    /// Injectable so a test can join the wire to the store: every rule
+    /// above the socket is asserted and every socket conversation is
+    /// asserted, and until this existed the two had never been checked
+    /// together. A pass that talks correctly and files the answer in
+    /// the wrong place passes both halves and shows nobody their mail.
+    nonisolated(unsafe) static var openImap: (String, UInt16) -> IMAPSession = {
+        IMAPSession(host: $0, port: $1)
+    }
+
+    /// The same, for the other two protocols.
+    nonisolated(unsafe) static var openPop3: (String, UInt16) -> POP3Session = {
+        POP3Session(host: $0, port: $1)
+    }
+    nonisolated(unsafe) static var openJmap: (String) -> JMAPClient = { JMAPClient(host: $0) }
     /// What one account's pass came to, for the screen to report.
     struct Outcome: Equatable {
         let accountId: String
@@ -30,7 +46,7 @@ enum MailboxSyncRunner {
         }
         if account.incoming == .pop3 { return await runPop3(account, secret: secret) }
         if account.incoming == .jmap { return await runJmap(account, secret: secret) }
-        let session = IMAPSession(host: account.imapHost, port: account.imapPort)
+        let session = openImap(account.imapHost, account.imapPort)
         do {
             try await session.connect()
             if account.auth == .oauth2 {
@@ -96,7 +112,7 @@ enum MailboxSyncRunner {
     /// only the headers are fetched, because downloading a mailbox to
     /// show a list is somebody's data allowance.
     private static func runPop3(_ account: MailAccount, secret: String) async -> Outcome {
-        let session = POP3Session(host: account.imapHost, port: account.imapPort)
+        let session = openPop3(account.imapHost, account.imapPort)
         do {
             try await session.connect()
             try await session.login(user: account.loginName, password: secret)
@@ -152,7 +168,7 @@ enum MailboxSyncRunner {
         // OAuth accounts; a password goes as Basic with it.
         var user = account.loginName
         if account.auth == .oauth2 { user = "" }
-        let client = JMAPClient(host: account.imapHost)
+        let client = openJmap(account.imapHost)
         do {
             let found = try await client.session(user: user, secret: secret)
             let rows = try await client.newest(session: found, user: user, secret: secret)

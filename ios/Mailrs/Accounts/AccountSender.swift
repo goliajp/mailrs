@@ -7,6 +7,16 @@ import Foundation
 /// person can act on — a rejection from a mail server is a number and
 /// a sentence written for another machine.
 enum AccountSender {
+    /// How a session is made.
+    ///
+    /// Injectable so the builder and the wire can be checked together.
+    /// Both halves are tested apart, and the seam between them is
+    /// where **a Bcc would leak** — the address belongs in `RCPT TO`
+    /// and nowhere in the DATA block, and only an end-to-end look can
+    /// say that it is so.
+    nonisolated(unsafe) static var openSmtp: (String, UInt16) -> SMTPSession = {
+        SMTPSession(host: $0, port: $1)
+    }
     enum Outcome: Equatable {
         case sent
         case failed(String)
@@ -22,7 +32,7 @@ enum AccountSender {
         }
         let message = OutgoingMessage.text(
             draft, id: identity(for: account), date: Date())
-        let session = SMTPSession(host: account.smtpHost, port: account.smtpPort)
+        let session = openSmtp(account.smtpHost, account.smtpPort)
         do {
             // The domain of the address, not the device's name: a HELO
             // naming somebody's phone is refused by a fair number of
