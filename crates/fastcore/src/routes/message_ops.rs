@@ -451,6 +451,11 @@ pub(crate) fn sync_index_to_flags(
         if is_seen {
             let event = crate::importance::read_event(state, &wire.thread_id, now_secs());
             crate::importance::record_engagement(state, user, &wire.thread_id, event);
+            // And on the server it came from, if it came from one.
+            // Reading in Apple Mail is reading: without this the write
+            // back would happen only for the web and the phones, and a
+            // message read here over IMAP would stay bold in Gmail.
+            crate::external_writeback::note_read(state, std::slice::from_ref(&wire.blob_ref));
         }
     }
     Ok(())

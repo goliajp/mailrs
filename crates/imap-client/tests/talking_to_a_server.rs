@@ -185,3 +185,59 @@ async fn an_unreadable_envelope_does_not_lose_the_others() {
     assert_eq!(got[0].message_id, "<one@x.com>");
     assert_eq!(got[1].message_id, "<three@x.com>");
 }
+
+/// Marking read on the server, and the two things about the command
+/// that are choices rather than syntax.
+///
+/// `.SILENT`, because the plain form answers with an untagged FETCH
+/// for every uid — replies that would have to be read and discarded,
+/// and anything left in the buffer desynchronises the next command.
+/// And one command for the whole set: a STORE per message turns
+/// reading a thread into a conversation of its own.
+#[tokio::test]
+async fn marking_read_is_one_silent_command_for_the_whole_set() {
+    let (port, seen) = server(vec!["{tag} OK stored\r\n"]).await;
+    let mut s = connect(port).await;
+    s.store_seen(&[4390, 4391, 4400]).await.expect("store");
+
+    let sent = seen.lock().unwrap()[0].clone();
+    assert!(
+        sent.contains("UID STORE 4390,4391,4400"),
+        "not one command for the set: {sent}"
+    );
+    assert!(
+        sent.contains("+FLAGS.SILENT"),
+        "the non-silent form leaves replies in the buffer: {sent}"
+    );
+    assert!(
+        sent.contains("\\Seen"),
+        "the flag did not survive escaping: {sent}"
+    );
+    assert_eq!(
+        seen.lock().unwrap().len(),
+        1,
+        "more than one command went out"
+    );
+}
+
+/// Nothing to say means nothing is sent — a pass with no notes must
+/// not select a folder and issue an empty STORE.
+#[tokio::test]
+async fn nothing_to_mark_sends_nothing() {
+    let (port, seen) = server(vec!["{tag} OK unused\r\n"]).await;
+    let mut s = connect(port).await;
+    s.store_seen(&[]).await.expect("store");
+    assert!(seen.lock().unwrap().is_empty(), "an empty STORE went out");
+}
+
+/// A refusal is reported rather than swallowed: the note stays queued
+/// and is carried on the next pass.
+#[tokio::test]
+async fn a_refused_store_is_an_error() {
+    let (port, _) = server(vec!["{tag} NO [CANNOT] read-only mailbox\r\n"]).await;
+    let mut s = connect(port).await;
+    assert!(
+        s.store_seen(&[1]).await.is_err(),
+        "a refusal read as success"
+    );
+}

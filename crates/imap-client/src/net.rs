@@ -177,6 +177,40 @@ impl Session {
         Ok(state)
     }
 
+    /// Mark messages read on the server.
+    ///
+    /// `+FLAGS.SILENT` rather than `+FLAGS`: the untagged FETCH the
+    /// non-silent form sends back would have to be read and thrown
+    /// away, and anything left unread in the buffer desynchronises the
+    /// next command's replies.
+    ///
+    /// A uid the server no longer holds is not an error in IMAP — the
+    /// STORE simply affects nothing — which is the behaviour wanted
+    /// here: a note for a message somebody deleted at the other end
+    /// should disappear, not retry forever.
+    pub async fn store_seen(&mut self, uids: &[u32]) -> Result<(), Error> {
+        if uids.is_empty() {
+            return Ok(());
+        }
+        let set = uids
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let tag = self.next_tag();
+        self.raw(&format!("{tag} UID STORE {set} +FLAGS.SILENT (\\Seen)\r\n"))
+            .await?;
+        loop {
+            let line = self.read_line().await?;
+            if line.starts_with(&format!("{tag} ")) {
+                return match line.split_whitespace().nth(1) {
+                    Some("OK") => Ok(()),
+                    _ => Err(Error::Server(line.trim_end().to_string())),
+                };
+            }
+        }
+    }
+
     /// Fetch whole messages by uid range.
     ///
     /// Returns `(uid, flags, rfc822 bytes)`. Literals are read by the
