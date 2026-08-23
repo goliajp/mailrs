@@ -77,6 +77,12 @@ object MailboxSyncRunner {
             kept = MailboxApply.apply(kept, result.rows)
             store.saveRows(kept)
             store.saveMarksFor(account.id, result.marks)
+            // **Only on the way out of a pass that worked.** A
+            // timestamp written before the fetch, or after one that
+            // failed, makes the screen say "just now" about mail it
+            // never got — which is the one thing the line is there to
+            // prevent.
+            store.saveLastSync(account.id, now())
             Outcome(account.id, result.rows.size)
         } catch (e: ImapSession.Failure) {
             session.close()
@@ -144,6 +150,7 @@ object MailboxSyncRunner {
 
             store.saveRows(MailboxApply.apply(store.rows(), fetched))
             store.savePopSeen(account.id, seen)
+            store.saveLastSync(account.id, now())
             Outcome(account.id, fetched.size)
         } catch (e: Pop3Session.Failure) {
             session.close()
@@ -153,6 +160,9 @@ object MailboxSyncRunner {
             Outcome(account.id, 0, "Could not reach the server")
         }
     }
+
+    /** Overridable so a test can pin the clock. */
+    internal var now: () -> Long = { System.currentTimeMillis() / 1000 }
 
     /** A uidl is text; a row id is a number. FNV-1a, as elsewhere. */
     internal fun foldedUid(uidl: String): Long {
@@ -201,6 +211,7 @@ object MailboxSyncRunner {
                 )
             }
             store.saveRows(MailboxApply.apply(store.rows(), rows))
+            store.saveLastSync(account.id, now())
             Outcome(account.id, rows.size)
         } catch (e: JmapSession.Failure) {
             Outcome(account.id, 0, e.message ?: "Could not reach the server")

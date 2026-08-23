@@ -74,7 +74,7 @@ class AccountStore(context: Context) {
         saveRows(MailboxApply.withoutAccount(rows(), id))
         val prefix = "$id/"
         saveMarks(marks().filterKeys { !it.startsWith(prefix) })
-        prefs.edit().remove(POP_SEEN + id).apply()
+        prefs.edit().remove(POP_SEEN + id).remove(LAST_SYNC + id).apply()
     }
 
     // MARK: the mail itself
@@ -177,6 +177,25 @@ class AccountStore(context: Context) {
             .apply()
     }
 
+    /**
+     * When each account was last read successfully.
+     *
+     * Kept so the list can say how old what it is showing is. "No new
+     * mail" and "we have not managed to check since yesterday" look
+     * identical on screen, and only one of them is a reason to relax.
+     */
+    fun lastSync(accountId: String): Long? {
+        val at = prefs.getLong(LAST_SYNC + accountId, 0L)
+        return when (at) {
+            0L -> null
+            else -> at
+        }
+    }
+
+    fun saveLastSync(accountId: String, epochSeconds: Long) {
+        prefs.edit().putLong(LAST_SYNC + accountId, epochSeconds).apply()
+    }
+
     fun saveSecret(secret: String, id: String) {
         prefs.edit().putString(secretKeyName(id), encrypt(secret)).apply()
     }
@@ -243,6 +262,7 @@ class AccountStore(context: Context) {
         const val ROWS_MAIL = "mailbox.rows.v1"
         const val MARKS = "mailbox.marks.v1"
         const val POP_SEEN = "pop.seen.v1."
+        const val LAST_SYNC = "last.sync.v1."
         const val KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "mailrs.account.secret.v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

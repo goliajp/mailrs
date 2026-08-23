@@ -22,6 +22,9 @@ enum MailboxSyncRunner {
         POP3Session(host: $0, port: $1)
     }
     nonisolated(unsafe) static var openJmap: (String) -> JMAPClient = { JMAPClient(host: $0) }
+
+    /// Overridable so a test can pin the clock.
+    nonisolated(unsafe) static var now: () -> Int64 = { Int64(Date().timeIntervalSince1970) }
     /// What one account's pass came to, for the screen to report.
     struct Outcome: Equatable {
         let accountId: String
@@ -82,6 +85,12 @@ enum MailboxSyncRunner {
             kept = MailboxApply.apply(held: kept, fetched: result.rows)
             AccountStore.saveRows(kept)
             AccountStore.saveMarks(result.marks, for: account.id)
+            // **Only on the way out of a pass that worked.** A
+            // timestamp written before the fetch, or after one that
+            // failed, makes the screen say "just now" about mail it
+            // never got — which is the one thing the line is there to
+            // prevent.
+            AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: result.rows.count, failure: nil)
         } catch let e as IMAPSession.Failure {
             await session.close()
@@ -154,6 +163,7 @@ enum MailboxSyncRunner {
 
             AccountStore.saveRows(MailboxApply.apply(held: AccountStore.rows(), fetched: fetched))
             AccountStore.savePopSeen(account.id, seen)
+            AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: fetched.count, failure: nil)
         } catch {
             await session.close()
@@ -184,6 +194,7 @@ enum MailboxSyncRunner {
                         messageId: email.messageId)
                 }
             AccountStore.saveRows(MailboxApply.apply(held: AccountStore.rows(), fetched: rows))
+            AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: rows.count, failure: nil)
         } catch let e as JMAPClient.Failure {
             return Outcome(accountId: account.id, fetched: 0, failure: explain(e))

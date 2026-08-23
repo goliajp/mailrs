@@ -52,6 +52,7 @@ enum AccountStore {
         for key in all.keys where key.hasPrefix(prefix) { all[key] = nil }
         saveMarks(all)
         UserDefaults.standard.removeObject(forKey: popSeenKey + id)
+        UserDefaults.standard.removeObject(forKey: lastSyncKey + id)
     }
 
     // MARK: - the mail itself
@@ -135,6 +136,22 @@ enum AccountStore {
     }
 
     private static let popSeenKey = "mailrs.pop.seen.v1."
+
+    /// When each account was last read successfully.
+    ///
+    /// Kept so the list can say how old what it is showing is. "No new
+    /// mail" and "we have not managed to check since yesterday" look
+    /// identical on screen, and only one of them is a reason to relax.
+    static func lastSync(_ accountId: String) -> Int64? {
+        let at = UserDefaults.standard.object(forKey: lastSyncKey + accountId) as? NSNumber
+        return at?.int64Value
+    }
+
+    static func saveLastSync(_ accountId: String, _ epochSeconds: Int64) {
+        UserDefaults.standard.set(NSNumber(value: epochSeconds), forKey: lastSyncKey + accountId)
+    }
+
+    private static let lastSyncKey = "mailrs.last.sync.v1."
 
     // MARK: - secrets
 

@@ -94,6 +94,18 @@ actor POP3Session {
         return SocketText.bytes(POP3.unstuffed(try await readUntilDot()))
     }
 
+    /// Mark a message for deletion.
+    ///
+    /// **`DELE` does not delete anything.** RFC 1939 marks the message
+    /// and the server only acts on it when the session ends with
+    /// `QUIT` — a session dropped instead leaves the mailbox
+    /// untouched, which is a delete that silently did not happen. The
+    /// pairing is the caller's to get right, and it is asserted.
+    func delete(number: Int) async throws {
+        let reply = try await command("DELE \(number)")
+        guard reply.ok else { throw Failure.server(reply.text) }
+    }
+
     /// End the session properly.
     ///
     /// `QUIT` is not politeness: a POP3 server holds an exclusive lock

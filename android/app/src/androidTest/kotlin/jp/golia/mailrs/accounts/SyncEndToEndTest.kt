@@ -84,6 +84,7 @@ class SyncEndToEndTest {
     @After
     fun tearDown() {
         MailboxSyncRunner.openImap = { host, port -> ImapSession(host, port) }
+        MailboxSyncRunner.now = { System.currentTimeMillis() / 1000 }
         store.remove(account.id)
         store.saveRows(emptyList())
         store.saveMarks(emptyMap())
@@ -182,5 +183,40 @@ class SyncEndToEndTest {
         assertTrue("a refused sign-in was reported as a pass", outcome.failure != null)
         assertTrue(store.rows().isEmpty())
         assertTrue(store.marksFor(account.id).isEmpty())
+    }
+
+    /**
+     * **The timestamp is written only by a pass that worked.**
+     *
+     * "No new mail" and "we have not managed to check since yesterday"
+     * look identical on screen, and the line that tells them apart is
+     * worse than useless if a failed pass sets it — the screen would
+     * then say "just now" about mail it never got.
+     */
+    @Test
+    fun a_failed_pass_does_not_claim_to_have_checked() = runBlocking {
+        MailboxSyncRunner.now = { 1_756_000_000L }
+        serving(
+            "* OK [CAPABILITY IMAP4rev1] ready",
+            "a1 NO [AUTHENTICATIONFAILED] Invalid credentials",
+        )
+        MailboxSyncRunner.run(account, store)
+        assertEquals(null, store.lastSync(account.id))
+
+        // And a pass that works does set it.
+        val body = header("Hello")
+        serving(
+            "* OK [CAPABILITY IMAP4rev1] ready",
+            "a1 OK signed in",
+            "* LIST (\\HasNoChildren) \".\" \"INBOX\"",
+            "a2 OK listed",
+            "* OK [UIDVALIDITY 42] valid",
+            "a3 OK selected",
+            "* 1 FETCH (UID 7 FLAGS () BODY[HEADER] {" + body.length + "}",
+            body + ")",
+            "a4 OK fetched",
+        )
+        MailboxSyncRunner.run(account, store)
+        assertEquals(1_756_000_000L, store.lastSync(account.id))
     }
 }
