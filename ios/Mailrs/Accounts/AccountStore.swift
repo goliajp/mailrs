@@ -41,6 +41,77 @@ enum AccountStore {
     static func remove(id: String) {
         save(load().filter { $0.id != id })
         deleteSecret(for: id)
+        // And its mail, and where each of its folders was left. A row
+        // left behind is mail nobody can open — the credential and the
+        // server it came from are both gone — and a mark left behind
+        // makes the next account with the same address resume from
+        // somebody else's place.
+        saveRows(MailboxApply.withoutAccount(rows(), id))
+        var all = marks()
+        let prefix = id + "/"
+        for key in all.keys where key.hasPrefix(prefix) { all[key] = nil }
+        saveMarks(all)
+    }
+
+    // MARK: - the mail itself
+
+    private static let rowsForMailKey = "mailrs.mailbox.rows.v1"
+    private static let marksKey = "mailrs.mailbox.marks.v1"
+
+    /// Every row from every connected mailbox.
+    ///
+    /// Ordinary preferences, not the keychain: these are headers, and
+    /// a person can already see them on screen. The **bodies** are not
+    /// stored at all — they are fetched when a message is opened, so
+    /// nothing here grows without bound and nothing here is worth
+    /// stealing.
+    static func rows() -> [MailboxRow] {
+        guard let data = UserDefaults.standard.data(forKey: rowsForMailKey),
+              let rows = try? JSONDecoder().decode([MailboxRow].self, from: data)
+        else { return [] }
+        return rows
+    }
+
+    static func saveRows(_ rows: [MailboxRow]) {
+        guard let data = try? JSONEncoder().encode(rows) else { return }
+        UserDefaults.standard.set(data, forKey: rowsForMailKey)
+    }
+
+    /// Where each folder of each account was left.
+    ///
+    /// Keyed `accountId/folder`, so two accounts with an INBOX each
+    /// keep their own place — the mistake this key shape prevents is
+    /// the same one `MailboxRow.id` prevents in the list.
+    static func marks() -> [String: FolderMark] {
+        guard let data = UserDefaults.standard.data(forKey: marksKey),
+              let marks = try? JSONDecoder().decode([String: FolderMark].self, from: data)
+        else { return [:] }
+        return marks
+    }
+
+    static func saveMarks(_ marks: [String: FolderMark]) {
+        guard let data = try? JSONEncoder().encode(marks) else { return }
+        UserDefaults.standard.set(data, forKey: marksKey)
+    }
+
+    /// The marks of one account, without its prefix.
+    static func marks(for accountId: String) -> [String: FolderMark] {
+        var out: [String: FolderMark] = [:]
+        let prefix = accountId + "/"
+        for (key, mark) in marks() where key.hasPrefix(prefix) {
+            out[String(key.dropFirst(prefix.count))] = mark
+        }
+        return out
+    }
+
+    /// Store one account's marks back, leaving every other account's
+    /// alone.
+    static func saveMarks(_ folderMarks: [String: FolderMark], for accountId: String) {
+        var all = marks()
+        let prefix = accountId + "/"
+        for key in all.keys where key.hasPrefix(prefix) { all[key] = nil }
+        for (folder, mark) in folderMarks { all[prefix + folder] = mark }
+        saveMarks(all)
     }
 
     // MARK: - secrets

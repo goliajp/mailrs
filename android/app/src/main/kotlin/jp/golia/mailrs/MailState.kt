@@ -104,6 +104,7 @@ data class UiState(
      * something any reader does for themselves, not an operator task.
      */
     val mailAccountsOpen: Boolean = false,
+    val mergedMailOpen: Boolean = false,
     val accounts: List<Admin.Account> = emptyList(),
     val aliases: List<Admin.Alias> = emptyList(),
     val domains: List<Admin.Domain> = emptyList(),
@@ -404,3 +405,24 @@ data class PendingTriage(
     val verb: MailrsClient.Verb,
     val before: List<Wire.Conversation>,
 )
+
+/**
+ * What a back press closes while Settings is showing.
+ *
+ * Settings has sub-screens that are not their own [Screen], so
+ * `goBack`'s single `Screen.Settings ->` arm was closing the whole
+ * thing from inside one of them: opening Mail accounts and pressing
+ * back dropped a person all the way out to the mail list, and
+ * `closeMailAccounts` was called by nothing at all.
+ *
+ * A pure function so the rule can be tested; `goBack` reads its comment
+ * about two copies of "which screen closes to what" drifting apart, and
+ * this is that drift caught in the act.
+ */
+enum class SettingsBack { MailAccounts, MergedMail, Settings }
+
+fun settingsBack(state: UiState): SettingsBack = when {
+    state.mailAccountsOpen -> SettingsBack.MailAccounts
+    state.mergedMailOpen -> SettingsBack.MergedMail
+    else -> SettingsBack.Settings
+}

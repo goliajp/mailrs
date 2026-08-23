@@ -9,6 +9,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -64,6 +66,89 @@ class AccountStore(context: Context) {
     fun remove(id: String) {
         save(load().filterNot { it.id == id })
         prefs.edit().remove(secretKeyName(id)).apply()
+        // And its mail, and where each of its folders was left. A row
+        // left behind is mail nobody can open — the credential and the
+        // server it came from are both gone — and a mark left behind
+        // makes the next account with the same address resume from
+        // somebody else's place.
+        saveRows(MailboxApply.withoutAccount(rows(), id))
+        val prefix = "$id/"
+        saveMarks(marks().filterKeys { !it.startsWith(prefix) })
+    }
+
+    // MARK: the mail itself
+
+    /**
+     * Every row from every connected mailbox.
+     *
+     * Ordinary preferences, not the encrypted store: these are
+     * headers, and a person can already see them on screen. The
+     * **bodies** are not stored at all — they are fetched when a
+     * message is opened, so nothing here grows without bound and
+     * nothing here is worth stealing.
+     */
+    fun rows(): List<MailboxRow> {
+        val raw = prefs.getString(ROWS_MAIL, null) ?: return emptyList()
+        return runCatching {
+            json.decodeFromString(ListSerializer(MailboxRow.serializer()), raw)
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveRows(rows: List<MailboxRow>) {
+        prefs.edit()
+            .putString(ROWS_MAIL, json.encodeToString(ListSerializer(MailboxRow.serializer()), rows))
+            .apply()
+    }
+
+    /**
+     * Where each folder of each account was left.
+     *
+     * Keyed `accountId/folder`, so two accounts with an INBOX each
+     * keep their own place — the mistake this key shape prevents is
+     * the same one [MailboxRow.id] prevents in the list.
+     */
+    fun marks(): Map<String, FolderMark> {
+        val raw = prefs.getString(MARKS, null) ?: return emptyMap()
+        return runCatching {
+            json.decodeFromString(
+                MapSerializer(String.serializer(), FolderMark.serializer()),
+                raw,
+            )
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveMarks(marks: Map<String, FolderMark>) {
+        prefs.edit()
+            .putString(
+                MARKS,
+                json.encodeToString(
+                    MapSerializer(String.serializer(), FolderMark.serializer()),
+                    marks,
+                ),
+            )
+            .apply()
+    }
+
+    /** The marks of one account, without its prefix. */
+    fun marksFor(accountId: String): Map<String, FolderMark> {
+        val prefix = "$accountId/"
+        return marks().filterKeys { it.startsWith(prefix) }
+            .mapKeys { it.key.removePrefix(prefix) }
+    }
+
+    /**
+     * Store one account's marks back, leaving every other account's
+     * alone.
+     *
+     * A **replacement** of that account's set rather than a merge into
+     * it: a folder that has been renamed or removed would otherwise
+     * keep its old place forever.
+     */
+    fun saveMarksFor(accountId: String, folderMarks: Map<String, FolderMark>) {
+        val prefix = "$accountId/"
+        val all = marks().filterKeys { !it.startsWith(prefix) }.toMutableMap()
+        for ((folder, mark) in folderMarks) all[prefix + folder] = mark
+        saveMarks(all)
     }
 
     fun saveSecret(secret: String, id: String) {
@@ -129,6 +214,8 @@ class AccountStore(context: Context) {
     private companion object {
         const val PREFS = "mailrs.accounts"
         const val ROWS = "rows.v1"
+        const val ROWS_MAIL = "mailbox.rows.v1"
+        const val MARKS = "mailbox.marks.v1"
         const val KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "mailrs.account.secret.v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

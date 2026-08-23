@@ -36,6 +36,11 @@ import jp.golia.mailrs.UiState
 import jp.golia.mailrs.closeAccount
 import jp.golia.mailrs.closeAdmin
 import jp.golia.mailrs.openMailAccounts
+import jp.golia.mailrs.SettingsBack
+import jp.golia.mailrs.closeMailAccounts
+import jp.golia.mailrs.closeMergedMail
+import jp.golia.mailrs.openMergedMail
+import jp.golia.mailrs.settingsBack
 import jp.golia.mailrs.closeAdminRow
 import jp.golia.mailrs.openAdmin
 import jp.golia.mailrs.cancelCompose
@@ -130,7 +135,11 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
         when (current) {
             Screen.Compose -> vm.cancelCompose()
             Screen.Thread -> vm.closeThread()
-            Screen.Settings -> vm.closeSettings()
+            Screen.Settings -> when (settingsBack(state)) {
+                SettingsBack.MailAccounts -> vm.closeMailAccounts()
+                SettingsBack.MergedMail -> vm.closeMergedMail()
+                SettingsBack.Settings -> vm.closeSettings()
+            }
             Screen.Drafts -> vm.closeDrafts()
             Screen.Sent -> vm.closeSent()
             Screen.Admin -> vm.closeAdmin()
@@ -267,25 +276,27 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                         state.adminOpen?.let { AdminScreen(it, state, vm) }
                     }
                     Screen.Settings -> Box(peeled) {
-                        // The screen the button opens. Without this the
-                        // row is a control that does nothing, which is
+                        // The screens those buttons open. Without
+                        // these the rows are controls that do nothing,
                         // the shape `one-side-of-the-wire.md` names.
-                        if (state.mailAccountsOpen) {
-                            MailboxesScreen()
-                        } else
-                        SettingsScreen(
-                            state = state,
-                            appearance = state.appearance,
-                            onAppearance = { vm.chooseAppearance(it) },
-                            onNotify = { vm.chooseNotify(it) },
-                            onClose = { vm.closeSettings() },
-                            onAdmin = { vm.openAdmin(it) },
-                            onMailAccounts = { vm.openMailAccounts() },
-                            onSignOut = {
-                                vm.closeSettings()
-                                vm.signOut()
-                            },
-                        )
+                        when {
+                            state.mailAccountsOpen -> MailboxesScreen()
+                            state.mergedMailOpen -> MergedMailScreen()
+                            else -> SettingsScreen(
+                                state = state,
+                                appearance = state.appearance,
+                                onAppearance = { vm.chooseAppearance(it) },
+                                onNotify = { vm.chooseNotify(it) },
+                                onClose = { vm.closeSettings() },
+                                onAdmin = { vm.openAdmin(it) },
+                                onMailAccounts = { vm.openMailAccounts() },
+                                onMergedMail = { vm.openMergedMail() },
+                                onSignOut = {
+                                    vm.closeSettings()
+                                    vm.signOut()
+                                },
+                            )
+                        }
                     }
                 }
             }

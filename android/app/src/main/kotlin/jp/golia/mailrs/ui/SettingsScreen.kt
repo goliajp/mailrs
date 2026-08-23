@@ -58,6 +58,7 @@ fun SettingsScreen(
     onClose: () -> Unit,
     onAdmin: (AdminSection) -> Unit,
     onMailAccounts: () -> Unit,
+    onMergedMail: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -143,6 +144,17 @@ fun SettingsScreen(
             HorizontalDivider(color = theme.border, thickness = 0.5.dp)
             // Above Administration: connecting a Gmail is something any
             // reader does for themselves, not an operator task.
+            TextButton(
+                onClick = onMergedMail,
+                modifier = Modifier.fillMaxWidth().testTag("settings.mergedMail"),
+            ) {
+                Text(
+                    "Other mail",
+                    color = theme.fg,
+                    fontSize = 14.sp,
+                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
+                )
+            }
             TextButton(
                 onClick = onMailAccounts,
                 modifier = Modifier.fillMaxWidth().testTag("settings.mailAccounts"),
