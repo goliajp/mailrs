@@ -83,7 +83,7 @@ enum MailboxSyncRunner {
                     asked: Set(held[folder] ?? []), answer: answer)
             }
             kept = MailboxApply.apply(held: kept, fetched: result.rows)
-            AccountStore.saveRows(kept)
+            AccountStore.saveRows(MailboxApply.capped(kept))
             AccountStore.saveMarks(result.marks, for: account.id)
             // **Only on the way out of a pass that worked.** A
             // timestamp written before the fetch, or after one that
@@ -161,7 +161,9 @@ enum MailboxSyncRunner {
             await session.quit()
             await session.close()
 
-            AccountStore.saveRows(MailboxApply.apply(held: AccountStore.rows(), fetched: fetched))
+            AccountStore.saveRows(
+                MailboxApply.capped(
+                    MailboxApply.apply(held: AccountStore.rows(), fetched: fetched)))
             AccountStore.savePopSeen(account.id, seen)
             AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: fetched.count, failure: nil)
@@ -193,7 +195,9 @@ enum MailboxSyncRunner {
                         date: email.receivedAt,
                         messageId: email.messageId)
                 }
-            AccountStore.saveRows(MailboxApply.apply(held: AccountStore.rows(), fetched: rows))
+            AccountStore.saveRows(
+                MailboxApply.capped(
+                    MailboxApply.apply(held: AccountStore.rows(), fetched: rows)))
             AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: rows.count, failure: nil)
         } catch let e as JMAPClient.Failure {

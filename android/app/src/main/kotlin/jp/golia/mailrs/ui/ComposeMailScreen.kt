@@ -41,6 +41,8 @@ import jp.golia.mailrs.accounts.AccountSender
 import jp.golia.mailrs.accounts.AccountStore
 import jp.golia.mailrs.accounts.MailAccount
 import jp.golia.mailrs.accounts.OutgoingMessage
+import jp.golia.mailrs.accounts.PickedFile
+import jp.golia.mailrs.accounts.ReadFiles
 import kotlinx.coroutines.launch
 
 /**
@@ -79,6 +81,18 @@ fun ComposeMailScreen(
     var subject by remember { mutableStateOf(initial.subject) }
     var body by remember { mutableStateOf(initial.body) }
     var sending by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(emptyList<PickedFile>()) }
+
+    // `OpenMultipleDocuments`, not `GetContent`: the document picker
+    // reaches every provider on the phone — Drive, Files, the camera
+    // roll — where `GetContent` is whichever app claims the MIME type,
+    // and it hands back a URI this app is granted to read. The same
+    // choice the app's own composer makes, for the same reason.
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        picked = picked + uris.mapNotNull { describe(context, it) }
+    }
     var failure by remember { mutableStateOf("") }
 
     BackHandler { onClose() }
@@ -91,6 +105,7 @@ fun ComposeMailScreen(
         scope.launch {
             fun addresses(text: String) =
                 text.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            val files = readAll(context, picked)
             val draft = initial.copy(
                 from = account.address,
                 fromName = account.displayName,
@@ -98,10 +113,22 @@ fun ComposeMailScreen(
                 cc = addresses(cc),
                 subject = subject,
                 body = body,
+                attachments = files.attachments,
             )
             // Bcc goes to the sender as the envelope's extra
             // recipients and never into the headers — that is what
             // makes a blind copy blind.
+            // **Nothing is sent while a file is missing.** A message
+            // that goes without the attachment it was written around
+            // is worse than one that does not go: the second can be
+            // sent again, and the first has already arrived looking
+            // complete.
+            if (files.lost.isNotEmpty()) {
+                failure = "Could not read " + files.lost.joinToString(", ") +
+                    ". Nothing was sent."
+                sending = false
+                return@launch
+            }
             when (val outcome = AccountSender.send(draft, account, store, addresses(bcc))) {
                 is AccountSender.Outcome.Sent -> onClose()
                 is AccountSender.Outcome.Failed -> {
@@ -189,6 +216,26 @@ fun ComposeMailScreen(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp).testTag("compose.body"),
             )
 
+            TextButton(
+                onClick = { picker.launch(arrayOf("*/*")) },
+                modifier = Modifier.testTag("compose.attach"),
+            ) {
+                Text("Attach a file", color = theme.accent, fontSize = 12.sp)
+            }
+            for (file in picked) {
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(file.filename, color = theme.fg, fontSize = 12.sp)
+                    Text(humanSize(file.size), color = theme.fgMuted, fontSize = 11.sp)
+                    Box(Modifier.weight(1f))
+                    TextButton(onClick = { picked = picked - file }) {
+                        Text("Remove", color = theme.fgMuted, fontSize = 11.sp)
+                    }
+                }
+            }
+
             if (failure.isNotEmpty()) {
                 // In the screen, not a dialog that has to be dismissed
                 // before the message can be fixed — what went wrong and
@@ -229,4 +276,58 @@ private fun FromChip(account: MailAccount, on: Boolean, onTap: () -> Unit) {
         )
         Text(account.address, color = theme.fg, fontSize = 12.sp)
     }
+}
+
+/**
+ * What a picked URI is called and how big it is.
+ *
+ * From the content resolver rather than the URI's last path segment: a
+ * document provider's URI is an opaque id, and `msf:1000000042` is not
+ * a filename anybody wants to see arrive in their mail. The same
+ * reasoning as the app's own composer, and the same source.
+ */
+private fun describe(context: android.content.Context, uri: android.net.Uri): PickedFile? =
+    runCatching {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameAt = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val sizeAt = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (!cursor.moveToFirst()) return@use null
+            PickedFile(
+                uri = uri.toString(),
+                filename = when {
+                    nameAt >= 0 -> cursor.getString(nameAt)
+                    else -> "attachment"
+                },
+                size = when {
+                    sizeAt >= 0 && !cursor.isNull(sizeAt) -> cursor.getLong(sizeAt)
+                    else -> 0L
+                },
+                mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream",
+            )
+        }
+    }.getOrNull()
+
+/**
+ * The bytes, read once, at the moment of sending.
+ *
+ * A file that cannot be read is **named** rather than dropped: picking
+ * three files and sending two, with nothing said, is somebody being
+ * quietly lied to about what went out.
+ */
+private fun readAll(context: android.content.Context, files: List<PickedFile>): ReadFiles {
+    val attachments = mutableListOf<OutgoingMessage.Attachment>()
+    val lost = mutableListOf<String>()
+    for (file in files) {
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(android.net.Uri.parse(file.uri))
+                ?.use { it.readBytes() }
+        }.getOrNull()
+        when (bytes) {
+            null -> lost.add(file.filename)
+            else -> attachments.add(
+                OutgoingMessage.Attachment(file.filename, file.mimeType, bytes),
+            )
+        }
+    }
+    return ReadFiles(attachments, lost)
 }

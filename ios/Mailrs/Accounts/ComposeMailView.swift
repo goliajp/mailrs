@@ -25,6 +25,12 @@ struct ComposeMailView: View {
     @State private var subject = ""
     @State private var message = ""
     @State private var sending = false
+    /// `MultipartForm.FilePart`, not a type of this file's own: the
+    /// app already has a paperclip menu and a file importer, and one
+    /// of them carries a lesson worth keeping — a read without the
+    /// security-scoped access pair fails on a device and quietly
+    /// works in the simulator, which is the worst kind of passing.
+    @State private var files: [MultipartForm.FilePart] = []
     @State private var failure = ""
 
     var body: some View {
@@ -68,6 +74,11 @@ struct ComposeMailView: View {
                     TextField("Subject", text: $subject)
                         .accessibilityIdentifier("compose.subject")
                 }
+                if !files.isEmpty {
+                    Section("Attached") {
+                        AttachmentRows(attachments: $files)
+                    }
+                }
                 Section {
                     TextEditor(text: $message)
                         .frame(minHeight: 200)
@@ -91,6 +102,9 @@ struct ComposeMailView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .accessibilityIdentifier("compose.cancel")
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    AttachMenu(attachments: $files)
                 }
                 ToolbarItem(placement: .primaryAction) {
                     if sending {
@@ -158,6 +172,10 @@ struct ComposeMailView: View {
         draft.cc = addresses(cc)
         draft.subject = subject
         draft.body = message
+        draft.attachments = files.map {
+            OutgoingMessage.Attachment(
+                filename: $0.filename, mimeType: $0.contentType, bytes: $0.data)
+        }
         // Bcc goes to the sender as the envelope's extra recipients and
         // never into the headers — that is what makes a blind copy
         // blind.

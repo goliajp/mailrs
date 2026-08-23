@@ -39,7 +39,14 @@ class ActionsEndToEndTest {
             if (lines.isEmpty()) throw ImapSession.Failure.Closed()
             return lines.removeAt(0)
         }
-        override fun readBytes(count: Int): String = ""
+        override fun readBytes(count: Int): String {
+            val out = StringBuilder()
+            while (out.length < count) {
+                if (lines.isEmpty()) throw ImapSession.Failure.Closed()
+                out.append(lines.removeAt(0))
+            }
+            return out.substring(0, count)
+        }
         override fun write(text: String) {
             written.add(text.trimEnd('\r', '\n'))
         }

@@ -54,6 +54,7 @@ fun MessageScreen(
     val context = LocalContext.current
     val store = remember { AccountStore(context) }
     var outcome by remember(row.id) { mutableStateOf<MessageReader.Outcome?>(null) }
+    var wholeMessage by remember(row.id) { mutableStateOf(false) }
     var opening by remember { mutableStateOf<MessageAttachments.Attachment?>(null) }
     var openFailure by remember { mutableStateOf("") }
 
@@ -68,10 +69,11 @@ fun MessageScreen(
 
     BackHandler { onClose() }
 
-    LaunchedEffect(row.id) {
+    LaunchedEffect(row.id, wholeMessage) {
+        outcome = null
         outcome = when (account) {
             null -> MessageReader.Outcome.Failed("This mailbox is no longer connected")
-            else -> MessageReader.load(account, row, store)
+            else -> MessageReader.load(account, row, store, wholeMessage)
         }
     }
 
@@ -160,6 +162,30 @@ fun MessageScreen(
                         HorizontalDivider(color = theme.border, thickness = 0.5.dp)
                         for (attachment in o.loaded.attachments) {
                             AttachmentRow(attachment) { opening = attachment }
+                        }
+                    }
+                    if (o.loaded.partial) {
+                        // **Said, not hidden.** The text is usually
+                        // complete, but the attachment list is not —
+                        // and a list that is silently short is worse
+                        // than one that is absent. The offer to fetch
+                        // the rest carries the size, because that is
+                        // the thing being decided.
+                        HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        Text(
+                            "Only the beginning was fetched. Attachments may be missing.",
+                            color = theme.fgMuted,
+                            fontSize = 11.sp,
+                        )
+                        TextButton(
+                            onClick = { wholeMessage = true },
+                            modifier = Modifier.testTag("message.fetchWhole"),
+                        ) {
+                            Text(
+                                "Fetch the whole message (${humanSize(o.loaded.size ?: 0L)})",
+                                color = theme.accent,
+                                fontSize = 12.sp,
+                            )
                         }
                     }
                     if (openFailure.isNotEmpty()) {

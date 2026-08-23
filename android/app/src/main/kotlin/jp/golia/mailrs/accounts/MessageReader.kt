@@ -9,6 +9,8 @@ package jp.golia.mailrs.accounts
  * chose to keep.
  */
 object MessageReader {
+    /** How a session is made; injectable like the others. */
+    internal var openImap: (String, Int) -> ImapSession = { host, port -> ImapSession(host, port) }
     data class Loaded(
         /**
          * Always text by the time it gets here: markup is turned into
@@ -37,6 +39,17 @@ object MessageReader {
          * attachment is a second request on somebody's data.
          */
         val attachments: List<MessageAttachments.Attachment> = emptyList(),
+        /**
+         * Set when only the beginning of the message was fetched.
+         *
+         * **The screen must say so.** The text will usually be
+         * complete — it comes before the attachments in nearly every
+         * message — but the attachment list will not be, and a list
+         * that is silently short is worse than one that is absent.
+         */
+        val partial: Boolean = false,
+        /** What the whole message weighs, for the offer to fetch it. */
+        val size: Long? = null,
     )
 
     /** What a reader gets: the message, or a sentence about why not. */
@@ -45,10 +58,16 @@ object MessageReader {
         data class Failed(val why: String) : Outcome()
     }
 
-    suspend fun load(account: MailAccount, row: MailboxRow, store: AccountStore): Outcome {
+    suspend fun load(
+        account: MailAccount,
+        row: MailboxRow,
+        store: AccountStore,
+        /** Set when the reader has asked for the whole of a large one. */
+        wholeMessage: Boolean = false,
+    ): Outcome {
         val secret = store.secret(account.id)
             ?: return Outcome.Failed("Sign in again to read this account")
-        val session = ImapSession(account.imapHost, account.imapPort)
+        val session = openImap(account.imapHost, account.imapPort)
         return try {
             session.connect()
             if (account.auth == MailProvider.AuthKind.OAUTH2) {
@@ -57,7 +76,8 @@ object MessageReader {
                 session.login(account.loginName, secret)
             }
             session.select(row.folder)
-            val raw = session.fetchRaw(row.uid)
+            val plan = FetchWhole.decide(row.size, wholeMessage)
+            val raw = session.fetchRaw(row.uid, plan)
             // Marked read only after the body is in hand: a fetch that
             // fails should leave the message unread, or a server that was
             // briefly unwell quietly empties somebody's unread count.
@@ -66,7 +86,12 @@ object MessageReader {
                 store.saveRows(MailboxApply.markSeen(store.rows(), row.id))
             }
             session.close()
-            Outcome.Ok(display(raw))
+            Outcome.Ok(
+                display(raw).copy(
+                    partial = plan is FetchWhole.Plan.Beginning,
+                    size = row.size,
+                ),
+            )
         } catch (e: Exception) {
             session.close()
             Outcome.Failed("Could not open this message")

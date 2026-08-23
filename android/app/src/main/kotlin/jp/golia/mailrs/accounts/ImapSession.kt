@@ -208,6 +208,8 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
          * having just arrived jumps to the top and stays there.
          */
         val date: Long?,
+        /** How big the whole message is, when the server said. */
+        val size: Long? = null,
     )
 
     /**
@@ -234,7 +236,7 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
             byUid -> "UID FETCH"
             else -> "FETCH"
         }
-        write("$t $verb $range (UID FLAGS BODY.PEEK[HEADER])\r\n")
+        write("$t $verb $range (UID FLAGS RFC822.SIZE BODY.PEEK[HEADER])\r\n")
         val out = mutableListOf<Fetched>()
         while (true) {
             val line = readLine()
@@ -251,7 +253,10 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
             // can show that it does not already have.
             val count = announced.literalBytes ?: continue
             val headers = MessageHeaders.parse(Wire.utf8(readBytes(count)))
-            out += Fetched(uid, announced.seen, headers, MailDate.epochSeconds(headers.date))
+            out += Fetched(
+                uid, announced.seen, headers, MailDate.epochSeconds(headers.date),
+                announced.size,
+            )
         }
         @Suppress("UNREACHABLE_CODE")
         out
@@ -265,9 +270,18 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
      * client that marks mail read for having looked at it takes that
      * decision away. Marking read is a separate, deliberate call.
      */
-    suspend fun fetchRaw(uid: Long): ByteArray = withContext(Dispatchers.IO) {
+    /**
+     * @param plan whether to take the whole message or only its
+     *   beginning. A message with a 25 MB attachment is 25 MB to
+     *   fetch, and fetching it to show two lines of text is noticed on
+     *   a bill rather than on a screen.
+     */
+    suspend fun fetchRaw(
+        uid: Long,
+        plan: FetchWhole.Plan = FetchWhole.Plan.Whole,
+    ): ByteArray = withContext(Dispatchers.IO) {
         val t = nextTag()
-        write("$t UID FETCH $uid (BODY.PEEK[])\r\n")
+        write("$t UID FETCH $uid (${FetchWhole.bodyItem(plan)})\r\n")
         var out = ByteArray(0)
         while (true) {
             val line = readLine()

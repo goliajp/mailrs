@@ -18,12 +18,32 @@ import Foundation
 enum SocketText {
     /// Bytes as text, one code point per byte.
     static func latin1(_ data: Data) -> String {
-        String(data.map { Character(Unicode.Scalar($0)) })
+        // Foundation's own decoder, not a character-by-character
+        // build. The obvious `String(data.map { Character(...) })`
+        // allocates one `Character` per byte — sixteen bytes each,
+        // plus an array to hold them — so a 25 MB message becomes
+        // hundreds of megabytes and several seconds on a phone. It is
+        // correct and it is unusable, which is the worst kind of
+        // correct.
+        //
+        // `.isoLatin1` cannot fail: every byte is a code point in it.
+        // The fallback exists because the API is optional, not because
+        // there is a case where it is taken.
+        String(data: data, encoding: .isoLatin1) ?? ""
     }
 
     /// The exact bytes back.
     static func bytes(_ s: String) -> Data {
-        Data(s.unicodeScalars.map { UInt8($0.value & 0xFF) })
+        // The same, in the other direction: `data(using:)` is one pass
+        // through Foundation rather than a scalar-by-scalar array.
+        //
+        // The fallback is not decorative here. `data(using:.isoLatin1)`
+        // returns nil when the string holds a code point above U+00FF,
+        // which cannot come from `latin1(_:)` but can come from a
+        // caller who passed ordinary text — and truncating each scalar
+        // to its low byte is what the old code did, so the fallback
+        // keeps that behaviour rather than losing the data.
+        s.data(using: .isoLatin1) ?? Data(s.unicodeScalars.map { UInt8($0.value & 0xFF) })
     }
 
     /// Read back as UTF-8, for the places that really are text.

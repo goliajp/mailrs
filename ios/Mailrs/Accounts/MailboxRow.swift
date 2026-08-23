@@ -13,6 +13,13 @@ struct MailboxRow: Equatable, Codable, Identifiable {
     var date: Int64?
     /// The `Message-ID`, which is what survives a renumbering.
     var messageId: String
+    /// How big the whole message is, when the server said.
+    ///
+    /// On the row so a reader can be told what opening one would cost
+    /// before it costs it — a message with a 25 MB attachment is 25 MB
+    /// to fetch, and on mobile data that is a decision rather than a
+    /// tap.
+    var size: Int64?
 
     /// Unique across accounts.
     ///
@@ -115,6 +122,38 @@ enum MailboxMerge {
 
 /// Folding a pass's worth of rows into what is already held.
 enum MailboxApply {
+    /// How many rows one account may keep.
+    ///
+    /// There is a limit whether or not it is chosen. Every row lives
+    /// in one `UserDefaults` value, encoded and decoded whole on every
+    /// change — so an unbounded list makes each swipe-to-delete a
+    /// rewrite of everything, and a person with six accounts and
+    /// thirty folders each reaches megabytes of it.
+    ///
+    /// Choosing the limit means choosing what falls off. It is the
+    /// order the list itself uses, so what goes is exactly what
+    /// somebody would have had to scroll furthest to see.
+    static let perAccount = 2_000
+
+    /// Keep at most `limit` rows per account.
+    ///
+    /// **Per account, not overall.** One noisy mailbox would otherwise
+    /// evict a quiet one entirely, and the quiet one is where the mail
+    /// a person is waiting for tends to be.
+    static func capped(_ rows: [MailboxRow], limit: Int = perAccount) -> [MailboxRow] {
+        var byAccount: [String: [MailboxRow]] = [:]
+        for row in rows { byAccount[row.accountId, default: []].append(row) }
+        guard byAccount.values.contains(where: { $0.count > limit }) else { return rows }
+        var keep: Set<String> = []
+        for (_, owned) in byAccount {
+            for row in MailboxMerge.newestFirst(owned).prefix(limit) { keep.insert(row.id) }
+        }
+        // Filtered rather than rebuilt from the groups, so the order
+        // rows were held in survives — the list sorts them itself, and
+        // reshuffling storage on every pass makes diffs unreadable.
+        return rows.filter { keep.contains($0.id) }
+    }
+
     /// The held rows, updated by what a pass just read.
     ///
     /// Matched on `id`, so a message read again is the **same row
