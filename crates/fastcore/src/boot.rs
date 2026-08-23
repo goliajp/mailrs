@@ -257,13 +257,6 @@ pub async fn run() {
     tokio::spawn(async move {
         calendar_sync::spawn(calendar_state).await;
     });
-    // Mail from accounts somewhere else. The row and the sealed secret
-    // existed and nothing read them, which is exactly the shape
-    // `one-side-of-the-wire.md` names — this is the second side.
-    let external_state = state.clone();
-    tokio::spawn(async move {
-        external_sync::spawn(external_state).await;
-    });
     // ManageSieve (RFC 5804) — sieve script CRUD on :4190 (G5).
     let sieve_state = state.clone();
     tokio::spawn(async move {

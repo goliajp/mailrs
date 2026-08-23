@@ -54,11 +54,6 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 kevy-embedded = { workspace = true }
 kevy-client = { workspace = true }
 mailrs-core-sidestate = { path = "../core-sidestate" }
-mailrs-imap-client = { path = "../imap-client", version = "1", features = ["net"] }
-mailrs-oauth-client = { path = "../oauth-client", version = "0.1", features = ["net"] }
-mailrs-pop3-client = { path = "../pop3-client", version = "1", features = ["net"] }
-mailrs-jmap-client = { path = "../jmap-client", version = "1" }
-mailrs-secretbox = { path = "../secretbox", version = "1" }
 axum = { version = "0.8" }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"

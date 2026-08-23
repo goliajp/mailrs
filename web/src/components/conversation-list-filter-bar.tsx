@@ -2,7 +2,6 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
-import { AccountFilter } from '@/components/account-filter'
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
 import { MAIL_LIST_ROWS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import {
@@ -130,7 +129,6 @@ export const FilterBar = memo(function FilterBar() {
           you are reading is a standing choice, not one of the
           refinements you open a panel to change. It renders nothing
           until there is a second account to leave out. */}
-      <AccountFilter />
 
       <div className="relative" ref={panelRef}>
         <button

@@ -7,7 +7,6 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutosaveWarning } from '@/components/autosave-warning'
 import { ContactAutocomplete } from '@/components/contact-autocomplete'
-import { FromPicker } from '@/components/from-picker'
 import { useAutosaveStatus } from '@/hooks/use-autosave-status'
 import { useCurrentThreadMessages } from '@/hooks/use-current-list'
 import { useDefaultSignature } from '@/hooks/use-default-signature'
@@ -15,7 +14,6 @@ import { useDeleteDraftMutation, useDraftsQuery, useSaveDraftMutation } from '@/
 import { applyOptimisticSent } from '@/hooks/use-mail-mutations'
 import { buildForwardHeaderHtml, escapeHtml } from '@/lib/html-utils'
 import { parseAddressList, sendMail } from '@/lib/send-mail'
-import { useReplyFrom } from '@/lib/use-reply-from'
 import { authAtom } from '@/store/auth'
 import { wirePolishText, wireReplySuggest } from '@/wire/endpoints/ai'
 import { wireDeletePendingSend } from '@/wire/endpoints/mail'
@@ -36,7 +34,6 @@ type ReplyBoxProps = {
    * leaves by — a reply sent from anywhere else lands in the thread as
    * a stranger, and half the time the recipient's provider refuses it.
    */
-  accountId?: string
   forwardAttachmentsUid?: null | number
   forwardMessageId?: null | string
   lastMessageId: string
@@ -53,7 +50,6 @@ type ReplyBoxProps = {
   threadId: string
 }
 export function ReplyBox({
-  accountId,
   forwardAttachmentsUid,
   forwardMessageId,
   lastMessageId,
@@ -70,7 +66,6 @@ export function ReplyBox({
   threadId,
 }: ReplyBoxProps) {
   const auth = useAtomValue(authAtom)
-  const { from, setFrom } = useReplyFrom(accountId)
   // From the server, not from `localStorage`: the atom that used to
   // feed this was written by no UI anywhere, so the composer's
   // signature was permanently empty while Settings → Signatures saved
@@ -237,7 +232,7 @@ export function ReplyBox({
         body,
         forwardAttachmentsFrom: fwdUid && fwdUid > 0 ? fwdUid : undefined,
         forwardMessageId: fwdMid && fwdMid.length > 0 ? fwdMid : undefined,
-        from: from || (auth?.address ?? ''),
+        from: auth?.address ?? '',
         htmlBody,
         inReplyTo,
         // Always sent, even when `inReplyTo` is set: the server prefers the
@@ -407,9 +402,7 @@ export function ReplyBox({
 
       {/* Renders nothing until there is a second address, so a person
           with one mailbox never sees a control with one option in it. */}
-      <div className="empty:hidden">
-        <FromPicker onChange={setFrom} value={from} />
-      </div>
+      <div className="empty:hidden"></div>
 
       {mode === 'forward' && (
         <div className="border-border shrink-0 border-b px-4 py-2">

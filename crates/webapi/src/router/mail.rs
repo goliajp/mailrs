@@ -275,36 +275,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             "/api/queue/{id}/retry",
             post(handlers::complete::queue_retry),
         )
-        // Mailboxes somewhere else — see
-        // .claude/rfcs/20260823-external-accounts.md
-        .route(
-            "/api/accounts/external",
-            get(handlers::external_accounts::list).post(handlers::external_accounts::create),
-        )
-        .route(
-            "/api/accounts/external/{id}",
-            delete(handlers::external_accounts::delete),
-        )
-        // Pausing, so an account can be switched off without throwing
-        // away its credential and its sync markers.
-        .route(
-            "/api/accounts/external/{id}/paused",
-            post(handlers::external_accounts::set_paused),
-        )
-        // Gmail and Outlook refuse passwords for mail clients, so
-        // this is the only way to connect one at all.
-        .route(
-            "/api/accounts/external/oauth/callback",
-            get(handlers::account_oauth::callback),
-        )
-        .route(
-            "/api/accounts/external/oauth/{provider}",
-            get(handlers::account_oauth::start),
-        )
-        .route(
-            "/api/accounts/external/settings",
-            get(handlers::external_accounts::settings_for),
-        )
         .route(
             "/api/calendar/feeds",
             get(handlers::calendar::list_feeds).post(handlers::calendar::create_feed),

@@ -33,3 +33,16 @@ Multi-line responses are dot-stuffed (RFC 1939 §3): a body line
 beginning with `.` arrives doubled. Undo it or every message
 containing such a line is corrupted — quoted mail and `..` in code
 both produce them.
+
+## No consumer in this repository
+
+mailrs is a mail **server**; reading somebody else's mailbox is a mail
+**client** job. It was briefly wired into the server — accounts synced
+into mailrs's own store — and that was the wrong place: another
+server's mailbox forced through this one's thread model produced a
+folder tree with nowhere to go, a Sent folder filed as received mail,
+and read state living in two places at once. Removed 2026-08-23.
+
+The crate stays because it is a stone: no business types, no mailrs
+types, and useful to anything that needs to read a mailbox. Its
+consumers are elsewhere.

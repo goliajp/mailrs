@@ -271,7 +271,6 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                         // row is a control that does nothing, which is
                         // the shape `one-side-of-the-wire.md` names.
                         if (state.mailAccountsOpen) {
-                            MailAccountsScreen(vm.client)
                         } else
                         SettingsScreen(
                             state = state,

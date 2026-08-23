@@ -153,17 +153,6 @@ pub(super) async fn try_deliver(
         return Outcome::Permanent(format!("recipient on suppression list: {recipient}"));
     }
 
-    // A connected mailbox submits through its own provider rather than
-    // delivering to the recipient's MX. Sent from our IP as
-    // `someone@gmail.com` it fails SPF and DMARC at every receiver, so
-    // the MX path below is not an option for it — this is not a
-    // preference.
-    if let Some(sub) =
-        crate::submit_as::submission_for(sender, &crate::submit_as::all_accounts(&cfg.kevy_url))
-    {
-        return submit_through_provider(cfg, &sub, sender, recipient, message).await;
-    }
-
     let resolver = match TokioResolver::builder_tokio() {
         Ok(b) => match b.build() {
             Ok(r) => r,
@@ -405,89 +394,4 @@ pub(super) async fn try_deliver(
     }
 
     Outcome::Transient(last_err)
-}
-
-/// Hand one message to a provider's submission server.
-///
-/// The credential is the account's, opened from the sealed store. A
-/// refused login is **permanent**: waiting cannot fix a password that
-/// changed, and some providers count the attempts and lock the account.
-async fn submit_through_provider(
-    cfg: &Cfg,
-    sub: &crate::submit_as::Submission,
-    sender: &str,
-    recipient: &str,
-    message: &[u8],
-) -> Outcome {
-    let Some(key) = cfg.account_key.as_ref() else {
-        return Outcome::Permanent(
-            "MAILRS_ACCOUNT_KEY is not set on this server, so a connected \
-             mailbox's password cannot be opened"
-                .into(),
-        );
-    };
-    let Some(cred) = crate::submit_as::open_secret(&cfg.kevy_url, key, &sub.account_id) else {
-        return Outcome::Permanent(format!("no stored credential for {}", sub.user));
-    };
-    // An access token that lapses between syncs would be refused here,
-    // and a refused token reads as a wrong password. Renew before
-    // connecting, on the same rule the sync worker uses.
-    let cred = match crate::submit_as::renewed_if_due(&cfg.kevy_url, key, sub, cred).await {
-        Ok(c) => c,
-        Err(e) => return e,
-    };
-
-    let mut conn = match mailrs_smtp_client::SmtpConnection::connect(&sub.host, sub.port).await {
-        Ok(c) => c,
-        Err(e) => return Outcome::Transient(format!("connect {}: {e}", sub.host)),
-    };
-    if !sub.implicit_tls {
-        conn = match conn.try_starttls(&sub.host).await {
-            mailrs_smtp_client::StarttlsResult::Success(c) => c,
-            // No downgrade to plaintext. A password would go out in the
-            // clear, and `auth_plain` refuses that anyway — better to
-            // retry later than to hand the credential to the path.
-            mailrs_smtp_client::StarttlsResult::Rejected { code, message, .. } => {
-                return Outcome::Transient(format!(
-                    "{} refused STARTTLS: {code} {message}",
-                    sub.host
-                ));
-            }
-            mailrs_smtp_client::StarttlsResult::HandshakeFailed { source, .. } => {
-                return Outcome::Transient(format!("{} TLS handshake: {source}", sub.host));
-            }
-        };
-    }
-    if let Err(e) = conn.ehlo(&cfg.helo).await {
-        return Outcome::Transient(format!("ehlo: {e}"));
-    }
-    // An OAuth account authenticates with the token and its own verb.
-    // Sending it through `AUTH PLAIN` is refused, and the person is
-    // then told their password is wrong.
-    let authed = match crate::submit_as::verb_for(&cred) {
-        crate::submit_as::Verb::Xoauth2 => conn.auth_xoauth2(&sub.user, cred.secret()).await,
-        crate::submit_as::Verb::Plain => conn.auth_plain(&sub.user, cred.secret()).await,
-    };
-    match authed {
-        Ok(r) if r.is_positive() => {}
-        Ok(r) => {
-            let _ = conn.quit().await;
-            let what = crate::submit_as::verb_for(&cred).what_was_refused();
-            return Outcome::Permanent(format!("{} refused the {what}: {}", sub.host, r.code));
-        }
-        Err(e) => {
-            let _ = conn.quit().await;
-            return Outcome::Transient(format!("auth: {e}"));
-        }
-    }
-    let out = match conn.deliver(sender, &[recipient], message).await {
-        Ok(r) if r.is_positive() => Outcome::Delivered,
-        Ok(r) if (500..600).contains(&r.code) => {
-            Outcome::Permanent(format!("{} said {}", sub.host, r.code))
-        }
-        Ok(r) => Outcome::Transient(format!("{} said {}", sub.host, r.code)),
-        Err(e) => Outcome::Transient(format!("submit: {e}")),
-    };
-    let _ = conn.quit().await;
-    out
 }

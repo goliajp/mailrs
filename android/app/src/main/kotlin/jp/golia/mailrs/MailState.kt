@@ -156,24 +156,6 @@ data class UiState(
      * an account with no signature signs nothing.
      */
     val signature: String = "",
-    /**
-     * Every address this person can send as, this server's own first.
-     *
-     * Loaded once when the composer opens. Empty until then, and a
-     * composer that cannot reach the list still sends — from the
-     * signed-in address, which is what every message did before there
-     * was anything to choose.
-     */
-    val fromAddresses: List<jp.golia.mailrs.wire.FromAddress> = emptyList(),
-    /**
-     * Which connected mailboxes the list is narrowed to.
-     *
-     * `null` is no filter at all — not "every id", which narrows to
-     * the same set and costs a longer URL to say nothing.
-     */
-    val selectedAccounts: List<String>? = null,
-    /** The mailboxes there are to narrow to, this server's own first. */
-    val accountFilterRows: List<jp.golia.mailrs.wire.FilterRow> = emptyList(),
     /** Threads picked out for a bulk action. Empty means not selecting. */
     val selected: Set<String> = emptySet(),
     /** Contact suggestions for the field named by [suggestingFor]. */

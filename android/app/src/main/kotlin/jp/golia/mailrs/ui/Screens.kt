@@ -8,8 +8,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import jp.golia.mailrs.markAllRead
-import jp.golia.mailrs.loadAccountFilterRows
-import jp.golia.mailrs.toggleAccountFilter
 import jp.golia.mailrs.openSent
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
@@ -174,9 +172,6 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
         drawerContent = {
             MailListDrawer(
                 current = state.list,
-                accountRows = state.accountFilterRows,
-                selectedAccounts = state.selectedAccounts,
-                onToggleAccount = { vm.toggleAccountFilter(it) },
                 onDrafts = {
                     scope.launch { drawer.close() }
                     vm.openDrafts()
@@ -217,15 +212,7 @@ fun ConversationListScreen(state: UiState, vm: MailViewModel) {
                         onClick = {
                             when {
                                 selecting -> vm.clearSelection()
-                                else -> {
-                                    // Read when the drawer opens rather
-                                    // than at sign-in: an account
-                                    // connected while the app was
-                                    // running would otherwise not
-                                    // appear until it was restarted.
-                                    vm.loadAccountFilterRows()
-                                    scope.launch { drawer.open() }
-                                }
+                                else -> scope.launch { drawer.open() }
                             }
                         },
                         modifier = Modifier.testTag(if (selecting) "button.endSelection" else "button.folders"),
