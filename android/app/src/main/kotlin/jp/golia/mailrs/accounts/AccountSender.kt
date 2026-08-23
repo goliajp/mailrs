@@ -36,6 +36,16 @@ object AccountSender {
     ): Outcome {
         val recipients = OutgoingMessage.envelope(draft, bcc)
         if (recipients.isEmpty()) return Outcome.Failed("Add somebody to send this to")
+        // Refused before sending rather than discovered during it: a
+        // message stopped here is a message somebody still has, and one
+        // that dies mid-send looks exactly like mail that vanished.
+        val room = OutgoingLimits.check(draft)
+        if (room is OutgoingLimits.Verdict.TooLarge) {
+            return Outcome.Failed(
+                "Too large to send: " + humanBytes(room.attachedBytes) +
+                    " attached, and about " + humanBytes(room.limitBytes) + " is the most.",
+            )
+        }
         val secret = store.secret(account.id)
             ?: return Outcome.Failed("Sign in again to send from this account")
         val message = OutgoingMessage.text(
@@ -106,5 +116,12 @@ object AccountSender {
         is SmtpSession.Failure.Refused -> AccountConnection.readable(e.detail)
         is SmtpSession.Failure.Unreachable -> AccountConnection.readable(e.why)
         is SmtpSession.Failure.Closed -> "The outgoing server closed the connection"
+    }
+
+    /** Bytes in the units somebody chose the files in. */
+    internal fun humanBytes(bytes: Long): String = when {
+        bytes < 1_000 -> "$bytes B"
+        bytes < 1_000_000 -> String.format(java.util.Locale.US, "%.0f KB", bytes / 1_000.0)
+        else -> String.format(java.util.Locale.US, "%.0f MB", bytes / 1_000_000.0)
     }
 }

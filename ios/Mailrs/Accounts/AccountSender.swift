@@ -27,6 +27,15 @@ enum AccountSender {
     {
         let recipients = OutgoingMessage.envelope(draft, bcc: bcc)
         guard !recipients.isEmpty else { return .failed("Add somebody to send this to") }
+        // Refused before sending rather than discovered during it: a
+        // message stopped here is a message somebody still has, and one
+        // that dies mid-send looks exactly like mail that vanished.
+        if case let .tooLarge(attached, limit) = OutgoingLimits.check(draft) {
+            let attachedText = attached.formatted(.byteCount(style: .file))
+            let limitText = limit.formatted(.byteCount(style: .file))
+            return .failed(
+                "Too large to send: \(attachedText) attached, and about \(limitText) is the most.")
+        }
         guard let secret = AccountStore.secret(for: account.id) else {
             return .failed("Sign in again to send from this account")
         }
