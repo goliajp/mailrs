@@ -81,4 +81,22 @@ import Testing
         #expect(AccountStore.marks(for: "a")["Old"] == nil)
         AccountStore.saveMarks([:])
     }
+
+    /// **A decision rather than an omission.** This list is what
+    /// arrived: a draft has not been sent to anybody, and a copy of
+    /// everything the person wrote interleaved by date with what they
+    /// received is what every "all inboxes" view deliberately does not
+    /// show.
+    @Test func sentAndDraftsAreNotPartOfAnInbox() {
+        #expect(!MailboxSync.worthReading(("Sent", ["\\Sent"]), skip: []))
+        #expect(!MailboxSync.worthReading(("[Gmail]/Drafts", ["\\Drafts"]), skip: []))
+    }
+
+    /// A folder nobody has labelled is a folder somebody made, and
+    /// those are where filed mail lives — so an unmarked server is
+    /// read whole.
+    @Test func anUnlabelledFolderIsRead() {
+        #expect(MailboxSync.worthReading(("Receipts", []), skip: []))
+        #expect(MailboxSync.worthReading(("INBOX.Work", []), skip: []))
+    }
 }

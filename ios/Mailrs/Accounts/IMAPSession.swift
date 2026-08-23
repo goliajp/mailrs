@@ -272,6 +272,41 @@ actor IMAPSession {
         try await awaitCompletion(t)
     }
 
+    /// The flags of messages already held, and which of them are
+    /// gone.
+    ///
+    /// A sync that only fetches new uids never notices what happened
+    /// elsewhere: a message read on a laptop stays bold here forever,
+    /// and one deleted there stays in the list forever. Both are
+    /// things a person sees immediately and cannot explain.
+    ///
+    /// Cheap on purpose — flags only, for uids this device already
+    /// has, so the answer is a few bytes per message rather than a
+    /// header block.
+    ///
+    /// - Returns: uid to seen, for every uid the server still has. **A
+    ///   uid that was asked about and is missing from the answer is
+    ///   one the server no longer has**, which is how deletion is
+    ///   noticed at all.
+    func flags(uids: [UInt32]) async throws -> [UInt32: Bool] {
+        guard !uids.isEmpty else { return [:] }
+        let t = nextTag()
+        try await send("\(t) UID FETCH \(uids.map(String.init).joined(separator: ",")) (UID FLAGS)\r\n")
+        var out: [UInt32: Bool] = [:]
+        while true {
+            let line = try await readLine()
+            if let done = IMAP.completion(of: line, tag: t) {
+                switch done {
+                case .ok: return out
+                case let .no(d): throw Failure.server(d)
+                case let .bad(d): throw Failure.server(d)
+                }
+            }
+            guard let announced = IMAP.fetchLine(line), let uid = announced.uid else { continue }
+            out[uid] = announced.seen
+        }
+    }
+
     /// What the server said it can do.
     ///
     /// Read rather than assumed: the two commands below exist only on

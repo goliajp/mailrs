@@ -38,21 +38,33 @@ enum MailboxSyncRunner {
             } else {
                 try await session.login(user: account.loginName, password: secret)
             }
+            // What this device already holds, per folder, so the pass
+            // can ask what became of it.
+            var held: [String: [UInt32]] = [:]
+            for row in AccountStore.rows() where row.accountId == account.id {
+                held[row.folder, default: []].append(row.uid)
+            }
             let result = try await MailboxSync.pass(
                 account: account, session: session,
-                marks: AccountStore.marks(for: account.id))
+                marks: AccountStore.marks(for: account.id), held: held)
             await session.close()
 
-            var held = AccountStore.rows()
+            var kept = AccountStore.rows()
             // A renumbering first: the folder's held rows are gone,
             // and applying the fetch on top of rows the server no
             // longer has any way to name would leave both.
             for folder in result.renumbered {
-                held = MailboxApply.replacingFolder(
-                    held: held, accountId: account.id, folder: folder, with: [])
+                kept = MailboxApply.replacingFolder(
+                    held: kept, accountId: account.id, folder: folder, with: [])
             }
-            held = MailboxApply.apply(held: held, fetched: result.rows)
-            AccountStore.saveRows(held)
+            // Then what became of the rest — read elsewhere, or gone.
+            for (folder, answer) in result.refreshed {
+                kept = MailboxRefresh.apply(
+                    held: kept, accountId: account.id, folder: folder,
+                    asked: Set(held[folder] ?? []), answer: answer)
+            }
+            kept = MailboxApply.apply(held: kept, fetched: result.rows)
+            AccountStore.saveRows(kept)
             AccountStore.saveMarks(result.marks, for: account.id)
             return Outcome(accountId: account.id, fetched: result.rows.count, failure: nil)
         } catch let e as IMAPSession.Failure {

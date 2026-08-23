@@ -295,6 +295,45 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
     }
 
     /**
+     * The flags of messages already held, and which of them are gone.
+     *
+     * A sync that only fetches new uids never notices what happened
+     * elsewhere: a message read on a laptop stays bold here forever,
+     * and one deleted there stays in the list forever. Both are things
+     * a person sees immediately and cannot explain.
+     *
+     * Cheap on purpose — flags only, for uids this device already has,
+     * so the answer is a few bytes per message rather than a header
+     * block.
+     *
+     * @return uid to seen, for every uid the server still has. **A uid
+     *   that was asked about and is missing from the answer is one the
+     *   server no longer has**, which is how deletion is noticed at
+     *   all.
+     */
+    suspend fun flags(uids: List<Long>): Map<Long, Boolean> = withContext(Dispatchers.IO) {
+        if (uids.isEmpty()) return@withContext emptyMap()
+        val t = nextTag()
+        write("$t UID FETCH ${uids.joinToString(",")} (UID FLAGS)\r\n")
+        val out = mutableMapOf<Long, Boolean>()
+        while (true) {
+            val line = readLine()
+            Imap.completion(line, t)?.let { done ->
+                when (done) {
+                    is Imap.Completion.Ok -> return@withContext out
+                    is Imap.Completion.No -> throw Failure.Server(done.detail)
+                    is Imap.Completion.Bad -> throw Failure.Server(done.detail)
+                }
+            }
+            val announced = Imap.fetchLine(line) ?: continue
+            val uid = announced.uid ?: continue
+            out[uid] = announced.seen
+        }
+        @Suppress("UNREACHABLE_CODE")
+        out
+    }
+
+    /**
      * What the server said it can do.
      *
      * Read rather than assumed: the two commands below exist only on

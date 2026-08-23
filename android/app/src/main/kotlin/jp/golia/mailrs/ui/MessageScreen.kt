@@ -2,6 +2,7 @@ package jp.golia.mailrs.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.accounts.AccountStore
 import jp.golia.mailrs.accounts.MailAccount
 import jp.golia.mailrs.accounts.MailboxRow
+import jp.golia.mailrs.accounts.MessageAttachments
+import jp.golia.mailrs.accounts.SafeFilename
 import jp.golia.mailrs.accounts.MailAddresses
 import jp.golia.mailrs.accounts.MessageReader
 import jp.golia.mailrs.accounts.ReplyDraft
@@ -51,6 +54,17 @@ fun MessageScreen(
     val context = LocalContext.current
     val store = remember { AccountStore(context) }
     var outcome by remember(row.id) { mutableStateOf<MessageReader.Outcome?>(null) }
+    var opening by remember { mutableStateOf<MessageAttachments.Attachment?>(null) }
+    var openFailure by remember { mutableStateOf("") }
+
+    // Handing the file on is an action, so it happens once per file and
+    // then the offer is cleared. Leaving it in state would re-open the
+    // same attachment on every recomposition.
+    LaunchedEffect(opening) {
+        val attachment = opening ?: return@LaunchedEffect
+        opening = null
+        openFailure = openOnThisPhone(context, row.id, attachment)
+    }
 
     BackHandler { onClose() }
 
@@ -142,6 +156,15 @@ fun MessageScreen(
                             )
                         }
                     }
+                    if (o.loaded.attachments.isNotEmpty()) {
+                        HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+                        for (attachment in o.loaded.attachments) {
+                            AttachmentRow(attachment) { opening = attachment }
+                        }
+                    }
+                    if (openFailure.isNotEmpty()) {
+                        Text(openFailure, color = theme.fgMuted, fontSize = 11.sp)
+                    }
                     if (o.loaded.fromHtml) {
                         // Said plainly rather than hidden: a formatted
                         // message shown as text reads as broken unless
@@ -179,4 +202,81 @@ private fun hasOthers(loaded: MessageReader.Loaded, account: MailAccount?): Bool
         ReplyDraft.recipient(loaded.headers),
         mine,
     ).isNotEmpty()
+}
+
+/**
+ * One attached file.
+ *
+ * Named, sized and typed — the three things somebody needs to decide
+ * whether to open it, and the size especially: a 40 MB file on a phone
+ * on mobile data is a decision, not a tap.
+ */
+@Composable
+private fun AttachmentRow(
+    attachment: MessageAttachments.Attachment,
+    onOpen: () -> Unit,
+) {
+    val theme = LocalTheme.current
+    Column(
+        Modifier
+            .clickable { onOpen() }
+            .padding(vertical = 4.dp)
+            .testTag("message.attachment"),
+    ) {
+        Text(attachment.filename, color = theme.fg, fontSize = 13.sp)
+        Text(
+            // The existing one, in `Attachments.kt`. A second size
+            // formatter is a second answer to the same question, and
+            // adding an `Int` overload beside its `Long` one silently
+            // stole every call made with a literal — which is how a
+            // test of the old one went red on a change that never
+            // touched it.
+            "${attachment.mimeType} · ${humanSize(attachment.size.toLong())}",
+            color = theme.fgMuted,
+            fontSize = 11.sp,
+        )
+    }
+}
+
+/**
+ * Put the bytes somewhere another app can read, and hand them over.
+ *
+ * A per-message directory, because **the filename is the sender's and
+ * is not unique**: two messages carrying `invoice.pdf` would otherwise
+ * overwrite each other's. A `FileProvider` URI is what leaves this app
+ * — handing out a `file://` path has been an error since API 24, and a
+ * world-readable copy would be a worse way to make it work.
+ *
+ * @return why it could not be opened, or empty when it was.
+ */
+private fun openOnThisPhone(
+    context: android.content.Context,
+    rowId: String,
+    attachment: MessageAttachments.Attachment,
+): String {
+    val directory = java.io.File(context.cacheDir, "attachments/" + SafeFilename.of(rowId, "row"))
+    directory.mkdirs()
+    val file = java.io.File(directory, SafeFilename.of(attachment.filename))
+    return runCatching {
+        file.writeBytes(attachment.bytes)
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            context.packageName + ".files",
+            file,
+        )
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+            .setDataAndType(uri, attachment.mimeType)
+            .addFlags(
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_ACTIVITY_NEW_TASK,
+            )
+        context.startActivity(intent)
+        ""
+    }.getOrElse {
+        // **And say so when nothing can open it.** A swallowed
+        // ActivityNotFoundException is a tap that does nothing at all,
+        // which reads as a broken button rather than as a phone with no
+        // PDF reader on it.
+        "No app on this phone opens ${attachment.filename}."
+    }
 }

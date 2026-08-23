@@ -22,6 +22,11 @@ enum MessageReader {
         /// row shows, and a reply needs `Reply-To` and `References`,
         /// which no list has ever displayed.
         var headers = MessageHeaders.Parsed()
+        /// What came with it. Out of the same bytes the body came
+        /// from, so listing them costs nothing beyond the fetch
+        /// already made — a second request to find out whether there
+        /// is an attachment is a second request on somebody's data.
+        var attachments: [MessageAttachments.Attachment] = []
     }
 
     /// What a reader gets: the message, or a sentence about why not.
@@ -64,9 +69,13 @@ enum MessageReader {
     static func display(of raw: Data) -> Loaded {
         let body = MessageBody.extract(raw)
         let headers = MessageHeaders.parse(String(decoding: raw, as: UTF8.self))
+        let attached = MessageAttachments.of(raw)
         guard body.isHTML else {
-            return Loaded(text: body.text, fromHTML: false, headers: headers)
+            return Loaded(
+                text: body.text, fromHTML: false, headers: headers, attachments: attached)
         }
-        return Loaded(text: HTMLText.plain(body.text), fromHTML: true, headers: headers)
+        return Loaded(
+            text: HTMLText.plain(body.text), fromHTML: true, headers: headers,
+            attachments: attached)
     }
 }

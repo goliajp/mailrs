@@ -4548,6 +4548,22 @@
         }
       }
     },
+    "This attachment could not be opened.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この添付ファイルは開けませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个附件无法打开。"
+          }
+        }
+      }
+    },
     "This mailbox is no longer connected": {
       "localizations": {
         "ja": {

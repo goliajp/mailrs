@@ -40,18 +40,28 @@ object MailboxSyncRunner {
             } else {
                 session.login(account.loginName, secret)
             }
-            val result = MailboxSync.pass(account, session, store.marksFor(account.id))
+            // What this device already holds, per folder, so the pass
+            // can ask what became of it.
+            val mine = store.rows().filter { it.accountId == account.id }
+            val held = mine.groupBy { it.folder }.mapValues { (_, rows) -> rows.map { it.uid } }
+            val result = MailboxSync.pass(account, session, store.marksFor(account.id), held)
             session.close()
 
-            var held = store.rows()
+            var kept = store.rows()
             // A renumbering first: the folder's held rows are gone, and
             // applying the fetch on top of rows the server no longer has
             // any way to name would leave both.
             for (folder in result.renumbered) {
-                held = MailboxApply.replacingFolder(held, account.id, folder, emptyList())
+                kept = MailboxApply.replacingFolder(kept, account.id, folder, emptyList())
             }
-            held = MailboxApply.apply(held, result.rows)
-            store.saveRows(held)
+            // Then what became of the rest — read elsewhere, or gone.
+            for ((folder, answer) in result.refreshed) {
+                kept = MailboxRefresh.apply(
+                    kept, account.id, folder, held[folder].orEmpty().toSet(), answer,
+                )
+            }
+            kept = MailboxApply.apply(kept, result.rows)
+            store.saveRows(kept)
             store.saveMarksFor(account.id, result.marks)
             Outcome(account.id, result.rows.size)
         } catch (e: ImapSession.Failure) {
