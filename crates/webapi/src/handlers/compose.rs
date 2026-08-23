@@ -371,41 +371,8 @@ pub(crate) async fn ensure_from_allowed(
     if perms.is_super || perms.send_as.iter().any(|s| s == from) {
         return Ok(());
     }
-    // A mailbox this person connected themselves. They proved they hold
-    // it by giving a password that the provider accepted, which is a
-    // stronger claim than the send-as allowlist an administrator
-    // maintains — and without this branch, replying to mail that
-    // arrived at their own Gmail is refused with a 403 they can do
-    // nothing about.
-    if owns_connected_account(user, from) {
-        return Ok(());
-    }
     tracing::warn!(%user, %from, "send blocked: from not in send_as allowlist");
     Err(StatusCode::FORBIDDEN)
-}
-
-/// Whether `from` is a mailbox this user has connected.
-///
-/// Read from the account rows rather than trusted from the request:
-/// the address arrives from a browser, and the question being asked is
-/// whether this person may send as it.
-fn owns_connected_account(user: &str, from: &str) -> bool {
-    use crate::handlers::kevy_util::with_kevy;
-    let key = format!("ext:accts:{user}");
-    let flat = with_kevy(move |c| c.hgetall(key.as_bytes()).map_err(std::io::Error::from))
-        .unwrap_or_default();
-    let mut i = 0;
-    while i + 1 < flat.len() {
-        if let Ok(row) = serde_json::from_slice::<
-            mailrs_core_sidestate::families::external_accounts::AccountRow,
-        >(&flat[i + 1])
-            && row.email.eq_ignore_ascii_case(from)
-        {
-            return true;
-        }
-        i += 2;
-    }
-    false
 }
 
 #[cfg(test)]

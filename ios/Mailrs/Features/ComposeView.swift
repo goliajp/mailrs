@@ -32,9 +32,6 @@ struct ComposeView: View {
     /// save ran after the send's delete and quietly resurrected it.
     @State private var didSend = false
     @State private var failure: String?
-    /// Which address it leaves by, and everything it could be.
-    @State private var from = ""
-    @State private var fromAddresses: [FromAddress] = []
     /// The id the server gave this session's draft. Held so every
     /// autosave upserts the same one instead of creating another.
     @State private var draftId: Int64?
@@ -53,8 +50,6 @@ struct ComposeView: View {
             // once the keyboard was up, and the body is the only thing
             // anyone opened this to write.
             VStack(spacing: 0) {
-                FromPicker(addresses: fromAddresses, selection: $from)
-                    .padding(.horizontal)
                 ComposerHeader(
                     to: .editable($to), cc: $cc, bcc: $bcc,
                     subject: .editable($subject),
@@ -188,11 +183,6 @@ struct ComposeView: View {
                 }
                 focus = .to
             }
-            .task {
-                fromAddresses = await loadFromAddresses(
-                    session: session, own: session.myAddress)
-                if from.isEmpty { from = fromAddresses.first?.address ?? "" }
-            }
             .onChange(of: [to, cc, bcc, subject, body_]) { _, _ in scheduleAutosave() }
             .onDisappear {
                 autosave?.cancel()
@@ -260,8 +250,7 @@ struct ComposeView: View {
                 attachments: attachments,
                 scheduledAt: schedule.fireDate(after: Date(), calendar: .current),
                 redraftOf: redrafting?.redraftOf,
-                redraftKeep: keptCarried,
-                from: from
+                redraftKeep: keptCarried
             )
             // Sent, so it is no longer a draft. Cancel the pending
             // autosave first or it recreates the one just deleted.

@@ -16,7 +16,6 @@ struct SettingsView: View {
     @State private var signatureDraft = ""
     @State private var showingAliases = false
     @State private var showingAccounts = false
-    @State private var showingMailAccounts = false
     @State private var showingDomains = false
     @State private var showingGroups = false
     @State private var showingQueue = false
@@ -65,14 +64,6 @@ struct SettingsView: View {
                         showingSenders = true
                     } label: {
                         LucideRow(title: "Senders", icon: Lucide.shieldCheck)
-                    }
-                    // Beside the person's own settings, not under the
-                    // admin sections: connecting a Gmail is something
-                    // any reader does for themselves.
-                    Button {
-                        showingMailAccounts = true
-                    } label: {
-                        LucideRow(title: "Mail accounts", icon: Lucide.mails)
                     }
                 }
 
@@ -185,7 +176,6 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingAliases) { AliasesView() }
             .sheet(isPresented: $showingAccounts) { AccountsView() }
-            .sheet(isPresented: $showingMailAccounts) { MailAccountsView() }
             .sheet(isPresented: $showingDomains) { DomainsView() }
             .sheet(isPresented: $showingGroups) { EmailGroupsView() }
             .sheet(isPresented: $showingQueue) { QueueView() }

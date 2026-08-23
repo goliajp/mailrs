@@ -103,35 +103,3 @@ fun MailViewModel.reportFailure(message: String) {
 fun MailViewModel.dismissError() {
     _state.update { it.copy(error = null) }
 }
-
-/**
- * Tick or untick one mailbox in the list filter.
- *
- * The rule is shared with the web and iOS — a filter that behaves
- * differently on a phone is a filter nobody trusts. Unticking the last
- * one is refused: a list narrowed to no accounts is a blank screen
- * whose only way back is the control that produced it.
- */
-fun MailViewModel.toggleAccountFilter(id: String) {
-    val rows = _state.value.accountFilterRows
-    if (rows.isEmpty()) return
-    val next = jp.golia.mailrs.wire.toggledAccounts(
-        _state.value.selectedAccounts,
-        rows.map { it.id },
-        id,
-    )
-    if (next == _state.value.selectedAccounts) return
-    _state.update { it.copy(selectedAccounts = next) }
-    // The list is a different question now, so it is asked again
-    // rather than filtered in place: the server decides membership.
-    show(_state.value.list)
-}
-
-/**
- * Load the mailboxes there are to narrow to.
- *
- * Called when the drawer opens rather than at sign-in: an account
- * connected while the app was running would otherwise not appear until
- * it was restarted.
- */
-fun MailViewModel.loadAccountFilterRows() = loadFromAddresses()

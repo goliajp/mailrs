@@ -17,7 +17,6 @@ import {
 } from '@/hooks/use-current-list'
 import { useThreadQuery } from '@/hooks/use-mail-queries'
 import { useMarkReadOnOpen } from '@/hooks/use-mark-read-on-open'
-import { useThreadAccountId } from '@/hooks/use-thread-account'
 import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { extractEmail } from '@/lib/avatar'
@@ -80,7 +79,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const setSelectedId = useSelectThreadId()
   // Which mailbox this conversation arrived at, so a reply leaves by
   // the same door it came in.
-  const threadAccountId = useThreadAccountId(selectedId)
   const currentIdx = selectedId ? rows.findIndex((r) => r.threadId === selectedId) : -1
   const hasPrev = currentIdx > 0
   const hasNext = currentIdx >= 0 && currentIdx < rows.length - 1
@@ -203,9 +201,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     (msg: ThreadMessage) => {
       if (!selectedId) return
       setComposeReplySource({
-        // So a forward leaves by the address the thread arrived at,
-        // the same rule the reply box follows.
-        accountId: threadAccountId,
         htmlBody: msg.html_body || null,
         internalDate: msg.internal_date,
         messageId: msg.message_id,
@@ -217,7 +212,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       })
       setComposingNew(true)
     },
-    [selectedId, setComposeReplySource, setComposingNew, threadAccountId]
+    [selectedId, setComposeReplySource, setComposingNew]
   )
 
   useEffect(() => {
@@ -346,7 +341,6 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const fwdLastMessageId = forwardSource?.messageId ?? lastMsg?.message_id ?? ''
 
   const replyCtx: ThreadReplyContext = {
-    accountId: threadAccountId,
     forwardAttachmentsUid: fwdUid,
     forwardMessageId: fwdMessageId,
     lastMessageId: fwdLastMessageId,

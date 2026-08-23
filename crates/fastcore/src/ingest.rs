@@ -32,29 +32,6 @@ pub(crate) fn ingest_delivered_file(
     body: &[u8],
     target_folder: &str,
 ) {
-    ingest_delivered_file_as(state, addr, blob_ref, body, target_folder, None)
-}
-
-/// The same door, for mail that arrives already read somewhere else.
-///
-/// `already_read` is `Some(true)` for a message an IMAP server reported
-/// as `\Seen`. A connected mailbox is somebody's mailbox and they have
-/// been in it: their read mail arrived here unread, so connecting an
-/// account produced a few thousand unread messages the person had
-/// already dealt with — and the count on the folder was wrong from the
-/// first sync.
-///
-/// `None` means nobody knows, which is every other caller: the spool,
-/// an IMAP append, a POP3 fetch. Those keep the old rule — unread
-/// unless this person wrote it.
-pub(crate) fn ingest_delivered_file_as(
-    state: &Arc<FastcoreState>,
-    addr: &str,
-    blob_ref: &str,
-    body: &[u8],
-    target_folder: &str,
-    already_read: Option<bool>,
-) {
     let head = &body[..body.len().min(16 * 1024)];
     let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
     if message_id.is_empty() {
@@ -92,12 +69,7 @@ pub(crate) fn ingest_delivered_file_as(
         }
     };
     let is_own = mailrs_mailbox_kevy::senders_csv_contains_user(&from, addr);
-    // What the other server says wins over the guess. It knows; this
-    // end is inferring from the sender.
-    let unread = match already_read {
-        Some(read) => !read,
-        None => !is_own,
-    };
+    let unread = !is_own;
     // v2.4.0 Phase 2 (RFC-A) — plumb the SMTP-level target_folder
     // decision (from `crates/receiver/src/smtp_session/events/data/antispam.rs`
     // where DeliveryDecision::Junk yields target_folder="Junk") into the
@@ -408,69 +380,5 @@ four days on, still blocked\r\n";
             wire.invite_method, "",
             "a plain message claimed to carry an invitation"
         );
-    }
-
-    /// Mail that the other server says has been read arrives read.
-    ///
-    /// A connected mailbox is somebody's mailbox and they have been in
-    /// it. `\Seen` was fetched, parsed and thrown away, so the first
-    /// sync of an account produced thousands of unread messages that
-    /// had all been dealt with — and every folder count was wrong from
-    /// the start.
-    #[test]
-    fn a_message_the_other_server_calls_read_arrives_read() {
-        let state = fresh_state();
-        ingest_delivered_file_as(
-            &state,
-            "bob@golia.jp",
-            "ext-acc_1-INBOX-9",
-            MESSAGE,
-            "INBOX",
-            Some(true),
-        );
-        let row = state
-            .mailbox
-            .get_thread_for_user("bob@golia.jp", "m1@example.com")
-            .expect("thread read")
-            .expect("the thread exists");
-        assert_eq!(
-            row.unread_count, 0,
-            "mail that had already been read arrived unread"
-        );
-    }
-
-    /// And one it calls unread still arrives unread, so the flag is
-    /// being read rather than everything being marked read.
-    #[test]
-    fn a_message_the_other_server_calls_unread_arrives_unread() {
-        let state = fresh_state();
-        ingest_delivered_file_as(
-            &state,
-            "bob@golia.jp",
-            "ext-acc_1-INBOX-9",
-            MESSAGE,
-            "INBOX",
-            Some(false),
-        );
-        let row = state
-            .mailbox
-            .get_thread_for_user("bob@golia.jp", "m1@example.com")
-            .expect("thread read")
-            .expect("the thread exists");
-        assert_eq!(row.unread_count, 1, "an unread message arrived read");
-    }
-
-    /// Every other caller says nothing and keeps the old rule: unread
-    /// unless this person wrote it.
-    #[test]
-    fn a_caller_that_knows_nothing_keeps_the_old_rule() {
-        let state = fresh_state();
-        ingest_delivered_file(&state, "bob@golia.jp", "m1.eml", MESSAGE, "INBOX");
-        let row = state
-            .mailbox
-            .get_thread_for_user("bob@golia.jp", "m1@example.com")
-            .expect("thread read")
-            .expect("the thread exists");
-        assert_eq!(row.unread_count, 1);
     }
 }

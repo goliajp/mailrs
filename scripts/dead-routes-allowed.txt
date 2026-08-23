@@ -25,4 +25,3 @@
 /api/admin/audit/conversations/{thread_id}  # the audit page reads `/{thread_id}/messages`, which is the level it displays. The bare thread route returns the same rows unfiltered.
 /api/admin/audit-log/export                 # the audit page lists with `?limit=`; nobody has asked to download the log. Left because an export that has to be re-added later is worse than one that waits.
 /api/mail/sends/{send_id}/source            # `message/rfc822` bytes of a send. Web reaches `/redraft` and `/resend`, which are what the Send view offers; raw source has no UI on either client.
-/api/accounts/external/oauth/callback # the provider's browser redirect lands here, so no client calls it — the same shape as /api/auth/external/callback beside it

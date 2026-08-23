@@ -1,7 +1,6 @@
 //! REST + MCP handlers. Phase 3 — each handler is a thin shim that
 //! delegates to `state.core_client.X()` RPC calls.
 
-pub mod account_oauth;
 pub mod admin;
 pub mod admin_audit;
 pub mod admin_directory;
@@ -24,8 +23,6 @@ pub mod conversations;
 pub mod dav;
 pub mod dmarc;
 pub mod events;
-pub mod external_account_test;
-pub mod external_accounts;
 pub mod external_login;
 pub mod groups;
 pub mod icon;

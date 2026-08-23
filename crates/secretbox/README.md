@@ -21,3 +21,16 @@ let plain = open(&key, &sealed)?;             // the token again
 The sealed form is `v1.<key-fingerprint>.<base64 nonce+ciphertext>`.
 The fingerprint is eight bytes of SHA-256 over the key: enough to tell
 two keys apart in a store, not enough to attack the key.
+
+## No consumer in this repository
+
+mailrs is a mail **server**; reading somebody else's mailbox is a mail
+**client** job. It was briefly wired into the server — accounts synced
+into mailrs's own store — and that was the wrong place: another
+server's mailbox forced through this one's thread model produced a
+folder tree with nowhere to go, a Sent folder filed as received mail,
+and read state living in two places at once. Removed 2026-08-23.
+
+The crate stays because it is a stone: no business types, no mailrs
+types, and useful to anything that needs to read a mailbox. Its
+consumers are elsewhere.

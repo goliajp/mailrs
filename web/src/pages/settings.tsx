@@ -22,11 +22,6 @@ const EncryptionKeysSection = lazy(() =>
     default: m.EncryptionKeysSection,
   }))
 )
-const MailAccountsSection = lazy(() =>
-  import('@/components/settings/mail-accounts-section').then((m) => ({
-    default: m.MailAccountsSection,
-  }))
-)
 const SecuritySection = lazy(() =>
   import('@/components/settings/security-section').then((m) => ({ default: m.SecuritySection }))
 )
@@ -51,7 +46,6 @@ type Category =
   | 'appearance'
   | 'calendar-feeds'
   | 'keys'
-  | 'mail-accounts'
   | 'security'
   | 'senders'
   | 'signatures'
@@ -60,7 +54,6 @@ type Category =
 const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'account', label: 'Account' },
   { key: 'security', label: 'Security' },
-  { key: 'mail-accounts', label: 'Mail accounts' },
   { key: 'signatures', label: 'Signatures' },
   { key: 'senders', label: 'Senders' },
   { key: 'keys', label: 'Encryption Keys' },
@@ -142,7 +135,6 @@ export function Settings() {
             <Suspense fallback={<SectionFallback />}>
               {active === 'account' && <AccountSection />}
               {active === 'security' && <SecuritySection />}
-              {active === 'mail-accounts' && <MailAccountsSection />}
               {active === 'signatures' && <SignaturesSection />}
               {active === 'senders' && <SendersSection />}
               {active === 'keys' && <EncryptionKeysSection />}

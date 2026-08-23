@@ -14,15 +14,12 @@ name = "mailrs-webapi"
 path = "src/main.rs"
 
 [dependencies]
+mailrs-oauth-client = { path = "../oauth-client", version = "0.1" }
 mailrs-core-api = { path = "../core-api", features = ["client"] }
 # webapi enqueues outbound directly against the shared network kevy
 # (v2 job hash + pending-idx); the primitives live in core-sidestate
 # so the stone's RPC handler and webapi write via the same routine.
 mailrs-core-sidestate = { path = "../core-sidestate" }
-mailrs-mailprovider = { path = "../mailprovider", version = "1" }
-mailrs-imap-client = { path = "../imap-client", version = "1", features = ["net"] }
-mailrs-pop3-client = { path = "../pop3-client", version = "1", features = ["net"] }
-mailrs-secretbox = { path = "../secretbox", version = "1" }
 # Phase 3 §14-16 — the writing-assistance prompts and sanitising, shared
 # with the monolith lane so the two cannot drift. The provider is
 # constructed here only when MAILRS_AI_ANALYSIS_ENABLED is set; otherwise
@@ -30,7 +27,6 @@ mailrs-secretbox = { path = "../secretbox", version = "1" }
 mailrs-intelligence = { path = "../intelligence", version = "3" }
 # External login: PKCE, token exchange, and the per-provider rules about
 # which parts of an identity can be believed.
-mailrs-oauth-client = { path = "../oauth-client", version = "0.1" }
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws", "multipart"] }
 futures-util = "0.3"
