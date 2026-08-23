@@ -7,7 +7,19 @@ import Foundation
 /// one every client gets wrong once.
 enum FetchPlan: Equatable {
     /// Never read this folder: everything in it.
-    case everything
+    /// Never read this folder: the newest `count` of it.
+    ///
+    /// **Not everything.** A first sync of a mailbox with fifty
+    /// thousand messages would fetch fifty thousand header blocks —
+    /// hundreds of megabytes, many minutes, and a row list far past
+    /// what this device stores in one go. Every mail client fetches a
+    /// window and offers to go further; this fetches the window.
+    ///
+    /// By **sequence number**, not uid, because "the last five hundred
+    /// messages" is what a sequence number means and there is no uid
+    /// arithmetic that says it — uids have gaps wherever anything was
+    /// ever deleted.
+    case newest(count: Int, exists: Int)
     /// Read before, and the server's numbering still means what it
     /// meant: only what arrived since.
     case since(uid: UInt32)
@@ -20,14 +32,35 @@ enum FetchPlan: Equatable {
     ///
     /// Not a fault and not rare: providers renumber after a restore, a
     /// migration, or a mailbox rename.
-    case renumbered
+    case renumbered(count: Int, exists: Int)
 
-    /// The range for a `UID FETCH`.
+    /// The range, and **which command it belongs to**.
+    ///
+    /// `UID FETCH 1:500` and `FETCH 1:500` mean completely different
+    /// things — the first is uids, the second is positions in the
+    /// folder — so the two travel together rather than as a string a
+    /// caller pairs with a verb by hand.
     var range: String {
         switch self {
-        case .everything, .renumbered: "1:*"
+        case let .newest(count, exists): FetchPlan.window(count: count, exists: exists)
+        case let .renumbered(count, exists): FetchPlan.window(count: count, exists: exists)
         case let .since(uid): "\(uid + 1):*"
         }
+    }
+
+    /// Whether `range` is uids. `false` means sequence numbers.
+    var byUid: Bool {
+        if case .since = self { return true }
+        return false
+    }
+
+    /// How much of a folder a first pass reads.
+    static let window = 500
+
+    /// The last `count` positions, or the whole folder when it is
+    /// smaller than that.
+    static func window(count: Int, exists: Int) -> String {
+        "\(max(1, exists - count + 1)):*"
     }
 }
 
@@ -45,10 +78,17 @@ struct FolderMark: Equatable, Codable {
 
 extension FetchPlan {
     /// Decide, from what is held and what the server just said.
-    static func decide(mark: FolderMark?, serverValidity: UInt32) -> FetchPlan {
-        guard let mark else { return .everything }
-        if mark.uidValidity != serverValidity { return .renumbered }
-        if mark.highestUid == 0 { return .everything }
+    /// - Parameter exists: how many messages the folder holds, from
+    ///   `SELECT`. Needed because a first pass counts from the end.
+    static func decide(
+        mark: FolderMark?, serverValidity: UInt32, exists: Int = 0,
+        window: Int = FetchPlan.window
+    ) -> FetchPlan {
+        guard let mark else { return .newest(count: window, exists: exists) }
+        if mark.uidValidity != serverValidity {
+            return .renumbered(count: window, exists: exists)
+        }
+        if mark.highestUid == 0 { return .newest(count: window, exists: exists) }
         return .since(uid: mark.highestUid)
     }
 }

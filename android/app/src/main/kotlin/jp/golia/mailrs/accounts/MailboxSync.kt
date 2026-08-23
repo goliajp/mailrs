@@ -52,11 +52,11 @@ object MailboxSync {
         for (folder in session.list()) {
             if (!worthReading(folder.name, folder.attributes, account.skipFolders)) continue
             try {
-                val (validity, _) = session.select(folder.name)
-                val plan = FetchPlan.decide(marks[folder.name], validity)
+                val (validity, exists) = session.select(folder.name)
+                val plan = FetchPlan.decide(marks[folder.name], validity, exists)
                 if (plan is FetchPlan.Renumbered) renumbered += folder.name
 
-                val fetched = session.fetchHeaders(plan.range)
+                val fetched = session.fetchHeaders(plan.range, plan.byUid)
                 var highest = if (plan is FetchPlan.Renumbered) {
                     0L
                 } else {

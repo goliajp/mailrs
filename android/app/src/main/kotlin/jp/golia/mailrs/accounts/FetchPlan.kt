@@ -27,8 +27,21 @@ data class FolderMark(
  * every client gets wrong once.
  */
 sealed interface FetchPlan {
-    /** Never read this folder: everything in it. */
-    data object Everything : FetchPlan
+    /**
+     * Never read this folder: the newest [count] of it.
+     *
+     * **Not everything.** A first sync of a mailbox with fifty
+     * thousand messages would fetch fifty thousand header blocks —
+     * hundreds of megabytes, many minutes, and a row list far past
+     * what this device stores in one go. Every mail client fetches a
+     * window and offers to go further; this fetches the window.
+     *
+     * By **sequence number**, not uid, because "the last five hundred
+     * messages" is what a sequence number means and there is no uid
+     * arithmetic that says it — uids have gaps wherever anything was
+     * ever deleted.
+     */
+    data class Newest(val count: Int, val exists: Int) : FetchPlan
 
     /**
      * Read before, and the server's numbering still means what it
@@ -47,21 +60,58 @@ sealed interface FetchPlan {
      * Not a fault and not rare: providers renumber after a restore, a
      * migration, or a mailbox rename.
      */
-    data object Renumbered : FetchPlan
+    data class Renumbered(val count: Int, val exists: Int) : FetchPlan
 
-    /** The range for a `UID FETCH`. */
+    /**
+     * The range, and **which command it belongs to**.
+     *
+     * `UID FETCH 1:500` and `FETCH 1:500` mean completely different
+     * things — the first is uids, the second is positions in the
+     * folder — so the two travel together rather than as a string a
+     * caller pairs with a verb by hand.
+     */
     val range: String
         get() = when (this) {
-            is Everything, is Renumbered -> "1:*"
+            is Newest -> window(count, exists)
+            is Renumbered -> window(count, exists)
             is Since -> "${uid + 1}:*"
         }
 
+    /** Whether [range] is uids. `false` means sequence numbers. */
+    val byUid: Boolean
+        get() = when (this) {
+            is Since -> true
+            else -> false
+        }
+
     companion object {
-        /** Decide, from what is held and what the server just said. */
-        fun decide(mark: FolderMark?, serverValidity: Long): FetchPlan = when {
-            mark == null -> Everything
-            mark.uidValidity != serverValidity -> Renumbered
-            mark.highestUid == 0L -> Everything
+        /** How much of a folder a first pass reads. */
+        const val WINDOW = 500
+
+        /**
+         * The last [count] positions, or the whole folder when it is
+         * smaller than that.
+         */
+        internal fun window(count: Int, exists: Int): String {
+            val from = maxOf(1, exists - count + 1)
+            return "$from:*"
+        }
+
+        /**
+         * Decide, from what is held and what the server just said.
+         *
+         * @param exists how many messages the folder holds, from
+         *   `SELECT`. Needed because a first pass counts from the end.
+         */
+        fun decide(
+            mark: FolderMark?,
+            serverValidity: Long,
+            exists: Int = 0,
+            window: Int = WINDOW,
+        ): FetchPlan = when {
+            mark == null -> Newest(window, exists)
+            mark.uidValidity != serverValidity -> Renumbered(window, exists)
+            mark.highestUid == 0L -> Newest(window, exists)
             else -> Since(mark.highestUid)
         }
     }

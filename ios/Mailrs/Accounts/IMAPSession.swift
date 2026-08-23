@@ -172,9 +172,15 @@ actor IMAPSession {
     /// The literal is read **by the byte count the server announced**,
     /// never by scanning for a terminator: a message contains every
     /// byte sequence a terminator could be made of.
-    func fetchHeaders(range: String) async throws -> [Fetched] {
+    /// - Parameter byUid: whether `range` is uids or **positions**.
+    ///   `UID FETCH 1:500` and `FETCH 1:500` mean completely different
+    ///   things, and a first pass counts from the end of the folder,
+    ///   which only a position can say.
+    func fetchHeaders(range: String, byUid: Bool = true) async throws -> [Fetched] {
         let t = nextTag()
-        try await send("\(t) UID FETCH \(range) (UID FLAGS BODY.PEEK[HEADER])\r\n")
+        var verb = "FETCH"
+        if byUid { verb = "UID FETCH" }
+        try await send("\(t) \(verb) \(range) (UID FLAGS BODY.PEEK[HEADER])\r\n")
         var out: [Fetched] = []
         while true {
             let line = try await readLine()
@@ -289,22 +295,32 @@ actor IMAPSession {
     ///   one the server no longer has**, which is how deletion is
     ///   noticed at all.
     func flags(uids: [UInt32]) async throws -> [UInt32: Bool] {
-        guard !uids.isEmpty else { return [:] }
-        let t = nextTag()
-        try await send("\(t) UID FETCH \(uids.map(String.init).joined(separator: ",")) (UID FLAGS)\r\n")
         var out: [UInt32: Bool] = [:]
-        while true {
-            let line = try await readLine()
-            if let done = IMAP.completion(of: line, tag: t) {
-                switch done {
-                case .ok: return out
-                case let .no(d): throw Failure.server(d)
-                case let .bad(d): throw Failure.server(d)
+        // Collapsed to ranges and split into commands a server will
+        // accept: naming five thousand uids one by one is a line tens
+        // of kilobytes long, and the mailbox that most needs its flags
+        // refreshed would be the one where the refresh stops working.
+        for batch in UidRanges.batches(uids) {
+            let t = nextTag()
+            try await send("\(t) UID FETCH \(batch) (UID FLAGS)\r\n")
+            var finished = false
+            while !finished {
+                let line = try await readLine()
+                if let done = IMAP.completion(of: line, tag: t) {
+                    switch done {
+                    case .ok: finished = true
+                    case let .no(d): throw Failure.server(d)
+                    case let .bad(d): throw Failure.server(d)
+                    }
+                    continue
                 }
+                guard let announced = IMAP.fetchLine(line), let uid = announced.uid else {
+                    continue
+                }
+                out[uid] = announced.seen
             }
-            guard let announced = IMAP.fetchLine(line), let uid = announced.uid else { continue }
-            out[uid] = announced.seen
         }
+        return out
     }
 
     /// What the server said it can do.

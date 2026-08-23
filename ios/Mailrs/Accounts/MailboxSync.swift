@@ -39,12 +39,17 @@ enum MailboxSync {
 
         for folder in folders where worthReading(folder, skip: account.skipFolders) {
             do {
-                let (validity, _) = try await session.select(folder.name)
-                let plan = FetchPlan.decide(mark: marks[folder.name], serverValidity: validity)
-                if plan == .renumbered { out.renumbered.insert(folder.name) }
+                let (validity, exists) = try await session.select(folder.name)
+                let plan = FetchPlan.decide(
+                    mark: marks[folder.name], serverValidity: validity, exists: exists)
+                var renumbered = false
+                if case .renumbered = plan { renumbered = true }
+                if renumbered { out.renumbered.insert(folder.name) }
 
-                let fetched = try await session.fetchHeaders(range: plan.range)
-                var highest = plan == .renumbered ? 0 : (marks[folder.name]?.highestUid ?? 0)
+                let fetched = try await session.fetchHeaders(
+                    range: plan.range, byUid: plan.byUid)
+                var highest = marks[folder.name]?.highestUid ?? 0
+                if renumbered { highest = 0 }
                 for message in fetched {
                     out.rows.append(
                         MailboxRow(
@@ -70,7 +75,7 @@ enum MailboxSync {
                 // Skipped on a renumbering, where the old uids mean
                 // nothing and every row for the folder is replaced.
                 let already = held[folder.name] ?? []
-                if plan != .renumbered, !already.isEmpty {
+                if !renumbered, !already.isEmpty {
                     out.refreshed[folder.name] = try await session.flags(uids: already)
                 }
             } catch {

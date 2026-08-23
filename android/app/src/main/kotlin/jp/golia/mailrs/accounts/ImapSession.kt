@@ -221,9 +221,20 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
      * never by scanning for a terminator: a message contains every
      * byte sequence a terminator could be made of.
      */
-    suspend fun fetchHeaders(range: String): List<Fetched> = withContext(Dispatchers.IO) {
+    /**
+     * @param byUid whether [range] is uids or **positions**. `UID
+     *   FETCH 1:500` and `FETCH 1:500` mean completely different
+     *   things, and a first pass counts from the end of the folder,
+     *   which only a position can say.
+     */
+    suspend fun fetchHeaders(range: String, byUid: Boolean = true): List<Fetched> =
+        withContext(Dispatchers.IO) {
         val t = nextTag()
-        write("$t UID FETCH $range (UID FLAGS BODY.PEEK[HEADER])\r\n")
+        val verb = when {
+            byUid -> "UID FETCH"
+            else -> "FETCH"
+        }
+        write("$t $verb $range (UID FLAGS BODY.PEEK[HEADER])\r\n")
         val out = mutableListOf<Fetched>()
         while (true) {
             val line = readLine()
@@ -324,24 +335,30 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
      *   all.
      */
     suspend fun flags(uids: List<Long>): Map<Long, Boolean> = withContext(Dispatchers.IO) {
-        if (uids.isEmpty()) return@withContext emptyMap()
-        val t = nextTag()
-        write("$t UID FETCH ${uids.joinToString(",")} (UID FLAGS)\r\n")
         val out = mutableMapOf<Long, Boolean>()
-        while (true) {
-            val line = readLine()
-            Imap.completion(line, t)?.let { done ->
-                when (done) {
-                    is Imap.Completion.Ok -> return@withContext out
-                    is Imap.Completion.No -> throw Failure.Server(done.detail)
-                    is Imap.Completion.Bad -> throw Failure.Server(done.detail)
+        // Collapsed to ranges and split into commands a server will
+        // accept: naming five thousand uids one by one is a line tens
+        // of kilobytes long, and the mailbox that most needs its flags
+        // refreshed would be the one where the refresh stops working.
+        for (batch in UidRanges.batches(uids)) {
+            val t = nextTag()
+            write("$t UID FETCH $batch (UID FLAGS)\r\n")
+            while (true) {
+                val line = readLine()
+                val done = Imap.completion(line, t)
+                if (done != null) {
+                    when (done) {
+                        is Imap.Completion.Ok -> Unit
+                        is Imap.Completion.No -> throw Failure.Server(done.detail)
+                        is Imap.Completion.Bad -> throw Failure.Server(done.detail)
+                    }
+                    break
                 }
+                val announced = Imap.fetchLine(line) ?: continue
+                val uid = announced.uid ?: continue
+                out[uid] = announced.seen
             }
-            val announced = Imap.fetchLine(line) ?: continue
-            val uid = announced.uid ?: continue
-            out[uid] = announced.seen
         }
-        @Suppress("UNREACHABLE_CODE")
         out
     }
 
