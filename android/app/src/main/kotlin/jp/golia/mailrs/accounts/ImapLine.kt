@@ -156,7 +156,20 @@ object Imap {
      * body contains every byte sequence a terminator could be made of,
      * so scanning truncates mail at whatever looks like the end.
      */
-    data class Announced(val uid: Long?, val seen: Boolean, val literalBytes: Int?)
+    data class Announced(
+        val uid: Long?,
+        val seen: Boolean,
+        val literalBytes: Int?,
+        /**
+         * `RFC822.SIZE` — how big the whole message is.
+         *
+         * Asked for with the headers so a reader can be told what
+         * opening one would cost before it costs it: a message with a
+         * 25 MB attachment is 25 MB to fetch, and on mobile data that
+         * is a decision rather than a tap.
+         */
+        val size: Long? = null,
+    )
 
     /** Read a `FETCH` line. */
     fun fetchLine(line: String): Announced? {
@@ -172,7 +185,7 @@ object Imap {
         } else {
             null
         }
-        return Announced(uid, seen, literal)
+        return Announced(uid, seen, literal, numberAfter("RFC822.SIZE ", line))
     }
 
     /** The number after a keyword, or null. */

@@ -7,6 +7,10 @@ import Foundation
 /// it has ever shown fills up, and the ones worth keeping are the ones
 /// somebody chose to keep.
 enum MessageReader {
+    /// How a session is made; injectable like the others.
+    nonisolated(unsafe) static var openImap: (String, UInt16) -> IMAPSession = {
+        IMAPSession(host: $0, port: $1)
+    }
     struct Loaded: Equatable {
         /// Always text by the time it gets here: markup is turned into
         /// text rather than rendered, so no message can ask another
@@ -27,6 +31,15 @@ enum MessageReader {
         /// already made — a second request to find out whether there
         /// is an attachment is a second request on somebody's data.
         var attachments: [MessageAttachments.Attachment] = []
+        /// Set when only the beginning of the message was fetched.
+        ///
+        /// **The screen must say so.** The text will usually be
+        /// complete — it comes before the attachments in nearly every
+        /// message — but the attachment list will not be, and a list
+        /// that is silently short is worse than one that is absent.
+        var partial = false
+        /// What the whole message weighs, for the offer to fetch it.
+        var size: Int64?
     }
 
     /// What a reader gets: the message, or a sentence about why not.
@@ -35,11 +48,15 @@ enum MessageReader {
         case failed(String)
     }
 
-    static func load(account: MailAccount, row: MailboxRow) async -> Outcome {
+    /// - Parameter wholeMessage: set when the reader has asked for
+    ///   the whole of a large one.
+    static func load(
+        account: MailAccount, row: MailboxRow, wholeMessage: Bool = false
+    ) async -> Outcome {
         guard let secret = AccountStore.secret(for: account.id) else {
             return .failed("Sign in again to read this account")
         }
-        let session = IMAPSession(host: account.imapHost, port: account.imapPort)
+        let session = openImap(account.imapHost, account.imapPort)
         do {
             try await session.connect()
             if account.auth == .oauth2 {
@@ -48,7 +65,8 @@ enum MessageReader {
                 try await session.login(user: account.loginName, password: secret)
             }
             _ = try await session.select(row.folder)
-            let raw = try await session.fetchRaw(uid: row.uid)
+            let plan = FetchWhole.decide(size: row.size, askedForAll: wholeMessage)
+            let raw = try await session.fetchRaw(uid: row.uid, plan: plan)
             // Marked read only after the body is in hand: a fetch that
             // fails should leave the message unread, or a server that
             // was briefly unwell quietly empties somebody's unread
@@ -58,7 +76,10 @@ enum MessageReader {
                 AccountStore.saveRows(MailboxApply.markSeen(AccountStore.rows(), id: row.id))
             }
             await session.close()
-            return .loaded(display(of: raw))
+            var loaded = display(of: raw)
+            if case .beginning = plan { loaded.partial = true }
+            loaded.size = row.size
+            return .loaded(loaded)
         } catch {
             await session.close()
             return .failed("Could not open this message")

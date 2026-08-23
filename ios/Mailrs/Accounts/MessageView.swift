@@ -13,6 +13,7 @@ struct MessageView: View {
     /// The attachment being previewed, if any.
     @State private var previewing: PreviewFile?
     @State private var openFailure = ""
+    @State private var wholeMessage = false
 
     /// A file on disk, identified for `.sheet(item:)`.
     private struct PreviewFile: Identifiable {
@@ -67,7 +68,8 @@ struct MessageView: View {
                 outcome = .failed("This mailbox is no longer connected")
                 return
             }
-            outcome = await MessageReader.load(account: account, row: row)
+            outcome = await MessageReader.load(
+                account: account, row: row, wholeMessage: wholeMessage)
         }
     }
 
@@ -196,6 +198,32 @@ struct MessageView: View {
                             .font(.caption2)
                             .foregroundStyle(theme.fgMuted)
                     }
+                }
+                if loaded.partial {
+                    // **Said, not hidden.** The text is usually
+                    // complete, but the attachment list is not — and a
+                    // list that is silently short is worse than one
+                    // that is absent. The offer carries the size,
+                    // because that is the thing being decided.
+                    Divider()
+                    Text("Only the beginning was fetched. Attachments may be missing.")
+                        .font(.caption2)
+                        .foregroundStyle(theme.fgMuted)
+                    Button {
+                        wholeMessage = true
+                        outcome = nil
+                        Task {
+                            guard let account else { return }
+                            outcome = await MessageReader.load(
+                                account: account, row: row, wholeMessage: true)
+                        }
+                    } label: {
+                        Text(
+                            "Fetch the whole message ("
+                                + (loaded.size ?? 0).formatted(.byteCount(style: .file)) + ")")
+                    }
+                    .font(.caption)
+                    .accessibilityIdentifier("message.fetchWhole")
                 }
                 if loaded.fromHTML {
                     // Said plainly rather than hidden: a formatted

@@ -3348,6 +3348,22 @@
         }
       }
     },
+    "Only the beginning was fetched. Attachments may be missing.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先頭のみを取得しました。添付ファイルが欠けている場合があります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只取回了开头，附件可能不全。"
+          }
+        }
+      }
+    },
     "Open the settings below if that is not right.": {
       "localizations": {
         "ja": {

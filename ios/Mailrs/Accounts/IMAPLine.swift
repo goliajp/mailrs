@@ -160,6 +160,13 @@ enum IMAP {
         let seen: Bool
         /// How many bytes follow, when the line ends in a literal.
         let literalBytes: Int?
+        /// `RFC822.SIZE` — how big the whole message is.
+        ///
+        /// Asked for with the headers so a reader can be told what
+        /// opening one would cost before it costs it: a message with a
+        /// 25 MB attachment is 25 MB to fetch, and on mobile data that
+        /// is a decision rather than a tap.
+        var size: Int64?
     }
 
     /// Read a `FETCH` line.
@@ -174,7 +181,9 @@ enum IMAP {
            open < close {
             literal = Int(line[line.index(after: open)..<close])
         }
-        return Announced(uid: uid, seen: seen, literalBytes: literal)
+        return Announced(
+            uid: uid, seen: seen, literalBytes: literal,
+            size: number(after: "RFC822.SIZE ", in: line).map { Int64($0) })
     }
 
     /// The number after a keyword, or nil.

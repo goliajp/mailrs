@@ -161,6 +161,8 @@ actor IMAPSession {
         /// could not be read. **Nil, not now** — a message shown as
         /// having just arrived jumps to the top and stays there.
         let date: Int64?
+        /// How big the whole message is, when the server said.
+        var size: Int64?
     }
 
     /// Read the headers of everything in `range`.
@@ -180,7 +182,7 @@ actor IMAPSession {
         let t = nextTag()
         var verb = "FETCH"
         if byUid { verb = "UID FETCH" }
-        try await send("\(t) \(verb) \(range) (UID FLAGS BODY.PEEK[HEADER])\r\n")
+        try await send("\(t) \(verb) \(range) (UID FLAGS RFC822.SIZE BODY.PEEK[HEADER])\r\n")
         var out: [Fetched] = []
         while true {
             let line = try await readLine()
@@ -204,7 +206,8 @@ actor IMAPSession {
                     uid: uid,
                     seen: announced.seen,
                     headers: headers,
-                    date: MailDate.epochSeconds(headers.date)))
+                    date: MailDate.epochSeconds(headers.date),
+                    size: announced.size))
         }
     }
 
@@ -235,9 +238,13 @@ actor IMAPSession {
     /// header fetch peeks: opening a message is the reader's decision,
     /// and a client that marks mail read for having looked at it takes
     /// that decision away. Marking read is a separate, deliberate call.
-    func fetchRaw(uid: UInt32) async throws -> Data {
+    /// - Parameter plan: whether to take the whole message or only
+    ///   its beginning. A message with a 25 MB attachment is 25 MB to
+    ///   fetch, and fetching it to show two lines of text is noticed
+    ///   on a bill rather than on a screen.
+    func fetchRaw(uid: UInt32, plan: FetchWhole.Plan = .whole) async throws -> Data {
         let t = nextTag()
-        try await send("\(t) UID FETCH \(uid) (BODY.PEEK[])\r\n")
+        try await send("\(t) UID FETCH \(uid) (\(FetchWhole.bodyItem(plan)))\r\n")
         var out = Data()
         while true {
             let line = try await readLine()

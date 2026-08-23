@@ -60,7 +60,8 @@ enum MailboxSync {
                             sender: MessageHeaders.senderName(message.headers.from),
                             subject: message.headers.subject,
                             date: message.date,
-                            messageId: message.headers.messageId))
+                            messageId: message.headers.messageId,
+                            size: message.size))
                     highest = max(highest, message.uid)
                 }
                 // Written **after** the rows are in hand, not before:

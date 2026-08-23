@@ -72,6 +72,7 @@ object MailboxSync {
                         subject = message.headers.subject,
                         date = message.date,
                         messageId = message.headers.messageId,
+                        size = message.size,
                     )
                     highest = maxOf(highest, message.uid)
                 }

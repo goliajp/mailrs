@@ -75,7 +75,7 @@ object MailboxSyncRunner {
                 )
             }
             kept = MailboxApply.apply(kept, result.rows)
-            store.saveRows(kept)
+            store.saveRows(MailboxApply.capped(kept))
             store.saveMarksFor(account.id, result.marks)
             // **Only on the way out of a pass that worked.** A
             // timestamp written before the fetch, or after one that
@@ -148,7 +148,7 @@ object MailboxSyncRunner {
             session.quit()
             session.close()
 
-            store.saveRows(MailboxApply.apply(store.rows(), fetched))
+            store.saveRows(MailboxApply.capped(MailboxApply.apply(store.rows(), fetched)))
             store.savePopSeen(account.id, seen)
             store.saveLastSync(account.id, now())
             Outcome(account.id, fetched.size)
@@ -210,7 +210,7 @@ object MailboxSyncRunner {
                     messageId = email.messageId,
                 )
             }
-            store.saveRows(MailboxApply.apply(store.rows(), rows))
+            store.saveRows(MailboxApply.capped(MailboxApply.apply(store.rows(), rows)))
             store.saveLastSync(account.id, now())
             Outcome(account.id, rows.size)
         } catch (e: JmapSession.Failure) {

@@ -16,6 +16,15 @@ data class MailboxRow(
     val date: Long?,
     /** The `Message-ID`, which is what survives a renumbering. */
     val messageId: String,
+    /**
+     * How big the whole message is, when the server said.
+     *
+     * On the row so a reader can be told what opening one would cost
+     * before it costs it — a message with a 25 MB attachment is 25 MB
+     * to fetch, and on mobile data that is a decision rather than a
+     * tap.
+     */
+    val size: Long? = null,
 ) {
     /**
      * Unique across accounts.
@@ -112,6 +121,40 @@ object MailboxMerge {
 
 /** Folding a pass's worth of rows into what is already held. */
 object MailboxApply {
+    /**
+     * How many rows one account may keep.
+     *
+     * There is a limit whether or not it is chosen. Every row lives in
+     * one preferences value, which is held in memory and **rewritten
+     * whole on every change** — so an unbounded list makes each
+     * swipe-to-delete a rewrite of everything, and a person with six
+     * accounts and thirty folders each reaches megabytes of it.
+     *
+     * Choosing the limit means choosing what falls off. It is the
+     * order the list itself uses, so what goes is exactly what somebody
+     * would have had to scroll furthest to see.
+     */
+    const val PER_ACCOUNT = 2_000
+
+    /**
+     * Keep at most [limit] rows per account.
+     *
+     * **Per account, not overall.** One noisy mailbox would otherwise
+     * evict a quiet one entirely, and the quiet one is where the mail
+     * a person is waiting for tends to be.
+     */
+    fun capped(rows: List<MailboxRow>, limit: Int = PER_ACCOUNT): List<MailboxRow> {
+        val byAccount = rows.groupBy { it.accountId }
+        if (byAccount.values.none { it.size > limit }) return rows
+        val keep = byAccount.values
+            .flatMap { MailboxMerge.newestFirst(it).take(limit) }
+            .map { it.id }
+            .toSet()
+        // Filtered rather than rebuilt from the groups, so the order
+        // rows were held in survives — the list sorts them itself, and
+        // reshuffling storage on every pass makes diffs unreadable.
+        return rows.filter { it.id in keep }
+    }
     /**
      * The held rows, updated by what a pass just read.
      *
