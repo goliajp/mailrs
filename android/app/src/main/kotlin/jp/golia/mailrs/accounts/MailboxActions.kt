@@ -9,6 +9,15 @@ package jp.golia.mailrs.accounts
  * an action that undoes itself on the next fetch.
  */
 object MailboxActions {
+    /**
+     * How a session is made.
+     *
+     * Injectable for the same reason [MailboxSyncRunner]'s is: the
+     * rule that matters here — **the row goes only after the server
+     * says it has** — is about the order of a network call and a
+     * write, and neither half alone can show it.
+     */
+    internal var openImap: (String, Int) -> ImapSession = { host, port -> ImapSession(host, port) }
     sealed class Outcome {
         object Done : Outcome()
         data class Failed(val why: String) : Outcome()
@@ -70,7 +79,7 @@ object MailboxActions {
     ): Outcome {
         val secret = store.secret(account.id)
             ?: return Outcome.Failed("Sign in again to change this account")
-        val session = ImapSession(account.imapHost, account.imapPort)
+        val session = openImap(account.imapHost, account.imapPort)
         return try {
             session.connect()
             if (account.auth == MailProvider.AuthKind.OAUTH2) {

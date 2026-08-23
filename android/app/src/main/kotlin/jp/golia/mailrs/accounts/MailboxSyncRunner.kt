@@ -8,6 +8,16 @@ package jp.golia.mailrs.accounts
  * part that opens sockets, and it holds no decisions of its own.
  */
 object MailboxSyncRunner {
+    /**
+     * How a session is made.
+     *
+     * Injectable so a test can join the wire to the store: every rule
+     * above the socket is asserted and every socket conversation is
+     * asserted, and until this existed the two had never been checked
+     * together. A pass that talks correctly and files the answer in the
+     * wrong place passes both halves.
+     */
+    internal var openImap: (String, Int) -> ImapSession = { host, port -> ImapSession(host, port) }
     /** What one account's pass came to, for the screen to report. */
     data class Outcome(
         val accountId: String,
@@ -32,7 +42,7 @@ object MailboxSyncRunner {
             ?: return Outcome(account.id, 0, "Sign in again to read this account")
         if (account.incoming == Incoming.POP3) return runPop3(account, secret, store)
         if (account.incoming == Incoming.JMAP) return runJmap(account, secret, store)
-        val session = ImapSession(account.imapHost, account.imapPort)
+        val session = openImap(account.imapHost, account.imapPort)
         return try {
             session.connect()
             if (account.auth == MailProvider.AuthKind.OAUTH2) {
