@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.accounts.AccountConnection
 import jp.golia.mailrs.accounts.AccountStore
+import jp.golia.mailrs.accounts.Incoming
 import jp.golia.mailrs.accounts.AccountsDraft
 import jp.golia.mailrs.accounts.MailAccount
 import jp.golia.mailrs.accounts.MailProvider
@@ -151,18 +153,40 @@ fun MailboxesScreen() {
                 }
 
                 if (draft.manual) {
+                    // Offered only here: a preset knows its own answer,
+                    // and asking somebody to pick a protocol for Gmail
+                    // is asking a question already on file.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (kind in Incoming.entries) {
+                            KindChip(kind, kind == draft.incoming) {
+                                // Re-prefilled, so the port follows the
+                                // protocol rather than staying at the
+                                // one the previous choice suggested.
+                                draft = draft.copy(
+                                    incoming = kind,
+                                    imapPort = "",
+                                ).prefilled()
+                            }
+                        }
+                    }
                     ServerField("Incoming server", draft.imapHost, "account.incoming.host") {
                         draft = draft.copy(imapHost = it)
                     }
                     ServerField(
                         "Port", draft.imapPort, "account.incoming.port", numeric = true,
                     ) { draft = draft.copy(imapPort = it) }
-                    ServerField("Outgoing server", draft.smtpHost, "account.outgoing.host") {
-                        draft = draft.copy(smtpHost = it)
+                    // JMAP submits over the same API, so there is no
+                    // second server to name. A box for one would be a
+                    // box somebody fills in with the first server's
+                    // name to get past the form.
+                    if (draft.incoming != Incoming.JMAP) {
+                        ServerField("Outgoing server", draft.smtpHost, "account.outgoing.host") {
+                            draft = draft.copy(smtpHost = it)
+                        }
+                        ServerField(
+                            "Port", draft.smtpPort, "account.outgoing.port", numeric = true,
+                        ) { draft = draft.copy(smtpPort = it) }
                     }
-                    ServerField(
-                        "Port", draft.smtpPort, "account.outgoing.port", numeric = true,
-                    ) { draft = draft.copy(smtpPort = it) }
                     ServerField(
                         "Login name, if it is not the address", draft.login, "account.login",
                     ) { draft = draft.copy(login = it) }
@@ -342,4 +366,24 @@ private fun AccountRow(a: MailAccount, onRemove: () -> Unit) {
             Text("Remove", color = theme.danger, fontSize = 12.sp)
         }
     }
+}
+
+@Composable
+private fun KindChip(kind: Incoming, on: Boolean, onTap: () -> Unit) {
+    val theme = LocalTheme.current
+    val background = when {
+        on -> theme.accent.copy(alpha = 0.18f)
+        else -> theme.bgSecondary
+    }
+    Text(
+        kind.name,
+        color = theme.fg,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(background)
+            .clickable { onTap() }
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .testTag("account.kind.${kind.name}"),
+    )
 }

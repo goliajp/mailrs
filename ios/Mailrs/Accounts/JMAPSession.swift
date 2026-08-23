@@ -72,4 +72,97 @@ enum JMAP {
         let created = body["created"] as? [String] ?? []
         return .some(created: created, newState: newState)
     }
+
+    /// The newest messages, in **one** round trip.
+    ///
+    /// The back-reference (`#ids`) is what makes it one: it tells the
+    /// server to feed the ids from the query straight into the get. A
+    /// client that does not use it asks, waits, and asks again — which
+    /// on a phone is two of everything, including the latency.
+    static func newestRequest(accountId: String, limit: Int = 50) -> String {
+        """
+        {"using":["urn:ietf:params:jmap:core","\(mailCapability)"],\
+        "methodCalls":[\
+        ["Email/query",{"accountId":"\(accountId)",\
+        "sort":[{"property":"receivedAt","isAscending":false}],\
+        "limit":\(limit)},"0"],\
+        ["Email/get",{"accountId":"\(accountId)",\
+        "#ids":{"resultOf":"0","name":"Email/query","path":"/ids"},\
+        "properties":["id","subject","from","receivedAt","keywords","messageId"]},"1"]\
+        ]}
+        """
+    }
+
+    /// One message, as far as a list row needs it.
+    struct Email: Equatable {
+        var id: String
+        var subject: String
+        var sender: String
+        /// Seconds since the epoch, or nil when `receivedAt` was
+        /// unreadable.
+        var receivedAt: Int64?
+        var seen: Bool
+        var messageId: String
+    }
+
+    /// Read an `Email/get` reply.
+    ///
+    /// Three shapes worth naming, because each is silently wrong if
+    /// guessed:
+    ///
+    /// - `from` is a **list of objects**, not a string. Reading it as
+    ///   text gives an empty sender on every row.
+    /// - `keywords` says what is true, so `$seen` **absent** means
+    ///   unread — the same absence that IMAP's flag list uses.
+    /// - `receivedAt` is a UTC date string, not a number.
+    static func emails(_ data: Data) -> [Email]? {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let responses = top["methodResponses"] as? [[Any]]
+        else { return nil }
+        // The get is not always second: a server may answer in any
+        // order, and one that pushes a `Core/echo` in front shifts it.
+        guard
+            let get = responses.first(where: { $0.count >= 2 && $0[0] as? String == "Email/get" }),
+            let payload = get[1] as? [String: Any],
+            let list = payload["list"] as? [[String: Any]]
+        else { return nil }
+        return list.map { item in
+            let from = (item["from"] as? [[String: Any]])?.first
+            let name = from?["name"] as? String ?? ""
+            let address = from?["email"] as? String ?? ""
+            var sender = name
+            if !name.isEmpty, !address.isEmpty { sender = "\(name) <\(address)>" }
+            if name.isEmpty { sender = address }
+            let keywords = item["keywords"] as? [String: Any]
+            return Email(
+                id: item["id"] as? String ?? "",
+                subject: item["subject"] as? String ?? "",
+                sender: sender,
+                receivedAt: utcDate(item["receivedAt"] as? String),
+                seen: keywords?["$seen"] != nil,
+                messageId: (item["messageId"] as? [String])?.first ?? "")
+        }
+    }
+
+    /// `2026-08-24T01:46:40Z`, to seconds.
+    ///
+    /// Hand-read rather than handed to a date formatter: JMAP's
+    /// UTCDate is one fixed shape, and a formatter would bring a
+    /// locale and a default time zone with it — which is how a message
+    /// moves by hours for somebody who is not in UTC.
+    static func utcDate(_ text: String?) -> Int64? {
+        guard let raw = text?.trimmingCharacters(in: .whitespaces), raw.count >= 20,
+            raw.hasSuffix("Z")
+        else { return nil }
+        let c = Array(raw)
+        guard c[10] == "T" else { return nil }
+        func number(_ from: Int, _ count: Int) -> Int? { Int(String(c[from..<(from + count)])) }
+        guard let year = number(0, 4), let month = number(5, 2), let day = number(8, 2),
+            let hour = number(11, 2), let minute = number(14, 2), let second = number(17, 2),
+            (1...12).contains(month), (1...31).contains(day),
+            hour <= 23, minute <= 59, second <= 60
+        else { return nil }
+        return MailDate.epochFromCivil(
+            year: year, month: month, day: day, hour: hour, minute: minute, second: second)
+    }
 }

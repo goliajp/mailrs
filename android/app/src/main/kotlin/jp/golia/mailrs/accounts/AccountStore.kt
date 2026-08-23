@@ -74,6 +74,7 @@ class AccountStore(context: Context) {
         saveRows(MailboxApply.withoutAccount(rows(), id))
         val prefix = "$id/"
         saveMarks(marks().filterKeys { !it.startsWith(prefix) })
+        prefs.edit().remove(POP_SEEN + id).apply()
     }
 
     // MARK: the mail itself
@@ -151,6 +152,31 @@ class AccountStore(context: Context) {
         saveMarks(all)
     }
 
+    /**
+     * The uidls a POP3 account has already read.
+     *
+     * Not [FolderMark]: POP3 has no folders and no uid validity, and
+     * its message numbers are renumbered every session. The uidl is the
+     * only durable identity it offers, so what is remembered is a set of
+     * them — pruned each pass to what the server still has, or the
+     * bookkeeping outgrows the mailbox.
+     */
+    fun popSeen(accountId: String): Set<String> {
+        val raw = prefs.getString(POP_SEEN + accountId, null) ?: return emptySet()
+        return runCatching {
+            json.decodeFromString(ListSerializer(String.serializer()), raw).toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun savePopSeen(accountId: String, ids: Set<String>) {
+        prefs.edit()
+            .putString(
+                POP_SEEN + accountId,
+                json.encodeToString(ListSerializer(String.serializer()), ids.toList()),
+            )
+            .apply()
+    }
+
     fun saveSecret(secret: String, id: String) {
         prefs.edit().putString(secretKeyName(id), encrypt(secret)).apply()
     }
@@ -216,6 +242,7 @@ class AccountStore(context: Context) {
         const val ROWS = "rows.v1"
         const val ROWS_MAIL = "mailbox.rows.v1"
         const val MARKS = "mailbox.marks.v1"
+        const val POP_SEEN = "pop.seen.v1."
         const val KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "mailrs.account.secret.v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"

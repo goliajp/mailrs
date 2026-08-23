@@ -18,7 +18,7 @@ actor SMTPSession {
         case closed
     }
 
-    private let connection: NWConnection
+    private let transport: ByteTransport
     private let host: String
     private var buffer = Data()
     /// Whether TLS was there from the first byte.
@@ -28,51 +28,66 @@ actor SMTPSession {
     ///
     /// Both are used in the wild and providers disagree about which
     /// they offer, so the port decides rather than a setting nobody
-    /// can answer.
+    /// can answer. Outlook and iCloud are 587-only and the provider
+    /// table hands out that port, so a session that cannot do the
+    /// second is a mailbox that can never send.
     init(host: String, port: UInt16) {
         self.host = host
         implicitTLS = port == 465
-        let params: NWParameters =
-            port == 465
-            ? NWParameters(tls: NWProtocolTLS.Options(), tcp: .init())
-            : NWParameters(tls: nil, tcp: .init())
-        connection = NWConnection(
-            host: .init(host), port: .init(rawValue: port) ?? 465, using: params)
+        if port == 465 {
+            transport = TLSTransport(host: host, port: port)
+        } else {
+            transport = UpgradableTransport(host: host, port: port)
+        }
+    }
+
+    /// For tests: a scripted server, and the conversation under test.
+    init(host: String, port: UInt16, transport: ByteTransport) {
+        self.host = host
+        self.transport = transport
+        implicitTLS = port == 465
     }
 
     func connect(helo: String) async throws {
-        let once = ResumeOnce()
-        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready: once.resume(k, with: .success(()))
-                case let .failed(e):
-                    once.resume(k, with: .failure(Failure.unreachable(e.localizedDescription)))
-                case .cancelled: once.resume(k, with: .failure(Failure.closed))
-                default: break
-                }
-            }
-            connection.start(queue: .global(qos: .userInitiated))
+        do {
+            try await transport.connect()
+        } catch let e as TransportFailure {
+            throw failure(e)
         }
         _ = try await readReply()  // the greeting
+        let greeted = try await command("EHLO \(helo)")
+        guard !implicitTLS else { return }
+
+        // **No downgrade.** A server that does not offer to encrypt is
+        // not argued with — the credential simply does not go there. A
+        // stripped capability list is what somebody in the middle
+        // produces, and refusing is the only answer to it.
+        guard greeted.text.uppercased().contains("STARTTLS") else {
+            throw Failure.refused("the server did not offer to encrypt the connection")
+        }
+        let upgrade = try await command("STARTTLS")
+        guard upgrade.code == 220 else {
+            throw Failure.refused("the server refused to encrypt the connection")
+        }
+        do {
+            try await transport.upgradeToTLS()
+        } catch let e as TransportFailure {
+            throw failure(e)
+        }
+        // Again, because everything the server said before the upgrade
+        // was said by whoever was on the wire at the time.
         _ = try await command("EHLO \(helo)")
-        if !implicitTLS {
-            // **No downgrade.** A server that will not start TLS is a
-            // server this credential does not go to — sending it in
-            // the clear hands it to anything on the path.
-            let r = try await command("STARTTLS")
-            guard r.isPositive else {
-                throw Failure.rejected(
-                    code: r.code, text: "this server refused STARTTLS", permanent: true)
-            }
-            throw Failure.rejected(
-                code: 0,
-                text: "STARTTLS is not supported yet — use port 465",
-                permanent: true)
+    }
+
+    private func failure(_ e: TransportFailure) -> Failure {
+        switch e {
+        case let .unreachable(why): return .unreachable(why)
+        case .closed: return .closed
+        case .cannotUpgrade: return .refused("this connection could not be encrypted")
         }
     }
 
-    func close() { connection.cancel() }
+    func close() async { await transport.close() }
 
     /// Sign in with a password or an access token.
     ///
@@ -81,22 +96,31 @@ actor SMTPSession {
     /// person is told their password is wrong for an account whose
     /// credentials are fine.
     func authenticate(user: String, secret: String, oauth: Bool) async throws {
-        let reply =
-            oauth
-            ? try await command("AUTH XOAUTH2 \(SMTP.authXOAuth2(user: user, token: secret))")
-            : try await command("AUTH PLAIN \(SMTP.authPlain(user: user, password: secret))")
-        if reply.isPositive { return }
+        var reply: SMTP.Reply
+        if oauth {
+            reply = try await command("AUTH XOAUTH2 \(SMTP.authXOAuth2(user: user, token: secret))")
+        } else {
+            reply = try await command("AUTH PLAIN \(SMTP.authPlain(user: user, password: secret))")
+        }
+        // **334 first.** It is inside the range `isPositive` calls
+        // success, so testing that first made this branch unreachable
+        // and reported every refused token as signed in — which is
+        // exactly what the note below says must not happen. A provider
+        // only sends 334 when a token is genuinely bad, so a real
+        // server never shows it; a scripted one does.
+        //
         // A provider that rejects an OAuth token answers 334 with a
         // base64 error rather than a final code, and waits for an
-        // empty line before sending one. Reading the 334 as success
-        // authenticates every refused token.
+        // empty line before sending one.
         if reply.code == 334 {
             let final = try await command("")
             throw Failure.refused(final.text)
         }
-        throw SMTP.isAuthenticationFailure(code: reply.code, text: reply.text)
-            ? Failure.refused(reply.text)
-            : Failure.rejected(code: reply.code, text: reply.text, permanent: reply.isPermanent)
+        if reply.isPositive { return }
+        if SMTP.isAuthenticationFailure(code: reply.code, text: reply.text) {
+            throw Failure.refused(reply.text)
+        }
+        throw Failure.rejected(code: reply.code, text: reply.text, permanent: reply.isPermanent)
     }
 
     /// Hand one message over.
@@ -137,24 +161,27 @@ actor SMTPSession {
     /// first line leaves the rest in the buffer, and the next command
     /// then reads somebody else's answer.
     private func readReply() async throws -> SMTP.Reply {
+        // **Every line, joined.** A multi-line reply is one reply, and
+        // keeping only the last discards the EHLO capability list —
+        // the only place `STARTTLS` is announced, and so the only way
+        // to know whether an upgrade is possible at all.
+        var gathered: [String] = []
         while true {
             let line = try await readLine()
             guard let r = SMTP.reply(line) else { continue }
-            if !r.more { return r }
+            gathered.append(r.text)
+            if !r.more {
+                return SMTP.Reply(
+                    code: r.code, text: gathered.joined(separator: "\n"), more: false)
+            }
         }
     }
 
     private func write(_ text: String) async throws {
-        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
-            connection.send(
-                content: Data(text.utf8),
-                completion: .contentProcessed { error in
-                    if let error {
-                        k.resume(throwing: Failure.unreachable(error.localizedDescription))
-                    } else {
-                        k.resume()
-                    }
-                })
+        do {
+            try await transport.send(Data(text.utf8))
+        } catch let e as TransportFailure {
+            throw failure(e)
         }
     }
 
@@ -172,15 +199,10 @@ actor SMTPSession {
     }
 
     private func receive() async throws -> Data {
-        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Data, Error>) in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
-                data, _, _, error in
-                if let error {
-                    k.resume(throwing: Failure.unreachable(error.localizedDescription))
-                } else {
-                    k.resume(returning: data ?? Data())
-                }
-            }
+        do {
+            return try await transport.receive()
+        } catch let e as TransportFailure {
+            throw failure(e)
         }
     }
 }

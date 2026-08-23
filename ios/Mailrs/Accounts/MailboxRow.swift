@@ -122,6 +122,20 @@ enum MailboxApply {
     /// A row left behind when its account is removed is mail nobody
     /// can open — the credential and the server it came from are both
     /// gone.
+    /// Mark one row read, wherever it is in the list.
+    ///
+    /// The server was told; this is the same fact on this device, so
+    /// the list stops showing it as unread without waiting for the
+    /// next fetch.
+    static func markSeen(_ rows: [MailboxRow], id: String) -> [MailboxRow] {
+        rows.map { row in
+            guard row.id == id else { return row }
+            var seen = row
+            seen.seen = true
+            return seen
+        }
+    }
+
     static func withoutAccount(_ rows: [MailboxRow], _ accountId: String) -> [MailboxRow] {
         rows.filter { $0.accountId != accountId }
     }

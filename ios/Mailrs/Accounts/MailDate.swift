@@ -50,6 +50,33 @@ enum MailDate {
     /// Obsolete and still in the wild. 50–99 is 19xx, 00–49 is 20xx;
     /// reading `26` as year 26 puts the message two thousand years in
     /// the past and sorts the whole list around it.
+    /// The other direction: a `Date:` header.
+    ///
+    /// A numeric offset, never a zone name. `JST` and the rest are
+    /// obsolete by RFC 5322 §4.3 and ambiguous in practice — `CST` is
+    /// three different zones — so a receiving client is entitled to
+    /// read them as UTC, which moves a message by hours.
+    static func rfc5322(_ date: Date, timeZone: TimeZone = .current) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let c = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second, .weekday], from: date)
+        let days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        let months = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ]
+        let offset = timeZone.secondsFromGMT(for: date)
+        var sign = "+"
+        if offset < 0 { sign = "-" }
+        let magnitude = abs(offset)
+        return String(
+            format: "%@, %d %@ %04d %02d:%02d:%02d %@%02d%02d",
+            days[(c.weekday ?? 1) - 1], c.day ?? 1, months[(c.month ?? 1) - 1],
+            c.year ?? 1970, c.hour ?? 0, c.minute ?? 0, c.second ?? 0,
+            sign, magnitude / 3600, (magnitude % 3600) / 60)
+    }
+
     private static func year(_ s: String) -> Int? {
         guard let n = Int(s) else { return nil }
         switch s.count {
@@ -92,6 +119,14 @@ enum MailDate {
 
     /// Days from 1970-01-01 — Howard Hinnant's civil-from-days, which
     /// is exact and has no library behind it to disagree with.
+    /// Seconds since the epoch for a UTC wall clock.
+    static func epochFromCivil(
+        year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int
+    ) -> Int64 {
+        daysFromCivil(year: year, month: month, day: day) * 86_400
+            + Int64(hour) * 3600 + Int64(minute) * 60 + Int64(second)
+    }
+
     private static func daysFromCivil(year y0: Int, month m: Int, day d: Int) -> Int64 {
         let y = m <= 2 ? y0 - 1 : y0
         let era = (y >= 0 ? y : y - 399) / 400

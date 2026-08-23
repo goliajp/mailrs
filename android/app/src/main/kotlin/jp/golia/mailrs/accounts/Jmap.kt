@@ -83,4 +83,100 @@ object Jmap {
             .orEmpty()
         Changes.Some(created, newState)
     }.getOrNull()
+
+    /**
+     * The newest messages, in **one** round trip.
+     *
+     * The back-reference (`#ids`) is what makes it one: it tells the
+     * server to feed the ids from the query straight into the get. A
+     * client that does not use it asks, waits, and asks again — which
+     * on a phone is two of everything, including the latency.
+     */
+    fun newestRequest(accountId: String, limit: Int = 50): String = """
+        {"using":["urn:ietf:params:jmap:core","$MAIL_CAPABILITY"],
+         "methodCalls":[
+           ["Email/query",{"accountId":"$accountId",
+             "sort":[{"property":"receivedAt","isAscending":false}],
+             "limit":$limit},"0"],
+           ["Email/get",{"accountId":"$accountId",
+             "#ids":{"resultOf":"0","name":"Email/query","path":"/ids"},
+             "properties":["id","subject","from","receivedAt","keywords","messageId"]},"1"]
+         ]}
+    """.trimIndent().replace("\n", "").replace("  ", "")
+
+    /** One message, as far as a list row needs it. */
+    data class Email(
+        val id: String,
+        val subject: String,
+        val sender: String,
+        /** Seconds since the epoch, or null when `receivedAt` was unreadable. */
+        val receivedAt: Long?,
+        val seen: Boolean,
+        val messageId: String,
+    )
+
+    /**
+     * Read an `Email/get` reply.
+     *
+     * Three shapes worth naming, because each is silently wrong if
+     * guessed:
+     *
+     * - `from` is a **list of objects**, not a string. Reading it as
+     *   text gives an empty sender on every row.
+     * - `keywords` says what is true, so `$seen` **absent** means
+     *   unread — the same absence that IMAP's flag list uses.
+     * - `receivedAt` is a UTC date string, not a number.
+     */
+    fun emails(body: String): List<Email>? = runCatching {
+        val top = json.parseToJsonElement(body).jsonObject
+        val responses = top["methodResponses"] as? JsonArray ?: return null
+        // The get is not always second: a server may answer in any
+        // order, and one that pushes a `Core/echo` in front shifts it.
+        val get = responses.map { it.jsonArray }.firstOrNull {
+            it.size >= 2 && it[0].jsonPrimitive.contentOrNull == "Email/get"
+        } ?: return null
+        val list = (get[1] as? JsonObject)?.get("list") as? JsonArray ?: return null
+        list.map { element ->
+            val e = element.jsonObject
+            val from = (e["from"] as? JsonArray)?.firstOrNull()?.jsonObject
+            val name = from?.get("name")?.jsonPrimitive?.contentOrNull.orEmpty()
+            val email = from?.get("email")?.jsonPrimitive?.contentOrNull.orEmpty()
+            val keywords = e["keywords"] as? JsonObject
+            Email(
+                id = e["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                subject = e["subject"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                sender = when {
+                    name.isNotEmpty() && email.isNotEmpty() -> "$name <$email>"
+                    else -> name.ifEmpty { email }
+                },
+                receivedAt = utcDate(e["receivedAt"]?.jsonPrimitive?.contentOrNull),
+                seen = keywords?.containsKey("\$seen") == true,
+                messageId = (e["messageId"] as? JsonArray)
+                    ?.firstOrNull()?.jsonPrimitive?.contentOrNull.orEmpty(),
+            )
+        }
+    }.getOrNull()
+
+    /**
+     * `2026-08-24T01:46:40Z`, to seconds.
+     *
+     * Hand-read rather than handed to a date formatter: JMAP's UTCDate
+     * is one fixed shape, and a formatter would bring a locale and a
+     * default time zone with it — which is how a message moves by hours
+     * for somebody who is not in UTC.
+     */
+    fun utcDate(text: String?): Long? {
+        val t = text?.trim().orEmpty()
+        if (t.length < 20 || t[10] != 'T' || !t.endsWith("Z")) return null
+        val year = t.substring(0, 4).toIntOrNull() ?: return null
+        val month = t.substring(5, 7).toIntOrNull() ?: return null
+        val day = t.substring(8, 10).toIntOrNull() ?: return null
+        val hour = t.substring(11, 13).toIntOrNull() ?: return null
+        val minute = t.substring(14, 16).toIntOrNull() ?: return null
+        val second = t.substring(17, 19).toIntOrNull() ?: return null
+        if (month !in 1..12 || day !in 1..31 || hour > 23 || minute > 59 || second > 60) {
+            return null
+        }
+        return MailDate.epochFromCivil(year, month, day, hour, minute, second)
+    }
 }

@@ -10,6 +10,21 @@ import kotlinx.serialization.Serializable
  * screen without carrying a password through code that has no
  * business holding one.
  */
+/**
+ * How mail is read.
+ *
+ * Not a preference: it changes what a mailbox *is*. POP3 has one
+ * folder, no server-side flags and no stable message numbers, so read
+ * state can only be kept on this device and anything filed elsewhere is
+ * invisible. Saying so in the type keeps every reader honest about it.
+ */
+@Serializable
+enum class Incoming {
+    IMAP,
+    POP3,
+    JMAP,
+}
+
 @Serializable
 data class MailAccount(
     val id: String,
@@ -32,6 +47,14 @@ data class MailAccount(
      */
     val login: String = "",
     val auth: MailProvider.AuthKind = MailProvider.AuthKind.PASSWORD,
+    /**
+     * How mail is read from this account.
+     *
+     * Defaulted, so a row written before this field existed still
+     * decodes — and defaulted to IMAP, which is what every account
+     * written before it existed was.
+     */
+    val incoming: Incoming = Incoming.IMAP,
     val skipFolders: List<String> = emptyList(),
     /** Where it sits in the list. */
     val sort: Int = 0,
@@ -63,9 +86,13 @@ data class MailAccount(
         !address.contains('@') || address.startsWith('@') || address.endsWith('@') ->
             "That is not an email address"
         imapHost.isBlank() -> "The incoming server needs a name"
+        imapPort !in 1..65535 -> "A port must be between 1 and 65535"
+        // JMAP submits over the same API it reads from, so there is no
+        // second server and demanding one refuses an account that is
+        // perfectly well described. Every other kind has both.
+        incoming == Incoming.JMAP -> null
         smtpHost.isBlank() -> "The outgoing server needs a name"
-        imapPort !in 1..65535 || smtpPort !in 1..65535 ->
-            "A port must be between 1 and 65535"
+        smtpPort !in 1..65535 -> "A port must be between 1 and 65535"
         else -> null
     }
 

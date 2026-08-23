@@ -10,6 +10,17 @@ struct MailboxesView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
     @State private var model = MailboxesModel()
+    /// The message being read, if any.
+    @State private var opened: MailboxRow?
+    /// The message being written, if any, and which account it leaves
+    /// by.
+    @State private var writing: Writing?
+
+    struct Writing: Identifiable {
+        let id = UUID()
+        let draft: OutgoingMessage.Draft
+        let accountId: String
+    }
 
     var body: some View {
         NavigationStack {
@@ -27,6 +38,25 @@ struct MailboxesView: View {
                     Button("Done") { dismiss() }
                         .accessibilityIdentifier("mailboxes.done")
                 }
+                ToolbarItem(placement: .secondaryAction) {
+                    // Writing does not depend on having fetched
+                    // anything, so it is offered as soon as there is an
+                    // account to send from.
+                    if let account = model.accounts.first(where: { model.only.contains($0.id) })
+                        ?? model.accounts.first
+                    {
+                        Button {
+                            writing = Writing(
+                                draft: OutgoingMessage.Draft(
+                                    from: account.address, fromName: account.displayName, to: []),
+                                accountId: account.id)
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        .accessibilityLabel("New message")
+                        .accessibilityIdentifier("mail.compose")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     if model.syncing {
                         ProgressView()
@@ -43,6 +73,30 @@ struct MailboxesView: View {
             }
         }
         .task { model.load() }
+        .sheet(item: $opened) { row in
+            MessageView(row: row, account: model.account(for: row)) { loaded in
+                // The reply leaves by the account the message arrived
+                // at. Replying from a different address than the one
+                // that was written to is a mistake nobody notices
+                // until the answer goes missing.
+                guard let account = model.account(for: row) else { return }
+                writing = Writing(
+                    draft: ReplyDraft.make(to: loaded.headers, from: account, quoting: loaded.text),
+                    accountId: account.id)
+                opened = nil
+            }
+        }
+        .sheet(item: $writing) { writing in
+            ComposeMailView(
+                accounts: model.accounts, initial: writing.draft,
+                initialAccountId: writing.accountId)
+        }
+        // Reading marks a message read on the server and on this
+        // device; the list has to be told, or it goes on showing it as
+        // unread until the next fetch.
+        .onChange(of: opened) { _, now in
+            if now == nil { model.load() }
+        }
     }
 
     /// Nothing to show, and the two reasons differ: no mail at all is
@@ -83,7 +137,12 @@ struct MailboxesView: View {
                     .accessibilityIdentifier("mailboxes.nothing")
             }
             ForEach(model.visible) { row in
-                MailboxRowView(row: row, account: model.account(for: row))
+                Button {
+                    opened = row
+                } label: {
+                    MailboxRowView(row: row, account: model.account(for: row))
+                }
+                .buttonStyle(.plain)
             }
         }
         .listStyle(.plain)

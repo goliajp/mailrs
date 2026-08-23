@@ -40,6 +40,9 @@ import jp.golia.mailrs.accounts.MailAccount
 import jp.golia.mailrs.accounts.MailboxMerge
 import jp.golia.mailrs.accounts.MailboxRow
 import jp.golia.mailrs.accounts.MailboxSyncRunner
+import jp.golia.mailrs.accounts.MessageReader
+import jp.golia.mailrs.accounts.OutgoingMessage
+import jp.golia.mailrs.accounts.ReplyDraft
 import kotlinx.coroutines.launch
 
 /**
@@ -64,6 +67,10 @@ fun MergedMailScreen() {
     var only by remember { mutableStateOf(emptySet<String>()) }
     var syncing by remember { mutableStateOf(false) }
     var failures by remember { mutableStateOf(emptyMap<String, String>()) }
+    /** The message being read, if any. */
+    var opened by remember { mutableStateOf<MailboxRow?>(null) }
+    /** The message being written, if any, and which account it leaves by. */
+    var writing by remember { mutableStateOf<Pair<OutgoingMessage.Draft, String>?>(null) }
 
     val filter = when {
         only.isEmpty() -> null
@@ -96,6 +103,36 @@ fun MergedMailScreen() {
         }
     }
 
+    writing?.let { (draft, accountId) ->
+        ComposeMailScreen(accounts, draft, accountId) { writing = null }
+        return
+    }
+
+    opened?.let { row ->
+        val account = accounts.firstOrNull { it.id == row.accountId }
+        MessageScreen(
+            row,
+            account,
+            onReply = { loaded ->
+                // The reply leaves by the account the message arrived
+                // at. Replying from a different address than the one
+                // that was written to is a mistake nobody notices until
+                // the answer goes missing.
+                account?.let {
+                    writing = ReplyDraft.make(loaded.headers, it, loaded.text) to it.id
+                    opened = null
+                }
+            },
+        ) {
+            opened = null
+            // Reading marks a message read on the server and on this
+            // device; the list has to be told, or it goes on showing it
+            // as unread until the next fetch.
+            rows = store.rows()
+        }
+        return
+    }
+
     Column(Modifier.fillMaxSize().background(theme.bg)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -103,6 +140,23 @@ fun MergedMailScreen() {
         ) {
             Text("Other mail", color = theme.fg, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Box(Modifier.weight(1f))
+            // Writing does not depend on having fetched anything, so it
+            // is offered as soon as there is an account to send from.
+            if (accounts.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        val account = accounts.firstOrNull { it.id in only } ?: accounts.first()
+                        writing = OutgoingMessage.Draft(
+                            from = account.address,
+                            fromName = account.displayName,
+                            to = emptyList(),
+                        ) to account.id
+                    },
+                    modifier = Modifier.testTag("mail.compose"),
+                ) {
+                    Text("New", color = theme.accent, fontSize = 13.sp)
+                }
+            }
             when {
                 syncing -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else -> TextButton(onClick = { sync() }, modifier = Modifier.testTag("mail.sync")) {
@@ -164,7 +218,9 @@ fun MergedMailScreen() {
 
         LazyColumn(Modifier.fillMaxSize()) {
             items(visible, key = { it.id }) { row ->
-                MergedMailRow(row, accounts.firstOrNull { it.id == row.accountId })
+                MergedMailRow(row, accounts.firstOrNull { it.id == row.accountId }) {
+                    opened = row
+                }
             }
         }
     }
@@ -196,7 +252,7 @@ private fun AccountChip(account: MailAccount, on: Boolean, onTap: () -> Unit) {
 }
 
 @Composable
-private fun MergedMailRow(row: MailboxRow, account: MailAccount?) {
+private fun MergedMailRow(row: MailboxRow, account: MailAccount?, onTap: () -> Unit) {
     val theme = LocalTheme.current
     // Unread is heavier. The only thing on the row that says so without
     // colour, which is why it is weight and not a tint.
@@ -209,7 +265,8 @@ private fun MergedMailRow(row: MailboxRow, account: MailAccount?) {
         else -> theme.fg
     }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        Modifier.fillMaxWidth().clickable { onTap() }
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag("mail.row.${row.id}"),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

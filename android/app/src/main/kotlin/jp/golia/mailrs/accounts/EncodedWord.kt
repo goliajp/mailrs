@@ -54,6 +54,54 @@ object EncodedWord {
     private data class Word(val text: String, val rest: String)
 
     /** One `=?charset?enc?payload?=`, from a slice that starts at `=?`. */
+    /**
+     * The other direction: a header value that a receiving client can
+     * read.
+     *
+     * **ASCII passes through untouched.** Encoding a plain subject
+     * makes it unreadable in the raw message and gains nothing — which
+     * is why this checks rather than always encoding.
+     *
+     * Base64 rather than quoted-printable, because a subject that needs
+     * encoding at all is usually not Latin: a CJK subject in
+     * quoted-printable is three `=XX` per character and grows past the
+     * line limit almost at once.
+     */
+    fun encode(text: String): String {
+        if (text.all { it.code < 128 }) return text
+        // 75 is the RFC 2047 limit for a whole encoded word including
+        // its `=?utf-8?B?` and `?=`, and base64 is 4 characters per 3
+        // bytes, so each chunk may carry 45 bytes at most.
+        return utf8Chunks(text, 45).joinToString("\r\n ") {
+            "=?utf-8?B?" + java.util.Base64.getEncoder().encodeToString(it) + "?="
+        }
+    }
+
+    /**
+     * Split into runs of at most [limit] bytes, **never through a
+     * character**. Cutting UTF-8 mid-sequence produces an encoded word
+     * that decodes to a replacement character on every client.
+     */
+    private fun utf8Chunks(text: String, limit: Int): List<ByteArray> {
+        val out = mutableListOf<ByteArray>()
+        var current = java.io.ByteArrayOutputStream()
+        // By code point, not by `Char`: a `Char` is half a surrogate
+        // pair, and splitting there is the same defect one level down.
+        var i = 0
+        while (i < text.length) {
+            val point = text.codePointAt(i)
+            val encoded = String(Character.toChars(point)).toByteArray(Charsets.UTF_8)
+            if (current.size() + encoded.size > limit && current.size() > 0) {
+                out.add(current.toByteArray())
+                current = java.io.ByteArrayOutputStream()
+            }
+            current.write(encoded)
+            i += Character.charCount(point)
+        }
+        if (current.size() > 0) out.add(current.toByteArray())
+        return out
+    }
+
     private fun readWord(s: String): Word? {
         val body = s.substring(2)
         val firstQ = body.indexOf('?')
