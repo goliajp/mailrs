@@ -171,6 +171,8 @@ export const timelineCollapsedAtom = atom(typeof window !== 'undefined' && windo
 // as a reply to this message. set alongside composingNewAtom=true by the
 // Reply button; cleared when the composer closes or after send
 export type ComposeReplySource = {
+  /** Which connected mailbox the thread arrived at, when it was one. */
+  accountId?: string
   htmlBody: null | string
   internalDate: number
   messageId: string

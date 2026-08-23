@@ -50,7 +50,38 @@ say() { printf '==> %s\n' "$*"; }
 # anything; if you want to know whether the tests really reach it, stop
 # it and watch two of them go red.
 STUB_PID=""
+# --- the stub is shared, so say who is using it ------------------------
+#
+# Both suites drive `ios/Testing/stub-api.py` on the same port, and the
+# iOS lane used to `pkill` it before starting — for a good reason (a
+# stale stub without `/debug/fetched` made an assertion read `[]` and
+# look like the app had not fetched anything). The cost was invisible:
+# an iOS run started beside an Android run killed the stub out from
+# under it, and the Android suite reported **79 failures across every
+# test**, all of them "the server refused the sign-in: unexpected end
+# of stream". Nothing in that output pointed at the real cause.
+#
+# A lock turns that into one line. It holds a pid, so a lock left by a
+# crashed run is not a lock at all.
+STUB_LOCK=/tmp/mailrs-stub.lock
+claim_stub_or_refuse() {
+    if [ -f "$STUB_LOCK" ]; then
+        holder=$(cat "$STUB_LOCK" 2>/dev/null || echo "")
+        if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+            echo "!! the test stub is in use by pid $holder — the other suite is running." >&2
+            echo "!! run them one at a time: killing it now would fail every test in that run." >&2
+            exit 1
+        fi
+    fi
+    echo $$ > "$STUB_LOCK"
+}
+release_stub_lock() {
+    [ -f "$STUB_LOCK" ] && [ "$(cat "$STUB_LOCK" 2>/dev/null)" = "$$" ] && rm -f "$STUB_LOCK"
+    return 0
+}
+
 start_stub() {
+    claim_stub_or_refuse
     if lsof -nP -iTCP:$STUB_PORT -sTCP:LISTEN >/dev/null 2>&1; then
         say "stub already listening on $STUB_PORT — leaving it alone"
         return
@@ -74,6 +105,7 @@ start_stub() {
 }
 stop_stub() {
     [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null || true
+    release_stub_lock
 }
 trap stop_stub EXIT
 

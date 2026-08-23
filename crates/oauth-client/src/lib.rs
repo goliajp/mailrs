@@ -170,7 +170,7 @@ impl Pkce {
 /// Written out rather than pulled in: a redirect URI containing `&` or `=`
 /// that is not encoded silently changes which parameters the provider sees,
 /// and the whole point of the redirect URI is that the provider matches it.
-fn encode(s: &str) -> String {
+pub(crate) fn encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
@@ -423,60 +423,13 @@ pub fn identity_from_github(
     })
 }
 
-/// How long before expiry a token is renewed.
-///
-/// A minute is enough to finish a sync that has already started and
-/// short enough that a clock a little out of step does not renew on
-/// every tick. The number matters less than which side of expiry it
-/// is on: **before**, always.
-pub const RENEW_WITHIN_SECS: i64 = 300;
+pub mod mail;
+pub use mail::*;
 
-/// Whether an access token should be renewed now.
-///
-/// An unknown expiry (`0`) is due rather than assumed fresh: it is
-/// either from before this existed or was written by something that
-/// did not say, and asking once is cheaper than a mailbox that quietly
-/// stops.
-pub fn needs_refresh(expires_at: i64, now: i64) -> bool {
-    expires_at == 0 || now + RENEW_WITHIN_SECS >= expires_at
-}
-
-/// The scopes a provider needs for its mail, or empty for one whose
-/// mailbox this cannot read.
-///
-/// `offline_access` is not decoration: without it the provider returns
-/// **no refresh token at all**, and the account works for one hour and
-/// then asks to sign in again with nothing in the flow saying why.
-/// Google spells the same thing `access_type=offline`, which
-/// [`authorize_url`] adds for that provider.
-pub fn mailbox_scopes(provider_key: &str) -> String {
-    match provider_key {
-        "google" => "https://mail.google.com/".into(),
-        "microsoft" => concat!(
-            "offline_access ",
-            "https://outlook.office.com/IMAP.AccessAsUser.All ",
-            "https://outlook.office.com/SMTP.Send"
-        )
-        .into(),
-        _ => String::new(),
-    }
-}
-
-/// The body that renews an access token.
-///
-/// The same shape as [`token_request_body`] with `grant_type` swapped:
-/// providers differ on almost everything else and agree on this.
-pub fn refresh_request_body(p: &Provider, refresh_token: &str, client_secret: &str) -> String {
-    let mut body = format!(
-        "grant_type=refresh_token&refresh_token={}&client_id={}",
-        encode(refresh_token),
-        encode(&p.client_id)
-    );
-    if !client_secret.is_empty() {
-        body.push_str(&format!("&client_secret={}", encode(client_secret)));
-    }
-    body
-}
+#[cfg(feature = "net")]
+pub mod renew;
+#[cfg(feature = "net")]
+pub use renew::{RenewError, Renewed, renew};
 
 #[cfg(test)]
 mod tests {

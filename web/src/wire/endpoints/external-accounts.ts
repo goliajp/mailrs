@@ -50,3 +50,21 @@ export async function wireRemoveExternalAccount(id: string): Promise<void> {
     path: `/accounts/external/${encodeURIComponent(id)}`,
   })
 }
+
+/**
+ * Stop or resume syncing one account.
+ *
+ * Pausing does not stop sending: the credential is still held and
+ * still valid, and refusing to send from an address somebody owns
+ * would be a second meaning nobody asked for.
+ */
+export async function wireSetExternalAccountPaused(
+  id: string,
+  paused: boolean
+): Promise<WireExternalAccount> {
+  return wireFetch(externalAccountSchema, {
+    body: { paused },
+    method: 'POST',
+    path: `/accounts/external/${encodeURIComponent(id)}/paused`,
+  })
+}

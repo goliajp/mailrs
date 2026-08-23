@@ -17,13 +17,14 @@ extension MailrsClient {
     @discardableResult
     func sendNew(
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
-        subject: String, body: String, scheduledAt: Int64? = nil
+        subject: String, body: String, scheduledAt: Int64? = nil,
+        from: String = ""
     ) async throws -> Wire.SendResponse {
         try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: nil, forwardAttachmentsFrom: nil,
-            scheduledAt: scheduledAt
+            scheduledAt: scheduledAt, from: from
         ))
     }
 
@@ -36,13 +37,14 @@ extension MailrsClient {
         subject: String,
         body: String,
         inReplyTo: String?,
-        threadId: String
+        threadId: String,
+        from: String = ""
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: inReplyTo, replyToThreadId: threadId,
             forwardMessageId: nil, forwardAttachmentsFrom: nil,
-            scheduledAt: nil
+            scheduledAt: nil, from: from
         ))
     }
 
@@ -65,7 +67,8 @@ extension MailrsClient {
         forwardAttachmentsFrom: UInt32? = nil,
         scheduledAt: Int64? = nil,
         redraftOf: String? = nil,
-        redraftKeep: [Int]? = nil
+        redraftKeep: [Int]? = nil,
+        from: String = ""
     ) async throws -> Wire.SendResponse {
         let boundary = "mailrs-\(UUID().uuidString)"
         // Repeated fields, one per address, exactly as `to` is — the
@@ -75,6 +78,9 @@ extension MailrsClient {
         fields += bcc.map { ("bcc", $0) }
         fields.append(("subject", subject))
         fields.append(("body", body))
+        // Absent when it is the signed-in address, like every other
+        // optional field on this route.
+        if !from.isEmpty { fields.append(("from", from)) }
         // Same optionality contract as the JSON route: absent, never
         // empty — the handler filters empties for some fields and not
         // others, and absent is the shape it always understands.
@@ -131,14 +137,15 @@ extension MailrsClient {
         subject: String,
         body: String,
         forwardMessageId: String,
-        forwardAttachmentsFrom: UInt32?
+        forwardAttachmentsFrom: UInt32?,
+        from: String = ""
     ) async throws -> Wire.SendResponse {
         return try await post(Wire.SendRequest(
             to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
             inReplyTo: nil, replyToThreadId: nil,
             forwardMessageId: forwardMessageId,
             forwardAttachmentsFrom: forwardAttachmentsFrom,
-            scheduledAt: nil
+            scheduledAt: nil, from: from
         ))
     }
 

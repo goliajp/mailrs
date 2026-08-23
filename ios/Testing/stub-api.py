@@ -86,6 +86,44 @@ LONG_SUBJECT = ("Re: Fwd: Re: quarterly planning, the follow-up notes, "
 MANY = [f"person{i}@example.com" for i in range(40)]
 UNBREAKABLE = "supercalifragilistic" * 8
 
+# Connected mailboxes. Two of them, deliberately: the From control
+# only appears when there is more than one address to choose between,
+# so a single account cannot tell "the picker is hidden because there
+# is nothing to pick" from "the picker is broken".
+#
+# The second one is `needs_auth` — it must NOT be offered as a From
+# address, because choosing it produces a message that cannot be sent.
+EXTERNAL_ACCOUNTS = [
+    {
+        "id": "acc_gmail",
+        "email": "someone@gmail.com",
+        "display_name": "Work",
+        "provider": "gmail",
+        "colour": "#4285f4",
+        "state": "ok",
+        "auth": "oauth2",
+        "incoming": {"host": "imap.gmail.com", "port": 993, "protocol": "imap", "tls": "implicit"},
+        "outgoing": {"host": "smtp.gmail.com", "port": 465, "protocol": "smtp", "tls": "implicit"},
+        "last_sync": 1754400000,
+        "progress": None,
+        "last_error": None,
+    },
+    {
+        "id": "acc_qq",
+        "email": "someone@qq.com",
+        "display_name": "",
+        "provider": "qq",
+        "colour": "#12b7f5",
+        "state": "needs_auth",
+        "auth": "app_password",
+        "incoming": {"host": "imap.qq.com", "port": 993, "protocol": "imap", "tls": "implicit"},
+        "outgoing": {"host": "smtp.qq.com", "port": 465, "protocol": "smtp", "tls": "implicit"},
+        "last_sync": 0,
+        "progress": None,
+        "last_error": "the server refused the app password",
+    },
+]
+
 CONVOS = [{
     "thread_id": "t1", "subject": "Quarterly report and the follow-up notes",
     "participants": ["Alice Smith <alice@example.com>"],
@@ -564,6 +602,23 @@ class H(BaseHTTPRequestHandler):
                     if term.lower() in c["subject"].lower() or term.lower() in c["snippet"].lower()]
             self._send(hits[:limit])
             return
+        if self.path.split("?")[0] == "/api/accounts/external":
+            self._send({"accounts": EXTERNAL_ACCOUNTS})
+            return
+        settings_for = re.match(r"^/api/accounts/external/settings$", self.path.split("?")[0])
+        if settings_for:
+            domain = parse_qs(urlparse(self.path).query).get("email", [""])[0].split("@")[-1]
+            known = {
+                "gmail.com": {"label": "Gmail", "auth": "oauth2"},
+                "qq.com": {"label": "QQ", "auth": "app_password",
+                           "secret_help": {"what": "授权码",
+                                           "url": "https://service.mail.qq.com/"}},
+            }.get(domain.lower())
+            if known:
+                self._send({"known": True, "preset": known})
+            else:
+                self._send({"known": False})
+            return
         one = re.match(r"^/api/mail/messages/(\d+)$", self.path.split("?")[0])
         if one:
             uid = int(one.group(1))
@@ -978,6 +1033,12 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        ext = re.match(r"^/api/accounts/external/([^/]+)$", self.path.split("?")[0])
+        if ext:
+            WRITES.append("DELETE /api/accounts/external/" + ext.group(1))
+            EXTERNAL_ACCOUNTS[:] = [a for a in EXTERNAL_ACCOUNTS if a["id"] != ext.group(1)]
+            self._send({"ok": True})
+            return
         WRITES.append("DELETE " + self.path.split("?")[0])
         spam_list = re.match(r"^/api/spam/(whitelist|blacklist)$", self.path.split("?")[0])
         if spam_list:
@@ -1084,6 +1145,32 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self._session_rejected():
+            return
+        if self.path.split("?")[0] == "/api/accounts/external":
+            length = int(self.headers.get("content-length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            WRITES.append("POST /api/accounts/external " + (body.get("email") or ""))
+            row = {
+                "id": "acc_new",
+                "email": body.get("email", ""),
+                "display_name": body.get("display_name", ""),
+                "provider": body.get("provider", "custom"),
+                "colour": "#8b5cf6",
+                "state": "ok",
+                "auth": body.get("auth", "password"),
+                # Echoed back, so a test can tell that the servers a
+                # person typed in actually left the client.
+                "incoming": body.get("incoming")
+                or {"host": "imap.example.com", "port": 993, "protocol": "imap", "tls": "implicit"},
+                "outgoing": body.get("outgoing")
+                or {"host": "smtp.example.com", "port": 465, "protocol": "smtp", "tls": "implicit"},
+                "username": body.get("username"),
+                "last_sync": 0,
+                "progress": None,
+                "last_error": None,
+            }
+            EXTERNAL_ACCOUNTS.append(row)
+            self._send(row)
             return
         if re.match(r"^/api/mail/sends/[^/]+/resend$", self.path.split("?")[0]):
             WRITES.append("POST " + self.path.split("?")[0])

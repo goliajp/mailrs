@@ -50,6 +50,16 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - GET /api/mail/folders — list folders
 - GET /api/contacts — search contacts
 
+### Connected mailboxes
+Gmail, Outlook, QQ or any IMAP/POP3/JMAP server, read into the same
+lists as this one and sent through the provider's own server.
+- GET /api/accounts/external — the connected mailboxes and the state of each; no secret is ever returned
+- POST /api/accounts/external — connect one; servers discovered from the address unless `incoming`/`outgoing` are given; the credential is proved before it is stored
+- DELETE /api/accounts/external/{id} — disconnect; removes the sealed credential and the sync markers, keeps the mail
+- POST /api/accounts/external/{id}/paused — `{"paused": true|false}`; stops the reading, never the sending
+- GET /api/accounts/external/settings?email= — what to fill in, before anything is saved
+- GET /api/accounts/external/oauth/{provider} — begin an OAuth connection (Gmail and Outlook refuse passwords for mail clients)
+
 ### Admin (requires permissions)
 - GET/POST/DELETE /api/admin/domains — domain CRUD
 - GET/POST/DELETE /api/admin/accounts — account CRUD

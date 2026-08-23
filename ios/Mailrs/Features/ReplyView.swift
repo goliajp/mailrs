@@ -36,6 +36,11 @@ struct ReplyView: View {
     /// save ran after the send's delete and quietly resurrected it.
     @State private var didSend = false
     @State private var failure: String?
+    /// Which address the answer leaves by. A reply follows the account
+    /// the thread arrived at: sent from anywhere else it lands in the
+    /// conversation as a stranger.
+    @State private var from = ""
+    @State private var fromAddresses: [FromAddress] = []
     @State private var suggestions: [String] = []
     @State private var suggestionTask: Task<Void, Never>?
     /// The same autosave contract as compose: one id per session,
@@ -101,6 +106,8 @@ struct ReplyView: View {
             // keyboard was up. These are one compact line each, and
             // the editor takes everything that is left.
             VStack(spacing: 0) {
+                FromPicker(addresses: fromAddresses, selection: $from)
+                    .padding(.horizontal, 12)
                 Picker("Mode", selection: $mode) {
                     ForEach(Mode.allCases) { mode in
                         Text(mode.label).tag(mode)
@@ -180,6 +187,15 @@ struct ReplyView: View {
                     restoreDraft()
                 }
                 focus = .body
+            }
+            .task {
+                fromAddresses = await loadFromAddresses(
+                    session: session, own: session.myAddress)
+                // Follows where the mail arrived, until the writer
+                // picks one by hand.
+                if from.isEmpty {
+                    from = replyFromFor(thread.arrivedAtAccount, addresses: fromAddresses)
+                }
             }
             .onChange(of: body_) { _, _ in scheduleAutosave() }
             .onDisappear {
@@ -293,7 +309,8 @@ struct ReplyView: View {
                     body: quotedBody,
                     inReplyTo: replyingTo?.messageId,
                     threadId: thread.threadId,
-                    attachments: attachments
+                    attachments: attachments,
+                    from: from
                 )
             case .forward:
                 guard let replyingTo else { return }
@@ -305,7 +322,8 @@ struct ReplyView: View {
                     body: MailSignature.append(body: body_, signature: session.signature),
                     forwardMessageId: replyingTo.messageId,
                     forwardAttachmentsFrom: replyingTo.uid,
-                    attachments: attachments
+                    attachments: attachments,
+                    from: from
                 )
             }
             // Sent, so it is no longer a draft. Cancel the pending

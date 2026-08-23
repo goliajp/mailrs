@@ -24,6 +24,7 @@ use mailrs_core_sidestate::families::external_accounts::{self as ext, AccountRow
 use mailrs_imap_client as imap;
 
 use crate::FastcoreState;
+use crate::external_sync_secret::{sealing_key, usable_secret};
 
 /// How often the loop looks for due accounts when it last found one.
 const BUSY_INTERVAL: Duration = Duration::from_secs(60);
@@ -43,15 +44,6 @@ pub(crate) fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
-/// The deployment's sealing key, if one is configured.
-fn sealing_key() -> Option<mailrs_secretbox::Key> {
-    std::env::var("MAILRS_ACCOUNT_KEY")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .map(|v| mailrs_secretbox::Key::from_passphrase(&v))
-}
-
-/// Poll connected accounts until the process ends.
 pub async fn spawn(state: Arc<FastcoreState>) {
     if sealing_key().is_none() {
         // Said once, plainly. Without the key no secret can be opened,
@@ -137,14 +129,47 @@ fn due_accounts(state: &Arc<FastcoreState>, user: &str, now: i64) -> Vec<Account
     out
 }
 
+/// Write the row back — **only if it is still there**.
+///
+/// A plain `hset` re-creates a deleted account. A full re-read takes as
+/// long as a mailbox is big, which is why there is a progress note at
+/// all, and disconnecting is one button: somebody who presses it
+/// mid-pass had the row reappear when the pass finished — without its
+/// sealed credential and without its sync markers, so it came back as
+/// a row that could never work and would re-download everything if it
+/// ever did.
 fn save(state: &Arc<FastcoreState>, user: &str, row: &AccountRow) {
     let Some(mut conn) = state.net_conn() else {
         return;
     };
-    let key = format!("ext:accts:{user}");
-    if let Ok(json) = serde_json::to_string(row) {
-        let _ = conn.hset(key.as_bytes(), &[(row.id.as_bytes(), json.as_bytes())]);
+    let _ = save_if_present(&mut conn, &format!("ext:accts:{user}"), row);
+}
+
+/// The claim itself, over a connection, so it can be driven by a
+/// scripted server the way the sender's queue claim is.
+///
+/// WATCH + MULTI: the field is read under the watch and the write is
+/// abandoned if anything touched the hash in between. Returns whether
+/// the row was written.
+pub fn save_if_present(
+    conn: &mut kevy_client::Connection,
+    key: &str,
+    row: &AccountRow,
+) -> std::io::Result<bool> {
+    let Ok(json) = serde_json::to_string(row) else {
+        return Ok(false);
+    };
+    conn.watch(&[key.as_bytes()])?;
+    if conn.hget(key.as_bytes(), row.id.as_bytes())?.is_none() {
+        // Gone. This pass has nothing to write back to.
+        conn.unwatch()?;
+        return Ok(false);
     }
+    let mut tx = conn.multi()?;
+    tx.queue(&[b"HSET", key.as_bytes(), row.id.as_bytes(), json.as_bytes()])?;
+    // `None` means the watch aborted: somebody else wrote to this hash
+    // — a delete, or another pass — and their answer is the newer one.
+    Ok(tx.exec_watched()?.is_some())
 }
 
 /// Fetch one account. `Ok(n)` is how many new messages were filed.
@@ -157,7 +182,7 @@ async fn sync_one(
     user: &str,
     row: &AccountRow,
 ) -> Result<usize, String> {
-    let secret = open_secret(state, user, &row.id)?;
+    let secret = usable_secret(state, user, row).await?;
     match row.incoming.protocol.as_str() {
         "imap" => sync_imap(state, user, row, &secret).await,
         "pop3" => crate::external_sync_pop3::sync_pop3(state, user, row, &secret).await,
@@ -247,16 +272,75 @@ async fn read_folder(
         return Ok(0);
     };
     if let imap::FetchPlan::Everything { because } = &plan {
-        // Said out loud: a full re-download is expensive and looks like
-        // a bug when it is not, so the reason goes in the log rather
-        // than being inferred from the volume.
+        // Said out loud twice: in the log for whoever is reading it,
+        // and on the row for the person whose mailbox this is. A
+        // sudden multi-gigabyte download that nothing announced reads
+        // as a fault; one that announced itself reads as maintenance.
         tracing::info!(%user, account = %row.email, %folder, %because, "reading the whole folder");
+        note_progress(
+            state,
+            user,
+            row,
+            &format!("Re-reading {folder} from the start — {because}"),
+        );
     }
 
-    let fetched = session
-        .fetch_full(&plan.range())
-        .await
-        .map_err(|e| e.to_string())?;
+    let fetched = match &plan {
+        imap::FetchPlan::Realign { .. } => {
+            // Identities first. The uids are worthless after a
+            // renumbering and the Message-IDs are not, so this asks
+            // which messages are here before asking for any of them.
+            let envelopes = session
+                .fetch_envelopes(&plan.range())
+                .await
+                .map_err(|e| e.to_string())?;
+
+            // What we do not already hold, asked by Message-ID —
+            // which is the identity that survived the renumbering and
+            // the same one `allocate_uid` keys on, so "already held"
+            // means here exactly what it means at ingest.
+            //
+            // A read failure counts as *not held*: fetching a message
+            // twice is idempotent and costs bytes, while skipping one
+            // because a lookup errored loses it until the next
+            // renumbering.
+            let missing: Vec<u32> = envelopes
+                .iter()
+                .filter(|e| !matches!(state.mailbox.get_message(&e.message_id), Ok(Some(_))))
+                .map(|e| e.uid)
+                .collect();
+
+            note_progress(
+                state,
+                user,
+                row,
+                &format!(
+                    "Re-read {folder}: {} of {} messages are new",
+                    missing.len(),
+                    envelopes.len()
+                ),
+            );
+            if missing.is_empty() {
+                // The common case, and the reason for the whole pass:
+                // a renumbering that changed nothing we hold. A few
+                // hundred bytes per message instead of the mailbox.
+                Vec::new()
+            } else {
+                // One range, not one fetch each: a thousand separate
+                // `UID FETCH`es is a thousand round trips, and the
+                // server is somebody else's.
+                session
+                    .fetch_full(&as_uid_set(&missing))
+                    .await
+                    .map_err(|e| e.to_string())?
+            }
+        }
+        _ => session
+            .fetch_full(&plan.range())
+            .await
+            .map_err(|e| e.to_string())?,
+    };
+
     let mut top = highest.unwrap_or(0);
     let mut filed = 0usize;
     for (uid, meta, body) in fetched {
@@ -341,19 +425,42 @@ fn write_marker(
     );
 }
 
-/// The account's secret, opened.
-fn open_secret(state: &Arc<FastcoreState>, user: &str, id: &str) -> Result<String, String> {
-    let key = sealing_key().ok_or("MAILRS_ACCOUNT_KEY is not set on this server")?;
-    let mut conn = state
-        .net_conn()
-        .ok_or("the side-state store is unreachable")?;
-    let sealed = conn
-        .get(format!("ext:secret:{user}:{id}").as_bytes())
-        .map_err(|e| e.to_string())?
-        .ok_or("no stored password for this account")?;
-    let sealed = String::from_utf8(sealed).map_err(|_| "the stored password is not text")?;
-    let opened = mailrs_secretbox::open(&key, &sealed).map_err(|e| e.to_string())?;
-    String::from_utf8(opened).map_err(|_| "the stored password is not text".to_string())
+fn note_progress(state: &Arc<FastcoreState>, user: &str, row: &AccountRow, note: &str) {
+    let mut updated = row.clone();
+    updated.progress = Some(note.to_string());
+    save(state, user, &updated);
+}
+
+/// A uid list as IMAP's sequence-set syntax, with runs collapsed.
+///
+/// `1,2,3,7,8,20` becomes `1:3,7:8,20`. Not decoration: a re-aligned
+/// mailbox's missing uids are usually contiguous — everything that
+/// arrived since the renumbering — and a server has a line-length
+/// limit that a comma-separated thousand will exceed.
+fn as_uid_set(uids: &[u32]) -> String {
+    let mut sorted = uids.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < sorted.len() {
+        let start = sorted[i];
+        let mut end = start;
+        while i + 1 < sorted.len() && sorted[i + 1] == end + 1 {
+            i += 1;
+            end = sorted[i];
+        }
+        if !out.is_empty() {
+            out.push(',');
+        }
+        if start == end {
+            out.push_str(&start.to_string());
+        } else {
+            out.push_str(&format!("{start}:{end}"));
+        }
+        i += 1;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -419,5 +526,25 @@ mod tests {
             marker_key("acc_1", "[Gmail]/Sent Mail"),
             "ext:sync:acc_1:_Gmail__Sent_Mail"
         );
+    }
+
+    /// The failure that must be told apart from every other: only a
+    /// refused refresh token means sign in again. A provider that
+    /// cannot be reached is a wait.
+    /// A re-aligned mailbox's missing uids are usually contiguous, and
+    /// a comma-separated thousand exceeds a server's line length.
+    #[test]
+    fn a_uid_list_collapses_into_runs() {
+        assert_eq!(as_uid_set(&[1, 2, 3, 7, 8, 20]), "1:3,7:8,20");
+        assert_eq!(as_uid_set(&[5]), "5");
+        assert_eq!(as_uid_set(&[]), "");
+    }
+
+    /// The uids come back in whatever order the envelopes did, and a
+    /// duplicate would ask for the same message twice.
+    #[test]
+    fn it_sorts_and_deduplicates_first() {
+        assert_eq!(as_uid_set(&[3, 1, 2, 2]), "1:3");
+        assert_eq!(as_uid_set(&[9, 1]), "1,9");
     }
 }

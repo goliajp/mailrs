@@ -108,3 +108,22 @@ pub fn auth_plain_payload(user: &str, secret: &str) -> String {
     raw.extend_from_slice(secret.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(raw)
 }
+
+/// The `AUTH XOAUTH2` payload for an access token.
+///
+/// Not a password in a different wrapper: the separators are `\x01`
+/// rather than NUL, the token is prefixed `auth=Bearer `, and the
+/// whole thing ends with two of them. Sending an OAuth token through
+/// `AUTH PLAIN` is refused as a wrong password, which is what a
+/// person is then told.
+///
+/// The failure protocol differs too, and the caller must know it: a
+/// provider that rejects the token answers `334` with a base64 error
+/// object rather than a final failure code, and expects an empty line
+/// before it will send one. A client that treats the `334` as success
+/// hangs.
+pub fn auth_xoauth2_payload(user: &str, access_token: &str) -> String {
+    use base64::Engine as _;
+    let raw = format!("user={user}\x01auth=Bearer {access_token}\x01\x01");
+    base64::engine::general_purpose::STANDARD.encode(raw)
+}

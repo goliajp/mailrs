@@ -122,9 +122,99 @@ pub struct AccountRow {
     /// When the account was added.
     #[serde(default)]
     pub created_at: i64,
+    /// What this account is doing right now, when it is worth saying.
+    ///
+    /// A full re-read after a `UIDVALIDITY` change moves a mailbox's
+    /// worth of data and takes as long as that implies. Silence there
+    /// looks like a stall; `last_error` would look like a fault. This
+    /// is neither, so it is its own field.
+    #[serde(default)]
+    pub progress: Option<String>,
+
     /// Where it sits in the account list.
     #[serde(default)]
     pub sort: i64,
+}
+
+/// What was sealed for an account.
+///
+/// Two writers put two shapes under `ext:secret:*` — a password as it
+/// was typed, and a JSON object for OAuth — and both readers returned
+/// whatever was inside as a string. The sync worker therefore handed
+/// `{"access_token":…}` to `AUTHENTICATE XOAUTH2`, and the sender
+/// handed it to `AUTH PLAIN`; both were refused, and the sender treats
+/// a refusal at authentication as permanent, so the message bounced
+/// and the person was told their password was wrong for an account
+/// whose tokens were fine.
+///
+/// Nothing errored and every writer was self-consistent. It lives here
+/// rather than in either binary because both read it, and beside the
+/// row's own shape because that is what it is part of.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Credential {
+    /// A password or an app password, as typed.
+    Password(String),
+    /// OAuth, with the instant its access token stops working.
+    Oauth {
+        /// What `XOAUTH2` is given.
+        access: String,
+        /// What renews it.
+        refresh: String,
+        /// Epoch seconds. Absolute, because a stored duration means
+        /// nothing an hour after it was written.
+        expires_at: i64,
+    },
+}
+
+impl Credential {
+    /// Read a sealed value.
+    ///
+    /// Anything that is not the OAuth object **is** a password — which
+    /// is what every value written before OAuth existed is, and what
+    /// every app-password account still writes. An app password may
+    /// itself parse as JSON, so only the object carrying *both* token
+    /// fields counts.
+    pub fn parse(raw: &str) -> Self {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else {
+            return Self::Password(raw.to_string());
+        };
+        let (Some(access), Some(refresh)) = (
+            v.get("access_token").and_then(|x| x.as_str()),
+            v.get("refresh_token").and_then(|x| x.as_str()),
+        ) else {
+            return Self::Password(raw.to_string());
+        };
+        Self::Oauth {
+            access: access.to_string(),
+            refresh: refresh.to_string(),
+            expires_at: v.get("expires_at").and_then(|x| x.as_i64()).unwrap_or(0),
+        }
+    }
+
+    /// The secret to send, right now.
+    ///
+    /// For OAuth this is the access token; renewing it when due is the
+    /// caller's job and has to happen **before** connecting, because
+    /// discovering expiry by being refused marks the account NeedsAuth
+    /// and asks a person to re-authenticate something that could have
+    /// been renewed without them.
+    pub fn secret(&self) -> &str {
+        match self {
+            Self::Password(p) => p,
+            Self::Oauth { access, .. } => access,
+        }
+    }
+
+    /// Whether this must be sent with `XOAUTH2` rather than as a
+    /// password.
+    ///
+    /// The distinction the sender needs and the sync worker does not:
+    /// an access token given to `AUTH PLAIN` is refused even when it
+    /// is current, because the command is wrong rather than the
+    /// secret.
+    pub fn is_oauth(&self) -> bool {
+        matches!(self, Self::Oauth { .. })
+    }
 }
 
 /// Why an account cannot work, in words its owner can act on.
@@ -186,6 +276,50 @@ pub fn colour_for(id: &str) -> &'static str {
     PALETTE[(h % PALETTE.len() as u64) as usize]
 }
 
+/// What a freshly connected account is doing: nothing yet.
+///
+/// The sync loop backs off to five minutes when nothing has been due
+/// for a while — deliberately, because a loop with no cheap resting
+/// state is what burned a shared host once. So a new account can sit
+/// for that long before its first read, and the screen said nothing
+/// about it: connecting appeared to do nothing at all.
+///
+/// Cleared by the first success, like every other progress note.
+pub const FIRST_SYNC_NOTE: &str = "waiting to read this mailbox for the first time";
+
+/// The row after somebody stopped or resumed reading it.
+///
+/// Three rules, and each has a reason a caller would otherwise have to
+/// re-derive:
+///
+/// - **A rejected credential is left alone.** Pausing cannot fix it,
+///   and resuming would put it back on a timer that cannot succeed.
+/// - **Resuming makes it due at once.** Somebody who pressed resume is
+///   waiting for mail, not for an interval — and the failure that
+///   preceded the pause is no longer what the row is about.
+/// - **Sending is untouched.** The credential is still held and still
+///   valid, and refusing to send from an address somebody owns would be
+///   a second meaning nobody asked for.
+pub fn with_paused(mut row: AccountRow, paused: bool) -> AccountRow {
+    if row.state == State::NeedsAuth {
+        return row;
+    }
+    row.state = if paused { State::Paused } else { State::Ok };
+    if !paused {
+        row.next_attempt = 0;
+        row.last_error = None;
+    }
+    // A pause ends whatever was running, so the note goes — except for
+    // an account that has never synced. Resuming that one puts it back
+    // in the same wait it was in before, and dropping the note there
+    // restores exactly the silence the note exists to break.
+    row.progress = match (paused, row.last_sync) {
+        (false, 0) => Some(FIRST_SYNC_NOTE.to_string()),
+        _ => None,
+    };
+    row
+}
+
 /// Shortest gap between syncs of one account.
 pub const MIN_SYNC_SECS: i64 = 60;
 
@@ -228,6 +362,7 @@ pub fn with_success(mut row: AccountRow, now: i64) -> AccountRow {
     // Cleared, so a recovered account does not keep showing last week's
     // failure beside a fresh timestamp.
     row.last_error = None;
+    row.progress = None;
     row.next_attempt = now + MIN_SYNC_SECS;
     row
 }

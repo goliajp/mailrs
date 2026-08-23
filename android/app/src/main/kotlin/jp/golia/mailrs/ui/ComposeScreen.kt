@@ -11,6 +11,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
@@ -27,7 +28,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -190,6 +194,56 @@ fun ComposeScreen(state: UiState, vm: MailViewModel) {
                 }
             },
         )
+
+        // Which address it leaves by, when there is more than one to
+        // choose between. With a single mailbox the control is
+        // furniture and the address it would show is already implied.
+        //
+        // **One line, not a row of every address.** Laid out flat it
+        // grew with the number of accounts and with the system text
+        // size: at 200% it pushed the To field off the screen, which
+        // is the field somebody opened the composer to fill in. The
+        // web uses a select and iOS a Picker for the same reason.
+        if (state.fromAddresses.size > 1) {
+            var picking by remember { mutableStateOf(false) }
+            val current = state.fromAddresses.firstOrNull { it.address == draft.from }
+                ?: state.fromAddresses.first()
+            Box {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { picking = true }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("compose.from"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("From", color = theme.fgMuted, fontSize = 12.sp)
+                    Text(
+                        current.label,
+                        color = theme.fg,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
+                    for (a in state.fromAddresses) {
+                        DropdownMenuItem(
+                            text = { Text(a.label, fontSize = 12.sp) },
+                            onClick = {
+                                vm.editDraft(from = a.address)
+                                picking = false
+                            },
+                            modifier = Modifier
+                                .testTag("compose.from.${a.accountId.ifEmpty { "own" }}"),
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(color = theme.border, thickness = 0.5.dp)
+        }
 
         CompactField(
             label = "To",

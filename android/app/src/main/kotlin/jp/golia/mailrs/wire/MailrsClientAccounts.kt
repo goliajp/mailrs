@@ -15,7 +15,10 @@ import okhttp3.Request
 
 /** `GET /api/accounts/external` — the mailboxes this person connected. */
 suspend fun MailrsClient.externalAccounts(): MailrsClient.Outcome<List<ExternalAccount>> =
-    one(get("/api/accounts/external"), ListSerializer(ExternalAccount.serializer()))
+    when (val r = one(get("/api/accounts/external"), ExternalAccountList.serializer())) {
+        is MailrsClient.Outcome.Ok -> MailrsClient.Outcome.Ok(r.value.accounts)
+        is MailrsClient.Outcome.Err -> r
+    }
 
 /**
  * `GET /api/accounts/external/settings` — what to fill in for an
@@ -40,6 +43,8 @@ suspend fun MailrsClient.connectAccount(
     email: String,
     secret: String,
     name: String,
+    servers: Pair<WireEndpoint, WireEndpoint>? = null,
+    login: String = "",
 ): MailrsClient.Outcome<String> = post(
     url("/api/accounts/external"),
     json.encodeToString(
@@ -48,6 +53,9 @@ suspend fun MailrsClient.connectAccount(
             email = email,
             secret = secret,
             displayName = name.ifEmpty { null },
+            username = login.ifEmpty { null },
+            incoming = servers?.first,
+            outgoing = servers?.second,
         ),
     ),
     authorized = true,
@@ -65,3 +73,19 @@ suspend fun MailrsClient.disconnectAccount(id: String): MailrsClient.Outcome<Str
                 .build(),
         )
     }
+
+/**
+ * `POST /api/accounts/external/{id}/paused` — stop or resume syncing.
+ *
+ * Pausing does not stop sending: the credential is still held and
+ * still valid, and refusing to send from an address somebody owns
+ * would be a second meaning nobody asked for.
+ */
+suspend fun MailrsClient.setAccountPaused(
+    id: String,
+    paused: Boolean,
+): MailrsClient.Outcome<String> = post(
+    url("/api/accounts/external/" + enc(id) + "/paused"),
+    """{"paused":$paused}""",
+    authorized = true,
+)

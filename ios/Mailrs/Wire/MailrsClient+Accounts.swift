@@ -4,7 +4,8 @@ extension MailrsClient {
     /// `GET /api/accounts/external` — the mailboxes this person has
     /// connected.
     func externalAccounts() async throws -> [Wire.ExternalAccount] {
-        try await getJSON("/api/accounts/external")
+        let body: Wire.ExternalAccountList = try await getJSON("/api/accounts/external")
+        return body.accounts
     }
 
     /// `GET /api/accounts/external/settings` — what to fill in for an
@@ -24,9 +25,17 @@ extension MailrsClient {
     ///
     /// An address and a secret. Everything else the server fills in
     /// from its provider table, or discovers from DNS.
-    func connectAccount(email: String, secret: String, name: String) async throws {
-        var body: [String: String] = ["email": email, "secret": secret]
+    /// `servers` carries the two endpoints when somebody typed them in
+    /// rather than letting the server work them out; `login` is the
+    /// account's own name on that server, when it is not the address.
+    func connectAccount(
+        email: String, secret: String, name: String,
+        servers: [String: Any]? = nil, login: String = ""
+    ) async throws {
+        var body: [String: Any] = ["email": email, "secret": secret]
         if !name.isEmpty { body["display_name"] = name }
+        if !login.isEmpty { body["username"] = login }
+        if let servers { body.merge(servers) { a, _ in a } }
         _ = try await send(
             "POST", "/api/accounts/external",
             body: try JSONSerialization.data(withJSONObject: body), authorized: true)

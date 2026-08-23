@@ -1,5 +1,13 @@
 package jp.golia.mailrs
 
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+
+import jp.golia.mailrs.wire.MailrsClient
+import jp.golia.mailrs.wire.externalAccounts
+import jp.golia.mailrs.wire.filterRows
+import jp.golia.mailrs.wire.fromAddresses
+import jp.golia.mailrs.wire.replyFromFor
 import jp.golia.mailrs.wire.cancelScheduled
 import jp.golia.mailrs.wire.scheduledSends
 import jp.golia.mailrs.wire.SendSchedule
@@ -16,7 +24,6 @@ import jp.golia.mailrs.wire.deleteDraft
 import jp.golia.mailrs.wire.drafts
 import jp.golia.mailrs.wire.saveDraft
 import jp.golia.mailrs.wire.unsubscribe
-import jp.golia.mailrs.wire.MailrsClient
 import jp.golia.mailrs.wire.MailSignature
 import jp.golia.mailrs.wire.RecentRecipients
 import jp.golia.mailrs.wire.RecipientAutocomplete
@@ -93,7 +100,41 @@ fun MailViewModel.compose(
             replyToThreadId = _state.value.open?.threadId,
         )
     }
-    _state.update { it.copy(composing = draft, error = null) }
+    // A reply follows the account the thread arrived at, until the
+    // writer picks another by hand.
+    val arrivedAt = _state.value.open?.accountId.orEmpty()
+    val withFrom = draft.copy(
+        from = replyFromFor(arrivedAt, _state.value.fromAddresses),
+    )
+    _state.update { it.copy(composing = withFrom, error = null) }
+    loadFromAddresses()
+}
+
+/**
+ * The addresses this person can send as.
+ *
+ * Read when a composer opens rather than at sign-in: an account
+ * connected while the app was running would otherwise not appear
+ * until it was restarted.
+ */
+fun MailViewModel.loadFromAddresses() = viewModelScope.launch {
+    val accounts = (client.externalAccounts() as? MailrsClient.Outcome.Ok)?.value.orEmpty()
+    val addresses = fromAddresses(_state.value.myAddress, accounts)
+    val rows = filterRows(_state.value.myAddress, accounts)
+    _state.update { s ->
+        s.copy(
+            fromAddresses = addresses,
+            accountFilterRows = rows,
+            // The default follows the list once it arrives — before it
+            // does, the draft's `from` is empty, which the server reads
+            // as the signed-in address.
+            composing = when {
+                s.composing?.from.isNullOrEmpty() ->
+                    s.composing?.copy(from = replyFromFor(s.open?.accountId, addresses))
+                else -> s.composing
+            },
+        )
+    }
 }
 
 /**
@@ -186,10 +227,12 @@ fun MailViewModel.editDraft(
     bcc: String? = null,
     subject: String? = null,
     body: String? = null,
+    from: String? = null,
 ) {
     val draft = _state.value.composing ?: return
     _state.update { it.copy(
         composing = draft.copy(
+            from = from ?: draft.from,
             to = to ?: draft.to,
             cc = cc ?: draft.cc,
             bcc = bcc ?: draft.bcc,
@@ -228,6 +271,7 @@ fun MailViewModel.send(schedule: SendSchedule = SendSchedule.Now) {
                 scheduledAt = schedule.fireDate(java.time.ZonedDateTime.now()),
                 redraftOf = draft.redraftOf,
                 redraftKeep = draft.keptCarried(),
+                from = draft.from,
             )
         } else {
             client.sendMultipart(

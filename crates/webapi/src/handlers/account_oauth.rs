@@ -17,7 +17,7 @@
 use axum::extract::{Extension, Path, Query};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect};
-use mailrs_oauth_client::{IdentitySource, Pkce, Provider, mailbox_scopes};
+use mailrs_oauth_client::Pkce;
 use serde::Deserialize;
 
 use crate::handlers::conversations::AuthedUser;
@@ -28,64 +28,6 @@ use crate::handlers::kevy_util::with_kevy;
 /// Long enough to sign in and approve, short enough that a state token
 /// captured from a shared machine is stale before it is useful.
 const FLOW_TTL: std::time::Duration = std::time::Duration::from_secs(600);
-
-/// The providers this can connect, and where their endpoints are.
-///
-/// `None` when the deployment has not registered an application with
-/// that provider — which is the common case and is said plainly rather
-/// than guessed around.
-pub fn mail_provider(key: &str) -> Option<Provider> {
-    let (env_id, env_secret) = match key {
-        "google" => (
-            "MAILRS_GOOGLE_MAIL_CLIENT_ID",
-            "MAILRS_GOOGLE_MAIL_CLIENT_SECRET",
-        ),
-        "microsoft" => (
-            "MAILRS_MICROSOFT_MAIL_CLIENT_ID",
-            "MAILRS_MICROSOFT_MAIL_CLIENT_SECRET",
-        ),
-        _ => return None,
-    };
-    let client_id = std::env::var(env_id)
-        .ok()
-        .filter(|v| !v.trim().is_empty())?;
-    let _ = env_secret;
-    let redirect_uri = std::env::var("MAILRS_MAIL_OAUTH_REDIRECT")
-        .ok()
-        .filter(|v| !v.trim().is_empty())?;
-    let (issuer, authorize_url, token_url) = match key {
-        "google" => (
-            "https://accounts.google.com",
-            "https://accounts.google.com/o/oauth2/v2/auth",
-            "https://oauth2.googleapis.com/token",
-        ),
-        _ => (
-            "https://login.microsoftonline.com/common/v2.0",
-            "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-            "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-        ),
-    };
-    Some(Provider {
-        key: key.to_string(),
-        issuer: issuer.to_string(),
-        authorize_url: authorize_url.to_string(),
-        token_url: token_url.to_string(),
-        userinfo_url: None,
-        // The mailbox scopes, which are the point. `offline_access` is
-        // in there for Microsoft and Google's equivalent is a query
-        // parameter — without it neither returns a refresh token, and
-        // the account works for one hour.
-        scopes: mailbox_scopes(key)
-            .split(' ')
-            .filter(|s| !s.is_empty())
-            .map(str::to_string)
-            .collect(),
-        client_id,
-        redirect_uri,
-        source: IdentitySource::IdToken,
-        require_verified_email: false,
-    })
-}
 
 /// Why a provider cannot be connected, for a screen to show.
 ///
@@ -109,7 +51,7 @@ pub async fn start(
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     Path(key): Path<String>,
 ) -> axum::response::Response {
-    let Some(provider) = mail_provider(&key) else {
+    let Some(provider) = mailrs_oauth_client::mail_provider(&key) else {
         return not_registered(&key).into_response();
     };
     let state_tok = crate::handlers::external_login::random_hex(16);
@@ -186,7 +128,7 @@ pub async fn callback(Query(q): Query<CallbackQuery>) -> axum::response::Respons
     ) else {
         return (StatusCode::BAD_REQUEST, "incomplete flow").into_response();
     };
-    let Some(provider) = mail_provider(provider_key) else {
+    let Some(provider) = mailrs_oauth_client::mail_provider(provider_key) else {
         return not_registered(provider_key).into_response();
     };
 

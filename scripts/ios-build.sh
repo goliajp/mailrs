@@ -102,17 +102,48 @@ xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" buil
 # lifetime. Left to the operator it is simply absent on the run that
 # matters, and the suite reports "inbox never listed" — which reads like
 # an app bug and is not one.
+# --- the stub is shared, so say who is using it ------------------------
+#
+# Both suites drive `ios/Testing/stub-api.py` on the same port, and the
+# iOS lane used to `pkill` it before starting — for a good reason (a
+# stale stub without `/debug/fetched` made an assertion read `[]` and
+# look like the app had not fetched anything). The cost was invisible:
+# an iOS run started beside an Android run killed the stub out from
+# under it, and the Android suite reported **79 failures across every
+# test**, all of them "the server refused the sign-in: unexpected end
+# of stream". Nothing in that output pointed at the real cause.
+#
+# A lock turns that into one line. It holds a pid, so a lock left by a
+# crashed run is not a lock at all.
+STUB_LOCK=/tmp/mailrs-stub.lock
+claim_stub_or_refuse() {
+    if [ -f "$STUB_LOCK" ]; then
+        holder=$(cat "$STUB_LOCK" 2>/dev/null || echo "")
+        if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+            echo "!! the test stub is in use by pid $holder — the other suite is running." >&2
+            echo "!! run them one at a time: killing it now would fail every test in that run." >&2
+            exit 1
+        fi
+    fi
+    echo $$ > "$STUB_LOCK"
+}
+release_stub_lock() {
+    [ -f "$STUB_LOCK" ] && [ "$(cat "$STUB_LOCK" 2>/dev/null)" = "$$" ] && rm -f "$STUB_LOCK"
+    return 0
+}
+
 STUB_PORT=6039
 echo "==> [3/3] test (stub on :$STUB_PORT)"
 # Kill first, then start. Reusing whatever already holds the port means
 # testing against whatever build of the stub that process happens to be:
 # a stale one without `/debug/fetched` made the attachment-index
 # assertion read `[]` and look like the app had not fetched anything.
+claim_stub_or_refuse
 pkill -f "Testing/stub-api.py" 2>/dev/null || true
 sleep 0.3
 python3 Testing/stub-api.py "$STUB_PORT" >/tmp/mailrs-ios-stub.log 2>&1 &
 STUB_PID=$!
-trap 'kill $STUB_PID 2>/dev/null || true' EXIT
+trap 'kill $STUB_PID 2>/dev/null || true; release_stub_lock' EXIT
 for _ in $(seq 1 20); do
     curl -fsS -o /dev/null "http://127.0.0.1:$STUB_PORT/api/conversations" && break
     sleep 0.25

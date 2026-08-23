@@ -163,10 +163,12 @@ class MailrsClient(private val store: TokenStore) {
         scheduledAt: Long? = null,
         redraftOf: String? = null,
         redraftKeep: List<Int>? = null,
+        from: String = "",
     ): Outcome<Unit> {
         val payload = json.encodeToString(
             Wire.SendRequest.serializer(),
             Wire.SendRequest(
+                from = from,
                 to = to,
                 cc = cc,
                 bcc = bcc,

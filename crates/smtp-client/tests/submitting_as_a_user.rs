@@ -55,3 +55,45 @@ fn non_ascii_is_carried_as_utf8() {
         .unwrap();
     assert!(raw.ends_with("パスワード".as_bytes()));
 }
+
+/// An access token is not a password, and the difference is the whole
+/// point: `\x01` separators, a `Bearer` prefix, and two terminators.
+/// Sent through `AUTH PLAIN` a token is refused, and the person is
+/// told their password is wrong for an account whose credentials are
+/// perfectly good.
+#[test]
+fn an_access_token_is_not_sent_as_a_password() {
+    use base64::Engine as _;
+    let plain = base64::engine::general_purpose::STANDARD
+        .decode(auth_plain_payload("me@gmail.com", "ya29.token"))
+        .expect("base64");
+    let xoauth = base64::engine::general_purpose::STANDARD
+        .decode(mailrs_smtp_client::auth_xoauth2_payload(
+            "me@gmail.com",
+            "ya29.token",
+        ))
+        .expect("base64");
+    assert_ne!(plain, xoauth, "the two verbs would carry the same bytes");
+    assert_eq!(
+        xoauth, b"user=me@gmail.com\x01auth=Bearer ya29.token\x01\x01",
+        "the payload is not what a provider expects"
+    );
+    assert!(
+        !xoauth.contains(&0),
+        "a NUL separator here is the AUTH PLAIN shape, which is refused"
+    );
+}
+
+/// Every byte of the token survives, including the ones that look like
+/// separators in the other verb.
+#[test]
+fn a_token_with_awkward_bytes_arrives_whole() {
+    use base64::Engine as _;
+    let token = "abc.def-ghi_jkl=";
+    let raw = base64::engine::general_purpose::STANDARD
+        .decode(mailrs_smtp_client::auth_xoauth2_payload("u@h", token))
+        .expect("base64");
+    let text = String::from_utf8(raw).expect("utf8");
+    assert!(text.contains(token), "the token was mangled: {text:?}");
+    assert!(text.ends_with("\u{1}\u{1}"), "missing the two terminators");
+}

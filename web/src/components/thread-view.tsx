@@ -203,6 +203,9 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
     (msg: ThreadMessage) => {
       if (!selectedId) return
       setComposeReplySource({
+        // So a forward leaves by the address the thread arrived at,
+        // the same rule the reply box follows.
+        accountId: threadAccountId,
         htmlBody: msg.html_body || null,
         internalDate: msg.internal_date,
         messageId: msg.message_id,
@@ -214,7 +217,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
       })
       setComposingNew(true)
     },
-    [selectedId, setComposeReplySource, setComposingNew]
+    [selectedId, setComposeReplySource, setComposingNew, threadAccountId]
   )
 
   useEffect(() => {

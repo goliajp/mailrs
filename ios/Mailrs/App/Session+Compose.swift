@@ -13,14 +13,15 @@ extension Session {
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
         subject: String, body: String,
         inReplyTo: String?, threadId: String,
-        attachments: [MultipartForm.FilePart] = []
+        attachments: [MultipartForm.FilePart] = [],
+        from: String = ""
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
             if attachments.isEmpty {
                 return try await client.sendReply(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    inReplyTo: inReplyTo, threadId: threadId
+                    inReplyTo: inReplyTo, threadId: threadId, from: from
                 )
             }
             // The multipart route, with both threading fields riding
@@ -28,7 +29,7 @@ extension Session {
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
-                inReplyTo: inReplyTo, replyToThreadId: threadId
+                inReplyTo: inReplyTo, replyToThreadId: threadId, from: from
             )
         }
     }
@@ -38,7 +39,8 @@ extension Session {
         to recipients: [String], cc: [String] = [], bcc: [String] = [],
         subject: String, body: String,
         forwardMessageId: String, forwardAttachmentsFrom: UInt32?,
-        attachments: [MultipartForm.FilePart] = []
+        attachments: [MultipartForm.FilePart] = [],
+        from: String = ""
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
@@ -46,7 +48,7 @@ extension Session {
                 return try await client.sendForward(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                     forwardMessageId: forwardMessageId,
-                    forwardAttachmentsFrom: forwardAttachmentsFrom
+                    forwardAttachmentsFrom: forwardAttachmentsFrom, from: from
                 )
             }
             // The server appends the original and EXTENDS the file
@@ -56,7 +58,7 @@ extension Session {
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments,
                 forwardMessageId: forwardMessageId,
-                forwardAttachmentsFrom: forwardAttachmentsFrom
+                forwardAttachmentsFrom: forwardAttachmentsFrom, from: from
             )
         }
     }
@@ -73,7 +75,8 @@ extension Session {
         attachments: [MultipartForm.FilePart] = [],
         scheduledAt: Int64? = nil,
         redraftOf: String? = nil,
-        redraftKeep: [Int]? = nil
+        redraftKeep: [Int]? = nil,
+        from: String = ""
     ) async throws {
         guard let client else { throw MailrsError.badCredentials }
         try await sendWithFeedback {
@@ -85,7 +88,7 @@ extension Session {
             if attachments.isEmpty && redraftOf == nil {
                 return try await client.sendNew(
                     to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
-                    scheduledAt: scheduledAt
+                    scheduledAt: scheduledAt, from: from
                 )
             }
             // Files ride the multipart route; the JSON route has no
@@ -93,7 +96,7 @@ extension Session {
             return try await client.sendMultipart(
                 to: recipients, cc: cc, bcc: bcc, subject: subject, body: body,
                 attachments: attachments, scheduledAt: scheduledAt,
-                redraftOf: redraftOf, redraftKeep: redraftKeep
+                redraftOf: redraftOf, redraftKeep: redraftKeep, from: from
             )
         }
     }

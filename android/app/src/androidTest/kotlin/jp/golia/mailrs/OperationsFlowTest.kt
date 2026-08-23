@@ -171,7 +171,9 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Allowed", "settings never listed the allow list")
+        // Past the fold: Settings has thirteen operator sections and
+        // this is the eighth.
+        scrollToTag("admin.Allowed", "settings never listed the allow list")
         compose.onNodeWithTag("admin.Allowed").performClick()
         waitForTag("list.admin", "the allow list never loaded")
         compose.onNodeWithText("friend@example.com").assertIsDisplayed()

@@ -40,3 +40,16 @@ fun replyFromFor(accountId: String?, addresses: List<FromAddress>): String =
     addresses.firstOrNull { it.accountId == (accountId ?: "") }?.address
         ?: addresses.firstOrNull()?.address
         ?: ""
+
+/**
+ * The second line of an account row, or null.
+ *
+ * An account with no name of its own falls back to its address on the
+ * first line — so repeating the address underneath says nothing and
+ * reads as a rendering fault. The test that caught it found two nodes
+ * carrying the same text.
+ */
+fun accountSubtitle(displayName: String, email: String): String? = when {
+    displayName.isEmpty() || displayName == email -> null
+    else -> email
+}
