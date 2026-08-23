@@ -18,6 +18,10 @@ object MailboxSyncRunner {
      * wrong place passes both halves.
      */
     internal var openImap: (String, Int) -> ImapSession = { host, port -> ImapSession(host, port) }
+
+    /** The same, for the other two protocols. */
+    internal var openPop3: (String, Int) -> Pop3Session = { host, port -> Pop3Session(host, port) }
+    internal var openJmap: (String) -> JmapSession = { host -> JmapSession(host) }
     /** What one account's pass came to, for the screen to report. */
     data class Outcome(
         val accountId: String,
@@ -97,7 +101,7 @@ object MailboxSyncRunner {
         secret: String,
         store: AccountStore,
     ): Outcome {
-        val session = Pop3Session(account.imapHost, account.imapPort)
+        val session = openPop3(account.imapHost, account.imapPort)
         return try {
             session.connect()
             session.login(account.loginName, secret)
@@ -175,7 +179,7 @@ object MailboxSyncRunner {
         secret: String,
         store: AccountStore,
     ): Outcome {
-        val session = JmapSession(account.imapHost)
+        val session = openJmap(account.imapHost)
         return try {
             // A token goes as a Bearer, so the login name is left empty
             // for OAuth accounts; a password goes as Basic with it.
