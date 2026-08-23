@@ -7,6 +7,15 @@ import Foundation
 /// and the server agreeing — an action that changes only the screen is
 /// an action that undoes itself on the next fetch.
 enum MailboxActions {
+    /// How a session is made.
+    ///
+    /// Injectable for the same reason `MailboxSyncRunner`'s is: the
+    /// rule that matters here — **the row goes only after the server
+    /// says it has** — is about the order of a network call and a
+    /// write, and neither half alone can show it.
+    nonisolated(unsafe) static var openImap: (String, UInt16) -> IMAPSession = {
+        IMAPSession(host: $0, port: $1)
+    }
     enum Outcome: Equatable {
         case done
         case failed(String)
@@ -68,7 +77,7 @@ enum MailboxActions {
         guard let secret = AccountStore.secret(for: account.id) else {
             return .failed("Sign in again to change this account")
         }
-        let session = IMAPSession(host: account.imapHost, port: account.imapPort)
+        let session = openImap(account.imapHost, account.imapPort)
         do {
             try await session.connect()
             if account.auth == .oauth2 {
