@@ -31,6 +31,7 @@ object MailboxActions {
      * call. Refusing plainly beats doing nothing quietly.
      */
     suspend fun delete(account: MailAccount, row: MailboxRow, store: AccountStore): Outcome {
+        if (account.incoming == Incoming.POP3) return deletePop3(account, row, store)
         if (account.incoming != Incoming.IMAP) {
             return Outcome.Failed("Deleting is not supported for this account yet")
         }
@@ -98,4 +99,57 @@ object MailboxActions {
             Outcome.Failed("Could not reach the server")
         }
     }
+
+    /**
+     * Delete from a POP3 mailbox.
+     *
+     * Three things that are not true of IMAP:
+     *
+     * - **The number is only valid in this session.** POP3 renumbers
+     *   every time, so the uidl has to be looked up now; a stored
+     *   number would delete whatever happens to be in that position.
+     * - **`DELE` does not delete.** The server acts at `QUIT`, so a
+     *   session dropped after `DELE` leaves the mailbox untouched.
+     * - **A message already gone is a success, not an error.** It was
+     *   deleted from another device, and telling somebody their delete
+     *   failed when the thing is gone is a lie that makes them try
+     *   again.
+     */
+    private suspend fun deletePop3(
+        account: MailAccount,
+        row: MailboxRow,
+        store: AccountStore,
+    ): Outcome {
+        val secret = store.secret(account.id)
+            ?: return Outcome.Failed("Sign in again to change this account")
+        val session = openPop3(account.imapHost, account.imapPort)
+        return try {
+            session.connect()
+            session.login(account.loginName, secret)
+            val listing = session.uidls()
+            // The row's uid is the folded uidl, which is how the two
+            // are matched — the uidl itself is text and a row id is a
+            // number.
+            val target = listing.firstOrNull {
+                MailboxSyncRunner.foldedUid(it.id) == row.uid
+            }
+            if (target != null) session.delete(target.number)
+            session.quit()
+            session.close()
+            store.saveRows(store.rows().filterNot { it.id == row.id })
+            // And forgotten, so a mailbox that still lists it after a
+            // failed QUIT is fetched again rather than skipped forever.
+            target?.let { store.savePopSeen(account.id, store.popSeen(account.id) - it.id) }
+            Outcome.Done
+        } catch (e: Pop3Session.Failure) {
+            session.close()
+            Outcome.Failed(AccountConnection.readable(e.message ?: "unknown"))
+        } catch (e: Exception) {
+            session.close()
+            Outcome.Failed("Could not reach the server")
+        }
+    }
+
+    /** How a POP3 session is made; injectable like the others. */
+    internal var openPop3: (String, Int) -> Pop3Session = { host, port -> Pop3Session(host, port) }
 }

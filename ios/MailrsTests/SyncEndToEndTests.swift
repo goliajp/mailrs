@@ -135,4 +135,41 @@ import Testing
         #expect(AccountStore.rows().isEmpty)
         #expect(AccountStore.marks(for: account.id).isEmpty)
     }
+
+    /// **The timestamp is written only by a pass that worked.**
+    ///
+    /// "No new mail" and "we have not managed to check since
+    /// yesterday" look identical on screen, and the line that tells
+    /// them apart is worse than useless if a failed pass sets it — the
+    /// screen would then say "just now" about mail it never got.
+    @Test func aFailedPassDoesNotClaimToHaveChecked() async throws {
+        clean()
+        defer {
+            MailboxSyncRunner.now = { Int64(Date().timeIntervalSince1970) }
+            done()
+        }
+        MailboxSyncRunner.now = { 1_756_000_000 }
+        _ = given([
+            "* OK ready",
+            "a1 NO [AUTHENTICATIONFAILED] Invalid credentials",
+        ])
+        _ = await MailboxSyncRunner.run(account)
+        #expect(AccountStore.lastSync(account.id) == nil)
+
+        // And a pass that works does set it.
+        let body = header("Hello")
+        _ = given([
+            "* OK ready",
+            "a1 OK signed in",
+            #"* LIST (\\HasNoChildren) "." "INBOX""#,
+            "a2 OK listed",
+            "* OK [UIDVALIDITY 42] valid",
+            "a3 OK selected",
+            "* 1 FETCH (UID 7 FLAGS () BODY[HEADER] {\(body.utf8.count)}",
+            body + ")",
+            "a4 OK fetched",
+        ])
+        _ = await MailboxSyncRunner.run(account)
+        #expect(AccountStore.lastSync(account.id) == 1_756_000_000)
+    }
 }

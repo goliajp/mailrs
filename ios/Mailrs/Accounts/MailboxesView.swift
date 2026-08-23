@@ -182,6 +182,7 @@ struct MailboxesView: View {
     private var filters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                let unread = MailboxMerge.unreadPerAccount(model.rows)
                 ForEach(model.accounts) { account in
                     let on = model.only.contains(account.id)
                     Button {
@@ -192,6 +193,14 @@ struct MailboxesView: View {
                                 .fill(Color(hex: AccountColour.forId(account.id)))
                                 .frame(width: 8, height: 8)
                             Text(account.title).font(.footnote)
+                            // Absent rather than `0`: a badge that says
+                            // nothing while taking the space of one
+                            // that would is worse than no badge.
+                            if let count = unread[account.id] {
+                                Text(String(count))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(theme.accent)
+                            }
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)

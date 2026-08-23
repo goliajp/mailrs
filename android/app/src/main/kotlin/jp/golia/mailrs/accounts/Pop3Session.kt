@@ -132,6 +132,21 @@ class Pop3Session(private val host: String, private val port: Int) : AutoCloseab
     }
 
     /**
+     * Mark a message for deletion.
+     *
+     * **`DELE` does not delete anything.** RFC 1939 marks the message
+     * and the server only acts on it when the session ends with
+     * `QUIT` — a session dropped instead leaves the mailbox untouched,
+     * which is a delete that silently did not happen. The pairing is
+     * the caller's to get right, and it is asserted.
+     */
+    suspend fun delete(number: Int) = withContext(Dispatchers.IO) {
+        val reply = command("DELE $number")
+        if (!reply.ok) throw Failure.Server(reply.text)
+        Unit
+    }
+
+    /**
      * End the session properly.
      *
      * `QUIT` is not politeness: a POP3 server holds an exclusive lock

@@ -182,6 +182,15 @@ fun MergedMailScreen() {
             return@Column
         }
 
+        // How old what is on screen is. Shown always, because its
+        // absence is what makes an empty list ambiguous.
+        Text(
+            updatedLine(accounts.map { it.id }) { store.lastSync(it) },
+            color = theme.fgMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 16.dp).testTag("mail.updated"),
+        )
+
         androidx.compose.material3.OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -198,8 +207,9 @@ fun MergedMailScreen() {
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                val unread = MailboxMerge.unreadPerAccount(rows)
                 for (account in accounts) {
-                    AccountChip(account, account.id in only) {
+                    AccountChip(account, account.id in only, unread[account.id]) {
                         only = when {
                             account.id in only -> only - account.id
                             else -> only + account.id
@@ -238,40 +248,54 @@ fun MergedMailScreen() {
             )
         }
 
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(visible, key = { it.id }) { row ->
-                val account = accounts.firstOrNull { it.id == row.accountId }
-                MergedMailRow(
-                    row,
-                    account,
-                    onTap = { opened = row },
-                    onDelete = {
-                        account?.let {
-                            scope.launch {
-                                when (val out = MailboxActions.delete(it, row, store)) {
-                                    is MailboxActions.Outcome.Done -> rows = store.rows()
-                                    is MailboxActions.Outcome.Failed ->
-                                        failures = failures + (it.id to out.why)
+        // Pull to refresh as well as the button. The gesture is what
+        // people reach for without being told, and the button is what
+        // works when the list is empty and there is nothing to pull.
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = syncing,
+            onRefresh = { sync() },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(visible, key = { it.id }) { row ->
+                    val account = accounts.firstOrNull { it.id == row.accountId }
+                    MergedMailRow(
+                        row,
+                        account,
+                        onTap = { opened = row },
+                        onDelete = {
+                            account?.let {
+                                scope.launch {
+                                    when (val out = MailboxActions.delete(it, row, store)) {
+                                        is MailboxActions.Outcome.Done -> rows = store.rows()
+                                        is MailboxActions.Outcome.Failed ->
+                                            failures = failures + (it.id to out.why)
+                                    }
                                 }
                             }
-                        }
-                    },
-                    onMarkUnread = {
-                        account?.let {
-                            scope.launch {
-                                MailboxActions.markUnread(it, row, store)
-                                rows = store.rows()
+                        },
+                        onMarkUnread = {
+                            account?.let {
+                                scope.launch {
+                                    MailboxActions.markUnread(it, row, store)
+                                    rows = store.rows()
+                                }
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AccountChip(account: MailAccount, on: Boolean, onTap: () -> Unit) {
+private fun AccountChip(
+    account: MailAccount,
+    on: Boolean,
+    unread: Int?,
+    onTap: () -> Unit,
+) {
     val theme = LocalTheme.current
     val background = when {
         on -> theme.accent.copy(alpha = 0.18f)
@@ -292,6 +316,16 @@ private fun AccountChip(account: MailAccount, on: Boolean, onTap: () -> Unit) {
                 .background(Color(android.graphics.Color.parseColor(AccountColour.forId(account.id)))),
         )
         Text(account.title, color = theme.fg, fontSize = 12.sp)
+        // Absent rather than `0`: a badge that says nothing while
+        // taking the space of one that would is worse than no badge.
+        if (unread != null) {
+            Text(
+                unread.toString(),
+                color = theme.accent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
@@ -397,4 +431,21 @@ private fun MergedMailRowBody(row: MailboxRow, account: MailAccount?, onTap: () 
             )
         }
     }
+}
+
+/**
+ * "Updated 3 minutes ago", or the honest absence of it.
+ *
+ * The words come from the platform, so they match every other relative
+ * time on the phone; the decision of **which** time to show is
+ * [MailboxMerge.oldestSync]'s, and it is the oldest.
+ */
+private fun updatedLine(accountIds: List<String>, lastSync: (String) -> Long?): String {
+    val at = MailboxMerge.oldestSync(accountIds, lastSync) ?: return "Not fetched yet"
+    val span = android.text.format.DateUtils.getRelativeTimeSpanString(
+        at * 1000,
+        System.currentTimeMillis(),
+        android.text.format.DateUtils.MINUTE_IN_MILLIS,
+    )
+    return "Updated $span"
 }

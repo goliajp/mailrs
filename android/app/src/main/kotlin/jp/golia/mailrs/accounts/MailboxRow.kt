@@ -70,8 +70,44 @@ object MailboxMerge {
     fun onlyAccounts(rows: List<MailboxRow>, ids: Set<String>?): List<MailboxRow> =
         if (ids == null) rows else rows.filter { it.accountId in ids }
 
+    /**
+     * How old what is on screen is, across every account.
+     *
+     * **The oldest, not the newest**, and never a guess. With three
+     * accounts where two synced a minute ago and one has been failing
+     * since yesterday, "updated just now" is a lie about the third —
+     * and the whole reason to show a time is to tell "no new mail"
+     * apart from "we have not managed to check".
+     *
+     * `null` when any account has never synced at all, because then
+     * some of the mail has never been fetched and no time describes
+     * the screen.
+     */
+    fun oldestSync(accountIds: List<String>, lastSync: (String) -> Long?): Long? {
+        if (accountIds.isEmpty()) return null
+        var oldest = Long.MAX_VALUE
+        for (id in accountIds) {
+            val at = lastSync(id) ?: return null
+            if (at < oldest) oldest = at
+        }
+        return oldest
+    }
+
     /** How many of these are unread. */
     fun unreadCount(rows: List<MailboxRow>): Int = rows.count { !it.seen }
+
+    /**
+     * Unread per account, for the filter to say which is worth
+     * looking at.
+     *
+     * **Accounts with none are absent from the map, not zero.** A
+     * badge reading `0` is a badge that says nothing while taking up
+     * the space of one that would, and every mail client hides it.
+     */
+    fun unreadPerAccount(rows: List<MailboxRow>): Map<String, Int> =
+        rows.filterNot { it.seen }
+            .groupingBy { it.accountId }
+            .eachCount()
 }
 
 /** Folding a pass's worth of rows into what is already held. */

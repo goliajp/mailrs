@@ -16,6 +16,11 @@ enum MailboxActions {
     nonisolated(unsafe) static var openImap: (String, UInt16) -> IMAPSession = {
         IMAPSession(host: $0, port: $1)
     }
+
+    /// How a POP3 session is made; injectable like the other.
+    nonisolated(unsafe) static var openPop3: (String, UInt16) -> POP3Session = {
+        POP3Session(host: $0, port: $1)
+    }
     enum Outcome: Equatable {
         case done
         case failed(String)
@@ -27,6 +32,7 @@ enum MailboxActions {
     /// different command with different semantics, and JMAP's is an
     /// `Email/set` call. Refusing plainly beats doing nothing quietly.
     static func delete(_ row: MailboxRow, from account: MailAccount) async -> Outcome {
+        if account.incoming == .pop3 { return await deletePop3(row, from: account) }
         guard account.incoming == .imap else {
             return .failed("Deleting is not supported for this account yet")
         }
@@ -88,6 +94,49 @@ enum MailboxActions {
             let outcome = try await body(session)
             await session.close()
             return outcome
+        } catch {
+            await session.close()
+            return .failed("Could not reach the server")
+        }
+    }
+
+    /// Delete from a POP3 mailbox.
+    ///
+    /// Three things that are not true of IMAP:
+    ///
+    /// - **The number is only valid in this session.** POP3 renumbers
+    ///   every time, so the uidl has to be looked up now; a stored
+    ///   number would delete whatever happens to be in that position.
+    /// - **`DELE` does not delete.** The server acts at `QUIT`, so a
+    ///   session dropped after `DELE` leaves the mailbox untouched.
+    /// - **A message already gone is a success, not an error.** It was
+    ///   deleted from another device, and telling somebody their
+    ///   delete failed when the thing is gone is a lie that makes them
+    ///   try again.
+    private static func deletePop3(_ row: MailboxRow, from account: MailAccount) async -> Outcome {
+        guard let secret = AccountStore.secret(for: account.id) else {
+            return .failed("Sign in again to change this account")
+        }
+        let session = openPop3(account.imapHost, account.imapPort)
+        do {
+            try await session.connect()
+            try await session.login(user: account.loginName, password: secret)
+            let listing = try await session.uidls()
+            // The row's uid is the folded uidl, which is how the two
+            // are matched — the uidl itself is text and a row id is a
+            // number.
+            let target = listing.first { MailboxSyncRunner.foldedUid($0.id) == row.uid }
+            if let target { try await session.delete(number: target.number) }
+            await session.quit()
+            await session.close()
+            AccountStore.saveRows(AccountStore.rows().filter { $0.id != row.id })
+            // And forgotten, so a mailbox that still lists it after a
+            // failed QUIT is fetched again rather than skipped forever.
+            if let target {
+                AccountStore.savePopSeen(
+                    account.id, AccountStore.popSeen(account.id).subtracting([target.id]))
+            }
+            return .done
         } catch {
             await session.close()
             return .failed("Could not reach the server")

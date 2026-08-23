@@ -74,6 +74,39 @@ enum MailboxMerge {
     }
 
     /// How many of these are unread.
+    /// How old what is on screen is, across every account.
+    ///
+    /// **The oldest, not the newest**, and never a guess. With three
+    /// accounts where two synced a minute ago and one has been failing
+    /// since yesterday, "updated just now" is a lie about the third —
+    /// and the whole reason to show a time is to tell "no new mail"
+    /// apart from "we have not managed to check".
+    ///
+    /// `nil` when any account has never synced at all, because then
+    /// some of the mail has never been fetched and no time describes
+    /// the screen.
+    static func oldestSync(_ accountIds: [String], _ lastSync: (String) -> Int64?) -> Int64? {
+        guard !accountIds.isEmpty else { return nil }
+        var oldest = Int64.max
+        for id in accountIds {
+            guard let at = lastSync(id) else { return nil }
+            oldest = min(oldest, at)
+        }
+        return oldest
+    }
+
+    /// Unread per account, for the filter to say which is worth
+    /// looking at.
+    ///
+    /// **Accounts with none are absent from the map, not zero.** A
+    /// badge reading `0` is a badge that says nothing while taking up
+    /// the space of one that would, and every mail client hides it.
+    static func unreadPerAccount(_ rows: [MailboxRow]) -> [String: Int] {
+        var out: [String: Int] = [:]
+        for row in rows where !row.seen { out[row.accountId, default: 0] += 1 }
+        return out
+    }
+
     static func unreadCount(_ rows: [MailboxRow]) -> Int {
         rows.lazy.filter { !$0.seen }.count
     }
