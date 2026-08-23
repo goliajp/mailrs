@@ -28,6 +28,8 @@ enum MailboxSyncRunner {
                 accountId: account.id, fetched: 0,
                 failure: "Sign in again to read this account")
         }
+        if account.incoming == .pop3 { return await runPop3(account, secret: secret) }
+        if account.incoming == .jmap { return await runJmap(account, secret: secret) }
         let session = IMAPSession(host: account.imapHost, port: account.imapPort)
         do {
             try await session.connect()
@@ -72,5 +74,112 @@ enum MailboxSyncRunner {
         case .closed: return "the server closed the connection"
         case .timedOut: return "the server did not answer"
         }
+    }
+
+    /// A POP3 pass.
+    ///
+    /// One folder, called INBOX because that is what it is and a list
+    /// needs a name for it; no server-side flags, so every row arrives
+    /// unread and stays that way until this device says otherwise; and
+    /// only the headers are fetched, because downloading a mailbox to
+    /// show a list is somebody's data allowance.
+    private static func runPop3(_ account: MailAccount, secret: String) async -> Outcome {
+        let session = POP3Session(host: account.imapHost, port: account.imapPort)
+        do {
+            try await session.connect()
+            try await session.login(user: account.loginName, password: secret)
+            // **Listed once.** Asking twice is two round trips and two
+            // answers: a message deleted between them renumbers the
+            // rest, and the plan would then name numbers that mean
+            // something else.
+            let listing = try await session.uidls()
+            let plan = POP3Plan.decide(server: listing, seen: AccountStore.popSeen(account.id))
+            var byNumber: [Int: String] = [:]
+            for one in listing { byNumber[one.number] = one.id }
+
+            var fetched: [MailboxRow] = []
+            var seen = plan.keep
+            for number in plan.fetch {
+                guard let id = byNumber[number] else { continue }
+                let headers = MessageHeaders.parse(try await session.headers(number: number))
+                fetched.append(
+                    MailboxRow(
+                        accountId: account.id,
+                        // The uidl is the identity, so it is what the
+                        // row is keyed on — folded to a number because
+                        // a row id is one.
+                        uid: foldedUid(id),
+                        folder: "INBOX",
+                        seen: false,
+                        sender: headers.from,
+                        subject: headers.subject,
+                        date: MailDate.epochSeconds(headers.date),
+                        messageId: headers.messageId))
+                seen.insert(id)
+            }
+            // Ended properly: a POP3 server holds an exclusive lock on
+            // the mailbox for the length of a session, and one dropped
+            // without QUIT keeps it until the timeout — during which
+            // the person's other device cannot read their mail either.
+            await session.quit()
+            await session.close()
+
+            AccountStore.saveRows(MailboxApply.apply(held: AccountStore.rows(), fetched: fetched))
+            AccountStore.savePopSeen(account.id, seen)
+            return Outcome(accountId: account.id, fetched: fetched.count, failure: nil)
+        } catch {
+            await session.close()
+            return Outcome(
+                accountId: account.id, fetched: 0, failure: "Could not read this mailbox")
+        }
+    }
+
+    /// A JMAP pass: the session object, then the mail in one round trip.
+    private static func runJmap(_ account: MailAccount, secret: String) async -> Outcome {
+        // A token goes as a Bearer, so the login name is left empty for
+        // OAuth accounts; a password goes as Basic with it.
+        var user = account.loginName
+        if account.auth == .oauth2 { user = "" }
+        let client = JMAPClient(host: account.imapHost)
+        do {
+            let found = try await client.session(user: user, secret: secret)
+            let rows = try await client.newest(session: found, user: user, secret: secret)
+                .map { email in
+                    MailboxRow(
+                        accountId: account.id,
+                        uid: foldedUid(email.id),
+                        folder: "INBOX",
+                        seen: email.seen,
+                        sender: email.sender,
+                        subject: email.subject,
+                        date: email.receivedAt,
+                        messageId: email.messageId)
+                }
+            AccountStore.saveRows(MailboxApply.apply(held: AccountStore.rows(), fetched: rows))
+            return Outcome(accountId: account.id, fetched: rows.count, failure: nil)
+        } catch let e as JMAPClient.Failure {
+            return Outcome(accountId: account.id, fetched: 0, failure: explain(e))
+        } catch {
+            return Outcome(
+                accountId: account.id, fetched: 0, failure: "Could not reach the server")
+        }
+    }
+
+    private static func explain(_ e: JMAPClient.Failure) -> String {
+        switch e {
+        case let .unreachable(why): return AccountConnection.readable(why)
+        case let .refused(why): return why
+        case let .server(why): return why
+        }
+    }
+
+    /// A uidl is text; a row id is a number. FNV-1a, as elsewhere.
+    static func foldedUid(_ id: String) -> UInt32 {
+        var h: UInt64 = 0xcbf2_9ce4_8422_2325
+        for b in id.utf8 {
+            h ^= UInt64(b)
+            h = h &* 0x100_0000_01b3
+        }
+        return UInt32(truncatingIfNeeded: h >> 1)
     }
 }

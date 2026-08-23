@@ -3588,6 +3588,22 @@
         }
       }
     },
+    "Protocol": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロトコル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "协议"
+          }
+        }
+      }
+    },
     "Queue": {
       "localizations": {
         "ja": {

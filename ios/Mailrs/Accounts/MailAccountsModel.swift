@@ -19,6 +19,12 @@ final class MailAccountsModel {
         /// eight empty boxes teaches everybody that connecting mail is
         /// hard.
         var manual = false
+        /// How mail is read, when the servers are typed by hand.
+        ///
+        /// Only offered there: a preset knows its own answer, and
+        /// asking somebody to choose a protocol for Gmail is asking a
+        /// question whose answer is already on file.
+        var incoming: Incoming = .imap
         var imapHost = ""
         var imapPort = ""
         var smtpHost = ""
@@ -66,6 +72,7 @@ final class MailAccountsModel {
             account.smtpHost = manual.smtpHost
             account.smtpPort = manual.smtpPort
             account.login = draft.login.trimmingCharacters(in: .whitespaces)
+            account.incoming = draft.incoming
             account.provider = "custom"
         }
         if let problem = account.problem {
@@ -109,9 +116,13 @@ final class MailAccountsModel {
         }
         let ih = draft.imapHost.trimmingCharacters(in: .whitespaces)
         let sh = draft.smtpHost.trimmingCharacters(in: .whitespaces)
-        guard !ih.isEmpty, !sh.isEmpty,
-              let ip = port(draft.imapPort), let sp = port(draft.smtpPort)
-        else { return nil }
+        guard !ih.isEmpty, let ip = port(draft.imapPort) else { return nil }
+        // JMAP has one endpoint and no separate outgoing server — it
+        // submits over the same API. Demanding an SMTP host there is
+        // asking for something that does not exist, and somebody will
+        // type the incoming one again to get past the form.
+        if draft.incoming == .jmap { return (ih, ip, "", 0) }
+        guard !sh.isEmpty, let sp = port(draft.smtpPort) else { return nil }
         return (ih, ip, sh, sp)
     }
 }

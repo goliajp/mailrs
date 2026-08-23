@@ -45,7 +45,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Queue", "settings never listed the queue")
+        scrollToTag("admin.Queue", "settings never listed the queue")
 
         compose.onNodeWithTag("admin.Queue").performClick()
         waitForTag("list.admin", "the queue never listed")
@@ -62,7 +62,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Dmarc", "settings never listed DMARC")
+        scrollToTag("admin.Dmarc", "settings never listed DMARC")
 
         compose.onNodeWithTag("admin.Dmarc").performClick()
         waitForTag("list.admin", "the reports never listed")
@@ -86,7 +86,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Dmarc", "settings never listed DMARC")
+        scrollToTag("admin.Dmarc", "settings never listed DMARC")
         compose.onNodeWithTag("admin.Dmarc").performClick()
         waitForTag("list.admin", "the DMARC list never opened")
 
@@ -110,7 +110,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.AgentKeys", "settings never listed the keys")
+        scrollToTag("admin.AgentKeys", "settings never listed the keys")
         compose.onNodeWithTag("admin.AgentKeys").performClick()
         waitForTag("list.admin", "the keys never listed")
 
@@ -133,7 +133,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.AgentKeys", "settings never listed agent keys")
+        scrollToTag("admin.AgentKeys", "settings never listed agent keys")
         compose.onNodeWithTag("admin.AgentKeys").performClick()
         waitForTag("list.admin", "the keys never listed")
 
@@ -209,7 +209,7 @@ class OperationsFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Aliases", "settings never opened")
+        scrollToTag("admin.Aliases", "settings never opened")
         compose.onNodeWithTag("admin.Suppressed").performScrollTo().performClick()
         waitForTag("list.admin", "the suppressions never listed")
 

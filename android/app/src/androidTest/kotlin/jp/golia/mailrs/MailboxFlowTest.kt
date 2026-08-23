@@ -2,6 +2,7 @@ package jp.golia.mailrs
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -104,5 +105,43 @@ class MailboxFlowTest : MailrsUiTest() {
         waitForTag("account.incoming.host", "the boxes never opened")
         compose.onNodeWithText("imap.qq.com").assertIsDisplayed()
         compose.onNodeWithText("993").assertIsDisplayed()
+    }
+
+    /**
+     * The protocol is offered only where the servers are typed by
+     * hand: a preset knows its own answer, and asking somebody to pick
+     * one for Gmail is asking a question already on file.
+     */
+    @Test
+    fun the_protocol_is_only_asked_about_for_a_custom_account() {
+        openMailboxes()
+        compose.onNodeWithTag("account.address").performTextInput("me@example.com")
+        assertTrue(
+            "a protocol was asked about before the servers were",
+            compose.onAllNodesWithTag("account.kind.POP3").fetchSemanticsNodes().isEmpty(),
+        )
+        compose.onNodeWithTag("account.manual").performScrollTo().performClick()
+        compose.onNodeWithTag("account.kind.POP3").performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * JMAP submits over the API it reads from, so there is no second
+     * server. A box for one is a box somebody fills in with the first
+     * server's name to get past the form.
+     */
+    @Test
+    fun jmap_asks_for_one_server_and_the_others_ask_for_two() {
+        openMailboxes()
+        compose.onNodeWithTag("account.address").performTextInput("me@example.com")
+        compose.onNodeWithTag("account.manual").performScrollTo().performClick()
+
+        compose.onNodeWithTag("account.kind.IMAP").performScrollTo().performClick()
+        compose.onNodeWithTag("account.outgoing.host").performScrollTo().assertIsDisplayed()
+
+        compose.onNodeWithTag("account.kind.JMAP").performScrollTo().performClick()
+        assertTrue(
+            "an outgoing server was asked for on a protocol that has none",
+            compose.onAllNodesWithTag("account.outgoing.host").fetchSemanticsNodes().isEmpty(),
+        )
     }
 }

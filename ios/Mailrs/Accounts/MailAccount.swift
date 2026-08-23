@@ -6,6 +6,19 @@ import Foundation
 /// account's id, so a row can be logged, encoded, or shown on screen
 /// without carrying a password through code that has no business
 /// holding one.
+/// How mail is read.
+///
+/// Not a preference: it changes what a mailbox *is*. POP3 has one
+/// folder, no server-side flags and no stable message numbers, so read
+/// state can only be kept on this device and anything filed elsewhere
+/// is invisible. Saying so in the type keeps every reader honest about
+/// it.
+enum Incoming: String, Codable, Equatable, Sendable {
+    case imap
+    case pop3
+    case jmap
+}
+
 struct MailAccount: Codable, Equatable, Identifiable, Sendable {
     let id: String
     /// The address, and what the server knows this person as unless
@@ -22,6 +35,12 @@ struct MailAccount: Codable, Equatable, Identifiable, Sendable {
     /// The login name, when the server wants something other than the
     /// address. Empty means the address.
     var login: String
+    /// How mail is read from this account.
+    ///
+    /// Defaulted, so a row written before this field existed still
+    /// decodes — and defaulted to IMAP, which is what every account
+    /// written before it existed was.
+    var incoming: Incoming = .imap
     var auth: MailProvider.AuthKind
     /// Folders this account does not read.
     var skipFolders: [String]
@@ -76,12 +95,15 @@ struct MailAccount: Codable, Equatable, Identifiable, Sendable {
         if imapHost.trimmingCharacters(in: .whitespaces).isEmpty {
             return "The incoming server needs a name"
         }
+        if imapPort == 0 { return "A port must be between 1 and 65535" }
+        // JMAP submits over the same API it reads from, so there is no
+        // second server and demanding one refuses an account that is
+        // perfectly well described. Every other kind has both.
+        if incoming == .jmap { return nil }
         if smtpHost.trimmingCharacters(in: .whitespaces).isEmpty {
             return "The outgoing server needs a name"
         }
-        if imapPort == 0 || smtpPort == 0 {
-            return "A port must be between 1 and 65535"
-        }
+        if smtpPort == 0 { return "A port must be between 1 and 65535" }
         return nil
     }
 }

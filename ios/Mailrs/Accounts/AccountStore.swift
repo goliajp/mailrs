@@ -51,6 +51,7 @@ enum AccountStore {
         let prefix = id + "/"
         for key in all.keys where key.hasPrefix(prefix) { all[key] = nil }
         saveMarks(all)
+        UserDefaults.standard.removeObject(forKey: popSeenKey + id)
     }
 
     // MARK: - the mail itself
@@ -113,6 +114,27 @@ enum AccountStore {
         for (folder, mark) in folderMarks { all[prefix + folder] = mark }
         saveMarks(all)
     }
+
+    /// The uidls a POP3 account has already read.
+    ///
+    /// Not `FolderMark`: POP3 has no folders and no uid validity, and
+    /// its message numbers are renumbered every session. The uidl is
+    /// the only durable identity it offers, so what is remembered is a
+    /// set of them — pruned each pass to what the server still has, or
+    /// the bookkeeping outgrows the mailbox.
+    static func popSeen(_ accountId: String) -> Set<String> {
+        guard let data = UserDefaults.standard.data(forKey: popSeenKey + accountId),
+            let ids = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return Set(ids)
+    }
+
+    static func savePopSeen(_ accountId: String, _ ids: Set<String>) {
+        guard let data = try? JSONEncoder().encode(Array(ids)) else { return }
+        UserDefaults.standard.set(data, forKey: popSeenKey + accountId)
+    }
+
+    private static let popSeenKey = "mailrs.pop.seen.v1."
 
     // MARK: - secrets
 

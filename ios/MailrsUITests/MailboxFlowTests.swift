@@ -100,4 +100,48 @@ final class MailboxFlowTests: MailrsUITestCase {
             "the boxes opened empty rather than filled in")
         XCTAssertEqual(app.textFields["account.incoming.port"].value as? String, "993")
     }
+
+    /// The protocol is offered only where the servers are typed by
+    /// hand: a preset knows its own answer, and asking somebody to
+    /// pick one for Gmail is asking a question already on file.
+    func testTheProtocolIsOnlyAskedAboutForACustomAccount() {
+        let app = launch(signedIn: true)
+        openMailboxes(app)
+        let address = app.textFields["account.address"]
+        address.tap()
+        address.typeText("me@example.com")
+        XCTAssertFalse(
+            app.segmentedControls["account.kind"].exists,
+            "a protocol was asked about before the servers were")
+
+        scrollTo(app, button: "Enter the server settings myself")
+        app.buttons["Enter the server settings myself"].tap()
+        XCTAssertTrue(
+            app.segmentedControls["account.kind"].waitForExistence(timeout: 5),
+            "the protocol was never offered")
+    }
+
+    /// JMAP submits over the API it reads from, so there is no second
+    /// server. A box for one is a box somebody fills in with the first
+    /// server name to get past the form.
+    func testJmapAsksForOneServerAndTheOthersAskForTwo() {
+        let app = launch(signedIn: true)
+        openMailboxes(app)
+        let address = app.textFields["account.address"]
+        address.tap()
+        address.typeText("me@example.com")
+        scrollTo(app, button: "Enter the server settings myself")
+        app.buttons["Enter the server settings myself"].tap()
+
+        let kind = app.segmentedControls["account.kind"]
+        XCTAssertTrue(kind.waitForExistence(timeout: 5), "the protocol was never offered")
+        XCTAssertTrue(
+            app.textFields["account.outgoing.host"].waitForExistence(timeout: 5),
+            "IMAP did not ask for an outgoing server")
+
+        kind.buttons["JMAP"].tap()
+        XCTAssertFalse(
+            app.textFields["account.outgoing.host"].exists,
+            "an outgoing server was asked for on a protocol that has none")
+    }
 }

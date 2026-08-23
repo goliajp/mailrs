@@ -61,14 +61,14 @@ class AdminFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Accounts", "settings never listed the operator sections")
+        scrollToTag("admin.Accounts", "settings never listed the operator sections")
 
         compose.onNodeWithTag("admin.Accounts").performClick()
         waitForTag("list.admin", "the accounts never listed")
         compose.onNodeWithText("lihao@golia.jp").assertIsDisplayed()
 
         pressBack()
-        waitForTag("admin.Domains", "back did not return to settings")
+        scrollToTag("admin.Domains", "back did not return to settings")
         compose.onNodeWithTag("admin.Domains").performClick()
         waitForTag("list.admin", "the domains never listed")
         val before = compose.onAllNodesWithTag("row.admin").fetchSemanticsNodes().size
@@ -95,7 +95,7 @@ class AdminFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Aliases", "settings never listed the aliases")
+        scrollToTag("admin.Aliases", "settings never listed the aliases")
         compose.onNodeWithTag("admin.Aliases").performClick()
         waitForTag("list.admin", "the aliases never listed")
 
@@ -201,7 +201,7 @@ class AdminFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Accounts", "settings never listed the accounts")
+        scrollToTag("admin.Accounts", "settings never listed the accounts")
         compose.onNodeWithTag("admin.Accounts").performClick()
         waitForTag("list.admin", "the accounts never listed")
 
@@ -234,7 +234,7 @@ class AdminFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Accounts", "settings never listed the accounts")
+        scrollToTag("admin.Accounts", "settings never listed the accounts")
         compose.onNodeWithTag("admin.Accounts").performClick()
         waitForTag("list.admin", "the accounts never listed")
         compose.onAllNodesWithTag("row.admin").onFirst().performClick()
