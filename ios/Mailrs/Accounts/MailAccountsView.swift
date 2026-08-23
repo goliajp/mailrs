@@ -132,6 +132,26 @@ struct MailAccountsView: View {
 
     /// The boxes, when the guess is wrong or there is nothing to guess.
     @ViewBuilder private var manualFields: some View {
+        // Offered only here: a preset knows its own answer, and asking
+        // somebody to pick a protocol for Gmail is asking a question
+        // already on file.
+        Picker("Protocol", selection: $model.draft.incoming) {
+            // Protocol names, not sentences: `verbatim` is the
+            // spelling that says so, and translating them would be
+            // wrong in every language.
+            Text(verbatim: "IMAP").tag(Incoming.imap)
+            Text(verbatim: "POP3").tag(Incoming.pop3)
+            Text(verbatim: "JMAP").tag(Incoming.jmap)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("account.kind")
+        .onChange(of: model.draft.incoming) { _, _ in
+            // The port follows the protocol, because the two are not
+            // independent: 993 in a POP3 form is a number somebody has
+            // to already know is wrong.
+            model.draft.imapPort = ""
+            prefillManual()
+        }
         TextField("Incoming server", text: $model.draft.imapHost)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -139,13 +159,18 @@ struct MailAccountsView: View {
         TextField("Port", text: $model.draft.imapPort)
             .keyboardType(.numberPad)
             .accessibilityIdentifier("account.incoming.port")
-        TextField("Outgoing server", text: $model.draft.smtpHost)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .accessibilityIdentifier("account.outgoing.host")
-        TextField("Port", text: $model.draft.smtpPort)
-            .keyboardType(.numberPad)
-            .accessibilityIdentifier("account.outgoing.port")
+        // JMAP submits over the same API, so there is no second server
+        // to name. A box for one would be a box somebody fills in with
+        // the first server's name to get past the form.
+        if model.draft.incoming != .jmap {
+            TextField("Outgoing server", text: $model.draft.smtpHost)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("account.outgoing.host")
+            TextField("Port", text: $model.draft.smtpPort)
+                .keyboardType(.numberPad)
+                .accessibilityIdentifier("account.outgoing.port")
+        }
         TextField("Login name, if it is not the address", text: $model.draft.login)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -158,9 +183,20 @@ struct MailAccountsView: View {
     private func prefillManual() {
         let a = MailAccount.make(address: model.draft.address)
         if model.draft.imapHost.isEmpty { model.draft.imapHost = a.imapHost }
-        if model.draft.imapPort.isEmpty { model.draft.imapPort = String(a.imapPort) }
+        if model.draft.imapPort.isEmpty {
+            model.draft.imapPort = Self.defaultPort(for: model.draft.incoming, imap: a.imapPort)
+        }
         if model.draft.smtpHost.isEmpty { model.draft.smtpHost = a.smtpHost }
         if model.draft.smtpPort.isEmpty { model.draft.smtpPort = String(a.smtpPort) }
+    }
+
+    /// The port a protocol usually listens on.
+    private static func defaultPort(for kind: Incoming, imap: UInt16) -> String {
+        switch kind {
+        case .pop3: return "995"
+        case .jmap: return "443"
+        case .imap: return String(imap)
+        }
     }
 
     private func row(_ account: MailAccount) -> some View {

@@ -156,6 +156,11 @@ abstract class MailrsUiTest : GrantsNotifications() {
      * added to that enum does not turn another one red.
      */
     protected fun scrollToTag(tag: String, what: String) {
+        // Scrolled to, then asserted. `waitForTag` requires the node to
+        // be **displayed**, so using it on a row part-way down the
+        // settings screen is asserting how long that screen is: adding
+        // one row above it turned two unrelated tests red on
+        // 2026-08-24. Anything below the fold comes through here.
         try {
             compose.waitUntil(TIMEOUT_MS) {
                 compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()

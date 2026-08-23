@@ -27,9 +27,13 @@ enum AccountConnection {
         }
     }
 
-    static func verify(_ account: MailAccount, secret: String, helo: String = "localhost")
-        async -> Failure?
-    {
+    static func verify(_ account: MailAccount, secret: String) async -> Failure? {
+        // The kind decides who is asked. Verifying a POP3 account by
+        // talking IMAP to it fails for a reason that has nothing to do
+        // with the credential — and the person is told their password
+        // is wrong.
+        if account.incoming == .pop3 { return await verifyPop3(account, secret: secret) }
+        if account.incoming == .jmap { return await verifyJmap(account, secret: secret) }
         let imap = IMAPSession(host: account.imapHost, port: account.imapPort)
         do {
             try await imap.connect()
@@ -52,9 +56,80 @@ enum AccountConnection {
                 stage: .incoming, message: error.localizedDescription, credential: false)
         }
 
+        return await verifySmtp(account, secret: secret)
+    }
+
+    /// A POP3 account, checked as far as it can be.
+    ///
+    /// The listing as well as the login, for the same reason IMAP's
+    /// check lists folders: a server may accept a credential and then
+    /// refuse to say what is in the mailbox, and an account that
+    /// cannot list is an account with nothing to show.
+    ///
+    /// And `QUIT`, because the check itself holds the exclusive lock
+    /// every POP3 session holds — one left open makes the mailbox
+    /// unreadable everywhere else until it times out.
+    private static func verifyPop3(_ account: MailAccount, secret: String) async -> Failure? {
+        let pop = POP3Session(host: account.imapHost, port: account.imapPort)
+        do {
+            try await pop.connect()
+            try await pop.login(user: account.loginName, password: secret)
+            _ = try await pop.uidls()
+            await pop.quit()
+            await pop.close()
+        } catch let e as POP3Session.Failure {
+            await pop.close()
+            return failure(.incoming, e)
+        } catch {
+            await pop.close()
+            return Failure(
+                stage: .incoming, message: error.localizedDescription, credential: false)
+        }
+        return await verifySmtp(account, secret: secret)
+    }
+
+    /// A JMAP account: the session object, then one real request.
+    ///
+    /// Not just the session — a server will hand out
+    /// `/.well-known/jmap` to anybody, so reading it proves nothing
+    /// about the credential.
+    private static func verifyJmap(_ account: MailAccount, secret: String) async -> Failure? {
+        var user = account.loginName
+        if account.auth == .oauth2 { user = "" }
+        let client = JMAPClient(host: account.imapHost)
+        do {
+            let session = try await client.session(user: user, secret: secret)
+            _ = try await client.newest(session: session, user: user, secret: secret, limit: 1)
+            // No SMTP: JMAP submits over the same API, so the account
+            // that reads is the account that sends.
+            return nil
+        } catch let e as JMAPClient.Failure {
+            var credential = false
+            var message = ""
+            switch e {
+            case let .refused(why):
+                credential = true
+                message = why
+            case let .server(why): message = why
+            case let .unreachable(why): message = readable(why)
+            }
+            return Failure(stage: .incoming, message: message, credential: credential)
+        } catch {
+            return Failure(
+                stage: .incoming, message: error.localizedDescription, credential: false)
+        }
+    }
+
+    /// The outgoing half, shared by the kinds that have one.
+    ///
+    /// Greeted with the name real mail will be greeted with. Checking
+    /// with `localhost` and sending with the address's domain is two
+    /// different conversations, and a server that greylists on the
+    /// greeting will pass one and hold the other.
+    private static func verifySmtp(_ account: MailAccount, secret: String) async -> Failure? {
         let smtp = SMTPSession(host: account.smtpHost, port: account.smtpPort)
         do {
-            try await smtp.connect(helo: helo)
+            try await smtp.connect(helo: AccountSender.helo(for: account))
             try await smtp.authenticate(
                 user: account.loginName, secret: secret, oauth: account.auth == .oauth2)
             await smtp.close()
@@ -67,6 +142,20 @@ enum AccountConnection {
                 stage: .outgoing, message: error.localizedDescription, credential: false)
         }
         return nil
+    }
+
+    private static func failure(_ stage: Failure.Stage, _ e: POP3Session.Failure) -> Failure {
+        switch e {
+        case let .refused(detail):
+            return Failure(stage: stage, message: readable(detail), credential: true)
+        case let .server(detail):
+            return Failure(stage: stage, message: readable(detail), credential: false)
+        case let .unreachable(detail):
+            return Failure(stage: stage, message: readable(detail), credential: false)
+        case .closed:
+            return Failure(
+                stage: stage, message: "the server closed the connection", credential: false)
+        }
     }
 
     /// The server's own words where there are any, because a provider

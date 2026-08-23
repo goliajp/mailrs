@@ -95,8 +95,20 @@ echo "==> [1/3] xcodegen"
 xcodegen generate --spec project.yml
 
 echo "==> [2/3] build"
+# The status comes from xcodebuild, not from the filter — the same
+# defect the test step had, where a pipeline's status is its last
+# command's and `|| true` swallows even that. A build that fails here
+# used to fall through into a test run whose failure said nothing about
+# the compile error that caused it.
+BUILD_LOG=/tmp/mailrs-ios-build.log
+BUILD_STATUS=0
 xcodebuild -project Mailrs.xcodeproj -scheme Mailrs -destination "id=$UDID" build \
-  | grep -E "error:|warning:|\*\* BUILD" || true
+  > "$BUILD_LOG" 2>&1 || BUILD_STATUS=$?
+grep -E "error:|warning:|\*\* BUILD" "$BUILD_LOG" || true
+if [ "$BUILD_STATUS" -ne 0 ]; then
+    echo "!! build failed (xcodebuild exit $BUILD_STATUS); full log: $BUILD_LOG"
+    exit "$BUILD_STATUS"
+fi
 
 # The UI tests drive the app against a stub, and the script owns its
 # lifetime. Left to the operator it is simply absent on the run that

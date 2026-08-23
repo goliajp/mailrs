@@ -374,7 +374,7 @@ class MailFlowTest : MailrsUiTest() {
         compose.onNodeWithTag("button.folders").performClick()
         waitForTag("drawer.lists", "the drawer never opened")
         compose.onNodeWithTag("drawer.item.Settings").performClick()
-        waitForTag("admin.Aliases", "settings never opened")
+        scrollToTag("admin.Aliases", "settings never opened")
         compose.onNodeWithText("me@golia.jp").assertIsDisplayed()
     }
 
