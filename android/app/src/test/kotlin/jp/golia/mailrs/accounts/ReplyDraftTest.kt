@@ -107,4 +107,32 @@ class ReplyDraftTest {
         assertEquals("Me", draft.fromName)
         assertEquals(listOf("Ada <ada@example.com>"), draft.to)
     }
+
+    /**
+     * Reply-all copies everyone who was already on it, and neither the
+     * author nor the person being answered — the first is the mistake
+     * everybody notices and nobody can undo.
+     */
+    @Test
+    fun `reply all copies the others and not me`() {
+        val h = headers().copy(
+            to = "Me <me@example.com>, Ada <ada@example.com>",
+            cc = "bob@example.com",
+        )
+        val draft = ReplyDraft.make(h, me, all = true)
+        assertEquals(listOf("Ada <ada@example.com>"), draft.to)
+        assertEquals(listOf("bob@example.com"), draft.cc)
+    }
+
+    /**
+     * Off by default, and a separate action rather than a setting:
+     * whether the rest of a list should see an answer is a decision per
+     * message, and a client that decides it once decides it wrong half
+     * the time.
+     */
+    @Test
+    fun `an ordinary reply copies nobody`() {
+        val h = headers().copy(to = "a@example.com, b@example.com", cc = "c@example.com")
+        assertTrue(ReplyDraft.make(h, me).cc.isEmpty())
+    }
 }

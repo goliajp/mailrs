@@ -21,15 +21,30 @@ object ReplyDraft {
         headers: MessageHeaders.Parsed,
         account: MailAccount,
         quoting: String = "",
+        /**
+         * Copy everyone who was already on it.
+         *
+         * Off by default, and a separate button rather than a setting:
+         * whether the rest of a list should see an answer is a decision
+         * per message, and a client that decides it once decides it
+         * wrong half the time.
+         */
+        all: Boolean = false,
     ): OutgoingMessage.Draft {
         val chain = headers.references.toMutableList()
         if (headers.messageId.isNotEmpty() && headers.messageId !in chain) {
             chain.add(headers.messageId)
         }
+        val primary = recipient(headers)
+        val copies = when {
+            all -> MailAddresses.replyAll(headers.to, headers.cc, primary, account.address)
+            else -> emptyList()
+        }
         return OutgoingMessage.Draft(
             from = account.address,
             fromName = account.displayName,
-            to = listOf(recipient(headers)),
+            to = listOf(primary),
+            cc = copies,
             subject = subject(headers.subject),
             body = quoted(quoting, headers),
             inReplyTo = headers.messageId,

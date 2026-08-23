@@ -2,6 +2,7 @@ package jp.golia.mailrs.accounts
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -170,5 +171,78 @@ class ImapSessionTest {
         s.login("me", "pa\"ss\\word")
         val line = script.written.first()
         assertTrue(line, line.contains("\\\"") && line.contains("\\\\"))
+    }
+
+    /**
+     * `-FLAGS`, not a `FLAGS` that names what should remain: the second
+     * replaces the whole set, so it would quietly clear `\Flagged`,
+     * `\Answered` and every keyword the person or another client had
+     * put there.
+     */
+    @Test
+    fun `marking unread removes one flag and not the rest`() = runBlocking {
+        val (s, script) = session("a1 OK done")
+        s.markUnseen(7)
+        val line = script.written.first()
+        assertTrue(line, line.contains("-FLAGS"))
+        assertFalse(line, line.contains("+FLAGS"))
+        assertTrue(line, line.contains("UID STORE 7"))
+    }
+
+    /** What the server can do is read, not assumed. */
+    @Test
+    fun `capabilities are read from the reply`() = runBlocking {
+        val (s, _) = session(
+            "* CAPABILITY IMAP4rev1 MOVE UIDPLUS IDLE",
+            "a1 OK done",
+        )
+        val caps = s.capabilities()
+        assertTrue(caps.toString(), "MOVE" in caps)
+        assertTrue(caps.toString(), "UIDPLUS" in caps)
+        assertFalse(caps.toString(), "CONDSTORE" in caps)
+    }
+
+    /** A server that offers MOVE gets one command. */
+    @Test
+    fun `move is one command where the server has it`() = runBlocking {
+        val (s, script) = session("a1 OK moved")
+        s.moveTo(7, "Trash", setOf("MOVE", "UIDPLUS"))
+        assertEquals(1, script.written.size)
+        assertTrue(script.written[0], script.written[0].contains("UID MOVE 7 \"Trash\""))
+    }
+
+    /**
+     * And one that does not gets the older dance — with `UID EXPUNGE`,
+     * because **a bare `EXPUNGE` removes every message in the folder
+     * flagged `\Deleted`**, including ones another client flagged and
+     * has not expunged yet.
+     */
+    @Test
+    fun `without move it copies flags and expunges only the one named`() = runBlocking {
+        val (s, script) = session("a1 OK copied", "a2 OK stored", "a3 OK expunged")
+        s.moveTo(7, "Trash", setOf("UIDPLUS"))
+        assertTrue(script.written[0], script.written[0].contains("UID COPY 7 \"Trash\""))
+        assertTrue(script.written[1], script.written[1].contains("+FLAGS (\\Deleted)"))
+        assertTrue(script.written[2], script.written[2].contains("UID EXPUNGE 7"))
+        assertFalse(
+            "a bare EXPUNGE would take other messages with it",
+            script.written.any { it.trim().endsWith("EXPUNGE") },
+        )
+    }
+
+    /**
+     * Without UIDPLUS either, the message is flagged and **left**. It
+     * disappears from the list either way, and no other message is
+     * taken with it.
+     */
+    @Test
+    fun `without uidplus nothing is expunged at all`() = runBlocking {
+        val (s, script) = session("a1 OK copied", "a2 OK stored")
+        s.moveTo(7, "Trash", emptySet())
+        assertEquals(2, script.written.size)
+        assertFalse(
+            script.written.toString(),
+            script.written.any { it.contains("EXPUNGE") },
+        )
     }
 }

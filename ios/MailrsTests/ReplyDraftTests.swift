@@ -93,4 +93,24 @@ import Testing
         #expect(draft.fromName == "Me")
         #expect(draft.to == ["Ada <ada@example.com>"])
     }
+
+    /// Reply-all copies everyone who was already on it, and neither
+    /// the author nor the person being answered — the first is the
+    /// mistake everybody notices and nobody can undo.
+    @Test func replyAllCopiesTheOthersAndNotMe() {
+        var h = headers()
+        h.to = "Me <me@example.com>, Ada <ada@example.com>"
+        h.cc = "bob@example.com"
+        let draft = ReplyDraft.make(to: h, from: me, all: true)
+        #expect(draft.to == ["Ada <ada@example.com>"])
+        #expect(draft.cc == ["bob@example.com"])
+    }
+
+    /// Off by default, and a separate action rather than a setting.
+    @Test func anOrdinaryReplyCopiesNobody() {
+        var h = headers()
+        h.to = "a@example.com, b@example.com"
+        h.cc = "c@example.com"
+        #expect(ReplyDraft.make(to: h, from: me).cc.isEmpty)
+    }
 }

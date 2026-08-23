@@ -6,7 +6,7 @@ struct MessageView: View {
     let account: MailAccount?
     /// Handed the loaded message, because the recipient, the subject
     /// and the threading all come out of headers the list never had.
-    var onReply: ((MessageReader.Loaded) -> Void)?
+    var onReply: ((MessageReader.Loaded, Bool) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
     @State private var outcome: MessageReader.Outcome?
@@ -34,8 +34,18 @@ struct MessageView: View {
                     // to: everything a reply is made of arrives with
                     // the body.
                     if case let .loaded(loaded) = outcome, let onReply {
-                        Button("Reply") { onReply(loaded) }
+                        Button("Reply") { onReply(loaded, false) }
                             .accessibilityIdentifier("message.reply")
+                    }
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    // Offered only when there is somebody else on it.
+                    // "Reply all" over a message with one recipient
+                    // does the same thing as Reply and invites the
+                    // mistake it is named for.
+                    if case let .loaded(loaded) = outcome, let onReply, hasOthers(loaded) {
+                        Button("Reply all") { onReply(loaded, true) }
+                            .accessibilityIdentifier("message.replyAll")
                     }
                 }
             }
@@ -47,6 +57,15 @@ struct MessageView: View {
             }
             outcome = await MessageReader.load(account: account, row: row)
         }
+    }
+
+    /// Whether anybody besides the sender and this account was on it.
+    private func hasOthers(_ loaded: MessageReader.Loaded) -> Bool {
+        guard let account else { return false }
+        return !MailAddresses.replyAll(
+            to: loaded.headers.to, cc: loaded.headers.cc,
+            primary: ReplyDraft.recipient(loaded.headers), mine: account.address
+        ).isEmpty
     }
 
     private var header: some View {

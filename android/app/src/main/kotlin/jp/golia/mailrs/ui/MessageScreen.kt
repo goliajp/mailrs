@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.accounts.AccountStore
 import jp.golia.mailrs.accounts.MailAccount
 import jp.golia.mailrs.accounts.MailboxRow
+import jp.golia.mailrs.accounts.MailAddresses
 import jp.golia.mailrs.accounts.MessageReader
+import jp.golia.mailrs.accounts.ReplyDraft
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,7 +44,7 @@ import java.util.Locale
 fun MessageScreen(
     row: MailboxRow,
     account: MailAccount?,
-    onReply: (MessageReader.Loaded) -> Unit,
+    onReply: (MessageReader.Loaded, Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
     val theme = LocalTheme.current
@@ -75,10 +77,22 @@ fun MessageScreen(
             // headers that have not arrived yet.
             (outcome as? MessageReader.Outcome.Ok)?.let { ok ->
                 TextButton(
-                    onClick = { onReply(ok.loaded) },
+                    onClick = { onReply(ok.loaded, false) },
                     modifier = Modifier.testTag("message.reply"),
                 ) {
                     Text("Reply", color = theme.accent, fontSize = 13.sp)
+                }
+                // Offered only when there is somebody else on it.
+                // "Reply all" over a message with one recipient does
+                // the same thing as Reply and invites the mistake it
+                // is named for.
+                if (hasOthers(ok.loaded, account)) {
+                    TextButton(
+                        onClick = { onReply(ok.loaded, true) },
+                        modifier = Modifier.testTag("message.replyAll"),
+                    ) {
+                        Text("Reply all", color = theme.accent, fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -154,4 +168,15 @@ private fun whenAndWhere(row: MailboxRow, account: MailAccount?): String {
     }
     parts.add("${account?.title ?: "Unknown"} · ${row.folder}")
     return parts.joinToString(" · ")
+}
+
+/** Whether anybody besides the sender and this account was on it. */
+private fun hasOthers(loaded: MessageReader.Loaded, account: MailAccount?): Boolean {
+    val mine = account?.address ?: return false
+    return MailAddresses.replyAll(
+        loaded.headers.to,
+        loaded.headers.cc,
+        ReplyDraft.recipient(loaded.headers),
+        mine,
+    ).isNotEmpty()
 }

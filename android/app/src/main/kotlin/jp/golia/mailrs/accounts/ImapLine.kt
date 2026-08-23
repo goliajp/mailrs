@@ -16,6 +16,15 @@ object Imap {
         data class Exists(val count: Int) : Untagged
         data class UidValidity(val value: Long) : Untagged
         data class UidNext(val value: Long) : Untagged
+        /**
+         * What the server says it can do.
+         *
+         * Announced in two places — the greeting and a `CAPABILITY`
+         * reply — and a client that reads only the second asks a
+         * question it already has the answer to.
+         */
+        data class Capabilities(val names: List<String>) : Untagged
+
         data object Other : Untagged
     }
 
@@ -52,6 +61,23 @@ object Imap {
         val body = line.removePrefix("* ").trim()
 
         if (body.uppercase().startsWith("LIST ")) return parseList(body)
+        if (body.uppercase().startsWith("CAPABILITY")) {
+            return Untagged.Capabilities(
+                body.split(" ").drop(1).filter { it.isNotEmpty() },
+            )
+        }
+        // Also announced inside the greeting's response code, which is
+        // where a server that offers no `CAPABILITY` at all says it.
+        val open = body.indexOf("[CAPABILITY ", ignoreCase = true)
+        if (open >= 0) {
+            val close = body.indexOf(']', open)
+            if (close > open) {
+                return Untagged.Capabilities(
+                    body.substring(open + "[CAPABILITY ".length, close)
+                        .split(" ").filter { it.isNotEmpty() },
+                )
+            }
+        }
 
         val head = body.substringBefore(' ')
         val tail = body.removePrefix(head).trim()

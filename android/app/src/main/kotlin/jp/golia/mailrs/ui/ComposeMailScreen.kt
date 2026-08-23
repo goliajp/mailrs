@@ -69,6 +69,13 @@ fun ComposeMailScreen(
         )
     }
     var to by remember { mutableStateOf(initial.to.joinToString(", ")) }
+    var cc by remember { mutableStateOf(initial.cc.joinToString(", ")) }
+    var bcc by remember { mutableStateOf("") }
+    // Collapsed until asked for: most messages have neither, and two
+    // empty boxes above the subject is two more things to read past
+    // every time. Opened already if the draft arrived with a Cc — a
+    // reply-all that hides what it is copying is worse than a box.
+    var showCopies by remember { mutableStateOf(initial.cc.isNotEmpty()) }
     var subject by remember { mutableStateOf(initial.subject) }
     var body by remember { mutableStateOf(initial.body) }
     var sending by remember { mutableStateOf(false) }
@@ -82,14 +89,20 @@ fun ComposeMailScreen(
         sending = true
         failure = ""
         scope.launch {
+            fun addresses(text: String) =
+                text.split(",").map { it.trim() }.filter { it.isNotEmpty() }
             val draft = initial.copy(
                 from = account.address,
                 fromName = account.displayName,
-                to = to.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                to = addresses(to),
+                cc = addresses(cc),
                 subject = subject,
                 body = body,
             )
-            when (val outcome = AccountSender.send(draft, account, store)) {
+            // Bcc goes to the sender as the envelope's extra
+            // recipients and never into the headers — that is what
+            // makes a blind copy blind.
+            when (val outcome = AccountSender.send(draft, account, store, addresses(bcc))) {
                 is AccountSender.Outcome.Sent -> onClose()
                 is AccountSender.Outcome.Failed -> {
                     failure = outcome.why
@@ -139,6 +152,29 @@ fun ComposeMailScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("compose.to"),
             )
+            if (showCopies) {
+                OutlinedTextField(
+                    value = cc,
+                    onValueChange = { cc = it },
+                    label = { Text("Cc") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("compose.cc"),
+                )
+                OutlinedTextField(
+                    value = bcc,
+                    onValueChange = { bcc = it },
+                    label = { Text("Bcc") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("compose.bcc"),
+                )
+            } else {
+                TextButton(
+                    onClick = { showCopies = true },
+                    modifier = Modifier.testTag("compose.showCopies"),
+                ) {
+                    Text("Cc / Bcc", color = theme.accent, fontSize = 12.sp)
+                }
+            }
             OutlinedTextField(
                 value = subject,
                 onValueChange = { subject = it },

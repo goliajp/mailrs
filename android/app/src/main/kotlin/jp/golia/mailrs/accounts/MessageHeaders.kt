@@ -24,6 +24,9 @@ object MessageHeaders {
          * starts a new conversation in every client that reads it.
          */
         val references: List<String> = emptyList(),
+        /** Who it was addressed to, verbatim — a reply-all needs them. */
+        val to: String = "",
+        val cc: String = "",
     )
 
     /**
@@ -42,6 +45,14 @@ object MessageHeaders {
             val value = line.substring(colon + 1).trim()
             out = when (name) {
                 "message-id" -> if (out.messageId.isEmpty()) out.copy(messageId = value) else out
+                "to" -> when {
+                    out.to.isEmpty() -> out.copy(to = EncodedWord.decode(value))
+                    else -> out
+                }
+                "cc" -> when {
+                    out.cc.isEmpty() -> out.copy(cc = EncodedWord.decode(value))
+                    else -> out
+                }
                 "reply-to" ->
                     when {
                         out.replyTo.isEmpty() -> out.copy(replyTo = EncodedWord.decode(value))

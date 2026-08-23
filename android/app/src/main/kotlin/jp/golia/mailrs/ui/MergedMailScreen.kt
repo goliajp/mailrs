@@ -20,6 +20,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,8 +38,10 @@ import androidx.compose.ui.unit.sp
 import jp.golia.mailrs.accounts.AccountColour
 import jp.golia.mailrs.accounts.AccountStore
 import jp.golia.mailrs.accounts.MailAccount
+import jp.golia.mailrs.accounts.MailboxActions
 import jp.golia.mailrs.accounts.MailboxMerge
 import jp.golia.mailrs.accounts.MailboxRow
+import jp.golia.mailrs.accounts.MailboxSearch
 import jp.golia.mailrs.accounts.MailboxSyncRunner
 import jp.golia.mailrs.accounts.MessageReader
 import jp.golia.mailrs.accounts.OutgoingMessage
@@ -69,6 +72,7 @@ fun MergedMailScreen() {
     var failures by remember { mutableStateOf(emptyMap<String, String>()) }
     /** The message being read, if any. */
     var opened by remember { mutableStateOf<MailboxRow?>(null) }
+    var query by remember { mutableStateOf("") }
     /** The message being written, if any, and which account it leaves by. */
     var writing by remember { mutableStateOf<Pair<OutgoingMessage.Draft, String>?>(null) }
 
@@ -76,7 +80,10 @@ fun MergedMailScreen() {
         only.isEmpty() -> null
         else -> only
     }
-    val visible = MailboxMerge.newestFirst(MailboxMerge.onlyAccounts(rows, filter))
+    val visible = MailboxSearch.matches(
+        MailboxMerge.newestFirst(MailboxMerge.onlyAccounts(rows, filter)),
+        query,
+    )
 
     fun sync() {
         if (syncing) return
@@ -113,13 +120,13 @@ fun MergedMailScreen() {
         MessageScreen(
             row,
             account,
-            onReply = { loaded ->
+            onReply = { loaded, all ->
                 // The reply leaves by the account the message arrived
                 // at. Replying from a different address than the one
                 // that was written to is a mistake nobody notices until
                 // the answer goes missing.
                 account?.let {
-                    writing = ReplyDraft.make(loaded.headers, it, loaded.text) to it.id
+                    writing = ReplyDraft.make(loaded.headers, it, loaded.text, all) to it.id
                     opened = null
                 }
             },
@@ -175,6 +182,16 @@ fun MergedMailScreen() {
             return@Column
         }
 
+        androidx.compose.material3.OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("Search") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .testTag("mail.search"),
+        )
+
         if (accounts.size > 1) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
@@ -204,7 +221,12 @@ fun MergedMailScreen() {
         }
 
         if (visible.isEmpty()) {
+            // Three different nothings, and they lead somewhere
+            // different each: fetch, widen the filter, or know that a
+            // local search cannot see what was never fetched.
             val text = when {
+                query.isNotEmpty() ->
+                    "Nothing here matches. Only mail already fetched is searched."
                 only.isEmpty() -> "No mail yet. Fetch to read it."
                 else -> "Nothing from the mailboxes you picked."
             }
@@ -218,9 +240,31 @@ fun MergedMailScreen() {
 
         LazyColumn(Modifier.fillMaxSize()) {
             items(visible, key = { it.id }) { row ->
-                MergedMailRow(row, accounts.firstOrNull { it.id == row.accountId }) {
-                    opened = row
-                }
+                val account = accounts.firstOrNull { it.id == row.accountId }
+                MergedMailRow(
+                    row,
+                    account,
+                    onTap = { opened = row },
+                    onDelete = {
+                        account?.let {
+                            scope.launch {
+                                when (val out = MailboxActions.delete(it, row, store)) {
+                                    is MailboxActions.Outcome.Done -> rows = store.rows()
+                                    is MailboxActions.Outcome.Failed ->
+                                        failures = failures + (it.id to out.why)
+                                }
+                            }
+                        }
+                    },
+                    onMarkUnread = {
+                        account?.let {
+                            scope.launch {
+                                MailboxActions.markUnread(it, row, store)
+                                rows = store.rows()
+                            }
+                        }
+                    },
+                )
             }
         }
     }
@@ -251,8 +295,75 @@ private fun AccountChip(account: MailAccount, on: Boolean, onTap: () -> Unit) {
     }
 }
 
+/**
+ * One message in the merged list.
+ *
+ * Swiping is the gesture every mail client uses, and the two directions
+ * are chosen the way they are everywhere: **the destructive one is the
+ * one nobody reaches for by accident**, and the reversible one is on
+ * the side a thumb rests.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun MergedMailRow(row: MailboxRow, account: MailAccount?, onTap: () -> Unit) {
+private fun MergedMailRow(
+    row: MailboxRow,
+    account: MailAccount?,
+    onTap: () -> Unit,
+    onDelete: () -> Unit,
+    onMarkUnread: () -> Unit,
+) {
+    val state = androidx.compose.material3.rememberSwipeToDismissBoxState()
+    // Driven from the settled value rather than from a veto callback:
+    // the callback overload is deprecated, and vetoing was the wrong
+    // shape anyway — the row goes when the **server** says it has, and
+    // one that vanishes before that comes back on the next fetch
+    // looking like a bug. So the swipe springs back and the list
+    // updates when the action lands.
+    LaunchedEffect(state.currentValue) {
+        when (state.currentValue) {
+            androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> {
+                onDelete()
+                state.reset()
+            }
+            androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> {
+                onMarkUnread()
+                state.reset()
+            }
+            else -> Unit
+        }
+    }
+    androidx.compose.material3.SwipeToDismissBox(
+        state = state,
+        backgroundContent = { SwipeBackground(state.dismissDirection) },
+        modifier = Modifier.testTag("mail.swipe.${row.id}"),
+    ) {
+        MergedMailRowBody(row, account, onTap)
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeBackground(direction: androidx.compose.material3.SwipeToDismissBoxValue) {
+    val theme = LocalTheme.current
+    val text = when (direction) {
+        androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> "Delete"
+        androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> "Unread"
+        else -> ""
+    }
+    val alignment = when (direction) {
+        androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+        else -> Alignment.CenterStart
+    }
+    Box(
+        Modifier.fillMaxWidth().background(theme.bgSecondary).padding(horizontal = 20.dp),
+        contentAlignment = alignment,
+    ) {
+        Text(text, color = theme.fgMuted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun MergedMailRowBody(row: MailboxRow, account: MailAccount?, onTap: () -> Unit) {
     val theme = LocalTheme.current
     // Unread is heavier. The only thing on the row that says so without
     // colour, which is why it is weight and not a tint.

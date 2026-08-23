@@ -18,6 +18,9 @@ enum MessageHeaders {
         /// The conversation so far, oldest first. A reply that drops it
         /// starts a new conversation in every client that reads it.
         var references: [String] = []
+        /// Who it was addressed to, verbatim — a reply-all needs them.
+        var to = ""
+        var cc = ""
     }
 
     /// Read the header block.
@@ -42,6 +45,8 @@ enum MessageHeaders {
             case "date": if out.date.isEmpty { out.date = value }
             case "in-reply-to": if out.inReplyTo.isEmpty { out.inReplyTo = value }
             case "reply-to": if out.replyTo.isEmpty { out.replyTo = EncodedWord.decode(value) }
+            case "to": if out.to.isEmpty { out.to = EncodedWord.decode(value) }
+            case "cc": if out.cc.isEmpty { out.cc = EncodedWord.decode(value) }
             case "references":
                 if out.references.isEmpty {
                     // Whitespace-separated, and folded over several
