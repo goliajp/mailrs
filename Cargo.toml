@@ -109,11 +109,24 @@ spg-embedded = "7.38.4"
 # backend mailrs ships with after Phase C (v1.7.95+); the `redis` crate
 # dep is gone.
 #
-# 2026-08-13: 4.1.1 → 5.1. **These two lines move together.** The client's
-# 2.2 line depends on the 5.x shared crates, so bumping one without the
-# other compiles both generations of kevy-store / kevy-persist / kevy-resp
-# into a single binary — the same duplication `check-workspace-deps.sh`
-# exists to catch on our own crates.
+# 2026-08-13: 4.1.1 → 5.1; 2026-08-23: 5.2 → 5.4.1. **These lines move
+# together.** The client's 2.2 line depends on the 5.x shared crates, so
+# bumping one without the other compiles both generations of
+# kevy-store / kevy-persist / kevy-resp into a single binary — the same
+# duplication `check-workspace-deps.sh` exists to catch on our own
+# crates.
+#
+# The 5.4.1 lift needed a third: `kevy-client` 2.2 pins
+# `kevy-resp-client`, which stayed on 5.2.0 after the other twelve
+# moved. `grep -c 'version = "5.2.0"' Cargo.lock` is how that shows —
+# it read 1 while everything compiled cleanly, which is exactly the
+# duplication this comment warns about and exactly what a green build
+# does not tell you. `cargo update -p kevy-resp-client` closed it.
+#
+# Nothing the compiler forced, on either the 5.4 or the resp-client
+# step: `cargo check --workspace --all-targets` was clean before and
+# after, and mailbox-kevy's 194 tests plus the three upstream-property
+# tests passed unchanged. So this is a version lift.
 #
 # The embedded API was diffed name-by-name before the bump: 238 public
 # functions against 235, nothing removed, no signature changed, three
@@ -132,7 +145,7 @@ spg-embedded = "7.38.4"
 #   - `appendfsync always` group-commits on both reactors.
 #   - a forced rewrite no longer spikes the reactor for ~200 ms.
 # Data directories open in both directions; the release gate replays that.
-kevy-embedded = "5.2"
+kevy-embedded = "5.4"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /

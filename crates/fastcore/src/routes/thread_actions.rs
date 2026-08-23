@@ -31,11 +31,18 @@ fn mark_thread_read_everywhere(state: &Arc<FastcoreState>, user: &str, thread_id
     };
     match state.mailbox.mark_thread_messages_seen(user, thread_id) {
         Ok(behind) => {
+            let mut refs = Vec::new();
             for (blob_ref, flags) in behind {
                 if let Err(e) = crate::maildir_scan::apply_flag_bitmask(user, &blob_ref, flags) {
                     tracing::warn!(error = %e, %user, %blob_ref, "mark read: rename failed");
                 }
+                refs.push(blob_ref);
             }
+            // And the fourth place: the server this came from, if it
+            // came from one. Left as a note rather than done here —
+            // this call answers somebody pressing a key and must not
+            // wait on a round trip to a mailbox that may be asleep.
+            crate::external_writeback::note_read(state, &refs);
         }
         Err(e) => tracing::warn!(error = %e, %user, %thread_id, "mark read: row sync failed"),
     }

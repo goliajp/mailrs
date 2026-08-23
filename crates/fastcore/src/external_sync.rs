@@ -25,6 +25,7 @@ use mailrs_imap_client as imap;
 
 use crate::FastcoreState;
 use crate::external_sync_secret::{sealing_key, usable_secret};
+use crate::external_sync_writeback::carry_read_notes;
 
 /// How often the loop looks for due accounts when it last found one.
 const BUSY_INTERVAL: Duration = Duration::from_secs(60);
@@ -219,6 +220,12 @@ async fn sync_imap(
             .map_err(|e| e.to_string())?,
     }
 
+    // Carried on the connection that is already open, before reading:
+    // a person who read something here five minutes ago should not
+    // watch it stay bold in the other client while a large folder is
+    // fetched.
+    carry_read_notes(state, row, &mut session).await;
+
     let mut filed = 0usize;
     for folder in folders_to_read(&mut session).await? {
         filed += read_folder(state, user, row, &mut session, &folder).await?;
@@ -348,8 +355,19 @@ async fn read_folder(
         // row, the declared axes, sender trust and sieve all run
         // unchanged from here.
         let blob = format!("ext-{}-{}-{}", row.id, sanitise(folder), uid);
-        crate::ingest::ingest_delivered_file(state, user, &blob, &body, "INBOX");
-        let _ = meta;
+        // `\Seen` from the other server, rather than guessed from the
+        // sender. It was parsed and thrown away — so a mailbox someone
+        // had been reading for years arrived entirely unread, and the
+        // first sync of a connected account produced thousands of
+        // unread messages that had all been dealt with.
+        crate::ingest::ingest_delivered_file_as(
+            state,
+            user,
+            &blob,
+            &body,
+            "INBOX",
+            Some(meta.seen),
+        );
         top = top.max(uid);
         filed += 1;
     }

@@ -184,7 +184,7 @@ pub async fn run() {
     // are logged + retried; they don't crash the server.
     let sync_state = state.clone();
     tokio::spawn(async move {
-        ingest_sync_loop(sync_state).await;
+        crate::ingest_loop::ingest_sync_loop(sync_state).await;
     });
 
     // Spawn the spool drain — receiver writes {spool}/incoming/new/*
