@@ -8,20 +8,60 @@ import Foundation
 /// listed. Both walk the same tree through the same primitives, and
 /// each applies its own policy to it.
 enum MessageAttachments {
+    /// One attached file, **not yet decoded**.
+    ///
+    /// It points into the message rather than carrying a copy: opening
+    /// a 25 MB message used to hold the raw bytes and about 18 MB of
+    /// decoded attachments at the same time, for a screen that shows a
+    /// name and a size. The decoding happens when somebody taps one,
+    /// and what is decoded is that one.
+    ///
+    /// `size` is computed from the encoded length rather than by
+    /// decoding — base64 is four characters for every three bytes, so
+    /// the answer is arithmetic, and a size shown before a tap must not
+    /// cost what the tap costs.
     struct Attachment: Equatable, Identifiable {
         var filename: String
         var mimeType: String
-        var bytes: Data
+        /// The encoded part, as it sits in the message.
+        fileprivate var encoded: Data
+        fileprivate var transfer: String
         /// Whether the message meant it to appear inside the text — a
         /// signature image, usually. Listed anyway, because a reader
         /// shown text has no other way to reach it, but marked so the
         /// list can say which is which.
         var inline: Bool
 
-        var size: Int { bytes.count }
+        /// How big the file is once decoded, without decoding it.
+        ///
+        /// base64 carries three bytes in every four characters, and
+        /// the padding says how many of the last three are real. Line
+        /// breaks are not characters of the encoding, so they are not
+        /// counted.
+        var size: Int {
+            guard transfer == "base64" else { return encoded.count }
+            var characters = 0
+            var padding = 0
+            for byte in encoded {
+                switch byte {
+                case UInt8(ascii: "="): padding += 1
+                case UInt8(ascii: "A")...UInt8(ascii: "Z"),
+                    UInt8(ascii: "a")...UInt8(ascii: "z"),
+                    UInt8(ascii: "0")...UInt8(ascii: "9"),
+                    UInt8(ascii: "+"), UInt8(ascii: "/"):
+                    characters += 1
+                default: break
+                }
+            }
+            return max(0, (characters + padding) / 4 * 3 - padding)
+        }
+
+        /// The file itself, decoded now.
+        func decoded() -> Data { MessageBody.decodeTransfer(encoded, as: transfer) }
+
         /// Unique within one message: two files may share a name, and
         /// a list keyed on the name alone shows one of them twice.
-        var id: String { "\(filename)-\(bytes.count)-\(inline)" }
+        var id: String { "\(filename)-\(size)-\(inline)" }
     }
 
     /// Everything attached, in the order the message lists it.
@@ -56,7 +96,8 @@ enum MessageAttachments {
             Attachment(
                 filename: name ?? fallbackName(type),
                 mimeType: mimeType(type),
-                bytes: MessageBody.decodeTransfer(body, as: MessageBody.encoding(header)),
+                encoded: body,
+                transfer: MessageBody.encoding(header),
                 inline: kind == "inline"))
     }
 

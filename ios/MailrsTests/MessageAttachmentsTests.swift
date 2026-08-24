@@ -34,7 +34,7 @@ import Testing
         #expect(found.count == 1)
         #expect(found.first?.filename == "report.pdf")
         #expect(found.first?.mimeType == "application/pdf")
-        #expect(String(decoding: found.first?.bytes ?? Data(), as: UTF8.self) == "Hello")
+        #expect(String(decoding: found.first?.decoded() ?? Data(), as: UTF8.self) == "Hello")
     }
 
     /// A text part **with a filename** is attached — that is how a

@@ -40,7 +40,7 @@ import Testing
         #expect(found.count == 1)
         #expect(found.first?.filename == "report 2025.pdf")
         #expect(found.first?.mimeType == "application/pdf")
-        #expect(found.first?.bytes == payload)
+        #expect(found.first?.decoded() == payload)
     }
 
     /// **The text part comes first.** Every reader shows the first
@@ -65,7 +65,7 @@ import Testing
         ])
         let found = MessageAttachments.of(SocketText.bytes(message))
         #expect(found.map(\.filename) == ["one.txt", "two.bin"])
-        #expect(String(decoding: found[0].bytes, as: UTF8.self) == "first")
+        #expect(String(decoding: found[0].decoded(), as: UTF8.self) == "first")
     }
 
     /// **A filename cannot break the header it sits in.** A quote ends

@@ -87,7 +87,9 @@ struct MessageView: View {
                 at: directory, withIntermediateDirectories: true)
             let url = directory.appendingPathComponent(
                 AttachmentFile.safeName(for: attachment.filename))
-            try attachment.bytes.write(to: url, options: .atomic)
+            // Decoded here and nowhere earlier: the list showed a name
+            // and a size without ever holding the file.
+            try attachment.decoded().write(to: url, options: .atomic)
             previewing = PreviewFile(url: url)
         } catch {
             // Said rather than swallowed: a tap that does nothing at
