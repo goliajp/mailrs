@@ -27,20 +27,25 @@ import Testing
 
     private func given(_ lines: [String]) -> ScriptedTransport {
         let script = ScriptedTransport(lines)
-        MailboxActions.openImap = { _, _ in IMAPSession(transport: script) }
+        // A pool of its own, so one test's connection is not another's
+        // — and so a session that stays open at the end of a test does
+        // not answer the next one from the wrong script.
+        MailboxActions.pool = ImapPool(open: { _, _ in IMAPSession(transport: script) })
         return script
     }
 
     private func clean() {
         AccountStore.upsert(account)
         AccountStore.saveSecret("app-password", for: account.id)
-        AccountStore.saveRows([row])
+        AccountStore.replaceRows([row])
     }
 
     private func done() {
-        MailboxActions.openImap = { IMAPSession(host: $0, port: $1) }
+        let pool = MailboxActions.pool
+        Task { await pool.dropAll() }
+        MailboxActions.pool = .shared
         AccountStore.remove(id: account.id)
-        AccountStore.saveRows([])
+        AccountStore.replaceRows([])
     }
 
     /// The whole exchange, and the row gone afterwards.
@@ -110,7 +115,7 @@ import Testing
         defer { done() }
         var read = row
         read.seen = true
-        AccountStore.saveRows([read])
+        AccountStore.replaceRows([read])
         let script = given(["* OK ready", "a1 OK signed in", "a2 OK selected", "a3 OK stored"])
         let outcome = await MailboxActions.markUnread(row, from: account)
         #expect(outcome == .done)

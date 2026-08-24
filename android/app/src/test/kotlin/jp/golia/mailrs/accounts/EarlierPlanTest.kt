@@ -65,4 +65,21 @@ class EarlierPlanTest {
         assertTrue(EarlierPlan.exhausted(EarlierPlan.decide(50, span = 200)))
         assertFalse(EarlierPlan.exhausted(EarlierPlan.decide(1001, span = 200)))
     }
+
+    // At the ceiling the cap drops the oldest rows and this fetches
+    // exactly those, so the two undo each other. Refusing is the
+    // honest answer; fetching-and-discarding looks like it worked.
+    @Test
+    fun `a full device is asked before the network is`() {
+        assertTrue(EarlierPlan.atCeiling(held = 100, ceiling = 100))
+        assertTrue(EarlierPlan.atCeiling(held = 101, ceiling = 100))
+        assertFalse(EarlierPlan.atCeiling(held = 99, ceiling = 100))
+    }
+
+    // The ceiling has to be far above one span, or the button works
+    // once and then stops for a reason nobody can see.
+    @Test
+    fun `the ceiling leaves room for many spans`() {
+        assertTrue(MailboxApply.PER_ACCOUNT >= EarlierPlan.FIRST_SPAN * 20)
+    }
 }

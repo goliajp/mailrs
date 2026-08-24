@@ -1873,6 +1873,22 @@
         }
       }
     },
+    "Fetch earlier mail": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以前のメールを取得"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取回更早的邮件"
+          }
+        }
+      }
+    },
     "Fetch mail": {
       "localizations": {
         "ja": {

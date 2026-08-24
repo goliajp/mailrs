@@ -74,6 +74,23 @@ struct FolderMark: Equatable, Codable {
     var uidValidity: UInt32
     /// The highest uid read.
     var highestUid: UInt32
+    /// The lowest uid this device holds for the folder.
+    ///
+    /// Where "load earlier" starts asking from. Uids never move, but
+    /// they leave gaps, so this is a boundary rather than a count of
+    /// anything. Zero means nothing has been read yet.
+    ///
+    /// Defaulted, so a mark stored before this field existed still
+    /// decodes — and defaulted to 0, which reads as "unknown" and makes
+    /// the first "earlier" tap anchor itself from what is held.
+    var lowestUid: UInt32 = 0
+    /// How wide the next "earlier" range should be.
+    ///
+    /// Kept because it adapts: a range that came back nearly empty was
+    /// mostly gaps, and the next one asks wider. Forgetting it makes
+    /// every tap start narrow again in exactly the mailbox where narrow
+    /// does not work.
+    var earlierSpan: Int = EarlierPlan.firstSpan
 }
 
 extension FetchPlan {

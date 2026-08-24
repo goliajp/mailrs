@@ -124,20 +124,46 @@ object MailboxApply {
     /**
      * How many rows one account may keep.
      *
-     * There is a limit whether or not it is chosen. Every row lives in
-     * one preferences value, which is held in memory and **rewritten
-     * whole on every change** — so an unbounded list makes each
-     * swipe-to-delete a rewrite of everything, and a person with six
-     * accounts and thirty folders each reaches megabytes of it.
+     * **Raised from 2,000 when the rows moved into SQLite**, because
+     * the old number was chosen for a cost that no longer exists. Every
+     * row used to live in one preferences value, held in memory and
+     * rewritten whole on every change, so an unbounded list made each
+     * swipe-to-delete a rewrite of everything. A table addresses the
+     * row that changed, and the limit now bounds disk instead.
+     *
+     * That mattered for more than tidiness: "load earlier" fetches
+     * **older** mail, and a cap that keeps only the newest 2,000 threw
+     * it away in the same pass that fetched it. On a mailbox with more
+     * than 2,000 messages the button did nothing at all, and did it
+     * slowly — which is not a shape any test with a three-message
+     * script can see.
+     *
+     * **The gate on this number is now open.** It was 5,000 while the
+     * list still read every row and sorted them in memory, because the
+     * binding cost was that read and not the disk. The list reads a
+     * window now (`ORDER BY … LIMIT`, `MailboxDatabase.newest`), so
+     * what remains is disk: 50,000 is about 15 MB an account at
+     * roughly 300 bytes a row, and bodies are not stored, so that is
+     * the whole of it.
+     *
+     * 50,000 is also about a decade of a busy inbox — far enough above
+     * what "load earlier" reaches that the ceiling is a real limit
+     * rather than one somebody meets on a Tuesday.
      *
      * Choosing the limit means choosing what falls off. It is the
      * order the list itself uses, so what goes is exactly what somebody
      * would have had to scroll furthest to see.
      */
-    const val PER_ACCOUNT = 2_000
+    const val PER_ACCOUNT = 50_000
 
     /**
      * Keep at most [limit] rows per account.
+     *
+     * **No production caller since the rows moved into SQLite** — the
+     * table does its own capping, in SQL, because deciding what to drop
+     * by loading everything is the cost that move was about. This stays
+     * as the readable statement of the rule, and a test holds the SQL
+     * to it. Delete both together or neither.
      *
      * **Per account, not overall.** One noisy mailbox would otherwise
      * evict a quiet one entirely, and the quiet one is where the mail
@@ -155,61 +181,4 @@ object MailboxApply {
         // reshuffling storage on every pass makes diffs unreadable.
         return rows.filter { it.id in keep }
     }
-    /**
-     * The held rows, updated by what a pass just read.
-     *
-     * Matched on `id`, so a message read again is the **same row
-     * updated** rather than a second copy. A pass that re-reads a
-     * folder from the start — which is what a renumbering forces —
-     * would otherwise double every message in the list.
-     *
-     * The **server's** flags win. It knows; this end is holding what
-     * it knew last time, and a mailbox read on a phone and a laptop
-     * disagrees within minutes otherwise.
-     */
-    fun apply(held: List<MailboxRow>, fetched: List<MailboxRow>): List<MailboxRow> {
-        val byId = LinkedHashMap<String, MailboxRow>()
-        for (row in held) byId[row.id] = row
-        for (row in fetched) byId[row.id] = row
-        return byId.values.toList()
-    }
-
-    /**
-     * The rows of one folder replaced wholesale.
-     *
-     * For a renumbering: every uid held for that folder is a number
-     * that no longer means anything, so keeping them beside the fresh
-     * ones leaves a list of messages that cannot be opened.
-     */
-    fun replacingFolder(
-        held: List<MailboxRow>,
-        accountId: String,
-        folder: String,
-        fetched: List<MailboxRow>,
-    ): List<MailboxRow> =
-        held.filterNot { it.accountId == accountId && it.folder == folder } + fetched
-
-    /**
-     * Everything belonging to an account, gone.
-     *
-     * A row left behind when its account is removed is mail nobody can
-     * open — the credential and the server it came from are both gone.
-     */
-    /**
-     * Mark one row read, wherever it is in the list.
-     *
-     * The server was told; this is the same fact on this device, so the
-     * list stops showing it as unread without waiting for the next
-     * fetch.
-     */
-    fun markSeen(rows: List<MailboxRow>, id: String): List<MailboxRow> =
-        rows.map { row ->
-            when (row.id) {
-                id -> row.copy(seen = true)
-                else -> row
-            }
-        }
-
-    fun withoutAccount(rows: List<MailboxRow>, accountId: String): List<MailboxRow> =
-        rows.filterNot { it.accountId == accountId }
 }

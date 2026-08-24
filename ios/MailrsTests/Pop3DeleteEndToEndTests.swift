@@ -33,14 +33,14 @@ import Testing
     private func clean() {
         AccountStore.upsert(account)
         AccountStore.saveSecret("app-password", for: account.id)
-        AccountStore.saveRows([row])
+        AccountStore.replaceRows([row])
         AccountStore.savePopSeen(account.id, [uidl])
     }
 
     private func done() {
         MailboxActions.openPop3 = { POP3Session(host: $0, port: $1) }
         AccountStore.remove(id: account.id)
-        AccountStore.saveRows([])
+        AccountStore.replaceRows([])
     }
 
     /// **The number is only valid in this session**, so the uidl is

@@ -68,22 +68,21 @@ enum MailboxSyncRunner {
                 marks: AccountStore.marks(for: account.id), held: held)
             await session.close()
 
-            var kept = AccountStore.rows()
             // A renumbering first: the folder's held rows are gone,
             // and applying the fetch on top of rows the server no
             // longer has any way to name would leave both.
             for folder in result.renumbered {
-                kept = MailboxApply.replacingFolder(
-                    held: kept, accountId: account.id, folder: folder, with: [])
+                AccountStore.dropFolder(account.id, folder)
             }
             // Then what became of the rest — read elsewhere, or gone.
             for (folder, answer) in result.refreshed {
-                kept = MailboxRefresh.apply(
-                    held: kept, accountId: account.id, folder: folder,
+                let decision = MailboxRefresh.decide(
                     asked: Set(held[folder] ?? []), answer: answer)
+                AccountStore.deleteUids(account.id, folder, Array(decision.gone))
+                AccountStore.setUidsSeen(account.id, folder, decision.flags)
             }
-            kept = MailboxApply.apply(held: kept, fetched: result.rows)
-            AccountStore.saveRows(MailboxApply.capped(kept))
+            AccountStore.upsertRows(result.rows)
+            AccountStore.capAccount(account.id)
             AccountStore.saveMarks(result.marks, for: account.id)
             // **Only on the way out of a pass that worked.** A
             // timestamp written before the fetch, or after one that
@@ -161,9 +160,8 @@ enum MailboxSyncRunner {
             await session.quit()
             await session.close()
 
-            AccountStore.saveRows(
-                MailboxApply.capped(
-                    MailboxApply.apply(held: AccountStore.rows(), fetched: fetched)))
+            AccountStore.upsertRows(fetched)
+            AccountStore.capAccount(account.id)
             AccountStore.savePopSeen(account.id, seen)
             AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: fetched.count, failure: nil)
@@ -195,9 +193,8 @@ enum MailboxSyncRunner {
                         date: email.receivedAt,
                         messageId: email.messageId)
                 }
-            AccountStore.saveRows(
-                MailboxApply.capped(
-                    MailboxApply.apply(held: AccountStore.rows(), fetched: rows)))
+            AccountStore.upsertRows(rows)
+            AccountStore.capAccount(account.id)
             AccountStore.saveLastSync(account.id, now())
             return Outcome(accountId: account.id, fetched: rows.count, failure: nil)
         } catch let e as JMAPClient.Failure {
@@ -224,5 +221,105 @@ enum MailboxSyncRunner {
             h = h &* 0x100_0000_01b3
         }
         return UInt32(truncatingIfNeeded: h >> 1)
+    }
+
+    /// Fetch the mail **before** what is held, for one folder.
+    ///
+    /// Its own pass rather than part of the ordinary one: an ordinary
+    /// pass answers "what is new", runs on a timer and on a pull, and
+    /// must stay cheap. This one answers "what came before", runs only
+    /// when somebody asks, and is allowed to reach.
+    static func earlier(_ account: MailAccount, folder: String) async -> Outcome {
+        guard account.incoming == .imap else {
+            return Outcome(
+                accountId: account.id, fetched: 0,
+                failure: "Older mail is not available for this account yet")
+        }
+        guard let secret = AccountStore.secret(for: account.id) else {
+            return Outcome(
+                accountId: account.id, fetched: 0,
+                failure: "Sign in again to read this account")
+        }
+        guard let mark = AccountStore.marks(for: account.id)[folder] else {
+            return Outcome(
+                accountId: account.id, fetched: 0, failure: "Fetch this mailbox first")
+        }
+        // Asked before the fetch, not after: at the ceiling the cap
+        // would drop exactly what this pass went to get.
+        guard !EarlierPlan.atCeiling(held: AccountStore.count(account.id)) else {
+            return Outcome(
+                accountId: account.id, fetched: 0,
+                failure: "This device is holding as much of this account as it can")
+        }
+        // A mark from before this was recorded: anchor from what is
+        // actually held rather than refusing, so an account that has
+        // been syncing for weeks does not have to start over.
+        var anchor = mark.lowestUid
+        if anchor == 0 {
+            let held = AccountStore.rows()
+                .filter { $0.accountId == account.id && $0.folder == folder }
+                .map(\.uid)
+            guard let lowest = held.min() else {
+                return Outcome(
+                    accountId: account.id, fetched: 0, failure: "Fetch this mailbox first")
+            }
+            anchor = lowest
+        }
+        let ask = EarlierPlan.decide(lowestHeldUid: anchor, span: mark.earlierSpan)
+        guard let range = ask.range else {
+            return Outcome(accountId: account.id, fetched: 0, failure: nil)
+        }
+
+        let session = openImap(account.imapHost, account.imapPort)
+        do {
+            try await session.connect()
+            if account.auth == .oauth2 {
+                try await session.authenticateXOAuth2(user: account.loginName, token: secret)
+            } else {
+                try await session.login(user: account.loginName, password: secret)
+            }
+            let (validity, _) = try await session.select(folder)
+            guard validity == mark.uidValidity else {
+                // The folder was renumbered while this was being asked.
+                // Every uid held means something else now, so reaching
+                // below one of them would fetch whatever happens to be
+                // there — the ordinary pass re-anchors, and this one
+                // steps aside for it.
+                await session.close()
+                return Outcome(
+                    accountId: account.id, fetched: 0,
+                    failure: "This mailbox was rebuilt — fetch it again")
+            }
+            let fetched = try await session.fetchHeaders(range: range)
+            await session.close()
+
+            let rows = fetched.map { message in
+                MailboxRow(
+                    accountId: account.id, uid: message.uid, folder: folder,
+                    seen: message.seen,
+                    sender: MessageHeaders.senderName(message.headers.from),
+                    subject: message.headers.subject, date: message.date,
+                    messageId: message.headers.messageId, size: message.size)
+            }
+            AccountStore.upsertRows(rows)
+            AccountStore.capAccount(account.id)
+
+            // The **range** that was asked about, not the lowest that
+            // came back: a range that is all gaps returns nothing, and
+            // anchoring on what returned would ask the same empty
+            // question forever.
+            let reached = UInt32(range.split(separator: ":").first.map(String.init) ?? "") ?? anchor
+            var marks = AccountStore.marks(for: account.id)
+            marks[folder] = FolderMark(
+                uidValidity: mark.uidValidity, highestUid: mark.highestUid,
+                lowestUid: reached,
+                earlierSpan: EarlierPlan.nextSpan(mark.earlierSpan, returned: rows.count))
+            AccountStore.saveMarks(marks, for: account.id)
+            return Outcome(accountId: account.id, fetched: rows.count, failure: nil)
+        } catch {
+            await session.close()
+            return Outcome(
+                accountId: account.id, fetched: 0, failure: "Could not reach the server")
+        }
     }
 }

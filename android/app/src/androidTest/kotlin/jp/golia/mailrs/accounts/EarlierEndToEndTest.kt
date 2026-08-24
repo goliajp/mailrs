@@ -66,7 +66,7 @@ class EarlierEndToEndTest {
         store = AccountStore(ApplicationProvider.getApplicationContext())
         store.save(listOf(account))
         store.saveSecret("app-password", account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
         store.saveMarksFor(account.id, mapOf("INBOX" to FolderMark(42L, 1200L, 1001L, 200)))
     }
 
@@ -74,7 +74,7 @@ class EarlierEndToEndTest {
     fun tearDown() {
         MailboxSyncRunner.openImap = { host, port -> ImapSession(host, port) }
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     private fun header(subject: String) =
@@ -141,5 +141,39 @@ class EarlierEndToEndTest {
         assertEquals(0, outcome.fetched)
         assertEquals(outcome.failure, null, outcome.failure)
         assertTrue("a round trip was made for an answer already known", script.written.isEmpty())
+    }
+
+    /**
+     * A device already holding as much as it may is told so, **before**
+     * the network is asked.
+     *
+     * At the ceiling the cap drops the oldest rows and this fetches
+     * exactly those, so the two undo each other and the tap spends a
+     * round trip to change nothing. Refusing is the honest answer;
+     * fetching-and-discarding looks like it worked.
+     *
+     * The script is deliberately empty: reaching it at all would be
+     * the failure, and an empty script turns that into a `Closed`
+     * rather than a pass.
+     */
+    @Test
+    fun a_full_device_is_told_before_the_network_is() = runBlocking {
+        val ceiling = MailboxApply.PER_ACCOUNT
+        store.upsertRows(
+            (1L..ceiling.toLong()).map {
+                MailboxRow(
+                    accountId = account.id, uid = it, folder = "INBOX", seen = true,
+                    sender = "a@x.jp", subject = "s", date = it, messageId = "<$it>",
+                )
+            },
+        )
+        val script = serving()
+        val outcome = MailboxSyncRunner.earlier(account, "INBOX", store)
+        assertEquals(0, outcome.fetched)
+        assertTrue(
+            "it did not say the device was full: ${outcome.failure}",
+            outcome.failure?.contains("as much of this account as it can") == true,
+        )
+        assertTrue("it reached the server anyway", script.written.isEmpty())
     }
 }

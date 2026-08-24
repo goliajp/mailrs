@@ -57,7 +57,7 @@ class Pop3DeleteEndToEndTest {
         store = AccountStore(ApplicationProvider.getApplicationContext())
         store.save(listOf(account))
         store.saveSecret("app-password", account.id)
-        store.saveRows(listOf(row))
+        store.replaceRows(listOf(row))
         store.savePopSeen(account.id, setOf(uidl))
     }
 
@@ -65,7 +65,7 @@ class Pop3DeleteEndToEndTest {
     fun tearDown() {
         MailboxActions.openPop3 = { host, port -> Pop3Session(host, port) }
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     /**

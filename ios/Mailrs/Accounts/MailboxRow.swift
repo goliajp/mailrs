@@ -124,18 +124,40 @@ enum MailboxMerge {
 enum MailboxApply {
     /// How many rows one account may keep.
     ///
-    /// There is a limit whether or not it is chosen. Every row lives
-    /// in one `UserDefaults` value, encoded and decoded whole on every
-    /// change — so an unbounded list makes each swipe-to-delete a
-    /// rewrite of everything, and a person with six accounts and
-    /// thirty folders each reaches megabytes of it.
+    /// **Raised from 2,000 when the rows moved into SQLite**, because
+    /// the old number was chosen for a cost that no longer exists.
+    /// Every row used to live in one `UserDefaults` blob, held in
+    /// memory and rewritten whole on every change, so an unbounded
+    /// list made each swipe-to-delete a rewrite of everything. A table
+    /// addresses the row that changed, and the limit now bounds disk
+    /// instead.
     ///
-    /// Choosing the limit means choosing what falls off. It is the
-    /// order the list itself uses, so what goes is exactly what
-    /// somebody would have had to scroll furthest to see.
-    static let perAccount = 2_000
+    /// That mattered for more than tidiness: "load earlier" fetches
+    /// **older** mail, and a cap that keeps only the newest 2,000
+    /// threw it away in the same pass that fetched it. On a mailbox
+    /// with more than 2,000 messages the button did nothing at all,
+    /// and did it slowly — which is not a shape any test with a
+    /// three-message script can see.
+    ///
+    /// **5,000 is set by the list, not by the disk.** The screen still
+    /// reads every row into memory and sorts them there, so the number
+    /// that binds is six accounts × this × roughly 300 bytes a row —
+    /// about 9 MB, which a phone can hold. On disk it is nothing.
+    ///
+    /// Raising it further is gated on the list reading a window
+    /// (`ORDER BY … LIMIT`) instead of everything, which is what a
+    /// table makes possible and a blob did not. Until then a larger
+    /// number would trade a bounded store for an unbounded read, which
+    /// is the same defect facing the other way.
+    static let perAccount = 5_000
 
     /// Keep at most `limit` rows per account.
+    ///
+    /// **No production caller since the rows moved into SQLite** — the
+    /// table does its own capping, in SQL, because deciding what to
+    /// drop by loading everything is the cost that move was about.
+    /// This stays as the readable statement of the rule, and a test
+    /// holds the SQL to it. Delete both together or neither.
     ///
     /// **Per account, not overall.** One noisy mailbox would otherwise
     /// evict a quiet one entirely, and the quiet one is where the mail
@@ -152,63 +174,5 @@ enum MailboxApply {
         // rows were held in survives — the list sorts them itself, and
         // reshuffling storage on every pass makes diffs unreadable.
         return rows.filter { keep.contains($0.id) }
-    }
-
-    /// The held rows, updated by what a pass just read.
-    ///
-    /// Matched on `id`, so a message read again is the **same row
-    /// updated** rather than a second copy. A pass that re-reads a
-    /// folder from the start — which is what a renumbering forces —
-    /// would otherwise double every message in the list.
-    ///
-    /// The **server's** flags win. It knows; this end is holding what
-    /// it knew last time, and a mailbox read on a phone and a laptop
-    /// disagrees within minutes otherwise.
-    static func apply(held: [MailboxRow], fetched: [MailboxRow]) -> [MailboxRow] {
-        var byId: [String: MailboxRow] = [:]
-        var order: [String] = []
-        for row in held {
-            if byId[row.id] == nil { order.append(row.id) }
-            byId[row.id] = row
-        }
-        for row in fetched {
-            if byId[row.id] == nil { order.append(row.id) }
-            byId[row.id] = row
-        }
-        return order.compactMap { byId[$0] }
-    }
-
-    /// The rows of one folder replaced wholesale.
-    ///
-    /// For a renumbering: every uid held for that folder is a number
-    /// that no longer means anything, so keeping them beside the fresh
-    /// ones leaves a list of messages that cannot be opened.
-    static func replacingFolder(
-        held: [MailboxRow], accountId: String, folder: String, with fetched: [MailboxRow]
-    ) -> [MailboxRow] {
-        held.filter { !($0.accountId == accountId && $0.folder == folder) } + fetched
-    }
-
-    /// Everything belonging to an account, gone.
-    ///
-    /// A row left behind when its account is removed is mail nobody
-    /// can open — the credential and the server it came from are both
-    /// gone.
-    /// Mark one row read, wherever it is in the list.
-    ///
-    /// The server was told; this is the same fact on this device, so
-    /// the list stops showing it as unread without waiting for the
-    /// next fetch.
-    static func markSeen(_ rows: [MailboxRow], id: String) -> [MailboxRow] {
-        rows.map { row in
-            guard row.id == id else { return row }
-            var seen = row
-            seen.seen = true
-            return seen
-        }
-    }
-
-    static func withoutAccount(_ rows: [MailboxRow], _ accountId: String) -> [MailboxRow] {
-        rows.filter { $0.accountId != accountId }
     }
 }

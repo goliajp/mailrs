@@ -29,7 +29,7 @@ import Testing
     }
 
     private func clean() {
-        AccountStore.saveRows([])
+        AccountStore.replaceRows([])
         AccountStore.saveMarks([:])
         AccountStore.upsert(account)
         AccountStore.saveSecret("app-password", for: account.id)
@@ -38,7 +38,7 @@ import Testing
     private func done() {
         MailboxSyncRunner.openImap = { IMAPSession(host: $0, port: $1) }
         AccountStore.remove(id: account.id)
-        AccountStore.saveRows([])
+        AccountStore.replaceRows([])
         AccountStore.saveMarks([:])
     }
 
@@ -94,7 +94,7 @@ import Testing
         defer { done() }
         AccountStore.saveMarks(["INBOX": FolderMark(uidValidity: 42, highestUid: 7)],
                                for: account.id)
-        AccountStore.saveRows([
+        AccountStore.replaceRows([
             MailboxRow(
                 accountId: account.id, uid: 7, folder: "INBOX", seen: false,
                 sender: "Ada", subject: "old", date: nil, messageId: "m7")

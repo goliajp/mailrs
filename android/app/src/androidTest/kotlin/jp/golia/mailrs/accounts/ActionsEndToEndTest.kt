@@ -55,9 +55,12 @@ class ActionsEndToEndTest {
 
     private fun serving(vararg lines: String): Script {
         val script = Script(lines.toMutableList())
-        MailboxActions.openImap = { _, _ ->
-            ImapSession("localhost", 993).also { it.transport = script }
-        }
+        // A pool of its own, so one test's connection is not another's
+        // — and so a session that stays open at the end of a test does
+        // not answer the next one from the wrong script.
+        MailboxActions.pool = ImapPool(
+            open = { _, _ -> ImapSession("localhost", 993).also { it.transport = script } },
+        )
         return script
     }
 
@@ -66,14 +69,15 @@ class ActionsEndToEndTest {
         store = AccountStore(ApplicationProvider.getApplicationContext())
         store.save(listOf(account))
         store.saveSecret("app-password", account.id)
-        store.saveRows(listOf(row))
+        store.replaceRows(listOf(row))
     }
 
     @After
     fun tearDown() {
-        MailboxActions.openImap = { host, port -> ImapSession(host, port) }
+        MailboxActions.pool.dropAll()
+        MailboxActions.pool = ImapPool.shared
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     /** The whole exchange, and the row gone afterwards. */
@@ -143,7 +147,7 @@ class ActionsEndToEndTest {
     /** Marking unread reaches the server and this device both. */
     @Test
     fun marking_unread_tells_the_server_and_the_list() = runBlocking {
-        store.saveRows(listOf(row.copy(seen = true)))
+        store.replaceRows(listOf(row.copy(seen = true)))
         val script = serving("* OK [CAPABILITY IMAP4rev1] ready",
             "a1 OK signed in", "a2 OK selected", "a3 OK stored")
         val outcome = MailboxActions.markUnread(account, row, store)

@@ -37,6 +37,22 @@ object EarlierPlan {
     )
 
     /**
+     * Whether this device is already holding as much as it may.
+     *
+     * The cap drops the **oldest** rows, and "load earlier" fetches
+     * exactly those — so at the ceiling the two undo each other and
+     * the button spends a network round trip to change nothing. That
+     * is the worst of the three possible behaviours: worse than
+     * refusing, because it looks like it worked and did not, and it
+     * takes a person several taps to be sure.
+     *
+     * So this is asked **before** fetching, and a full device says so.
+     * It is a real limit, and the honest answer to a real limit is the
+     * limit.
+     */
+    fun atCeiling(held: Int, ceiling: Int = MailboxApply.PER_ACCOUNT) = held >= ceiling
+
+    /**
      * @param lowestHeldUid the smallest uid this device already has for
      *   the folder. **1 means the folder is exhausted**: there is no
      *   uid below it.

@@ -85,6 +85,25 @@ class MailboxMergeTest {
         assertEquals("(no subject)", row("a", 1, 1, subject = "   ").displaySubject)
         assertEquals("real", row("a", 1, 1, subject = "real").displaySubject)
     }
+
+    // The list hoists the sort out of the search so typing does not
+    // re-sort every row. That is only safe if searching a sorted list
+    // and sorting a searched one give the same answer — which they do
+    // because the search filters and never reorders, and this is the
+    // assertion that says so.
+    @Test
+    fun `searching after sorting is the same as sorting after searching`() {
+        val rows = listOf(
+            row("a", 1, date = 300, subject = "Lunch"),
+            row("a", 2, date = 100, subject = "Lunch tomorrow"),
+            row("b", 3, date = 200, subject = "Dinner"),
+        )
+        val sortedThenSearched =
+            MailboxSearch.matches(MailboxMerge.newestFirst(rows), "lunch")
+        val searchedThenSorted =
+            MailboxMerge.newestFirst(MailboxSearch.matches(rows, "lunch"))
+        assertEquals(searchedThenSorted, sortedThenSearched)
+    }
 }
 
 /** Folding a pass's worth of rows into what is already held. */
@@ -97,51 +116,12 @@ class MailboxApplyTest {
         folder: String = "INBOX",
     ) = MailboxRow(account, uid, folder, seen, "a@x.jp", "s", date, "<$account-$uid>")
 
-    // A pass that re-reads a folder from the start — which is what a
-    // renumbering forces — would otherwise double every message.
-    @Test
-    fun `a message read twice is one row`() {
-        val held = listOf(row("a", 1, 1), row("a", 2, 2))
-        assertEquals(2, MailboxApply.apply(held, listOf(row("a", 1, 1))).size)
-    }
-
-    // **The server's flags win.** It knows; this end is holding what it
-    // knew last time.
-    @Test
-    fun `the server's flags win`() {
-        val out = MailboxApply.apply(
-            listOf(row("a", 1, 1, seen = false)),
-            listOf(row("a", 1, 1, seen = true)),
-        )
-        assertEquals(true, out.first().seen)
-    }
-
-    @Test
-    fun `new messages are kept`() {
-        val out = MailboxApply.apply(listOf(row("a", 1, 1)), listOf(row("a", 2, 2)))
-        assertEquals(listOf(1L, 2L), out.map { it.uid }.sorted())
-    }
-
-    // Every uid held for a renumbered folder is a number that no longer
-    // means anything.
-    @Test
-    fun `a renumbered folder is replaced not merged`() {
-        val held = listOf(
-            row("a", 1, 1), row("a", 2, 2),
-            row("a", 9, 9, folder = "Archive"),
-            row("b", 1, 1),
-        )
-        val out = MailboxApply.replacingFolder(held, "a", "INBOX", listOf(row("a", 1, 5)))
-        assertTrue(out.any { it.accountId == "a" && it.folder == "Archive" })
-        assertTrue(out.any { it.accountId == "b" })
-        assertEquals(1, out.count { it.accountId == "a" && it.folder == "INBOX" })
-    }
-
-    // A row left behind when its account is removed is mail nobody can
-    // open — the credential and the server are both gone.
-    @Test
-    fun `removing an account takes its mail with it`() {
-        val rows = listOf(row("a", 1, 1), row("b", 2, 2))
-        assertEquals(listOf("b"), MailboxApply.withoutAccount(rows, "a").map { it.accountId })
-    }
+    // The five assertions that used to sit here — a message read twice
+    // is one row, the server's flags win, new messages are kept, a
+    // renumbered folder is replaced rather than merged, and removing an
+    // account takes its mail — moved to MailboxDatabaseTest when the
+    // rows moved into SQLite. They are properties of the store, and the
+    // store is now the table; asserting them against a list that no
+    // production code builds any more would have been a suite that
+    // stays green while the thing it names breaks.
 }

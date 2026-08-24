@@ -7,10 +7,9 @@ import Foundation
 /// it has ever shown fills up, and the ones worth keeping are the ones
 /// somebody chose to keep.
 enum MessageReader {
-    /// How a session is made; injectable like the others.
-    nonisolated(unsafe) static var openImap: (String, UInt16) -> IMAPSession = {
-        IMAPSession(host: $0, port: $1)
-    }
+    /// Where IMAP connections are kept between messages.
+    nonisolated(unsafe) static var pool: ImapPool = .shared
+
     struct Loaded: Equatable {
         /// Always text by the time it gets here: markup is turned into
         /// text rather than rendered, so no message can ask another
@@ -56,32 +55,28 @@ enum MessageReader {
         guard let secret = AccountStore.secret(for: account.id) else {
             return .failed("Sign in again to read this account")
         }
-        let session = openImap(account.imapHost, account.imapPort)
+        // Through the pool. Opening a message is the wait a person
+        // notices most, and most of it used to be a TLS handshake and a
+        // LOGIN for one FETCH. The session is **not** closed here.
         do {
-            try await session.connect()
-            if account.auth == .oauth2 {
-                try await session.authenticateXOAuth2(user: account.loginName, token: secret)
-            } else {
-                try await session.login(user: account.loginName, password: secret)
+            return try await pool.use(account, secret: secret) { session in
+                _ = try await session.select(row.folder)
+                let plan = FetchWhole.decide(size: row.size, askedForAll: wholeMessage)
+                let raw = try await session.fetchRaw(uid: row.uid, plan: plan)
+                // Marked read only after the body is in hand: a fetch
+                // that fails should leave the message unread, or a
+                // server that was briefly unwell quietly empties
+                // somebody's unread count.
+                if !row.seen {
+                    try? await session.markSeen(uid: row.uid)
+                    AccountStore.setRowSeen(row, true)
+                }
+                var loaded = display(of: raw)
+                if case .beginning = plan { loaded.partial = true }
+                loaded.size = row.size
+                return Outcome.loaded(loaded)
             }
-            _ = try await session.select(row.folder)
-            let plan = FetchWhole.decide(size: row.size, askedForAll: wholeMessage)
-            let raw = try await session.fetchRaw(uid: row.uid, plan: plan)
-            // Marked read only after the body is in hand: a fetch that
-            // fails should leave the message unread, or a server that
-            // was briefly unwell quietly empties somebody's unread
-            // count.
-            if !row.seen {
-                try? await session.markSeen(uid: row.uid)
-                AccountStore.saveRows(MailboxApply.markSeen(AccountStore.rows(), id: row.id))
-            }
-            await session.close()
-            var loaded = display(of: raw)
-            if case .beginning = plan { loaded.partial = true }
-            loaded.size = row.size
-            return .loaded(loaded)
         } catch {
-            await session.close()
             return .failed("Could not open this message")
         }
     }

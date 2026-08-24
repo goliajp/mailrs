@@ -17,7 +17,8 @@ object MailboxActions {
      * says it has** — is about the order of a network call and a
      * write, and neither half alone can show it.
      */
-    internal var openImap: (String, Int) -> ImapSession = { host, port -> ImapSession(host, port) }
+    /** Where IMAP connections are kept between taps. */
+    internal var pool: ImapPool = ImapPool.shared
     sealed class Outcome {
         object Done : Outcome()
         data class Failed(val why: String) : Outcome()
@@ -43,7 +44,7 @@ object MailboxActions {
             // Gone from the device too, and only after the server said
             // so: a row removed first and a move that then failed is a
             // message the person cannot see and has not lost.
-            store.saveRows(store.rows().filterNot { it.id == row.id })
+            store.deleteRow(row)
             Outcome.Done
         }
     }
@@ -54,13 +55,13 @@ object MailboxActions {
             // POP3 has no server-side flags at all, so unread is purely
             // local — and saying so is better than a button that looks
             // like it did something remote.
-            store.saveRows(setSeen(store.rows(), row.id, false))
+            store.setRowSeen(row, false)
             return Outcome.Done
         }
         return withImap(account, store) { session ->
             session.select(row.folder)
             session.markUnseen(row.uid)
-            store.saveRows(setSeen(store.rows(), row.id, false))
+            store.setRowSeen(row, false)
             Outcome.Done
         }
     }
@@ -80,22 +81,14 @@ object MailboxActions {
     ): Outcome {
         val secret = store.secret(account.id)
             ?: return Outcome.Failed("Sign in again to change this account")
-        val session = openImap(account.imapHost, account.imapPort)
+        // Through the pool: one tap is one command, and paying for a
+        // TLS handshake and a LOGIN each time is most of the wait.
+        // The session is **not** closed here — that is the point of it.
         return try {
-            session.connect()
-            if (account.auth == MailProvider.AuthKind.OAUTH2) {
-                session.authenticateXOAuth2(account.loginName, secret)
-            } else {
-                session.login(account.loginName, secret)
-            }
-            val outcome = body(session)
-            session.close()
-            outcome
+            pool.use(account, secret) { session -> body(session) }
         } catch (e: ImapSession.Failure) {
-            session.close()
             Outcome.Failed(AccountConnection.readable(e.message ?: "unknown"))
         } catch (e: Exception) {
-            session.close()
             Outcome.Failed("Could not reach the server")
         }
     }
@@ -136,7 +129,7 @@ object MailboxActions {
             if (target != null) session.delete(target.number)
             session.quit()
             session.close()
-            store.saveRows(store.rows().filterNot { it.id == row.id })
+            store.deleteRow(row)
             // And forgotten, so a mailbox that still lists it after a
             // failed QUIT is fetched again rather than skipped forever.
             target?.let { store.savePopSeen(account.id, store.popSeen(account.id) - it.id) }
