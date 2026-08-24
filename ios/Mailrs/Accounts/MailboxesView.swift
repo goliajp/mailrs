@@ -170,6 +170,45 @@ struct MailboxesView: View {
                     .tint(.blue)
                 }
             }
+            // Show more of what is already here before asking the
+            // server for more. The window grows by a page when the
+            // list reaches its end, and only once it has stopped
+            // growing — the store had no more to give — is there
+            // anything to fetch.
+            //
+            // Both used to be one button, and it read as one action;
+            // it was not, and the slow one ran when the fast one would
+            // have done.
+            if model.moreHeld {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+                .onAppear { model.showMore() }
+            }
+            // At the end of the list, which is where somebody reaches
+            // it by scrolling — and only when nothing is being
+            // searched for, because "earlier" against a filtered list
+            // fetches mail that will not be shown.
+            if MailboxWindow.offersEarlier(
+                moreHeld: model.moreHeld, shownCount: model.visible.count,
+                searching: !model.query.isEmpty)
+            {
+                HStack {
+                    Spacer()
+                    if model.reaching {
+                        ProgressView()
+                    } else {
+                        Button("Fetch earlier mail") {
+                            Task { await model.fetchEarlier() }
+                        }
+                        .font(.footnote)
+                        .accessibilityIdentifier("mail.earlier")
+                    }
+                    Spacer()
+                }
+            }
         }
         .listStyle(.plain)
         .refreshable { await model.sync() }
@@ -182,7 +221,7 @@ struct MailboxesView: View {
     private var filters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                let unread = MailboxMerge.unreadPerAccount(model.rows)
+                let unread = model.unreadPerAccount
                 ForEach(model.accounts) { account in
                     let on = model.only.contains(account.id)
                     Button {

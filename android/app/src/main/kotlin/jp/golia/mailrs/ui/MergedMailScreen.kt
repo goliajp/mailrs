@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +44,7 @@ import jp.golia.mailrs.accounts.MailboxMerge
 import jp.golia.mailrs.accounts.MailboxRow
 import jp.golia.mailrs.accounts.MailboxSearch
 import jp.golia.mailrs.accounts.MailboxSyncRunner
+import jp.golia.mailrs.accounts.MailboxWindow
 import jp.golia.mailrs.accounts.MessageReader
 import jp.golia.mailrs.accounts.OutgoingMessage
 import jp.golia.mailrs.accounts.ReplyDraft
@@ -64,7 +66,22 @@ fun MergedMailScreen() {
     val store = remember { AccountStore(context) }
 
     var accounts by remember { mutableStateOf(store.load()) }
-    var rows by remember { mutableStateOf(store.rows()) }
+    // How many rows the list is currently showing.
+    //
+    // The list used to hold **every** row this device has and sort
+    // them on each recomposition. That is a read that grows with the
+    // mailbox on a screen where nothing else does, and it is the
+    // reason the per-account cap could not rise — see
+    // MailboxApply.PER_ACCOUNT. The store answers a window instead.
+    var shown by remember { mutableIntStateOf(PAGE) }
+    // Bumped when the store changed, to ask it again.
+    //
+    // A counter rather than the rows themselves: what the list needs
+    // is a reason to re-read, and holding the rows to detect a change
+    // in them is the whole cost this replaced.
+    var revision by remember { mutableIntStateOf(0) }
+    var visible by remember { mutableStateOf(emptyList<MailboxRow>()) }
+    var unread by remember { mutableStateOf(emptyMap<String, Int>()) }
     // Empty means **no filter** — the ordinary case, and the one a
     // person gets without choosing anything.
     var only by remember { mutableStateOf(emptySet<String>()) }
@@ -81,10 +98,21 @@ fun MergedMailScreen() {
         only.isEmpty() -> null
         else -> only
     }
-    val visible = MailboxSearch.matches(
-        MailboxMerge.newestFirst(MailboxMerge.onlyAccounts(rows, filter)),
-        query,
-    )
+    // Read from the store, ordered and searched **in SQL**, rather
+    // than sorted in memory on every keystroke. Both are windowed, so
+    // neither grows with what the device holds.
+    LaunchedEffect(query, filter, shown, revision) {
+        val words = MailboxSearch.words(query)
+        visible = when {
+            words.isEmpty() -> store.newest(shown, filter)
+            else -> store.search(words, shown, filter)
+        }
+    }
+    // **Not on the query.** The badges count every unread row this
+    // device holds, which is a read over the whole table; hanging it
+    // off the search box would run it once per keystroke to produce
+    // the same numbers every time.
+    LaunchedEffect(revision) { unread = store.unreadPerAccount() }
 
     fun sync() {
         if (syncing) return
@@ -105,7 +133,7 @@ fun MergedMailScreen() {
                 if (outcome.failure != null) {
                     failures = failures + (account.id to outcome.failure)
                 }
-                rows = store.rows()
+                revision += 1
             }
             syncing = false
         }
@@ -136,7 +164,7 @@ fun MergedMailScreen() {
             // Reading marks a message read on the server and on this
             // device; the list has to be told, or it goes on showing it
             // as unread until the next fetch.
-            rows = store.rows()
+            revision += 1
         }
         return
     }
@@ -208,7 +236,6 @@ fun MergedMailScreen() {
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val unread = MailboxMerge.unreadPerAccount(rows)
                 for (account in accounts) {
                     AccountChip(account, account.id in only, unread[account.id]) {
                         only = when {
@@ -266,16 +293,13 @@ fun MergedMailScreen() {
                     // folder it has never fetched has no anchor to
                     // reach back from, and the ordinary pass is what
                     // gives it one.
-                    val folders = store.rows()
-                        .filter { it.accountId == account.id }
-                        .map { it.folder }
-                        .distinct()
+                    val folders = store.folders(account.id)
                     for (folder in folders) {
                         val out = MailboxSyncRunner.earlier(account, folder, store)
                         if (out.failure != null) {
                             failures = failures + (account.id to out.failure)
                         }
-                        rows = store.rows()
+                        revision += 1
                     }
                 }
                 reaching = false
@@ -288,10 +312,6 @@ fun MergedMailScreen() {
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(Modifier.fillMaxSize()) {
-                // Offered at the end of the list, which is where somebody
-            // reaches it by scrolling — and only when nothing is being
-            // searched for, because "earlier" against a filtered list
-            // fetches mail that will not be shown.
             items(visible, key = { it.id }) { row ->
                     val account = accounts.firstOrNull { it.id == row.accountId }
                     MergedMailRow(
@@ -302,7 +322,7 @@ fun MergedMailScreen() {
                             account?.let {
                                 scope.launch {
                                     when (val out = MailboxActions.delete(it, row, store)) {
-                                        is MailboxActions.Outcome.Done -> rows = store.rows()
+                                        is MailboxActions.Outcome.Done -> revision += 1
                                         is MailboxActions.Outcome.Failed ->
                                             failures = failures + (it.id to out.why)
                                     }
@@ -313,13 +333,45 @@ fun MergedMailScreen() {
                             account?.let {
                                 scope.launch {
                                     MailboxActions.markUnread(it, row, store)
-                                    rows = store.rows()
+                                    revision += 1
                                 }
                             }
                         },
                     )
                 }
-                if (visible.isNotEmpty() && query.isEmpty()) {
+                // Show more of what is already here before asking the
+                // server for more. The window grows by a page when the
+                // list reaches its end, and only once it has stopped
+                // growing — the store had no more to give — is there
+                // anything to fetch.
+                //
+                // Both used to be one button, and it read as one
+                // action; it was not, and the slow one ran when the
+                // fast one would have done.
+                val moreHeld = MailboxWindow.moreHeld(visible.size, shown)
+                if (moreHeld) {
+                    item {
+                        // On appearing, not keyed on the value it
+                        // changes: the sentinel is only composed when
+                        // the list has been scrolled to it, so
+                        // "appeared" is exactly the question, and
+                        // keying it on `shown` would have asked a
+                        // different one.
+                        LaunchedEffect(Unit) { shown += PAGE }
+                        Box(
+                            Modifier.fillMaxWidth().padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                }
+                // Offered at the end of the list, which is where
+                // somebody reaches it by scrolling — and only when
+                // nothing is being searched for, because "earlier"
+                // against a filtered list fetches mail that will not
+                // be shown.
+                if (MailboxWindow.offersEarlier(moreHeld, visible.size, query.isNotEmpty())) {
                     item {
                         Box(
                             Modifier.fillMaxWidth().padding(16.dp),
@@ -405,3 +457,13 @@ private fun updatedLine(accountIds: List<String>, lastSync: (String) -> Long?): 
     )
     return "Updated $span"
 }
+
+/**
+ * How many rows the list shows before it is asked for more.
+ *
+ * Enough to fill several screens, so scrolling does not stop to think,
+ * and small enough that the first paint after launch is a window
+ * rather than a mailbox. Growing it is a `LIMIT` — it costs the same
+ * whether the device holds a hundred rows or a hundred thousand.
+ */
+private const val PAGE = 200
