@@ -115,9 +115,15 @@ actor ScriptedTransport: ByteTransport {
         try await s.send(
             from: "me@a.com", to: ["you@b.com"],
             message: "Subject: x\r\n\r\n.\r\nnot the end\r\n")
-        let data = await script.written.first { $0.contains("not the end") } ?? ""
-        #expect(data.contains("\r\n..\r\n"))
-        #expect(data.hasSuffix("\r\n.\r\n"), "the block was never terminated")
+        // Joined, because the message is **streamed**: the body and the
+        // terminator are separate writes, so asking which single write
+        // ends with the terminator asks about the chunking rather than
+        // about the message. What the server reads is the join.
+        let stream = await script.written.joined()
+        #expect(stream.contains("\r\n..\r\n"), "the dot line was not stuffed")
+        #expect(
+            stream.contains("\r\nnot the end\r\n.\r\n"),
+            "the block was not terminated right after the body")
     }
 
     /// **No downgrade.** A server that does not offer to encrypt is not

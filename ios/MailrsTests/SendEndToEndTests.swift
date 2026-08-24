@@ -83,9 +83,14 @@ import Testing
             from: account.address, to: ["you@example.com"], subject: "Recipe",
             body: "boil water\n.\nserve")
         _ = await AccountSender.send(draft, from: account)
-        let data = await script.written.first { $0.contains("Subject:") } ?? ""
-        #expect(data.contains("\r\n..\r\n"))
-        #expect(data.hasSuffix("\r\n.\r\n"), "the block was never terminated")
+        // Joined, not one write: a streamed send puts the terminator in
+        // a write of its own, and "which chunk ends with it" is a
+        // question about chunking. What the server reads is the join.
+        let stream = await script.written.joined()
+        #expect(stream.contains("\r\n..\r\n"), "the dot line was not stuffed")
+        #expect(
+            stream.contains("\r\nserve\r\n.\r\n"),
+            "the block was not terminated right after the body")
     }
 
     /// The envelope sender is the account's own address. A server that
