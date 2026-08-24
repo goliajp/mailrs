@@ -38,10 +38,19 @@ struct MailboxesView: View {
                     Button("Done") { dismiss() }
                         .accessibilityIdentifier("mailboxes.done")
                 }
-                ToolbarItem(placement: .secondaryAction) {
+                ToolbarItem(placement: .primaryAction) {
                     // Writing does not depend on having fetched
                     // anything, so it is offered as soon as there is an
                     // account to send from.
+                    //
+                    // **Not `.secondaryAction`.** That places it in the
+                    // toolbar's overflow menu, and writing a message is
+                    // the one thing a mail app must never hide behind a
+                    // "…" — no mainstream client does. It was found by
+                    // a UI test that could not reach the composer at
+                    // all and reported "there was no way to write a
+                    // message", which turned out to be a fair
+                    // description of the screen.
                     if let account = model.accounts.first(where: { model.only.contains($0.id) })
                         ?? model.accounts.first
                     {
