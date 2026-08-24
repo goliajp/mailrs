@@ -117,9 +117,17 @@ class SmtpSessionTest {
             "221 bye",
         )
         s.send("me@a.com", listOf("you@b.com"), "Subject: x\r\n\r\n.\r\nnot the end\r\n")
-        val data = script.written.first { it.contains("not the end") }
-        assertTrue(data, data.contains("\r\n..\r\n"))
-        assertTrue("the block was never terminated", data.endsWith("\r\n.\r\n"))
+        // **Over the whole written stream, not over one write.** The
+        // message is streamed now, so the terminator is a write of its
+        // own — an assertion about which chunk ends how was an
+        // assertion about the chunking, and the chunking is not the
+        // protocol.
+        val sent = script.written.joinToString("")
+        assertTrue(sent, sent.contains("\r\n..\r\n"))
+        assertTrue("the block was never terminated", sent.contains("\r\n.\r\n"))
+        // Last before `QUIT`, which is sent after the block closes.
+        val beforeQuit = script.written.filterNot { it.startsWith("QUIT") }.last()
+        assertTrue("the terminator was not the last of the block", beforeQuit == ".\r\n")
     }
 
     /**

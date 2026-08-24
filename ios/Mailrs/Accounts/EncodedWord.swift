@@ -12,8 +12,29 @@ enum EncodedWord {
     /// Text outside the words is left exactly as it is: a subject is
     /// often half encoded and half not, and re-encoding the plain half
     /// would corrupt it.
+    /// An encoded word decodes to **anything at all**, including a
+    /// CRLF — and a header value cannot contain one. Folding is
+    /// expressed by the encoding, never by the content, so a line
+    /// break coming out of here did not come from a header: it came
+    /// from somebody who wanted one somewhere it does not belong.
+    ///
+    /// Left in, it reached `RCPT TO:<…>` when replying (SMTP command
+    /// injection: the message also went to an address the sender never
+    /// typed) and the outgoing `To:` and `Subject:` (a `Bcc:` header
+    /// the sender never wrote). Stripped here, at the boundary, rather
+    /// than at each of the places that would have to remember.
+    ///
+    /// By scalar, because a CRLF is one `Character` in Swift and
+    /// filtering Characters against `"\r"` matches neither half —
+    /// the same trap that let a filename inject a header.
+    private static func withoutControls(_ text: String) -> String {
+        String(
+            String.UnicodeScalarView(
+                text.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7F }))
+    }
+
     static func decode(_ value: String) -> String {
-        guard value.contains("=?") else { return value }
+        guard value.contains("=?") else { return withoutControls(value) }
         var out = ""
         var rest = Substring(value)
         /// Whether the previous chunk was an encoded word.

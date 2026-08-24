@@ -284,7 +284,9 @@ private fun openOnThisPhone(
     directory.mkdirs()
     val file = java.io.File(directory, SafeFilename.of(attachment.filename))
     return runCatching {
-        file.writeBytes(attachment.bytes)
+        // Decoded here and nowhere earlier: the list showed a name
+        // and a size without ever holding the file.
+        file.writeBytes(attachment.decoded())
         val uri = androidx.core.content.FileProvider.getUriForFile(
             context,
             context.packageName + ".files",

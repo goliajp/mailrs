@@ -209,6 +209,24 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
 
     /** Hand one message over. */
     suspend fun send(from: String, to: List<String>, message: String) =
+        send(from, to, sequenceOf(message))
+
+    /**
+     * Hand one message over, in as many pieces as it comes in.
+     *
+     * **Streamed rather than assembled.** A 25 MB attachment built into
+     * one string and dot-stuffed into another is several times its own
+     * size in memory at once, and on a phone that is a process the
+     * system kills — which looks exactly like mail that vanished. Here
+     * each piece is stuffed and written as it arrives, so what is held
+     * is one piece.
+     *
+     * The stuffing is [DotStuffer]'s, not [Smtp.dotStuffed]'s, because
+     * a piece can end on the line break whose next line begins with a
+     * dot — and a stuffer with no memory of that truncates the message
+     * there while it still arrives looking complete.
+     */
+    suspend fun send(from: String, to: List<String>, message: Sequence<String>) =
         withContext(Dispatchers.IO) {
             expect(command("MAIL FROM:<$from>"))
             for (rcpt in to) expect(command("RCPT TO:<$rcpt>"))
@@ -216,9 +234,21 @@ class SmtpSession(private val host: String, private val port: Int) : AutoCloseab
             if (start.code != 354) {
                 throw Failure.Rejected(start.code, start.text, start.isPermanent)
             }
-            // Dot-stuffed: a body line beginning with `.` would end the
-            // block here and the message would arrive cut in half.
-            write(Smtp.dotStuffed(message) + "\r\n.\r\n")
+            val stuffer = DotStuffer()
+            var last = ""
+            for (piece in message) {
+                if (piece.isEmpty()) continue
+                write(stuffer.feed(piece))
+                last = piece
+            }
+            // The terminator needs a line of its own, and a message
+            // that already ended on one must not gain a blank line —
+            // some servers keep it and the reader sees it.
+            val terminator = when {
+                last.endsWith("\r\n") -> ".\r\n"
+                else -> "\r\n.\r\n"
+            }
+            write(terminator)
             expect(readReply())
             runCatching { command("QUIT") }
             Unit

@@ -105,7 +105,7 @@ class SendEndToEndTest {
             script.written.any { it.startsWith("RCPT TO:<secret@example.com>") },
         )
         // And absent from what anybody receives.
-        val data = script.written.first { it.contains("Subject:") }
+        val data = dataBlock(script)
         assertFalse("the blind copy was written into the message", data.contains("secret@example.com"))
         assertFalse("a Bcc header was written", data.lowercase().contains("bcc:"))
         assertTrue("the Cc header is missing", data.contains("Cc: cc@example.com"))
@@ -126,9 +126,13 @@ class SendEndToEndTest {
             body = "boil water\n.\nserve",
         )
         AccountSender.send(draft, account, store)
-        val data = script.written.first { it.contains("Subject:") }
+        val data = dataBlock(script)
         assertTrue(data, data.contains("\r\n..\r\n"))
-        assertTrue("the block was never terminated", data.endsWith("\r\n.\r\n"))
+        // The terminator is its own write now — `dataBlock` stops at
+        // it by construction, so the assertion is that it was sent,
+        // and last of the block.
+        val beforeQuit = script.written.filterNot { it.startsWith("QUIT") }.last()
+        assertTrue("the block was never terminated", beforeQuit == ".\r\n")
     }
 
     /**
@@ -150,5 +154,28 @@ class SendEndToEndTest {
             script.written.toString(),
             script.written.any { it.startsWith("MAIL FROM:<me@example.com>") },
         )
+    }
+
+    /**
+     * Everything between `DATA` and the terminator, joined.
+     *
+     * The message is streamed, so headers, body and each base64 line
+     * are separate writes — an assertion about which chunk holds what
+     * is an assertion about the chunking, and the chunking is not the
+     * protocol.
+     *
+     * **Only the block**, not every write: joining the whole session
+     * would fold the `RCPT TO:` lines into "the message", and an
+     * assertion that a Bcc address is absent from the message would
+     * then find it in the envelope and call that a leak.
+     */
+    private fun dataBlock(script: Script): String {
+        val from = script.written.indexOfFirst { it.startsWith("DATA") }
+        val body = script.written.drop(from + 1)
+        val to = body.indexOfFirst { it == ".\r\n" }
+        return when (to) {
+            -1 -> body.joinToString("")
+            else -> body.take(to).joinToString("")
+        }
     }
 }

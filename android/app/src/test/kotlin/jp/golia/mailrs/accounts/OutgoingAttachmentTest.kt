@@ -55,7 +55,7 @@ class OutgoingAttachmentTest {
         assertEquals(1, found.size)
         assertEquals("report 2025.pdf", found[0].filename)
         assertEquals("application/pdf", found[0].mimeType)
-        assertArrayEquals(payload, found[0].bytes)
+        assertArrayEquals(payload, found[0].decoded())
     }
 
     /**
@@ -82,7 +82,7 @@ class OutgoingAttachmentTest {
         )
         val found = MessageAttachments.of(message.toByteArray(Charsets.ISO_8859_1))
         assertEquals(listOf("one.txt", "two.bin"), found.map { it.filename })
-        assertEquals("first", String(found[0].bytes))
+        assertEquals("first", String(found[0].decoded()))
     }
 
     /**
@@ -134,5 +134,75 @@ class OutgoingAttachmentTest {
         )
         val longest = message.split("\r\n").maxOf { it.length }
         assertTrue(longest.toString(), longest <= 78)
+    }
+
+    /**
+     * **The streamed message is the same message.** Two builders that
+     * disagree is the defect that having two of them exists to cause;
+     * `text` is now `pieces` joined, and this says so out loud rather
+     * than leaving it to the implementation to keep being true.
+     */
+    @Test
+    fun `the pieces join to the whole message`() {
+        val draft = OutgoingMessage.Draft(
+            from = "me@example.com",
+            to = listOf("you@example.com"),
+            subject = "Here it is",
+            body = "See attached.",
+            attachments = listOf(
+                OutgoingMessage.Attachment(
+                    "a.bin", "application/octet-stream", ByteArray(4000) { it.toByte() },
+                ),
+            ),
+        )
+        val whole = OutgoingMessage.text(draft, "x@example.com", whenSeconds, utc)
+        val streamed = OutgoingMessage
+            .pieces(draft, "x@example.com", whenSeconds, utc)
+            .joinToString("")
+        assertEquals(whole, streamed)
+    }
+
+    /**
+     * **Nothing is encoded until the socket asks.** A send that fails
+     * at `RCPT TO` must not have spent a second base64-encoding a file
+     * nobody will receive.
+     */
+    @Test
+    fun `taking one piece does not encode the attachment`() {
+        val huge = ByteArray(4_000_000)
+        val draft = OutgoingMessage.Draft(
+            from = "me@example.com",
+            to = listOf("you@example.com"),
+            body = "hi",
+            attachments = listOf(
+                OutgoingMessage.Attachment("big.bin", "application/octet-stream", huge),
+            ),
+        )
+        val first = OutgoingMessage.pieces(draft, "x@example.com", whenSeconds, utc).first()
+        // The header block, and nothing of the file.
+        assertTrue(first, first.startsWith("Message-ID:"))
+        assertTrue(first.length < 1000)
+    }
+
+    /**
+     * Each base64 piece is one line of the length RFC 2045 asks for —
+     * 57 raw bytes in, 76 characters out, which is why the number is
+     * 57 and not something rounder.
+     */
+    @Test
+    fun `each encoded piece is one wrapped line`() {
+        val draft = OutgoingMessage.Draft(
+            from = "me@example.com",
+            to = listOf("you@example.com"),
+            body = "hi",
+            attachments = listOf(
+                OutgoingMessage.Attachment("a.bin", "application/octet-stream", ByteArray(200)),
+            ),
+        )
+        val encoded = OutgoingMessage.pieces(draft, "x@example.com", whenSeconds, utc)
+            .filter { it.endsWith("\r\n") && it.length > 60 && !it.contains(": ") }
+            .toList()
+        assertTrue(encoded.toString(), encoded.isNotEmpty())
+        for (line in encoded) assertTrue(line.length.toString(), line.length <= 78)
     }
 }

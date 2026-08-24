@@ -125,6 +125,24 @@ actor SMTPSession {
 
     /// Hand one message over.
     func send(from: String, to: [String], message: String) async throws {
+        try await send(from: from, to: to, message: AnySequence([message]))
+    }
+
+    /// Hand one message over, in as many pieces as it comes in.
+    ///
+    /// **Streamed rather than assembled.** A 25 MB attachment built
+    /// into one string and dot-stuffed into another is several times
+    /// its own size in memory at once, and on a phone that is a
+    /// process the system kills — which looks exactly like mail that
+    /// vanished. Here each piece is stuffed and written as it arrives,
+    /// so what is held is one piece.
+    ///
+    /// The stuffing is `DotStuffer`'s, not `SMTP.dotStuffed`'s,
+    /// because a piece can end on the line break whose next line
+    /// begins with a dot — and a stuffer with no memory of that
+    /// truncates the message there while it still arrives looking
+    /// complete.
+    func send(from: String, to: [String], message: AnySequence<String>) async throws {
         try await expect(try await command("MAIL FROM:<\(from)>"))
         for rcpt in to {
             try await expect(try await command("RCPT TO:<\(rcpt)>"))
@@ -134,9 +152,16 @@ actor SMTPSession {
             throw Failure.rejected(
                 code: start.code, text: start.text, permanent: start.isPermanent)
         }
-        // Dot-stuffed: a body line beginning with `.` would end the
-        // block here and the message would arrive cut in half.
-        try await write(SMTP.dotStuffed(message) + "\r\n.\r\n")
+        let stuffer = DotStuffer()
+        var last = ""
+        for piece in message where !piece.isEmpty {
+            try await write(stuffer.feed(piece))
+            last = piece
+        }
+        // The terminator needs a line of its own, and a message that
+        // already ended on one must not gain a blank line — some
+        // servers keep it and the reader sees it.
+        try await write(last.hasSuffix("\r\n") ? ".\r\n" : "\r\n.\r\n")
         try await expect(try await readReply())
         _ = try? await command("QUIT")
     }
