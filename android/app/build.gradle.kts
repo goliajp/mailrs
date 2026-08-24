@@ -93,3 +93,40 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+/**
+ * The certificate authority the debug build is told to trust.
+ *
+ * `src/debug/res/xml/network_security_config.xml` names
+ * `@raw/mailrs_test_ca`, and a missing raw resource is a build failure
+ * — so the build makes it rather than requiring somebody to have run a
+ * script first. Generated **only when absent**, because the TLS mail
+ * stub is started with the same certificates and regenerating under a
+ * running stub would leave the two disagreeing.
+ *
+ * Not in git: see .gitignore.
+ */
+val testCaCert = layout.projectDirectory.file("src/debug/res/raw/mailrs_test_ca.pem")
+
+val generateTestCa by tasks.registering {
+    val out = testCaCert.asFile
+    // Resolved at configuration time and captured as plain values: the
+    // configuration cache cannot serialise a reference to the script
+    // itself, and `project` is not available while a task runs.
+    val script = rootProject.projectDir.parentFile
+        .resolve("ios/Testing/make-test-ca.sh").absolutePath
+    val scratch = File(System.getProperty("java.io.tmpdir"), "mailrs-test-ca")
+    outputs.file(out)
+    onlyIf { !out.exists() }
+    doLast {
+        ProcessBuilder(script, scratch.absolutePath)
+            .redirectErrorStream(true)
+            .start()
+            .also { check(it.waitFor() == 0) { "make-test-ca.sh failed" } }
+        out.parentFile.mkdirs()
+        File(scratch, "ca.pem").copyTo(out, overwrite = true)
+    }
+}
+
+tasks.matching { it.name == "preDebugBuild" || it.name == "preDebugAndroidTestBuild" }
+    .configureEach { dependsOn(generateTestCa) }

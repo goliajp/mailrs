@@ -165,6 +165,49 @@ if ! curl -fsS -o /dev/null "http://127.0.0.1:$STUB_PORT/api/conversations"; the
     exit 1
 fi
 
+# --- a mail server over real TLS ---------------------------------
+#
+# Everything this repo asserts about IMAP and SMTP is asserted against
+# a *scripted transport*: a fake that hands the session lines from a
+# list. That covers the conversation and nothing under it — the TLS
+# handshake, the certificate check, the socket's framing, and the
+# `UpgradableTransport` that STARTTLS needs, which had never been run
+# at all.
+#
+# The app is **not** modified to reach this. It validates the
+# certificate exactly as it does in production; what changes is that
+# the *simulator* has been given a root to trust, which is what
+# `simctl keychain add-root-cert` is for. Generated per run, trusted by
+# one simulator, gone with the next `keychain reset`.
+CERT_DIR=/tmp/mailrs-test-ca
+MAIL_STUB_IMAPS=9993
+MAIL_STUB_SUBMISSION=9587
+MAIL_STUB_UNTRUSTED=9994
+MAIL_STUB_PROBE=9995
+Testing/make-test-ca.sh "$CERT_DIR" >/dev/null
+# Booted first: the keychain belongs to a running device, and on a
+# shut-down one `add-root-cert` fails with "Unable to lookup in current
+# state" — which reads like a certificate problem and is not one.
+xcrun simctl boot "$UDID" 2>/dev/null || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
+xcrun simctl keychain "$UDID" add-root-cert "$CERT_DIR/ca.pem"
+pkill -f "Testing/tls-mail-stub.py" 2>/dev/null || true
+sleep 0.2
+python3 Testing/tls-mail-stub.py "$CERT_DIR" \
+    --imaps "$MAIL_STUB_IMAPS" --submission "$MAIL_STUB_SUBMISSION" \
+    --imaps-untrusted "$MAIL_STUB_UNTRUSTED" --probe "$MAIL_STUB_PROBE" \
+    >/tmp/mailrs-tls-stub.log 2>&1 &
+MAIL_STUB_PID=$!
+trap 'kill $STUB_PID $MAIL_STUB_PID 2>/dev/null || true; release_stub_lock' EXIT
+for _ in $(seq 1 20); do
+    nc -z 127.0.0.1 "$MAIL_STUB_IMAPS" 2>/dev/null && break
+    sleep 0.25
+done
+if ! nc -z 127.0.0.1 "$MAIL_STUB_IMAPS" 2>/dev/null; then
+    echo "!! TLS mail stub did not come up — see /tmp/mailrs-tls-stub.log"
+    exit 1
+fi
+
 # An optional second argument narrows the run:
 #   ./scripts/ios-build.sh test MailrsUITests/TriageFlowTests
 # Isolating a failure is how you tell a real one from a flake, and the

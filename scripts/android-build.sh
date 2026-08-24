@@ -31,6 +31,13 @@ EMULATOR_SERIAL="emulator-5570"
 SMIX_EMULATOR="mailrs-android"
 SMIX_PHONE="panda"
 STUB_PORT=6039
+# The TLS mail stub's ports, and where its certificates are generated.
+CERT_DIR=/tmp/mailrs-test-ca
+MAIL_STUB_IMAPS=9993
+MAIL_STUB_SUBMISSION=9587
+MAIL_STUB_UNTRUSTED=9994
+MAIL_STUB_PROBE=9995
+MAIL_STUB_PID=""
 APK="android/app/build/outputs/apk/debug/app-debug.apk"
 
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
@@ -102,9 +109,47 @@ start_stub() {
     if adb devices | grep -q "^$EMULATOR_SERIAL[[:space:]]*device"; then
         adb -s "$EMULATOR_SERIAL" reverse "tcp:$STUB_PORT" "tcp:$STUB_PORT" >/dev/null
     fi
+
+    # --- a mail server over real TLS -----------------------------
+    #
+    # Everything this repo asserts about IMAP and SMTP is asserted
+    # against a scripted transport: a fake that hands the session lines
+    # from a list. That covers the conversation and nothing under it —
+    # the TLS handshake, the certificate check, the socket's framing.
+    # On iOS the same gap hid a real defect (a refused handshake left
+    # the client waiting forever rather than failing), and a fake has
+    # no handshake to refuse.
+    #
+    # The app is **not** modified to reach this. It validates the
+    # certificate as it always does; the *debug build* is told to trust
+    # one more authority, via `debug-overrides` in
+    # `src/debug/res/xml/network_security_config.xml`, which the
+    # platform ignores in a release build. The certificate is generated
+    # per run and is not in git.
+    ios/Testing/make-test-ca.sh "$CERT_DIR" >/dev/null
+    cp "$CERT_DIR/ca.pem" android/app/src/debug/res/raw/mailrs_test_ca.pem
+    pkill -f "Testing/tls-mail-stub.py" 2>/dev/null || true
+    sleep 0.2
+    python3 ios/Testing/tls-mail-stub.py "$CERT_DIR" \
+        --imaps "$MAIL_STUB_IMAPS" --submission "$MAIL_STUB_SUBMISSION" \
+        --imaps-untrusted "$MAIL_STUB_UNTRUSTED" --probe "$MAIL_STUB_PROBE" \
+        >/tmp/mailrs-tls-stub.log 2>&1 &
+    MAIL_STUB_PID=$!
+    for _ in $(seq 1 20); do
+        nc -z 127.0.0.1 "$MAIL_STUB_IMAPS" 2>/dev/null && break
+        sleep 0.25
+    done
+    if adb devices | grep -q "^$EMULATOR_SERIAL[[:space:]]*device"; then
+        for p in "$MAIL_STUB_IMAPS" "$MAIL_STUB_SUBMISSION" "$MAIL_STUB_UNTRUSTED" \
+                 "$MAIL_STUB_PROBE"; do
+            adb -s "$EMULATOR_SERIAL" reverse "tcp:$p" "tcp:$p" >/dev/null
+        done
+    fi
+    say "tls mail stub up (imaps $MAIL_STUB_IMAPS, submission $MAIL_STUB_SUBMISSION)"
 }
 stop_stub() {
     [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null || true
+    [ -n "$MAIL_STUB_PID" ] && kill "$MAIL_STUB_PID" 2>/dev/null || true
     release_stub_lock
 }
 trap stop_stub EXIT

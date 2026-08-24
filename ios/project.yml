@@ -76,6 +76,10 @@ targets:
     platform: iOS
     sources:
       - path: Mailrs
+    dependencies:
+      # The rows live in a SQLite table (Accounts/MailboxDatabase.swift).
+      # `import SQLite3` compiles without this and fails to link.
+      - sdk: libsqlite3.tbd
     settings:
       configs:
         # The one difference between a build from Xcode and a build for

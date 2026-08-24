@@ -84,6 +84,10 @@ struct MailAccountsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                        // Named, because "Done" is a word several
+                        // screens use and a test that taps by label
+                        // taps whichever one it finds.
+                        .accessibilityIdentifier("accounts.done")
                 }
             }
             .task { model.load() }

@@ -30,3 +30,9 @@ bench-results/
 
 # py_compile leaves these beside the gate scripts.
 __pycache__/
+
+# The certificate authority the debug build is told to trust so a test
+# can reach a mail server over real TLS. Generated per run by
+# `ios/Testing/make-test-ca.sh`; a private key in a repository is a
+# private key in a repository, however throwaway.
+android/app/src/debug/res/raw/mailrs_test_ca.pem
