@@ -45,7 +45,14 @@ actor TLSTransport: ByteTransport {
             using: NWParameters(tls: NWProtocolTLS.Options(), tcp: .init()))
     }
 
-    func connect() async throws {
+    /// There is a deadline for the same reason the sibling
+    /// `UpgradableTransport` has one: a black-holed connection gives no
+    /// state at all, and a person is watching.
+    func connect() async throws { try await connect(timeout: 20) }
+
+    /// - Parameter timeout: how long to wait before calling it
+    ///   unreachable.
+    func connect(timeout: TimeInterval) async throws {
         let once = ResumeOnce()
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             connection.stateUpdateHandler = { state in
@@ -54,11 +61,34 @@ actor TLSTransport: ByteTransport {
                 case let .failed(e):
                     once.resume(
                         k, with: .failure(TransportFailure.unreachable(e.localizedDescription)))
+                // **`.waiting`, not just `.failed`.** A TLS handshake
+                // the peer rejects — an untrusted certificate, an
+                // expired one, a proxy in the middle — arrives here and
+                // not in `.failed`, and `NWConnection` then sits in it
+                // indefinitely waiting for conditions to change. Left
+                // unhandled this is an app that **hangs** where it
+                // should say what went wrong, and it hangs precisely
+                // for the people whose network is being interfered
+                // with. Found by pointing the client at a server whose
+                // certificate the device had not been told to trust;
+                // no scripted transport has a handshake to reject.
+                case let .waiting(e):
+                    once.resume(
+                        k, with: .failure(TransportFailure.unreachable(e.localizedDescription)))
                 case .cancelled: once.resume(k, with: .failure(TransportFailure.closed))
                 default: break
                 }
             }
             connection.start(queue: .global(qos: .userInitiated))
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+                guard once.resume(
+                    k, with: .failure(TransportFailure.unreachable("the server did not answer")))
+                else { return }
+                // Only when this timer is the one that answered, or a
+                // connection that succeeded would be cancelled by its
+                // own deadline.
+                self.connection.cancel()
+            }
         }
     }
 
