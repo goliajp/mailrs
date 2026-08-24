@@ -54,7 +54,7 @@ class Pop3EndToEndTest {
         store = AccountStore(ApplicationProvider.getApplicationContext())
         store.save(listOf(account))
         store.saveSecret("app-password", account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
         store.savePopSeen(account.id, emptySet())
     }
 
@@ -62,7 +62,7 @@ class Pop3EndToEndTest {
     fun tearDown() {
         MailboxSyncRunner.openPop3 = { host, port -> Pop3Session(host, port) }
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     private val header = "From: Ada <ada@example.com>\r\n" +

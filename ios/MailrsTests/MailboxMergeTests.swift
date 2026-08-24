@@ -81,61 +81,13 @@ import Testing
 }
 
 /// Folding a pass's worth of rows into what is already held.
-@Suite struct MailboxApplyTests {
-    private func row(
-        _ account: String, _ uid: UInt32, date: Int64?, seen: Bool = false,
-        folder: String = "INBOX", subject: String = "s"
-    ) -> MailboxRow {
-        MailboxRow(
-            accountId: account, uid: uid, folder: folder, seen: seen,
-            sender: "a@x.jp", subject: subject, date: date, messageId: "<\(account)-\(uid)>")
-    }
 
-    /// A pass that re-reads a folder from the start — which is what a
-    /// renumbering forces — would otherwise double every message.
-    @Test func aMessageReadTwiceIsOneRow() {
-        let held = [row("a", 1, date: 1), row("a", 2, date: 2)]
-        let out = MailboxApply.apply(held: held, fetched: [row("a", 1, date: 1)])
-        #expect(out.count == 2)
-    }
-
-    /// **The server's flags win.** It knows; this end is holding what
-    /// it knew last time, and a mailbox read on a phone and a laptop
-    /// disagrees within minutes otherwise.
-    @Test func theServersFlagsWin() {
-        let held = [row("a", 1, date: 1, seen: false)]
-        let out = MailboxApply.apply(held: held, fetched: [row("a", 1, date: 1, seen: true)])
-        #expect(out.first?.seen == true)
-    }
-
-    @Test func newMessagesAreKept() {
-        let out = MailboxApply.apply(
-            held: [row("a", 1, date: 1)], fetched: [row("a", 2, date: 2)])
-        #expect(out.map(\.uid).sorted() == [1, 2])
-    }
-
-    /// Every uid held for a renumbered folder is a number that no
-    /// longer means anything: keeping them beside the fresh ones
-    /// leaves a list of messages that cannot be opened.
-    @Test func aRenumberedFolderIsReplacedNotMerged() {
-        let held = [
-            row("a", 1, date: 1), row("a", 2, date: 2),
-            row("a", 9, date: 9, folder: "Archive"),
-            row("b", 1, date: 1),
-        ]
-        let out = MailboxApply.replacingFolder(
-            held: held, accountId: "a", folder: "INBOX", with: [row("a", 1, date: 5)])
-        // The other folder and the other account are untouched.
-        #expect(out.contains { $0.accountId == "a" && $0.folder == "Archive" })
-        #expect(out.contains { $0.accountId == "b" })
-        // And INBOX holds only what the pass just read.
-        #expect(out.filter { $0.accountId == "a" && $0.folder == "INBOX" }.count == 1)
-    }
-
-    /// A row left behind when its account is removed is mail nobody
-    /// can open — the credential and the server are both gone.
-    @Test func removingAnAccountTakesItsMailWithIt() {
-        let rows = [row("a", 1, date: 1), row("b", 2, date: 2)]
-        #expect(MailboxApply.withoutAccount(rows, "a").map(\.accountId) == ["b"])
-    }
-}
+// MailboxApplyTests stood here. Its five assertions — a message read
+// twice is one row, the server's flags win, new messages are kept, a
+// renumbered folder is replaced rather than merged, and removing an
+// account takes its mail — moved to MailboxDatabaseTests when the rows
+// moved into SQLite. They are properties of the store, and the store is
+// now the table; keeping them against a list that no production code
+// builds any more would have been a suite that stays green while the
+// thing it names breaks. MailboxApply.capped survives, with its own
+// tests in MailboxCapTests, as the rule the SQL cap is checked against.

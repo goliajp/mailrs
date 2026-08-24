@@ -10,7 +10,8 @@ package jp.golia.mailrs.accounts
  */
 object MessageReader {
     /** How a session is made; injectable like the others. */
-    internal var openImap: (String, Int) -> ImapSession = { host, port -> ImapSession(host, port) }
+    /** Where IMAP connections are kept between messages. */
+    internal var pool: ImapPool = ImapPool.shared
     data class Loaded(
         /**
          * Always text by the time it gets here: markup is turned into
@@ -67,33 +68,30 @@ object MessageReader {
     ): Outcome {
         val secret = store.secret(account.id)
             ?: return Outcome.Failed("Sign in again to read this account")
-        val session = openImap(account.imapHost, account.imapPort)
+        // Through the pool. Opening a message is the wait a person
+        // notices most, and most of it used to be a TLS handshake and
+        // a LOGIN for one FETCH. The session is **not** closed here.
         return try {
-            session.connect()
-            if (account.auth == MailProvider.AuthKind.OAUTH2) {
-                session.authenticateXOAuth2(account.loginName, secret)
-            } else {
-                session.login(account.loginName, secret)
+            pool.use(account, secret) { session ->
+                session.select(row.folder)
+                val plan = FetchWhole.decide(row.size, wholeMessage)
+                val raw = session.fetchRaw(row.uid, plan)
+                // Marked read only after the body is in hand: a fetch
+                // that fails should leave the message unread, or a
+                // server that was briefly unwell quietly empties
+                // somebody's unread count.
+                if (!row.seen) {
+                    runCatching { session.markSeen(row.uid) }
+                    store.setRowSeen(row, true)
+                }
+                Outcome.Ok(
+                    display(raw).copy(
+                        partial = plan is FetchWhole.Plan.Beginning,
+                        size = row.size,
+                    ),
+                )
             }
-            session.select(row.folder)
-            val plan = FetchWhole.decide(row.size, wholeMessage)
-            val raw = session.fetchRaw(row.uid, plan)
-            // Marked read only after the body is in hand: a fetch that
-            // fails should leave the message unread, or a server that was
-            // briefly unwell quietly empties somebody's unread count.
-            if (!row.seen) {
-                runCatching { session.markSeen(row.uid) }
-                store.saveRows(MailboxApply.markSeen(store.rows(), row.id))
-            }
-            session.close()
-            Outcome.Ok(
-                display(raw).copy(
-                    partial = plan is FetchWhole.Plan.Beginning,
-                    size = row.size,
-                ),
-            )
         } catch (e: Exception) {
-            session.close()
             Outcome.Failed("Could not open this message")
         }
     }

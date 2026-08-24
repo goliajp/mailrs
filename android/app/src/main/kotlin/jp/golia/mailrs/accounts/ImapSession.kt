@@ -303,6 +303,21 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
         out
     }
 
+    /**
+     * Ask the server for nothing, to find out whether it is still
+     * there.
+     *
+     * A connection kept for reuse may have been dropped since — by an
+     * idle timeout, by a NAT, by a server restart — and the socket
+     * gives no sign of it until something is written. This is that
+     * something, and it costs one round trip rather than a whole
+     * reconnection.
+     */
+    suspend fun noop() = withContext(Dispatchers.IO) {
+        val (_, done) = command("NOOP")
+        refuseIfNotOk(done)
+    }
+
     /** Mark a message read on the server, because somebody read it. */
     suspend fun markSeen(uid: Long) = store(uid, "+FLAGS", "\\Seen")
 
@@ -392,37 +407,18 @@ class ImapSession(private val host: String, private val port: Int) : AutoCloseab
             .toSet()
     }
 
-    /**
-     * Put a message in another folder.
-     *
-     * `MOVE` (RFC 6851) where the server has it, and the older
-     * three-step dance where it does not — and the difference matters
-     * more than it looks:
-     *
-     * **A bare `EXPUNGE` removes every message in the folder flagged
-     * `\Deleted`**, including ones somebody else's client flagged and
-     * has not expunged yet. `UID EXPUNGE` (RFC 4315) removes only the
-     * one named. Where neither `MOVE` nor `UIDPLUS` is offered, the
-     * message is flagged and **left** rather than expunged: it
-     * disappears from the list either way, and no other message is
-     * taken with it.
-     */
+    /** Put a message in another folder. See [MovePlan]. */
     suspend fun moveTo(uid: Long, folder: String, capabilities: Set<String>) =
         withContext(Dispatchers.IO) {
-            if ("MOVE" in capabilities) {
-                val t = nextTag()
-                write("$t UID MOVE $uid ${Imap.quoted(folder)}\r\n")
-                awaitCompletion(t)
-                return@withContext
-            }
-            val copy = nextTag()
-            write("$copy UID COPY $uid ${Imap.quoted(folder)}\r\n")
-            awaitCompletion(copy)
-            store(uid, "+FLAGS", "\\Deleted")
-            if ("UIDPLUS" in capabilities) {
-                val expunge = nextTag()
-                write("$expunge UID EXPUNGE $uid\r\n")
-                awaitCompletion(expunge)
+            for (step in MovePlan.steps(uid, folder, capabilities)) {
+                when (step) {
+                    is MovePlan.Step.MarkDeleted -> store(uid, "+FLAGS", "\\Deleted")
+                    is MovePlan.Step.Command -> {
+                        val t = nextTag()
+                        write("$t ${step.text}\r\n")
+                        awaitCompletion(t)
+                    }
+                }
             }
         }
 

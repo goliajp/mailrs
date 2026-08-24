@@ -61,21 +61,20 @@ object MailboxSyncRunner {
             val result = MailboxSync.pass(account, session, store.marksFor(account.id), held)
             session.close()
 
-            var kept = store.rows()
             // A renumbering first: the folder's held rows are gone, and
             // applying the fetch on top of rows the server no longer has
             // any way to name would leave both.
             for (folder in result.renumbered) {
-                kept = MailboxApply.replacingFolder(kept, account.id, folder, emptyList())
+                store.dropFolder(account.id, folder)
             }
             // Then what became of the rest — read elsewhere, or gone.
             for ((folder, answer) in result.refreshed) {
-                kept = MailboxRefresh.apply(
-                    kept, account.id, folder, held[folder].orEmpty().toSet(), answer,
-                )
+                val decision = MailboxRefresh.decide(held[folder].orEmpty().toSet(), answer)
+                store.deleteUids(account.id, folder, decision.gone)
+                store.setUidsSeen(account.id, folder, decision.flags)
             }
-            kept = MailboxApply.apply(kept, result.rows)
-            store.saveRows(MailboxApply.capped(kept))
+            store.upsertRows(result.rows)
+            store.capAccount(account.id)
             store.saveMarksFor(account.id, result.marks)
             // **Only on the way out of a pass that worked.** A
             // timestamp written before the fetch, or after one that
@@ -148,7 +147,8 @@ object MailboxSyncRunner {
             session.quit()
             session.close()
 
-            store.saveRows(MailboxApply.capped(MailboxApply.apply(store.rows(), fetched)))
+            store.upsertRows(fetched)
+            store.capAccount(account.id)
             store.savePopSeen(account.id, seen)
             store.saveLastSync(account.id, now())
             Outcome(account.id, fetched.size)
@@ -210,7 +210,8 @@ object MailboxSyncRunner {
                     messageId = email.messageId,
                 )
             }
-            store.saveRows(MailboxApply.capped(MailboxApply.apply(store.rows(), rows)))
+            store.upsertRows(rows)
+            store.capAccount(account.id)
             store.saveLastSync(account.id, now())
             Outcome(account.id, rows.size)
         } catch (e: JmapSession.Failure) {
@@ -240,6 +241,14 @@ object MailboxSyncRunner {
             ?: return Outcome(account.id, 0, "Sign in again to read this account")
         val mark = store.marksFor(account.id)[folder]
             ?: return Outcome(account.id, 0, "Fetch this mailbox first")
+        // Asked before the fetch, not after: at the ceiling the cap
+        // would drop exactly what this pass went to get.
+        if (EarlierPlan.atCeiling(store.count(account.id))) {
+            return Outcome(
+                account.id, 0,
+                "This device is holding as much of this account as it can",
+            )
+        }
         val anchor = when (mark.lowestUid) {
             // A mark from before this was recorded: anchor from what is
             // actually held rather than refusing, so an account that
@@ -287,7 +296,8 @@ object MailboxSyncRunner {
                     size = message.size,
                 )
             }
-            store.saveRows(MailboxApply.capped(MailboxApply.apply(store.rows(), rows)))
+            store.upsertRows(rows)
+            store.capAccount(account.id)
             val reached = range.substringBefore(':').toLongOrNull() ?: anchor
             store.saveMarksFor(
                 account.id,

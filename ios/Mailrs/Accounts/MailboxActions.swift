@@ -7,15 +7,13 @@ import Foundation
 /// and the server agreeing — an action that changes only the screen is
 /// an action that undoes itself on the next fetch.
 enum MailboxActions {
-    /// How a session is made.
+    /// Where IMAP connections are kept between taps.
     ///
-    /// Injectable for the same reason `MailboxSyncRunner`'s is: the
-    /// rule that matters here — **the row goes only after the server
-    /// says it has** — is about the order of a network call and a
-    /// write, and neither half alone can show it.
-    nonisolated(unsafe) static var openImap: (String, UInt16) -> IMAPSession = {
-        IMAPSession(host: $0, port: $1)
-    }
+    /// Injectable for the same reason `MailboxSyncRunner`'s session is:
+    /// the rule that matters here — **the row goes only after the
+    /// server says it has** — is about the order of a network call and
+    /// a write, and neither half alone can show it.
+    nonisolated(unsafe) static var pool: ImapPool = .shared
 
     /// How a POP3 session is made; injectable like the other.
     nonisolated(unsafe) static var openPop3: (String, UInt16) -> POP3Session = {
@@ -46,7 +44,7 @@ enum MailboxActions {
             // Gone from the device too, and only after the server said
             // so: a row removed first and a move that then failed is a
             // message the person cannot see and has not lost.
-            AccountStore.saveRows(AccountStore.rows().filter { $0.id != row.id })
+            AccountStore.deleteRow(row)
             return .done
         }
     }
@@ -57,13 +55,13 @@ enum MailboxActions {
             // POP3 has no server-side flags at all, so unread is purely
             // local — and saying so is better than a button that looks
             // like it did something remote.
-            AccountStore.saveRows(setSeen(AccountStore.rows(), id: row.id, seen: false))
+            AccountStore.setRowSeen(row, false)
             return .done
         }
         return await withImap(account) { session in
             _ = try await session.select(row.folder)
             try await session.markUnseen(uid: row.uid)
-            AccountStore.saveRows(setSeen(AccountStore.rows(), id: row.id, seen: false))
+            AccountStore.setRowSeen(row, false)
             return .done
         }
     }
@@ -78,24 +76,19 @@ enum MailboxActions {
     }
 
     private static func withImap(
-        _ account: MailAccount, _ body: (IMAPSession) async throws -> Outcome
+        _ account: MailAccount, _ body: sending @escaping (IMAPSession) async throws -> Outcome
     ) async -> Outcome {
         guard let secret = AccountStore.secret(for: account.id) else {
             return .failed("Sign in again to change this account")
         }
-        let session = openImap(account.imapHost, account.imapPort)
+        // Through the pool: one tap is one command, and paying for a
+        // TLS handshake and a LOGIN each time is most of the wait. The
+        // session is **not** closed here — that is the point of it.
         do {
-            try await session.connect()
-            if account.auth == .oauth2 {
-                try await session.authenticateXOAuth2(user: account.loginName, token: secret)
-            } else {
-                try await session.login(user: account.loginName, password: secret)
+            return try await pool.use(account, secret: secret) { session in
+                try await body(session)
             }
-            let outcome = try await body(session)
-            await session.close()
-            return outcome
         } catch {
-            await session.close()
             return .failed("Could not reach the server")
         }
     }
@@ -129,7 +122,7 @@ enum MailboxActions {
             if let target { try await session.delete(number: target.number) }
             await session.quit()
             await session.close()
-            AccountStore.saveRows(AccountStore.rows().filter { $0.id != row.id })
+            AccountStore.deleteRow(row)
             // And forgotten, so a mailbox that still lists it after a
             // failed QUIT is fetched again rather than skipped forever.
             if let target {

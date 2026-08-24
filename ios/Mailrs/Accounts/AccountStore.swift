@@ -46,7 +46,12 @@ enum AccountStore {
         // server it came from are both gone — and a mark left behind
         // makes the next account with the same address resume from
         // somebody else's place.
-        saveRows(MailboxApply.withoutAccount(rows(), id))
+        // And the connection that credential signed in: a socket
+        // left open is still authenticated as somebody who has just
+        // been removed, and the next tap would reuse it.
+        Task { await ImapPool.shared.drop(id) }
+        migrateRowsOnce()
+        try? database?.deleteAccount(id)
         var all = marks()
         let prefix = id + "/"
         for key in all.keys where key.hasPrefix(prefix) { all[key] = nil }
@@ -67,16 +72,135 @@ enum AccountStore {
     /// stored at all — they are fetched when a message is opened, so
     /// nothing here grows without bound and nothing here is worth
     /// stealing.
+    /// The table, opened once.
+    ///
+    /// `nonisolated(unsafe)` because SQLite is doing the serialising:
+    /// the handle is opened `FULLMUTEX`, so concurrent use is safe at
+    /// the layer that actually owns it, and wrapping it in an actor
+    /// here would only move the same lock somewhere less honest.
+    ///
+    /// A database that cannot be opened leaves this nil and every
+    /// accessor a no-op — the rows are a cache of what a server has,
+    /// so the cost is a list that refills on the next pass rather than
+    /// an app that will not start.
+    nonisolated(unsafe) private static let database: MailboxDatabase? = {
+        let directory = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first
+        guard let directory else { return nil }
+        try? FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true
+        )
+        return try? MailboxDatabase(
+            path: directory.appendingPathComponent("mailboxes.sqlite").path
+        )
+    }()
+
     static func rows() -> [MailboxRow] {
-        guard let data = UserDefaults.standard.data(forKey: rowsForMailKey),
-              let rows = try? JSONDecoder().decode([MailboxRow].self, from: data)
-        else { return [] }
-        return rows
+        migrateRowsOnce()
+        return (try? database?.all()) .flatMap { $0 } ?? []
     }
 
-    static func saveRows(_ rows: [MailboxRow]) {
-        guard let data = try? JSONEncoder().encode(rows) else { return }
-        UserDefaults.standard.set(data, forKey: rowsForMailKey)
+    /// Throw away every row and keep these instead.
+    ///
+    /// Named for what it does. It is what a test that wants a known
+    /// starting point needs, and what nothing on a sync path should
+    /// use — `upsertRows`, `deleteRow` and `setRowSeen` address the
+    /// rows that actually changed, which is the whole reason the rows
+    /// moved out of one preferences blob.
+    static func replaceRows(_ rows: [MailboxRow]) {
+        migrateRowsOnce()
+        try? database?.replaceAll(rows)
+    }
+
+    /// Add or update, leaving every other row alone.
+    static func upsertRows(_ rows: [MailboxRow]) {
+        migrateRowsOnce()
+        try? database?.upsert(rows)
+    }
+
+    static func deleteRow(_ row: MailboxRow) {
+        migrateRowsOnce()
+        try? database?.delete(account: row.accountId, folder: row.folder, uid: row.uid)
+    }
+
+    static func deleteUids(_ accountId: String, _ folder: String, _ uids: [UInt32]) {
+        migrateRowsOnce()
+        try? database?.delete(account: accountId, folder: folder, uids: uids)
+    }
+
+    static func setRowSeen(_ row: MailboxRow, _ seen: Bool) {
+        migrateRowsOnce()
+        try? database?.setSeen(
+            account: row.accountId, folder: row.folder, uid: row.uid, seen: seen
+        )
+    }
+
+    static func setUidsSeen(_ accountId: String, _ folder: String, _ flags: [UInt32: Bool]) {
+        migrateRowsOnce()
+        try? database?.setSeen(account: accountId, folder: folder, flags: flags)
+    }
+
+    static func dropFolder(_ accountId: String, _ folder: String) {
+        migrateRowsOnce()
+        try? database?.deleteFolder(account: accountId, folder: folder)
+    }
+
+    /// The newest rows, in the order the list shows them.
+    static func newest(_ limit: Int, accounts: Set<String>? = nil) -> [MailboxRow] {
+        migrateRowsOnce()
+        return (try? database?.newest(limit: limit, accounts: accounts)).flatMap { $0 } ?? []
+    }
+
+    /// The newest rows matching every word.
+    static func search(_ words: [String], _ limit: Int, accounts: Set<String>? = nil)
+        -> [MailboxRow]
+    {
+        migrateRowsOnce()
+        return (try? database?.search(words: words, limit: limit, accounts: accounts))
+            .flatMap { $0 } ?? []
+    }
+
+    /// Unread per account, over everything held rather than a window.
+    static func unreadPerAccount() -> [String: Int] {
+        migrateRowsOnce()
+        return (try? database?.unreadPerAccount()).flatMap { $0 } ?? [:]
+    }
+
+    /// How many rows one account holds.
+    ///
+    /// A `COUNT(*)`, not a filter over every row: the one caller is the
+    /// ceiling check on the "load earlier" path, and loading the table
+    /// to decide whether the table is full is the read this whole layer
+    /// exists to remove.
+    static func count(_ accountId: String) -> Int {
+        migrateRowsOnce()
+        return (try? database?.count(account: accountId)).flatMap { $0 } ?? 0
+    }
+
+    /// Every folder this device holds something of, for one account.
+    static func folders(_ accountId: String) -> [String] {
+        migrateRowsOnce()
+        return (try? database?.folders(account: accountId)).flatMap { $0 } ?? []
+    }
+
+    static func capAccount(_ accountId: String, limit: Int = MailboxApply.perAccount) {
+        migrateRowsOnce()
+        try? database?.cap(account: accountId, limit: limit)
+    }
+
+    /// Move whatever the preferences blob still holds into the table.
+    ///
+    /// Runs at most once per install: a device upgrading from a build
+    /// that kept its rows as one JSON blob would otherwise show an
+    /// empty list until the next sync, which reads as lost mail. The
+    /// key is removed afterwards so a later downgrade-and-upgrade
+    /// cannot resurrect rows the person has since deleted.
+    private static func migrateRowsOnce() {
+        guard let data = UserDefaults.standard.data(forKey: rowsForMailKey) else { return }
+        let carried = (try? JSONDecoder().decode([MailboxRow].self, from: data)) ?? []
+        try? database?.upsert(carried)
+        UserDefaults.standard.removeObject(forKey: rowsForMailKey)
     }
 
     /// Where each folder of each account was left.

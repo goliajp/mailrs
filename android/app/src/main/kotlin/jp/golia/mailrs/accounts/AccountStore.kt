@@ -38,6 +38,7 @@ class AccountStore(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
+    private val db = MailboxDatabase.shared(context)
 
     fun load(): List<MailAccount> {
         val raw = prefs.getString(ROWS, null) ?: return emptyList()
@@ -66,15 +67,20 @@ class AccountStore(context: Context) {
     fun remove(id: String) {
         save(load().filterNot { it.id == id })
         prefs.edit().remove(secretKeyName(id)).apply()
+        // And the connection that credential signed in: a socket
+        // left open is still authenticated as somebody who has just
+        // been removed, and the next tap would reuse it.
+        ImapPool.shared.drop(id)
         // And its mail, and where each of its folders was left. A row
         // left behind is mail nobody can open — the credential and the
         // server it came from are both gone — and a mark left behind
         // makes the next account with the same address resume from
         // somebody else's place.
-        saveRows(MailboxApply.withoutAccount(rows(), id))
         val prefix = "$id/"
         saveMarks(marks().filterKeys { !it.startsWith(prefix) })
         prefs.edit().remove(POP_SEEN + id).remove(LAST_SYNC + id).apply()
+        migrateRowsOnce()
+        db.deleteAccount(id)
     }
 
     // MARK: the mail itself
@@ -89,16 +95,113 @@ class AccountStore(context: Context) {
      * nothing here is worth stealing.
      */
     fun rows(): List<MailboxRow> {
-        val raw = prefs.getString(ROWS_MAIL, null) ?: return emptyList()
-        return runCatching {
-            json.decodeFromString(ListSerializer(MailboxRow.serializer()), raw)
-        }.getOrDefault(emptyList())
+        migrateRowsOnce()
+        return db.all()
     }
 
-    fun saveRows(rows: List<MailboxRow>) {
-        prefs.edit()
-            .putString(ROWS_MAIL, json.encodeToString(ListSerializer(MailboxRow.serializer()), rows))
-            .apply()
+    /**
+     * Throw away every row and keep these instead.
+     *
+     * Named for what it does. It is what a test that wants a known
+     * starting point needs, and what nothing on a sync path should
+     * use — [upsertRows], [deleteRow] and [setRowSeen] address the
+     * rows that actually changed, which is the whole reason the rows
+     * moved out of one preferences string.
+     */
+    fun replaceRows(rows: List<MailboxRow>) {
+        migrateRowsOnce()
+        db.replaceAll(rows)
+    }
+
+    /** Add or update, leaving every other row alone. */
+    fun upsertRows(rows: List<MailboxRow>) {
+        migrateRowsOnce()
+        db.upsert(rows)
+    }
+
+    fun deleteRow(row: MailboxRow) {
+        migrateRowsOnce()
+        db.delete(row.accountId, row.folder, row.uid)
+    }
+
+    fun deleteUids(accountId: String, folder: String, uids: Collection<Long>) {
+        migrateRowsOnce()
+        db.deleteUids(accountId, folder, uids)
+    }
+
+    fun setRowSeen(row: MailboxRow, seen: Boolean) {
+        migrateRowsOnce()
+        db.setSeen(row.accountId, row.folder, row.uid, seen)
+    }
+
+    fun setUidsSeen(accountId: String, folder: String, flags: Map<Long, Boolean>) {
+        migrateRowsOnce()
+        db.setUidsSeen(accountId, folder, flags)
+    }
+
+    fun dropFolder(accountId: String, folder: String) {
+        migrateRowsOnce()
+        db.deleteFolder(accountId, folder)
+    }
+
+    /** The newest rows, in the order the list shows them. */
+    fun newest(limit: Int, accounts: Set<String>? = null): List<MailboxRow> {
+        migrateRowsOnce()
+        return db.newest(limit, accounts)
+    }
+
+    /** The newest rows matching every word. */
+    fun search(words: List<String>, limit: Int, accounts: Set<String>? = null): List<MailboxRow> {
+        migrateRowsOnce()
+        return db.search(words, limit, accounts)
+    }
+
+    /** Unread per account, over everything held rather than a window. */
+    fun unreadPerAccount(): Map<String, Int> {
+        migrateRowsOnce()
+        return db.unreadPerAccount()
+    }
+
+    /**
+     * How many rows one account holds.
+     *
+     * A `COUNT(*)`, not a filter over every row: the one caller is the
+     * ceiling check on the "load earlier" path, and loading the table
+     * to decide whether the table is full is the read this whole layer
+     * exists to remove.
+     */
+    fun count(accountId: String): Int {
+        migrateRowsOnce()
+        return db.count(accountId)
+    }
+
+    /** Every folder this device holds something of, for one account. */
+    fun folders(accountId: String): List<String> {
+        migrateRowsOnce()
+        return db.folders(accountId)
+    }
+
+    fun capAccount(accountId: String, limit: Int = MailboxApply.PER_ACCOUNT) {
+        migrateRowsOnce()
+        db.cap(accountId, limit)
+    }
+
+    /**
+     * Move whatever the preferences blob still holds into the table.
+     *
+     * Runs at most once per install: a device upgrading from a build
+     * that kept its rows as one JSON string would otherwise show an
+     * empty list until the next sync, which reads as lost mail. The
+     * key is removed afterwards so a later downgrade-and-upgrade
+     * cannot resurrect rows the person has since deleted.
+     */
+    private fun migrateRowsOnce() {
+        val raw = prefs.getString(ROWS_MAIL, null) ?: return
+        val carried = runCatching {
+            json.decodeFromString(ListSerializer(MailboxRow.serializer()), raw)
+        }.getOrDefault(emptyList())
+        db.upsert(carried)
+        prefs.edit().remove(ROWS_MAIL).apply()
     }
 
     /**

@@ -56,9 +56,9 @@ class ReadEndToEndTest {
 
     private fun serving(vararg lines: String): Script {
         val script = Script(lines.toMutableList())
-        MessageReader.openImap = { _, _ ->
-            ImapSession("localhost", 993).also { it.transport = script }
-        }
+        MessageReader.pool = ImapPool(
+            open = { _, _ -> ImapSession("localhost", 993).also { it.transport = script } },
+        )
         return script
     }
 
@@ -71,9 +71,10 @@ class ReadEndToEndTest {
 
     @After
     fun tearDown() {
-        MessageReader.openImap = { host, port -> ImapSession(host, port) }
+        MessageReader.pool.dropAll()
+        MessageReader.pool = ImapPool.shared
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     private fun row(size: Long?) = MailboxRow(

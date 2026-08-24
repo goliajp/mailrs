@@ -22,11 +22,27 @@ object MailboxSearch {
      * how a naive substring match behaves.
      */
     fun matches(rows: List<MailboxRow>, query: String): List<MailboxRow> {
-        val words = query.lowercase().split(" ").filter { it.isNotEmpty() }
+        val words = words(query)
         if (words.isEmpty()) return rows
         return rows.filter { row ->
-            val haystack = (row.sender + " " + row.subject + " " + row.folder).lowercase()
+            val haystack = haystack(row)
             words.all { haystack.contains(it) }
         }
     }
+
+    /** A query split into the words every row must match. */
+    fun words(query: String) = query.lowercase().split(" ").filter { it.isNotEmpty() }
+
+    /**
+     * The text of a row that a search looks in.
+     *
+     * Here rather than in either caller because the **store keeps a
+     * folded copy of it** to search without loading every row, and two
+     * spellings of "what a search looks in" is two searches that agree
+     * until somebody writes a subject in an alphabet with case.
+     * `lowercase` folds all of Unicode; SQLite's `lower` folds ASCII,
+     * which is why the folding happens in this language and not in SQL.
+     */
+    fun haystack(row: MailboxRow) =
+        (row.sender + " " + row.subject + " " + row.folder).lowercase()
 }

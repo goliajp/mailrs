@@ -50,6 +50,8 @@ enum MailboxSync {
                     range: plan.range, byUid: plan.byUid)
                 var highest = marks[folder.name]?.highestUid ?? 0
                 if renumbered { highest = 0 }
+                var lowest = marks[folder.name]?.lowestUid ?? 0
+                if renumbered { lowest = 0 }
                 for message in fetched {
                     out.rows.append(
                         MailboxRow(
@@ -63,12 +65,15 @@ enum MailboxSync {
                             messageId: message.headers.messageId,
                             size: message.size))
                     highest = max(highest, message.uid)
+                    lowest = lowest == 0 ? message.uid : min(lowest, message.uid)
                 }
                 // Written **after** the rows are in hand, not before:
                 // a mark saved for messages that were never kept skips
                 // them for good, and nothing afterwards would ask for
                 // them again.
-                out.marks[folder.name] = FolderMark(uidValidity: validity, highestUid: highest)
+                out.marks[folder.name] = FolderMark(
+                    uidValidity: validity, highestUid: highest, lowestUid: lowest,
+                    earlierSpan: marks[folder.name]?.earlierSpan ?? EarlierPlan.firstSpan)
 
                 // And what happened to the ones already here. Cheap —
                 // flags only — and the only way this device notices a

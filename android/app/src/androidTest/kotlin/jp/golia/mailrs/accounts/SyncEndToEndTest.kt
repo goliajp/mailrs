@@ -77,7 +77,7 @@ class SyncEndToEndTest {
         store = AccountStore(ApplicationProvider.getApplicationContext())
         store.save(listOf(account))
         store.saveSecret("app-password", account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
         store.saveMarks(emptyMap())
     }
 
@@ -86,7 +86,7 @@ class SyncEndToEndTest {
         MailboxSyncRunner.openImap = { host, port -> ImapSession(host, port) }
         MailboxSyncRunner.now = { System.currentTimeMillis() / 1000 }
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
         store.saveMarks(emptyMap())
     }
 
@@ -143,7 +143,7 @@ class SyncEndToEndTest {
     @Test
     fun a_second_pass_asks_only_for_what_is_new() = runBlocking {
         store.saveMarksFor(account.id, mapOf("INBOX" to FolderMark(42L, 7L)))
-        store.saveRows(
+        store.replaceRows(
             listOf(
                 MailboxRow(
                     accountId = account.id, uid = 7L, folder = "INBOX", seen = false,

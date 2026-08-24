@@ -49,14 +49,14 @@ class JmapEndToEndTest {
         store = AccountStore(ApplicationProvider.getApplicationContext())
         store.save(listOf(account))
         store.saveSecret("app-password", account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     @After
     fun tearDown() {
         MailboxSyncRunner.openJmap = { host -> JmapSession(host) }
         store.remove(account.id)
-        store.saveRows(emptyList())
+        store.replaceRows(emptyList())
     }
 
     private val session = """

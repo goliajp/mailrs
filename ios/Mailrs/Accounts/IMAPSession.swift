@@ -361,22 +361,32 @@ actor IMAPSession {
     /// message is flagged and **left** rather than expunged: it
     /// disappears from the list either way, and no other message is
     /// taken with it.
+    /// Put a message in another folder. See `MovePlan`.
     func moveTo(uid: UInt32, folder: String, capabilities: Set<String>) async throws {
-        if capabilities.contains("MOVE") {
-            let t = nextTag()
-            try await send("\(t) UID MOVE \(uid) \(IMAP.quoted(folder))\r\n")
-            try await awaitCompletion(t)
-            return
+        for step in MovePlan.steps(uid: uid, folder: folder, capabilities: capabilities) {
+            switch step {
+            case .markDeleted:
+                try await store(uid: uid, op: "+FLAGS", flag: "\\Deleted")
+            case .command(let text):
+                let t = nextTag()
+                try await send("\(t) \(text)\r\n")
+                try await awaitCompletion(t)
+            }
         }
-        let copy = nextTag()
-        try await send("\(copy) UID COPY \(uid) \(IMAP.quoted(folder))\r\n")
-        try await awaitCompletion(copy)
-        try await store(uid: uid, op: "+FLAGS", flag: "\\Deleted")
-        if capabilities.contains("UIDPLUS") {
-            let expunge = nextTag()
-            try await send("\(expunge) UID EXPUNGE \(uid)\r\n")
-            try await awaitCompletion(expunge)
-        }
+    }
+
+    /// Ask the server for nothing, to find out whether it is still
+    /// there.
+    ///
+    /// A connection kept for reuse may have been dropped since — by an
+    /// idle timeout, by a NAT, by a server restart — and the socket
+    /// gives no sign of it until something is written. This is that
+    /// something, and it costs one round trip rather than a whole
+    /// reconnection.
+    func noop() async throws {
+        let t = nextTag()
+        try await send("\(t) NOOP\r\n")
+        try await awaitCompletion(t)
     }
 
     private func awaitCompletion(_ tag: String) async throws {
