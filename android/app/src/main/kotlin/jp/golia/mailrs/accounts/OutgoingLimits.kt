@@ -11,16 +11,18 @@ package jp.golia.mailrs.accounts
  * 20 MB of photos sends 27 MB and is refused, which reads as the
  * client losing the message.
  *
- * **This client's** is memory. The message is built as one string and
- * dot-stuffed into another before it reaches the socket, so a 25 MB
- * attachment is several times that in memory at once — on a phone
- * that is a process the system kills, and a kill mid-send looks
- * exactly like mail that vanished.
+ * **This client used to have one too**, and it was memory: the message
+ * was built as one string and dot-stuffed into another before it
+ * reached the socket, so a 25 MB attachment was several times that in
+ * memory at once — on a phone, a process the system kills, and a kill
+ * mid-send looks exactly like mail that vanished. That limit is gone:
+ * `OutgoingMessage.pieces` hands the socket 57 bytes of a file at a
+ * time and `DotStuffer` stuffs each piece as it passes, so nothing
+ * larger than a line is held.
  *
- * Streaming the message to the socket would lift the second limit and
- * is the right fix; until then the limit is stated rather than
- * discovered, because a refusal before sending is a message somebody
- * still has.
+ * What remains is the server's, and it is worth stating before the
+ * send rather than discovering during it — a message refused here is
+ * one somebody still has.
  */
 object OutgoingLimits {
     /** What most providers accept, on the encoded message. */

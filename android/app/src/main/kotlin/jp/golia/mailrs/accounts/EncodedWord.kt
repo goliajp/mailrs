@@ -19,8 +19,24 @@ object EncodedWord {
      * often half encoded and half not, and re-encoding the plain half
      * would corrupt it.
      */
+    /**
+     * An encoded word decodes to **anything at all**, including a
+     * CRLF — and a header value cannot contain one. Folding is
+     * expressed by the encoding, never by the content, so a line break
+     * coming out of here did not come from a header: it came from
+     * somebody who wanted one somewhere it does not belong.
+     *
+     * Left in, it reached `RCPT TO:<…>` when replying (SMTP command
+     * injection: the message also went to an address the sender never
+     * typed) and the outgoing `To:` and `Subject:` (a `Bcc:` header
+     * the sender never wrote). Stripped here, at the boundary, rather
+     * than at each of the places that would have to remember.
+     */
+    private fun withoutControls(text: String): String =
+        text.filter { it.code >= 0x20 && it.code != 0x7F }
+
     fun decode(value: String): String {
-        if (!value.contains("=?")) return value
+        if (!value.contains("=?")) return withoutControls(value)
         val out = StringBuilder()
         var rest = value
         // RFC 2047 6.2: whitespace **between two encoded words** is not
@@ -48,7 +64,7 @@ object EncodedWord {
             previousWasWord = true
         }
         out.append(rest)
-        return out.toString()
+        return withoutControls(out.toString())
     }
 
     private data class Word(val text: String, val rest: String)

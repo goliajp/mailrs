@@ -39,7 +39,9 @@ enum AccountSender {
         guard let secret = AccountStore.secret(for: account.id) else {
             return .failed("Sign in again to send from this account")
         }
-        let message = OutgoingMessage.text(
+        // Streamed, not assembled: the socket pulls 57 bytes of a file
+        // at a time, so a large attachment is never in memory whole.
+        let message = OutgoingMessage.pieces(
             draft, id: identity(for: account), date: Date())
         let session = openSmtp(account.smtpHost, account.smtpPort)
         do {

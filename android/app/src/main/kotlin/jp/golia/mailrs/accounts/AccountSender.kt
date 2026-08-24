@@ -48,7 +48,9 @@ object AccountSender {
         }
         val secret = store.secret(account.id)
             ?: return Outcome.Failed("Sign in again to send from this account")
-        val message = OutgoingMessage.text(
+        // Streamed, not assembled: the socket pulls 57 bytes of a file
+        // at a time, so a large attachment is never in memory whole.
+        val message = OutgoingMessage.pieces(
             draft, identity(account), nowSeconds, TimeZone.getDefault(),
         )
         val session = openSmtp(account.smtpHost, account.smtpPort)

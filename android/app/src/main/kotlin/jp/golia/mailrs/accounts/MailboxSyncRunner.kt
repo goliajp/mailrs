@@ -219,4 +219,97 @@ object MailboxSyncRunner {
             Outcome(account.id, 0, "Could not reach the server")
         }
     }
+
+    /**
+     * Fetch the mail **before** what is held, for one folder.
+     *
+     * Its own pass rather than part of the ordinary one: an ordinary
+     * pass answers "what is new", runs on a timer and on a pull, and
+     * must stay cheap. This one answers "what came before", runs only
+     * when somebody asks, and is allowed to reach.
+     */
+    suspend fun earlier(
+        account: MailAccount,
+        folder: String,
+        store: AccountStore,
+    ): Outcome {
+        if (account.incoming != Incoming.IMAP) {
+            return Outcome(account.id, 0, "Older mail is not available for this account yet")
+        }
+        val secret = store.secret(account.id)
+            ?: return Outcome(account.id, 0, "Sign in again to read this account")
+        val mark = store.marksFor(account.id)[folder]
+            ?: return Outcome(account.id, 0, "Fetch this mailbox first")
+        val anchor = when (mark.lowestUid) {
+            // A mark from before this was recorded: anchor from what is
+            // actually held rather than refusing, so an account that
+            // has been syncing for weeks does not have to start over.
+            0L -> store.rows()
+                .filter { it.accountId == account.id && it.folder == folder }
+                .minOfOrNull { it.uid } ?: return Outcome(account.id, 0, "Fetch this mailbox first")
+            else -> mark.lowestUid
+        }
+        val ask = EarlierPlan.decide(anchor, mark.earlierSpan)
+        val range = ask.range
+            ?: return Outcome(account.id, 0, null)
+
+        val session = openImap(account.imapHost, account.imapPort)
+        return try {
+            session.connect()
+            if (account.auth == MailProvider.AuthKind.OAUTH2) {
+                session.authenticateXOAuth2(account.loginName, secret)
+            } else {
+                session.login(account.loginName, secret)
+            }
+            val (validity, _) = session.select(folder)
+            if (validity != mark.uidValidity) {
+                // The folder was renumbered while this was being asked.
+                // Every uid held means something else now, so reaching
+                // below one of them would fetch whatever happens to be
+                // there — the ordinary pass re-anchors, and this one
+                // steps aside for it.
+                session.close()
+                return Outcome(account.id, 0, "This mailbox was rebuilt — fetch it again")
+            }
+            val fetched = session.fetchHeaders(range)
+            session.close()
+
+            val rows = fetched.map { message ->
+                MailboxRow(
+                    accountId = account.id,
+                    uid = message.uid,
+                    folder = folder,
+                    seen = message.seen,
+                    sender = MessageHeaders.senderName(message.headers.from),
+                    subject = message.headers.subject,
+                    date = message.date,
+                    messageId = message.headers.messageId,
+                    size = message.size,
+                )
+            }
+            store.saveRows(MailboxApply.capped(MailboxApply.apply(store.rows(), rows)))
+            val reached = range.substringBefore(':').toLongOrNull() ?: anchor
+            store.saveMarksFor(
+                account.id,
+                store.marksFor(account.id) + (
+                    folder to mark.copy(
+                        // The **range** that was asked about, not the
+                        // lowest that came back: a range that is all
+                        // gaps returns nothing, and anchoring on what
+                        // returned would ask the same empty question
+                        // forever.
+                        lowestUid = reached,
+                        earlierSpan = EarlierPlan.nextSpan(mark.earlierSpan, rows.size),
+                    )
+                    ),
+            )
+            Outcome(account.id, rows.size)
+        } catch (e: ImapSession.Failure) {
+            session.close()
+            Outcome(account.id, 0, AccountConnection.readable(e.message ?: "unknown"))
+        } catch (e: Exception) {
+            session.close()
+            Outcome(account.id, 0, "Could not reach the server")
+        }
+    }
 }

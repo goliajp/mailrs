@@ -62,6 +62,11 @@ object MailboxSync {
                 } else {
                     marks[folder.name]?.highestUid ?: 0L
                 }
+                var lowest = if (plan is FetchPlan.Renumbered) {
+                    0L
+                } else {
+                    marks[folder.name]?.lowestUid ?: 0L
+                }
                 for (message in fetched) {
                     rows += MailboxRow(
                         accountId = account.id,
@@ -75,12 +80,21 @@ object MailboxSync {
                         size = message.size,
                     )
                     highest = maxOf(highest, message.uid)
+                    lowest = when (lowest) {
+                        0L -> message.uid
+                        else -> minOf(lowest, message.uid)
+                    }
                 }
                 // Written **after** the rows are in hand, not before: a
                 // mark saved for messages that were never kept skips
                 // them for good, and nothing afterwards would ask for
                 // them again.
-                out[folder.name] = FolderMark(validity, highest)
+                out[folder.name] = FolderMark(
+                    validity,
+                    highest,
+                    lowest,
+                    marks[folder.name]?.earlierSpan ?: EarlierPlan.FIRST_SPAN,
+                )
 
                 // And what happened to the ones already here. Cheap —
                 // flags only — and the only way this device notices a

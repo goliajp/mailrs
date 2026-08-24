@@ -10,10 +10,29 @@ package jp.golia.mailrs.accounts
  * each applies its own policy to it.
  */
 object MessageAttachments {
-    data class Attachment(
+    /**
+     * One attached file, **not yet decoded**.
+     *
+     * It points into the message rather than carrying a copy: opening
+     * a 25 MB message used to hold the raw bytes and about 18 MB of
+     * decoded attachments at the same time, for a screen that shows a
+     * name and a size. The decoding happens when somebody taps one,
+     * and what is decoded is that one.
+     *
+     * [size] is computed from the encoded length rather than by
+     * decoding — base64 is four characters for every three bytes, so
+     * the answer is arithmetic, and a size shown before a tap must not
+     * cost what the tap costs.
+     */
+    class Attachment(
         val filename: String,
         val mimeType: String,
-        val bytes: ByteArray,
+        /** The whole message. Every attachment of it shares this. */
+        private val source: ByteArray,
+        /** Where in [source] the encoded part is. */
+        private val from: Int,
+        private val until: Int,
+        private val transfer: String,
         /**
          * Whether the message meant it to appear inside the text — a
          * signature image, usually. Listed anyway, because a reader
@@ -22,19 +41,48 @@ object MessageAttachments {
          */
         val inline: Boolean,
     ) {
-        val size: Int get() = bytes.size
+        /**
+         * How big the file is once decoded, without decoding it.
+         *
+         * base64 carries three bytes in every four characters, and the
+         * padding says how many of the last three are real. Line
+         * breaks are not characters of the encoding, so they are not
+         * counted.
+         */
+        val size: Int by lazy {
+            when (transfer) {
+                "base64" -> {
+                    var characters = 0
+                    var padding = 0
+                    for (i in from until until) {
+                        val c = source[i].toInt().toChar()
+                        when {
+                            c == '=' -> padding++
+                            c.isLetterOrDigit() || c == '+' || c == '/' -> characters++
+                        }
+                    }
+                    maxOf(0, (characters + padding) / 4 * 3 - padding)
+                }
+                else -> until - from
+            }
+        }
 
-        // Generated equals would compare the array by identity, which
-        // makes two decodings of the same message unequal.
+        /** The file itself, decoded now. */
+        fun decoded(): ByteArray =
+            MessageBody.decodeTransfer(source.copyOfRange(from, until), transfer)
+
+        // Compared by what it *is*, not by where it points: two reads
+        // of the same message are the same attachment, and an identity
+        // comparison on the backing array would say otherwise.
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is Attachment) return false
             return filename == other.filename && mimeType == other.mimeType &&
-                inline == other.inline && bytes.contentEquals(other.bytes)
+                inline == other.inline && decoded().contentEquals(other.decoded())
         }
 
         override fun hashCode(): Int =
-            filename.hashCode() * 31 + mimeType.hashCode() * 31 + bytes.contentHashCode()
+            filename.hashCode() * 31 + mimeType.hashCode() * 31 + size
     }
 
     /** Everything attached, in the order the message lists it. */
@@ -63,12 +111,14 @@ object MessageAttachments {
         // with no filename is the message itself.
         val attached = kind == "attachment" || filename != null || type.type != "text"
         if (!attached) return
-        val bytes = MessageBody.decodeTransfer(body, MessageBody.encoding(header))
         out.add(
             Attachment(
                 filename = filename ?: fallbackName(type),
                 mimeType = "${type.type}/${type.subtype}".trim('/'),
-                bytes = bytes,
+                source = body,
+                from = 0,
+                until = body.size,
+                transfer = MessageBody.encoding(header),
                 inline = kind == "inline",
             ),
         )

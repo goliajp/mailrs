@@ -17,6 +17,27 @@ data class FolderMark(
     val uidValidity: Long,
     /** The highest uid read. */
     val highestUid: Long,
+    /**
+     * The lowest uid read, and where "load earlier" starts from.
+     *
+     * Travels with the validity for the same reason [highestUid] does:
+     * a uid without the validity that issued it is a number that means
+     * nothing. Zero means nothing has been read yet.
+     *
+     * Defaulted, so a mark stored before this field existed still
+     * decodes — and defaulted to 0, which reads as "unknown" and makes
+     * the first "earlier" tap anchor itself from what is held.
+     */
+    val lowestUid: Long = 0,
+    /**
+     * How wide the last "earlier" reach was.
+     *
+     * Kept because it adapts: a range that came back nearly empty was
+     * mostly gaps, and the next one asks wider. Forgetting it makes
+     * every tap start narrow again in exactly the mailbox where narrow
+     * does not work.
+     */
+    val earlierSpan: Int = EarlierPlan.FIRST_SPAN,
 )
 
 /**

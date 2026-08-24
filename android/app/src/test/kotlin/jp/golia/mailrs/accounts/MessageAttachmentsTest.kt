@@ -30,7 +30,7 @@ class MessageAttachmentsTest {
         assertEquals(1, found.size)
         assertEquals("report.pdf", found[0].filename)
         assertEquals("application/pdf", found[0].mimeType)
-        assertEquals("Hello", String(found[0].bytes, Charsets.UTF_8))
+        assertEquals("Hello", String(found[0].decoded(), Charsets.UTF_8))
     }
 
     /**
