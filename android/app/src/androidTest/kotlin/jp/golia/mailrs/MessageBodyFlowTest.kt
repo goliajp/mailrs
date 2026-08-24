@@ -38,16 +38,34 @@ class MessageBodyFlowTest : MailrsUiTest() {
         waitForTag("list.conversations", "the inbox never listed")
         compose.onAllNodesWithTag("row.conversation").onFirst().performClick()
         waitForTag("list.messages", "the thread never opened")
-        // The body renders asynchronously; its width settles after.
-        Thread.sleep(1_500)
-
+        // **Waited for, not slept through.** The body is a WebView that
+        // arrives and lays itself out asynchronously, and the 1.5-second
+        // sleep that stood here was a guess about how long that takes.
+        // Removing it entirely passed three runs — so the guess was
+        // dead time — but "it passed three times" is not "it can never
+        // be slow", and a duration is the wrong thing to wait on
+        // either way. This waits for the WebView itself.
+        //
+        // Through `compose.waitUntil`, which pumps the app: see
+        // `.claude/rules/a-sleep-is-not-a-wait.md`, where sleeping the
+        // instrumentation thread meant a coroutine never ran at all
+        // and the failure read as a network problem.
         var content = 0
         var visible = 0
-        compose.activityRule.scenario.onActivity { activity ->
-            val web = firstWebView(activity.window.decorView) ?: return@onActivity
-            content = (web.contentHeight * 0) + web.computeHorizontalScrollRangeCompat()
-            visible = web.width
+        fun measure() {
+            compose.activityRule.scenario.onActivity { activity ->
+                val web = firstWebView(activity.window.decorView) ?: return@onActivity
+                content = web.computeHorizontalScrollRangeCompat()
+                visible = web.width
+            }
         }
+        runCatching {
+            compose.waitUntil(TIMEOUT_MS) {
+                measure()
+                visible > 0 && content > 0
+            }
+        }
+        measure()
         assertTrue("no message body was on screen", visible > 0)
         assertTrue(
             "the mail is $content px wide in a $visible px window, so it scrolls sideways",
