@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sandboxed, and asking for exactly two things.
+
+	     A mail client needs the network out; it does not need the
+	     camera, the address book, or the whole of the file system.
+	     `user-selected.read-write` is the attachment picker and the
+	     save panel — a scope the reader opens by choosing a file,
+	     which is what the panel is for. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>
