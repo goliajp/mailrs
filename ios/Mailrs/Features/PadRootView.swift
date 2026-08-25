@@ -40,6 +40,7 @@ struct PadRootView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
     @State private var showingSettings = false
+    @State private var confirmingMarkAllRead = false
     @State private var columns = NavigationSplitViewVisibility.all
     /// Held rather than deleted at once: the phone asks, and a bigger
     /// screen is not a reason to stop asking.
@@ -76,6 +77,19 @@ struct PadRootView: View {
                         .accessibilityIdentifier("pad.sync")
                         .keyboardShortcut("r", modifiers: .command)
                     }
+                    // Emptying the unread count in one go, which the
+                    // phone has offered from its list menu since the
+                    // beginning and this device could not do at all —
+                    // the only way to clear a mailbox here was one row
+                    // at a time.
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            confirmingMarkAllRead = true
+                        } label: {
+                            Label("Mark all as read", systemImage: "envelope.open")
+                        }
+                        .accessibilityIdentifier("pad.markAllRead")
+                    }
                 }
         } detail: {
             detail
@@ -88,6 +102,14 @@ struct PadRootView: View {
         // Over the middle column, which is the one the rows left from
         // — an undo floating over the message being read would point
         // at the wrong place.
+        // Asked before it happens: marking a mailbox read cannot be
+        // undone and changes rows the reader cannot see.
+        .alert("Mark all as read?", isPresented: $confirmingMarkAllRead) {
+            Button("Mark all as read") { Task { await session.markListRead() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every conversation in \(listTitle) will be marked read.")
+        }
         .overlay(alignment: .bottom) { UndoBar() }
         // Failures were silent on this screen: `session.banner` is set
         // and nobody was reading it, so an archive the server refused

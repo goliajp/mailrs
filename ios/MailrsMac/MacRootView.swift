@@ -23,6 +23,7 @@ struct MacRootView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
     @State private var pendingDelete: Wire.Conversation?
+    @State private var confirmingMarkAllRead = false
 
     var body: some View {
         Group {
@@ -166,6 +167,20 @@ struct MacRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .macRefresh)) { _ in
             Task { await session.loadConversations() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .macMarkAllRead)) { _ in
+            confirmingMarkAllRead = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .macSignOut)) { _ in
+            session.signOut()
+        }
+        // Asked before it happens: marking a mailbox read cannot be
+        // undone and changes rows the reader cannot see.
+        .alert("Mark all as read?", isPresented: $confirmingMarkAllRead) {
+            Button("Mark all as read") { Task { await session.markListRead() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every conversation in \(listTitle) will be marked read.")
         }
         .task { await session.loadConversations() }
     }

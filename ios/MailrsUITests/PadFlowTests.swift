@@ -250,6 +250,33 @@ final class PadFlowTests: MailrsUITestCase {
             "the move never reached the server: \(postedVerbs())")
     }
 
+    /// The whole mailbox can be marked read, in one action.
+    ///
+    /// The phone has offered this from its list menu since the
+    /// beginning; on the iPad the only way to clear an unread count
+    /// was one row at a time. Asserted on the request reaching the
+    /// stub, because the count on screen also falls when rows are
+    /// merely re-fetched.
+    func testMarkingTheWholeMailboxReadReachesTheServer() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(
+            conversationRows(app).element(boundBy: 0).waitForExistence(timeout: 20),
+            "no conversations")
+        app.buttons["pad.markAllRead"].tap()
+        // Inside the alert: the toolbar button carries the same words,
+        // so a bare query matches both and fails as "multiple matching
+        // elements" rather than as anything about the mailbox.
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5),
+                      "marking the mailbox read was not confirmed first")
+        alert.buttons["Mark all as read"].tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) {
+                recordedWrites().contains { $0.contains("mark-all-read") }
+            },
+            "the request never reached the server: \(recordedWrites())")
+    }
+
     /// A refused archive says so.
     ///
     /// `session.banner` is written on every failure and, until this
