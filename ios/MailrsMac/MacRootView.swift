@@ -55,6 +55,8 @@ struct MacRootView: View {
         } detail: {
             detail
         }
+        .overlay(alignment: .bottom) { UndoBar() }
+        .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)
         .onChange(of: session.activeList) { _, _ in dropSelectionIfGone() }
         .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
         .toolbar {
@@ -150,6 +152,11 @@ struct MacRootView: View {
             List(session.visibleConversations, selection: selectionBinding) { conversation in
                 ConversationRow(conversation: conversation, isSelecting: false)
                     .tag(conversation.threadId)
+                    .onAppear {
+                        if conversation.threadId == session.visibleConversations.last?.threadId {
+                            Task { await session.loadMore() }
+                        }
+                    }
                     .contextMenu { ConversationRowMenu(conversation: conversation) }
                     // Swipes exist on a trackpad too, and they are how
                     // the same triage is done on the other platforms.
