@@ -71,7 +71,7 @@ struct DraftsView: View {
                 }
             }
             .navigationTitle("Drafts")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

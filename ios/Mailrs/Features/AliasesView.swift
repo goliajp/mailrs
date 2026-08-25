@@ -64,7 +64,7 @@ struct AliasesView: View {
                 }
             }
             .navigationTitle("Aliases")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -102,15 +102,15 @@ struct AliasesView: View {
             Form {
                 Section("Alias") {
                     TextField("sales@golia.jp", text: $source)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+                        .neverCapitalised()
+                        .mailKeyboard()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("alias-source")
                 }
                 Section("Delivers to") {
                     TextField("someone@golia.jp", text: $target)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+                        .neverCapitalised()
+                        .mailKeyboard()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("alias-target")
                 }
@@ -119,7 +119,7 @@ struct AliasesView: View {
                 }
             }
             .navigationTitle("New alias")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { adding = false }

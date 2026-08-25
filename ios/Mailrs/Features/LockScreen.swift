@@ -16,7 +16,7 @@ struct LockScreen: View {
 
     var body: some View {
         ZStack {
-            Color(.systemBackground)
+            Color.pageBackground
                 .ignoresSafeArea()
             VStack(spacing: 20) {
                 LucideIcon(elements: kind.symbol, size: 44)

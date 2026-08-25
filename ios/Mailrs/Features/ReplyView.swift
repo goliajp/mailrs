@@ -161,12 +161,12 @@ struct ReplyView: View {
             }
             .padding(.top, 8)
             .navigationTitle(mode.rawValue)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryActions) {
                     AttachMenu(attachments: $attachments)
                 }
                 ToolbarItem(placement: .confirmationAction) {

@@ -62,7 +62,7 @@ struct AccountsView: View {
                 }
             }
             .navigationTitle("Accounts")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -98,8 +98,8 @@ struct AccountsView: View {
             Form {
                 Section("Address") {
                     TextField("someone@golia.jp", text: $address)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+                        .neverCapitalised()
+                        .mailKeyboard()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("account-address")
                 }
@@ -120,7 +120,7 @@ struct AccountsView: View {
                 }
             }
             .navigationTitle("New account")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { discard() }

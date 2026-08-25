@@ -60,7 +60,7 @@ struct SenderListsView: View {
                 }
             }
             .navigationTitle("Senders")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -74,7 +74,7 @@ struct SenderListsView: View {
                 set: { if !$0 { adding = nil } }
             )) {
                 TextField("someone@example.com", text: $newAddress)
-                    .textInputAutocapitalization(.never)
+                    .neverCapitalised()
                     .autocorrectionDisabled()
                 Button("Add") {
                     if let kind = adding { Task { await add(kind, newAddress) } }

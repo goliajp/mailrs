@@ -33,7 +33,7 @@ struct MessageView: View {
                 .padding(16)
             }
             .navigationTitle("Message")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

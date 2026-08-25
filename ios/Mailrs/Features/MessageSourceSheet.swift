@@ -43,14 +43,14 @@ struct MessageSourceSheet: View {
                 }
             }
             .navigationTitle("Message source")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .leadingAction) {
                     Button {
-                        UIPasteboard.general.string = source
+                        Clipboard.put(source)
                     } label: {
                         Label("Copy", systemImage: "doc.on.doc")
                     }

@@ -54,7 +54,7 @@ struct AgentKeysView: View {
                 }
             }
             .navigationTitle("API keys")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -137,7 +137,7 @@ struct AgentKeysView: View {
                 }
             }
             .navigationTitle("New key")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { adding = false }
@@ -246,10 +246,10 @@ private struct SecretOnceSheet: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
-                    .background(Color(.secondarySystemGroupedBackground),
+                    .background(Color.cardBackground,
                                 in: RoundedRectangle(cornerRadius: 10))
                 Button {
-                    UIPasteboard.general.string = secret
+                    Clipboard.put(secret)
                     withAnimation { copied = true }
                 } label: {
                     Label(copiedLabel, systemImage: copiedIcon)
@@ -261,7 +261,7 @@ private struct SecretOnceSheet: View {
             }
             .padding(20)
             .navigationTitle("New key")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

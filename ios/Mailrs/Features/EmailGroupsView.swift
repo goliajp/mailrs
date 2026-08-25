@@ -56,7 +56,7 @@ struct EmailGroupsView: View {
                 }
             }
             .navigationTitle("Groups")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -92,8 +92,8 @@ struct EmailGroupsView: View {
             Form {
                 Section("Address") {
                     TextField("team@golia.jp", text: $address)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+                        .neverCapitalised()
+                        .mailKeyboard()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("group-address")
                 }
@@ -103,7 +103,7 @@ struct EmailGroupsView: View {
                 }
             }
             .navigationTitle("New group")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { adding = false }
@@ -206,7 +206,7 @@ struct EmailGroupDetailView: View {
             }
         }
         .navigationTitle(groupTitle)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineTitle()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button {
@@ -218,7 +218,7 @@ struct EmailGroupDetailView: View {
         }
         .alert("Add member", isPresented: $adding) {
             TextField("someone@golia.jp", text: $newMember)
-                .textInputAutocapitalization(.never)
+                .neverCapitalised()
                 .autocorrectionDisabled()
             Button("Add") { Task { await add() } }
             Button("Cancel", role: .cancel) { newMember = "" }
