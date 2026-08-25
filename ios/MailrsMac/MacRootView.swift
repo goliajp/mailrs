@@ -55,6 +55,8 @@ struct MacRootView: View {
         } detail: {
             detail
         }
+        .onChange(of: session.activeList) { _, _ in dropSelectionIfGone() }
+        .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -184,6 +186,25 @@ struct MacRootView: View {
                 description: Text("Choose a conversation to read it here."))
             .accessibilityIdentifier("mac.noSelection")
         }
+    }
+
+    /// Forget what is open when it no longer belongs to what is
+    /// listed.
+    ///
+    /// Switching mailbox or typing a search leaves the detail column
+    /// showing a conversation that is not in the list beside it —
+    /// opened from Inbox, still on screen under Archived, and not
+    /// reachable in the list any more. The phone cannot have this: it
+    /// pushes, so leaving the list means leaving the message.
+    ///
+    /// Compared against the rows rather than cleared unconditionally:
+    /// a conversation that survives the change — the same message
+    /// found by a search, say — should stay open rather than blink
+    /// away and make somebody find it again.
+    private func dropSelectionIfGone() {
+        guard let open = opened else { return }
+        let stillListed = session.visibleConversations.contains { $0.threadId == open.threadId }
+        if !stillListed { opened = nil }
     }
 
     private var selectionBinding: Binding<String?> {
