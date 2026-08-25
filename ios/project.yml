@@ -214,11 +214,21 @@ targets:
       - path: Mailrs/App/BiometricLock.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: jp.golia.mailrs.mac
+        # **The same identifier as the phone app**, deliberately.
+        # Apple calls this universal purchase: one app record, one
+        # listing, one TestFlight, with a build per platform. A
+        # separate `.mac` identifier would make Mailrs two apps that
+        # happen to share a name, and somebody who has the phone app
+        # would be asked to find and buy the Mac one.
+        PRODUCT_BUNDLE_IDENTIFIER: jp.golia.mailrs
         INFOPLIST_KEY_CFBundleDisplayName: Mailrs
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_ENTITLEMENTS: MailrsMac/MailrsMac.entitlements
+        # Required for a Mac App Store build, with no default — the
+        # first upload was refused for it after the archive, the
+        # signing and the whole transfer had already succeeded.
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         ENABLE_HARDENED_RUNTIME: "YES"
 
   MailrsMacUITests:
