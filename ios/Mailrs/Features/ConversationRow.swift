@@ -82,7 +82,7 @@ struct ConversationRow: View {
                         Circle()
                             .fill(Color.accentColor)
                             .frame(width: 11, height: 11)
-                            .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
+                            .overlay(Circle().stroke(Color.pageBackground, lineWidth: 2))
                             .offset(x: 1, y: -1)
                             .accessibilityHidden(false)
                             .accessibilityLabel("Unread")

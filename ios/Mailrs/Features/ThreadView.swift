@@ -124,7 +124,7 @@ struct ThreadView: View {
                 // adds it to the scrolled content only, so the glass
                 // still has content passing beneath it.
                 .contentMargins(.bottom, 64, for: .scrollContent)
-                .background(Color(.systemGroupedBackground))
+                .background(Color.groupedBackground)
             }
         }
         // Empty on purpose: the subject is the header's job now, where
@@ -132,13 +132,13 @@ struct ThreadView: View {
         // back button and three toolbar buttons showed six words and an
         // ellipsis, and was the only place the subject appeared at all.
         .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineTitle()
         .toolbar {
             // Apple Mail's chevrons: process the mailbox serially
             // without bouncing back to the list between messages. Each
             // step is an open, so it marks read through the same rule
             // as any open.
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .primaryActions) {
                 Button {
                     step(to: neighbours.previous)
                 } label: {
@@ -146,7 +146,7 @@ struct ThreadView: View {
                 }
                 .disabled(neighbours.previous == nil)
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .primaryActions) {
                 Button {
                     step(to: neighbours.next)
                 } label: {
@@ -154,7 +154,7 @@ struct ThreadView: View {
                 }
                 .disabled(neighbours.next == nil)
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .primaryActions) {
                 Button {
                     replying = true
                 } label: {
@@ -165,7 +165,7 @@ struct ThreadView: View {
             // Triage from inside the thread — Apple Mail's bottom bar.
             // Without it every verdict costs a trip back to the list and
             // a swipe on a row you have to find again.
-            ToolbarItemGroup(placement: .bottomBar) {
+            ToolbarItemGroup(placement: .screenActions) {
                 Button {
                     Task { await session.toggleStarred(starTarget) }
                 } label: {

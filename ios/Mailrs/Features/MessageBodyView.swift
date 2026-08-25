@@ -10,7 +10,19 @@ import WebKit
 /// The scale comes from `FitToWidth`, the same rule the web client uses,
 /// applied through a viewport meta the page never gets to see: senders
 /// set their own `<meta viewport>` and would otherwise fight it.
-struct MessageBodyView: UIViewRepresentable {
+/// The representable's protocol differs between the platforms and
+/// nothing else here does: `WKWebView`, its configuration, the
+/// coordinator and the fitting are the same code. So the protocol is
+/// the only thing behind `#if`, and the two entry points forward to
+/// one implementation — rather than a second copy of a view that
+/// decides what a message looks like.
+#if os(macOS)
+    typealias BodyViewRepresentable = NSViewRepresentable
+#else
+    typealias BodyViewRepresentable = UIViewRepresentable
+#endif
+
+struct MessageBodyView: BodyViewRepresentable {
     let html: String
     @Binding var height: CGFloat
     /// Remote subresources are refused until the reader asks for them.
@@ -25,7 +37,19 @@ struct MessageBodyView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeUIView(context: Context) -> WKWebView {
+    #if os(macOS)
+        func makeNSView(context: Context) -> WKWebView { makeWebView(context: context) }
+        func updateNSView(_ webView: WKWebView, context: Context) {
+            updateWebView(webView, context: context)
+        }
+    #else
+        func makeUIView(context: Context) -> WKWebView { makeWebView(context: context) }
+        func updateUIView(_ webView: WKWebView, context: Context) {
+            updateWebView(webView, context: context)
+        }
+    #endif
+
+    private func makeWebView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         // Nothing in an email needs to open a window, autoplay, or pick
         // up an existing login: a fresh, non-persistent store means a
@@ -42,7 +66,12 @@ struct MessageBodyView: UIViewRepresentable {
         // single character 今 as one. A page of ordinary Japanese prose
         // would come back speckled with tappable nothing, and a date
         // has no unambiguous action anyway — see `BodyDetections`.
-        config.dataDetectorTypes = [.phoneNumber, .address]
+        // iOS only. A Mac has no dialler and no Maps sheet to hand a
+        // detected number or address to — the system's own text
+        // selection is what serves that there.
+        #if os(iOS)
+            config.dataDetectorTypes = [.phoneNumber, .address]
+        #endif
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -51,10 +80,14 @@ struct MessageBodyView: UIViewRepresentable {
         // and the body keeps pinch and the horizontal one. A message
         // wider than the phone used to be simply cut off at the right
         // edge with no way to reach the rest.
-        webView.scrollView.isScrollEnabled = true
-        webView.scrollView.alwaysBounceVertical = false
-        webView.scrollView.alwaysBounceHorizontal = false
-        webView.scrollView.bounces = false
+        // The scroll view is UIKit's; on the Mac the web view scrolls
+        // itself and there is no bounce to switch off.
+        #if os(iOS)
+            webView.scrollView.isScrollEnabled = true
+            webView.scrollView.alwaysBounceVertical = false
+            webView.scrollView.alwaysBounceHorizontal = false
+            webView.scrollView.bounces = false
+        #endif
         // A long press on a link *fetches the target* to build the
         // peek. That undoes the remote-content block for anyone whose
         // thumb rests a moment too long, and for a tracking link it
@@ -62,15 +95,23 @@ struct MessageBodyView: UIViewRepresentable {
         // list above exists to prevent. Default is YES; mail is the
         // wrong document for it.
         webView.allowsLinkPreview = false
-        webView.isOpaque = false
         // Clear, not white: the document paints its own paper, so the
         // card behind shows through for mail that follows the app.
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
+        //
+        // The two platforms spell transparency differently — UIKit has
+        // `isOpaque` and a backing scroll view, AppKit's web view draws
+        // its own background and is told not to.
+        #if os(iOS)
+            webView.isOpaque = false
+            webView.backgroundColor = .clear
+            webView.scrollView.backgroundColor = .clear
+        #else
+            webView.setValue(false, forKey: "drawsBackground")
+        #endif
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {
+    private func updateWebView(_ webView: WKWebView, context: Context) {
         // A width this view has not been fitted against yet — the first
         // layout pass, a rotation, a split view. Re-fitting is cheap and
         // not re-fitting leaves the message at whatever scale it had
@@ -277,7 +318,7 @@ struct MessageBodyView: UIViewRepresentable {
                 // `open(_:)` has an async form now, and in an async
                 // context Swift picks it; the result is not interesting
                 // — Safari either takes the URL or it was not openable.
-                if let url { _ = await UIApplication.shared.open(url) }
+                if let url { OpenLink.open(url) }
                 return .cancel
             case .refuse:
                 return .cancel

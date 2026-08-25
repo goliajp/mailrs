@@ -73,8 +73,8 @@ struct SignInView: View {
                     // save one never appears.
                     TextField("you@example.com", text: $address)
                         .textContentType(.username)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
+                        .mailKeyboard()
+                        .neverCapitalised()
                         .autocorrectionDisabled()
                     // Hidden while Face ID can stand in for it, and
                     // back the moment it cannot: no stored credential,
@@ -87,7 +87,7 @@ struct SignInView: View {
                     if session.needsTotp {
                         TextField("Six-digit code", text: $totpCode)
                             .textContentType(.oneTimeCode)
-                            .keyboardType(.numberPad)
+                            .numberKeyboard()
                     }
                 }
 
@@ -114,9 +114,9 @@ struct SignInView: View {
                         get: { session.baseURL.absoluteString },
                         set: { if let url = URL(string: $0) { session.baseURL = url } }
                     ))
-                    .textInputAutocapitalization(.never)
+                    .neverCapitalised()
                     .autocorrectionDisabled()
-                    .keyboardType(.URL)
+                    .urlKeyboard()
                 }
 
                 if case let .failed(message) = session.state {
@@ -155,7 +155,7 @@ struct SignInView: View {
                 }
             }
             .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .task {
                 // Who it was last time, and whether the phone can answer
                 // for them. A form that has forgotten the account on

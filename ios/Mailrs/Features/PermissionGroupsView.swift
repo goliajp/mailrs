@@ -54,7 +54,7 @@ struct PermissionGroupsView: View {
                 }
             }
             .navigationTitle("Permissions")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -217,7 +217,7 @@ struct PermissionGroupDetailView: View {
             }
         }
         .navigationTitle(Text(verbatim: group.name))
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineTitle()
         .overlay {
             if loading, catalogue.isEmpty { ProgressView() }
         }

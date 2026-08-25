@@ -45,11 +45,11 @@ final class SenderIcons {
             // Absence is an answer worth keeping: without storing the
             // nil, every redraw asks again for a domain that has
             // already said it has nothing.
-            guard let data, let uiImage = UIImage(data: data) else {
+            guard let data, let uiImage = PlatformImage(data: data) else {
                 resolved[domain] = Image?.none
                 return
             }
-            resolved[domain] = Image(uiImage: uiImage)
+            resolved[domain] = Image(platformImage: uiImage)
         }
     }
 

@@ -32,7 +32,7 @@ struct MailboxesView: View {
                 }
             }
             .navigationTitle("Mailboxes")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

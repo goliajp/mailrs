@@ -99,7 +99,7 @@ struct MessageCard: View {
                 Label("Search this sender", systemImage: "magnifyingglass")
             }
             Button {
-                UIPasteboard.general.string = address
+                Clipboard.put(address)
             } label: {
                 Label("Copy address", systemImage: "doc.on.doc")
             }
@@ -288,7 +288,7 @@ struct MessageCard: View {
             UnsubscribeFooter(threadId: threadId, message: message)
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground),
+        .background(Color.cardBackground,
                     in: RoundedRectangle(cornerRadius: 12))
         // Long press, which is where every other iOS app keeps the
         // things you do to one item. The thread's own bar has reply,
@@ -297,7 +297,7 @@ struct MessageCard: View {
         // them had anywhere to live.
         .contextMenu {
             Button {
-                UIPasteboard.general.string = MessageActions.plainText(message)
+                Clipboard.put(MessageActions.plainText(message))
             } label: {
                 Label("Copy text", systemImage: "doc.on.doc")
             }
@@ -379,7 +379,7 @@ struct CollapsedMessageRow: View {
         layout
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color(.secondarySystemGroupedBackground).opacity(0.6),
+        .background(Color.cardBackground.opacity(0.6),
                     in: RoundedRectangle(cornerRadius: 12))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

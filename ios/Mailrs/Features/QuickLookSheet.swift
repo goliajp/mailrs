@@ -7,6 +7,27 @@ import SwiftUI
 /// is the UIKit controller wrapped up. Worth the wrapper rather than
 /// rendering attachments here: Quick Look already handles every format a
 /// phone can display, and hands the rest to the share sheet.
+/// On the Mac, SwiftUI has Quick Look natively — this is that,
+/// wearing the same name so the call site does not have to know which
+/// platform it is on. Not a second design: Quick Look **is** the Mac's
+/// preview, and reimplementing it would be the port.
+#if os(macOS)
+    struct QuickLookSheet: View {
+        let url: URL
+        let onDone: () -> Void
+        @State private var previewing: URL?
+
+        var body: some View {
+            Color.clear
+                .quickLookPreview($previewing)
+                .onAppear { previewing = url }
+                .onChange(of: previewing) { _, now in
+                    if now == nil { onDone() }
+                }
+        }
+    }
+#else
+
 struct QuickLookSheet: UIViewControllerRepresentable {
     let url: URL
     let onDone: () -> Void
@@ -49,3 +70,5 @@ struct QuickLookSheet: UIViewControllerRepresentable {
         }
     }
 }
+
+#endif

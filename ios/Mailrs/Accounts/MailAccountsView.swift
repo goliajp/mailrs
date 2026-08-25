@@ -33,8 +33,7 @@ struct MailAccountsView: View {
                 Section("Add a mailbox") {
                     TextField("you@example.com", text: $model.draft.address)
                         .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
+                        .mailKeyboard()
                         .autocorrectionDisabled()
                         .focused($focus, equals: .address)
                         .accessibilityIdentifier("account.address")
@@ -42,7 +41,7 @@ struct MailAccountsView: View {
                     if model.draft.addressLooksComplete {
                         providerNote
                         SecureField(model.draft.secretLabel, text: $model.draft.secret)
-                            .textInputAutocapitalization(.never)
+                            .neverCapitalised()
                             .autocorrectionDisabled()
                             .focused($focus, equals: .secret)
                             .accessibilityIdentifier("account.secret")
@@ -157,26 +156,26 @@ struct MailAccountsView: View {
             prefillManual()
         }
         TextField("Incoming server", text: $model.draft.imapHost)
-            .textInputAutocapitalization(.never)
+            .neverCapitalised()
             .autocorrectionDisabled()
             .accessibilityIdentifier("account.incoming.host")
         TextField("Port", text: $model.draft.imapPort)
-            .keyboardType(.numberPad)
+            .numberKeyboard()
             .accessibilityIdentifier("account.incoming.port")
         // JMAP submits over the same API, so there is no second server
         // to name. A box for one would be a box somebody fills in with
         // the first server's name to get past the form.
         if model.draft.incoming != .jmap {
             TextField("Outgoing server", text: $model.draft.smtpHost)
-                .textInputAutocapitalization(.never)
+                .neverCapitalised()
                 .autocorrectionDisabled()
                 .accessibilityIdentifier("account.outgoing.host")
             TextField("Port", text: $model.draft.smtpPort)
-                .keyboardType(.numberPad)
+                .numberKeyboard()
                 .accessibilityIdentifier("account.outgoing.port")
         }
         TextField("Login name, if it is not the address", text: $model.draft.login)
-            .textInputAutocapitalization(.never)
+            .neverCapitalised()
             .autocorrectionDisabled()
             .accessibilityIdentifier("account.login")
     }

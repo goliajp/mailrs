@@ -48,7 +48,7 @@ struct DomainsView: View {
                 }
             }
             .navigationTitle("Domains")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -63,7 +63,7 @@ struct DomainsView: View {
             }
             .alert("Add domain", isPresented: $adding) {
                 TextField("golia.jp", text: $name)
-                    .textInputAutocapitalization(.never)
+                    .neverCapitalised()
                     .autocorrectionDisabled()
                 Button("Add") { Task { await add() } }
                 Button("Cancel", role: .cancel) { name = "" }

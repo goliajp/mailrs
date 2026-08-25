@@ -49,21 +49,18 @@ struct ComposeMailView: View {
                 Section {
                     TextField("To", text: $to)
                         .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
+                        .mailKeyboard()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("compose.to")
                     if showCopies {
                         TextField("Cc", text: $cc)
                             .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
+                            .mailKeyboard()
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("compose.cc")
                         TextField("Bcc", text: $bcc)
                             .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
+                            .mailKeyboard()
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("compose.bcc")
                     } else {
@@ -97,7 +94,7 @@ struct ComposeMailView: View {
                 }
             }
             .navigationTitle("New message")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

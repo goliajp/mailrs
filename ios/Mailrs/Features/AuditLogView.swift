@@ -44,12 +44,12 @@ struct AuditLogView: View {
                 }
             }
             .navigationTitle("Audit log")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .leadingAction) {
                     Menu {
                         Picker("Filter", selection: $filter) {
                             Text("All").tag("")

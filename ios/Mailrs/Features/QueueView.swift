@@ -77,7 +77,7 @@ struct QueueView: View {
                 }
             }
             .navigationTitle("Queue")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 // Trailing, like Settings and Drafts: a sheet with
                 // nothing to add has no reason to put its only way out

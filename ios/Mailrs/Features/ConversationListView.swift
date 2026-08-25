@@ -64,7 +64,7 @@ struct ConversationListView: View {
                         .listRowBackground(
                             selection.contains(conversation.threadId)
                                 ? Color.accentColor.opacity(0.18)
-                                : Color(.systemBackground)
+                                : Color.pageBackground
                         )
                         .contextMenu { ConversationRowMenu(conversation: conversation) }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -186,7 +186,7 @@ struct ConversationListView: View {
             // Inline, not large: the large title spends about fifty
             // points of every screen restating a word the toolbar has
             // room for, and this list is measured in rows.
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             // A failed request, over the mailbox it happened in.
             .overlay(alignment: .top) {
                 if let banner = session.banner {
@@ -291,7 +291,7 @@ struct ConversationListView: View {
                 Text("This will permanently delete all their messages.")
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .leadingAction) {
                     Menu {
                         Picker("List", selection: Binding(
                             get: { session.activeList },
@@ -350,7 +350,7 @@ struct ConversationListView: View {
                     }
                     .accessibilityIdentifier("open-lists")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryActions) {
                     Button {
                         composing = true
                     } label: {
@@ -359,7 +359,7 @@ struct ConversationListView: View {
                     .accessibilityIdentifier("new-message")
                 }
                 if session.activeList != .send, !session.visibleConversations.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .primaryActions) {
                         if editMode == .active {
                             Button("Done") {
                                 withAnimation { editMode = .inactive }
@@ -373,7 +373,7 @@ struct ConversationListView: View {
                     }
                 }
                 if editMode == .active {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: .leadingAction) {
                         Button(allSelected ? "None" : "All") {
                             withAnimation {
                                 if allSelected {
@@ -389,7 +389,7 @@ struct ConversationListView: View {
                 // The batch bar. `bottomBar` keeps it clear of the
                 // search field, which owns the very bottom on iOS 26.
                 if editMode == .active {
-                    ToolbarItemGroup(placement: .bottomBar) {
+                    ToolbarItemGroup(placement: .screenActions) {
                         Spacer()
                         Button("Read") {
                             Task { await session.markAllRead(selectedConversations) }

@@ -215,7 +215,7 @@ struct SettingsView: View {
                 signatureDraft = session.signature
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -285,7 +285,7 @@ struct SignatureEditor: View {
                 }
             }
             .navigationTitle("Signature")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {

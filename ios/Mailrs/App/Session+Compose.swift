@@ -109,9 +109,9 @@ extension Session {
     private func sendWithFeedback(_ send: () async throws -> some Sendable) async throws {
         do {
             _ = try await send()
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Haptics.play(.success)
         } catch {
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            Haptics.play(.error)
             throw error
         }
     }

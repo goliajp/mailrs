@@ -230,8 +230,8 @@ struct ComposerHeader: View {
         if field.isAddress {
             TextField(field.placeholder, text: text)
                 .textContentType(.emailAddress)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
+                .mailKeyboard()
+                .neverCapitalised()
                 .autocorrectionDisabled()
                 .focused(focus, equals: field)
                 .accessibilityIdentifier(field.identifier)

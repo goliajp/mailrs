@@ -119,20 +119,20 @@ struct ComposeView: View {
             }
             .padding(.top, 8)
             .navigationTitle("New message")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .accessibilityIdentifier("composer-cancel")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryActions) {
                     AttachMenu(attachments: $attachments)
                 }
                 // Its own `ToolbarItem`, not sharing one with Send.
                 // Two controls inside a single item are composed into
                 // one element, and `buttons["Send"]` — which ten tests
                 // use — then matches nothing at all.
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryActions) {
                     // Two controls, not one menu with a primary
                     // action: a `Menu(primaryAction:)` labelled "Send"
                     // is a button to a person and a menu to anything
