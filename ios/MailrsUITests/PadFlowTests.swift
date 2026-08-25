@@ -183,4 +183,42 @@ final class PadFlowTests: MailrsUITestCase {
             conversationRows(app).element(boundBy: 0).waitForExistence(timeout: 20),
             "fetching emptied the list")
     }
+
+    /// **Archiving by swipe offers a way back.**
+    ///
+    /// The gesture arrived on this screen before the retraction did,
+    /// which is the worse half to have: one swipe and the conversation
+    /// is gone with nothing to press. The phone has had the undo bar
+    /// from the beginning.
+    func testArchivingOffersUndo() {
+        let app = launch(signedIn: true)
+        let rows = conversationRows(app)
+        XCTAssertTrue(rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
+        // **Followed by what it says**, not by the element that holds
+        // it. Undo reinserts the row and SwiftUI rebuilds it, so the
+        // container is a different element with the same identifier —
+        // a query on the container reports the message gone when it is
+        // back on screen. The phone's own undo test follows the
+        // subject for the same reason.
+        let subject = "Quarterly report"
+        let message = app.staticTexts.containing(
+            NSPredicate(format: "label CONTAINS %@", subject)
+        ).firstMatch
+        XCTAssertTrue(message.waitForExistence(timeout: 20), "that conversation is not listed")
+
+        rows.element(boundBy: 0).swipeLeft()
+        XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5), "no Archive")
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(
+            message.waitForNonExistence(timeout: 15), "the row survived being archived")
+
+        let undo = app.buttons["undo-archive"]
+        XCTAssertTrue(
+            undo.waitForExistence(timeout: 10),
+            "a conversation was archived and nothing offered to undo it")
+        undo.tap()
+        XCTAssertTrue(
+            message.waitForExistence(timeout: 15),
+            "Undo was pressed and the conversation did not come back")
+    }
 }

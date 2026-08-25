@@ -178,6 +178,7 @@ targets:
       # it silently the next time somebody adds a file there.
       - path: Mailrs/Features/ConversationRow.swift
       - path: Mailrs/Features/SidebarMailboxRow.swift
+      - path: Mailrs/Features/UndoBar.swift
       - path: Mailrs/Features/ConversationRowMenu.swift
       - path: Mailrs/Features/ThreadView.swift
       - path: Mailrs/Features/ThreadHeader.swift

@@ -85,6 +85,11 @@ struct PadRootView: View {
         // time there — and `.prominentDetail` squeezes it to make room
         // for a message they have not chosen yet.
         .navigationSplitViewStyle(.balanced)
+        // Over the middle column, which is the one the rows left from
+        // — an undo floating over the message being read would point
+        // at the wrong place.
+        .overlay(alignment: .bottom) { UndoBar() }
+        .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)
         .onChange(of: session.activeList) { _, _ in dropSelectionIfGone() }
         .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
         .sheet(isPresented: $composing) { ComposeView() }
@@ -126,6 +131,14 @@ struct PadRootView: View {
             List(session.visibleConversations, selection: selectionBinding) { conversation in
                 ConversationRow(conversation: conversation, isSelecting: false)
                     .tag(conversation.threadId)
+                    // Paging. Without it the list simply ends at the
+                    // first page, and a mailbox with more in it looks
+                    // like a mailbox that does not.
+                    .onAppear {
+                        if conversation.threadId == session.visibleConversations.last?.threadId {
+                            Task { await session.loadMore() }
+                        }
+                    }
                     .contextMenu { ConversationRowMenu(conversation: conversation) }
                     // **The same swipes the phone has.** Converting
                     // these rows from `NavigationLink` to a selection
