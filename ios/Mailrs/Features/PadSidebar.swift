@@ -15,7 +15,11 @@ struct PadSidebar: View {
         List(selection: selectionBinding) {
             Section {
                 ForEach(MailList.allCases) { list in
-                    Label(list.title, systemImage: list.systemImage)
+                    SidebarMailboxRow(
+                        list: list,
+                        unread: list.badgeCount(
+                            activeList: session.activeList,
+                            unreadInActive: session.unreadInList))
                         .tag(list)
                         .accessibilityIdentifier("pad.list.\(list.rawValue)")
                 }
