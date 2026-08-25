@@ -48,28 +48,28 @@ final class MacFlowTests: XCTestCase {
     /// going anywhere** — the property a pushed navigation cannot have,
     /// and the reason this is not the phone's design in a window.
     func testChoosingAConversationKeepsTheListOnScreen() {
-        // **The second outline.** Both the source list and the
-        // conversation list are outlines, so `app.outlines.cells` is
-        // the two of them mixed — eleven rows, the first of which is
-        // the Inbox row in the sidebar. Clicking that selected a
-        // mailbox and left the detail exactly as it was, which the
-        // assertion then reported as "nothing is chosen".
+        // Addressed by identifier. "The second outline" was a guess
+        // about layout, and the sidebar is an outline too — the same
+        // guess made an iPad test swipe the sidebar and report that
+        // conversations offer no actions.
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
         XCTAssertTrue(
-            app.outlines.element(boundBy: 1).waitForExistence(timeout: 30),
-            "there is no second column — the window is not split")
-        let rows = app.outlines.element(boundBy: 1).cells
-        XCTAssertTrue(
-            rows.element(boundBy: 0).waitForExistence(timeout: 20),
+            rows.element(boundBy: 0).waitForExistence(timeout: 30),
             "no conversations in the middle column")
-        let before = rows.count
         rows.element(boundBy: 0).click()
 
         XCTAssertTrue(
             app.staticTexts["No conversation selected"].waitForNonExistence(timeout: 20),
-            "the detail column still says nothing is chosen. rows: \(rows.count), "
-                + "outlines: \(app.outlines.count), tables: \(app.tables.count)")
-        XCTAssertGreaterThanOrEqual(
-            rows.count, before,
+            "the detail column still says nothing is chosen")
+        // **Still there**, not "still the same number of them". A
+        // dynamic query re-evaluates after the click and its count
+        // moves with the selection's own elements — 17 to 16 here,
+        // which the first version read as the list vanishing. What has
+        // to be true is that the other two columns survived opening a
+        // conversation, which a pushed navigation cannot do.
+        XCTAssertTrue(
+            rows.element(boundBy: 0).exists,
             "the conversation list went away when a conversation was opened")
         XCTAssertTrue(app.staticTexts["Inbox"].exists, "the source list went away")
     }
@@ -113,5 +113,56 @@ final class MacFlowTests: XCTestCase {
             app.textFields["compose.to"].waitForExistence(timeout: 15)
                 || app.textFields["composer-to"].waitForExistence(timeout: 5),
             "⌘N did not open the composer")
+    }
+
+    /// **⌘, opens Preferences.** A Mac app without a Settings scene
+    /// has that shortcut greyed out and its options buried in the
+    /// content, which is the phone's answer to a question this
+    /// platform answers with a window.
+    func testCommandCommaOpensPreferences() {
+        XCTAssertTrue(
+            app.staticTexts["Inbox"].waitForExistence(timeout: 30), "the app never came up")
+        app.typeKey(",", modifierFlags: .command)
+        XCTAssertTrue(
+            app.staticTexts["Appearance"].waitForExistence(timeout: 15)
+                || app.popUpButtons.firstMatch.waitForExistence(timeout: 5),
+            "⌘, opened nothing")
+        app.typeKey("w", modifierFlags: .command)
+    }
+
+    /// The toolbar carries the verbs for what is open, and they are
+    /// **disabled until something is**. A button that looks available
+    /// and does nothing is worse than one that says it cannot.
+    func testTheToolbarActionsWaitForASelection() {
+        XCTAssertTrue(
+            app.staticTexts["No conversation selected"].waitForExistence(timeout: 30),
+            "the app never came up")
+        let archive = app.buttons["mac.toolbar.archive"]
+        XCTAssertTrue(archive.waitForExistence(timeout: 10), "no Archive in the toolbar")
+        XCTAssertFalse(
+            archive.isEnabled,
+            "Archive was offered with nothing selected")
+
+        // By identifier, like the iPad's — "the second outline" was a
+        // guess about layout, and a guess about layout is what made an
+        // iPad test swipe the sidebar and report that conversations
+        // offer no actions.
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
+        rows.element(boundBy: 0).click()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) { archive.isEnabled },
+            "Archive stayed disabled after a conversation was chosen")
+    }
+
+    private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return condition()
     }
 }

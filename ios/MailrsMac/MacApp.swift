@@ -34,6 +34,17 @@ struct MailrsMacApp: App {
                 .frame(minWidth: 900, minHeight: 560)
         }
         .defaultSize(width: 1_240, height: 800)
+        // The Preferences window, which ⌘, opens. Without a `Settings`
+        // scene that shortcut is greyed out and the options have to
+        // live inside the content — the phone's answer, because a
+        // phone has no second window.
+        Settings {
+            MacSettingsView()
+                .environment(preferences)
+                .preferredColorScheme(preferences.appearance.colorScheme)
+                .environment(\.locale, preferences.language.locale ?? Locale.autoupdatingCurrent)
+        }
+
         .commands {
             // The menus a Mac app is expected to have. Without these
             // the app has a menu bar that offers nothing but Quit,
