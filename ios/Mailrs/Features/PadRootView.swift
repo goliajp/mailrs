@@ -41,6 +41,9 @@ struct PadRootView: View {
     @State private var composing = false
     @State private var showingSettings = false
     @State private var columns = NavigationSplitViewVisibility.all
+    /// Held rather than deleted at once: the phone asks, and a bigger
+    /// screen is not a reason to stop asking.
+    @State private var pendingDelete: Wire.Conversation?
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
@@ -74,6 +77,19 @@ struct PadRootView: View {
         // for a message they have not chosen yet.
         .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $composing) { ComposeView() }
+        .confirmationDialog(
+            "Delete this conversation?",
+            isPresented: .constant(pendingDelete != nil),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let doomed = pendingDelete {
+                    Task { await session.delete(doomed) }
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .task { await session.loadConversations() }
     }
@@ -100,8 +116,42 @@ struct PadRootView: View {
                 ConversationRow(conversation: conversation, isSelecting: false)
                     .tag(conversation.threadId)
                     .contextMenu { ConversationRowMenu(conversation: conversation) }
+                    // **The same swipes the phone has.** Converting
+                    // these rows from `NavigationLink` to a selection
+                    // dropped them, and losing archive-by-swipe is
+                    // losing the gesture triage is actually done with —
+                    // on the device with the most room to do it.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button {
+                            Task { await session.archive(conversation) }
+                        } label: {
+                            Label("Archive", systemImage: "archivebox")
+                        }
+                        .tint(.green)
+                        Button(role: .destructive) {
+                            pendingDelete = conversation
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            Task { await session.toggleRead(conversation) }
+                        } label: {
+                            Label(
+                                ReadToggle.label(unread: conversation.unreadCount > 0),
+                                systemImage: ReadToggle.icon(
+                                    unread: conversation.unreadCount > 0))
+                        }
+                        .tint(.blue)
+                    }
             }
             .accessibilityIdentifier("pad.conversations")
+            // A hardware keyboard is ordinary on this device. ↑↓ walk
+            // the list without lifting a hand to the screen, which is
+            // how somebody with a keyboard case reads mail.
+            .onKeyPress(.upArrow) { step(-1) }
+            .onKeyPress(.downArrow) { step(1) }
         }
     }
 
@@ -130,6 +180,26 @@ struct PadRootView: View {
             set: { id in
                 opened = session.visibleConversations.first { $0.threadId == id }
             })
+    }
+
+    /// Move the selection by one, and open what it lands on.
+    ///
+    /// Returns `.ignored` at the ends so the key press falls through
+    /// to whatever else wants it, rather than being swallowed by a
+    /// list that cannot move — a keyboard that stops responding at the
+    /// end of a list reads as the app having hung.
+    private func step(_ by: Int) -> KeyPress.Result {
+        let rows = session.visibleConversations
+        guard !rows.isEmpty else { return .ignored }
+        guard let current = opened.flatMap({ o in rows.firstIndex { $0.threadId == o.threadId } })
+        else {
+            opened = rows.first
+            return .handled
+        }
+        let next = current + by
+        guard rows.indices.contains(next) else { return .ignored }
+        opened = rows[next]
+        return .handled
     }
 
     private func search(_ text: String) {

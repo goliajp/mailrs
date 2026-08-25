@@ -79,4 +79,55 @@ final class PadFlowTests: MailrsUITestCase {
             sidebarRow(app, "inbox").exists,
             "the sidebar went away when a mailbox was chosen")
     }
+
+    /// **The swipes are back.** Converting the middle column from
+    /// `NavigationLink` rows to a selection dropped them, and losing
+    /// archive-by-swipe is losing the gesture triage is actually done
+    /// with — on the device with the most room to do it.
+    func testAConversationCanBeArchivedBySwiping() {
+        let app = launch(signedIn: true)
+        // **By identifier**, not by "the first cell on screen": the
+        // sidebar is a list too, and `app.cells` is the two of them
+        // mixed. Addressing the sidebar's first row and swiping it
+        // reported that swiping a conversation offers nothing — true
+        // of the row it reached, and not of the row it meant.
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
+        let before = rows.count
+        rows.element(boundBy: 0).swipeLeft()
+        XCTAssertTrue(
+            app.buttons["Archive"].waitForExistence(timeout: 5),
+            "swiping a conversation offered nothing")
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) { rows.count < before },
+            "the row is still there after archiving it")
+    }
+
+    /// The open mailbox carries its unread count and the others carry
+    /// nothing — the server gives one total, and printing it beside
+    /// every row would say "four unread in Archived".
+    func testOnlyTheOpenMailboxCarriesACount() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(
+            sidebarRow(app, "inbox").waitForExistence(timeout: 20), "no sidebar")
+        // The stub's inbox has unread rows, so Inbox carries a badge
+        // and Archived does not. Read through the row's label, which is
+        // where a badge lands for VoiceOver.
+        let archived = sidebarRow(app, "archived")
+        XCTAssertFalse(
+            archived.label.contains("2") || archived.label.contains("3"),
+            "a mailbox that was never counted is showing a number: \(archived.label)")
+    }
+
+    private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return condition()
+    }
 }

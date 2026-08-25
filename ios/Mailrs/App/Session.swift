@@ -379,6 +379,17 @@ final class Session {
     /// The icon's number, refreshed wherever the mailbox may have moved:
     /// after a list load, after marking read, after a delete. Server
     /// count, because the client only ever holds one page of one list.
+    /// How many unread conversations the list on screen holds.
+    ///
+    /// Counted from the rows, not taken from `unseenCount`: that is one
+    /// total for the account, and putting it beside a mailbox row would
+    /// say "four unread in Archived" — wrong rather than merely
+    /// missing. This is only true of the list actually loaded, which is
+    /// why `MailboxRow` shows it on that row and nowhere else.
+    var unreadInList: Int {
+        conversations.reduce(0) { $0 + ($1.unreadCount > 0 ? 1 : 0) }
+    }
+
     func refreshBadge() async {
         guard let client else { return }
         if let count = try? await client.unseenCount() {
