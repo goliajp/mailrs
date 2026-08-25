@@ -14,8 +14,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Two devices, because there are two designs. `PadRootView` is chosen
+# on the horizontal size class, so the iPad layout is only ever reached
+# on a device that has one — running its tests on the phone simulator
+# would exercise the phone's screens and report the iPad green.
 SIM_NAME="sim-mailrs"
 DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro"
+if [ "${1:-}" = "ipad" ]; then
+    SIM_NAME="sim-mailrs-ipad"
+    DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+fi
 BUNDLE_ID="jp.golia.mailrs"
 
 # The device is created on demand so a fresh checkout needs no setup step.
@@ -219,6 +227,20 @@ ONLY=""
 if [ -n "${2:-}" ]; then
     ONLY="-only-testing:$2"
     echo "    (only $2)"
+elif [ "${1:-}" = "ipad" ]; then
+    # The iPad lane runs the iPad's own screens. The rest of the suite
+    # is the phone's and is run by the default lane; running it here
+    # twice would double a twenty-minute suite to say the same thing.
+    ONLY="-only-testing:MailrsUITests/PadFlowTests"
+    echo "    (iPad: PadFlowTests)"
+else
+    # **And the phone lane excludes them.** `-only-testing` on the iPad
+    # side is not enough on its own: the default lane runs the whole
+    # bundle, so it ran the iPad's screens on a phone, where
+    # `PadLayout.splits` is false and they cannot pass. Six red tests
+    # that were a lane boundary, not a defect — and the kind of red
+    # that teaches people to skim the list.
+    ONLY="-skip-testing:MailrsUITests/PadFlowTests"
 fi
 # **The status comes from xcodebuild, not from the filter.** This was
 # `xcodebuild … | grep … || true`, and a pipeline's status is its last

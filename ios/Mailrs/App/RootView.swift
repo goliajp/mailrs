@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(Session.self) private var session
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// The scheme after `preferredColorScheme` has had its say — so
     /// the tokens follow an explicit choice as readily as the system's.
     @Environment(\.colorScheme) private var colorScheme
@@ -28,7 +29,14 @@ struct RootView: View {
         Group {
             switch session.state {
             case .signedIn:
-                ConversationListView()
+                // Two designs, chosen by how much width this scene
+                // has — not by whether the hardware is an iPad. See
+                // `PadLayout`. The phone's screen is unchanged.
+                if PadLayout.splits(horizontalSizeClass) {
+                    PadRootView()
+                } else {
+                    ConversationListView()
+                }
             default:
                 SignInView()
             }

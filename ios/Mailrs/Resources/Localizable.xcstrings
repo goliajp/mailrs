@@ -1073,6 +1073,23 @@
         }
       }
     },
+    "Choose a conversation to read it here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スレッドを選ぶと、ここに表示されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个会话，在这里阅读。"
+          }
+        }
+      }
+    },
     "Choose a file": {
       "localizations": {
         "ja": {
@@ -2976,6 +2993,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有已归档的会话"
+          }
+        }
+      }
+    },
+    "No conversation selected": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スレッドが選択されていません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择会话"
           }
         }
       }
