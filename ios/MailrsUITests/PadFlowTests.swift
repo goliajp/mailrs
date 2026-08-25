@@ -190,6 +190,29 @@ final class PadFlowTests: MailrsUITestCase {
     /// which is the worse half to have: one swipe and the conversation
     /// is gone with nothing to press. The phone has had the undo bar
     /// from the beginning.
+    /// A refused archive says so.
+    ///
+    /// `session.banner` is written on every failure and, until this
+    /// was added, **nothing on this screen read it** — the row went
+    /// back to where it was and the reader was left to decide whether
+    /// they had imagined pressing the button.
+    func testARefusedArchiveSaysSo() {
+        let app = launch(signedIn: true)
+        // After the launch: launching resets the stub.
+        refuseVerb("archive")
+        let rows = conversationRows(app)
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
+        rows.element(boundBy: 0).swipeLeft()
+        XCTAssertTrue(
+            app.buttons["Archive"].waitForExistence(timeout: 5),
+            "swiping a conversation offered nothing")
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["error-banner"].waitForExistence(timeout: 10),
+            "the refusal was silent")
+    }
+
     func testArchivingOffersUndo() {
         let app = launch(signedIn: true)
         let rows = conversationRows(app)

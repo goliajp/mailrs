@@ -67,14 +67,4 @@ final class TriageFlowTests: MailrsUITestCase {
                        "a refused request threw the reader back to sign-in")
     }
 
-
-    private func refuseVerb(_ verb: String) {
-        guard let url = URL(string: "http://localhost:6039/debug/refuse-verb/\(verb)")
-        else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        let done = expectation(description: "refuse")
-        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
-        wait(for: [done], timeout: 10)
-    }
 }

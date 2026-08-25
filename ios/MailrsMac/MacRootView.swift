@@ -56,6 +56,8 @@ struct MacRootView: View {
             detail
         }
         .overlay(alignment: .bottom) { UndoBar() }
+        .overlay(alignment: .top) { FailureBanner() }
+        .animation(.easeOut(duration: 0.2), value: session.banner)
         .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)
         .onChange(of: session.activeList) { _, _ in dropSelectionIfGone() }
         .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
@@ -143,6 +145,11 @@ struct MacRootView: View {
         } else if session.visibleConversations.isEmpty {
             if session.initialLoading {
                 ProgressView()
+            } else if session.searchQuery != nil {
+                // Distinct from an empty mailbox. "No mail here" under
+                // a search somebody just typed reads as the mailbox
+                // being empty, not as the search finding nothing.
+                ContentUnavailableView.search(text: searchText)
             } else {
                 ContentUnavailableView(
                     session.activeList.emptyMessage,

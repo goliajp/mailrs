@@ -187,30 +187,7 @@ struct ConversationListView: View {
             // points of every screen restating a word the toolbar has
             // room for, and this list is measured in rows.
             .inlineTitle()
-            // A failed request, over the mailbox it happened in.
-            .overlay(alignment: .top) {
-                if let banner = session.banner {
-                    Text(banner)
-                        .font(.footnote)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.red.opacity(0.92), in: Capsule())
-                        .padding(.top, 6)
-                        .accessibilityIdentifier("error-banner")
-                        .onTapGesture { session.banner = nil }
-                        // Keyed on the message: `.task` alone is tied to
-                        // the view's identity, which does not change when
-                        // the string does, so a second error inherited
-                        // the first one's remaining time and could
-                        // vanish almost at once.
-                        .task(id: banner) {
-                            try? await Task.sleep(for: .seconds(4))
-                            session.banner = nil
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
+            .overlay(alignment: .top) { FailureBanner() }
             .animation(.easeOut(duration: 0.2), value: session.banner)
             // The undo snackbar. Bottom-anchored but lifted above the
             // search field, which iOS 26 also puts at the bottom.
