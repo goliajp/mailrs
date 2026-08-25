@@ -134,6 +134,12 @@ struct ConversationRow: View {
         }
         .padding(.vertical, 2)
         .opacity(rowOpacity)
+        // Named, so a test can address a conversation row rather than
+        // whatever list happens to be first on screen. Without this an
+        // iPad test swiped the *sidebar* and reported that swiping a
+        // conversation offered nothing — true of the row it reached,
+        // and not of the row it meant.
+        .accessibilityIdentifier("row.conversation.\(conversation.threadId)")
     }
 
     /// Name, who else is on it, how many messages, when.
