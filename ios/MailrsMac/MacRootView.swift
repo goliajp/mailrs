@@ -114,6 +114,37 @@ struct MacRootView: View {
                 .accessibilityIdentifier("mac.toolbar.toggleRead")
                 .help("Mark read or unread (⌘⇧U)")
                 .keyboardShortcut("u", modifiers: [.command, .shift])
+
+                // Starring and moving. Neither was reachable on this
+                // window at all — the two verbs the phone puts on its
+                // swipes, and a Mac has no swipes to put them on.
+                Button {
+                    if let open = opened { Task { await session.toggleStarred(open) } }
+                } label: {
+                    Label(
+                        StarToggle.label(starred: opened?.flagged ?? false),
+                        systemImage: StarToggle.icon(starred: opened?.flagged ?? false))
+                }
+                .disabled(opened == nil)
+                .accessibilityIdentifier("mac.toolbar.star")
+                .help("Star or unstar (⌘⇧L)")
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+
+                Menu {
+                    ForEach(MailBucket.offered(from: session.activeList)) { bucket in
+                        Button(bucket.label) {
+                            if let open = opened {
+                                Task { await session.move(open, to: bucket) }
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Move", systemImage: "tray.and.arrow.down")
+                }
+                .disabled(opened == nil
+                    || MailBucket.offered(from: session.activeList).isEmpty)
+                .accessibilityIdentifier("mac.toolbar.move")
+                .help("Move this conversation")
             }
         }
         .sheet(isPresented: $composing) { ComposeView().frame(minWidth: 640, minHeight: 520) }

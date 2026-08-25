@@ -190,6 +190,66 @@ final class PadFlowTests: MailrsUITestCase {
     /// which is the worse half to have: one swipe and the conversation
     /// is gone with nothing to press. The phone has had the undo bar
     /// from the beginning.
+    /// Starring is reachable from the list, and reaches the server.
+    ///
+    /// Through the row's long-press menu, which is the path this
+    /// device actually has: the leading swipe the phone uses does not
+    /// open here — in a three-column layout a rightward drag on the
+    /// middle column is not the row's to keep — and two gesture styles
+    /// were tried before that was measured rather than assumed.
+    ///
+    /// The verb itself existed in `Session` and was on nothing: not
+    /// the swipes, not the menu, not a key. Present in the app and
+    /// absent from the device.
+    ///
+    /// **By identifier**: the open thread in the third column has a
+    /// Star of its own, and an earlier version of this test tapped
+    /// that one and passed while the list offered nothing at all.
+    ///
+    /// Asserted on what the stub was told, not on the row's label: the
+    /// label flips off local state either way, so a star that never
+    /// left the device would still relabel itself.
+    func testStarringFromTheListReachesTheServer() {
+        let app = launch(signedIn: true)
+        let rows = conversationRows(app)
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
+        rows.element(boundBy: 0).press(forDuration: 1.0)
+        let star = app.buttons["row.menu.star"]
+        XCTAssertTrue(star.waitForExistence(timeout: 5),
+                      "the row menu offered no Star")
+        star.tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) {
+                postedVerbs().contains { $0.hasPrefix("star ") }
+            },
+            "starring never reached the server: \(postedVerbs())")
+    }
+
+    /// Moving is reachable, and reaches the server.
+    ///
+    /// Its own test rather than a second act in the starring one:
+    /// starring re-sorts the list, so the row a query resolved a
+    /// moment ago is gone by the time the next gesture lands —
+    /// reported as "no matches found", which reads like the
+    /// conversation was never there.
+    func testMovingReachesTheServer() {
+        let app = launch(signedIn: true)
+        let rows = conversationRows(app)
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
+        rows.element(boundBy: 0).press(forDuration: 1.0)
+        let promotion = app.buttons["Mark as promotion"].firstMatch
+        XCTAssertTrue(promotion.waitForExistence(timeout: 5),
+                      "the row menu offered no destinations")
+        promotion.tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) {
+                postedVerbs().contains { $0.hasPrefix("mark-promotion ") }
+            },
+            "the move never reached the server: \(postedVerbs())")
+    }
+
     /// A refused archive says so.
     ///
     /// `session.banner` is written on every failure and, until this

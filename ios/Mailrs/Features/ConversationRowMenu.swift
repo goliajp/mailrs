@@ -17,6 +17,21 @@ struct ConversationRowMenu: View {
                     // list already came back with this field —
                     // the phone simply had no way to set it and
                     // did not draw the ones the desk had.
+                    // Starring. The phone has it on a swipe; the
+                    // iPad's leading swipe is not reachable in a
+                    // three-column layout and the Mac has no swipes
+                    // at all, so the verb existed in `Session` and
+                    // could be reached from neither of them. The menu
+                    // is the one place all three share.
+                    Button {
+                        Task { await session.toggleStarred(conversation) }
+                    } label: {
+                        Label(
+                            StarToggle.label(starred: conversation.flagged),
+                            systemImage: StarToggle.icon(starred: conversation.flagged)
+                        )
+                    }
+                    .accessibilityIdentifier("row.menu.star")
                     Button {
                         Task { await session.togglePinned(conversation) }
                     } label: {

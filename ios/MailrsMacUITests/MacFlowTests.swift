@@ -191,6 +191,66 @@ final class MacFlowTests: XCTestCase {
             "the refusal was silent")
     }
 
+    /// Starring and moving are in the toolbar, and reach the server.
+    ///
+    /// Both verbs existed in `Session` and were on nothing in this
+    /// window. A Mac has no swipes to put them on, so the toolbar is
+    /// where they go — and a menu that is only reachable by
+    /// right-clicking is a menu most people never find.
+    func testStarringAndMovingReachTheServer() {
+        let rows = conversationRows()
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 30), "no conversations")
+        rows.element(boundBy: 0).click()
+
+        let star = app.buttons["mac.toolbar.star"]
+        XCTAssertTrue(star.waitForExistence(timeout: 10), "no Star in the toolbar")
+        XCTAssertTrue(
+            waitUntil(timeout: 15) { star.isEnabled },
+            "Star stayed disabled after a conversation was chosen")
+        star.click()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) {
+                postedVerbs().contains { $0.hasPrefix("star ") }
+            },
+            "starring never reached the server: \(postedVerbs())")
+
+        let move = app.descendants(matching: .any)["mac.toolbar.move"].firstMatch
+        XCTAssertTrue(move.waitForExistence(timeout: 10), "no Move in the toolbar")
+        move.click()
+        // `menuItems`, not `buttons`: a SwiftUI `Menu` in a Mac
+        // toolbar opens an NSMenu, and a query naming the wrong type
+        // reports "Move offered no destinations" when what it means is
+        // "I looked in the wrong kind of element".
+        let promotion = app.menuItems["Mark as promotion"].firstMatch
+        XCTAssertTrue(
+            promotion.waitForExistence(timeout: 5),
+            "Move opened no menu: \(app.debugDescription.prefix(2000))")
+        promotion.click()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) {
+                postedVerbs().contains { $0.hasPrefix("mark-promotion ") }
+            },
+            "the move never reached the server: \(postedVerbs())")
+    }
+
+    /// Every verb the stub has been sent since it was reset.
+    private func postedVerbs() -> [String] {
+        guard let url = URL(string: "http://localhost:6039/debug/verbs") else { return [] }
+        var out: [String] = []
+        let done = expectation(description: "debug/verbs")
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let verbs = json["verbs"] as? [String] {
+                out = verbs
+            }
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
+        return out
+    }
+
     /// Make the stub refuse one verb, so a failure path can be driven.
     private func refuseVerb(_ verb: String) {
         guard let url = URL(string: "http://localhost:6039/debug/refuse-verb/\(verb)")
