@@ -22,6 +22,7 @@ struct MacRootView: View {
     }
     @State private var searchTask: Task<Void, Never>?
     @State private var composing = false
+    @State private var pendingDelete: Wire.Conversation?
 
     var body: some View {
         Group {
@@ -70,8 +71,59 @@ struct MacRootView: View {
                 }
                 .help("Fetch mail (⌘R)")
             }
+
+            // Actions on what is open. A Mac toolbar carries the verbs
+            // for the selection; hiding them in a context menu means
+            // right-clicking to do the thing the window is showing.
+            ToolbarItemGroup {
+                Button {
+                    if let open = opened { Task { await session.archive(open) } }
+                } label: {
+                    Label("Archive", systemImage: "archivebox")
+                }
+                .disabled(opened == nil)
+                // Named: "Archive" is also the word on the swipe action
+                // and in the context menu, and a query on the label
+                // matches all three.
+                .accessibilityIdentifier("mac.toolbar.archive")
+                .help("Archive (⌘E)")
+                .keyboardShortcut("e", modifiers: .command)
+
+                Button {
+                    pendingDelete = opened
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(opened == nil)
+                .accessibilityIdentifier("mac.toolbar.delete")
+                .help("Delete (⌘⌫)")
+                .keyboardShortcut(.delete, modifiers: .command)
+
+                Button {
+                    if let open = opened { Task { await session.toggleRead(open) } }
+                } label: {
+                    Label("Toggle read", systemImage: "envelope.badge")
+                }
+                .disabled(opened == nil)
+                .accessibilityIdentifier("mac.toolbar.toggleRead")
+                .help("Mark read or unread (⌘⇧U)")
+                .keyboardShortcut("u", modifiers: [.command, .shift])
+            }
         }
         .sheet(isPresented: $composing) { ComposeView().frame(minWidth: 640, minHeight: 520) }
+        .confirmationDialog(
+            "Delete this conversation?",
+            isPresented: .constant(pendingDelete != nil),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let doomed = pendingDelete {
+                    Task { await session.delete(doomed) }
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .macCompose)) { _ in
             composing = true
         }
@@ -97,8 +149,28 @@ struct MacRootView: View {
                 ConversationRow(conversation: conversation, isSelecting: false)
                     .tag(conversation.threadId)
                     .contextMenu { ConversationRowMenu(conversation: conversation) }
+                    // Swipes exist on a trackpad too, and they are how
+                    // the same triage is done on the other platforms.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button {
+                            Task { await session.archive(conversation) }
+                        } label: {
+                            Label("Archive", systemImage: "archivebox")
+                        }
+                        .tint(.green)
+                        Button(role: .destructive) {
+                            pendingDelete = conversation
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
             }
             .accessibilityIdentifier("mac.conversations")
+            // Arrow keys walk the list. On this platform that is not a
+            // nicety — a Mac app whose list cannot be driven from the
+            // keyboard is one that has to be clicked through.
+            .onKeyPress(.upArrow) { step(-1) }
+            .onKeyPress(.downArrow) { step(1) }
         }
     }
 
@@ -120,6 +192,23 @@ struct MacRootView: View {
             set: { id in
                 opened = session.visibleConversations.first { $0.threadId == id }
             })
+    }
+
+    /// Move the selection by one. `.ignored` at the ends, so the key
+    /// falls through rather than being swallowed by a list that cannot
+    /// move — a keyboard that stops responding reads as a hang.
+    private func step(_ by: Int) -> KeyPress.Result {
+        let rows = session.visibleConversations
+        guard !rows.isEmpty else { return .ignored }
+        guard let current = opened.flatMap({ o in rows.firstIndex { $0.threadId == o.threadId } })
+        else {
+            opened = rows.first
+            return .handled
+        }
+        let next = current + by
+        guard rows.indices.contains(next) else { return .ignored }
+        opened = rows[next]
+        return .handled
     }
 
     private func search(_ text: String) {
@@ -145,7 +234,11 @@ struct MacSidebar: View {
         List(selection: selectionBinding) {
             Section("Mailboxes") {
                 ForEach(MailList.allCases) { list in
-                    Label(list.title, systemImage: list.systemImage)
+                    SidebarMailboxRow(
+                        list: list,
+                        unread: list.badgeCount(
+                            activeList: session.activeList,
+                            unreadInActive: session.unreadInList))
                         .tag(list)
                         .accessibilityIdentifier("mac.list.\(list.rawValue)")
                 }
