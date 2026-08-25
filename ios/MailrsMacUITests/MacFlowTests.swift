@@ -167,6 +167,41 @@ final class MacFlowTests: XCTestCase {
             "Archive stayed disabled after a conversation was chosen")
     }
 
+    /// A refused archive says so.
+    ///
+    /// `session.banner` is written on every failure and, until this
+    /// was added, **nothing in this window read it** — the toolbar
+    /// button came back up and the reader was left to decide whether
+    /// the mail had moved.
+    func testARefusedArchiveSaysSo() {
+        let rows = conversationRows()
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 30), "no conversations")
+        // After the app is up: the stub is reset on launch, so a
+        // refusal armed first is wiped by the very next call.
+        refuseVerb("archive")
+        rows.element(boundBy: 0).click()
+        let archive = app.buttons["mac.toolbar.archive"]
+        XCTAssertTrue(
+            waitUntil(timeout: 15) { archive.isEnabled },
+            "Archive stayed disabled after a conversation was chosen")
+        archive.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["error-banner"].waitForExistence(timeout: 10),
+            "the refusal was silent")
+    }
+
+    /// Make the stub refuse one verb, so a failure path can be driven.
+    private func refuseVerb(_ verb: String) {
+        guard let url = URL(string: "http://localhost:6039/debug/refuse-verb/\(verb)")
+        else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let done = expectation(description: "refuse")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 10)
+    }
+
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

@@ -292,6 +292,20 @@ class MailrsUITestCase: XCTestCase {
     }
 
 
+    /// Make the stub refuse one verb, so a failure path can be driven.
+    ///
+    /// Arm it **after** `launch`: launching resets the stub, so a
+    /// refusal set up first is wiped by the very next call.
+    func refuseVerb(_ verb: String) {
+        guard let url = URL(string: "http://localhost:6039/debug/refuse-verb/\(verb)")
+        else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let done = expectation(description: "refuse")
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
+        wait(for: [done], timeout: 10)
+    }
+
     func resetStub() {
         guard let url = URL(string: "http://localhost:6039/debug/reset") else { return }
         var request = URLRequest(url: url)

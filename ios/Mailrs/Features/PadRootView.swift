@@ -89,6 +89,11 @@ struct PadRootView: View {
         // — an undo floating over the message being read would point
         // at the wrong place.
         .overlay(alignment: .bottom) { UndoBar() }
+        // Failures were silent on this screen: `session.banner` is set
+        // and nobody was reading it, so an archive the server refused
+        // looked like an archive that worked.
+        .overlay(alignment: .top) { FailureBanner() }
+        .animation(.easeOut(duration: 0.2), value: session.banner)
         .animation(.easeOut(duration: 0.2), value: session.pendingUndo != nil)
         .onChange(of: session.activeList) { _, _ in dropSelectionIfGone() }
         .onChange(of: session.visibleConversations.count) { _, _ in dropSelectionIfGone() }
