@@ -56,6 +56,26 @@ struct MailrsMacApp: App {
             CommandGroup(after: .newItem) {
                 Button("Fetch Mail") { NotificationCenter.default.post(name: .macRefresh, object: nil) }
                     .keyboardShortcut("r", modifiers: .command)
+                Divider()
+                Button("Mark All as Read") {
+                    NotificationCenter.default.post(name: .macMarkAllRead, object: nil)
+                }
+                Divider()
+                // **Signing out.** The phone offers it in Settings and
+                // the iPad shows the phone's Settings, so both have a
+                // way out. This window's Preferences holds appearance
+                // and language and nothing else, so until now signing
+                // in on a Mac was a door that only opened inwards.
+                //
+                // In File rather than in the app menu, where several
+                // apps put it: under automation the app menu does not
+                // open — four ways of driving it timed out waiting for
+                // the menu, while File beside it opens every time. A
+                // menu item no test can reach is one nobody can prove
+                // is wired, and both homes are conventional.
+                Button("Sign Out") {
+                    NotificationCenter.default.post(name: .macSignOut, object: nil)
+                }
             }
         }
     }
@@ -67,4 +87,6 @@ extension Notification.Name {
     /// and cannot hold a reference to what is on screen.
     static let macCompose = Notification.Name("mailrs.mac.compose")
     static let macRefresh = Notification.Name("mailrs.mac.refresh")
+    static let macMarkAllRead = Notification.Name("mailrs.mac.markAllRead")
+    static let macSignOut = Notification.Name("mailrs.mac.signOut")
 }

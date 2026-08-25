@@ -108,6 +108,11 @@ final class MacFlowTests: XCTestCase {
             app.menuItems["New Message"].waitForExistence(timeout: 10),
             "File has no New Message")
         XCTAssertTrue(app.menuItems["Fetch Mail"].exists, "File has no Fetch Mail")
+        // Emptying the unread count in one go. The phone has had it
+        // from its list menu since the beginning; this window could
+        // only do it one row at a time.
+        XCTAssertTrue(app.menuItems["Mark All as Read"].exists,
+                      "File has no Mark All as Read")
         // Closed again, so the next test does not start with a menu
         // hanging open over the window it is trying to read.
         app.typeKey(.escape, modifierFlags: [])
@@ -251,6 +256,32 @@ final class MacFlowTests: XCTestCase {
         return out
     }
 
+    /// The menu bar offers a way out.
+    ///
+    /// This window's Preferences holds appearance and language, so
+    /// until Sign Out was added, signing in on a Mac was a door that
+    /// only opened inwards — the phone offers it in Settings and the
+    /// iPad shows the phone's Settings, and this window showed
+    /// neither.
+    ///
+    /// Asserted on the window going back to the sign-in form rather
+    /// than on a flag: a command that posts a notification nothing
+    /// listens for is exactly the shape this is guarding against.
+    func testTheMenuBarSignsOut() {
+        XCTAssertTrue(
+            conversationRows().element(boundBy: 0).waitForExistence(timeout: 30),
+            "no conversations")
+        // Index 2 is File, by position rather than by the word: the
+        // menu bar is built in the system's language.
+        let signOut = app.menuItems["Sign Out"]
+        XCTAssertTrue(openMenu(at: 2, revealing: signOut),
+                      "File offered no way to sign out")
+        signOut.click()
+        XCTAssertTrue(
+            waitUntil(timeout: 15) { app.secureTextFields.firstMatch.exists },
+            "signing out left the window on the mail")
+    }
+
     /// Make the stub refuse one verb, so a failure path can be driven.
     private func refuseVerb(_ verb: String) {
         guard let url = URL(string: "http://localhost:6039/debug/refuse-verb/\(verb)")
@@ -260,6 +291,27 @@ final class MacFlowTests: XCTestCase {
         let done = expectation(description: "refuse")
         URLSession.shared.dataTask(with: request) { _, _, _ in done.fulfill() }.resume()
         wait(for: [done], timeout: 10)
+    }
+
+    /// Open a menu-bar menu and wait for one of its items.
+    ///
+    /// Retried, because clicking a menu here intermittently fails with
+    /// "timed out while waiting for menu open notification" — the same
+    /// click that works in the test beside this one. Escaped between
+    /// attempts so a half-open menu does not swallow the next click.
+    ///
+    /// By index rather than by name: the menu bar is built in the
+    /// system's language, and index 2 is File on every macOS.
+    private func openMenu(at index: Int, revealing item: XCUIElement) -> Bool {
+        let menu = app.menuBars.menuBarItems.element(boundBy: index)
+        guard menu.waitForExistence(timeout: 30) else { return false }
+        for _ in 0..<3 {
+            menu.click()
+            if item.waitForExistence(timeout: 5) { return true }
+            app.typeKey(.escape, modifierFlags: [])
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return false
     }
 
     private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
