@@ -139,6 +139,19 @@ struct ConversationRow: View {
         // iPad test swiped the *sidebar* and reported that swiping a
         // conversation offered nothing — true of the row it reached,
         // and not of the row it meant.
+        // Named, so a test can address a conversation row rather than
+        // whatever list happens to be first on screen. Without this an
+        // iPad test swiped the *sidebar* and reported that swiping a
+        // conversation offered nothing — true of the row it reached,
+        // and not of the row it meant.
+        //
+        // **Not `.accessibilityElement(children: .combine)`.** That
+        // would stop the identifier propagating to the avatar and
+        // spare a test one awkward query — and it also takes the
+        // swipe actions out of reach, because the row stops being the
+        // element the gesture lands on. Making the interface less
+        // usable so a test can find things more easily is the wrong
+        // trade; the test asks for a hittable element instead.
         .accessibilityIdentifier("row.conversation.\(conversation.threadId)")
     }
 

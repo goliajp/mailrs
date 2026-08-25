@@ -12,6 +12,22 @@ import XCTest
 /// that only checked "a conversation opened" would pass on the phone
 /// layout stretched.
 final class PadFlowTests: MailrsUITestCase {
+    /// The conversation rows, as things that can be tapped.
+    ///
+    /// The identifier propagates from the row to the text inside it,
+    /// so a bare prefix query matches the row **and** its labels and
+    /// its avatar — the avatar is not hittable, and tapping it fails
+    /// with "Failed to not hittable" rather than anything about
+    /// conversations.
+    ///
+    /// `.other` is what a SwiftUI `List` row is here — measured, not
+    /// assumed: a query that named `.cell` matched nothing at all, and
+    /// reported it as "no conversations".
+    private func conversationRows(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.otherElements.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+    }
+
     /// A sidebar row, by identifier and **not by element type**: a
     /// `List` row is a cell in one place and a button in another, and
     /// a test that names the type reports "there is no Archived
@@ -91,8 +107,7 @@ final class PadFlowTests: MailrsUITestCase {
         // mixed. Addressing the sidebar's first row and swiping it
         // reported that swiping a conversation offers nothing — true
         // of the row it reached, and not of the row it meant.
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+        let rows = conversationRows(app)
         XCTAssertTrue(
             rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
         let before = rows.count
@@ -129,5 +144,43 @@ final class PadFlowTests: MailrsUITestCase {
             Thread.sleep(forTimeInterval: 0.25)
         }
         return condition()
+    }
+
+    /// **Switching mailbox must not leave the last message on screen.**
+    ///
+    /// A defect only this layout can have: open something from Inbox,
+    /// switch to Archived, and the detail column went on showing a
+    /// conversation that is not in the list beside it and cannot be
+    /// reached from it. The phone cannot do this — it pushes, so
+    /// leaving the list means leaving the message.
+    func testSwitchingMailboxClearsWhatWasOpen() {
+        let app = launch(signedIn: true)
+        let rows = conversationRows(app)
+        XCTAssertTrue(
+            rows.element(boundBy: 0).waitForExistence(timeout: 20),
+            "no conversations")
+        rows.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            app.staticTexts["No conversation selected"].waitForNonExistence(timeout: 15),
+            "the conversation never opened")
+
+        app.staticTexts["Archived"].tap()
+        XCTAssertTrue(
+            app.staticTexts["No conversation selected"].waitForExistence(timeout: 15),
+            "the detail column is still showing mail from the mailbox that was left")
+    }
+
+    /// ⌘R and pull-to-refresh both fetch. The phone has had the
+    /// gesture from the beginning; the iPad had neither, so the only
+    /// way to fetch was a button somebody had to find.
+    func testTheListCanBeRefreshed() {
+        let app = launch(signedIn: true)
+        XCTAssertTrue(
+            app.buttons["pad.sync"].waitForExistence(timeout: 20),
+            "there is no way to fetch mail on this screen")
+        app.buttons["pad.sync"].tap()
+        XCTAssertTrue(
+            conversationRows(app).element(boundBy: 0).waitForExistence(timeout: 20),
+            "fetching emptied the list")
     }
 }

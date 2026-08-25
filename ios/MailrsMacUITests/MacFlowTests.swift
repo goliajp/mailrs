@@ -29,6 +29,18 @@ final class MacFlowTests: XCTestCase {
         app.terminate()
     }
 
+    /// The conversation rows, as things that can be clicked.
+    ///
+    /// The identifier propagates to the labels inside the row, so a
+    /// bare prefix query matches those too — and one of them is not
+    /// clickable. `.other` is what a SwiftUI list row is; a query
+    /// naming `.cell` matched nothing and reported it as "no
+    /// conversations".
+    private func conversationRows() -> XCUIElementQuery {
+        app.otherElements.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+    }
+
     /// The three columns, together, in one window — and the detail
     /// **saying** nothing is chosen rather than being blank, because a
     /// blank third of a window reads as something that failed to load.
@@ -52,8 +64,7 @@ final class MacFlowTests: XCTestCase {
         // about layout, and the sidebar is an outline too — the same
         // guess made an iPad test swipe the sidebar and report that
         // conversations offer no actions.
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+        let rows = conversationRows()
         XCTAssertTrue(
             rows.element(boundBy: 0).waitForExistence(timeout: 30),
             "no conversations in the middle column")
@@ -147,8 +158,7 @@ final class MacFlowTests: XCTestCase {
         // guess about layout, and a guess about layout is what made an
         // iPad test swipe the sidebar and report that conversations
         // offer no actions.
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'row.conversation.'"))
+        let rows = conversationRows()
         XCTAssertTrue(
             rows.element(boundBy: 0).waitForExistence(timeout: 20), "no conversations")
         rows.element(boundBy: 0).click()
