@@ -74,6 +74,12 @@ export default defineConfig({
     // the "import" condition.
     server: { deps: { inline: ['zod'] } },
     setupFiles: ['./src/test-setup.ts'],
+    // **One zone for every machine.** Node reads TZ once, at start, so
+    // this belongs here rather than in a setup file. Without it a test
+    // about times passes in Tokyo and fails on CI, which is UTC — one
+    // did, on the first release after it was written, and the run that
+    // caught it was carrying an unrelated fix.
+    env: { TZ: 'Asia/Tokyo' },
   },
   plugins: [react(), tailwindcss()],
   resolve: {
