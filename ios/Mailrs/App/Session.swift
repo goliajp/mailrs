@@ -80,14 +80,7 @@ final class Session {
     var initialLoading = false
 
     /// Last-known rows on disk; every successful fetch overwrites.
-    ///
-    /// The accounts are cleared under the same flag: wiping one and
-    /// keeping the other left a run half-empty, which is how an
-    /// ordering dependency hides.
-    let cache: MailCache = {
-        AccountStore.bootstrapIfAskedToStartEmpty()
-        return MailCache.bootstrap()
-    }()
+    let cache = MailCache.bootstrap()
 
     /// The query the visible rows answer, or nil when they are the list.
     /// A request that failed while signed in.

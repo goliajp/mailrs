@@ -29,7 +29,7 @@ struct MacRootView: View {
         Group {
             switch session.state {
             case .signedIn: mail
-            default: SignInView()
+            default: MacSignInView()
             }
         }
         .environment(\.theme, Theme.of(colorScheme))
