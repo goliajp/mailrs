@@ -14,17 +14,59 @@
 //! encoded runes still sitting in the contact hashes. Rewriting a row
 //! also (re)builds its `search_blob`, so the kevy text index picks it
 //! up for free. Idempotent: decoded input decodes to itself.
+//!
+//! **Bounded, and it pauses.** Run unbounded on 2026-08-26 it walked
+//! thirty thousand threads for half an hour, reading a maildir file and
+//! parsing HTML for each, and took the mail service down while it did:
+//! the embedded store has one lock, and a sweep that reaches for it
+//! without stopping starves every reader behind it. The conversation
+//! list simply span. Stopping it needed a SIGKILL — the graceful path
+//! could not be scheduled — which is how this repo has corrupted an AOF
+//! before.
+//!
+//! So a call now walks at most `limit` threads, sleeps for `pause_ms`
+//! every `PAUSE_EVERY` of them, and answers with where to resume.
+//! Repair is a sequence of short bursts anyone can stop between, not
+//! one long outage.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 
 use crate::FastcoreState;
 
+/// How many threads between pauses. Small enough that a reader waiting
+/// on the store lock is not held for long.
+const PAUSE_EVERY: u64 = 25;
+
+#[derive(serde::Deserialize)]
+pub(crate) struct SweepArgs {
+    /// Threads to step over before working — where the last call said
+    /// to resume.
+    #[serde(default)]
+    skip: u64,
+    /// The most threads this call will walk.
+    #[serde(default = "default_limit")]
+    limit: u64,
+    /// How long to stand aside every `PAUSE_EVERY` threads.
+    #[serde(default = "default_pause_ms")]
+    pause_ms: u64,
+}
+
+fn default_limit() -> u64 {
+    500
+}
+
+fn default_pause_ms() -> u64 {
+    50
+}
+
 pub(crate) async fn backfill_decode_headers_route(
     State(state): State<Arc<FastcoreState>>,
+    Query(args): Query<SweepArgs>,
 ) -> axum::response::Response {
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
@@ -48,14 +90,32 @@ pub(crate) async fn backfill_decode_headers_route(
     // fires", and 31,763 bodies were walked for a zero nobody could
     // read.
     let mut previews_present = 0u64;
-    for user in &users {
+    // Position in the whole walk, counted whether or not the thread was
+    // worked on — it is what `skip` is measured in.
+    let mut seen = 0u64;
+    let mut stopped_early = false;
+    'walk: for user in &users {
         // Declared rows; `user_threads_by_activity` is legacy and unwritten.
         let tids = state
             .mailbox
             .all_thread_ids_for_user(user)
             .unwrap_or_default();
         for tid in &tids {
+            seen += 1;
+            if seen <= args.skip {
+                continue;
+            }
+            if threads_walked >= args.limit {
+                stopped_early = true;
+                break 'walk;
+            }
             threads_walked += 1;
+            if threads_walked.is_multiple_of(PAUSE_EVERY) {
+                // Deliberately standing aside: the point is to let
+                // readers have the store lock, which yielding to the
+                // scheduler alone does not do.
+                tokio::time::sleep(Duration::from_millis(args.pause_ms)).await;
+            }
             let tid = tid.as_str();
             let Ok(Some(mut row)) = state.mailbox.get_thread(tid) else {
                 continue;
@@ -197,7 +257,14 @@ pub(crate) async fn backfill_decode_headers_route(
             }
         }
     }
-    let contacts_repaired = scrub_contact_hashes(&users);
+    // Only on the pass that reaches the end: it walks every contact
+    // hash, and doing that once per batch would be the same starvation
+    // in a smaller shape.
+    let contacts_repaired = if stopped_early {
+        0
+    } else {
+        scrub_contact_hashes(&users)
+    };
     tracing::info!(
         threads_walked,
         previews_present,
@@ -210,6 +277,8 @@ pub(crate) async fn backfill_decode_headers_route(
         "backfill-decode-headers complete"
     );
     Json(serde_json::json!({
+        "done": !stopped_early,
+        "next_skip": args.skip + threads_walked,
         "threads_walked": threads_walked,
         "previews_present": previews_present,
         "rows_decoded": rows_decoded,
