@@ -1,7 +1,6 @@
 export type EmailParts = {
   body: string
   quoted: null | string
-  signature: null | string
 }
 
 type SplitResult = { isHtml: boolean; parts: EmailParts }
@@ -13,7 +12,7 @@ const ATTRIBUTION_RE = /^.{0,200}\bwrote:\s*$/
 const OUTLOOK_SEP_RE = /^-{4,}\s*Original Message\s*-{4,}$/i
 
 // Module-level LRU. `splitHtmlEmail` constructs a fresh DOMParser document
-// and walks it for signature / quoted-block selectors — for newsletter-sized
+// and walks it for quoted-block selectors — for newsletter-sized
 // bodies that's 50-200 ms per call. MessageBubble's useMemo is component-
 // scoped, so unmounting (every thread switch) threw away the memoization.
 // Keying on the raw body identity here makes thread-switch-back free.
@@ -62,7 +61,6 @@ export function splitEmail(textBody: null | string, htmlBody: null | string): Sp
       parts: {
         body: useHtml ? (htmlBody ?? '') : (textBody ?? htmlBody ?? ''),
         quoted: null,
-        signature: null,
       },
     }
   }
@@ -74,19 +72,20 @@ export function splitHtmlEmail(html: string): EmailParts {
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, 'text/html')
 
-  let signature: null | string = null
   let quoted: null | string = null
 
-  // extract signature
-  const sigSelectors = ['.gmail_signature', '#Signature', '#signature']
-  for (const sel of sigSelectors) {
-    const el = doc.body.querySelector(sel)
-    if (el) {
-      signature = el.innerHTML.trim()
-      el.remove()
-      break
-    }
-  }
+  // **The signature stays in the body.** It used to be pulled out into
+  // a field of its own — and nothing anywhere rendered that field, so
+  // pulling it out meant deleting it.
+  //
+  // Which would be a small loss if the marker were reliable, and it is
+  // not: Outlook Web writes `id="Signature"` around whatever sits in
+  // the composing area, so a message sent from it can have its entire
+  // text inside that div. One arrived on 2026-08-26 whose whole body —
+  // "I trust you are doing well! … Best Regards, Maria Carter" — was in
+  // there, and the reader saw the greeting above it and nothing else.
+  // The preview beside it, which flattens the raw html, showed the
+  // sentence the pane was hiding.
 
   // extract quoted text by client-specific selectors
   // Gmail
@@ -172,15 +171,11 @@ export function splitHtmlEmail(html: string): EmailParts {
 
   const body = doc.body.innerHTML.trim()
 
-  return {
-    body,
-    quoted: quoted || null,
-    signature: signature || null,
-  }
+  return { body, quoted: quoted || null }
 }
 
 export function splitTextEmail(text: string): EmailParts {
-  if (!text) return { body: '', quoted: null, signature: null }
+  if (!text) return { body: '', quoted: null }
 
   const lines = text.split('\n')
 
@@ -238,29 +233,12 @@ export function splitTextEmail(text: string): EmailParts {
     remaining = lines.slice(0, quotedStart)
   }
 
-  // find signature in remaining (non-quoted) text
-  let sigStart = -1
-  for (let i = remaining.length - 1; i >= 0; i--) {
-    if (remaining[i] === '-- ' || remaining[i] === '--') {
-      sigStart = i
-      break
-    }
-  }
+  // The `-- ` signature stays in the body too, for the same reason:
+  // nothing rendered it, so cutting it here removed the sender's name
+  // from what the reader could see.
+  const body = remaining.join('\n').trimEnd()
 
-  let signature: null | string = null
-  let bodyLines = remaining
-  if (sigStart !== -1) {
-    const sigContent = remaining
-      .slice(sigStart + 1)
-      .join('\n')
-      .trimEnd()
-    signature = sigContent || null
-    bodyLines = remaining.slice(0, sigStart)
-  }
-
-  const body = bodyLines.join('\n').trimEnd()
-
-  return { body, quoted, signature }
+  return { body, quoted }
 }
 
 function cacheGet(key: string): SplitResult | undefined {
@@ -375,11 +353,11 @@ function isBiggerThanAPixel(declared: null | string): boolean {
  * of English and Chinese in one header block.
  */
 function unsplitIfEmpty(result: SplitResult, original: string): SplitResult {
-  const extracted = result.parts.quoted !== null || result.parts.signature !== null
+  const extracted = result.parts.quoted !== null
   if (!extracted) return result
   if (!isVisuallyEmpty(result.parts.body, result.isHtml)) return result
   return {
     isHtml: result.isHtml,
-    parts: { body: original, quoted: null, signature: null },
+    parts: { body: original, quoted: null },
   }
 }

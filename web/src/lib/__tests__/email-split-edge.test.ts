@@ -6,21 +6,20 @@ describe('splitTextEmail edge cases', () => {
   it('handles only whitespace', () => {
     const result = splitTextEmail('   \n  \n  ')
     expect(result.body).toBe('')
-    expect(result.signature).toBeNull()
     expect(result.quoted).toBeNull()
   })
 
-  it('handles signature with no content after marker', () => {
+  it('keeps a trailing "-- " marker in the body', () => {
     const result = splitTextEmail('Hello\n\n-- ')
-    expect(result.body).toBe('Hello')
-    expect(result.signature).toBeNull()
+    expect(result.body).toBe('Hello\n\n--')
   })
 
-  it('handles multiple signature markers', () => {
+  it('keeps every signature block in the body', () => {
+    // They used to be cut here and rendered nowhere, which meant the
+    // sender's name simply vanished.
     const result = splitTextEmail('Hello\n\n-- \nFirst sig\n\n-- \nSecond sig')
-    // should find the last "-- " first when scanning from bottom
-    expect(result.body).toBe('Hello\n\n-- \nFirst sig')
-    expect(result.signature).toBe('Second sig')
+    expect(result.body).toContain('First sig')
+    expect(result.body).toContain('Second sig')
   })
 
   it('handles text that is only quoted lines', () => {
@@ -62,8 +61,7 @@ describe('splitTextEmail edge cases', () => {
 
   it('handles text with only "-- " marker', () => {
     const result = splitTextEmail('-- ')
-    expect(result.body).toBe('')
-    expect(result.signature).toBeNull()
+    expect(result.body).toBe('--')
   })
 })
 
@@ -71,7 +69,6 @@ describe('splitHtmlEmail edge cases', () => {
   it('handles empty HTML', () => {
     const result = splitHtmlEmail('')
     expect(result.body).toBe('')
-    expect(result.signature).toBeNull()
     expect(result.quoted).toBeNull()
   })
 
@@ -80,11 +77,12 @@ describe('splitHtmlEmail edge cases', () => {
     expect(result.body).toContain('Plain text')
   })
 
-  it('handles multiple gmail_signature elements (takes first)', () => {
+  it('keeps gmail_signature blocks in the body', () => {
     const html =
       '<div><p>Body</p><div class="gmail_signature">Sig1</div><div class="gmail_signature">Sig2</div></div>'
     const result = splitHtmlEmail(html)
-    expect(result.signature).toContain('Sig1')
+    expect(result.body).toContain('Sig1')
+    expect(result.body).toContain('Sig2')
   })
 
   it('handles nested blockquotes in gmail_quote', () => {
@@ -95,11 +93,13 @@ describe('splitHtmlEmail edge cases', () => {
     expect(result.quoted).toContain('Nested')
   })
 
-  it('handles both #Signature and #signature selectors', () => {
+  it('keeps #Signature and #signature blocks in the body', () => {
+    // Outlook Web wraps whatever is in the composing area in
+    // `id="Signature"`, so this is not reliably a signature at all.
     const html1 = '<div><p>Body</p><div id="Signature">Upper</div></div>'
     const html2 = '<div><p>Body</p><div id="signature">Lower</div></div>'
-    expect(splitHtmlEmail(html1).signature).toContain('Upper')
-    expect(splitHtmlEmail(html2).signature).toContain('Lower')
+    expect(splitHtmlEmail(html1).body).toContain('Upper')
+    expect(splitHtmlEmail(html2).body).toContain('Lower')
   })
 
   it('handles malformed HTML without crashing', () => {
@@ -139,7 +139,6 @@ describe('splitEmail edge cases', () => {
     const result = splitEmail(null, null)
     expect(result.isHtml).toBe(false)
     expect(result.parts.body).toBe('')
-    expect(result.parts.signature).toBeNull()
     expect(result.parts.quoted).toBeNull()
   })
 
