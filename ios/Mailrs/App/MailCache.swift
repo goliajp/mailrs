@@ -19,10 +19,16 @@ struct MailCache {
     /// `-mailrsFreshCache` wipes at boot: UI tests assert empty-start
     /// behaviours (spinners, empty states) that yesterday's rows would
     /// satisfy or contradict at random.
+    /// The accounts go with it: wiping one store and keeping the other
+    /// left a run half-empty, and a mailbox connected by one test was
+    /// still connected on the next **run**. One flag, both stores, in
+    /// one place — the alternative was every entry point remembering
+    /// to call the second half.
     static func bootstrap() -> MailCache {
         let cache = MailCache()
         if ProcessInfo.processInfo.arguments.contains("-mailrsFreshCache") {
             try? FileManager.default.removeItem(at: cache.directory)
+            AccountStore.forgetEverything()
         }
         return cache
     }

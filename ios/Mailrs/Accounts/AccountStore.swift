@@ -15,20 +15,11 @@ enum AccountStore {
 
     // MARK: - rows
 
-    /// Forget every account when the run asks to start empty.
-    ///
-    /// `-mailrsFreshCache` wiped the mail cache and left the accounts,
-    /// so a mailbox added by one test was still connected in the next
-    /// **run** — and a test asserting "no mailboxes yet" passed only
-    /// because the alphabet happened to put it before the test that
-    /// adds one. Run on its own, or run twice, it failed and read as a
-    /// screen that had stopped opening.
+    /// Forget every account. Called when a run asks to start empty.
     ///
     /// The rows only; the keychain items are cleaned up by `remove`,
     /// and a boot flag should not reach into the keychain.
-    static func bootstrapIfAskedToStartEmpty() {
-        guard ProcessInfo.processInfo.arguments.contains("-mailrsFreshCache")
-        else { return }
+    static func forgetEverything() {
         UserDefaults.standard.removeObject(forKey: rowsKey)
     }
 
