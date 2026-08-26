@@ -18,6 +18,21 @@ enum CredentialStore {
     private static let service = "jp.golia.mailrs.credential"
     private static let lastAddressKey = "mailrs.lastAddress"
 
+    /// A run that a test is driving, told by the base URL it was
+    /// launched with.
+    ///
+    /// Such a run must not write here. Storing a credential creates an
+    /// item that requires user presence, and creating one puts a system
+    /// authentication panel on screen — on a Mac that is a password
+    /// prompt no test can answer. It sits there until somebody walks
+    /// past, and it blocks the **next** run too: the failure that
+    /// arrives is "timed out while enabling automation mode", with
+    /// nothing in any log, which reads as a broken runner rather than
+    /// as a dialog waiting for a person.
+    private static var isDriven: Bool {
+        ProcessInfo.processInfo.arguments.contains("-mailrsBaseURL")
+    }
+
     /// The address of the last **successful** sign-in.
     ///
     /// Survives sign-out, unlike `TokenStore.loadAddress()`, which is
@@ -50,6 +65,7 @@ enum CredentialStore {
 
     /// Store it, replacing whatever was there for this address.
     static func save(password: String, address: String) {
+        guard !isDriven else { return }
         remove(address: address)
         guard let access = SecAccessControlCreateWithFlags(
             nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, .userPresence, nil)
