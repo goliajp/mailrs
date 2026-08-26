@@ -18,12 +18,18 @@ describe('invite times', () => {
     const resolved = toLocalDate({ Utc: '2026-08-20T23:00:00Z' })
     expect(resolved?.toISOString()).toBe('2026-08-20T23:00:00.000Z')
 
-    // The same event's wall-clock, which is 16:00 in the organiser's
-    // zone and must never be read as 16:00 UTC.
+    // The same event's wall-clock, which carries no offset of its own
+    // and is read as the reader's local time.
+    //
+    // Asserted against a locally-built Date, **not** as "is not 16:00
+    // UTC": on a machine in UTC those two are the same string, so that
+    // assertion passed only because the laptops here are in Tokyo. CI
+    // is UTC and it failed there the first time it ran — 2026-08-26,
+    // six days after this file was written and one web release later.
     const wall = toLocalDate({
       Zoned: { local: '2026-08-20T16:00:00', tz_name: 'Pacific Standard Time' },
     })
-    expect(wall?.toISOString()).not.toBe('2026-08-20T16:00:00.000Z')
+    expect(wall?.getTime()).toBe(new Date(2026, 7, 20, 16, 0, 0).getTime())
   })
 
   // An all-day event has no offset. Giving it one is how it lands on the
