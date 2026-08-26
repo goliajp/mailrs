@@ -3,31 +3,26 @@ import { describe, expect, it } from 'vitest'
 import { splitEmail, splitHtmlEmail, splitTextEmail } from '../email-split'
 
 describe('splitTextEmail', () => {
-  it('returns full text as body when no signature or quote', () => {
+  it('returns full text as body when there is no quote', () => {
     const result = splitTextEmail('Hello world')
-    expect(result).toEqual({
-      body: 'Hello world',
-      quoted: null,
-      signature: null,
-    })
+    expect(result).toEqual({ body: 'Hello world', quoted: null })
   })
 
   it('returns empty body for empty string', () => {
     const result = splitTextEmail('')
-    expect(result).toEqual({ body: '', quoted: null, signature: null })
+    expect(result).toEqual({ body: '', quoted: null })
   })
 
-  it('extracts signature after "-- "', () => {
+  it('keeps a "-- " signature in the body', () => {
     const result = splitTextEmail('Hello\n\n-- \nJohn Doe\njohn@example.com')
-    expect(result.body).toBe('Hello')
-    expect(result.signature).toBe('John Doe\njohn@example.com')
+    expect(result.body).toContain('John Doe')
+    expect(result.body).toContain('john@example.com')
     expect(result.quoted).toBeNull()
   })
 
-  it('extracts signature after bare "--"', () => {
+  it('keeps a bare "--" signature in the body', () => {
     const result = splitTextEmail('Hello\n\n--\nJohn Doe')
-    expect(result.body).toBe('Hello')
-    expect(result.signature).toBe('John Doe')
+    expect(result.body).toContain('John Doe')
     expect(result.quoted).toBeNull()
   })
 
@@ -36,17 +31,16 @@ describe('splitTextEmail', () => {
       'Thanks!\n\nOn Mon, Jan 1, 2024 at 10:00 AM Alice <alice@example.com> wrote:\n> Original message\n> continues here'
     const result = splitTextEmail(text)
     expect(result.body).toBe('Thanks!')
-    expect(result.signature).toBeNull()
     expect(result.quoted).toBe(
       'On Mon, Jan 1, 2024 at 10:00 AM Alice <alice@example.com> wrote:\n> Original message\n> continues here'
     )
   })
 
-  it('extracts both signature and quoted text', () => {
+  it('cuts the quote and keeps the signature above it', () => {
     const text = 'Reply body\n\n-- \nSig line\n\nOn Tue, Feb 2 wrote:\n> quoted line'
     const result = splitTextEmail(text)
-    expect(result.body).toBe('Reply body')
-    expect(result.signature).toBe('Sig line')
+    expect(result.body).toContain('Reply body')
+    expect(result.body).toContain('Sig line')
     expect(result.quoted).toBe('On Tue, Feb 2 wrote:\n> quoted line')
   })
 
@@ -54,7 +48,6 @@ describe('splitTextEmail', () => {
     const text = 'My reply\n\nOn Mon wrote:\n> some text\n> -- \n> Their sig'
     const result = splitTextEmail(text)
     expect(result.body).toBe('My reply')
-    expect(result.signature).toBeNull()
     expect(result.quoted).toBe('On Mon wrote:\n> some text\n> -- \n> Their sig')
   })
 
@@ -63,7 +56,6 @@ describe('splitTextEmail', () => {
       'My reply\n\n-------- Original Message --------\nSubject: Test\nFrom: bob@example.com\n\nOriginal body'
     const result = splitTextEmail(text)
     expect(result.body).toBe('My reply')
-    expect(result.signature).toBeNull()
     expect(result.quoted).toBe(
       '-------- Original Message --------\nSubject: Test\nFrom: bob@example.com\n\nOriginal body'
     )
@@ -96,7 +88,6 @@ describe('splitHtmlEmail', () => {
     const html = '<div><p>Hello world</p></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Hello world')
-    expect(result.signature).toBeNull()
     expect(result.quoted).toBeNull()
   })
 
@@ -104,8 +95,7 @@ describe('splitHtmlEmail', () => {
     const html = '<div><p>Body text</p><div class="gmail_signature">-- <br>John</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Body text')
-    expect(result.body).not.toContain('gmail_signature')
-    expect(result.signature).toContain('John')
+    expect(result.body).toContain('John')
   })
 
   it('extracts Gmail quote (.gmail_quote)', () => {
@@ -117,12 +107,12 @@ describe('splitHtmlEmail', () => {
     expect(result.quoted).toContain('Original')
   })
 
-  it('extracts both Gmail signature and quote', () => {
+  it('cuts the Gmail quote and keeps the signature in the body', () => {
     const html =
       '<div><p>Body</p><div class="gmail_signature">Sig</div><div class="gmail_quote">Quoted</div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Body')
-    expect(result.signature).toContain('Sig')
+    expect(result.body).toContain('Sig')
     expect(result.quoted).toContain('Quoted')
   })
 
@@ -158,11 +148,11 @@ describe('splitHtmlEmail', () => {
     expect(result.quoted).toBeNull()
   })
 
-  it('extracts #Signature', () => {
+  it('keeps #Signature in the body', () => {
     const html = '<div><p>Body</p><div id="Signature"><p>My Sig</p></div></div>'
     const result = splitHtmlEmail(html)
     expect(result.body).toContain('Body')
-    expect(result.signature).toContain('My Sig')
+    expect(result.body).toContain('My Sig')
   })
 
   it('extracts #appendonsend and following siblings', () => {
@@ -194,15 +184,14 @@ describe('splitEmail', () => {
   it('falls back to text when HTML is null', () => {
     const result = splitEmail('Hello\n\n-- \nSig', null)
     expect(result.isHtml).toBe(false)
-    expect(result.parts.body).toBe('Hello')
-    expect(result.parts.signature).toBe('Sig')
+    expect(result.parts.body).toContain('Hello')
+    expect(result.parts.body).toContain('Sig')
   })
 
   it('returns original on null inputs', () => {
     const result = splitEmail(null, null)
     expect(result.isHtml).toBe(false)
     expect(result.parts.body).toBe('')
-    expect(result.parts.signature).toBeNull()
     expect(result.parts.quoted).toBeNull()
   })
 })
