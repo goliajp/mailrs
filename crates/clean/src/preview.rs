@@ -14,6 +14,12 @@
 //!   invisible — worse than an empty one, because nothing looks wrong.
 //! - **Non-breaking spaces**, in 781 of the same 5,600. A collapse that
 //!   only knows about ASCII space leaves a line of them.
+//! - **Rule lines.** Plain-text mail draws them with dashes, and once
+//!   the newlines are collapsed away they arrive in the middle of the
+//!   preview as a long bar: nearly every row on a phone opened
+//!   `Hello HAO, ------------------------------ …`. They separate
+//!   paragraphs that are no longer on separate lines, so on one line
+//!   they say nothing at all.
 
 /// The first `max` characters of `text` as a single line.
 ///
@@ -27,7 +33,39 @@ pub fn preview_line(text: &str, max: usize) -> String {
     // Counted, not re-measured: `out.chars().count()` on every kept
     // character makes the cost of a preview quadratic in its own length.
     let mut kept = 0usize;
+    // A run of the same rule character, still being counted. Dropped
+    // once it reaches `RULE_RUN`, and written out as ordinary text if
+    // it stops short — `--` is how people write a dash.
+    let mut run_char = '\0';
+    let mut run_len = 0usize;
     for ch in text.chars() {
+        if is_rule_char(ch) {
+            if ch == run_char {
+                run_len += 1;
+            } else {
+                flush_run(
+                    &mut out,
+                    &mut kept,
+                    &mut pending_space,
+                    run_char,
+                    run_len,
+                    max,
+                );
+                run_char = ch;
+                run_len = 1;
+            }
+            continue;
+        }
+        flush_run(
+            &mut out,
+            &mut kept,
+            &mut pending_space,
+            run_char,
+            run_len,
+            max,
+        );
+        run_char = '\0';
+        run_len = 0;
         if is_zero_width(ch) {
             // Dropped, not turned into a space: a run of 552 of them is
             // padding between two words that belong next to each other.
@@ -51,7 +89,59 @@ pub fn preview_line(text: &str, max: usize) -> String {
         out.push(ch);
         kept += 1;
     }
+    flush_run(
+        &mut out,
+        &mut kept,
+        &mut pending_space,
+        run_char,
+        run_len,
+        max,
+    );
     out
+}
+
+/// How many of the same rule character make a line rather than a dash.
+const RULE_RUN: usize = 3;
+
+/// Write back a run that turned out to be too short to be a rule.
+///
+/// It takes `pending_space` because the space before it has not been
+/// written yet: the collapse defers one, and a run that jumps the queue
+/// turns `wait -- what?` into `wait-- what?`. Found by the test that
+/// says short runs are text.
+fn flush_run(
+    out: &mut String,
+    kept: &mut usize,
+    pending_space: &mut bool,
+    ch: char,
+    len: usize,
+    max: usize,
+) {
+    if len == 0 || len >= RULE_RUN {
+        return;
+    }
+    if *pending_space {
+        out.push(' ');
+        *kept += 1;
+        *pending_space = false;
+    }
+    for _ in 0..len {
+        if *kept >= max {
+            out.push('…');
+            return;
+        }
+        out.push(ch);
+        *kept += 1;
+    }
+}
+
+/// Characters mail uses to draw a line across the page.
+///
+/// Deliberately short. A hyphen inside a word or a date is a single
+/// character and never reaches `RULE_RUN`; three in a row are a rule
+/// wherever they appear.
+fn is_rule_char(ch: char) -> bool {
+    matches!(ch, '-' | '=' | '_' | '*' | '~' | '—' | '–' | '·' | '•')
 }
 
 /// Characters that occupy no width and carry no meaning in a preview.
@@ -144,6 +234,64 @@ mod tests {
             preview_line(&format!("Sale {family} today"), 120),
             format!("Sale {family} today")
         );
+    }
+
+    /// The bar that opened nearly every row on a phone.
+    ///
+    /// Plain-text mail draws a rule with dashes on its own line. Once
+    /// the newlines around it are collapsed, it lands mid-sentence as a
+    /// long bar that means nothing on one line.
+    #[test]
+    fn a_rule_line_is_not_the_preview() {
+        assert_eq!(
+            preview_line(
+                "Hello HAO,\n------------------------------\nYour receipt",
+                120
+            ),
+            "Hello HAO, Your receipt"
+        );
+        assert_eq!(preview_line("A\n====\nB", 120), "A B");
+        assert_eq!(preview_line("A\n____________\nB", 120), "A B");
+        assert_eq!(preview_line("A\n***\nB", 120), "A B");
+        assert_eq!(preview_line("A\n———\nB", 120), "A B");
+    }
+
+    /// What the backfill leans on.
+    ///
+    /// Rows stored before this knew about rule lines hold the bar as
+    /// literal dashes on one line already. Running the same function
+    /// over that stored string has to clear it — otherwise the sweep
+    /// would have to re-read every message from disk to repair a line.
+    #[test]
+    fn a_second_pass_over_a_stored_preview_clears_the_bar() {
+        let stored = preview_line(
+            "Hello HAO,\n------------------------------\nYour receipt",
+            120,
+        );
+        let stale = "Hello HAO, ------------------------------ Your receipt";
+        assert_eq!(preview_line(stale, 120), stored);
+        // And running it again changes nothing.
+        assert_eq!(preview_line(&stored, 120), stored);
+    }
+
+    /// And what must survive it. Two dashes are how people write a
+    /// dash, a hyphen lives inside words and dates, and a rule that is
+    /// only two characters long is not a rule.
+    #[test]
+    fn short_runs_are_text_and_stay() {
+        assert_eq!(preview_line("wait -- what?", 120), "wait -- what?");
+        assert_eq!(
+            preview_line("e-mail on 2026-08-26", 120),
+            "e-mail on 2026-08-26"
+        );
+        assert_eq!(preview_line("a--b", 120), "a--b");
+        assert_eq!(preview_line("5 * 3 = 15", 120), "5 * 3 = 15");
+    }
+
+    /// A run that reaches the limit does not lose the cut mark.
+    #[test]
+    fn a_short_run_at_the_limit_is_still_marked() {
+        assert_eq!(preview_line("abc--", 4), "abc-…");
     }
 
     #[test]
