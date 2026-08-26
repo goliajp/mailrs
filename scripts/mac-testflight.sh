@@ -27,17 +27,28 @@ ARCHIVE="$OUT/Mailrs.xcarchive"
 say() { printf '==> %s\n' "$*"; }
 die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
-say "[0/4] the certificate this needs"
-security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Distribution: GOLIA K.K." \
-    || echo "!! no 'Apple Distribution' identity yet — Xcode will ask for one during the archive"
+# **No local certificate check.** This used to warn when the keychain
+# held no "Apple Distribution" identity, and that warning was printed on
+# every single run — including the ones that uploaded — because the
+# distribution certificate is **cloud-managed**: Apple keeps it and the
+# private key, Xcode signs through the account session at export time,
+# and nothing lands in this machine's keychain. Measured on the 1.0.0
+# (4) upload: `security find-certificate -c "Apple Distribution"` finds
+# nothing while the export log names the certificate it used.
+#
+# What actually has to be true is the **Xcode account session**, which
+# no local query can see. When it has expired the archive fails with
+# "no signing certificate 'Mac App Distribution' found" — which reads
+# as a missing certificate and is not one. Sign in again at Xcode →
+# Settings → Apple Accounts and re-run.
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-say "[1/4] xcodegen"
+say "[1/5] xcodegen"
 (cd ios && xcodegen generate --spec project.yml >/dev/null)
 
-say "[2/4] archive $VERSION"
+say "[2/5] archive $VERSION"
 # The build number has to rise for every upload of the same version:
 # App Store Connect refuses one it has already seen, and it says so
 # only after the upload has finished.
@@ -48,7 +59,51 @@ say "[2/4] archive $VERSION"
     -allowProvisioningUpdates archive) > "$OUT/archive.log" 2>&1 \
     || { grep -E "error:" "$OUT/archive.log" | sort -u | head; die "archive failed: $OUT/archive.log"; }
 
-say "[3/4] export and upload"
+# **Exported to a file first, and looked at.** The iOS lane has done
+# this from the start; this one went straight to upload, so nothing
+# ever checked what was being sent. A build signed for development
+# uploads and is rejected afterwards, by mail, which is a slow way to
+# find out.
+say "[3/5] export"
+cat > "$OUT/check.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key><string>app-store-connect</string>
+    <key>teamID</key><string>$TEAM</string>
+    <key>destination</key><string>export</string>
+    <key>uploadSymbols</key><true/>
+</dict>
+</plist>
+PLIST
+(cd ios && xcodebuild -exportArchive -archivePath "$ARCHIVE" \
+    -exportPath "$OUT/check" -exportOptionsPlist "$OUT/check.plist" \
+    -allowProvisioningUpdates) > "$OUT/check.log" 2>&1 \
+    || die "export failed: $OUT/check.log"
+
+say "[4/5] check what is about to be sent"
+# The installer certificate, on the package itself.
+pkgutil --check-signature "$OUT/check/MailrsMac.pkg" 2>&1 \
+    | grep -q "3rd Party Mac Developer Installer" \
+    || die "the package is not signed for the App Store"
+# And the app inside it. `2>&1` matters: codesign writes this to
+# **stderr**, and grepping stdout finds nothing and reports a correctly
+# signed build as unsigned — a gate that fails a good release is the
+# kind people delete.
+rm -rf "$OUT/expanded"
+pkgutil --expand-full "$OUT/check/MailrsMac.pkg" "$OUT/expanded" >/dev/null 2>&1 \
+    || die "could not open the package to look inside it"
+INNER=$(find "$OUT/expanded" -maxdepth 5 -name '*.app' -type d | head -1)
+[ -n "$INNER" ] || die "no app inside the package"
+SIGNED=$(codesign -dvv "$INNER" 2>&1 | grep -E "^Authority=" | head -1)
+case "$SIGNED" in
+    *"Apple Distribution"*) : ;;
+    *) die "not signed for distribution — it is: ${SIGNED:-<codesign said nothing>}" ;;
+esac
+say "checked: Apple Distribution, App Store installer signature"
+
+say "[5/5] export and upload"
 cat > "$OUT/export.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -75,5 +130,5 @@ PLIST
     }
 grep -q "Upload succeeded" "$OUT/upload.log" || die "no upload confirmation in $OUT/upload.log"
 
-say "[4/4] uploaded — App Store Connect is processing it"
+say "uploaded — App Store Connect is processing it"
 grep -E "Upload succeeded|Uploaded" "$OUT/upload.log" | tail -2
