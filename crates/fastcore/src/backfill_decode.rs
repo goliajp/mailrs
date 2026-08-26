@@ -63,7 +63,17 @@ pub(crate) async fn backfill_decode_headers_route(
             let mut newest: Option<(i64, String)> = None;
             let senders = mailrs_rfc2047::decode(row.senders_csv.as_bytes()).into_owned();
             let subject = mailrs_rfc2047::decode(row.subject.as_bytes()).into_owned();
-            let preview = mailrs_rfc2047::decode(row.latest_preview.as_bytes()).into_owned();
+            // Re-run through `preview_line`, not only decoded: rows
+            // written before it learned about rule lines carry the bar
+            // a plain-text mail draws across the page —
+            // `Hello HAO, ------------------------------ …` opened
+            // nearly every row on a phone. Re-running over the stored
+            // string is enough, because the dashes are still in it as
+            // dashes; the line only gets shorter, never wrong.
+            let preview = mailrs_clean::preview_line(
+                &mailrs_rfc2047::decode(row.latest_preview.as_bytes()),
+                120,
+            );
             // Rows written before the text index existed carry no
             // `search_blob`, so they are invisible to search until
             // something rewrites them. upsert_thread synthesises the
