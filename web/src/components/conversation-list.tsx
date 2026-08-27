@@ -46,8 +46,10 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   // out where both can call it.
   const filters = useCurrentMailFilters()
   const {
+    error,
     hasMore,
     initialLoading,
+    isError,
     loadingMore,
     loadMore,
     refresh,
@@ -63,6 +65,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   const [batchMode, setBatchMode] = useAtom(batchModeAtom)
   const [selectedThreadIds, setSelectedThreadIds] = useAtom(selectedThreadIdsAtom)
   const [batchLoading, setBatchLoading] = useState(false)
+  const [pendingBatchDelete, setPendingBatchDelete] = useState<null | string[]>(null)
 
   // refs to avoid stale closures in observer callback
   const onLoadMoreRef = useRef(loadMore)
@@ -191,11 +194,10 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
   )
 
   // execute batch action against API then refresh
-  const handleBatchAction = useCallback(
-    async (action: BatchAction) => {
-      const ids = Array.from(selectedThreadIds)
-      if (ids.length === 0) return
-
+  // The wire call, separated from the decision to make it: the delete
+  // path has to run this *after* an answer, and it was one closure.
+  const runBatch = useCallback(
+    async (action: BatchAction, ids: string[]) => {
       setBatchLoading(true)
       try {
         const result = await wireBatchMutation(action, ids)
@@ -219,7 +221,24 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         setBatchLoading(false)
       }
     },
-    [selectedThreadIds, exitBatchMode]
+    [exitBatchMode]
+  )
+
+  const handleBatchAction = useCallback(
+    async (action: BatchAction) => {
+      const ids = Array.from(selectedThreadIds)
+      if (ids.length === 0) return
+      // Held for an answer, like the single-thread verb beside it. It
+      // went straight to the wire, so forty threads were unlinked from
+      // disk on one click while deleting one of them from its own row
+      // asked first.
+      if (action === 'delete') {
+        setPendingBatchDelete(ids)
+        return
+      }
+      await runBatch(action, ids)
+    },
+    [selectedThreadIds, runBatch]
   )
 
   const actions = useConversationActions()
@@ -350,14 +369,27 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
         open={actions.pendingDelete !== null}
       />
 
+      <DeleteThreadConfirm
+        count={pendingBatchDelete?.length ?? 0}
+        onCancel={() => setPendingBatchDelete(null)}
+        onConfirm={() => {
+          const ids = pendingBatchDelete
+          setPendingBatchDelete(null)
+          if (ids) void runBatch('delete', ids)
+        }}
+        open={pendingBatchDelete !== null}
+      />
+
       <VirtualConversationList
         batchMode={batchMode}
         conversations={sortedConversations}
         dateLabel={dateGroupLabel}
+        error={error}
         folder={folder}
         hasBatchBar={hasBatchBar}
         hasMore={hasMore}
         initialLoading={initialLoading}
+        isError={isError}
         isSearching={isSearching}
         loadingMore={loadingMore}
         myEmail={myEmail}

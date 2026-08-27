@@ -48,8 +48,10 @@ const NO_ROWS: readonly SelectableRow[] = []
 
 /** The conversation rows the list draws, in the order it draws them. */
 export function useConversationRows(): {
+  error: unknown
   hasMore: boolean
   initialLoading: boolean
+  isError: boolean
   loadingMore: boolean
   loadMore: () => Promise<void>
   refresh: () => Promise<void>
@@ -60,7 +62,7 @@ export function useConversationRows(): {
   const importanceSection = useAtomValue(importanceSectionAtom)
   const sortOrder = useAtomValue(sortOrderAtom)
   const stickyUnread = useAtomValue(stickyUnreadIdsAtom)
-  const { conversations, hasMore, initialLoading, loadingMore, loadMore, refresh } =
+  const { conversations, error, hasMore, initialLoading, isError, loadingMore, loadMore, refresh } =
     useFlatConversations(filters)
 
   const rows = useMemo(
@@ -73,7 +75,7 @@ export function useConversationRows(): {
       }),
     [conversations, importanceSection, quickFilter, sortOrder, stickyUnread]
   )
-  return { hasMore, initialLoading, loadingMore, loadMore, refresh, rows }
+  return { error, hasMore, initialLoading, isError, loadingMore, loadMore, refresh, rows }
 }
 
 /**
