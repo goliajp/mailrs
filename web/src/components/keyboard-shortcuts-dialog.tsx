@@ -1,52 +1,7 @@
 import { X } from 'lucide-react'
 
 import { MobileModal } from '@/components/mobile-modal'
-
-type ShortcutEntry = {
-  description: string
-  keys: string[]
-}
-
-type ShortcutGroup = {
-  shortcuts: ShortcutEntry[]
-  title: string
-}
-
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    shortcuts: [
-      { description: 'Next conversation', keys: ['j', '↓'] },
-      { description: 'Previous conversation', keys: ['k', '↑'] },
-      { description: 'Open conversation', keys: ['Enter'] },
-      { description: 'Back to list', keys: ['Esc'] },
-    ],
-    title: 'Navigation',
-  },
-  {
-    shortcuts: [
-      { description: 'New conversation', keys: ['n'] },
-      { description: 'Reply', keys: ['r'] },
-      { description: 'Archive / Unarchive', keys: ['e'] },
-      { description: 'Star / Unstar', keys: ['s'] },
-      { description: 'Pin / Unpin', keys: ['p'] },
-      { description: 'Mark unread', keys: ['u'] },
-      { description: 'Mark read + next', keys: ['Shift+I'] },
-      { description: 'Forward', keys: ['f'] },
-      { description: 'Delete', keys: ['#'] },
-      { description: 'Focus search', keys: ['/'] },
-      { description: 'Show shortcuts', keys: ['?'] },
-    ],
-    title: 'Actions',
-  },
-  {
-    shortcuts: [
-      { description: 'Go to Inbox', keys: ['g', 'i'] },
-      { description: 'Go to Sent', keys: ['g', 's'] },
-      { description: 'Go to Action', keys: ['g', 'a'] },
-    ],
-    title: 'Go to',
-  },
-]
+import { SHORTCUT_GROUPS } from '@/lib/shortcuts'
 
 type Props = {
   onClose: () => void

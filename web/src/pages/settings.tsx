@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId } from 'react'
+import { lazy, Suspense, useId, useRef } from 'react'
 import { useSearchParams } from 'react-router'
 
 const AccountSection = lazy(() =>
@@ -75,6 +75,7 @@ const TABLE_PARAMS = ['dir', 'page', 'q', 'size', 'sort']
 
 export function Settings() {
   const tabIds = useId()
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
   const active = parseTab(searchParams.get('tab'))
 
@@ -100,28 +101,34 @@ export function Settings() {
           aria-label="Settings sections"
           aria-orientation="vertical"
           className="border-border flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:border-r sm:border-b-0 sm:p-3"
+          onKeyDown={(e) => {
+            const from = CATEGORIES.findIndex((c) => c.key === active)
+            const to = nextTabIndex(e.key, from, CATEGORIES.length)
+            if (to === null) return
+            e.preventDefault()
+            setActive(CATEGORIES[to].key)
+            tabRefs.current[to]?.focus()
+          }}
           role="tablist"
         >
-          {CATEGORIES.map((cat) => {
-            const isActive = active === cat.key
-            return (
-              <button
-                aria-controls={`${tabIds}-panel`}
-                aria-selected={isActive}
-                className={`rounded-md px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors ${
-                  isActive ? 'bg-accent text-accent-fg' : 'text-fg-secondary hover:bg-bg-secondary'
-                }`}
-                id={`${tabIds}-tab-${cat.key}`}
-                key={cat.key}
-                onClick={() => setActive(cat.key)}
-                role="tab"
-                tabIndex={isActive ? 0 : -1}
-                type="button"
-              >
-                {cat.label}
-              </button>
-            )
-          })}
+          {CATEGORIES.map((cat, i) => (
+            <button
+              aria-controls={`${tabIds}-panel`}
+              aria-selected={active === cat.key}
+              className={tabClass(active === cat.key)}
+              id={`${tabIds}-tab-${cat.key}`}
+              key={cat.key}
+              onClick={() => setActive(cat.key)}
+              ref={(el) => {
+                tabRefs.current[i] = el
+              }}
+              role="tab"
+              tabIndex={active === cat.key ? 0 : -1}
+              type="button"
+            >
+              {cat.label}
+            </button>
+          ))}
         </nav>
 
         {/* content panel */}
@@ -150,6 +157,30 @@ export function Settings() {
   )
 }
 
+/// Where an arrow key lands, or nothing when the key was not one.
+///
+/// The section list is a roving-tabindex tablist: eight of the nine
+/// tabs carry `tabIndex={-1}`, which is correct **only** if arrow keys
+/// move the roving point. There were none, so a keyboard user reached
+/// the one active tab and could not get to the other eight — nine
+/// settings screens behind a wall.
+function nextTabIndex(key: string, from: number, count: number): null | number {
+  switch (key) {
+    case 'ArrowDown':
+    case 'ArrowRight':
+      return (from + 1) % count
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      return (from - 1 + count) % count
+    case 'End':
+      return count - 1
+    case 'Home':
+      return 0
+    default:
+      return null
+  }
+}
+
 function panelWidthClass(active: Category): string {
   if (WIDE_CATEGORIES.has(active)) return 'w-full'
   return 'mx-auto max-w-2xl'
@@ -167,4 +198,12 @@ function SectionFallback() {
       Loading...
     </div>
   )
+}
+
+/// A section tab, selected or not.
+function tabClass(isActive: boolean): string {
+  const base =
+    'focus-visible:ring-accent/50 rounded-md px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none'
+  if (isActive) return `${base} bg-accent text-accent-fg`
+  return `${base} text-fg-secondary hover:bg-bg-secondary`
 }

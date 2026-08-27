@@ -1,3 +1,5 @@
+import type { MailListId } from '@/lib/mail-lists'
+
 import { toast } from '@goliapkg/gds'
 import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
@@ -30,6 +32,28 @@ import {
   wireUnstarThread,
 } from '@/wire/endpoints/mutations'
 
+/// The list a `g` chord goes to, or nothing when the second key is not
+/// part of one.
+///
+/// Exported so the shortcuts sheet reads the same table the handler
+/// does: it advertised `g a`, which was never implemented, and `g s`,
+/// which the switch below it shadowed. A help panel that lies is worse
+/// than none.
+export function chordList(key: string): MailListId | null {
+  switch (key) {
+    case 'a':
+      return 'archived'
+    case 'd':
+      return 'draft'
+    case 'i':
+      return 'inbox'
+    case 's':
+      return 'send'
+    default:
+      return null
+  }
+}
+
 export function useKeyboardNav() {
   // v2.1 phase-5c: conversations read via the RQ-native
   // `useFlatConversations` hook. Optimistic patches (delete / archive /
@@ -59,6 +83,24 @@ export function useKeyboardNav() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return
+
+      // **The chord is resolved before the switch, not inside it.** It
+      // was a `default:` arm, and `switch` matches `case 's'` first —
+      // so `g s` starred the open thread instead of going to Sent, and
+      // left the chord armed because that arm never cleared it. `g a`
+      // was advertised in the shortcuts sheet and never existed at
+      // all.
+      if (gPending) {
+        gPending = false
+        const list = chordList(e.key)
+        if (list) {
+          e.preventDefault()
+          setSection(null)
+          setCategory(null)
+          selectList(list)
+          return
+        }
+      }
 
       switch (e.key) {
         case '#': {
@@ -171,7 +213,7 @@ export function useKeyboardNav() {
         }
 
         case 'g': {
-          // start chord: g+i = inbox, g+s = sent, g+a = action
+          // start chord; the second key is read by `chordList`
           if (gPending) break
           e.preventDefault()
           gPending = true
@@ -192,16 +234,6 @@ export function useKeyboardNav() {
           const readIdx = rows.findIndex((r) => r.threadId === selectedThreadId)
           const nextThread = rows[readIdx + 1]?.threadId ?? rows[readIdx - 1]?.threadId ?? null
           if (nextThread) setSelectedThreadId(nextThread)
-          break
-        }
-
-        case 'i': {
-          if (!gPending) break
-          e.preventDefault()
-          gPending = false
-          setSection(null)
-          setCategory(null)
-          selectList('inbox')
           break
         }
 
@@ -283,15 +315,6 @@ export function useKeyboardNav() {
         }
 
         default:
-          if (gPending && e.key === 's') {
-            e.preventDefault()
-            gPending = false
-            setSection(null)
-            setCategory(null)
-            selectList('send')
-          } else {
-            gPending = false
-          }
           break
       }
     }
