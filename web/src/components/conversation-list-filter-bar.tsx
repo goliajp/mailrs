@@ -141,7 +141,7 @@ export const FilterBar = memo(function FilterBar() {
           onClick={() => setFiltersOpen((prev) => !prev)}
           title="Filters"
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <SlidersHorizontal className="h-4 w-4" />
           {hasAdvancedFilters && (
             <span className="bg-accent absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}

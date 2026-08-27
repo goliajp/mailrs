@@ -1,7 +1,7 @@
 import type { AttachmentInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, Download, Eye, Search, Users } from 'lucide-react'
+import { ChevronLeft, Download, Search, Users } from 'lucide-react'
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -133,12 +133,10 @@ export function AdminMailAudit() {
   // no account selected: show account list
   if (!selectedAccount) {
     return (
-      <AdminPageShell title="Mail Audit">
-        <p className="text-fg-secondary -mt-4 mb-4 flex items-center gap-1.5 text-sm">
-          <Eye className="text-fg-muted h-4 w-4" />
-          Select an account to review their email conversations
-        </p>
-
+      <AdminPageShell
+        subtitle="Select an account to review their email conversations"
+        title="Mail Audit"
+      >
         <div className="mb-4 flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="text-fg-muted absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />

@@ -316,7 +316,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
             }}
             title="Batch select"
           >
-            <CheckCircle aria-hidden="true" className="h-5 w-5" />
+            <CheckCircle aria-hidden="true" className="h-4 w-4" />
           </button>
         )}
 
@@ -344,7 +344,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
             }}
             title="Mark all as read"
           >
-            <MailCheck aria-hidden="true" className="h-5 w-5" />
+            <MailCheck aria-hidden="true" className="h-4 w-4" />
           </button>
         )}
 
@@ -357,7 +357,7 @@ export function ConversationList({ onSelectConversation }: { onSelectConversatio
           }}
           title="New conversation"
         >
-          <SquarePen aria-hidden="true" className="h-5 w-5" />
+          <SquarePen aria-hidden="true" className="h-4 w-4" />
         </button>
       </ListSearchInput>
 
