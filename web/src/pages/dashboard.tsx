@@ -350,11 +350,12 @@ export function Dashboard() {
 
       {/* keyboard shortcuts hint */}
       <div className="text-fg-muted mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs">
+        {/* Only what is bound on **this** screen. `useKeyboardNav` is
+            mounted by the mail page, not here, so Compose, Search,
+            Navigate and `?` did nothing on the first screen after
+            login — four dead keys teaching people the app has no
+            keyboard story. The palette is global (`app.tsx`). */}
         <Shortcut keys="⌘K" label="Command palette" />
-        <Shortcut keys="C" label="Compose" />
-        <Shortcut keys="/" label="Search" />
-        <Shortcut keys="J/K" label="Navigate" />
-        <Shortcut keys="?" label="All shortcuts" />
       </div>
     </ScrollArea>
   )
