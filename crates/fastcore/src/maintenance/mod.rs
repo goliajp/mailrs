@@ -13,6 +13,8 @@ mod backfill_admin;
 mod backfill_messages;
 mod backfill_threading;
 mod census;
+mod fraud_rescan;
+pub(crate) use fraud_rescan::fraud_rescan_route;
 mod cleanup;
 mod idx_advice;
 pub(crate) use idx_advice::idx_advice_route;
