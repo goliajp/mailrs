@@ -145,16 +145,21 @@ export function ThreadContentPane({
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink items-center gap-0.5 lg:gap-1">
+            {/* Hidden below `lg`, where the pane can be 280px and
+                seven buttons leave the subject about sixty. `j`/`k`
+                and the list itself already do this. */}
             <HdrBtn
-              className={hasPrev ? '' : 'pointer-events-none opacity-30'}
+              className="hidden lg:inline-flex"
+              disabled={!hasPrev}
               onClick={goToPrev}
               title="Previous conversation"
             >
               <ChevronUp className="h-4 w-4" />
             </HdrBtn>
             <HdrBtn
-              className={hasNext ? '' : 'pointer-events-none opacity-30'}
+              className="hidden lg:inline-flex"
+              disabled={!hasNext}
               onClick={goToNext}
               title="Next conversation"
             >

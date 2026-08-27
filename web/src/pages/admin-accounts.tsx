@@ -222,7 +222,7 @@ export function AdminAccounts() {
       ) : (
         <>
           <ScrollableTable>
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full text-left text-sm">
               <thead className="border-border bg-bg-secondary border-b">
                 <tr>
                   {HEADERS.slice(0, -1).map((h) => (
