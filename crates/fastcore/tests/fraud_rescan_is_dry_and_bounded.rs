@@ -98,3 +98,33 @@ async fn a_call_stops_at_its_limit_and_says_where_to_resume() {
     assert_eq!(last["threads_walked"], 1, "there are seven threads");
     assert_eq!(last["done"], true);
 }
+
+/// Adding a destructive action must not have made the safe one stop
+/// being the default.
+///
+/// `action=delete` unlinks maildir files and there is nothing to
+/// restore from — the same warning the UI puts in front of a person
+/// before one thread. A default that reached it would destroy mail on
+/// a URL somebody typed to look.
+#[tokio::test]
+async fn deleting_is_never_what_a_bare_call_does() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    unsafe { std::env::set_var("MAILRS_MAILDIR", tmp.path()) };
+    let state = Arc::new(mailrs_fastcore::FastcoreState::new(store()));
+
+    let bare = rescan(&state, "pause_ms=0").await;
+    assert_eq!(bare["dry_run"], true);
+    assert_eq!(bare["deleted"], 0, "a bare call deleted something");
+
+    // Even asked to act, the action is Junk unless `delete` is named.
+    let acting = rescan(&state, "dry_run=false&pause_ms=0").await;
+    assert_eq!(
+        acting["deleted"], 0,
+        "acting without naming an action deleted"
+    );
+
+    // And a dry run that names `delete` still deletes nothing.
+    let dry_delete = rescan(&state, "action=delete&pause_ms=0").await;
+    assert_eq!(dry_delete["dry_run"], true);
+    assert_eq!(dry_delete["deleted"], 0, "a dry run deleted");
+}
