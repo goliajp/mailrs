@@ -258,6 +258,8 @@ pub async fn run() {
         metrics: Arc::new(ReceiverMetrics) as Arc<dyn ConnectionMetrics>,
         rate_limiter,
         local_domains: cfg.local_domains.clone(),
+        org_names: cfg.org_names.clone(),
+        org_name_allowed_domains: cfg.org_name_allowed_domains.clone(),
         outbound_enqueue: None,
         resolver,
         dnsbl_zones: cfg.dnsbl_zones.clone(),

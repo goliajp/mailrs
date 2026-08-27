@@ -24,6 +24,21 @@ pub struct ReceiverConfig {
     pub submission_port: u16,
     pub smtps_port: u16,
     pub local_domains: Vec<String>,
+    /// What this organisation calls itself, as a reader would see it in
+    /// a From display name — `MAILRS_ORG_NAMES`, comma separated.
+    ///
+    /// Empty by default, which turns the check off: a deployment that
+    /// has not said what it is called cannot have its name claimed.
+    /// Use the **full** registered name. Measured on this server's own
+    /// corpus, `golia` as a substring matched 534 messages of which 490
+    /// were GitHub notifications carrying the `goliajp/…` repository
+    /// name; `GOLIA株式会社` matched 12, nine of them scams.
+    pub org_names: Vec<String>,
+    /// Domains allowed to carry the organisation's name in a display
+    /// name — `MAILRS_ORG_NAME_ALLOWED_DOMAINS`. Slack, GitHub and the
+    /// like, whose notifications say your company's name because you
+    /// told them to.
+    pub org_name_allowed_domains: Vec<String>,
     pub dnsbl_zones: Vec<String>,
     pub dnsbl_enabled: bool,
     pub antispam_enabled: bool,
@@ -101,6 +116,10 @@ impl ReceiverConfig {
             submission_port: env_parsed("MAILRS_SUBMISSION_PORT", 2587),
             smtps_port: env_parsed("MAILRS_SMTPS_PORT", 2465),
             local_domains: env_csv("MAILRS_LOCAL_DOMAINS", true),
+            // Not lowercased: a display name is compared case-folded
+            // anyway, and the value is read by a person in a log line.
+            org_names: env_csv("MAILRS_ORG_NAMES", false),
+            org_name_allowed_domains: env_csv("MAILRS_ORG_NAME_ALLOWED_DOMAINS", true),
             dnsbl_zones: env_csv("MAILRS_DNSBL_ZONES", false),
             dnsbl_enabled: env_bool_truthy("MAILRS_DNSBL_ENABLED", false),
             antispam_enabled: env_bool_truthy("MAILRS_ANTISPAM_ENABLED", true),

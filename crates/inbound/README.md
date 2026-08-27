@@ -180,6 +180,9 @@ let input = PipelineInput {
     ptr_score: 0.0,
     ai_score: 0.5,
     deception: Default::default(),
+    // The From display name claims your own organisation's name from
+    // an address outside it — see `impersonation::claims_our_name`.
+    claims_our_name: false,
     spam_threshold: 5.0,
     hostname: "mx.example.com".into(),
     from_addr: String::new(),

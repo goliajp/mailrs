@@ -29,6 +29,24 @@ const HEAD_LIMIT: usize = 16 * 1024;
 /// inside base64, and a check on the undecoded text sees only ASCII.
 /// All five production examples arrived that way.
 pub fn deception_in_identity(raw: &[u8]) -> Deception {
+    let (from, subject) = decoded_identity(raw);
+    mailrs_textguard::deception_in_any([from.as_str(), subject.as_str()])
+}
+
+/// The decoded `From:` value — display name and address together.
+///
+/// Separate from the deception check because two questions are asked of
+/// the same two lines, and both need the **decoded** text: a name
+/// arrives base64'd inside `=?UTF-8?B?…?=` in every real sample, and a
+/// check on the raw header sees only ASCII.
+pub fn from_header(raw: &[u8]) -> String {
+    decoded_identity(raw).0
+}
+
+/// `From:` and `Subject:`, decoded. One parser, because a second copy
+/// is how the badge on new mail comes to disagree with the badge on
+/// old mail — the failure this module already exists to prevent.
+fn decoded_identity(raw: &[u8]) -> (String, String) {
     let head = &raw[..raw.len().min(HEAD_LIMIT)];
     let text = String::from_utf8_lossy(head);
     let mut from = String::new();
@@ -67,7 +85,7 @@ pub fn deception_in_identity(raw: &[u8]) -> Deception {
         *target = mailrs_rfc2047::decode(pending.as_bytes()).into_owned();
     }
 
-    mailrs_textguard::deception_in_any([from.as_str(), subject.as_str()])
+    (from, subject)
 }
 
 #[cfg(test)]

@@ -77,6 +77,16 @@ pub(super) async fn run_antispam(
     // sender. Mail our own users *send* never reaches here: this whole
     // function runs only for unauthenticated sessions.
     receive_ctx.local_domains = ctx.local_domains.iter().map(|d| d.to_lowercase()).collect();
+    // Somebody claiming to be this organisation from an address that is
+    // not it. Read from the decoded `From:` — the names arrive base64'd
+    // inside `=?UTF-8?B?…?=` in every sample, and a check on the raw
+    // header sees only ASCII.
+    receive_ctx.claims_our_name = mailrs_inbound::impersonation::claims_our_name(
+        &mailrs_inbound::identity::from_header(&receive_ctx.message),
+        &ctx.org_names,
+        &ctx.local_domains,
+        &ctx.org_name_allowed_domains,
+    );
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;

@@ -44,6 +44,25 @@ pub const SUSPICIOUS_SENDER_SCORE: f64 = 3.0;
 /// setup, and spam-like content all at once.
 pub const UNJUSTIFIED_ZERO_WIDTH_SCORE: f64 = 2.5;
 
+/// Score contributed when the From display name claims to be the
+/// receiving organisation itself while the address is somewhere else
+/// (`mailrs_inbound::impersonation`).
+///
+/// **High, because authentication has nothing to say here.** All 25 of
+/// these in a 35,799-message corpus passed SPF and 18 passed DKIM and
+/// DMARC as well — the sender owns the throwaway domain and configures
+/// it correctly. Reputation is no better: the domains rotate every few
+/// messages. The claim in the display name is the only part that
+/// cannot change, because without it the mail does not work.
+///
+/// Still a score and not a verdict. At 4.5 against the default 5.0 it
+/// junks beside any content signal at all (0.5), and beside a
+/// suspicious sender or zero-width padding on its own — but a lone
+/// false positive from a service that carries your name legitimately
+/// still reaches the inbox, where the reader can see it. The
+/// allow-list is the real defence there; this is the second one.
+pub const CLAIMS_OUR_NAME_SCORE: f64 = 4.5;
+
 /// Final decision the receive pipeline emits for one message.
 ///
 /// Maps directly to SMTP responses: `Accept` → 250, `Junk` → 250 + deliver to
@@ -110,6 +129,10 @@ pub struct PipelineInput {
     /// Defaults to "nothing found", which for a caller that never looked
     /// means the signal is simply absent rather than negative.
     pub deception: mailrs_textguard::Deception,
+    /// The From display name claims the receiving organisation's own
+    /// name while the address is elsewhere — see
+    /// `mailrs_inbound::impersonation::claims_our_name`.
+    pub claims_our_name: bool,
     /// Combined-score threshold above which the message goes to Junk.
     pub spam_threshold: f64,
     /// Server's hostname — needed to build the Authentication-Results header.
@@ -289,8 +312,19 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         0.0
     };
 
-    let total_score =
-        input.content_score + input.ptr_score + input.ai_score + suspicious_score + padding_score;
+    // Claiming to be us from an address that is not us.
+    let impersonation_score = if input.claims_our_name {
+        CLAIMS_OUR_NAME_SCORE
+    } else {
+        0.0
+    };
+
+    let total_score = input.content_score
+        + input.ptr_score
+        + input.ai_score
+        + suspicious_score
+        + padding_score
+        + impersonation_score;
     if total_score >= input.spam_threshold {
         return DeliveryDecision::Junk {
             auth_header,
@@ -324,6 +358,13 @@ fn build_junk_reason(input: &PipelineInput, total_score: f64, suspicious_score: 
     // mail's reason string stays as before.
     if suspicious_score > 0.0 {
         let _ = write!(out, ", sender=suspicious(+{suspicious_score:.1})");
+    }
+    // Named in the reason, because "why is this in Junk" has a very
+    // different answer here than a content score does — and because a
+    // false positive has to be findable in the log by the person who
+    // needs to add a domain to the allow-list.
+    if input.claims_our_name {
+        let _ = write!(out, ", from=claims-our-name(+{CLAIMS_OUR_NAME_SCORE:.1})");
     }
     out.push_str(", ");
     // Inline the rule-name join — avoid `matched_rules.join(", ")` which
@@ -388,6 +429,7 @@ mod tests {
             ptr_score: 0.0,
             ai_score: 0.0,
             deception: mailrs_textguard::Deception::default(),
+            claims_our_name: false,
             spam_threshold: 5.0,
             hostname: "mx.example.com".into(),
             from_addr: String::new(),
@@ -395,6 +437,69 @@ mod tests {
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
         }
+    }
+
+    // ── claiming to be the receiving organisation ────────────────
+    //
+    // Twenty-five of these in a 35,799-message corpus, every one of
+    // them passing SPF and most passing DKIM and DMARC as well. The
+    // score is what carries them, because authentication does not.
+
+    /// On its own it reaches the inbox. A service that legitimately
+    /// carries the company's name and is not yet on the allow-list has
+    /// to be visible to the person who would add it.
+    #[test]
+    fn claiming_our_name_alone_does_not_junk() {
+        let mut input = baseline_input();
+        input.claims_our_name = true;
+        assert!(
+            matches!(
+                make_delivery_decision(&input),
+                DeliveryDecision::Accept { .. }
+            ),
+            "4.5 alone crossed a 5.0 threshold"
+        );
+    }
+
+    /// With anything else at all, it does. The real ones carry content
+    /// signals; this is the combination that catches them.
+    #[test]
+    fn claiming_our_name_junks_beside_any_other_signal() {
+        let mut input = baseline_input();
+        input.claims_our_name = true;
+        input.content_score = 0.5;
+        let d = make_delivery_decision(&input);
+        let DeliveryDecision::Junk { reason, .. } = d else {
+            panic!("4.5 + 0.5 did not reach 5.0");
+        };
+        assert!(
+            reason.contains("claims-our-name"),
+            "the reason does not say why: {reason}"
+        );
+    }
+
+    /// And beside a suspicious sender, which is the other half of the
+    /// same family.
+    #[test]
+    fn claiming_our_name_junks_beside_a_suspicious_sender() {
+        let mut input = baseline_input();
+        input.claims_our_name = true;
+        input.deception = mailrs_textguard::Deception {
+            unjustified_zero_width: true,
+            ..Default::default()
+        };
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Junk { .. }
+        ));
+    }
+
+    /// Off by default: a deployment that has not said what it is called
+    /// scores exactly as it did before this existed.
+    #[test]
+    fn the_signal_is_off_unless_it_is_set() {
+        let d = make_delivery_decision(&baseline_input());
+        assert!(matches!(d, DeliveryDecision::Accept { .. }));
     }
 
     #[test]
