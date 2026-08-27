@@ -90,6 +90,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:recompute-sender-trust",
             post(crate::maintenance::recompute_sender_trust_route),
         )
+        .route(
+            "/v1/admin/maintenance:fraud-rescan",
+            post(crate::maintenance::fraud_rescan_route),
+        )
         // Reads the calendar part out of mail that arrived before
         // anybody looked at one — which is all of it, since production
         // ingested invitations for a year and stored nothing about
