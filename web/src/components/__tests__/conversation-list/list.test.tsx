@@ -14,13 +14,17 @@ import { authAtom } from '@/store/auth'
 // no jotai plumbing. Set fields before calling `render(...)`.
 const flatStub: {
   conversations: ConversationSummary[]
+  error: unknown
   hasMore: boolean
   initialLoading: boolean
+  isError: boolean
   loadingMore: boolean
 } = {
   conversations: [],
+  error: null,
   hasMore: true,
   initialLoading: false,
+  isError: false,
   loadingMore: false,
 }
 
@@ -33,6 +37,16 @@ vi.mock('@/lib/api', () => ({
   fetchJson: vi.fn(() => Promise.resolve([])),
   listDrafts: vi.fn(() => Promise.resolve([])),
   postJson: vi.fn(() => Promise.resolve({ success: true })),
+}))
+
+// The batch wire call, so a test can say whether it was reached.
+const batchCalls: Array<{ action: string; ids: string[] }> = []
+vi.mock('@/wire/endpoints/mutations', () => ({
+  wireBatchMutation: (action: string, ids: string[]) => {
+    batchCalls.push({ action, ids })
+    return Promise.resolve({ failed: 0, failed_thread_ids: [], message: 'Done', success: true })
+  },
+  wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
 }))
 
 // mock react-query hooks used by ConversationList. The real ones need a
@@ -206,6 +220,29 @@ describe('ConversationList empty states', () => {
 
   beforeEach(() => {
     store = makeStore()
+  })
+
+  // A failed fetch used to fall through to the empty state, so a
+  // server that was down told the reader their mail was gone. The
+  // wording is the assertion: "All caught up!" must not be what a
+  // failure says.
+  it('says the fetch failed rather than that the mailbox is empty', () => {
+    flatStub.conversations = []
+    flatStub.isError = true
+    flatStub.error = new Error('502 Bad Gateway')
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    expect(screen.getByText('Could not load your mail')).toBeDefined()
+    expect(screen.getByText('502 Bad Gateway')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined()
+    expect(screen.queryByText('All caught up!')).toBeNull()
+    flatStub.isError = false
+    flatStub.error = null
   })
 
   it('shows empty state when no conversations', () => {

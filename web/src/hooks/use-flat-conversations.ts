@@ -44,8 +44,10 @@ export function useFlatConversations(
   enabled: boolean = true
 ): {
   conversations: ConversationSummary[]
+  error: unknown
   hasMore: boolean
   initialLoading: boolean
+  isError: boolean
   loadingMore: boolean
   loadMore: () => Promise<void>
   refresh: () => Promise<void>
@@ -98,5 +100,18 @@ export function useFlatConversations(
     await query.refetch()
   }, [query])
 
-  return { conversations, hasMore, initialLoading, loadingMore, loadMore, refresh }
+  // **The error travels with the rows.** It did not, so nothing above
+  // could tell a failed fetch from an empty mailbox, and a server that
+  // was down rendered as "All caught up!" — the reader concludes their
+  // mail is gone and has nothing to click.
+  return {
+    conversations,
+    error: query.error,
+    hasMore,
+    initialLoading,
+    isError: query.isError,
+    loadingMore,
+    loadMore,
+    refresh,
+  }
 }

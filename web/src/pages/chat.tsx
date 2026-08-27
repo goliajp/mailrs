@@ -143,6 +143,12 @@ export function Chat() {
   }
 
   const renderMobileBody = () => {
+    // Composing is a screen of its own here, the same as reading is.
+    // It was only ever handled in the desktop branch, so on a phone
+    // "New conversation", the compose shortcut, the command palette
+    // and **every draft row** set the atom and painted nothing —
+    // writing mail was simply absent below 768px.
+    if (composingNew) return <NewConversation />
     if (mobileView === 'list') return renderList()
     return <MobileMail />
   }

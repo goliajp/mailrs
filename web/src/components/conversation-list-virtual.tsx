@@ -3,7 +3,7 @@ import type { ConversationSummary } from '@/lib/types'
 
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAtomValue } from 'jotai'
-import { Mail } from 'lucide-react'
+import { CloudOff, Mail } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { ConversationItem } from '@/components/conversation-item'
@@ -43,10 +43,12 @@ export function VirtualConversationList({
   batchMode,
   conversations,
   dateLabel,
+  error,
   folder,
   hasBatchBar,
   hasMore,
   initialLoading,
+  isError,
   isSearching,
   loadingMore,
   myEmail,
@@ -62,10 +64,12 @@ export function VirtualConversationList({
   batchMode: boolean
   conversations: ConversationSummary[]
   dateLabel: (ts: number) => string
+  error: unknown
   folder: null | string
   hasBatchBar: boolean
   hasMore: boolean
   initialLoading: boolean
+  isError: boolean
   isSearching: boolean
   loadingMore: boolean
   myEmail: string
@@ -198,7 +202,33 @@ export function VirtualConversationList({
     )
   }
 
+  // **Before the empty state, not after it.** A failed fetch used to
+  // fall through to "All caught up!", so a server that was down told
+  // the reader their mail was gone and gave them nothing to click.
+  if (isError && conversations.length === 0) {
+    return (
+      <div
+        className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
+        ref={scrollContainerRef}
+      >
+        <div className="flex flex-col items-center justify-center p-8 text-center" role="alert">
+          <CloudOff aria-hidden="true" className="text-danger mb-3 h-10 w-10" strokeWidth={1} />
+          <p className="text-sm font-medium">Could not load your mail</p>
+          <p className="text-fg-muted mt-1 text-xs">{listErrorMessage(error)}</p>
+          <button
+            className="border-border hover:bg-bg-secondary focus-visible:ring-accent/50 mt-3 rounded-md border px-3 py-1.5 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            onClick={() => void onRefresh?.()}
+            type="button"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (conversations.length === 0) {
+    const hint = emptyHint(isSearching)
     return (
       <div
         className={`flex-1 overflow-y-auto ${hasBatchBar ? 'pb-14' : ''}`}
@@ -208,7 +238,7 @@ export function VirtualConversationList({
         <div className="text-fg-muted flex flex-col items-center justify-center p-8 text-center">
           <Mail aria-hidden="true" className="text-fg-muted mb-3 h-10 w-10" strokeWidth={1} />
           <p className="text-sm font-medium">{emptyLabel(isSearching, activeList)}</p>
-          <p className="mt-1 text-xs">{isSearching ? 'Try a different search term' : ''}</p>
+          {hint && <p className="mt-1 text-xs">{hint}</p>}
         </div>
       </div>
     )
@@ -320,6 +350,16 @@ export function VirtualConversationList({
 // is why the base lives in `lib/list-row-class.ts` alongside the states —
 // the Send view has the same row and had drifted from it.
 
+/// The second line of the empty state, or nothing.
+///
+/// It used to be a ternary that rendered an empty string when not
+/// searching — a `<p>` that was always mounted, always invisible, and
+/// always contributing its top margin.
+function emptyHint(isSearching: boolean): null | string {
+  if (isSearching) return 'Try a different search term'
+  return null
+}
+
 /**
  * What an empty list says.
  *
@@ -332,4 +372,10 @@ export function VirtualConversationList({
 function emptyLabel(isSearching: boolean, list: MailListId): string {
   if (isSearching) return 'No results found'
   return MAIL_LISTS[list].emptyLabel
+}
+
+/// What went wrong, in a sentence, without leaking an object.
+function listErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.length > 0) return error.message
+  return 'The server did not answer.'
 }

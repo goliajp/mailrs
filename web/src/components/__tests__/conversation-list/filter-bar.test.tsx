@@ -2,9 +2,19 @@ import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The batch wire call, so a test can say whether it was reached.
+const batchCalls: Array<{ action: string; ids: string[] }> = []
+vi.mock('@/wire/endpoints/mutations', () => ({
+  wireBatchMutation: (action: string, ids: string[]) => {
+    batchCalls.push({ action, ids })
+    return Promise.resolve({ failed: 0, failed_thread_ids: [], message: 'Done', success: true })
+  },
+  wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
+}))
 
 import { authAtom } from '@/store/auth'
 import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
@@ -432,5 +442,36 @@ describe('BatchActionBar', () => {
     )
 
     expect(screen.getByText('2 selected')).toBeDefined()
+  })
+
+  /**
+   * Deleting forty threads asks first, the same as deleting one does.
+   *
+   * The batch bar went straight to the wire: `onAction('delete')` →
+   * `wireBatchMutation`, no question, while the row beside it held the
+   * same verb for an answer. Deleting unlinks maildir files and there
+   * is nothing to restore from.
+   */
+  it('holds a batch delete for an answer, and names the number', async () => {
+    batchCalls.length = 0
+    flatStub.conversations = [makeConversation()]
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByText('Delete 2 conversations?')).toBeDefined()
+    expect(batchCalls, 'the delete went to the server before the question').toEqual([])
+
+    // The sheet's own Delete is the second button with that name.
+    const confirms = screen.getAllByRole('button', { name: 'Delete' })
+    fireEvent.click(confirms[confirms.length - 1])
+    await waitFor(() => expect(batchCalls).toHaveLength(1))
+    expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
   })
 })
