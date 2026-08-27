@@ -124,9 +124,21 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
 }
 
 /** The two rows of chips, in the order the filter bar draws them. */
-export const MAIL_LIST_ROWS: MailListId[][] = [
-  ['inbox', 'np', 'unread', 'starred', 'junk'],
-  ['send', 'draft', 'archived'],
+/// The tabs, in the order they are shown.
+///
+/// Flat, and laid out by a five-column grid rather than by this list
+/// being nested: two flex rows sized each tab to its own label, so the
+/// second row lined up with nothing. The break after `junk` is what
+/// the grid does with five columns, not something declared here.
+export const MAIL_LIST_TABS: MailListId[] = [
+  'inbox',
+  'np',
+  'unread',
+  'starred',
+  'junk',
+  'send',
+  'draft',
+  'archived',
 ]
 
 export function isMailListId(v: unknown): v is MailListId {

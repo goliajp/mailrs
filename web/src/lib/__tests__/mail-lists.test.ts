@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   isMailListId,
-  MAIL_LIST_ROWS,
+  MAIL_LIST_TABS,
   MAIL_LISTS,
   type MailListId,
   threadAxesOf,
@@ -16,14 +16,20 @@ const ids = Object.keys(MAIL_LISTS) as MailListId[]
  * list did not follow before it was written down here.
  */
 describe('MAIL_LISTS', () => {
-  it('every list is reachable from exactly one chip row', () => {
-    const chips = MAIL_LIST_ROWS.flat()
-    expect([...chips].sort()).toEqual([...ids].sort())
-    expect(new Set(chips).size).toBe(chips.length)
+  it('every list is reachable from exactly one tab', () => {
+    expect([...MAIL_LIST_TABS].sort()).toEqual([...ids].sort())
+    expect(new Set(MAIL_LIST_TABS).size).toBe(MAIL_LIST_TABS.length)
   })
 
-  it('every chip names a real list', () => {
-    for (const id of MAIL_LIST_ROWS.flat()) expect(isMailListId(id)).toBe(true)
+  it('every tab names a real list', () => {
+    for (const id of MAIL_LIST_TABS) expect(isMailListId(id)).toBe(true)
+  })
+
+  // The grid is five wide, so this is where the second row starts. A
+  // list added without thinking about it would push `send` up beside
+  // `junk` and leave the row below looking arbitrary.
+  it('the first row is the five reading lists', () => {
+    expect(MAIL_LIST_TABS.slice(0, 5)).toEqual(['inbox', 'np', 'unread', 'starred', 'junk'])
   })
 
   it('every list says what it is and what it says when empty', () => {

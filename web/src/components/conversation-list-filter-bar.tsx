@@ -3,7 +3,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
 import { useCategoriesQuery } from '@/hooks/use-mail-queries'
-import { MAIL_LIST_ROWS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
+import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import {
   activeListAtom,
   categoryFilterAtom,
@@ -51,7 +51,11 @@ function sortOptions(query: string): SortOrder[] {
 }
 
 function tabButtonClass(isActive: boolean): string {
-  const base = 'shrink-0 cursor-pointer rounded-md px-3 py-1 text-xs transition-colors'
+  // `w-full` and `truncate`: the cell decides the width now, and a
+  // label longer than its column has to cut rather than push the grid
+  // out of line. `px-2`, down from `px-3`, so the longest label —
+  // `Archived` — still fits its column in a narrow list pane.
+  const base = 'w-full cursor-pointer truncate rounded-md px-2 py-1 text-xs transition-colors'
   if (isActive) return `${base} bg-border-strong text-fg font-semibold`
   return `${base} bg-bg-secondary text-fg-muted hover:bg-bg-tertiary hover:text-fg-secondary font-medium`
 }
@@ -108,20 +112,20 @@ export const FilterBar = memo(function FilterBar() {
 
   return (
     <div className="border-border flex items-start gap-1 border-b px-3 py-1.5">
-      <div className="flex flex-1 flex-col gap-1">
-        {MAIL_LIST_ROWS.map((row, ri) => (
-          // index key OK: static two-row layout, never reordered
-          <div className="flex flex-wrap items-center gap-1" key={ri}>
-            {row.map((id) => (
-              <button
-                className={tabButtonClass(activeList === id)}
-                key={id}
-                onClick={() => handleTab(id)}
-              >
-                {MAIL_LISTS[id].label}
-              </button>
-            ))}
-          </div>
+      {/* One grid over both rows, not a flex row each. Wrapped flex
+          sizes every tab to its own label, so `Inbox` was narrow,
+          `Archived` was wide, and the second row started under nothing
+          in particular. Five columns give every tab the same width and
+          put the second row's three under the first row's three. */}
+      <div className="grid flex-1 grid-cols-5 gap-1">
+        {MAIL_LIST_TABS.map((id) => (
+          <button
+            className={tabButtonClass(activeList === id)}
+            key={id}
+            onClick={() => handleTab(id)}
+          >
+            {MAIL_LISTS[id].label}
+          </button>
         ))}
       </div>
 

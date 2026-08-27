@@ -283,6 +283,45 @@ describe('FilterBar — archived tab', () => {
   })
 
   /**
+   * Every tab is the same width, and the second row lines up under the
+   * first.
+   *
+   * They were two wrapped flex rows, so each tab was as wide as its own
+   * label: `Inbox` narrow, `Archived` wide, and the row below starting
+   * under nothing in particular. Asserted on the grid rather than on
+   * measured pixels — jsdom lays nothing out, so a width assertion here
+   * would pass whatever the classes said.
+   */
+  it('lays the tabs out as one five-column grid', () => {
+    flatStub.conversations = [makeConversation()]
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    const inbox = screen.getByText('Inbox')
+    const grid = inbox.parentElement
+    expect(grid?.className).toContain('grid-cols-5')
+    // All eight in one container, not three in a second row of its own.
+    expect(grid?.children.length).toBe(8)
+    for (const label of [
+      'Inbox',
+      'N & P',
+      'Unread',
+      'Starred',
+      'Junk',
+      'Send',
+      'Draft',
+      'Archived',
+    ]) {
+      const tab = screen.getByText(label)
+      expect(tab.className, `${label} does not fill its column`).toContain('w-full')
+    }
+  })
+
+  /**
    * The tab asks the server for the archived axis; it does not sift the
    * page it was given.
    *
