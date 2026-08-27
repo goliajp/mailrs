@@ -152,16 +152,34 @@ pub(crate) async fn fraud_rescan_route(
                 continue;
             }
             match q.action {
-                Action::Junk => match state.mailbox.set_junk(user, &tid, true) {
-                    // `false` means the row already said Junk — worth
-                    // its own count, or a re-run reads as having moved
-                    // things it did not.
-                    Ok(true) => moved += 1,
-                    Ok(false) => already_junk += 1,
-                    Err(e) => {
-                        tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
+                Action::Junk => {
+                    // **Read the bucket first.** `set_junk` answers
+                    // "did the row exist", not "did anything change" —
+                    // so counting its `true` as a move made
+                    // `already_junk` a number that could not come out
+                    // other than zero, and a second run reported
+                    // moving fifty threads that were already in Junk.
+                    let was_junk = state
+                        .mailbox
+                        .get_thread_for_user(user, &tid)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|r| {
+                            // `bucket_of`, not a literal: the category
+                            // a Junk row carries is `spam`, and the
+                            // first version of this compared against
+                            // "junk" and was therefore never true.
+                            mailrs_mailbox_kevy::keys::bucket_of(&r.category)
+                                == mailrs_mailbox_kevy::keys::Bucket::Junk
+                        });
+                    match state.mailbox.set_junk(user, &tid, true) {
+                        Ok(_) if was_junk => already_junk += 1,
+                        Ok(_) => moved += 1,
+                        Err(e) => {
+                            tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
+                        }
                     }
-                },
+                }
                 Action::Delete => match state.mailbox.delete_thread(user, &tid) {
                     Ok((_, blobs)) => {
                         for b in &blobs {
