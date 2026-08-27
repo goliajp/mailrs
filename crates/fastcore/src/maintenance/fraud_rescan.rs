@@ -34,6 +34,19 @@ use super::prelude::*;
 /// Threads between pauses.
 const PAUSE_EVERY: u64 = 25;
 
+/// What to do with a thread the checks flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Action {
+    /// Move it to Junk. Reversible, and the default.
+    #[default]
+    Junk,
+    /// Unlink its maildir files. **There is no trash and nothing to
+    /// restore from** — the same warning `delete-thread-confirm` puts
+    /// in front of a person.
+    Delete,
+}
+
 #[derive(serde::Deserialize)]
 pub(crate) struct RescanQuery {
     /// Report without moving anything. **Default true.**
@@ -45,6 +58,9 @@ pub(crate) struct RescanQuery {
     limit: u64,
     #[serde(default = "default_pause_ms")]
     pause_ms: u64,
+    /// `junk` (default) or `delete`.
+    #[serde(default)]
+    action: Action,
 }
 
 fn yes() -> bool {
@@ -81,6 +97,7 @@ pub(crate) async fn fraud_rescan_route(
     let mut found = 0u64;
     let mut already_junk = 0u64;
     let mut moved = 0u64;
+    let mut deleted = 0u64;
     let mut no_file = 0u64;
     // Which check fired, because "12 found" does not say whether the
     // one that needs an allow-list entry is among them.
@@ -134,13 +151,28 @@ pub(crate) async fn fraud_rescan_route(
             if q.dry_run {
                 continue;
             }
-            match state.mailbox.set_junk(user, &tid, true) {
-                // `false` means the row already said Junk — worth its
-                // own count, or a re-run reads as having moved things
-                // it did not.
-                Ok(true) => moved += 1,
-                Ok(false) => already_junk += 1,
-                Err(e) => tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed"),
+            match q.action {
+                Action::Junk => match state.mailbox.set_junk(user, &tid, true) {
+                    // `false` means the row already said Junk — worth
+                    // its own count, or a re-run reads as having moved
+                    // things it did not.
+                    Ok(true) => moved += 1,
+                    Ok(false) => already_junk += 1,
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
+                    }
+                },
+                Action::Delete => match state.mailbox.delete_thread(user, &tid) {
+                    Ok((_, blobs)) => {
+                        for b in &blobs {
+                            crate::routes::message_ops::unlink_maildir_file(user, b);
+                        }
+                        deleted += 1;
+                    }
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %tid, "fraud rescan: delete failed");
+                    }
+                },
             }
         }
     }
@@ -149,6 +181,7 @@ pub(crate) async fn fraud_rescan_route(
         walked,
         found,
         moved,
+        deleted,
         already_junk,
         no_file,
         dry_run = q.dry_run,
@@ -161,6 +194,7 @@ pub(crate) async fn fraud_rescan_route(
         "threads_walked": walked,
         "found": found,
         "moved_to_junk": moved,
+        "deleted": deleted,
         "already_junk": already_junk,
         "no_file": no_file,
         "by_reason": by_reason,
