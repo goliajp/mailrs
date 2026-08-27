@@ -10,6 +10,7 @@ rust-version = "1.97"
 resolver = "2"
 members = [
     "crates/test-docker",
+    "crates/fraud",
     "crates/smtp-proto",
     "crates/storage-maildir",
     "crates/uidlist",

@@ -16,6 +16,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+mailrs-fraud = { path = "../fraud", version = "0" }
 mailrs-textguard = { path = "../textguard", version = "0" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 async-trait = "0.1"

@@ -69,7 +69,6 @@ pub mod auth_header;
 pub mod context;
 pub mod decision;
 pub mod identity;
-pub mod impersonation;
 pub mod pipeline;
 pub mod stage;
 

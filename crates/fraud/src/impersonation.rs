@@ -25,6 +25,25 @@
 //! Hence: full names only, and an allow-list for the services that
 //! carry your name because you gave it to them.
 
+/// Score contributed when the From display name claims to be the
+/// receiving organisation itself while the address is somewhere else
+/// (`mailrs_inbound::impersonation`).
+///
+/// **High, because authentication has nothing to say here.** All 25 of
+/// these in a 35,799-message corpus passed SPF and 18 passed DKIM and
+/// DMARC as well — the sender owns the throwaway domain and configures
+/// it correctly. Reputation is no better: the domains rotate every few
+/// messages. The claim in the display name is the only part that
+/// cannot change, because without it the mail does not work.
+///
+/// Still a score and not a verdict. At 4.5 against the default 5.0 it
+/// junks beside any content signal at all (0.5), and beside a
+/// suspicious sender or zero-width padding on its own — but a lone
+/// false positive from a service that carries your name legitimately
+/// still reaches the inbox, where the reader can see it. The
+/// allow-list is the real defence there; this is the second one.
+pub const CLAIMS_OUR_NAME_SCORE: f64 = 4.5;
+
 /// Whether `from` claims to be one of `names` while its address sits
 /// outside `ours` and outside `allowed`.
 ///
