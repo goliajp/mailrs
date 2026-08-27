@@ -10,10 +10,11 @@ import { ActionSheet, ContextMenu, useContextMenu } from '@/components/context-m
 import { DateDivider } from '@/components/conversation-list'
 import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
+import { SenderAvatar } from '@/components/sender-avatar'
 import { useDraftRows } from '@/hooks/use-current-list'
 import { useDeleteDraftMutation } from '@/hooks/use-drafts'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
-import { mailRowStateClass } from '@/lib/list-row-class'
+import { MAIL_ROW_CONTENT, MAIL_ROW_FOCUS, mailRowStateClass } from '@/lib/list-row-class'
 import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
@@ -139,27 +140,39 @@ const DraftRow = memo(function DraftRow({
       onTouchStart={ctx.onTouchStart}
       role="listitem"
     >
+      {/* The same frame every other list row uses. This one had its
+          own: no avatar, `justify-center` instead of top-aligned, and
+          `pr-10` reserving space for the trash button — so switching
+          from Inbox to Draft shunted the whole column of text 48px
+          left and re-centred it vertically. The comment above claimed
+          it matched; it did not. */}
       <button
-        className="flex h-full w-full flex-col justify-center gap-1 px-4 py-2 pr-10 text-left"
+        className={`${MAIL_ROW_CONTENT} ${MAIL_ROW_FOCUS}`}
         onClick={() => onOpen(draft)}
         onContextMenu={ctx.open}
         type="button"
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-fg-secondary truncate text-sm font-medium">
-            {draftTitle(draft.subject)}
-          </span>
-          <span className="text-fg-muted text-tiny shrink-0">
-            {formatFullDate(Number(draft.updated_at))}
+        <SenderAvatar className="shrink-0" sender={firstRecipient(draft.to)} size={36} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-fg-secondary truncate text-sm font-medium">
+              {draftTitle(draft.subject)}
+            </span>
+            <span className="text-fg-muted text-tiny shrink-0">
+              {formatFullDate(Number(draft.updated_at))}
+            </span>
+          </div>
+          <span className="text-fg-muted truncate text-sm">
+            To: {draft.to || '—'} · {draftPreview(draft.body)}
           </span>
         </div>
-        <span className="text-fg-muted truncate text-sm">
-          To: {draft.to || '—'} · {draftPreview(draft.body)}
-        </span>
       </button>
+      {/* `focus-visible` beside `group-hover`: the button could be
+          focused and stayed at `opacity-0`, so a keyboard user could
+          land on Delete without seeing it. */}
       <button
         aria-label="Delete draft"
-        className="text-fg-muted hover:text-danger absolute top-1/2 right-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
+        className="text-fg-muted hover:text-danger focus-visible:ring-accent/50 absolute top-1/2 right-3 -translate-y-1/2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
         onClick={() => onDelete(Number(draft.id))}
         type="button"
       >
@@ -180,6 +193,15 @@ function draftPreview(body: string): string {
 function draftTitle(subject: string): string {
   if (subject.trim()) return subject
   return '(no subject)'
+}
+
+/// The first name on the To line, for the avatar.
+///
+/// Copied in shape from the send list, which draws the same row.
+function firstRecipient(to: string): string {
+  const first = to.split(',')[0]?.trim()
+  if (!first) return '?'
+  return first
 }
 
 function groupByDate(drafts: readonly Draft[]): DraftListItem[] {

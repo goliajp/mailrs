@@ -64,11 +64,27 @@ export function useConversationActions(): ConversationActions {
       const onError = (err: unknown) => {
         toast.error(err instanceof Error ? err.message : 'Action failed')
       }
+      // **A way back.** Every one of these has an inverse in this same
+      // hook, and none of them offered it: a right swipe on a phone
+      // archives in one gesture, and the only route back was to go
+      // find the Archived list and unarchive by hand. The toast has
+      // taken an `action` all along — 109 call sites, none using it.
+      const undo = (run: () => void) => ({
+        action: { label: 'Undo', onClick: run },
+        duration: 8000,
+      })
       switch (action) {
         case 'archive':
           archiveMutation.mutate(
             { threadId },
-            { onError, onSuccess: () => toast.success('Archived') }
+            {
+              onError,
+              onSuccess: () =>
+                toast.success(
+                  'Archived',
+                  undo(() => unarchiveMutation.mutate({ threadId }))
+                ),
+            }
           )
           break
         case 'delete':
@@ -82,7 +98,14 @@ export function useConversationActions(): ConversationActions {
         case 'mark-junk':
           markJunkMutation.mutate(
             { threadId },
-            { onError, onSuccess: () => toast.success('Moved to Junk') }
+            {
+              onError,
+              onSuccess: () =>
+                toast.success(
+                  'Moved to Junk',
+                  undo(() => markNotJunkMutation.mutate({ threadId }))
+                ),
+            }
           )
           break
         case 'mark-not-junk':
@@ -94,13 +117,27 @@ export function useConversationActions(): ConversationActions {
         case 'mark-notification':
           markNotificationMutation.mutate(
             { threadId },
-            { onError, onSuccess: () => toast.success('Moved to Notifications') }
+            {
+              onError,
+              onSuccess: () =>
+                toast.success(
+                  'Moved to Notifications',
+                  undo(() => moveToInboxMutation.mutate({ threadId }))
+                ),
+            }
           )
           break
         case 'mark-promotion':
           markPromotionMutation.mutate(
             { threadId },
-            { onError, onSuccess: () => toast.success('Moved to Promotions') }
+            {
+              onError,
+              onSuccess: () =>
+                toast.success(
+                  'Moved to Promotions',
+                  undo(() => moveToInboxMutation.mutate({ threadId }))
+                ),
+            }
           )
           break
         case 'move-to-inbox':
@@ -123,7 +160,14 @@ export function useConversationActions(): ConversationActions {
             // Epoch seconds, not an ISO string: the handler takes
             // `snoozed_until: i64` and the ISO form 422'd every time.
             { snoozedUntil: Math.floor(tomorrow.getTime() / 1000), threadId },
-            { onError, onSuccess: () => toast.success('Snoozed until tomorrow 9:00') }
+            {
+              onError,
+              onSuccess: () =>
+                toast.success(
+                  'Snoozed until tomorrow 9:00',
+                  undo(() => unsnoozeMutation.mutate({ threadId }))
+                ),
+            }
           )
           break
         }

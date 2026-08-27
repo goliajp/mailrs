@@ -26,9 +26,17 @@ export const MAIL_ROW_FRAME =
 /** The row's inner layout — the flex line the content sits on. */
 export const MAIL_ROW_CONTENT = 'flex h-full w-full items-start gap-3 px-4 py-2 text-left'
 
-/** The focus ring, on whichever element takes the focus. */
+/**
+ * The focus ring, on whichever element takes the focus.
+ *
+ * **Inset**, because a Tailwind ring paints outside the border box and
+ * the element that takes this is `inset-0` of `MAIL_ROW_FRAME`, which
+ * is `overflow-hidden`. Drawn outward it landed entirely in the clipped
+ * region — the `outline-none` half applied, the ring did not, and
+ * keyboard focus was invisible on the app's busiest surface.
+ */
 export const MAIL_ROW_FOCUS =
-  'focus-visible:ring-accent/50 focus-visible:ring-2 focus-visible:outline-none'
+  'focus-visible:ring-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none'
 
 /** The invariant part — height, layout, focus ring. */
 export const MAIL_ROW_BASE = `${MAIL_ROW_FOCUS} ${MAIL_ROW_FRAME} ${MAIL_ROW_CONTENT}`
