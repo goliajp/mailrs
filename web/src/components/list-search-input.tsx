@@ -48,11 +48,11 @@ export function ListSearchInput({
         {active && (
           <button
             aria-label="Clear search"
-            className="text-fg-muted hover:text-fg-secondary absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5"
+            className="text-fg-muted hover:bg-bg-secondary hover:text-fg-secondary focus-visible:ring-accent/50 absolute top-1/2 right-1.5 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
             onClick={() => setValue('')}
             type="button"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         )}
       </div>

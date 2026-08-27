@@ -97,11 +97,10 @@ export function AdminSystemConfig() {
   const sortedGroups = Object.keys(grouped).sort()
 
   return (
-    <AdminPageShell title="System Configuration">
-      <p className="text-fg-secondary -mt-4 mb-6 text-sm">
-        Runtime server settings. Changes to database-sourced values take effect immediately.
-      </p>
-
+    <AdminPageShell
+      subtitle="Runtime server settings. Changes to database-sourced values take effect immediately."
+      title="System Configuration"
+    >
       {isPending ? (
         <PanelGroupSkeleton />
       ) : error ? (

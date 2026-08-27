@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AdminErrorState, AdminPageShell } from '@/components/admin-page'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { adminKeys } from '@/lib/query-keys'
+import { serviceLabel, stateDotClass } from '@/lib/status-label'
 import { adminListGet, adminObjectGet } from '@/wire/endpoints/admin'
 
 // --- types ---
@@ -319,11 +320,17 @@ function Row({ label, value }: { label: string; mono?: boolean; value: string })
   )
 }
 
+// --- main ---
+
 function ServicePill({ detail, name, ok }: { detail?: string; name: string; ok: boolean }) {
   return (
     <div className="border-border bg-surface flex items-center gap-2 rounded-lg border px-4 py-3">
-      <span className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-success' : 'bg-danger'}`} />
+      {/* Up or down said in a word as well as a colour — this one is
+          green against red, which is the pair about 8% of men cannot
+          separate, on the question you can least afford to guess. */}
+      <span className={stateDotClass(ok, 'bg-danger')} />
       <span className="text-fg text-sm font-medium">{name}</span>
+      <span className="text-fg-secondary text-xs">{serviceLabel(ok)}</span>
       {detail && <span className="text-fg-muted text-xs">{detail}</span>}
     </div>
   )
@@ -361,8 +368,6 @@ function SmtpConfigPanel({ config }: { config: SmtpConfig }) {
     </div>
   )
 }
-
-// --- main ---
 
 function StatusBanner({ health }: { health: HealthInfo }) {
   const status = health.status ?? 'unknown'

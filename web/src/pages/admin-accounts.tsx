@@ -23,6 +23,7 @@ import { MobileModal } from '@/components/mobile-modal'
 import { ScrollableTable } from '@/components/scrollable-table'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
+import { activeLabel, stateDotClass } from '@/lib/status-label'
 import { adminDelete, adminListGet, adminPost } from '@/wire/endpoints/admin'
 
 const PAGE_SIZE = 20
@@ -247,10 +248,20 @@ export function AdminAccounts() {
                       <QuotaCell address={account.address} />
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-block h-2 w-2 rounded-full ${account.active ? 'bg-success' : 'bg-border'}`}
-                        title={account.active ? 'Active' : 'Inactive'}
-                      />
+                      {/* The dot **and** the word. Green against
+                          neutral grey at 8×8 with a `title` on a
+                          non-focusable span is a mouse-hover-only
+                          answer to "is this account on", and colour is
+                          the only thing carrying it. The rule is
+                          already written down in `status-bar.tsx`:
+                          every dot has a text label right next to
+                          it. */}
+                      <span className="flex items-center gap-1.5">
+                        <span className={stateDotClass(account.active, 'bg-border')} />
+                        <span className="text-fg-secondary text-xs">
+                          {activeLabel(account.active)}
+                        </span>
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <PasswordCell account={account} />
