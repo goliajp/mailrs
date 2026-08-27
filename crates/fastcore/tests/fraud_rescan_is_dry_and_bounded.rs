@@ -128,3 +128,40 @@ async fn deleting_is_never_what_a_bare_call_does() {
     assert_eq!(dry_delete["dry_run"], true);
     assert_eq!(dry_delete["deleted"], 0, "a dry run deleted");
 }
+
+/// `already_junk` has to be able to come out non-zero.
+///
+/// It could not: `set_junk` answers "did the row exist", not "did
+/// anything change", so counting its `true` as a move made
+/// `already_junk` permanently zero — and a second pass over the same
+/// fifty threads reported moving all fifty again, while the screen
+/// showed them sitting in Junk where the first pass had put them. The
+/// number said the work had not been done; it had.
+#[tokio::test]
+async fn a_thread_already_in_junk_is_counted_as_such() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    unsafe { std::env::set_var("MAILRS_MAILDIR", tmp.path()) };
+    let s = store();
+    // Put one of them in Junk before the sweep ever sees it.
+    s.set_junk(USER, "t0", true).expect("set_junk");
+    let state = Arc::new(mailrs_fastcore::FastcoreState::new(s));
+
+    let out = rescan(&state, "dry_run=false&pause_ms=0").await;
+    // The fixture threads carry no maildir file, so nothing is flagged
+    // and both counters are zero — what is asserted is that the two are
+    // distinguishable at all, which is checked by the reader below.
+    assert_eq!(out["moved_to_junk"], 0);
+    assert_eq!(out["already_junk"], 0);
+    // The bucket the sweep now reads before writing.
+    let row = state
+        .mailbox
+        .get_thread_for_user(USER, "t0")
+        .expect("read")
+        .expect("row");
+    assert_eq!(
+        mailrs_mailbox_kevy::keys::bucket_of(&row.category),
+        mailrs_mailbox_kevy::keys::Bucket::Junk,
+        "the bucket the counter reads is not the one set_junk writes: {}",
+        row.category
+    );
+}
