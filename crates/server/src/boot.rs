@@ -269,6 +269,8 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         metrics: web_state.clone() as Arc<dyn mailrs_receiver::ConnectionMetrics>,
         rate_limiter,
         local_domains: cfg.local_domains.clone(),
+        org_names: cfg.org_names.clone(),
+        org_name_allowed_domains: cfg.org_name_allowed_domains.clone(),
         outbound_enqueue: outbound_queue.clone().map(|p| {
             Arc::new(mailrs_outbound_queue::PgQueueStore::new(p))
                 as Arc<dyn mailrs_outbound_queue::QueueStore>

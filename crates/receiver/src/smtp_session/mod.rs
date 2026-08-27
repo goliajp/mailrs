@@ -42,6 +42,10 @@ pub struct ConnectionContext {
     pub metrics: Arc<dyn ConnectionMetrics>,
     pub rate_limiter: Arc<dyn RateLimitStore>,
     pub local_domains: Vec<String>,
+    /// What this organisation calls itself; see `config::Config`.
+    pub org_names: Vec<String>,
+    /// Domains allowed to carry that name.
+    pub org_name_allowed_domains: Vec<String>,
     /// Outbound enqueue seam for the receiving path: relay recipients,
     /// sieve redirect/vacation copies, and FBL suppression. Abstracted as
     /// [`QueueStore`] so the receiver enqueues without binding the spg

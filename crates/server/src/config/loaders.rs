@@ -112,6 +112,19 @@ impl ServerConfig {
         set_bool_truthy("MAILRS_DISABLE_PLAIN_POP3", &mut self.disable_plain_pop3);
         set_parsed("MAILRS_MANAGESIEVE_PORT", &mut self.managesieve_port);
         set_csv_lower("MAILRS_LOCAL_DOMAINS", &mut self.local_domains);
+        set_csv_lower(
+            "MAILRS_ORG_NAME_ALLOWED_DOMAINS",
+            &mut self.org_name_allowed_domains,
+        );
+        // Not lowercased: compared case-folded anyway, and read by a
+        // person in a log line.
+        if let Ok(v) = std::env::var("MAILRS_ORG_NAMES") {
+            self.org_names = v
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
         set_opt_path("MAILRS_WEB_STATIC_DIR", &mut self.web_static_dir);
         set_opt_path("MAILRS_USERS_FILE", &mut self.users_file);
     }

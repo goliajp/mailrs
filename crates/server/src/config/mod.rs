@@ -60,6 +60,11 @@ pub struct ServerConfig {
     pub managesieve_port: u16,
     // anti-spam
     pub local_domains: Vec<String>,
+    /// What this organisation calls itself, for the display-name
+    /// impersonation check — see `mailrs_inbound::impersonation`.
+    pub org_names: Vec<String>,
+    /// Domains allowed to carry that name.
+    pub org_name_allowed_domains: Vec<String>,
     pub dnsbl_zones: Vec<String>,
     pub rate_limit_capacity: u32,
     pub rate_limit_refill: f64,
@@ -170,6 +175,8 @@ impl Default for ServerConfig {
             disable_plain_pop3: false,
             managesieve_port: 4190,
             local_domains: vec![],
+            org_names: vec![],
+            org_name_allowed_domains: vec![],
             dnsbl_zones: vec![],
             rate_limit_capacity: 10,
             rate_limit_refill: 1.0,

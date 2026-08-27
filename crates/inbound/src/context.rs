@@ -59,6 +59,10 @@ pub struct ReceiveContext {
     /// the pipeline starts, so nothing about stage ordering can leave it
     /// unset and no caller has to remember to ask.
     pub deception: mailrs_textguard::Deception,
+    /// The From display name claims this organisation's own name while
+    /// the address is somewhere else. Set by the caller, which is the
+    /// only place that knows what the organisation is called.
+    pub claims_our_name: bool,
 
     // ===== v2.4.1 Phase 3 (RFC-B) — sender allow / block =====
     /// Envelope `From:` address (lowercased) for whitelist / blacklist
@@ -108,11 +112,24 @@ impl ReceiveContext {
             ptr_score: 0.0,
             ai_score: 0.0,
             deception,
+            claims_our_name: false,
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
         }
+    }
+
+    /// The From display name claims this organisation's own name from
+    /// an address outside it.
+    ///
+    /// Set by the caller, which is the only place that knows what the
+    /// organisation is called — see
+    /// `mailrs_inbound::impersonation::claims_our_name`.
+    #[must_use]
+    pub fn with_claims_our_name(mut self, claims: bool) -> Self {
+        self.claims_our_name = claims;
+        self
     }
 
     /// The domains this server hosts, so mail that really comes from
@@ -135,6 +152,7 @@ impl ReceiveContext {
             ptr_score: self.ptr_score,
             ai_score: self.ai_score,
             deception: self.deception,
+            claims_our_name: self.claims_our_name,
             spam_threshold,
             hostname: self.hostname.clone(),
             from_addr: self.from_addr.clone(),

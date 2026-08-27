@@ -69,6 +69,7 @@ pub mod auth_header;
 pub mod context;
 pub mod decision;
 pub mod identity;
+pub mod impersonation;
 pub mod pipeline;
 pub mod stage;
 
@@ -79,6 +80,6 @@ pub use auth_header::{
 };
 pub use context::{AuthResults, DmarcPolicy, ReceiveContext};
 pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision};
-pub use identity::deception_in_identity;
+pub use identity::{deception_in_identity, from_header};
 pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
 pub use stage::{Stage, StageOutcome};
