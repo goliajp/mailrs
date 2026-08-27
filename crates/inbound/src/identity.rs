@@ -43,6 +43,26 @@ pub fn from_header(raw: &[u8]) -> String {
     decoded_identity(raw).0
 }
 
+/// Whether the message's `X-Mailer` is the generated kind.
+///
+/// Read here rather than by a stage, for the same reason `deception` is:
+/// a property of the text, fixed before the pipeline starts, so nothing
+/// about stage ordering can leave it unset.
+pub fn mailer_looks_generated(raw: &[u8]) -> bool {
+    let head = &raw[..raw.len().min(HEAD_LIMIT)];
+    let text = String::from_utf8_lossy(head);
+    for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
+        if line.is_empty() {
+            break;
+        }
+        if let Some(rest) = line.to_ascii_lowercase().strip_prefix("x-mailer:") {
+            let value = &line[line.len() - rest.len()..];
+            return mailrs_fraud::mailer_fingerprint::is_generated_mailer(value);
+        }
+    }
+    false
+}
+
 /// `From:` and `Subject:`, decoded. One parser, because a second copy
 /// is how the badge on new mail comes to disagree with the badge on
 /// old mail — the failure this module already exists to prevent.

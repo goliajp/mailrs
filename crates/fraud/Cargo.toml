@@ -1,0 +1,17 @@
+[package]
+name = "mailrs-fraud"
+version = "0.1.0"
+edition = "2024"
+description = "Signals that a message is a fraud attempt rather than mail — display names claiming an organisation they are not from, mailer strings no client writes — each one measured against a real corpus and scored, not ruled on."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+homepage = "https://github.com/goliajp/mailrs"
+documentation = "https://docs.rs/mailrs-fraud"
+authors = ["GOLIA K.K."]
+keywords = ["email", "phishing", "bec", "fraud", "security"]
+categories = ["email"]
+
+[dependencies]
+
+[lints]
+workspace = true

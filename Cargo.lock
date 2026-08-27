@@ -3313,6 +3313,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-fraud"
+version = "0.1.0"
+
+[[package]]
 name = "mailrs-ical"
 version = "2.1.0"
 dependencies = [
@@ -3370,6 +3374,7 @@ version = "1.2.0"
 dependencies = [
  "async-trait",
  "criterion 0.8.2",
+ "mailrs-fraud",
  "mailrs-rfc2047",
  "mailrs-textguard",
  "metrics",
@@ -3653,6 +3658,7 @@ dependencies = [
  "mailrs-delivery-executor",
  "mailrs-dkim",
  "mailrs-dmarc",
+ "mailrs-fraud",
  "mailrs-inbound",
  "mailrs-intelligence",
  "mailrs-mail-builder",

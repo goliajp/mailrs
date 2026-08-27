@@ -110,7 +110,7 @@ mod tests {
             ptr_score: 0.0,
             ai_score: 0.0,
             deception: Default::default(),
-            claims_our_name: false,
+            fraud: mailrs_fraud::Findings::default(),
             spam_threshold: 5.0,
             hostname: "mx.example.com".into(),
             from_addr: String::new(),

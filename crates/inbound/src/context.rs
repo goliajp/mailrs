@@ -59,10 +59,11 @@ pub struct ReceiveContext {
     /// the pipeline starts, so nothing about stage ordering can leave it
     /// unset and no caller has to remember to ask.
     pub deception: mailrs_textguard::Deception,
-    /// The From display name claims this organisation's own name while
-    /// the address is somewhere else. Set by the caller, which is the
-    /// only place that knows what the organisation is called.
-    pub claims_our_name: bool,
+    /// What `mailrs_fraud` found. The mailer half is filled by
+    /// [`ReceiveContext::new`] from the message itself; the half that
+    /// needs to know what the organisation is called is set by the
+    /// caller, which is the only place that knows.
+    pub fraud: mailrs_fraud::Findings,
 
     // ===== v2.4.1 Phase 3 (RFC-B) — sender allow / block =====
     /// Envelope `From:` address (lowercased) for whitelist / blacklist
@@ -97,6 +98,7 @@ impl ReceiveContext {
         // construction site — so no caller can forget it and no stage
         // ordering can leave it unset.
         let deception = crate::identity::deception_in_identity(&message);
+        let generated_mailer = crate::identity::mailer_looks_generated(&message);
         Self {
             client_ip,
             ehlo_domain: ehlo_domain.into(),
@@ -112,7 +114,10 @@ impl ReceiveContext {
             ptr_score: 0.0,
             ai_score: 0.0,
             deception,
-            claims_our_name: false,
+            fraud: mailrs_fraud::Findings {
+                claims_our_name: false,
+                generated_mailer,
+            },
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
@@ -128,7 +133,7 @@ impl ReceiveContext {
     /// `mailrs_inbound::impersonation::claims_our_name`.
     #[must_use]
     pub fn with_claims_our_name(mut self, claims: bool) -> Self {
-        self.claims_our_name = claims;
+        self.fraud.claims_our_name = claims;
         self
     }
 
@@ -152,7 +157,7 @@ impl ReceiveContext {
             ptr_score: self.ptr_score,
             ai_score: self.ai_score,
             deception: self.deception,
-            claims_our_name: self.claims_our_name,
+            fraud: self.fraud,
             spam_threshold,
             hostname: self.hostname.clone(),
             from_addr: self.from_addr.clone(),

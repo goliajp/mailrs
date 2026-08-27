@@ -102,6 +102,7 @@ full benchmark ledger.
 | `mailrs-delivery-executor` | Group-commit delivery executor on top of `mailrs-maildir` batch delivery |
 | `mailrs-inbound` | Composable SMTP receive pipeline — Stage trait + early-reject executor + RFC 8601 results |
 | `mailrs-shield` | SMTP anti-spam: DNSBL queries, greylisting (optional in-process kevy), PTR/FCrDNS |
+| `mailrs-fraud` | Fraud signals authentication cannot see: a display name claiming an organisation it is not from, an `X-Mailer` no client writes. Each measured against a real corpus, scored rather than ruled on |
 | `mailrs-postmaster` | Email-domain DNS health checks: MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DANE, PTR |
 | `mailrs-intelligence` | LLM-powered email analysis: extraction, importance scoring, spam classification, embeddings |
 | `mailrs-clean` | Email content cleanup: HTML sanitization, tracking-pixel detection, quoted-reply splitting |
