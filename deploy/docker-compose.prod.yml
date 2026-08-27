@@ -46,6 +46,14 @@ services:
     environment:
       MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      # Somebody sending as this company from an address that is not it
+      # — `mailrs-fraud`. Full names only: `golia` as a substring
+      # matches 490 GitHub notifications carrying a `goliajp/…` path.
+      MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
+      # Services that carry the company's name because we told them to.
+      # Slack's workspace is legitimately called GOLIA株式会社, and its
+      # notifications are three of the twelve messages that match.
+      MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SPOOL_ROOT: /data/.spool
       MAILRS_MAILDIR: /data/maildir
       MAILRS_USERS_FILE: /data/users.toml
