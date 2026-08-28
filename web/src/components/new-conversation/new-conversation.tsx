@@ -333,7 +333,12 @@ export function NewConversation() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    // `min-h-0` and `h-full`, not just `flex-1`: a flex child's default
+    // `min-height:auto` lets it grow past its parent, so a long message
+    // pushed the action bar off the bottom of the window and Send could
+    // not be reached at all. The reply box beside this one has had the
+    // pair since it was written; this composer never did.
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       {/* header — subtle, not shouty */}
       <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
         <span className="text-fg-muted text-xs font-medium">
@@ -381,7 +386,10 @@ export function NewConversation() {
       />
 
       {/* block-based composer */}
-      <div className="min-h-0 flex-1">
+      {/* The scroll lives here, on the part that grows. Everything
+          above and below it is `shrink-0`, so the addresses stay put
+          and Send stays reachable however long the message gets. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <Suspense fallback={<ComposerSkeleton />}>
           <StructuredCompose
             disabled={sending}
