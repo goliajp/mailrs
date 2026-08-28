@@ -9,7 +9,7 @@ import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useCurrentSelection, useSendRows } from '@/hooks/use-current-list'
-import { useResendMutation } from '@/hooks/use-sends'
+import { useCancelSendMutation, useResendMutation } from '@/hooks/use-sends'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowClass } from '@/lib/list-row-class'
@@ -54,6 +54,7 @@ export function SendList() {
   const setRedraftSource = useSetAtom(composeRedraftSourceAtom)
   const setComposingNew = useSetAtom(composingNewAtom)
   const resend = useResendMutation()
+  const cancel = useCancelSendMutation()
 
   const attention = useMemo(() => rows.filter(needsAttention).length, [rows])
 
@@ -92,6 +93,27 @@ export function SendList() {
     }
   }
 
+  const handleCancel = (sendId: string) => {
+    cancel.mutate(sendId, {
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not cancel'),
+      onSuccess: (r) => {
+        // The one outcome the button's own wording would get wrong.
+        // Say it plainly rather than showing a success that is not one.
+        if (r.already_delivered > 0 && r.recipients_cancelled === 0) {
+          toast.error('Already delivered — too late to cancel')
+          return
+        }
+        if (r.already_delivered > 0) {
+          toast.success(
+            `Stopped ${r.recipients_cancelled}; ${r.already_delivered} had already been delivered`
+          )
+          return
+        }
+        toast.success('Cancelled')
+      },
+    })
+  }
+
   const handleResend = (sendId: string) => {
     resend.mutate(sendId, {
       onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not resend'),
@@ -117,8 +139,10 @@ export function SendList() {
           const id = item.row.messageId
           return (
             <SendRowView
+              cancelling={cancel.isPending}
               expanded={expanded === id}
               key={id}
+              onCancel={handleCancel}
               onOpen={openMessage}
               onRedraft={() => void handleRedraft(item.row.send?.send_id ?? '')}
               onResend={handleResend}
@@ -144,7 +168,9 @@ export function SendList() {
 }
 
 const SendRowView = memo(function SendRowView({
+  cancelling,
   expanded,
+  onCancel,
   onOpen,
   onRedraft,
   onResend,
@@ -153,7 +179,9 @@ const SendRowView = memo(function SendRowView({
   row,
   selected,
 }: {
+  cancelling: boolean
   expanded: boolean
+  onCancel: (sendId: string) => void
   onOpen: (row: SendRow) => void
   onRedraft: () => void
   onResend: (sendId: string) => void
@@ -163,30 +191,49 @@ const SendRowView = memo(function SendRowView({
   selected: boolean
 }) {
   const flagged = needsAttention(row)
+  // Only what has not gone out. A delivered row has nothing to stop,
+  // and offering the control there would promise a recall.
+  const stoppable = row.send?.status === 'sending' || row.send?.status === 'scheduled'
 
   return (
     <div role="listitem">
-      <button
-        className={rowClass(flagged, selected)}
-        onClick={() => rowAction(flagged, onToggle, () => onOpen(row))}
-        type="button"
-      >
-        <SenderAvatar className="shrink-0" sender={firstRecipient(row.to)} size={36} />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-fg-secondary truncate text-sm font-medium">
-              {recipientLabel(row.to)}
-            </span>
-            <span className="text-fg-muted text-tiny shrink-0">{formatFullDate(row.date)}</span>
+      <div className="flex items-stretch">
+        <button
+          className={`${rowClass(flagged, selected)} min-w-0 flex-1`}
+          onClick={() => rowAction(flagged, onToggle, () => onOpen(row))}
+          type="button"
+        >
+          <SenderAvatar className="shrink-0" sender={firstRecipient(row.to)} size={36} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-fg-secondary truncate text-sm font-medium">
+                {recipientLabel(row.to)}
+              </span>
+              <span className="text-fg-muted text-tiny shrink-0">{formatFullDate(row.date)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-fg-muted min-w-0 flex-1 truncate text-sm">
+                {subjectLabel(row.subject)}
+              </span>
+              <StatusBadge status={row.send?.status ?? null} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-fg-muted min-w-0 flex-1 truncate text-sm">
-              {subjectLabel(row.subject)}
-            </span>
-            <StatusBadge status={row.send?.status ?? null} />
-          </div>
-        </div>
-      </button>
+        </button>
+        {/* Beside the row, not inside it: a button cannot nest in a
+          button, and "stop this now" should not be one click further
+          away than opening the message. */}
+        {stoppable && (
+          <button
+            aria-label="Cancel this send"
+            className="text-fg-muted hover:text-danger hover:bg-bg-secondary shrink-0 px-3 text-xs font-medium disabled:opacity-50"
+            disabled={cancelling}
+            onClick={() => onCancel(row.send?.send_id ?? '')}
+            type="button"
+          >
+            {cancelling ? '…' : 'Cancel'}
+          </button>
+        )}
+      </div>
       {expanded && row.send && (
         <FailureDetail
           onRedraft={onRedraft}

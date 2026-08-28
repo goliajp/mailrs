@@ -7,10 +7,12 @@
 import { wireFetch } from '../client'
 import { emptyResponseSchema } from '../schemas/mutations'
 import {
+  cancelResultSchema,
   redraftSchema,
   resendResultSchema,
   scheduledListSchema,
   sendsSchema,
+  type WireCancelResult,
   type WireRedraft,
   type WireResendResult,
   type WireSend,
@@ -32,13 +34,17 @@ export async function wireCancelScheduled(id: string): Promise<void> {
 }
 
 /**
- * A failed send as compose fields. The attachments come back described
- * but not transferred — a later send names the ones to keep by index and
- * the server re-extracts the bytes it never sent to the browser.
+ * `POST /api/mail/sends/{sendId}/cancel` — stop a send that has not
+ * gone out.
+ *
+ * 409 when it already finished. That is not an error to swallow: the
+ * message has landed, and the caller must say so rather than show a
+ * cancelled row for mail that arrived.
  */
-export function wireGetRedraft(sendId: string): Promise<WireRedraft> {
-  return wireFetch(redraftSchema, {
-    path: `/mail/sends/${encodeURIComponent(sendId)}/redraft`,
+export function wireCancelSend(sendId: string): Promise<WireCancelResult> {
+  return wireFetch(cancelResultSchema, {
+    method: 'POST',
+    path: `/mail/sends/${encodeURIComponent(sendId)}/cancel`,
   })
 }
 
@@ -53,6 +59,17 @@ export function wireGetRedraft(sendId: string): Promise<WireRedraft> {
 // Backend: `crates/webapi/src/handlers/scheduled.rs` — `list_scheduled`
 // answers `{items: [{id, scheduled_at, recipient, subject}]}`, soonest
 // first, and only the caller's own.
+
+/**
+ * A failed send as compose fields. The attachments come back described
+ * but not transferred — a later send names the ones to keep by index and
+ * the server re-extracts the bytes it never sent to the browser.
+ */
+export function wireGetRedraft(sendId: string): Promise<WireRedraft> {
+  return wireFetch(redraftSchema, {
+    path: `/mail/sends/${encodeURIComponent(sendId)}/redraft`,
+  })
+}
 
 export async function wireListScheduled(): Promise<readonly ScheduledSend[]> {
   const raw = await wireFetch(scheduledListSchema, { path: '/scheduled' })

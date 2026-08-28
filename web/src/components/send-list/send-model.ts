@@ -154,6 +154,8 @@ export function needsAttention(row: SendRow): boolean {
 }
 
 const STATUS_LABELS: Record<WireSendStatus, string> = {
+  // "Cancelled", not "Failed": you stopped it, nobody refused it.
+  cancelled: 'Cancelled',
   delivered: 'Delivered',
   failed: 'Failed',
   partial: 'Partly delivered',

@@ -4475,6 +4475,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quarantine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversations held as suspected fraud
+         * @description Newest first. Held mail is kept — it is the evidence an abuse report is built from — and is out of every other list, including their counts.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    before_ts?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description held conversations */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quarantine/{thread_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release a held conversation
+         * @description It was not fraud. Returns the conversation to whatever list it belonged to. The stored verdict is left alone: it records what was decided then.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description released */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/{message_id}/fraud-verdict": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The four layers that decided one message
+         * @description transport / identity / provenance / content, as they were decided, with the rule-set version. `{"verdict": null}` when nothing was found — which is not the same as examined and cleared.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    message_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description the verdict, or null */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5799,6 +5917,8 @@ export interface operations {
                 archived?: boolean;
                 /** @description Filter by folder name */
                 folder?: string;
+                /** @description Show conversations held as suspected fraud in place, marked. Default false; the exclusion lives in the query shape, so held conversations are out of the totals too. */
+                include_quarantined?: boolean;
             };
             header?: never;
             path?: never;

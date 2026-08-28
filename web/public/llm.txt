@@ -48,6 +48,7 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/conversations/{thread_id}/star — star
 - POST /api/conversations/{thread_id}/archive — archive
 - DELETE /api/conversations/{thread_id} — delete thread
+- POST /api/mail/sends/{send_id}/cancel — stop a send that has not gone out. Returns jobs_removed / recipients_cancelled / already_delivered; a recipient an MX already accepted is NOT recalled. 409 if the send has finished
 - GET /api/quarantine — conversations held as suspected fraud, newest first. Kept, not deleted, and out of every other list — including its counts
 - POST /api/quarantine/{thread_id}/release — it was not fraud; returns the conversation to its list
 - GET /api/messages/{message_id}/fraud-verdict — the four layers that decided it (transport / identity / provenance / content), as they were decided, with the rule-set version. `{"verdict": null}` when nothing was found

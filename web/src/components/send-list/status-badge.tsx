@@ -1,6 +1,6 @@
 import type { WireSendStatus } from '@/wire/schemas/sends'
 
-import { AlertTriangle, Check, Clock, Loader2, X } from 'lucide-react'
+import { AlertTriangle, Ban, Check, Clock, Loader2, X } from 'lucide-react'
 
 import { statusLabel } from './send-model'
 
@@ -28,6 +28,10 @@ export function StatusBadge({ status }: { status: null | WireSendStatus }) {
 function StatusIcon({ status }: { status: WireSendStatus }) {
   const cls = 'h-3 w-3'
   switch (status) {
+    // Not the failure X: nothing went wrong, the sender changed their
+    // mind. Same reason it is not folded into `failed` on the wire.
+    case 'cancelled':
+      return <Ban aria-hidden className={cls} />
     case 'delivered':
       return <Check aria-hidden className={cls} />
     case 'failed':
@@ -45,6 +49,8 @@ function StatusIcon({ status }: { status: WireSendStatus }) {
 
 function toneClass(status: WireSendStatus): string {
   switch (status) {
+    case 'cancelled':
+      return 'bg-bg-secondary text-fg-muted'
     case 'delivered':
       return 'bg-success/10 text-success'
     case 'failed':

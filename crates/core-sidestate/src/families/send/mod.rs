@@ -60,6 +60,13 @@ pub enum Status {
     /// of the two above would misinform the person deciding whether to
     /// resend, and to whom.
     Partial,
+    /// The sender stopped it. Its own state and not `Failed`, because
+    /// the two answer different questions: `Failed` says a remote
+    /// refused it and invites a look at why, and this says nobody
+    /// tried again because you asked them not to. Folding the second
+    /// into the first is the same lie as reporting a partial send as
+    /// delivered.
+    Cancelled,
 }
 
 impl Status {
@@ -70,6 +77,7 @@ impl Status {
             Status::Delivered => "delivered",
             Status::Failed => "failed",
             Status::Partial => "partial",
+            Status::Cancelled => "cancelled",
         }
     }
 
@@ -80,6 +88,7 @@ impl Status {
             "delivered" => Some(Status::Delivered),
             "failed" => Some(Status::Failed),
             "partial" => Some(Status::Partial),
+            "cancelled" => Some(Status::Cancelled),
             _ => None,
         }
     }
@@ -318,6 +327,69 @@ pub fn update_recipient(
         &[(created as f64, send_id.as_bytes())],
     )?;
     Ok(status)
+}
+
+/// Stop a send: mark every recipient that has not been delivered to.
+///
+/// Reuses [`update_recipient`] rather than writing the status directly,
+/// so the `by_status` zsets are moved between rather than added to —
+/// the index that is added to and never removed from is the shape that
+/// left `by_category:inbox` holding 28,598 entries against 6,787 live
+/// rows.
+///
+/// **A delivered recipient is left exactly as it is.** The message is
+/// with them; a cancel that overwrote that would be telling the sender
+/// something untrue about mail that has already arrived. When some
+/// went and some did not, the derived status is `Partial`, which is
+/// what happened.
+///
+/// Returns `(cancelled, already_delivered)`.
+pub fn cancel_send(
+    conn: &mut kevy_client::Connection,
+    user: &str,
+    send_id: &str,
+    reason: &str,
+) -> std::io::Result<(usize, usize)> {
+    let recipients = read_recipients(conn, user, send_id)?;
+    let mut cancelled = 0usize;
+    let mut delivered = 0usize;
+    for r in recipients {
+        if r.delivered {
+            delivered += 1;
+            continue;
+        }
+        // Terminal: nothing is pending any more, and nothing was
+        // delivered. `code` stays 0 because no server answered — a
+        // fabricated 5xx here would read as a rejection that never
+        // happened.
+        let state = RecipientState {
+            recipient: r.recipient.clone(),
+            delivered: false,
+            pending: false,
+            code: 0,
+            message: reason.to_string(),
+        };
+        update_recipient(conn, user, send_id, &state)?;
+        cancelled += 1;
+    }
+    // Every recipient cancelled and none delivered derives to `Failed`
+    // — right shape, wrong word. Say what happened.
+    if cancelled > 0 && delivered == 0 {
+        let created = created_at(conn, user, send_id)?;
+        let old = current_status(conn, user, send_id)?;
+        conn.hset(
+            send_key(user, send_id).as_bytes(),
+            &[(b"status" as &[u8], Status::Cancelled.as_str().as_bytes())],
+        )?;
+        if let Some(o) = old {
+            conn.zrem(by_status_key(user, o).as_bytes(), &[send_id.as_bytes()])?;
+        }
+        conn.zadd(
+            by_status_key(user, Status::Cancelled).as_bytes(),
+            &[(created as f64, send_id.as_bytes())],
+        )?;
+    }
+    Ok((cancelled, delivered))
 }
 
 /// Attach the maildir blob holding the RFC 5322 bytes.
