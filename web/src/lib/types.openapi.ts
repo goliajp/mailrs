@@ -4593,6 +4593,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/sends/{send_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop a send that has not gone out
+         * @description Removes its queued jobs and marks the recipients cancelled. Cannot recall a message an MX has already accepted: those recipients are left alone and counted in `already_delivered`. 409 when the send has already finished.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    send_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description jobs_removed / recipients_cancelled / already_delivered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description nothing in flight to stop */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
