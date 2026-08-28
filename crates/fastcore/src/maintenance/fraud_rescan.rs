@@ -380,11 +380,10 @@ fn header_value(raw: &[u8], name_lower: &[u8]) -> Option<String> {
         if line.is_empty() {
             break;
         }
-        if value.is_some() {
+        if let Some(v) = &mut value {
             // Still inside the field while the line is folded.
             match line.starts_with([' ', '\t']) {
                 true => {
-                    let v = value.as_mut().expect("checked above");
                     if !v.is_empty() {
                         v.push(' ');
                     }
