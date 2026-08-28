@@ -105,6 +105,22 @@ pub fn message_blob(message_id: &str) -> String {
     format!("mailrs:msg:{message_id}")
 }
 
+/// The four-layer fraud verdict for one message, as JSON.
+///
+/// Its own key rather than a field on the message blob or a column on
+/// the row: it is written once at receive time, read only by the
+/// review screen, and never sorted or filtered on. A column would put
+/// it in every read of every message for the sake of the handful that
+/// have one.
+///
+/// Keyed by message, not by user: the receiver formed one opinion
+/// during one SMTP transaction. Which readers are *holding* the
+/// conversation because of it is the per-user `quarantined` column's
+/// question, and a different one.
+pub fn fraud_verdict(message_id: &str) -> String {
+    format!("mailrs:fraudverdict:{message_id}")
+}
+
 /// Mailbox hash. Fields: name, user, uidvalidity, uidnext, highest_modseq.
 pub fn mailbox(mailbox_id: i64) -> String {
     format!("mailrs:mailbox:{mailbox_id}")

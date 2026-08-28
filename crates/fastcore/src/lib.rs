@@ -85,7 +85,7 @@ use mailrs_core_api::method::outbound as ob;
 use mailrs_core_api::method::thread as th;
 use mailrs_core_api::server::{Handler, base_router};
 use mailrs_core_api::types::{BackendKind, ConversationSummaryWire, HealthResponse};
-use mailrs_mailbox_kevy::{KevyMailboxStore, ListThreadsFilter, ThreadRow};
+use mailrs_mailbox_kevy::{KevyMailboxStore, ListThreadsFilter, QuarantineScope, ThreadRow};
 
 /// Server state — owns the kevy store and is cloned into axum handlers.
 pub struct FastcoreState {

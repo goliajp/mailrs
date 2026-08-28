@@ -40,6 +40,7 @@ pub mod oidc;
 pub mod prefs;
 pub mod prefs_misc;
 pub mod push;
+pub mod quarantine;
 pub mod scheduled;
 pub mod search;
 pub mod send;

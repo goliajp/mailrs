@@ -24,6 +24,19 @@ use super::KevyMailboxStore;
 use super::keys;
 use super::thread_row::ThreadRow;
 
+/// What a list does about conversations held as suspected fraud.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuarantineScope {
+    /// Leave them out — of the rows and of the total alike. The
+    /// default, and what every ordinary list wants.
+    #[default]
+    Hide,
+    /// Show them in place, marked. Two ranges merged by recency.
+    Include,
+    /// Only the held ones: the review screen's own reading.
+    Only,
+}
+
 /// Filter knobs passed to `list_threads_by_activity`. None of these are
 /// required; default is "all threads sorted by recency, latest first."
 #[derive(Debug, Clone, Default)]
@@ -54,6 +67,17 @@ pub struct ListThreadsFilter<'a> {
     /// after the fact — from a page whose size it had already been
     /// told.
     pub archived: bool,
+    /// Where the page sits relative to what this reader is holding as
+    /// suspected fraud.
+    ///
+    /// Three states rather than a bool, because the third is a
+    /// different query and not a different filter: `Include` is the
+    /// union of two index ranges, asked as two reads of the *same*
+    /// question and merged, so its total is the sum of two index
+    /// counts. A version that fetched the live page and pasted held
+    /// rows onto it would be filtering a page it had already counted
+    /// — the defect this axis was built to avoid.
+    pub quarantine: QuarantineScope,
     /// Only threads with `unread_count > 0`.
     pub has_unread: bool,
     /// Only threads with `has_action = true`.
@@ -327,6 +351,12 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        // Asked to show what is held, this is the same question asked
+        // twice and merged. See `merge_held_into_live`.
+        if filter.quarantine == QuarantineScope::Include {
+            return self.merge_held_into_live(user, filter, offset, limit);
+        }
+
         // Narrowed to some of the connected mailboxes, this is the same
         // question asked once per account and merged by recency — the
         // shape `list_buckets_via_table` already uses for the two-bucket

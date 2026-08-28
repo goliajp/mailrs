@@ -174,6 +174,7 @@ async fn main() {
                     category: None,
                     domains: None,
                     archived: false,
+                    include_quarantined: false,
                     folder: None,
                     unread: None,
                     starred: None,

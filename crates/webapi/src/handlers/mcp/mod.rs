@@ -46,6 +46,7 @@ mod tools_v2_batch11;
 mod tools_v2_batch12;
 mod tools_v2_batch13;
 mod tools_v2_batch14;
+mod tools_v2_batch15;
 mod tools_v2_batch2;
 mod tools_v2_batch3;
 mod tools_v2_batch4;
@@ -98,6 +99,7 @@ impl MailrsMcpService {
             + Self::tool_router_v2_batch12()
             + Self::tool_router_v2_batch13()
             + Self::tool_router_v2_batch14()
+            + Self::tool_router_v2_batch15()
     }
 }
 

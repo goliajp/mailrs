@@ -129,6 +129,10 @@ pub async fn mark_all_read(
             category: q.category,
             domains: None,
             archived: q.archived,
+            // The set marked is the set on screen — which is what
+            // this route's own doc promises — so a reader who is
+            // showing held conversations marks those too.
+            include_quarantined: q.include_quarantined,
             folder: q.folder,
             unread: q.unread,
             starred: q.starred,

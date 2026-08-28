@@ -50,6 +50,8 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
       category: filters.category as never,
       domains: filters.domains,
       folder: filters.folder as never,
+      includeQuarantined: filters.includeQuarantined,
+      quarantined: filters.quarantined,
       // `query` MUST be in the key: listPath() switches to the
       // /conversations/search endpoint when filters.query is set, but
       // without query in the key a search reuses the non-search inbox
@@ -153,6 +155,15 @@ function accountsParam(filters: MailListFilters): string {
 // Build the API path for a paginated conversation list. Mirrors the old
 // chat.tsx `buildPath` but pure — no React state.
 function listPath(filters: MailListFilters, before?: number): string {
+  // The review list is its own endpoint — held mail is not a
+  // predicate over the ordinary lists, it is the thing they exclude.
+  // Paged like the rest: the client appends pages, so a route that
+  // ignored the cursor would show every held conversation twice.
+  if (filters.quarantined) {
+    let p = `/quarantine?limit=${PAGE_SIZE}`
+    if (before) p += `&before=${before}`
+    return p
+  }
   if (filters.query) {
     // Search carries the same axes the list does. It used to carry only
     // `q`, so searching from Inbox returned Junk and Sent threads that
@@ -167,6 +178,7 @@ function listPath(filters: MailListFilters, before?: number): string {
     if (filters.unread) p += '&unread=true'
     if (filters.starred) p += '&starred=true'
     if (filters.archived) p += '&archived=true'
+    if (filters.includeQuarantined) p += '&include_quarantined=1'
     p += accountsParam(filters)
     return p
   }
@@ -177,6 +189,7 @@ function listPath(filters: MailListFilters, before?: number): string {
     p += `&domains=${encodeURIComponent(filters.domains.join(','))}`
   }
   if (filters.archived) p += '&archived=true'
+  if (filters.includeQuarantined) p += '&include_quarantined=1'
   if (filters.folder) p += `&folder=${encodeURIComponent(filters.folder)}`
   if (filters.unread) p += '&unread=true'
   if (filters.starred) p += '&starred=true'

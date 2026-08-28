@@ -40,6 +40,7 @@ export type MailListId =
   | 'inbox'
   | 'junk'
   | 'np'
+  | 'quarantine'
   | 'send'
   | 'starred'
   | 'unread'
@@ -58,7 +59,10 @@ export type MailListSource =
   | { kind: 'sends' }
 
 /** The axes of `MailListFilters` a list fixes. The rest are refinements. */
-export type ThreadListAxes = Pick<MailListFilters, 'archived' | 'folder' | 'starred' | 'unread'>
+export type ThreadListAxes = Pick<
+  MailListFilters,
+  'archived' | 'folder' | 'quarantined' | 'starred' | 'unread'
+>
 
 /**
  * `NonJunk` for Unread and Starred is deliberate and not a folder anyone
@@ -100,6 +104,16 @@ export const MAIL_LISTS: Record<MailListId, MailList> = {
     selectable: true,
     source: { filters: { folder: 'NP' }, kind: 'threads' },
   },
+  quarantine: {
+    // A real answer, not an apology: nothing is being held.
+    emptyLabel: 'Nothing held. No one is currently trying to defraud you.',
+    label: 'Review',
+    selectable: true,
+    // Its own endpoint, not a predicate over the ordinary lists —
+    // those exclude held conversations by construction, so a filter
+    // over them could not reach these.
+    source: { filters: { quarantined: true }, kind: 'threads' },
+  },
   // "Send", not "Sent": the view holds sends that failed and sends still
   // going out, so a heading claiming they were sent would be wrong about
   // the rows it is showing.
@@ -139,6 +153,7 @@ export const MAIL_LIST_TABS: MailListId[] = [
   'send',
   'draft',
   'archived',
+  'quarantine',
 ]
 
 export function isMailListId(v: unknown): v is MailListId {

@@ -11,13 +11,14 @@ OpenAPI spec: https://mail.golia.ai/openapi.json
 ## MCP (recommended)
 
 Streamable HTTP endpoint: https://mail.golia.ai/mcp
-82 tools auto-discovered, grouped by category (identical on both server lanes):
+85 tools auto-discovered, grouped by category (identical on both server lanes):
 
 ```json
 {"mcpServers":{"mailrs":{"type":"streamable-http","url":"https://mail.golia.ai/mcp","headers":{"Authorization":"Bearer <API_KEY>"}}}}
 ```
 
 **Email:** send_email, read_thread, search_conversations, reply_email, list_conversations, list_mailboxes, get_categories, search_contacts, send_scheduled_email, get_thread_summary, get_inbox_metrics
+**Fraud hold:** list_quarantined, get_fraud_verdict, release_quarantined
 **Threads:** mark_thread_read, mark_thread_unread, mark_all_read, star_thread, unstar_thread, pin_thread, unpin_thread, snooze_thread, unsnooze_thread, archive_thread, unarchive_thread, delete_thread
 **Drafts & Templates:** list_drafts, save_draft, delete_draft, list_templates, save_template, delete_template, list_signatures, save_signature, delete_signature
 **Accounts:** list_accounts, create_account, remove_account, set_account_password
@@ -47,6 +48,10 @@ Streamable HTTP endpoint: https://mail.golia.ai/mcp
 - POST /api/conversations/{thread_id}/star — star
 - POST /api/conversations/{thread_id}/archive — archive
 - DELETE /api/conversations/{thread_id} — delete thread
+- GET /api/quarantine — conversations held as suspected fraud, newest first. Kept, not deleted, and out of every other list — including its counts
+- POST /api/quarantine/{thread_id}/release — it was not fraud; returns the conversation to its list
+- GET /api/messages/{message_id}/fraud-verdict — the four layers that decided it (transport / identity / provenance / content), as they were decided, with the rule-set version. `{"verdict": null}` when nothing was found
+- GET /api/conversations?include_quarantined=1 — show held conversations in place, marked. Default off; the exclusion is in the query shape, so held conversations are out of the totals too
 - GET /api/mail/folders — list folders
 - GET /api/contacts — search contacts
 

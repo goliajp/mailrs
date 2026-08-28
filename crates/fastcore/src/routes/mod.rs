@@ -12,11 +12,13 @@
 
 mod account;
 pub(crate) mod message_ops;
+mod quarantine;
 mod reads;
 mod thread_actions;
 
 pub(crate) use account::*;
 pub(crate) use message_ops::*;
+pub(crate) use quarantine::*;
 pub(crate) use reads::*;
 pub(crate) use thread_actions::*;
 

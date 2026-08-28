@@ -42,6 +42,16 @@ pub(crate) fn threads_filter(
         starred: f.starred.unwrap_or(false),
         before_ts: f.before_ts,
         accounts: f.accounts.clone(),
+        // The caller's request, not a policy: whether a conversation
+        // is held was decided at receive time. `Only` — the review
+        // screen's reading — is reached through its own route rather
+        // than through this filter, so a client cannot ask an
+        // ordinary list for nothing but held mail by accident.
+        quarantine: if f.include_quarantined {
+            QuarantineScope::Include
+        } else {
+            QuarantineScope::Hide
+        },
     }
 }
 
@@ -158,6 +168,14 @@ fn in_search_scope(
         return false;
     }
     if row.archived != req.archived {
+        return false;
+    }
+    // Search is a list, and held mail is out of every list. Without
+    // this a reader could reach a conversation by searching that the
+    // Inbox, Junk and every other tab agree not to show — and the
+    // one thing a hold has to be is consistent, or it reads as mail
+    // that comes and goes.
+    if row.quarantined {
         return false;
     }
     if req.unread == Some(true) && row.unread_count == 0 {

@@ -68,6 +68,7 @@ where
             full_message.extend_from_slice(&body);
 
             let mut target_folder = "INBOX";
+            let mut fraud_verdict: Option<String> = None;
             if !is_authenticated && ctx.antispam_enabled {
                 match run_antispam(
                     &session.state,
@@ -89,9 +90,11 @@ where
                     AntiSpamOutcome::Continue {
                         full_message: new_msg,
                         target_folder: tf,
+                        fraud_verdict: v,
                     } => {
                         full_message = new_msg;
                         target_folder = tf;
+                        fraud_verdict = v;
                     }
                 }
             }
@@ -109,6 +112,7 @@ where
                     is_authenticated,
                     conn_id,
                     target_folder,
+                    fraud_verdict,
                     &full_message,
                     ctx,
                 )

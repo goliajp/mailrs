@@ -227,6 +227,7 @@ impl KevyMailboxStore {
             requires_action: false,
             pinned: false,
             archived: false,
+            quarantined: false,
             has_action: false,
             sent_count: if is_own { 1 } else { 0 },
             starred: false,

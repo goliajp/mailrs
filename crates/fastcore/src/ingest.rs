@@ -31,6 +31,10 @@ pub(crate) fn ingest_delivered_file(
     blob_ref: &str,
     body: &[u8],
     target_folder: &str,
+    // The receiver's four-layer verdict, as JSON, when it found
+    // anything. `None` on every other path — an IMAP APPEND and a
+    // bounce were never examined, and an absent verdict says so.
+    fraud_verdict: Option<&str>,
 ) {
     let head = &body[..body.len().min(16 * 1024)];
     let (message_id, in_reply_to, references, subject, date, from, to) = extract_headers(head);
@@ -206,6 +210,29 @@ pub(crate) fn ingest_delivered_file(
     if let Err(e) = state.mailbox.record_message_arrival(&arrival) {
         tracing::warn!(error = %e, %addr, %root, "drain ingest: record_message_arrival failed");
     }
+    // The finding, and the hold it implies. After the arrival, because
+    // `set_quarantined` writes the membership row and the arrival is
+    // what creates it — held before it exists is held on nothing.
+    if let Some(json) = fraud_verdict {
+        if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, json) {
+            tracing::warn!(error = %e, %addr, %message_id, "storing the fraud verdict failed");
+        }
+        match serde_json::from_str::<mailrs_inbound::FraudVerdict>(json) {
+            Ok(v) if v.quarantined => match state.mailbox.set_quarantined(addr, &root, true) {
+                Ok(true) => tracing::info!(
+                    %addr, %root, score = v.score, rules = %v.rules_version,
+                    "held: suspected fraud"
+                ),
+                Ok(false) => tracing::warn!(
+                    %addr, %root,
+                    "held nothing: no membership row to hold"
+                ),
+                Err(e) => tracing::warn!(error = %e, %addr, %root, "holding failed"),
+            },
+            Ok(_) => {}
+            Err(e) => tracing::warn!(error = %e, %addr, "the stored verdict did not parse"),
+        }
+    }
     // register this message's id → thread so future replies that cite it
     // (In-Reply-To / References) resolve into the same conversation.
     let _ = state
@@ -244,7 +271,7 @@ Please review the attached figures before Friday. The numbers moved.\r\n";
     #[test]
     fn a_received_message_leaves_a_preview_on_the_thread() {
         let state = fresh_state();
-        ingest_delivered_file(&state, "bob@golia.jp", "m1.eml", MESSAGE, "INBOX");
+        ingest_delivered_file(&state, "bob@golia.jp", "m1.eml", MESSAGE, "INBOX", None);
 
         let row = state
             .mailbox
@@ -275,7 +302,7 @@ Please review the attached figures before Friday. The numbers moved.\r\n";
             include_bytes!("../../ical/tests/fixtures/itip/outlook/request.eml");
         let state = fresh_state();
         let user = "bob@golia.jp";
-        ingest_delivered_file(&state, user, "invite.eml", OUTLOOK_REQUEST, "INBOX");
+        ingest_delivered_file(&state, user, "invite.eml", OUTLOOK_REQUEST, "INBOX", None);
 
         let (mid, tid) = {
             let head =
@@ -349,8 +376,8 @@ Date: Tue, 5 Aug 2026 10:00:00 +0900\r\n\
 four days on, still blocked\r\n";
         let state = fresh_state();
         let user = "bob@golia.jp";
-        ingest_delivered_file(&state, user, "ticket1.eml", INBOUND, "INBOX");
-        ingest_delivered_file(&state, user, "myreply.eml", REPLY, "INBOX");
+        ingest_delivered_file(&state, user, "ticket1.eml", INBOUND, "INBOX", None);
+        ingest_delivered_file(&state, user, "myreply.eml", REPLY, "INBOX", None);
 
         let sent = state
             .mailbox
@@ -368,7 +395,7 @@ four days on, still blocked\r\n";
     fn ordinary_mail_leaves_no_invite_method() {
         let state = fresh_state();
         let user = "bob@golia.jp";
-        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX");
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", None);
         let rows = state
             .mailbox
             .list_thread_messages(user, "m1@example.com")
@@ -379,6 +406,132 @@ four days on, still blocked\r\n";
         assert_eq!(
             wire.invite_method, "",
             "a plain message claimed to carry an invitation"
+        );
+    }
+
+    // ── the fraud verdict, and the hold it implies ───────────────
+
+    fn held_verdict() -> String {
+        serde_json::json!({
+            "rules_version": "2026-08-28.1",
+            "score": 9.5,
+            "threshold": 8.0,
+            "quarantined": true,
+            "layers": [],
+        })
+        .to_string()
+    }
+
+    /// The verdict the receiver formed is on the message afterwards.
+    ///
+    /// Without this the whole feature is a reader guarded on a field
+    /// nobody writes: the screen renders on the verdict, the column
+    /// hides the row, and both are satisfied by an absence.
+    #[test]
+    fn a_verdict_from_the_receiver_lands_on_the_message() {
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        let json = held_verdict();
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", Some(&json));
+
+        assert_eq!(
+            state
+                .mailbox
+                .fraud_verdict("m1@example.com")
+                .expect("read it back")
+                .as_deref(),
+            Some(json.as_str())
+        );
+    }
+
+    /// A held verdict takes the conversation out of the list, and out
+    /// of the count with it.
+    #[test]
+    fn a_held_verdict_takes_the_conversation_out_of_the_list() {
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(
+            &state,
+            user,
+            "m1.eml",
+            MESSAGE,
+            "INBOX",
+            Some(&held_verdict()),
+        );
+
+        let (rows, total) = state
+            .mailbox
+            .list_threads_by_activity(
+                user,
+                &mailrs_mailbox_kevy::ListThreadsFilter::default(),
+                0,
+                50,
+            )
+            .expect("list");
+        assert!(rows.is_empty(), "a held conversation was still listed");
+        assert_eq!(total, 0, "the count still included a held conversation");
+    }
+
+    /// The negative case, so the two above cannot pass on a field that
+    /// is always set or a list that is always empty: ordinary mail
+    /// carries no verdict and stays where it was.
+    #[test]
+    fn ordinary_mail_carries_no_verdict_and_stays_listed() {
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", None);
+
+        assert_eq!(state.mailbox.fraud_verdict("m1@example.com").unwrap(), None);
+        let (rows, total) = state
+            .mailbox
+            .list_threads_by_activity(
+                user,
+                &mailrs_mailbox_kevy::ListThreadsFilter::default(),
+                0,
+                50,
+            )
+            .expect("list");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(total, 1);
+    }
+
+    /// A verdict that did not reach the hold threshold is recorded and
+    /// changes nothing else. Scoring and hiding are two decisions, and
+    /// a verdict that always hid would make the threshold a fiction.
+    #[test]
+    fn a_scored_but_unheld_verdict_is_recorded_and_leaves_the_list_alone() {
+        let state = fresh_state();
+        let user = "bob@golia.jp";
+        let json = serde_json::json!({
+            "rules_version": "2026-08-28.1",
+            "score": 4.5,
+            "threshold": 8.0,
+            "quarantined": false,
+            "layers": [],
+        })
+        .to_string();
+        ingest_delivered_file(&state, user, "m1.eml", MESSAGE, "INBOX", Some(&json));
+
+        assert!(
+            state
+                .mailbox
+                .fraud_verdict("m1@example.com")
+                .unwrap()
+                .is_some()
+        );
+        let (rows, _) = state
+            .mailbox
+            .list_threads_by_activity(
+                user,
+                &mailrs_mailbox_kevy::ListThreadsFilter::default(),
+                0,
+                50,
+            )
+            .expect("list");
+        assert_eq!(
+            rows.len(),
+            1,
+            "a verdict under the threshold hid a conversation"
         );
     }
 }

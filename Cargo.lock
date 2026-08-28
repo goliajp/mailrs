@@ -3379,6 +3379,8 @@ dependencies = [
  "mailrs-rfc2047",
  "mailrs-textguard",
  "metrics",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]

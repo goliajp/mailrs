@@ -86,6 +86,7 @@ export type ConversationSummary = {
   message_count: number
   participants: string[]
   pinned: boolean
+  quarantined?: boolean
   received_count: number
   requires_action: boolean
   sent_count: number

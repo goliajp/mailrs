@@ -41,6 +41,7 @@ fn store() -> mailrs_mailbox_kevy::KevyMailboxStore {
             requires_action: false,
             pinned: false,
             archived: false,
+            quarantined: false,
             has_action: false,
             sent_count: 0,
             snoozed_until: 0,

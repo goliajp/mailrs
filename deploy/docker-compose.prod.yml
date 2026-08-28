@@ -106,6 +106,18 @@ services:
       # Backup taken and verified immediately before flipping this.
       MAILRS_KEVY_AOF_REWRITE: ${MAILRS_KEVY_AOF_REWRITE:-on}
       MAILRS_MAILDIR: /data/maildir
+      # The same fraud policy the receiver is given, because the
+      # re-scan sweep lives in *this* process and reads it from the
+      # environment. It was set only on the receiver until 2026-08-28,
+      # so `maintenance:fraud-rescan` ran here with an empty org-name
+      # list and the impersonation rule could not fire at all — half
+      # the checks, silently, on the only lane that runs the sweep.
+      # Kept identical to the receiver's block above; a copy that
+      # drifts is a sweep that judges by different rules than the
+      # receive path.
+      MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
+      MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we
       # originate, and the old "mailrs" default is not resolvable.

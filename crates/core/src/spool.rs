@@ -42,6 +42,23 @@ pub struct SpoolEnvelope {
     pub target_folder: String,
     /// unix seconds the receiver accepted the message.
     pub received_at: u64,
+    /// The four-layer fraud verdict, as JSON, when anything was
+    /// found. `None` for the overwhelming majority — a message nobody
+    /// suspected has no finding to record, and an empty verdict on
+    /// every message would make the ones that matter unfindable.
+    ///
+    /// Carried here rather than recomputed at drain time because the
+    /// receiver is the only process that saw the SMTP transaction:
+    /// the authentication results, the envelope sender, the
+    /// recipient's own lists. A second opinion formed from the
+    /// message alone would be a different opinion.
+    ///
+    /// `#[serde(default)]` so a spool file written by the previous
+    /// build still decodes — during a deploy there are always some in
+    /// flight, and an undecodable one is dead-lettered rather than
+    /// retried.
+    #[serde(default)]
+    pub fraud_verdict: Option<String>,
     /// schema version for forward-compat.
     pub schema_version: u32,
 }
@@ -121,8 +138,40 @@ mod tests {
             conn_id: 42,
             target_folder: "INBOX".into(),
             received_at: 1_781_500_000,
+            fraud_verdict: None,
             schema_version: SPOOL_SCHEMA_VERSION,
         }
+    }
+
+    /// A file written by the build before this field existed still
+    /// decodes. During a deploy there are always some in flight, and
+    /// an envelope that fails to decode is dead-lettered rather than
+    /// retried — so the cost of getting this wrong is lost mail, once,
+    /// at every deploy.
+    #[test]
+    fn an_envelope_from_before_this_field_still_decodes() {
+        let old = concat!(
+            r#"{"reverse_path":"s@example.com","forward_paths":["a@smk.ai"],"#,
+            r#""is_authenticated":false,"conn_id":1,"target_folder":"INBOX","#,
+            r#""received_at":1781500000,"schema_version":1}"#,
+        );
+        let blob = format!(
+            "{SPOOL_ENVELOPE_HEADER}: {}\r\nSubject: hi\r\n\r\nbody\r\n",
+            B64.encode(old)
+        );
+        let (env, body) = decode_spool_blob(blob.as_bytes()).expect("old envelope");
+        assert_eq!(env.fraud_verdict, None, "absent is not a finding");
+        assert_eq!(env.forward_paths, ["a@smk.ai"]);
+        assert!(body.starts_with(b"Subject: hi"));
+    }
+
+    #[test]
+    fn a_verdict_survives_the_spool() {
+        let mut env = sample_env();
+        env.fraud_verdict = Some(r#"{"score":9.5}"#.into());
+        let blob = encode_spool_blob(&env, b"Subject: hi\r\n\r\nx\r\n");
+        let (back, _) = decode_spool_blob(&blob).expect("decode");
+        assert_eq!(back.fraud_verdict, env.fraud_verdict);
     }
 
     #[test]
