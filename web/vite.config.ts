@@ -80,6 +80,19 @@ export default defineConfig({
     // did, on the first release after it was written, and the run that
     // caught it was carrying an unrelated fix.
     env: { TZ: 'Asia/Tokyo' },
+    // **The default five seconds measures the machine, not the code.**
+    // Sixteen test files call `await import(…)` inside the test body, so
+    // the first-time module transform lands inside the timed region —
+    // and on a laptop that is also running a release build the same
+    // suite failed five tests, then two, then none, always with "Test
+    // timed out in 5000ms" and never with an assertion. A red that
+    // moves with the load is a red people learn to skim past.
+    //
+    // Nothing here is a performance budget. The perf gates live in
+    // `crates/*/tests/perf_gate.rs`, run in release, and are the place
+    // a number about speed belongs.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
   },
   plugins: [react(), tailwindcss()],
   resolve: {
