@@ -21,6 +21,20 @@ impl KevyMailboxStore {
         self.toggle_flag(user, thread_id, "archived", archived)
     }
 
+    /// Flip `quarantined` on or off — the fraud finding, per reader.
+    ///
+    /// Same shape as `set_archived`, and next to it in every ORDERPATH
+    /// prefix for the same reason: both take a conversation out of the
+    /// ordinary lists, one by the reader's choice and one by a finding
+    /// about the sender. Neither deletes anything.
+    ///
+    /// Per user, not per thread: two people on one conversation can
+    /// have been targeted differently, and one of them releasing it
+    /// must not release it for the other.
+    pub fn set_quarantined(&self, user: &str, thread_id: &str, held: bool) -> io::Result<bool> {
+        self.toggle_flag(user, thread_id, "quarantined", held)
+    }
+
     /// Flip `pinned` on or off. Same shape as `set_archived`.
     pub fn set_pinned(&self, user: &str, thread_id: &str, pinned: bool) -> io::Result<bool> {
         self.toggle_flag(user, thread_id, "pinned", pinned)
