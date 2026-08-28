@@ -347,28 +347,58 @@ fn x_mailer(raw: &[u8]) -> Option<String> {
     header_value(raw, b"x-mailer:")
 }
 
-/// One header's value, by its lowercase name including the colon.
+/// One header's value, by its lowercase name including the colon,
+/// with its continuation lines joined.
 ///
 /// Stops at the blank line, so a quoted header in the body is not a
-/// header. Continuation lines are not joined: every caller here wants
-/// a token, and the three that matter — `X-Mailer`, `Message-ID`,
-/// `Authentication-Results` — put theirs on the first line. A folded
-/// `Authentication-Results` loses its later methods, which reads as
-/// "not checked" rather than as a pass, and that is the safe way for
-/// this to be wrong.
+/// header.
+///
+/// **Folded headers are joined**, and the comment here used to say
+/// they were not — "the three that matter put theirs on the first
+/// line". Production disproved it within a minute of the first sweep:
+/// Exchange writes
+///
+/// ```text
+/// Message-ID:
+///  <SA5PR03MB8426…@…outlook.com>
+/// ```
+///
+/// with nothing after the colon, so the id read as empty and the
+/// held conversation could not explain itself. `X-Mailer` reads
+/// through the same function, so a folded one would have been missed
+/// by the scan itself — a fraud check that silently does not fire.
+///
+/// RFC 5322 §2.2.3: a line beginning with space or tab continues the
+/// previous field. Joined with a single space, which is what
+/// unfolding means for a structured value.
 fn header_value(raw: &[u8], name_lower: &[u8]) -> Option<String> {
     let head = &raw[..raw.len().min(16 * 1024)];
     let text = String::from_utf8_lossy(head);
     let name = String::from_utf8_lossy(name_lower);
+    let mut value: Option<String> = None;
     for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
         if line.is_empty() {
             break;
         }
+        if value.is_some() {
+            // Still inside the field while the line is folded.
+            match line.starts_with([' ', '\t']) {
+                true => {
+                    let v = value.as_mut().expect("checked above");
+                    if !v.is_empty() {
+                        v.push(' ');
+                    }
+                    v.push_str(line.trim());
+                    continue;
+                }
+                false => break,
+            }
+        }
         if let Some(rest) = line.to_ascii_lowercase().strip_prefix(name.as_ref()) {
-            return Some(line[line.len() - rest.len()..].trim().to_string());
+            value = Some(line[line.len() - rest.len()..].trim().to_string());
         }
     }
-    None
+    value.filter(|v| !v.is_empty())
 }
 
 /// A verdict for mail that arrived before the checks existed.
@@ -465,6 +495,39 @@ body\r\n";
     fn the_message_id_is_unbracketed_and_absent_when_there_is_none() {
         assert_eq!(message_id(HELD).as_deref(), Some("m1@example.invalid"));
         assert_eq!(message_id(b"From: x\r\n\r\nbody\r\n"), None);
+    }
+
+    /// The shape production had on the first sweep: Exchange puts
+    /// nothing after `Message-ID:` and folds the value onto the next
+    /// line. Read without joining, the id is empty, the verdict is
+    /// never stored, and a held conversation cannot say why.
+    #[test]
+    fn a_folded_header_is_joined() {
+        let raw = b"Received: from mail.golia.ai\r\n\tby mail.golia.ai\r\n\
+Message-ID:\r\n <SA5PR03MB8426@namprd03.prod.outlook.com>\r\n\
+Subject: hi\r\n\r\nbody\r\n";
+        assert_eq!(
+            message_id(raw).as_deref(),
+            Some("SA5PR03MB8426@namprd03.prod.outlook.com")
+        );
+    }
+
+    /// And the same for the header the scan itself convicts on — a
+    /// folded `X-Mailer` read as absent is a check that silently does
+    /// not fire.
+    #[test]
+    fn a_folded_x_mailer_is_still_seen() {
+        let raw = b"From: a <a@b.invalid>\r\nX-Mailer:\r\n 4.28.1.9\r\n\r\nbody\r\n";
+        assert_eq!(x_mailer(raw).as_deref(), Some("4.28.1.9"));
+    }
+
+    /// Joining stops at the next field, or every header would be one
+    /// long string.
+    #[test]
+    fn joining_stops_at_the_next_header() {
+        let raw = b"Subject: one\r\n two\r\nX-Mailer: 9.9.9.9\r\n\r\nbody\r\n";
+        assert_eq!(header_value(raw, b"subject:").as_deref(), Some("one two"));
+        assert_eq!(x_mailer(raw).as_deref(), Some("9.9.9.9"));
     }
 
     /// A header quoted in the body is not a header.
