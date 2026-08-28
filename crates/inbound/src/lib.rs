@@ -71,6 +71,7 @@ pub mod decision;
 pub mod identity;
 pub mod pipeline;
 pub mod stage;
+pub mod verdict;
 
 // Public re-exports — the surface most consumers reach for.
 pub use auth_header::{
@@ -82,3 +83,4 @@ pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision};
 pub use identity::{deception_in_identity, from_header};
 pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
 pub use stage::{Stage, StageOutcome};
+pub use verdict::{FraudVerdict, Layer, Outcome, QUARANTINE_THRESHOLD, RULES_VERSION, assess};
