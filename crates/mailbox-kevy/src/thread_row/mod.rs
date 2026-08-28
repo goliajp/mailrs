@@ -307,9 +307,19 @@ impl ThreadRow {
 ///
 /// Each is written by its own mutator against the membership row.
 /// `thread_user_pairs` leaves them alone; a fresh row gets them at zero.
-pub(crate) const PER_USER_FLAGS: [&str; 6] = [
+pub(crate) const PER_USER_FLAGS: [&str; 7] = [
     "starred",
     "archived",
+    // A finding about this reader's mail, so it is theirs and not the
+    // shared thread's: two people on one conversation can have been
+    // targeted differently, and one of them releasing it must not
+    // release it for the other.
+    //
+    // Like `archived` it is an equality component of every ORDERPATH
+    // prefix, so a row missing it is in **no** list rather than merely
+    // un-quarantined — which is why it is planted at zero rather than
+    // left absent.
+    "quarantined",
     "pinned",
     "unread",
     "has_action",

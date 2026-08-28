@@ -44,6 +44,7 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
         "sent_only",
         "starred",
         "archived",
+        "quarantined",
         "pinned",
         "unread",
         "has_action",
@@ -98,6 +99,16 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
             col("is_sender", ValType::I64),
             col("starred", ValType::I64),
             col("archived", ValType::I64),
+            // A finding, not a folder: 1 when the receive pipeline
+            // decided somebody was trying to defraud this reader.
+            //
+            // Separate from `bucket`/Junk on purpose. Junk answers "is
+            // this worth reading" and is browsed; this answers "is
+            // someone trying to take something from you" and is not.
+            // It is also evidence — the originals were attached to the
+            // reports sent on 2026-08-27 — so it is hidden, never
+            // dropped.
+            col("quarantined", ValType::I64),
             col("pinned", ValType::I64),
             col("unread", ValType::I64),
             col("has_action", ValType::I64),
@@ -168,6 +179,7 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
                     ("user", false),
                     ("bucket", false),
                     ("archived", false),
+                    ("quarantined", false),
                     ("activity", true),
                     ("ord", false),
                 ],
@@ -186,6 +198,7 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
                     ("bucket", false),
                     ("sent_only", false),
                     ("archived", false),
+                    ("quarantined", false),
                     ("activity", true),
                     ("ord", false),
                 ],
@@ -197,6 +210,21 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
                 &[
                     ("user", false),
                     ("archived", false),
+                    ("quarantined", false),
+                    ("activity", true),
+                    ("ord", false),
+                ],
+            ),
+            // The review screen's own axis: what was held, newest
+            // first. Its own path rather than a filter over
+            // `by_user_activity`, because that one now excludes them
+            // by construction — the exclusion and the listing cannot
+            // share a walk.
+            path(
+                "by_user_quarantined",
+                &[
+                    ("user", false),
+                    ("quarantined", false),
                     ("activity", true),
                     ("ord", false),
                 ],
@@ -207,6 +235,7 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
                     ("user", false),
                     ("category", false),
                     ("archived", false),
+                    ("quarantined", false),
                     ("activity", true),
                     ("ord", false),
                 ],

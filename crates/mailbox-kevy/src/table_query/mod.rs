@@ -43,20 +43,27 @@ pub enum ArchiveScope {
 }
 
 impl ArchiveScope {
-    /// The equality predicate this scope contributes, if any.
-    fn eq(self) -> Option<(Vec<u8>, Vec<u8>)> {
+    /// The equality predicates this scope contributes, in prefix order.
+    ///
+    /// Two, since 2026-08-28: `archived` and then `quarantined`. They
+    /// sit next to each other in every ORDERPATH prefix and are the
+    /// same kind of thing — a row this reader has taken out of the
+    /// ordinary lists, one by choice and one by a finding — so one
+    /// scope decides both rather than two that have to agree.
+    fn eqs(self) -> Vec<(Vec<u8>, Vec<u8>)> {
         match self {
-            Self::Live => Some((b"archived".to_vec(), b"0".to_vec())),
-            Self::All => None,
+            Self::Live => vec![
+                (b"archived".to_vec(), b"0".to_vec()),
+                (b"quarantined".to_vec(), b"0".to_vec()),
+            ],
+            Self::All => vec![],
         }
     }
 
-    /// Append it to a clause's equality columns, in prefix order — the
-    /// caller has already pushed everything that comes before it.
+    /// Append them to a clause's equality columns, in prefix order —
+    /// the caller has already pushed everything that comes before.
     fn push_to(self, eqs: &mut Vec<(Vec<u8>, Vec<u8>)>) {
-        if let Some(pair) = self.eq() {
-            eqs.push(pair);
-        }
+        eqs.extend(self.eqs());
     }
 
     /// A cursor read needs `archived` pinned, or the range below it is
@@ -66,7 +73,7 @@ impl ArchiveScope {
             Self::Live => Ok(()),
             Self::All => Err(io::Error::other(format!(
                 "{what}: ArchiveScope::All cannot take a cursor — the ORDERPATH \
-                 keys on `archived` ahead of `activity`"
+                 keys on `archived` and `quarantined` ahead of `activity`"
             ))),
         }
     }
