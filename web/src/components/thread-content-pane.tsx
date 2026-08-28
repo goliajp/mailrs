@@ -27,12 +27,12 @@ import { InviteCard } from '@/components/invite-card'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
 import { MessageSource } from '@/components/message-source'
+import { RecipientList } from '@/components/recipient-list'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { SenderClaimBadge } from '@/components/sender-claim-badge'
 import { SenderTrustBadge } from '@/components/sender-trust-badge'
 import { StructuredDataCard } from '@/components/structured-data-card'
 import { FeedbackMenu, HdrBtn, SmBtn } from '@/components/thread-view-bubble'
-import { formatRecipients } from '@/components/thread-view-helpers'
 import { UnsubscribeFooter } from '@/components/unsubscribe-footer'
 import { useSelectedThreadId } from '@/hooks/use-current-list'
 import { MPane } from '@/layouts/pane'
@@ -308,14 +308,18 @@ export function ThreadContentPane({
                           <span className="truncate">{extractEmail(selectedMsg.sender)}</span>
                         </Copyable>
                       </p>
-                      <p className="text-fg-muted flex h-4 items-center text-xs select-text">
-                        <span className="truncate">
-                          to {formatRecipients(selectedMsg.recipients)}
-                        </span>
+                      {/* Names that can be asked about. They were a
+                          joined string of display names with the
+                          addresses discarded, so `to 29841300, lihao`
+                          gave no way to learn who `29841300` is —
+                          which is the question a reader has exactly
+                          when a name looks odd. */}
+                      <p className="text-fg-muted flex min-h-4 items-center text-xs select-text">
+                        <RecipientList label="to" value={selectedMsg.recipients} />
                       </p>
                       {selectedMsg.cc && (
-                        <p className="text-fg-muted flex h-4 items-center text-xs select-text">
-                          <span className="truncate">cc {formatRecipients(selectedMsg.cc)}</span>
+                        <p className="text-fg-muted flex min-h-4 items-center text-xs select-text">
+                          <RecipientList label="cc" value={selectedMsg.cc} />
                         </p>
                       )}
                       <div className="flex h-5 items-center gap-1.5">
