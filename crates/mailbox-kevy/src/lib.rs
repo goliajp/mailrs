@@ -69,6 +69,7 @@ mod alias;
 mod count_shadow;
 mod deliver;
 mod domain;
+mod fraud_verdict;
 mod importance;
 pub mod keys;
 mod list_threads;
@@ -84,7 +85,7 @@ mod table_query_tests;
 mod table_spec;
 mod thread_ownership;
 mod thread_row;
-pub use list_threads::ListThreadsFilter;
+pub use list_threads::{ListThreadsFilter, QuarantineScope};
 pub use mailrs_mailbox::threading::normalize_subject;
 pub use message_arrival::MessageArrival;
 pub use messages::{OwnedUserMessageFacts, UserMessageFacts};
@@ -243,6 +244,7 @@ mod backfill_source_tests {
             requires_action: false,
             pinned: false,
             archived: false,
+            quarantined: false,
             has_action: false,
             sent_count: 0,
             starred: false,

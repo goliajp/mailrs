@@ -45,6 +45,15 @@ pub(crate) enum Action {
     /// restore from** — the same warning `delete-thread-confirm` puts
     /// in front of a person.
     Delete,
+    /// Hold it: out of every ordinary list, into the review screen,
+    /// nothing deleted. Writes the verdict too, so the screen can say
+    /// which layer convicted.
+    ///
+    /// The transport layer of a re-scan's verdict is read from the
+    /// `Authentication-Results` header the receiver wrote at the time
+    /// — the receipt, not a re-derivation. Where there is no such
+    /// header the layer says so rather than claiming a pass.
+    Hold,
 }
 
 #[derive(serde::Deserialize)]
@@ -78,11 +87,7 @@ pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RescanQuery>,
 ) -> axum::response::Response {
-    let policy = mailrs_fraud::Policy {
-        org_names: csv_env("MAILRS_ORG_NAMES"),
-        our_domains: csv_env("MAILRS_LOCAL_DOMAINS"),
-        allowed_domains: csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
-    };
+    let policy = policy_from_env();
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -98,6 +103,8 @@ pub(crate) async fn fraud_rescan_route(
     let mut already_junk = 0u64;
     let mut moved = 0u64;
     let mut deleted = 0u64;
+    let mut held = 0u64;
+    let mut verdict_failed = 0u64;
     let mut no_file = 0u64;
     // Which check fired, because "12 found" does not say whether the
     // one that needs an allow-list entry is among them.
@@ -180,6 +187,33 @@ pub(crate) async fn fraud_rescan_route(
                         }
                     }
                 }
+                Action::Hold => {
+                    let verdict = rescan_verdict(&raw, findings);
+                    if let Some(mid) = message_id(&raw) {
+                        match serde_json::to_string(&verdict) {
+                            Ok(json) => {
+                                if let Err(e) = state.mailbox.set_fraud_verdict(&mid, &json) {
+                                    tracing::warn!(err = %e, %user, %tid, "storing the verdict failed");
+                                    verdict_failed += 1;
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!(err = %e, "the verdict did not serialise");
+                                verdict_failed += 1;
+                            }
+                        }
+                    } else {
+                        // Held anyway: a message with no Message-ID is
+                        // not a message to trust, and the hold is the
+                        // protection. It just cannot explain itself.
+                        verdict_failed += 1;
+                    }
+                    match state.mailbox.set_quarantined(user, &tid, true) {
+                        Ok(true) => held += 1,
+                        Ok(false) => tracing::warn!(%user, %tid, "held nothing: no membership row"),
+                        Err(e) => tracing::warn!(err = %e, %user, %tid, "holding failed"),
+                    }
+                }
                 Action::Delete => match state.mailbox.delete_thread(user, &tid) {
                     Ok((_, blobs)) => {
                         for b in &blobs {
@@ -200,6 +234,8 @@ pub(crate) async fn fraud_rescan_route(
         found,
         moved,
         deleted,
+        held,
+        verdict_failed,
         already_junk,
         no_file,
         dry_run = q.dry_run,
@@ -213,6 +249,11 @@ pub(crate) async fn fraud_rescan_route(
         "found": found,
         "moved_to_junk": moved,
         "deleted": deleted,
+        "held": held,
+        // Held but unable to explain itself. Reported rather than
+        // folded into `held`, because a hold nobody can see the
+        // reasons for is the one that turns into "my mail vanished".
+        "verdict_failed": verdict_failed,
         "already_junk": already_junk,
         "no_file": no_file,
         "by_reason": by_reason,
@@ -221,11 +262,46 @@ pub(crate) async fn fraud_rescan_route(
     .into_response()
 }
 
+/// The fraud policy this process was configured with, and a warning
+/// when half of it is missing.
+///
+/// A sweep with no org names cannot fire the impersonation rule, and
+/// its `found` count comes back looking like an answer. Say so.
+fn policy_from_env() -> mailrs_fraud::Policy {
+    let policy = mailrs_fraud::Policy {
+        org_names: csv_env("MAILRS_ORG_NAMES"),
+        our_domains: csv_env("MAILRS_LOCAL_DOMAINS"),
+        allowed_domains: csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
+    };
+    if policy.org_names.is_empty() {
+        tracing::warn!(
+            "fraud rescan: MAILRS_ORG_NAMES is empty — the impersonation check cannot fire, \
+             so this sweep sees only the mailer fingerprint. Set it to the same value the \
+             receiver has."
+        );
+    }
+    policy
+}
+
 /// A comma-separated environment variable, or nothing.
 ///
-/// Read here rather than threaded through `FastcoreState`: this is the
-/// same process the receiver's policy is configured for, and a second
-/// copy of the values is a second thing to keep in step.
+/// **The receiver is a different container**, and the sentence that
+/// used to be here said otherwise — "this is the same process the
+/// receiver's policy is configured for". It is not, and on production
+/// it never was: `MAILRS_ORG_NAMES` was set on the receiver only, so
+/// every sweep this process ran had an empty org-name list and the
+/// impersonation rule could not fire. Half the checks, on the only
+/// lane that runs the sweep, with nothing to say so — the count came
+/// back plausible because the other rule still worked.
+///
+/// Found on 2026-08-28 by running the sweep against a copy of
+/// production and getting a number eight times too large, because the
+/// copy had been given a *wider* policy than production has. The
+/// compose file now gives this process the receiver's block verbatim.
+///
+/// Empty is therefore worth noticing: [`policy_from_env`] logs when a
+/// sweep is about to run with no org names, because "found nothing"
+/// and "could not look" are different answers.
 fn csv_env(name: &str) -> Vec<String> {
     std::env::var(name)
         .unwrap_or_default()
@@ -268,15 +344,183 @@ fn newest_raw(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Option<Vec<u
 
 /// The `X-Mailer` header value, unfolded far enough to compare.
 fn x_mailer(raw: &[u8]) -> Option<String> {
+    header_value(raw, b"x-mailer:")
+}
+
+/// One header's value, by its lowercase name including the colon.
+///
+/// Stops at the blank line, so a quoted header in the body is not a
+/// header. Continuation lines are not joined: every caller here wants
+/// a token, and the three that matter — `X-Mailer`, `Message-ID`,
+/// `Authentication-Results` — put theirs on the first line. A folded
+/// `Authentication-Results` loses its later methods, which reads as
+/// "not checked" rather than as a pass, and that is the safe way for
+/// this to be wrong.
+fn header_value(raw: &[u8], name_lower: &[u8]) -> Option<String> {
     let head = &raw[..raw.len().min(16 * 1024)];
     let text = String::from_utf8_lossy(head);
+    let name = String::from_utf8_lossy(name_lower);
     for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
         if line.is_empty() {
             break;
         }
-        if let Some(rest) = line.to_ascii_lowercase().strip_prefix("x-mailer:") {
+        if let Some(rest) = line.to_ascii_lowercase().strip_prefix(name.as_ref()) {
             return Some(line[line.len() - rest.len()..].trim().to_string());
         }
     }
     None
+}
+
+/// A verdict for mail that arrived before the checks existed.
+///
+/// Honest about what it does and does not know. The identity and
+/// provenance layers are re-derived from the message, which is where
+/// they came from in the first place. The transport layer is read from
+/// the `Authentication-Results` header the receiver wrote at the time —
+/// that is the receipt, and reading it is not the same as re-running
+/// the check. Where the header is missing the layer reports
+/// not-applicable, which is what it is.
+fn rescan_verdict(raw: &[u8], findings: mailrs_fraud::Findings) -> mailrs_inbound::FraudVerdict {
+    let mut input = mailrs_inbound::unexamined();
+    input.fraud = findings;
+    if let Some(value) = header_value(raw, b"authentication-results:") {
+        for r in mailrs_inbound::auth_header::parse_auth_results(&value) {
+            match r.method.as_str() {
+                "spf" => input.auth.spf = r.result,
+                "dkim" => input.auth.dkim = r.result,
+                "dmarc" => input.auth.dmarc = r.result,
+                "arc" => input.auth.arc = r.result,
+                _ => {}
+            }
+        }
+    }
+    mailrs_inbound::assess(&input)
+}
+
+/// This message's `Message-ID`, unbracketed, as the verdict is keyed.
+fn message_id(raw: &[u8]) -> Option<String> {
+    let v = header_value(raw, b"message-id:")?;
+    let t = v
+        .trim()
+        .trim_start_matches('<')
+        .trim_end_matches('>')
+        .trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HELD: &[u8] = b"Authentication-Results: mx.golia.jp; spf=pass; dkim=pass; dmarc=pass\r\n\
+From: =?UTF-8?B?R09MSUEgSy5LLg==?= <billing@example.invalid>\r\n\
+Message-ID: <m1@example.invalid>\r\n\
+X-Mailer: 4.28.1.9\r\n\
+Subject: Invoice\r\n\
+\r\n\
+body\r\n";
+
+    fn findings() -> mailrs_fraud::Findings {
+        mailrs_fraud::Findings {
+            claims_our_name: true,
+            generated_mailer: true,
+        }
+    }
+
+    /// The receipt, read back. The campaign passed every check, so a
+    /// re-scan that reported transport as failing — or as unchecked —
+    /// would be telling a different story than the one the receiver
+    /// recorded.
+    #[test]
+    fn a_rescan_reads_the_transport_result_the_receiver_wrote() {
+        let v = rescan_verdict(HELD, findings());
+        let t = v.layers.iter().find(|l| l.name == "transport").unwrap();
+        assert_eq!(t.outcome, mailrs_inbound::Outcome::Pass);
+        assert!(t.detail.contains("SPF pass"), "detail: {}", t.detail);
+        assert!(
+            v.quarantined,
+            "score {} did not reach {}",
+            v.score, v.threshold
+        );
+    }
+
+    /// And where there is no receipt it says so. A default that read
+    /// as verified would put a tick beside a check that never ran.
+    #[test]
+    fn without_that_header_transport_is_not_a_pass() {
+        let raw = b"From: x <a@b.invalid>\r\nMessage-ID: <m2@b.invalid>\r\n\r\nbody\r\n";
+        let v = rescan_verdict(raw, findings());
+        let t = v.layers.iter().find(|l| l.name == "transport").unwrap();
+        assert_eq!(t.outcome, mailrs_inbound::Outcome::NotApplicable);
+    }
+
+    /// The verdict is keyed by message id, so a re-scan that could not
+    /// find one cannot store it — which is why `verdict_failed` is
+    /// counted separately from `held`.
+    #[test]
+    fn the_message_id_is_unbracketed_and_absent_when_there_is_none() {
+        assert_eq!(message_id(HELD).as_deref(), Some("m1@example.invalid"));
+        assert_eq!(message_id(b"From: x\r\n\r\nbody\r\n"), None);
+    }
+
+    /// A header quoted in the body is not a header.
+    #[test]
+    fn the_scan_stops_at_the_blank_line() {
+        let raw = b"From: x <a@b.invalid>\r\n\r\nX-Mailer: 9.9.9.9\r\n";
+        assert_eq!(x_mailer(raw), None);
+    }
+
+    /// An empty org-name list is a policy that cannot convict on the
+    /// name claim, and the sweep's `found` count would come back
+    /// looking like an answer. This is the assertion that the two are
+    /// distinguishable at all: same message, two policies, two
+    /// results.
+    ///
+    /// It is the defect that shipped — `MAILRS_ORG_NAMES` was set on
+    /// the receiver and not on this process, so every sweep run here
+    /// saw only the mailer fingerprint.
+    #[test]
+    fn without_org_names_the_impersonation_check_cannot_fire() {
+        let from = "=?UTF-8?B?R09MSUEgSy5LLg==?= <billing@example.invalid>";
+        let decoded = mailrs_inbound::from_header(format!("From: {from}\r\n\r\n").as_bytes());
+
+        let configured = mailrs_fraud::Policy {
+            org_names: vec!["GOLIA K.K.".into()],
+            our_domains: vec!["golia.jp".into()],
+            allowed_domains: Vec::new(),
+        };
+        let empty = mailrs_fraud::Policy {
+            org_names: Vec::new(),
+            our_domains: vec!["golia.jp".into()],
+            allowed_domains: Vec::new(),
+        };
+
+        assert!(
+            mailrs_fraud::scan(&decoded, None, &configured).claims_our_name,
+            "the configured policy did not catch a message claiming to be us"
+        );
+        assert!(
+            !mailrs_fraud::scan(&decoded, None, &empty).claims_our_name,
+            "an empty policy convicted, so this test cannot tell the two apart"
+        );
+    }
+
+    /// `hold` is a value the route accepts. Without this the action
+    /// exists in Rust and not on the wire, which is the shape where a
+    /// caller passes `action=hold`, serde rejects it, and the sweep
+    /// quietly does the default thing instead.
+    #[test]
+    fn hold_is_reachable_from_the_query_string() {
+        let a: Action = serde_json::from_str("\"hold\"").expect("hold parses");
+        assert_eq!(a, Action::Hold);
+        assert_eq!(
+            serde_json::from_str::<Action>("\"junk\"").unwrap(),
+            Action::Junk,
+            "the default must still parse"
+        );
+    }
 }

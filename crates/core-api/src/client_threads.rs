@@ -222,6 +222,55 @@ impl Client {
             .await
     }
 
+    /// GET /v1/users/{user}/quarantine — what is being held, newest
+    /// first.
+    ///
+    /// Its own call rather than a flag on `list_conversations`,
+    /// because it is a different question and the screen that asks it
+    /// is reached by a reader who is looking for something that never
+    /// arrived.
+    pub async fn list_quarantined(
+        &self,
+        user: &str,
+        limit: usize,
+        before_ts: Option<i64>,
+    ) -> ApiResult<method::conversation::ListConversationsResponse> {
+        let mut path = format!("/v1/users/{}/quarantine?limit={limit}", Self::enc(user));
+        if let Some(ts) = before_ts {
+            path.push_str(&format!("&before_ts={ts}"));
+        }
+        self.get_authed(path, "list_quarantined").await
+    }
+
+    /// POST /v1/users/{user}/quarantine/{thread_id}/release
+    pub async fn release_quarantined(
+        &self,
+        user: &str,
+        thread_id: &str,
+    ) -> ApiResult<method::thread::ThreadActionResponse> {
+        let path = format!(
+            "/v1/users/{}/quarantine/{}/release",
+            Self::enc(user),
+            Self::enc(thread_id)
+        );
+        self.post_authed_no_body(path, "release_quarantined").await
+    }
+
+    /// GET /v1/users/{user}/messages/{message_id}/fraud-verdict — what
+    /// was decided about one message, as it was decided.
+    pub async fn fraud_verdict(
+        &self,
+        user: &str,
+        message_id: &str,
+    ) -> ApiResult<serde_json::Value> {
+        let path = format!(
+            "/v1/users/{}/messages/{}/fraud-verdict",
+            Self::enc(user),
+            Self::enc(message_id)
+        );
+        self.get_authed(path, "fraud_verdict").await
+    }
+
     /// POST /v1/users/{user}/threads/{thread_id}/mark-junk
     /// v2.4.1 Phase 3 (RFC-B §3.4).
     pub async fn mark_junk(

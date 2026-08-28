@@ -95,6 +95,7 @@ impl From<ThreadRowJson> for ThreadRow {
             requires_action: j.requires_action,
             pinned: j.pinned,
             archived: j.archived,
+            quarantined: false,
             has_action: j.has_action,
             sent_count: j.sent_count,
             starred: j.starred,

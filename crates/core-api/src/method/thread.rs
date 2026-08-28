@@ -39,6 +39,25 @@ pub const PATH_PIN: &str = "/v1/users/{user}/threads/{thread_id}/pin";
 pub const PATH_UNPIN: &str = "/v1/users/{user}/threads/{thread_id}/unpin";
 pub const PATH_ARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/archive";
 pub const PATH_UNARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/unarchive";
+/// The review list: what this reader is holding as suspected fraud,
+/// newest first.
+///
+/// Its own route rather than a flag on the ordinary list, because it
+/// is a different question — "what was taken away from me, and why" —
+/// asked from a screen a reader arrives at in a hurry, usually
+/// because a message they expected never appeared.
+pub const PATH_QUARANTINE_LIST: &str = "/v1/users/{user}/quarantine";
+
+/// Release one held conversation: it was not fraud.
+///
+/// Clears the flag, returns the conversation to whatever list it
+/// belonged to, and records that a person disagreed — which is the
+/// only training signal a false positive ever produces.
+pub const PATH_QUARANTINE_RELEASE: &str = "/v1/users/{user}/quarantine/{thread_id}/release";
+
+/// The stored four-layer verdict for one message, as it was decided.
+pub const PATH_FRAUD_VERDICT: &str = "/v1/users/{user}/messages/{message_id}/fraud-verdict";
+
 pub const PATH_SNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/snooze";
 pub const PATH_UNSNOOZE: &str = "/v1/users/{user}/threads/{thread_id}/unsnooze";
 pub const PATH_DELETE_THREAD: &str = "/v1/users/{user}/threads/{thread_id}";

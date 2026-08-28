@@ -23,6 +23,13 @@ pub(super) enum AntiSpamOutcome {
     Continue {
         full_message: Vec<u8>,
         target_folder: &'static str,
+        /// The four-layer verdict, as JSON, when anything was found.
+        /// `None` on the ordinary path — see [`SpoolEnvelope`] for why
+        /// an absent verdict is the right answer rather than an empty
+        /// one.
+        ///
+        /// [`SpoolEnvelope`]: mailrs_core::spool::SpoolEnvelope
+        fraud_verdict: Option<String>,
     },
 }
 
@@ -94,6 +101,13 @@ pub(super) async fn run_antispam(
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
+    // Only when something was found. The verdict costs four small
+    // string builds, and this runs on every message that reaches the
+    // server — but a message nobody suspected has no finding worth
+    // recording, and a verdict on all of them would bury the ones
+    // that matter. `to_pipeline_input` is paid a second time here for
+    // the same reason: only on the rare path.
+    let fraud_verdict = fraud_verdict_json(&receive_ctx, ctx.inbound_pipeline.spam_threshold());
     let full_message: Vec<u8> = std::mem::take(&mut receive_ctx.message);
     tracing::debug!(
         phase = "inbound_pipeline",
@@ -157,6 +171,7 @@ pub(super) async fn run_antispam(
             AntiSpamOutcome::Continue {
                 full_message: new_msg,
                 target_folder: "Junk",
+                fraud_verdict,
             }
         }
         DeliveryDecision::Accept { auth_header } => {
@@ -167,7 +182,29 @@ pub(super) async fn run_antispam(
             AntiSpamOutcome::Continue {
                 full_message: new_msg,
                 target_folder: "INBOX",
+                fraud_verdict,
             }
+        }
+    }
+}
+
+/// The four-layer verdict for a message something was found in.
+///
+/// `None` when every layer came out clean, and `None` again if the
+/// verdict will not serialise — a receive path must not fail over
+/// bookkeeping. The failure is logged rather than swallowed, because
+/// a verdict that silently never arrives is the shape this repository
+/// keeps finding: a reader guarded on a field nobody writes.
+fn fraud_verdict_json(ctx: &mailrs_inbound::ReceiveContext, spam_threshold: f64) -> Option<String> {
+    if !ctx.fraud.any() && !ctx.deception.unjustified_zero_width {
+        return None;
+    }
+    let verdict = mailrs_inbound::assess(&ctx.to_pipeline_input(spam_threshold));
+    match serde_json::to_string(&verdict) {
+        Ok(json) => Some(json),
+        Err(e) => {
+            tracing::warn!(error = %e, "fraud verdict did not serialise; none recorded");
+            None
         }
     }
 }

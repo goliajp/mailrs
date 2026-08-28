@@ -2,7 +2,7 @@ import type { ContextMenuItem } from '@/components/context-menu'
 import type { SingleAction } from '@/components/conversation-actions'
 import type { ConversationSummary } from '@/lib/types'
 
-import { Check, Clock, Mail, Pin, Star } from 'lucide-react'
+import { Check, Clock, Mail, Pin, ShieldAlert, Star } from 'lucide-react'
 import { memo, useMemo } from 'react'
 
 import { CategoryBadge, ImportanceBadge } from '@/components/category-badge'
@@ -315,6 +315,17 @@ export const ConversationItem = memo(function ConversationItem({
             >
               {convo.subject || '(no subject)'}
             </p>
+            {/* A held conversation is only ever on screen because the
+                reader asked to see held ones — so it is marked. An
+                unmarked one would be worse than a hidden one: the
+                reader would have no way to tell the mail that was
+                judged an attempt to defraud them from the rest. */}
+            {convo.quarantined && (
+              <ShieldAlert
+                aria-label="Held: suspected fraud"
+                className="h-3.5 w-3.5 shrink-0 text-red-500"
+              />
+            )}
             {isFlagged && (
               <Star className="text-warning h-3.5 w-3.5 shrink-0" fill="currentColor" />
             )}

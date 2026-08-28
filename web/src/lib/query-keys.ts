@@ -21,6 +21,25 @@ export type MailListFilters = {
   category?: null | string
   domains?: string[]
   folder?: null | string
+  /**
+   * Show conversations held as suspected fraud, marked, in place.
+   *
+   * In the key as well as in the request: a reader who changes the
+   * setting and is served the same rows out of cache has been told
+   * their setting does nothing. Same hazard the `accounts` note
+   * above describes.
+   */
+  includeQuarantined?: boolean
+  /**
+   * The review list: what was held as suspected fraud, and nothing
+   * else.
+   *
+   * A different endpoint rather than a predicate, the same way
+   * `query` switches the list to `/conversations/search` — so it must
+   * be in the key, or arriving at the review screen would serve the
+   * inbox out of cache.
+   */
+  quarantined?: boolean
   query?: string
   section?: null | string
   starred?: boolean
@@ -41,6 +60,8 @@ function normalizeFilters(f: MailListFilters): Record<string, boolean | number |
   if (f.category) out.category = f.category
   if (f.domains && f.domains.length > 0) out.domains = [...f.domains].sort().join(',')
   if (f.folder) out.folder = f.folder
+  if (f.includeQuarantined) out.includeQuarantined = 1
+  if (f.quarantined) out.quarantined = 1
   if (f.query) out.query = f.query
   if (f.section) out.section = f.section
   if (f.starred) out.starred = 1

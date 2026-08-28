@@ -162,6 +162,7 @@ pub async fn shadow_sends(
             category: None,
             domains: None,
             archived: false,
+            include_quarantined: false,
             folder: Some("Sent".to_string()),
             unread: None,
             starred: None,

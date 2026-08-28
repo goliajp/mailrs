@@ -88,6 +88,14 @@ pub struct ConversationSummaryWire {
     pub snippet: String,
     pub pinned: bool,
     pub archived: bool,
+    /// Held as suspected fraud, for this reader.
+    ///
+    /// On the wire because a list asked with `include_quarantined`
+    /// shows held conversations **marked** — and a client that cannot
+    /// tell which ones they are cannot mark anything. Default false so
+    /// an older client reads an ordinary row rather than failing.
+    #[serde(default)]
+    pub quarantined: bool,
     pub importance_level: String,
     pub importance_score: f32,
     pub requires_action: bool,
@@ -129,6 +137,10 @@ impl From<&mailrs_mailbox::types::ConversationSummary> for ConversationSummaryWi
             snippet: s.snippet.clone(),
             pinned: s.pinned,
             archived: s.archived,
+            // The mailbox stone has no fraud verdict — the hold is a
+            // fastcore-side column — so anything arriving through it
+            // is unheld, which is what `false` means here.
+            quarantined: false,
             importance_level: s.importance_level.clone(),
             importance_score: s.importance_score,
             requires_action: s.requires_action,
@@ -170,6 +182,20 @@ pub struct ConversationFilter {
     /// `true` shows only archived threads, `false` (default) hides them.
     #[serde(default)]
     pub archived: bool,
+    /// `true` also returns conversations held as suspected fraud.
+    ///
+    /// Default `false`, and the default is the point: a held
+    /// conversation is out of the rows **and** out of the total,
+    /// because the exclusion lives in the declared query shape rather
+    /// than in a filter applied to a page that was already counted.
+    ///
+    /// This is a query parameter and not a policy. Whether a
+    /// conversation is held is decided at receive time; whether a
+    /// caller wants to see it is decided here. Two ideas, two
+    /// switches — the reader's preference is a third, and lives in
+    /// prefs.
+    #[serde(default)]
+    pub include_quarantined: bool,
     /// Restrict to a single mailbox name (e.g. `INBOX`, `Sent`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
@@ -252,6 +278,7 @@ mod tests {
             snippet: "preview".into(),
             pinned: false,
             archived: false,
+            quarantined: false,
             importance_level: "important".into(),
             importance_score: 0.8,
             requires_action: true,
@@ -272,6 +299,7 @@ mod tests {
             category: Some("personal".into()),
             domains: Some(vec!["example.com".into(), "test.com".into()]),
             archived: true,
+            include_quarantined: false,
             folder: Some("INBOX".into()),
             unread: Some(true),
             starred: Some(false),

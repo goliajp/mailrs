@@ -79,6 +79,41 @@ pub struct FraudVerdict {
 /// 9 out of 12.
 pub const QUARANTINE_THRESHOLD: f64 = 8.0;
 
+/// A blank slate: nothing checked, nothing claimed.
+///
+/// Every authentication token is `none`, so a caller that fills in
+/// only what it knows gets `NotApplicable` for the rest rather than a
+/// pass. That is the point — the re-scan over old mail knows the
+/// identity and provenance layers and does not know what transport
+/// said, and a default that read as "verified" would put a tick beside
+/// a check that never ran.
+#[must_use]
+pub fn unexamined() -> PipelineInput {
+    PipelineInput {
+        greylisted: false,
+        auth: AuthResults {
+            spf: "none".into(),
+            dkim: "none".into(),
+            arc: "none".into(),
+            dmarc: "none".into(),
+            dmarc_policy: DmarcPolicy::None,
+        },
+        virus_found: None,
+        content_score: 0.0,
+        matched_rules: Vec::new(),
+        ptr_score: 0.0,
+        ai_score: 0.0,
+        deception: mailrs_textguard::Deception::default(),
+        fraud: mailrs_fraud::Findings::default(),
+        spam_threshold: 5.0,
+        hostname: String::new(),
+        from_addr: String::new(),
+        recipient_whitelist: std::collections::HashSet::new(),
+        recipient_blacklist: std::collections::HashSet::new(),
+        local_domains: std::collections::HashSet::new(),
+    }
+}
+
 /// Assemble the four layers from what the pipeline gathered.
 ///
 /// Pure: it reads the same inputs the delivery decision read, so the

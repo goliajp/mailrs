@@ -23,6 +23,7 @@ import { useMemo } from 'react'
 import { AiAnalysisPanel } from '@/components/ai-analysis'
 import { AttachmentPreview } from '@/components/attachment-preview'
 import { Copyable } from '@/components/copy-button'
+import { FraudVerdictPanel } from '@/components/fraud-verdict-panel'
 import { InviteCard } from '@/components/invite-card'
 import { linkifyNodes } from '@/components/linkify-nodes'
 import { MessageBubble } from '@/components/message-bubble'
@@ -346,6 +347,13 @@ export function ThreadContentPane({
                     </div>
                   </div>
                 </div>
+
+                {/* Why this was held, if it was. Above the body on
+                    purpose: a reader should know what they are looking
+                    at before they read it. Renders nothing for a
+                    message nobody suspected, which is almost all of
+                    them. */}
+                <FraudVerdictPanel messageId={selectedMsg.message_id} threadId={threadId ?? ''} />
 
                 {/* structured data card */}
                 {selectedMsg.structured_data && (

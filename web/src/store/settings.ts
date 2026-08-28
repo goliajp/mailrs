@@ -74,3 +74,32 @@ export function appendSignature(body: string, signature: string, enabled: boolea
   if (!enabled || !signature.trim()) return body
   return body + SIG_SEPARATOR + signature
 }
+
+// --- suspected fraud ---
+//
+// Whether the ordinary lists hide conversations the receive pipeline
+// held as suspected fraud. On by default: an attempt to defraud
+// somebody should not be something they run into by accident.
+//
+// This is not a policy switch. What gets held was decided when the
+// mail arrived, and turning this off does not release anything — it
+// only asks the lists to show what is being held, marked. The review
+// screen shows it either way.
+
+const HIDE_FRAUD_KEY = 'mailrs_hide_suspected_fraud'
+
+function loadHideSuspectedFraud(): boolean {
+  const raw = localStorage.getItem(HIDE_FRAUD_KEY)
+  if (raw === null) return true
+  return raw === 'true'
+}
+
+const baseHideSuspectedFraudAtom = atom<boolean>(loadHideSuspectedFraud())
+
+export const hideSuspectedFraudAtom = atom(
+  (get) => get(baseHideSuspectedFraudAtom),
+  (_get, set, value: boolean) => {
+    localStorage.setItem(HIDE_FRAUD_KEY, String(value))
+    set(baseHideSuspectedFraudAtom, value)
+  }
+)

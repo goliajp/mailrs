@@ -19,6 +19,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useFlatConversations } from '@/hooks/use-flat-conversations'
 import { MAIL_LISTS, threadAxesOf } from '@/lib/mail-lists'
 import { type MailListFilters } from '@/lib/query-keys'
+import { hideSuspectedFraudAtom } from '@/store/settings'
 import {
   activeListAtom,
   categoryFilterAtom,
@@ -38,6 +39,7 @@ export function useCurrentMailFilters(): MailListFilters | null {
   const selectedAccounts = useAtomValue(selectedAccountsAtom)
   const importanceSection = useAtomValue(importanceSectionAtom)
   const searchQuery = useAtomValue(searchQueryAtom)
+  const hideSuspectedFraud = useAtomValue(hideSuspectedFraudAtom)
   const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS)
 
   return useMemo<MailListFilters | null>(() => {
@@ -53,10 +55,23 @@ export function useCurrentMailFilters(): MailListFilters | null {
       accounts: selectedAccounts,
       category: categoryFilter,
       domains: selectedDomains.length > 0 ? selectedDomains : undefined,
+      // The setting says whether to hide them; the request asks for
+      // them. Two ideas, and the negation is where they meet — a
+      // reader who has switched hiding off is asking to be shown what
+      // is held, marked, in place.
+      includeQuarantined: !hideSuspectedFraud,
       query: debouncedSearch || undefined,
       section: importanceSection,
     }
-  }, [list, categoryFilter, selectedAccounts, selectedDomains, debouncedSearch, importanceSection])
+  }, [
+    list,
+    categoryFilter,
+    selectedAccounts,
+    selectedDomains,
+    debouncedSearch,
+    importanceSection,
+    hideSuspectedFraud,
+  ])
 }
 
 /**

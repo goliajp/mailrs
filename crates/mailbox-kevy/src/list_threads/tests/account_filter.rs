@@ -36,6 +36,7 @@ fn row(tid: &str, date: i64, account: &str) -> ThreadRow {
         requires_action: false,
         pinned: false,
         archived: false,
+        quarantined: false,
         has_action: false,
         sent_count: 0,
         starred: false,

@@ -3,7 +3,12 @@ import type { ThemeMode } from '@goliapkg/gds'
 import { useAtom } from 'jotai'
 import { useCallback, useState } from 'react'
 
-import { notificationsAtom, notificationSoundAtom, pageSizeAtom } from '@/store/settings'
+import {
+  hideSuspectedFraudAtom,
+  notificationsAtom,
+  notificationSoundAtom,
+  pageSizeAtom,
+} from '@/store/settings'
 import { themeModeAtom } from '@/store/theme'
 
 import { cardClass, Field, SectionHeader, Toggle } from './_shared'
@@ -21,6 +26,7 @@ export function AppearanceSection() {
   const [pageSize, setPageSize] = useAtom(pageSizeAtom)
   const [notifications, setNotifications] = useAtom(notificationsAtom)
   const [notificationSound, setNotificationSound] = useAtom(notificationSoundAtom)
+  const [hideSuspectedFraud, setHideSuspectedFraud] = useAtom(hideSuspectedFraudAtom)
   const [notificationError, setNotificationError] = useState<null | string>(null)
 
   const handleNotificationToggle = useCallback(
@@ -100,6 +106,23 @@ export function AppearanceSection() {
           <Field label="Notification sound">
             <Toggle checked={notificationSound} onChange={setNotificationSound} />
           </Field>
+        </div>
+      </div>
+
+      <div className={cardClass}>
+        <div className="space-y-1">
+          <Field label="Hide suspected fraud">
+            <Toggle checked={hideSuspectedFraud} onChange={setHideSuspectedFraud} />
+          </Field>
+          {/* Said plainly, because the alternative reading — that
+              turning this off deletes less, or that turning it on
+              deletes more — is the one a person would reasonably
+              assume. Nothing here throws mail away. */}
+          <p className="text-fg-muted text-xs">
+            Conversations the receive pipeline judged to be an attempt to defraud you are kept out
+            of the ordinary lists. Turning this off shows them in place, marked. Either way they are
+            listed under Review, and nothing is deleted.
+          </p>
         </div>
       </div>
     </div>

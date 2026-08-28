@@ -52,6 +52,7 @@ fn conversation_list_keys_match() {
         snippet: "".into(),
         pinned: false,
         archived: false,
+        quarantined: false,
         importance_level: "normal".into(),
         importance_score: 0.0,
         requires_action: false,

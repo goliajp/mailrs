@@ -218,6 +218,7 @@ mod tests {
             conn_id: 1,
             target_folder: "INBOX".into(),
             received_at: 42,
+            fraud_verdict: None,
             schema_version: SPOOL_SCHEMA_VERSION,
         }
     }

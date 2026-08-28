@@ -16,6 +16,7 @@ vi.mock('@/wire/endpoints/mutations', () => ({
   wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
 }))
 
+import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
 import { authAtom } from '@/store/auth'
 import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
 
@@ -302,6 +303,32 @@ describe('FilterBar — archived tab', () => {
    * measured pixels — jsdom lays nothing out, so a width assertion here
    * would pass whatever the classes said.
    */
+  /**
+   * A held conversation is on screen only because the reader asked to
+   * see held ones. Unmarked, it is indistinguishable from ordinary
+   * mail — which is worse than hiding it, because the reader would
+   * have no way to tell the message judged an attempt to defraud them
+   * from the rest.
+   */
+  it('marks a held conversation, and marks nothing else', () => {
+    flatStub.conversations = [
+      makeConversation({ subject: 'Ordinary', thread_id: 't1' }),
+      makeConversation({ quarantined: true, subject: 'Held', thread_id: 't2' }),
+    ]
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    // One mark, on the held row and not the other.
+    const marks = screen.getAllByLabelText('Held: suspected fraud')
+    expect(marks).toHaveLength(1)
+    expect(marks[0]?.closest('[role="option"], li, div')).not.toBeNull()
+    expect(screen.getByText('Ordinary')).toBeTruthy()
+  })
+
   it('lays the tabs out as one five-column grid', () => {
     flatStub.conversations = [makeConversation()]
 
@@ -314,20 +341,15 @@ describe('FilterBar — archived tab', () => {
     const inbox = screen.getByText('Inbox')
     const grid = inbox.parentElement
     expect(grid?.className).toContain('grid-cols-5')
-    // All eight in one container, not three in a second row of its own.
-    expect(grid?.children.length).toBe(8)
-    for (const label of [
-      'Inbox',
-      'N & P',
-      'Unread',
-      'Starred',
-      'Junk',
-      'Send',
-      'Draft',
-      'Archived',
-    ]) {
-      const tab = screen.getByText(label)
-      expect(tab.className, `${label} does not fill its column`).toContain('w-full')
+    // Every tab in one container, not the overflow in a second row of
+    // its own. Derived from the registry rather than counted: the
+    // number was `8` until a ninth tab was added, and a test that
+    // pins a count is asserting how many lists exist, which is not
+    // what this one is about.
+    expect(grid?.children.length).toBe(MAIL_LIST_TABS.length)
+    for (const id of MAIL_LIST_TABS) {
+      const tab = screen.getByText(MAIL_LISTS[id].label)
+      expect(tab.className, `${MAIL_LISTS[id].label} does not fill its column`).toContain('w-full')
     }
   })
 

@@ -42,6 +42,7 @@ fn row(tid: &str, activity: i64) -> ThreadRow {
         requires_action: false,
         pinned: false,
         archived: false,
+        quarantined: false,
         has_action: false,
         sent_count: 0,
         starred: false,
@@ -157,4 +158,82 @@ fn archiving_and_quarantining_do_not_stand_in_for_each_other() {
         "the archived list showed a held thread"
     );
     assert_eq!(total, 1);
+}
+
+/// `Include` is the union, and its total is the sum of two index
+/// counts — not the live count with rows pasted on. A page whose size
+/// disagrees with its contents is the defect the archived axis was
+/// fixed for, and this is the same axis one column over.
+#[test]
+fn including_the_held_ones_merges_both_ranges_and_both_counts() {
+    let st = store();
+    let u = "alice@x.com";
+    for (tid, at) in [("t4", 400), ("t3", 300), ("t2", 200), ("t1", 100)] {
+        st.upsert_thread(u, &row(tid, at)).unwrap();
+    }
+    st.set_quarantined(u, "t3", true).unwrap();
+    st.set_quarantined(u, "t1", true).unwrap();
+
+    let f = ListThreadsFilter {
+        quarantine: QuarantineScope::Include,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &f, 0, 10).unwrap();
+    assert_eq!(
+        tids(&rows),
+        ["t4", "t3", "t2", "t1"],
+        "the two ranges did not interleave by recency"
+    );
+    assert_eq!(total, 4, "the total was one range's count, not both");
+}
+
+/// `Only` is the review screen's reading: the held ones, and nothing
+/// else.
+#[test]
+fn only_the_held_ones_is_its_own_list() {
+    let st = store();
+    let u = "alice@x.com";
+    for (tid, at) in [("t3", 300), ("t2", 200), ("t1", 100)] {
+        st.upsert_thread(u, &row(tid, at)).unwrap();
+    }
+    st.set_quarantined(u, "t2", true).unwrap();
+
+    let f = ListThreadsFilter {
+        quarantine: QuarantineScope::Only,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &f, 0, 10).unwrap();
+    assert_eq!(tids(&rows), ["t2"]);
+    assert_eq!(total, 1);
+}
+
+/// Paging across the merge. The boundary is where a union that took
+/// only `limit` from each side would drop or repeat a row, so it is
+/// the case worth spending a test on.
+#[test]
+fn the_merge_pages_without_dropping_or_repeating() {
+    let st = store();
+    let u = "alice@x.com";
+    for i in 0..8 {
+        let tid = format!("t{i}");
+        st.upsert_thread(u, &row(&tid, 100 + i as i64)).unwrap();
+        if i % 2 == 0 {
+            st.set_quarantined(u, &tid, true).unwrap();
+        }
+    }
+    let f = ListThreadsFilter {
+        quarantine: QuarantineScope::Include,
+        ..Default::default()
+    };
+    let mut seen: Vec<String> = Vec::new();
+    for page in 0..4 {
+        let (rows, total) = st.list_threads_by_activity(u, &f, page * 2, 2).unwrap();
+        assert_eq!(total, 8);
+        seen.extend(rows.iter().map(|r| r.thread_id.clone()));
+    }
+    assert_eq!(seen.len(), 8, "paging lost or repeated a row");
+    let mut sorted = seen.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), 8, "a row appeared on two pages: {seen:?}");
 }

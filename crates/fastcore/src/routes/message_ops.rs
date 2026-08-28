@@ -470,6 +470,7 @@ pub(crate) fn row_to_wire(r: ThreadRow) -> ConversationSummaryWire {
         snippet: r.latest_preview,
         pinned: r.pinned,
         archived: r.archived,
+        quarantined: r.quarantined,
         importance_level: r.importance_level,
         importance_score: r.importance_score as f32,
         requires_action: r.requires_action,

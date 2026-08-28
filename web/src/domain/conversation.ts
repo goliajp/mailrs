@@ -51,7 +51,18 @@ export type ConversationFilter = {
   readonly category?: Category
   readonly domains?: readonly string[]
   readonly folder?: Folder
+  /**
+   * Show conversations held as suspected fraud, marked, in place.
+   *
+   * Part of the key and not only of the request: a reader who turns
+   * the setting off and gets the same list back out of cache has been
+   * told their setting does nothing. The `accounts` note above is the
+   * same hazard one field over.
+   */
+  readonly includeQuarantined?: boolean
   readonly limit?: number
+  /** The review list: what was held, and nothing else. */
+  readonly quarantined?: boolean
   // Full-text search term. When set, the list read switches to the
   // /conversations/search endpoint — so it MUST participate in the
   // query key or a search silently reuses the non-search list cache.
@@ -161,7 +172,9 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
   readonly category: Category | null
   readonly domains: readonly string[]
   readonly folder: Folder | null
+  readonly includeQuarantined: boolean
   readonly limit: number
+  readonly quarantined: boolean
   readonly query: null | string
   readonly starred: boolean | null
   readonly unread: boolean | null
@@ -177,7 +190,9 @@ export function canonicaliseFilter(f: ConversationFilter | undefined): {
     category: f?.category ?? null,
     domains,
     folder: f?.folder ?? null,
+    includeQuarantined: f?.includeQuarantined ?? false,
     limit: f?.limit ?? 50,
+    quarantined: f?.quarantined ?? false,
     query: f?.query ?? null,
     starred: f?.starred ?? null,
     unread: f?.unread ?? null,

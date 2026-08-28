@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
     use crate::handlers;
     use crate::handlers::conversations as c;
+    use crate::handlers::quarantine as q;
     use axum::routing::{get, post, put};
 
     axum::Router::new()
@@ -36,6 +37,15 @@ pub(super) fn conversation_routes() -> axum::Router<Arc<WebState>> {
         .route(
             "/api/conversations/{thread_id}/unpin",
             post(c::unpin_thread),
+        )
+        .route("/api/quarantine", get(q::list_quarantine))
+        .route(
+            "/api/quarantine/{thread_id}/release",
+            post(q::release_quarantine),
+        )
+        .route(
+            "/api/messages/{message_id}/fraud-verdict",
+            get(q::get_fraud_verdict),
         )
         .route(
             "/api/conversations/{thread_id}/archive",

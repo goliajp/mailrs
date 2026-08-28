@@ -400,3 +400,23 @@ pub struct SendScheduledEmailParams {
     #[serde(default)]
     pub from: Option<String>,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListQuarantinedParams {
+    /// Max conversations (default 20, cap 200).
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FraudVerdictParams {
+    /// The message's `Message-ID`, unbracketed — as `read_email`
+    /// returns it.
+    pub message_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ReleaseQuarantinedParams {
+    /// Thread id as returned by `list_quarantined`.
+    pub thread_id: String,
+}

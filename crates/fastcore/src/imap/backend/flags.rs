@@ -69,7 +69,14 @@ pub fn copy_to(
     let bytes = read_message(msg).ok_or_else(|| std::io::Error::other("source missing"))?;
     let maildir = Maildir::create(&dest.path)?;
     let id = maildir.deliver(&bytes)?;
-    crate::ingest_delivered_file(state, user, &blob_ref_for(dest, &id.0), &bytes, &dest.name);
+    crate::ingest_delivered_file(
+        state,
+        user,
+        &blob_ref_for(dest, &id.0),
+        &bytes,
+        &dest.name,
+        None,
+    );
     Ok(())
 }
 
@@ -116,7 +123,7 @@ pub fn append(
     // the conversation views until the periodic maildir self-heal
     // notices it — which is precisely why that sweep had to scan every
     // file in the mailbox on every cycle (2026-07-19).
-    crate::ingest_delivered_file(state, user, &blob_ref_for(mb, &id.0), bytes, &mb.name);
+    crate::ingest_delivered_file(state, user, &blob_ref_for(mb, &id.0), bytes, &mb.name, None);
     let empty_cache = std::collections::HashMap::new();
     let empty_seen = std::collections::HashSet::new();
     let path = mb.path.join("new").join(&id.0);

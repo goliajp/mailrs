@@ -34,6 +34,12 @@ export const wireParticipantSchema = z.string()
  */
 export const wireThreadSummarySchema = z.object({
   archived: z.boolean().default(false),
+  // Held as suspected fraud. Only present when the reader asked to
+  // see held conversations — the ordinary lists exclude them — so the
+  // default is what an unheld row means, not a missing field.
+  //
+  // Backend: crates/webapi/src/handlers/conversations.rs —
+  // `ConversationResponse.quarantined`, from `ThreadRow.quarantined`.
   category: z.string().default('inbox'),
   flagged: z.boolean().default(false),
   folder: z.string().nullish(),
@@ -43,6 +49,7 @@ export const wireThreadSummarySchema = z.object({
   message_count: z.number().int().min(0).default(0),
   participants: z.array(wireParticipantSchema).default([]),
   pinned: z.boolean().default(false),
+  quarantined: z.boolean().default(false),
   // Which connected mailbox this arrived at; empty is this server's
   // own. Defaulted, so a row written before connected mailboxes
   // existed reads as ours rather than failing the whole list.

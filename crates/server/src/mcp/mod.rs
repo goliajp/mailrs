@@ -13,6 +13,7 @@ mod tools_parity3;
 mod tools_parity4;
 mod tools_parity5;
 mod tools_parity6;
+mod tools_parity7;
 mod tools_v1_directory;
 mod tools_v1_directory_write;
 mod tools_v1_email_groups;
@@ -73,6 +74,7 @@ impl MailMcpService {
             + Self::tool_router_parity4()
             + Self::tool_router_parity5()
             + Self::tool_router_parity6()
+            + Self::tool_router_parity7()
     }
 }
 

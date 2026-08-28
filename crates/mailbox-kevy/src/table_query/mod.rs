@@ -40,6 +40,11 @@ pub enum ArchiveScope {
     Live,
     /// Archived and live alike. Sweeps and audits, never a list.
     All,
+    /// What this reader is holding as suspected fraud, and nothing
+    /// else. Unarchived, like `Live` — a conversation that was filed
+    /// away before it was held is reached through the review screen's
+    /// own axis, not through a list the reader is standing in.
+    Held,
 }
 
 impl ArchiveScope {
@@ -56,6 +61,10 @@ impl ArchiveScope {
                 (b"archived".to_vec(), b"0".to_vec()),
                 (b"quarantined".to_vec(), b"0".to_vec()),
             ],
+            Self::Held => vec![
+                (b"archived".to_vec(), b"0".to_vec()),
+                (b"quarantined".to_vec(), b"1".to_vec()),
+            ],
             Self::All => vec![],
         }
     }
@@ -70,7 +79,7 @@ impl ArchiveScope {
     /// on a sort the index does not hold.
     fn require_pinned(self, what: &str) -> io::Result<()> {
         match self {
-            Self::Live => Ok(()),
+            Self::Live | Self::Held => Ok(()),
             Self::All => Err(io::Error::other(format!(
                 "{what}: ArchiveScope::All cannot take a cursor — the ORDERPATH \
                  keys on `archived` and `quarantined` ahead of `activity`"

@@ -25,7 +25,7 @@ Config for Claude Code or any MCP client:
 }
 ```
 
-82 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
+85 tools auto-discovered via MCP, grouped by category (the table below is a selection; `tools/list` is the authority, and `scripts/check-mcp-parity.sh` holds the two server lanes to the same set):
 
 ### Email Operations
 
@@ -49,6 +49,9 @@ Config for Claude Code or any MCP client:
 | star_thread | any authenticated | Star/flag a thread for importance |
 | unstar_thread | any authenticated | Remove star/flag from a thread |
 | archive_thread | any authenticated | Archive a thread (hide from inbox) |
+| list_quarantined | any authenticated | Conversations held as suspected fraud. Kept, and out of every other list and its counts — so `list_conversations` and `search_emails` will not show them |
+| get_fraud_verdict | any authenticated | The four layers that decided one message (transport / identity / provenance / content), as decided, with the rule-set version. `verdict: null` = nothing was found, which is not "examined and cleared" |
+| release_quarantined | any authenticated | It was not fraud; returns the conversation to its list |
 | unarchive_thread | any authenticated | Unarchive a thread (restore to inbox) |
 | delete_thread | any authenticated | Delete a thread and all its messages permanently |
 

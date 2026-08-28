@@ -44,6 +44,15 @@ pub struct ListQuery {
     pub folder: Option<String>,
     #[serde(default)]
     pub archived: bool,
+    /// Show conversations held as suspected fraud in place, marked.
+    ///
+    /// Off by default, which is what the reader's own setting means
+    /// when they have not changed it. A query parameter rather than a
+    /// server-side policy: what is held was decided at receive time,
+    /// and whether this reader wants to look at it is a different
+    /// question asked on every request.
+    #[serde(default)]
+    pub include_quarantined: bool,
     pub unread: Option<bool>,
     pub starred: Option<bool>,
     pub section: Option<String>,
@@ -137,6 +146,10 @@ pub struct ConversationResponse {
     pub snippet: String,
     pub pinned: bool,
     pub archived: bool,
+    /// Held as suspected fraud. The client marks the row rather than
+    /// drawing an ordinary one — a held conversation shown without a
+    /// mark is worse than one hidden.
+    pub quarantined: bool,
     pub importance_level: String,
     pub importance_score: f32,
     pub requires_action: bool,
@@ -168,6 +181,7 @@ impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationRespo
             snippet: w.snippet,
             pinned: w.pinned,
             archived: w.archived,
+            quarantined: w.quarantined,
             importance_level: w.importance_level,
             importance_score: w.importance_score,
             requires_action: w.requires_action,
@@ -192,6 +206,7 @@ pub async fn get_conversations(
             category: q.category,
             domains: None,
             archived: q.archived,
+            include_quarantined: q.include_quarantined,
             folder: q.folder,
             unread: q.unread,
             starred: q.starred,

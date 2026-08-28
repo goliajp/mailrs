@@ -291,6 +291,7 @@ pub(crate) fn drain_once(
                                         &filename,
                                         body,
                                         &env.target_folder,
+                                        env.fraud_verdict.as_deref(),
                                     );
                                 }
                                 _ => unresolved.push(addr.clone()),
@@ -306,7 +307,14 @@ pub(crate) fn drain_once(
                             delivered_locally = true;
                             tracing::info!(recipient = %addr, %subfolder, "sieve: fileinto");
                             let blob_ref = format!("{subfolder}/{filename}");
-                            crate::ingest_delivered_file(state, &addr, &blob_ref, body, &folder);
+                            crate::ingest_delivered_file(
+                                state,
+                                &addr,
+                                &blob_ref,
+                                body,
+                                &folder,
+                                env.fraud_verdict.as_deref(),
+                            );
                         }
                         Ok(false) => {
                             tracing::warn!(recipient = %addr, %subfolder,
@@ -320,6 +328,7 @@ pub(crate) fn drain_once(
                                     &filename,
                                     body,
                                     &env.target_folder,
+                                    env.fraud_verdict.as_deref(),
                                 );
                             } else {
                                 unresolved.push(addr.clone());
@@ -337,6 +346,7 @@ pub(crate) fn drain_once(
                                     &filename,
                                     body,
                                     &env.target_folder,
+                                    env.fraud_verdict.as_deref(),
                                 );
                             } else {
                                 unresolved.push(addr.clone());
@@ -355,6 +365,7 @@ pub(crate) fn drain_once(
                                 &filename,
                                 body,
                                 &env.target_folder,
+                                env.fraud_verdict.as_deref(),
                             );
                         }
                         Ok(false) => unresolved.push(addr.clone()),

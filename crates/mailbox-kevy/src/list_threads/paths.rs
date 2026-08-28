@@ -11,13 +11,23 @@ use crate::KevyMailboxStore;
 use crate::keys;
 use crate::thread_row::ThreadRow;
 
-use super::{FlagKey, ListThreadsFilter};
+use super::{FlagKey, ListThreadsFilter, QuarantineScope};
 use crate::table_query::ArchiveScope;
 
+/// Which of the two ranges this pass is reading.
+///
 /// Every function here serves a list the user navigated to, and
 /// Archived is not one of them — it has a flag on, so it leaves the
-/// dispatcher through the flag branch and never arrives here.
-const LIVE: ArchiveScope = ArchiveScope::Live;
+/// dispatcher through the flag branch and never arrives here. What
+/// does arrive is one of two passes over the same question: the
+/// ordinary one, and — when the reader asked to see what is held —
+/// the held one, merged by the dispatcher.
+fn scope(filter: &ListThreadsFilter<'_>) -> ArchiveScope {
+    match filter.quarantine {
+        QuarantineScope::Only => ArchiveScope::Held,
+        _ => ArchiveScope::Live,
+    }
+}
 
 impl KevyMailboxStore {
     /// The default axis, off the pure-recency ORDERPATH.
@@ -28,20 +38,27 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let total = self.count_thread_ids_by_activity_via_table(user, LIVE)?;
+        let total = self.count_thread_ids_by_activity_via_table(user, scope(filter))?;
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
         let tids = match filter.before_ts {
-            Some(ts) => {
-                self.list_thread_ids_by_activity_via_table(user, LIVE, limit, Some(ts - 1))?
-            }
+            Some(ts) => self.list_thread_ids_by_activity_via_table(
+                user,
+                scope(filter),
+                limit,
+                Some(ts - 1),
+            )?,
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
                 }
-                let mut page =
-                    self.list_thread_ids_by_activity_via_table(user, LIVE, offset + limit, None)?;
+                let mut page = self.list_thread_ids_by_activity_via_table(
+                    user,
+                    scope(filter),
+                    offset + limit,
+                    None,
+                )?;
                 page.drain(..offset.min(page.len()));
                 page
             }
@@ -73,9 +90,9 @@ impl KevyMailboxStore {
         let mut total = 0usize;
         for b in buckets {
             total += if *b == "inbox" {
-                self.count_thread_ids_by_bucket_unsent_via_table(user, b, LIVE)?
+                self.count_thread_ids_by_bucket_unsent_via_table(user, b, scope(filter))?
             } else {
-                self.count_thread_ids_by_bucket_via_table(user, b, LIVE)?
+                self.count_thread_ids_by_bucket_via_table(user, b, scope(filter))?
             };
         }
         if limit == 0 {
@@ -88,21 +105,26 @@ impl KevyMailboxStore {
                 ("inbox", Some(ts)) => self.list_thread_ids_by_bucket_unsent_before_via_table(
                     user,
                     bucket,
-                    LIVE,
+                    scope(filter),
                     ts - 1,
                     want,
                 )?,
-                ("inbox", None) => {
-                    self.list_thread_ids_by_bucket_unsent_via_table(user, bucket, LIVE, want)?
-                }
+                ("inbox", None) => self.list_thread_ids_by_bucket_unsent_via_table(
+                    user,
+                    bucket,
+                    scope(filter),
+                    want,
+                )?,
                 (_, Some(ts)) => self.list_thread_ids_by_bucket_before_via_table(
                     user,
                     bucket,
-                    LIVE,
+                    scope(filter),
                     ts - 1,
                     want,
                 )?,
-                (_, None) => self.list_thread_ids_by_bucket_via_table(user, bucket, LIVE, want)?,
+                (_, None) => {
+                    self.list_thread_ids_by_bucket_via_table(user, bucket, scope(filter), want)?
+                }
             };
             let (rows, _) = self.hydrate_page(user, &tids, 0)?;
             merged.extend(rows);
@@ -242,20 +264,28 @@ impl KevyMailboxStore {
         offset: usize,
         limit: usize,
     ) -> io::Result<(Vec<ThreadRow>, usize)> {
-        let total = self.count_thread_ids_by_category_via_table(user, cat, LIVE)?;
+        let total = self.count_thread_ids_by_category_via_table(user, cat, scope(filter))?;
         if limit == 0 {
             return Ok((Vec::new(), total));
         }
         let tids = match filter.before_ts {
-            Some(ts) => {
-                self.list_thread_ids_by_category_before_via_table(user, cat, LIVE, ts - 1, limit)?
-            }
+            Some(ts) => self.list_thread_ids_by_category_before_via_table(
+                user,
+                cat,
+                scope(filter),
+                ts - 1,
+                limit,
+            )?,
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
                 }
-                let mut page =
-                    self.list_thread_ids_by_category_via_table(user, cat, LIVE, offset + limit)?;
+                let mut page = self.list_thread_ids_by_category_via_table(
+                    user,
+                    cat,
+                    scope(filter),
+                    offset + limit,
+                )?;
                 page.drain(..offset.min(page.len()));
                 page
             }
@@ -282,9 +312,9 @@ impl KevyMailboxStore {
         // post-filter, so the count stays an index count.
         let unsent_only = bucket == "inbox";
         let total = if unsent_only {
-            self.count_thread_ids_by_bucket_unsent_via_table(user, bucket, LIVE)?
+            self.count_thread_ids_by_bucket_unsent_via_table(user, bucket, scope(filter))?
         } else {
-            self.count_thread_ids_by_bucket_via_table(user, bucket, LIVE)?
+            self.count_thread_ids_by_bucket_via_table(user, bucket, scope(filter))?
         };
         if limit == 0 {
             return Ok((Vec::new(), total));
@@ -294,13 +324,17 @@ impl KevyMailboxStore {
             Some(ts) if unsent_only => self.list_thread_ids_by_bucket_unsent_before_via_table(
                 user,
                 bucket,
-                LIVE,
+                scope(filter),
                 ts - 1,
                 limit,
             )?,
-            Some(ts) => {
-                self.list_thread_ids_by_bucket_before_via_table(user, bucket, LIVE, ts - 1, limit)?
-            }
+            Some(ts) => self.list_thread_ids_by_bucket_before_via_table(
+                user,
+                bucket,
+                scope(filter),
+                ts - 1,
+                limit,
+            )?,
             None => {
                 if offset >= total {
                     return Ok((Vec::new(), total));
@@ -309,11 +343,16 @@ impl KevyMailboxStore {
                     self.list_thread_ids_by_bucket_unsent_via_table(
                         user,
                         bucket,
-                        LIVE,
+                        scope(filter),
                         offset + limit,
                     )?
                 } else {
-                    self.list_thread_ids_by_bucket_via_table(user, bucket, LIVE, offset + limit)?
+                    self.list_thread_ids_by_bucket_via_table(
+                        user,
+                        bucket,
+                        scope(filter),
+                        offset + limit,
+                    )?
                 };
                 page.drain(..offset.min(page.len()));
                 page
@@ -384,5 +423,47 @@ impl KevyMailboxStore {
             }
         }
         Ok((rows, total))
+    }
+
+    /// The live page and the held one, merged by recency.
+    ///
+    /// Two index reads and two index counts, with the total their sum.
+    /// The alternative — fetching the live page and pasting held rows
+    /// onto it — would be filtering a page that had already been
+    /// counted, which is the exact defect the `archived` axis was
+    /// fixed for on 2026-08-05.
+    ///
+    /// Taking `offset + limit` from each side guarantees the merged
+    /// prefix is right however the two interleave; the same argument
+    /// `list_buckets_via_table` makes.
+    pub(super) fn merge_held_into_live(
+        &self,
+        user: &str,
+        filter: &ListThreadsFilter<'_>,
+        offset: usize,
+        limit: usize,
+    ) -> io::Result<(Vec<ThreadRow>, usize)> {
+        let mut merged: Vec<ThreadRow> = Vec::new();
+        let mut total = 0usize;
+        for pass in [QuarantineScope::Hide, QuarantineScope::Only] {
+            let one = ListThreadsFilter {
+                quarantine: pass,
+                ..filter.clone()
+            };
+            let (rows, n) = self.list_threads_by_activity(user, &one, 0, offset + limit)?;
+            total += n;
+            merged.extend(rows);
+        }
+        merged.sort_by(|a, b| {
+            b.latest_date
+                .cmp(&a.latest_date)
+                .then_with(|| a.thread_id.cmp(&b.thread_id))
+        });
+        if offset >= merged.len() {
+            return Ok((Vec::new(), total));
+        }
+        merged.drain(..offset);
+        merged.truncate(limit);
+        Ok((merged, total))
     }
 }
