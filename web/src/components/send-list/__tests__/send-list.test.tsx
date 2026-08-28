@@ -2,7 +2,7 @@ import type { WireSentMessage } from '@/wire/schemas/mail'
 import type { WireSend } from '@/wire/schemas/sends'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,7 +14,12 @@ vi.mock('@/hooks/use-sent-messages', () => ({
   useSentMessagesQuery: () => ({ data: stub.messages, isLoading: false }),
 }))
 
+const cancelCalls: string[] = []
 vi.mock('@/hooks/use-sends', () => ({
+  useCancelSendMutation: () => ({
+    isPending: false,
+    mutate: (id: string) => cancelCalls.push(id),
+  }),
   useResendMutation: () => ({ isPending: false, mutate: vi.fn() }),
   useSendsQuery: () => ({ data: stub.sends }),
 }))
@@ -188,5 +193,55 @@ describe('SendList status', () => {
     renderList()
     expect(badgesInRow()).toEqual(['Delivered'])
     expect(screen.queryByText(/needs? attention/)).toBeNull()
+  })
+})
+
+describe('cancelling a send', () => {
+  afterEach(() => {
+    cancelCalls.length = 0
+  })
+
+  /**
+   * The control exists only where there is something to stop.
+   *
+   * On a delivered row it would promise a recall, which nothing here
+   * can do — the message is with the receiving server. Three
+   * invitations sat in the queue for a day with no way to stop them,
+   * which is why the button exists; offering it one row too far is how
+   * it would start lying.
+   */
+  it('offers cancel on a send in flight and not on one that landed', () => {
+    stub.sends = [
+      send({ send_id: 'a@golia.jp', status: 'sending' }),
+      send({ send_id: 'b@golia.jp', status: 'delivered' }),
+    ]
+    stub.messages = [msg({ message_id: 'a@golia.jp' }), msg({ message_id: 'b@golia.jp' })]
+    renderList()
+
+    const buttons = screen.getAllByLabelText('Cancel this send')
+    expect(buttons).toHaveLength(1)
+  })
+
+  /** And a scheduled one, which has not been attempted at all. */
+  it('offers cancel on a scheduled send', () => {
+    stub.sends = [send({ send_id: 'a@golia.jp', status: 'scheduled' })]
+    stub.messages = [msg({ message_id: 'a@golia.jp' })]
+    renderList()
+    expect(screen.getAllByLabelText('Cancel this send')).toHaveLength(1)
+  })
+
+  /** Pressing it asks about that send and no other. */
+  it('cancels the row it was pressed on', () => {
+    stub.sends = [
+      send({ send_id: 'a@golia.jp', status: 'sending' }),
+      send({ send_id: 'b@golia.jp', status: 'sending' }),
+    ]
+    stub.messages = [msg({ message_id: 'a@golia.jp' }), msg({ message_id: 'b@golia.jp' })]
+    renderList()
+
+    const buttons = screen.getAllByLabelText('Cancel this send')
+    expect(buttons).toHaveLength(2)
+    fireEvent.click(buttons[1] as HTMLElement)
+    expect(cancelCalls).toHaveLength(1)
   })
 })

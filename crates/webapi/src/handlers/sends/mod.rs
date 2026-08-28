@@ -23,6 +23,8 @@ use crate::handlers::conversations::AuthedUser;
 use mailrs_core_sidestate::families::send::Status;
 use mailrs_core_sidestate::families::send_read;
 
+mod cancel;
+pub use cancel::cancel_send;
 mod redraft;
 mod resend;
 

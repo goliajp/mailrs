@@ -2,7 +2,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { mailKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
-import { wireGetRedraft, wireListSends, wireResend } from '@/wire/endpoints/sends'
+import { wireCancelSend, wireGetRedraft, wireListSends, wireResend } from '@/wire/endpoints/sends'
+
+/**
+ * Stop a send that has not gone out.
+ *
+ * Invalidates rather than patching a row optimistically: the answer is
+ * three numbers, and one of them — `already_delivered` — means the
+ * opposite of what the button implies. Showing "Cancelled" before the
+ * server has said so would be showing it for mail that arrived.
+ */
+export function useCancelSendMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (sendId: string) => wireCancelSend(sendId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: mailKeys.sends() })
+    },
+  })
+}
 
 /** A failed send's compose fields, fetched when re-edit is opened. */
 export function useRedraftQuery(sendId: null | string) {

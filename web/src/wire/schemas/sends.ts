@@ -21,7 +21,14 @@
 import { z } from 'zod'
 
 /** Delivery state of one send. Mirrors `families::send::Status`. */
-export const sendStatusSchema = z.enum(['scheduled', 'sending', 'delivered', 'failed', 'partial'])
+export const sendStatusSchema = z.enum([
+  'scheduled',
+  'sending',
+  'delivered',
+  'failed',
+  'partial',
+  'cancelled',
+])
 
 export type WireSendStatus = z.infer<typeof sendStatusSchema>
 
@@ -121,3 +128,19 @@ export const scheduledListSchema = z.object({
       }))
     ),
 })
+
+/**
+ * What a cancel stopped, in the three numbers it is made of.
+ *
+ * Backend: crates/webapi/src/handlers/sends/cancel.rs — `CancelResponse`.
+ *
+ * `already_delivered` is the one that matters: a cancel cannot recall
+ * a message an MX has accepted, and a single boolean would hide that.
+ */
+export const cancelResultSchema = z.object({
+  already_delivered: z.number(),
+  jobs_removed: z.number(),
+  recipients_cancelled: z.number(),
+})
+
+export type WireCancelResult = z.infer<typeof cancelResultSchema>

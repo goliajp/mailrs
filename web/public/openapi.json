@@ -6472,6 +6472,33 @@
           }
         }
       }
+    },
+    "/api/mail/sends/{send_id}/cancel": {
+      "post": {
+        "summary": "Stop a send that has not gone out",
+        "description": "Removes its queued jobs and marks the recipients cancelled. Cannot recall a message an MX has already accepted: those recipients are left alone and counted in `already_delivered`. 409 when the send has already finished.",
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "send_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "jobs_removed / recipients_cancelled / already_delivered"
+          },
+          "409": {
+            "description": "nothing in flight to stop"
+          }
+        }
+      }
     }
   },
   "components": {

@@ -44,8 +44,10 @@ use mailrs_core_api::method::outbound::{
 
 use crate::NetKevy;
 
+mod cancel;
 mod terminal;
 
+pub use cancel::*;
 pub use terminal::*;
 
 fn now_secs() -> i64 {
