@@ -3139,6 +3139,7 @@ dependencies = [
  "base64",
  "kevy-client",
  "mailrs-core-api",
+ "mailrs-fraud",
  "mailrs-rfc5322",
  "rand_core 0.6.4",
  "serde",

@@ -33,11 +33,19 @@ export const SenderAvatar = memo(function SenderAvatar({
     size <= 28 ? 'h-7 w-7 text-mini' : size <= 32 ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-sm'
 
   useEffect(() => {
-    if (!domain) return
-    if (iconCache.has(domain)) {
-      setIconUrl(iconCache.get(domain)!)
-      return
-    }
+    // Clear first, always. This returned early on an empty domain
+    // without touching the state, so a reused component kept the
+    // previous sender's logo — and the reading pane passes an **empty
+    // sender on purpose** for a suspected spoof, precisely so the
+    // phish is not drawn with a real brand's avatar. The result was
+    // the opposite of the intent: an "iCloud+" phish from
+    // `zkxfp.zctxiot.com` rendered with TikTok's logo, borrowed from
+    // the message read before it.
+    //
+    // The same held for any sender whose icon was not yet cached: the
+    // old logo stayed on screen until the fetch resolved.
+    setIconUrl(domain ? (iconCache.get(domain) ?? null) : null)
+    if (!domain || iconCache.has(domain)) return
     let cancelled = false
     resolveIcon(domain).then((url) => {
       if (!cancelled) setIconUrl(url)

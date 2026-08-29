@@ -92,4 +92,55 @@ describe('<SenderAvatar />', () => {
     const call = fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }]
     expect(call[1]?.headers).toEqual({ Authorization: 'Bearer test-token' })
   })
+
+  /**
+   * The reading pane passes an **empty sender on purpose** when the
+   * message is a suspected spoof, so the phish is not drawn wearing a
+   * real brand's logo. The effect returned early on an empty domain
+   * without clearing, so a reused component kept the icon of whatever
+   * was read before it — an "iCloud+" phish from `zkxfp.zctxiot.com`
+   * rendered with TikTok's mark, which is the exact opposite of what
+   * the empty sender was for.
+   */
+  it('drops the previous logo when the next sender has no domain', async () => {
+    const png = new Uint8Array([137, 80, 78, 71])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () => new Response(png, { headers: { 'content-type': 'image/png' }, status: 200 })
+      )
+    )
+
+    const { container, rerender } = render(<SenderAvatar sender="TikTok <a@brand-1.example>" />)
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull())
+
+    // The spoof: no sender at all.
+    rerender(<SenderAvatar sender="" />)
+    await waitFor(() => expect(container.querySelector('img')).toBeNull())
+  })
+
+  /** And it does not show the old logo while the new one is loading. */
+  it('drops the previous logo while the next sender is still resolving', async () => {
+    const png = new Uint8Array([137, 80, 78, 71])
+    let release: (() => void) | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).includes('brand-2')) {
+          return new Response(png, { headers: { 'content-type': 'image/png' }, status: 200 })
+        }
+        await new Promise<void>((r) => {
+          release = r
+        })
+        return new Response(null, { status: 204 })
+      })
+    )
+
+    const { container, rerender } = render(<SenderAvatar sender="A <a@brand-2.example>" />)
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull())
+
+    rerender(<SenderAvatar sender="B <b@slow-3.example>" />)
+    await waitFor(() => expect(container.querySelector('img')).toBeNull())
+    release?.()
+  })
 })
