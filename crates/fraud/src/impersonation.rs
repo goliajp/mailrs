@@ -78,7 +78,7 @@ pub fn claims_our_name(from: &str, names: &[String], ours: &[String], allowed: &
 
 /// The address inside `<…>`, or the whole field when there are no
 /// angle brackets.
-fn address_of(from: &str) -> Option<&str> {
+pub(crate) fn address_of(from: &str) -> Option<&str> {
     if let Some(open) = from.rfind('<') {
         let rest = &from[open + 1..];
         return Some(rest.split('>').next().unwrap_or(rest));
@@ -90,7 +90,7 @@ fn address_of(from: &str) -> Option<&str> {
 }
 
 /// Everything before the address, quotes stripped.
-fn display_name_of(from: &str) -> String {
+pub(crate) fn display_name_of(from: &str) -> String {
     let head = match from.rfind('<') {
         Some(open) => &from[..open],
         None => "",
@@ -101,7 +101,7 @@ fn display_name_of(from: &str) -> String {
 /// Case-folded and stripped of the spaces a sender puts between the
 /// characters of a name to slip a literal comparison — `GOLIA 株式会社`
 /// and `ＧＯＬＩＡ株式会社` are the same claim as `GOLIA株式会社`.
-fn fold(s: &str) -> String {
+pub(crate) fn fold(s: &str) -> String {
     s.chars()
         .filter(|c| !c.is_whitespace())
         .map(fold_char)
@@ -110,7 +110,7 @@ fn fold(s: &str) -> String {
 }
 
 /// Full-width Latin letters and digits folded to their ASCII forms.
-fn fold_char(c: char) -> char {
+pub(crate) fn fold_char(c: char) -> char {
     match c {
         'Ａ'..='Ｚ' | 'ａ'..='ｚ' | '０'..='９' => {
             char::from_u32(c as u32 - 0xFEE0).unwrap_or(c)

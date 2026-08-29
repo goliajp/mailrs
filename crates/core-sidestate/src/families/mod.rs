@@ -6,6 +6,7 @@ pub mod analysis;
 pub mod calendar_events;
 pub mod calendar_feeds;
 pub mod contacts;
+pub mod domain_history;
 pub mod groups_admin;
 pub mod identity_link;
 pub mod outbound;

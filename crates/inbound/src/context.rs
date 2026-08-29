@@ -117,6 +117,11 @@ impl ReceiveContext {
             fraud: mailrs_fraud::Findings {
                 claims_our_name: false,
                 generated_mailer,
+                // Needs a count of what this deployment has seen
+                // from the sender's domain, which the caller has and
+                // this constructor does not. The antispam stage
+                // fills it in beside `claims_our_name`.
+                impersonates_brand: false,
             },
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),

@@ -88,6 +88,17 @@ pub(crate) async fn fraud_rescan_route(
     Query(q): Query<RescanQuery>,
 ) -> axum::response::Response {
     let policy = policy_from_env();
+    // One connection for the whole sweep. The brand check needs to
+    // know how familiar each sender's domain is, and connecting per
+    // thread would be 34,000 connections.
+    let mut hist = crate::live_sync::network_kevy_url()
+        .and_then(|u| kevy_client::Connection::connect(&u).ok());
+    if hist.is_none() {
+        tracing::warn!(
+            "fraud rescan: no network kevy — the brand check cannot tell a \
+             familiar domain from a fresh one, so it will not fire"
+        );
+    }
     let users = match state.mailbox.list_account_addresses() {
         Ok(u) => u,
         Err(e) => {
@@ -134,11 +145,13 @@ pub(crate) async fn fraud_rescan_route(
                 no_file += 1;
                 continue;
             };
-            let findings = mailrs_fraud::scan(
-                &mailrs_inbound::from_header(&raw),
-                x_mailer(&raw).as_deref(),
-                &policy,
-            );
+            let from = mailrs_inbound::from_header(&raw);
+            // Not counting this message: the sweep runs over mail
+            // already delivered, so its own arrival is in the count
+            // and would make every sender one more familiar than they
+            // were when it decided.
+            let seen = domain_seen(hist.as_mut(), &from).saturating_sub(1);
+            let findings = mailrs_fraud::scan(&from, x_mailer(&raw).as_deref(), &policy, seen);
             // The one definition of "this is held", shared with the
             // verdict this sweep is about to store. `findings.any()`
             // here and a score threshold there is what left 43 held
@@ -154,7 +167,7 @@ pub(crate) async fn fraud_rescan_route(
                 samples.push(serde_json::json!({
                     "user": user,
                     "thread": tid,
-                    "from": mailrs_inbound::from_header(&raw),
+                    "from": from,
                     "reasons": mailrs_fraud::reasons(findings),
                     "score": mailrs_fraud::score(findings),
                 }));
@@ -567,4 +580,19 @@ Subject: hi\r\n\r\nbody\r\n";
             "the default must still parse"
         );
     }
+}
+
+/// How many messages this deployment has had from the sender's
+/// domain, or zero when there is no history store to ask.
+///
+/// Zero is the unfamiliar answer, which makes a brand claim
+/// suspicious — so a missing store fails towards holding rather than
+/// towards delivering. The warning above says when that is happening,
+/// because "the check found nothing" and "the check could not look"
+/// come back as the same count.
+fn domain_seen(conn: Option<&mut kevy_client::Connection>, from: &str) -> u64 {
+    let Some(conn) = conn else { return 0 };
+    let Some(at) = from.rfind('@') else { return 0 };
+    let host = from[at + 1..].trim_end_matches('>').trim();
+    mailrs_core_sidestate::families::domain_history::seen(conn, host)
 }

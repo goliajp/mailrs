@@ -194,6 +194,12 @@ fn identity(input: &PipelineInput) -> Layer {
         score += mailrs_fraud::impersonation::CLAIMS_OUR_NAME_SCORE;
         found.push("display name claims this organisation");
     }
+    if input.fraud.impersonates_brand {
+        score += mailrs_fraud::brand::IMPERSONATES_BRAND_SCORE;
+        found.push(
+            "display name claims a company, from a domain that is not theirs and is new here",
+        );
+    }
     if input.deception.unjustified_zero_width {
         score += UNJUSTIFIED_ZERO_WIDTH_SCORE;
         found.push("zero-width padding in the identifying text");
@@ -369,6 +375,30 @@ mod tests {
                 v.score
             );
         }
+    }
+
+    /// The mail the user asked about: `iCloud+` from
+    /// `zkxfp@zkxfp.zctxiot.com`, asking them to confirm a payment
+    /// method. It claims a company they have an account with, not
+    /// this one, so `claims_our_name` had nothing to say and it
+    /// reached the inbox with only a "Suspicious sender" badge.
+    ///
+    /// The identity layer has to name it, and `holds` has to hold it
+    /// — a signal that stops at the score is a signal nobody acts on.
+    #[test]
+    fn a_brand_impersonation_is_named_and_held() {
+        let mut i = input();
+        i.fraud.impersonates_brand = true;
+        let v = assess(&i);
+
+        let identity = v.layers.iter().find(|l| l.name == "identity").unwrap();
+        assert_eq!(identity.outcome, Outcome::Fail);
+        assert!(
+            identity.detail.contains("claims a company"),
+            "the layer did not say what it found: {}",
+            identity.detail
+        );
+        assert!(v.quarantined, "a brand impersonation was not held");
     }
 
     /// And the negative, so the assertion above cannot pass on a

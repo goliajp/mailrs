@@ -69,6 +69,17 @@ pub fn upsert_contacts(user: &str, senders_csv: &str) {
         .map(|(k, v)| (k.as_slice(), v.as_slice()))
         .collect();
     let _ = conn.hset(key.as_bytes(), &refs);
+    // How familiar this sender's domain is, which is half of the
+    // brand-impersonation check — a phish claiming to be Amazon comes
+    // from a domain nothing has ever arrived from, and a newsletter
+    // that merely names Amazon comes from one with a history. Written
+    // here because this is the one place every delivered message
+    // already passes through with the sender in hand.
+    for (email, _) in parse_senders(&decoded) {
+        if let Some(host) = email.rsplit('@').next() {
+            mailrs_core_sidestate::families::domain_history::record_seen(&mut conn, host);
+        }
+    }
 }
 
 /// Append a system-event audit fact to the shared `admin:audit_log`

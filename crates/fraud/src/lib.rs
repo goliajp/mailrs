@@ -45,6 +45,7 @@
 //!   was built against rotates its domain every few messages, so a
 //!   memory of domains is a memory of the last wave.
 
+pub mod brand;
 pub mod impersonation;
 pub mod mailer_fingerprint;
 
@@ -85,13 +86,17 @@ pub struct Findings {
     pub claims_our_name: bool,
     /// `X-Mailer` is the dotted-number gibberish one bulk tool writes.
     pub generated_mailer: bool,
+    /// The `From:` display name claims a company the reader has an
+    /// account with, from a domain that is neither that company's nor
+    /// one this deployment has any history with.
+    pub impersonates_brand: bool,
 }
 
 impl Findings {
     /// Whether anything was found at all.
     #[must_use]
     pub fn any(self) -> bool {
-        self.claims_our_name || self.generated_mailer
+        self.claims_our_name || self.generated_mailer || self.impersonates_brand
     }
 }
 
@@ -102,8 +107,12 @@ impl Findings {
 /// one. Undecoded input is the way to make this always answer nothing —
 /// the names arrive base64'd inside `=?UTF-8?B?…?=` in every real
 /// sample.
+/// `domain_seen` is how many messages this deployment has ever had
+/// from the sender's registrable domain, not counting this one. The
+/// brand check is the pair of a claim and an unfamiliar domain; see
+/// [`brand`] for the corpus that says why neither half is enough.
 #[must_use]
-pub fn scan(from: &str, x_mailer: Option<&str>, policy: &Policy) -> Findings {
+pub fn scan(from: &str, x_mailer: Option<&str>, policy: &Policy, domain_seen: u64) -> Findings {
     Findings {
         claims_our_name: impersonation::claims_our_name(
             from,
@@ -112,6 +121,7 @@ pub fn scan(from: &str, x_mailer: Option<&str>, policy: &Policy) -> Findings {
             &policy.allowed_domains,
         ),
         generated_mailer: x_mailer.is_some_and(mailer_fingerprint::is_generated_mailer),
+        impersonates_brand: brand::impersonates_brand(from, brand::BRANDS, domain_seen),
     }
 }
 
@@ -128,6 +138,9 @@ pub fn score(findings: Findings) -> f64 {
     if findings.generated_mailer {
         total += GENERATED_MAILER_SCORE;
     }
+    if findings.impersonates_brand {
+        total += brand::IMPERSONATES_BRAND_SCORE;
+    }
     total
 }
 
@@ -141,6 +154,9 @@ pub fn reasons(findings: Findings) -> Vec<&'static str> {
     }
     if findings.generated_mailer {
         out.push("x-mailer=generated");
+    }
+    if findings.impersonates_brand {
+        out.push("from=impersonates-brand");
     }
     out
 }
@@ -163,6 +179,10 @@ mod tests {
             "Alice <alice@example.com>",
             Some("Microsoft Outlook 16.0"),
             &policy(),
+            // A domain nothing has ever come from, so the brand
+            // check is free to fire — these cases are about the
+            // other two signals.
+            0,
         );
         assert_eq!(f, Findings::default());
         assert!(!f.any());
@@ -177,6 +197,10 @@ mod tests {
             "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
             Some("phevb tmiyui 191.8187.55074.84700.25732"),
             &policy(),
+            // A domain nothing has ever come from, so the brand
+            // check is free to fire — these cases are about the
+            // other two signals.
+            0,
         );
         assert!(f.claims_our_name && f.generated_mailer);
         assert_eq!(score(f), CLAIMS_OUR_NAME_SCORE + GENERATED_MAILER_SCORE);
@@ -187,7 +211,7 @@ mod tests {
     /// not be treated as a generated one.
     #[test]
     fn an_absent_mailer_is_not_a_generated_one() {
-        let f = scan("Alice <alice@example.com>", None, &policy());
+        let f = scan("Alice <alice@example.com>", None, &policy(), 0);
         assert!(!f.generated_mailer);
     }
 
@@ -199,6 +223,7 @@ mod tests {
             "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
             Some("phevb tmiyui 191.8187.55074.84700.25732"),
             &Policy::default(),
+            0,
         );
         assert!(
             !f.claims_our_name,
