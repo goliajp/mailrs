@@ -80,6 +80,36 @@ fn read_lowercase_set(client: &KevyNetClient, key: &str) -> Option<HashSet<Strin
     Some(out)
 }
 
+/// How many messages this deployment has ever had from `host`'s
+/// registrable domain.
+///
+/// Half of the brand-impersonation check: a phish claiming to be
+/// Amazon arrives from a domain nothing has ever come from, and a
+/// newsletter that merely names Amazon arrives from one with a
+/// history. See `mailrs_fraud::brand` for the corpus.
+///
+/// **Zero when the client is absent or the read fails**, which is the
+/// unfamiliar answer — so a kevy outage holds a brand-claiming
+/// message rather than delivering it. Every other read in this file
+/// fails open; this one fails towards the hold, because the two
+/// failures are not symmetric: a held message is one click from the
+/// reader, a delivered phish is a credential.
+pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -> u64 {
+    let Some(client) = client else { return 0 };
+    let host_owned = host.to_string();
+    tokio::task::spawn_blocking(move || {
+        let key = mailrs_fraud::brand::seen_key(&mailrs_fraud::brand::registrable(&host_owned));
+        client
+            .with_conn(|c| c.get(key.as_bytes()).map_err(std::io::Error::from))
+            .ok()
+            .flatten()
+            .and_then(|v| String::from_utf8_lossy(&v).trim().parse().ok())
+            .unwrap_or(0)
+    })
+    .await
+    .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,34 +148,4 @@ mod tests {
         assert_eq!(wl.len(), 1);
         assert_eq!(bl.len(), 1);
     }
-}
-
-/// How many messages this deployment has ever had from `host`'s
-/// registrable domain.
-///
-/// Half of the brand-impersonation check: a phish claiming to be
-/// Amazon arrives from a domain nothing has ever come from, and a
-/// newsletter that merely names Amazon arrives from one with a
-/// history. See `mailrs_fraud::brand` for the corpus.
-///
-/// **Zero when the client is absent or the read fails**, which is the
-/// unfamiliar answer — so a kevy outage holds a brand-claiming
-/// message rather than delivering it. Every other read in this file
-/// fails open; this one fails towards the hold, because the two
-/// failures are not symmetric: a held message is one click from the
-/// reader, a delivered phish is a credential.
-pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -> u64 {
-    let Some(client) = client else { return 0 };
-    let host_owned = host.to_string();
-    tokio::task::spawn_blocking(move || {
-        let key = mailrs_fraud::brand::seen_key(&mailrs_fraud::brand::registrable(&host_owned));
-        client
-            .with_conn(|c| c.get(key.as_bytes()).map_err(std::io::Error::from))
-            .ok()
-            .flatten()
-            .and_then(|v| String::from_utf8_lossy(&v).trim().parse().ok())
-            .unwrap_or(0)
-    })
-    .await
-    .unwrap_or(0)
 }
