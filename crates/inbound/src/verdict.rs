@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Bump when a layer's meaning changes — a new signal, a re-weighted
 /// score, a different threshold. Not when a detail string is reworded.
-pub const RULES_VERSION: &str = "2026-08-28.1";
+pub const RULES_VERSION: &str = "2026-08-29.1";
 
 /// How one layer came out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,9 +58,12 @@ pub struct FraudVerdict {
     /// The rule set in force when this was decided.
     pub rules_version: String,
     /// Sum of the layers.
+    ///
+    /// Reported, not decided on: what holds a conversation is
+    /// [`holds`], and a threshold beside a score that does not reach
+    /// it would read as a contradiction on a screen that is showing
+    /// the conversation as held.
     pub score: f64,
-    /// What it was measured against.
-    pub threshold: f64,
     /// Whether the message was held.
     pub quarantined: bool,
     /// The four reviews, always all four and always in this order, so
@@ -68,16 +71,31 @@ pub struct FraudVerdict {
     pub layers: Vec<Layer>,
 }
 
-/// The score at or above which a message is held rather than merely
-/// scored into Junk.
+/// Whether these findings take a conversation out of every list.
 ///
-/// Above the spam threshold on purpose. Junk is a guess about
-/// interest and is browsed; this takes a conversation out of the
-/// lists, so it wants signals that were right about nearly everything
-/// they fired on — measured over 35,799 production messages, the
-/// mailer fingerprint was right 29 times out of 29 and the name-claim
-/// 9 out of 12.
-pub const QUARANTINE_THRESHOLD: f64 = 8.0;
+/// **Any fraud finding at all**, and the one definition every reader
+/// shares. It was a score threshold of 8.0 until production disagreed
+/// with itself: the re-scan held on any finding while the verdict it
+/// stored said `quarantined: false`, so 43 of 51 held conversations
+/// carried a verdict claiming they should not be held — and the
+/// screen, which renders "Held" only on that field, would have told
+/// the reader those were merely examined.
+///
+/// The threshold was a prediction — "neither signal alone should take
+/// a conversation out of every list" — and the measurement is the
+/// other way. Over 35,799 production messages the mailer fingerprint
+/// fired 29 times and was right 29 times; the name claim fired 12
+/// times and was right 9, and the three it was wrong about were
+/// Slack, which is now on the allow-list the check consults. Both
+/// convict alone.
+///
+/// A message that passes SPF, DKIM and DMARC and carries an X-Mailer
+/// no client writes is exactly the case this feature exists for, and
+/// scoring it 5.0 against an 8.0 bar would let it through.
+#[must_use]
+pub fn holds(findings: mailrs_fraud::Findings) -> bool {
+    findings.any()
+}
 
 /// A blank slate: nothing checked, nothing claimed.
 ///
@@ -131,8 +149,7 @@ pub fn assess(input: &PipelineInput) -> FraudVerdict {
     FraudVerdict {
         rules_version: RULES_VERSION.to_string(),
         score,
-        threshold: QUARANTINE_THRESHOLD,
-        quarantined: score >= QUARANTINE_THRESHOLD,
+        quarantined: holds(input.fraud),
         layers,
     }
 }
@@ -325,16 +342,20 @@ mod tests {
         assert_eq!(layer(&v, "provenance").outcome, Outcome::Fail);
         assert!(
             v.quarantined,
-            "score {} did not reach {}",
-            v.score, v.threshold
+            "the campaign was not held (score {})",
+            v.score
         );
     }
 
-    /// Each of the two signals alone is a Junk-grade finding and not a
-    /// quarantine-grade one. Holding a conversation out of every list
-    /// wants more than one thing to have gone wrong.
+    /// **Either signal alone holds.** This asserted the opposite until
+    /// 2026-08-29, when production held 51 conversations and stored 43
+    /// verdicts saying they should not have been — the re-scan held on
+    /// any finding while this said 8.0. The measurement settles it:
+    /// the mailer fingerprint fired 29 times and was right 29 times,
+    /// and the name claim was right 9 of 12 with the three misses now
+    /// on the allow-list.
     #[test]
-    fn one_signal_alone_does_not_hold_a_conversation() {
+    fn either_signal_alone_holds_a_conversation() {
         for set in [
             |i: &mut PipelineInput| i.fraud.claims_our_name = true,
             |i: &mut PipelineInput| i.fraud.generated_mailer = true,
@@ -343,11 +364,41 @@ mod tests {
             set(&mut i);
             let v = assess(&i);
             assert!(
-                !v.quarantined,
-                "one signal ({:.1}) reached the hold threshold on its own",
+                v.quarantined,
+                "a fraud finding did not hold ({:.1})",
                 v.score
             );
         }
+    }
+
+    /// And the negative, so the assertion above cannot pass on a
+    /// verdict that holds everything: clean mail is not held.
+    #[test]
+    fn a_message_with_no_finding_is_not_held() {
+        assert!(!assess(&input()).quarantined);
+        // Content score alone is a Junk decision, not a hold: the
+        // hold is about who the sender is, not how the message reads.
+        let mut i = input();
+        i.content_score = 9.9;
+        assert!(
+            !assess(&i).quarantined,
+            "content score alone held a conversation"
+        );
+    }
+
+    /// One definition, and the sweep reads the same one. A second
+    /// copy of "what counts as held" is what produced 43 verdicts
+    /// that disagreed with the hold they were written for.
+    #[test]
+    fn holds_is_the_only_definition() {
+        let mut f = mailrs_fraud::Findings::default();
+        assert!(!holds(f));
+        f.generated_mailer = true;
+        assert!(holds(f));
+
+        let mut i = input();
+        i.fraud = f;
+        assert_eq!(assess(&i).quarantined, holds(f));
     }
 
     /// Transport contributes nothing to the score — on purpose, since
