@@ -413,9 +413,8 @@ four days on, still blocked\r\n";
 
     fn held_verdict() -> String {
         serde_json::json!({
-            "rules_version": "2026-08-28.1",
+            "rules_version": "2026-08-29.1",
             "score": 9.5,
-            "threshold": 8.0,
             "quarantined": true,
             "layers": [],
         })
@@ -495,17 +494,17 @@ four days on, still blocked\r\n";
         assert_eq!(total, 1);
     }
 
-    /// A verdict that did not reach the hold threshold is recorded and
-    /// changes nothing else. Scoring and hiding are two decisions, and
-    /// a verdict that always hid would make the threshold a fiction.
+    /// A verdict that does not hold is recorded and changes nothing
+    /// else. Examining and hiding are two decisions, and an ingest
+    /// that hid on any verdict at all would make `quarantined` a
+    /// field nobody reads.
     #[test]
-    fn a_scored_but_unheld_verdict_is_recorded_and_leaves_the_list_alone() {
+    fn a_recorded_but_unheld_verdict_leaves_the_list_alone() {
         let state = fresh_state();
         let user = "bob@golia.jp";
         let json = serde_json::json!({
-            "rules_version": "2026-08-28.1",
+            "rules_version": "2026-08-29.1",
             "score": 4.5,
-            "threshold": 8.0,
             "quarantined": false,
             "layers": [],
         })
@@ -531,7 +530,7 @@ four days on, still blocked\r\n";
         assert_eq!(
             rows.len(),
             1,
-            "a verdict under the threshold hid a conversation"
+            "a verdict that does not hold hid a conversation"
         );
     }
 }
