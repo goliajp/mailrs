@@ -27,8 +27,12 @@ export const wireFraudVerdictSchema = z.object({
   layers: z.array(wireFraudLayerSchema),
   quarantined: z.boolean(),
   rules_version: z.string(),
+  // Reported, not decided on. What holds a conversation is any fraud
+  // finding at all (`mailrs_inbound::verdict::holds`); a threshold
+  // beside a score that does not reach it read as a contradiction on
+  // a screen already showing the conversation as held, and on
+  // production it was one for 43 of 51.
   score: z.number(),
-  threshold: z.number(),
 })
 
 export const wireFraudVerdictResponseSchema = z.object({

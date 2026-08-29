@@ -71,7 +71,10 @@ export function FraudVerdictPanel({
             {verdict.quarantined ? 'Held: suspected fraud' : 'Examined: something looked wrong'}
           </p>
           <p className="text-fg-muted text-[11px] leading-snug">
-            Scored {verdict.score.toFixed(1)} against a threshold of {verdict.threshold.toFixed(1)}.
+            {/* The layers below name the check that convicted.
+                Repeating a number here invited the reader to do the
+                arithmetic instead — and on production the arithmetic
+                disagreed with the hold on 43 of 51 conversations. */}
             Kept, not deleted — this is the evidence an abuse report is built from.
           </p>
         </div>

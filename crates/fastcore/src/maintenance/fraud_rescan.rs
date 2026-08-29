@@ -139,7 +139,11 @@ pub(crate) async fn fraud_rescan_route(
                 x_mailer(&raw).as_deref(),
                 &policy,
             );
-            if !findings.any() {
+            // The one definition of "this is held", shared with the
+            // verdict this sweep is about to store. `findings.any()`
+            // here and a score threshold there is what left 43 held
+            // conversations carrying a verdict that said otherwise.
+            if !mailrs_inbound::holds(findings) {
                 continue;
             }
             found += 1;

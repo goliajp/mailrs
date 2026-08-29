@@ -83,6 +83,4 @@ pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision};
 pub use identity::{deception_in_identity, from_header};
 pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
 pub use stage::{Stage, StageOutcome};
-pub use verdict::{
-    FraudVerdict, Layer, Outcome, QUARANTINE_THRESHOLD, RULES_VERSION, assess, unexamined,
-};
+pub use verdict::{FraudVerdict, Layer, Outcome, RULES_VERSION, assess, holds, unexamined};
