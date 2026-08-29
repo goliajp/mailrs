@@ -463,8 +463,8 @@ body\r\n";
         assert!(t.detail.contains("SPF pass"), "detail: {}", t.detail);
         assert!(
             v.quarantined,
-            "score {} did not reach {}",
-            v.score, v.threshold
+            "the campaign was not held (score {})",
+            v.score
         );
     }
 
