@@ -130,7 +130,7 @@ pub(crate) async fn fraud_rescan_route(
                 tokio::time::sleep(std::time::Duration::from_millis(q.pause_ms)).await;
             }
 
-            let Some(raw) = newest_raw(&state, user, &tid) else {
+            let Some((message_id, raw)) = newest_raw(&state, user, &tid) else {
                 no_file += 1;
                 continue;
             };
@@ -189,24 +189,17 @@ pub(crate) async fn fraud_rescan_route(
                 }
                 Action::Hold => {
                     let verdict = rescan_verdict(&raw, findings);
-                    if let Some(mid) = message_id(&raw) {
-                        match serde_json::to_string(&verdict) {
-                            Ok(json) => {
-                                if let Err(e) = state.mailbox.set_fraud_verdict(&mid, &json) {
-                                    tracing::warn!(err = %e, %user, %tid, "storing the verdict failed");
-                                    verdict_failed += 1;
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!(err = %e, "the verdict did not serialise");
+                    match serde_json::to_string(&verdict) {
+                        Ok(json) => {
+                            if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, &json) {
+                                tracing::warn!(err = %e, %user, %tid, "storing the verdict failed");
                                 verdict_failed += 1;
                             }
                         }
-                    } else {
-                        // Held anyway: a message with no Message-ID is
-                        // not a message to trust, and the hold is the
-                        // protection. It just cannot explain itself.
-                        verdict_failed += 1;
+                        Err(e) => {
+                            tracing::warn!(err = %e, "the verdict did not serialise");
+                            verdict_failed += 1;
+                        }
                     }
                     match state.mailbox.set_quarantined(user, &tid, true) {
                         Ok(true) => held += 1,
@@ -312,8 +305,8 @@ fn csv_env(name: &str) -> Vec<String> {
 }
 
 /// The raw bytes of a thread's newest message, from this user's copy.
-fn newest_raw(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Option<Vec<u8>> {
-    let mut newest: Option<(i64, String)> = None;
+fn newest_raw(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Option<(String, Vec<u8>)> {
+    let mut newest: Option<(i64, String, String)> = None;
     for mid in state
         .mailbox
         .user_thread_message_ids(user, tid)
@@ -332,14 +325,23 @@ fn newest_raw(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Option<Vec<u
         }
         let better = match &newest {
             None => true,
-            Some((d, _)) => wire.date >= *d,
+            Some((d, _, _)) => wire.date >= *d,
         };
         if better {
-            newest = Some((wire.date, wire.blob_ref));
+            newest = Some((wire.date, wire.blob_ref, mid.clone()));
         }
     }
-    let (_, blob_ref) = newest?;
-    read_maildir_file(user, &blob_ref)
+    // The row's own id, not one re-derived from the file. Three held
+    // conversations on production carry a synthetic
+    // `…@mailrs.local` id while the file underneath has a real
+    // `Message-ID`, so a verdict keyed off the file was stored where
+    // no reader looks: the screen asks with the id the message row
+    // carries, and got null for a conversation it was showing as
+    // held. Two ids for one message, the verdict under the one nobody
+    // reads.
+    let (_, blob_ref, message_id) = newest?;
+    let raw = read_maildir_file(user, &blob_ref)?;
+    Some((message_id, raw))
 }
 
 /// The `X-Mailer` header value, unfolded far enough to compare.
@@ -426,21 +428,6 @@ fn rescan_verdict(raw: &[u8], findings: mailrs_fraud::Findings) -> mailrs_inboun
     mailrs_inbound::assess(&input)
 }
 
-/// This message's `Message-ID`, unbracketed, as the verdict is keyed.
-fn message_id(raw: &[u8]) -> Option<String> {
-    let v = header_value(raw, b"message-id:")?;
-    let t = v
-        .trim()
-        .trim_start_matches('<')
-        .trim_end_matches('>')
-        .trim();
-    if t.is_empty() {
-        None
-    } else {
-        Some(t.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,15 +474,6 @@ body\r\n";
         assert_eq!(t.outcome, mailrs_inbound::Outcome::NotApplicable);
     }
 
-    /// The verdict is keyed by message id, so a re-scan that could not
-    /// find one cannot store it — which is why `verdict_failed` is
-    /// counted separately from `held`.
-    #[test]
-    fn the_message_id_is_unbracketed_and_absent_when_there_is_none() {
-        assert_eq!(message_id(HELD).as_deref(), Some("m1@example.invalid"));
-        assert_eq!(message_id(b"From: x\r\n\r\nbody\r\n"), None);
-    }
-
     /// The shape production had on the first sweep: Exchange puts
     /// nothing after `Message-ID:` and folds the value onto the next
     /// line. Read without joining, the id is empty, the verdict is
@@ -506,8 +484,8 @@ body\r\n";
 Message-ID:\r\n <SA5PR03MB8426@namprd03.prod.outlook.com>\r\n\
 Subject: hi\r\n\r\nbody\r\n";
         assert_eq!(
-            message_id(raw).as_deref(),
-            Some("SA5PR03MB8426@namprd03.prod.outlook.com")
+            header_value(raw, b"message-id:").as_deref(),
+            Some("<SA5PR03MB8426@namprd03.prod.outlook.com>")
         );
     }
 
