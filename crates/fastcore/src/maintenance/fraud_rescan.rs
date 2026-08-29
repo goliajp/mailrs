@@ -445,6 +445,21 @@ fn rescan_verdict(raw: &[u8], findings: mailrs_fraud::Findings) -> mailrs_inboun
     mailrs_inbound::assess(&input)
 }
 
+/// How many messages this deployment has had from the sender's
+/// domain, or zero when there is no history store to ask.
+///
+/// Zero is the unfamiliar answer, which makes a brand claim
+/// suspicious — so a missing store fails towards holding rather than
+/// towards delivering. The warning above says when that is happening,
+/// because "the check found nothing" and "the check could not look"
+/// come back as the same count.
+fn domain_seen(conn: Option<&mut kevy_client::Connection>, from: &str) -> u64 {
+    let Some(conn) = conn else { return 0 };
+    let Some(at) = from.rfind('@') else { return 0 };
+    let host = from[at + 1..].trim_end_matches('>').trim();
+    mailrs_core_sidestate::families::domain_history::seen(conn, host)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,6 +476,7 @@ body\r\n";
         mailrs_fraud::Findings {
             claims_our_name: true,
             generated_mailer: true,
+            impersonates_brand: false,
         }
     }
 
@@ -557,11 +573,11 @@ Subject: hi\r\n\r\nbody\r\n";
         };
 
         assert!(
-            mailrs_fraud::scan(&decoded, None, &configured).claims_our_name,
+            mailrs_fraud::scan(&decoded, None, &configured, 0).claims_our_name,
             "the configured policy did not catch a message claiming to be us"
         );
         assert!(
-            !mailrs_fraud::scan(&decoded, None, &empty).claims_our_name,
+            !mailrs_fraud::scan(&decoded, None, &empty, 0).claims_our_name,
             "an empty policy convicted, so this test cannot tell the two apart"
         );
     }
@@ -580,19 +596,4 @@ Subject: hi\r\n\r\nbody\r\n";
             "the default must still parse"
         );
     }
-}
-
-/// How many messages this deployment has had from the sender's
-/// domain, or zero when there is no history store to ask.
-///
-/// Zero is the unfamiliar answer, which makes a brand claim
-/// suspicious — so a missing store fails towards holding rather than
-/// towards delivering. The warning above says when that is happening,
-/// because "the check found nothing" and "the check could not look"
-/// come back as the same count.
-fn domain_seen(conn: Option<&mut kevy_client::Connection>, from: &str) -> u64 {
-    let Some(conn) = conn else { return 0 };
-    let Some(at) = from.rfind('@') else { return 0 };
-    let host = from[at + 1..].trim_end_matches('>').trim();
-    mailrs_core_sidestate::families::domain_history::seen(conn, host)
 }
