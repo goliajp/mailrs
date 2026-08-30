@@ -399,9 +399,13 @@ pub const RULE_ZERO_WIDTH_IN_WORD: &str = "zero-width-inside-a-word";
 
 /// Score for a word split by invisible characters.
 ///
-/// Held. 17 of 35,575 production messages and all seventeen are
-/// phishing — SAISON, JCB four times, 楽天カード, SMBC, ANA twice,
-/// Amazon three times.
+/// Held. **51 of 36,318 production messages, and the 52nd — the only
+/// legitimate one that carries an insertion at all — is spared by
+/// the count rather than by an exception.** IKEA Japan's newsletter
+/// has one, on the seam where a template put the reader's name in
+/// front of an honorific; every phishing message has one inside a
+/// Latin word, or two anywhere. See
+/// [`mailrs_textguard::Deception::zero_width_inside_a_word`].
 pub const ZERO_WIDTH_IN_WORD_SCORE: f64 = 6.0;
 
 /// An address whose local part and registered domain both read as
