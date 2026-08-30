@@ -118,8 +118,10 @@ pub(super) async fn run_antispam(
         .filter_map(|p| p.attachment_filename())
         .map(|f| f.to_string())
         .collect();
+    let subject = mailrs_inbound::subject_header(&receive_ctx.message);
     let facts = mailrs_fraud::Facts {
         from: &decoded_from,
+        subject: &subject,
         domain: &sender_host,
         registrable: &registrable,
         domain_seen,

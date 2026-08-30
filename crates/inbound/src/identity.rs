@@ -33,6 +33,16 @@ pub fn deception_in_identity(raw: &[u8]) -> Deception {
     mailrs_textguard::deception_in_any([from.as_str(), subject.as_str()])
 }
 
+/// The decoded `Subject:`.
+///
+/// From the same parse as [`from_header`], because a rule that reads
+/// the subject and a rule that reads the name must be looking at the
+/// same message — and because the subject arrives base64'd inside
+/// `=?UTF-8?B?…?=` exactly as often as the name does.
+pub fn subject_header(raw: &[u8]) -> String {
+    decoded_identity(raw).1
+}
+
 /// The same reading, of the **display name alone**.
 ///
 /// [`deception_in_identity`] folds the `From` and the `Subject`

@@ -173,8 +173,10 @@ pub(crate) async fn fraud_rescan_route(
                 .attachments()
                 .filter_map(|p| p.attachment_filename())
                 .collect();
+            let subject = mailrs_inbound::subject_header(&raw);
             let facts = mailrs_fraud::Facts {
                 from: &from,
+                subject: &subject,
                 domain: &host,
                 registrable: &registrable,
                 domain_seen: seen,

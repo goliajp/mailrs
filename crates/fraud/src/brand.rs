@@ -182,6 +182,140 @@ pub fn impersonates_brand(from: &str, brands: &[Brand], domain_seen: u64) -> boo
     })
 }
 
+/// How a brand is named in a **subject**, where the wording is not a
+/// display name and a substring match is far more dangerous.
+///
+/// The measurement over 35,962 messages is what shaped these. A bare
+/// `amazon` in a subject matches **1,716** messages; narrowed to a
+/// domain the mailbox has no history with it matches 31, and all 31
+/// are phishing. The other 160 — from familiar domains — are every
+/// one legitimate: gift-card campaigns from freee, Money Forward,
+/// Recruit and Mercari, LinkedIn's Amazon news, Rakuten Bank on
+/// マイナンバー, 三井住友銀行 confirming a video appointment.
+///
+/// So the patterns are deliberately narrow **and** the familiarity
+/// half is not optional. Loose ones like a bare `ANA` were dropped
+/// during the measurement: they matched
+/// `Artificial Intelligence for Enterprise` and
+/// `Practical Project Management`.
+pub const SUBJECT_CLAIMS: &[Brand] = &[
+    Brand {
+        name: "ANAマイレージ",
+        domains: &["ana.co.jp", "anamile.jp"],
+    },
+    Brand {
+        name: "ANAカード",
+        domains: &["ana.co.jp", "anamile.jp"],
+    },
+    Brand {
+        name: "【ANA】",
+        domains: &["ana.co.jp", "anamile.jp"],
+    },
+    Brand {
+        name: "MyJCB",
+        domains: &["jcb.co.jp"],
+    },
+    Brand {
+        name: "【JCB",
+        domains: &["jcb.co.jp"],
+    },
+    Brand {
+        name: "セゾンカード",
+        domains: &["saisoncard.co.jp"],
+    },
+    Brand {
+        name: "【SAISON",
+        domains: &["saisoncard.co.jp"],
+    },
+    Brand {
+        name: "【AEON",
+        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp", "aeon.com"],
+    },
+    Brand {
+        name: "【iAEON",
+        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp", "aeon.com"],
+    },
+    Brand {
+        name: "イオンカード",
+        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp"],
+    },
+    Brand {
+        name: "楽天カード",
+        domains: &["rakuten.co.jp", "rakuten.com", "rakuten-card.co.jp"],
+    },
+    Brand {
+        name: "三井住友",
+        domains: &["smbc.co.jp", "smbc-card.com", "vpass.ne.jp"],
+    },
+    Brand {
+        name: "【SMBC",
+        domains: &["smbc.co.jp", "smbc-card.com", "vpass.ne.jp"],
+    },
+    Brand {
+        name: "AppleID",
+        domains: &["apple.com", "icloud.com", "me.com"],
+    },
+    Brand {
+        name: "Apple ID",
+        domains: &["apple.com", "icloud.com", "me.com"],
+    },
+    Brand {
+        name: "iCloud",
+        domains: &["apple.com", "icloud.com", "me.com"],
+    },
+    Brand {
+        name: "ETC利用照会",
+        domains: &["etc-meisai.jp"],
+    },
+    Brand {
+        name: "マイナポータル",
+        domains: &["myna.go.jp", "digital.go.jp"],
+    },
+    Brand {
+        name: "Amazon",
+        domains: &[
+            "amazon.com",
+            "amazon.co.jp",
+            "amazon.jp",
+            "amazonses.com",
+            "amazonaws.com",
+            "aws.com",
+            "audible.co.jp",
+        ],
+    },
+];
+
+/// Whether the **subject** claims a brand from a domain that is
+/// neither theirs nor familiar here.
+///
+/// The sibling of [`impersonates_brand`], and the reason it exists:
+/// the `【ANA】今年度ご利用実績に伴うボーナスマイル受取のご案内`
+/// that arrived on 2026-08-29 had a display name of `noticeb8q72a`
+/// — the sender's own local part, claiming nothing. Every check that
+/// reads the `From` had nothing to look at. The claim was in the
+/// subject, where the reader sees it.
+///
+/// Same pair, same reason: over the corpus the claim alone matches
+/// 1,716 messages and the pair matches 31, all phishing.
+#[must_use]
+pub fn subject_claims_brand(subject: &str, domain: &str, domain_seen: u64) -> bool {
+    if domain_seen >= FAMILIAR_AFTER {
+        return false;
+    }
+    let domain = domain.trim().to_ascii_lowercase();
+    if domain.is_empty() || subject.trim().is_empty() {
+        return false;
+    }
+    let folded = crate::impersonation::fold(subject);
+    SUBJECT_CLAIMS.iter().any(|b| {
+        folded.contains(&crate::impersonation::fold(b.name))
+            && !b
+                .domains
+                .iter()
+                .any(|d| domain == *d || domain.ends_with(&format!(".{d}")))
+    })
+}
+
 /// The registrable domain of a host: `mail02.marriottanji.com` →
 /// `marriottanji.com`, `email.tiktok.com` → `tiktok.com`.
 ///
@@ -354,5 +488,130 @@ mod tests {
     fn nothing_sensible_reduces_to_nothing_surprising() {
         assert_eq!(registrable(""), "");
         assert_eq!(registrable("localhost"), "localhost");
+    }
+
+    /// Real subjects, real senders. All 31 the corpus produced when
+    /// the claim was paired with an unfamiliar domain — every one a
+    /// phish, and the shape the `From` could not see: the ANA one's
+    /// display name is `noticeb8q72a`, claiming nothing at all.
+    #[test]
+    fn a_claim_in_the_subject_is_caught_when_the_domain_is_new() {
+        for (subject, domain) in [
+            (
+                "【ANA】今年度ご利用実績に伴うボーナスマイル受取のご案内",
+                "cjvft.lanlingrexian.com",
+            ),
+            (
+                "ANAマイレージクラブ：マイル登録に関するお知らせ",
+                "mail12.jazzyholding.com",
+            ),
+            (
+                "【JCB】本人確認（利用者認証）のお願い",
+                "wokjx.crabfishhh.com",
+            ),
+            (
+                "【MyJCB】セキュリティシステム更新に伴う再認証の手続き",
+                "b8n0m2p4.cnhlp.com",
+            ),
+            (
+                "【重要】Amazonプライム：支払い方法未更新によるサービス停止の予告",
+                "mail01.lingshiluntan.com",
+            ),
+            (
+                "【SAISON】本人認証サービス（ 3Dセキュア）設定再確認のお願い",
+                "bgqzb.gzfxn.com",
+            ),
+            (
+                "【三井住友カード】セキュリティシステム更新に伴う再認証の手続き",
+                "g5h7j9k1.buxha.com",
+            ),
+            (
+                "【楽天カード】2026年4月分ご利用代金の再精算に関する",
+                "mtahost.aikugoo.com",
+            ),
+            (
+                "iCloud+ 月額利用料のお支払いに関するご案内",
+                "amezlink-jp.com",
+            ),
+        ] {
+            assert!(
+                subject_claims_brand(subject, domain, 0),
+                "not caught: {subject}"
+            );
+        }
+    }
+
+    /// And the 160 the corpus produced from familiar domains — every
+    /// one of them real mail somebody wanted. A rule that held these
+    /// would be worse than no rule, and without the familiarity half
+    /// it holds all of them.
+    #[test]
+    fn the_same_words_from_a_familiar_domain_are_ordinary_mail() {
+        for (subject, domain, seen) in [
+            (
+                "【Amazonギフトカード1,000円プレゼント】5分で終わる",
+                "freee.co.jp",
+                2543,
+            ),
+            ("Amazon Autos now offers used a", "linkedin.com", 893),
+            (
+                "【Amazonブラックフライデーはメルペイで！】",
+                "mercari.jp",
+                255,
+            ),
+            (
+                "【楽天銀行】マイナンバー（個人番号）の登録手続きが完了しました",
+                "rakuten-bank.co.jp",
+                305,
+            ),
+            (
+                "【三井住友銀行】Web面談｜予約確定のお知らせ",
+                "rooms-online.jp",
+                3,
+            ),
+            ("How Amazon Uses LLMs to Recomm", "substack.com", 553),
+        ] {
+            assert!(
+                !subject_claims_brand(subject, domain, seen),
+                "wrongly caught: {subject}"
+            );
+        }
+    }
+
+    /// The brand's own domain needs no history at all.
+    #[test]
+    fn the_brands_own_domain_is_never_a_claim_against_it() {
+        assert!(!subject_claims_brand(
+            "【ANA】マイルのお知らせ",
+            "ana.co.jp",
+            0
+        ));
+        assert!(!subject_claims_brand(
+            "Amazon.co.jp ご注文",
+            "amazon.co.jp",
+            0
+        ));
+        assert!(!subject_claims_brand(
+            "iCloud+ のお支払い",
+            "email.apple.com",
+            0
+        ));
+    }
+
+    /// The loose patterns that were dropped during the measurement,
+    /// kept here as the record of why: a bare `ANA` matched English
+    /// prose, and a rule built from it would have held newsletters.
+    #[test]
+    fn a_brand_name_hiding_inside_an_english_word_is_not_a_claim() {
+        for subject in [
+            "Artificial Intelligence for Enterprise",
+            "Practical Project Management Course",
+            "Updates to YouTube Data API",
+        ] {
+            assert!(
+                !subject_claims_brand(subject, "brand-new.example", 0),
+                "wrongly caught: {subject}"
+            );
+        }
     }
 }
