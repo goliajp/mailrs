@@ -52,6 +52,7 @@ pub mod greeting;
 pub mod hostname_claim;
 pub mod impersonation;
 pub mod mailer_fingerprint;
+pub mod minted_address;
 pub mod reply_rotation;
 pub mod sending_host;
 
@@ -275,6 +276,15 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
             format!("subject greets `{name}`, which the `To:` header does not name"),
         ));
     }
+    // An address whose mailbox and domain were both generated.
+    if minted_address::address_looks_minted(facts.from) {
+        out.push(Finding::new(
+            RULE_MINTED_ADDRESS,
+            Layer::Identity,
+            MINTED_ADDRESS_SCORE,
+            "neither the mailbox nor the domain is a word anybody chose",
+        ));
+    }
     // One reply address collecting disposable sending domains.
     if reply_rotation::rotates(facts.reply_rotation) {
         out.push(Finding::new(
@@ -369,6 +379,16 @@ pub const RULE_GREETS_A_STRANGER: &str = "greets-a-stranger";
 /// subject and leave the `To:` display name empty. Enough to push
 /// toward Junk; not enough to hide mail.
 pub const GREETS_A_STRANGER_SCORE: f64 = 2.0;
+
+/// An address whose local part and registered domain both read as
+/// machine-minted. See [`minted_address`].
+pub const RULE_MINTED_ADDRESS: &str = "minted-address";
+
+/// Score for an address generated on both sides of the `@`.
+///
+/// Held. 11 of 35,575 production messages, and all eleven are a BEC
+/// campaign impersonating this company or Japanese brand phishing.
+pub const MINTED_ADDRESS_SCORE: f64 = 6.0;
 
 /// One reply address that many disposable sending domains funnel
 /// into. See [`reply_rotation`].
