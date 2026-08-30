@@ -142,6 +142,39 @@ pub const BRANDS: &[Brand] = &[
         name: "aeon",
         domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp"],
     },
+    // Added 2026-08-30, after `ANAマイレージクラブ (自動配信)
+    // <system7yi9@dvikd.jsyoutom.com>` arrived and nothing fired.
+    // The name was in the display name all along; it was only in the
+    // subject list, so the check that reads the `From` had nothing to
+    // match. A brand belongs in both lists or in neither.
+    Brand {
+        name: "ANAマイレージクラブ",
+        domains: &["ana.co.jp", "anamile.jp"],
+    },
+    Brand {
+        name: "ANAカード",
+        domains: &["ana.co.jp", "anamile.jp"],
+    },
+    Brand {
+        name: "アマゾン",
+        domains: &["amazon.com", "amazon.co.jp", "amazon.jp"],
+    },
+    Brand {
+        name: "myjcb",
+        domains: &["jcb.co.jp"],
+    },
+    Brand {
+        name: "セゾンカード",
+        domains: &["saisoncard.co.jp"],
+    },
+    Brand {
+        name: "三井住友カード",
+        domains: &["smbc.co.jp", "smbc-card.com", "vpass.ne.jp"],
+    },
+    Brand {
+        name: "楽天カード",
+        domains: &["rakuten.co.jp", "rakuten.com", "rakuten-card.co.jp"],
+    },
     Brand {
         name: "mufg",
         domains: &["mufg.jp", "bk.mufg.jp"],
