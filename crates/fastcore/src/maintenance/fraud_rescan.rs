@@ -167,6 +167,12 @@ pub(crate) async fn fraud_rescan_route(
             // and that is how the one the user asked about survived
             // a full re-scan.
             let deception = mailrs_inbound::deception_in_identity(&raw);
+            let name_deception = mailrs_inbound::deception_in_display_name(&raw);
+            let parsed = mailrs_mime::parse(&raw);
+            let attachments: Vec<&str> = parsed
+                .attachments()
+                .filter_map(|p| p.attachment_filename())
+                .collect();
             let facts = mailrs_fraud::Facts {
                 from: &from,
                 domain: &host,
@@ -175,6 +181,10 @@ pub(crate) async fn fraud_rescan_route(
                 x_mailer: x.as_deref(),
                 has_zero_width: deception.unjustified_zero_width,
                 has_bidi_override: deception.bidi_override,
+                has_zero_width_in_name: name_deception.unjustified_zero_width,
+                has_executable_attachment: mailrs_fraud::attachment::any_executable(
+                    attachments.iter().copied(),
+                ),
                 ..mailrs_fraud::Facts::default()
             };
             let findings = mailrs_fraud::scan(&facts, &policy);

@@ -111,6 +111,13 @@ pub(super) async fn run_antispam(
     let domain_seen =
         crate::spam_lists::domain_seen_async(ctx.spam_lists_client.clone(), &sender_host).await;
     let x_mailer = mailrs_inbound::identity::x_mailer_header(&receive_ctx.message);
+    let name_deception = mailrs_inbound::deception_in_display_name(&receive_ctx.message);
+    let parsed = mailrs_mime::parse(&receive_ctx.message);
+    let attachment_names: Vec<String> = parsed
+        .attachments()
+        .filter_map(|p| p.attachment_filename())
+        .map(|f| f.to_string())
+        .collect();
     let facts = mailrs_fraud::Facts {
         from: &decoded_from,
         domain: &sender_host,
@@ -119,6 +126,14 @@ pub(super) async fn run_antispam(
         x_mailer: x_mailer.as_deref(),
         has_zero_width: receive_ctx.deception.unjustified_zero_width,
         has_bidi_override: receive_ctx.deception.bidi_override,
+        // Narrower than the reading above, and deliberately: that one
+        // folds in the subject, where a zero-width space is
+        // occasionally legitimate. In a display name it never was —
+        // forty in the corpus, forty phishing.
+        has_zero_width_in_name: name_deception.unjustified_zero_width,
+        has_executable_attachment: mailrs_fraud::attachment::any_executable(
+            attachment_names.iter().map(String::as_str),
+        ),
         ..mailrs_fraud::Facts::default()
     };
     let policy = mailrs_fraud::Policy {

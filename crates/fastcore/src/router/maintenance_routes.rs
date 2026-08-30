@@ -163,6 +163,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // Paged on purpose: a full scan competes with live traffic
         // for the same store, so the caller drives it in batches.
         .route(
+            "/v1/admin/maintenance:backfill-domain-seen",
+            post(crate::maintenance::backfill_domain_seen_route),
+        )
+        .route(
             "/v1/admin/maintenance:backfill-thread-user",
             post(backfill_thread_user_route),
         )

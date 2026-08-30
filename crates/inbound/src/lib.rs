@@ -80,7 +80,9 @@ pub use auth_header::{
 };
 pub use context::{AuthResults, DmarcPolicy, ReceiveContext};
 pub use decision::{DeliveryDecision, PipelineInput, make_delivery_decision};
-pub use identity::{deception_in_identity, from_header, x_mailer_header};
+pub use identity::{
+    deception_in_display_name, deception_in_identity, from_header, x_mailer_header,
+};
 pub use pipeline::{DEFAULT_SPAM_THRESHOLD, Pipeline, PipelineBuilder};
 pub use stage::{Stage, StageOutcome};
 pub use verdict::{FraudVerdict, Layer, Outcome, RULES_VERSION, assess, holds, unexamined};
