@@ -111,6 +111,33 @@ pub struct Finding {
     /// What it actually saw, in the words a reader needs when asking
     /// why their mail is here. Shown verbatim.
     pub detail: String,
+    /// Whether this alone is enough to take the conversation out of
+    /// every list.
+    ///
+    /// **Earned by measurement, never by confidence.** The number
+    /// that justifies it belongs in the rule's own documentation:
+    /// `x-mailer-generated` fired 29 times in a 35,962-message corpus
+    /// and was right 29 times; the zero-width reading of the
+    /// *identifying text* was right 39 times in 40, and one in forty
+    /// is a newsletter somebody wanted.
+    ///
+    /// So there are two grades. A rule that is right about nearly
+    /// everything it fires on can hide a conversation; one that is
+    /// right most of the time can only push it toward Junk, where
+    /// the reader still sees it and can disagree.
+    ///
+    /// A verdict panel on 2026-08-29 is what asked for this field: it
+    /// showed two failing layers under a headline that said the
+    /// message had merely been *examined*. Both failures were host
+    /// signals — scored, displayed, and invisible to the hold — so
+    /// the panel told a reader something had been noticed and nothing
+    /// had been done, which was true and unreadable.
+    ///
+    /// **A scripted rule is `false` until somebody measures it.** A
+    /// rule written on a Tuesday afternoon should push mail toward
+    /// Junk, not hide it; the promotion is a number in a dry run,
+    /// not an opinion.
+    pub holds: bool,
 }
 
 impl Finding {
@@ -126,6 +153,24 @@ impl Finding {
             layer,
             score,
             detail: detail.into(),
+            holds: true,
+        }
+    }
+
+    /// A finding that counts toward Junk and does not hide anything.
+    ///
+    /// The honest default for a signal nobody has measured, and the
+    /// right home for the ones that were: a zero-width character in
+    /// the identifying text is a newsletter one time in forty.
+    pub fn scored(
+        rule: impl Into<String>,
+        layer: Layer,
+        score: f64,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self {
+            holds: false,
+            ..Self::new(rule, layer, score, detail)
         }
     }
 }
@@ -162,6 +207,16 @@ impl Findings {
     #[must_use]
     pub fn any(&self) -> bool {
         !self.0.is_empty()
+    }
+
+    /// Whether any of them is enough to hide the conversation.
+    ///
+    /// Not the same question as [`Findings::any`], and the gap
+    /// between the two is the whole of the second grade: a message
+    /// can carry three findings and be held by none of them.
+    #[must_use]
+    pub fn hold_worthy(&self) -> bool {
+        self.0.iter().any(|f| f.holds)
     }
 
     /// How many rules fired.
@@ -307,6 +362,50 @@ mod tests {
         n.push(f("c", Layer::Content, 3.0));
         assert_eq!(n.in_layer(Layer::Identity).count(), 2);
         assert_eq!(n.in_layer(Layer::Transport).count(), 0);
+    }
+
+    /// Two grades, and the gap between them is the point: a message
+    /// can carry findings and be held by none of them.
+    ///
+    /// The panel on 2026-08-29 showed two failing layers under a
+    /// headline saying the message had merely been examined. Both
+    /// were host signals — scored, displayed, invisible to the hold
+    /// — and `any()` was what the hold read. Now `hold_worthy()` is,
+    /// and the two can no longer disagree.
+    #[test]
+    fn a_finding_can_be_scored_without_being_held_on() {
+        let mut n = Findings::new();
+        n.push(Finding::scored(
+            "zero-width-text",
+            Layer::Identity,
+            2.5,
+            "seen",
+        ));
+        n.push(Finding::scored(
+            "sender-trust",
+            Layer::Identity,
+            3.0,
+            "seen",
+        ));
+        assert!(n.any(), "the findings are there");
+        assert!(!n.hold_worthy(), "neither earned a hold, so nothing hides");
+        assert_eq!(n.score(), 5.5, "and both still count toward Junk");
+
+        n.push(Finding::new(
+            "x-mailer-generated",
+            Layer::Provenance,
+            5.0,
+            "seen",
+        ));
+        assert!(n.hold_worthy(), "a measured rule holds");
+    }
+
+    /// The default is the safe one. A rule nobody has measured
+    /// pushes mail toward Junk, where the reader still sees it.
+    #[test]
+    fn scored_is_the_default_a_new_rule_should_get() {
+        assert!(!Finding::scored("lua:new-shape", Layer::Content, 1.0, "").holds);
+        assert!(Finding::new("measured", Layer::Content, 1.0, "").holds);
     }
 
     /// A layer name from outside Rust is validated, never defaulted.
