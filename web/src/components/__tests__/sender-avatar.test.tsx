@@ -122,7 +122,10 @@ describe('<SenderAvatar />', () => {
   /** And it does not show the old logo while the new one is loading. */
   it('drops the previous logo while the next sender is still resolving', async () => {
     const png = new Uint8Array([137, 80, 78, 71])
-    let release: (() => void) | null = null
+    // Typed through a holder: assigning inside the fetch closure and
+    // calling after the awaits narrows `release` to `never` on its
+    // own, and the call at the end stops compiling.
+    const gate: { release: (() => void) | null } = { release: null }
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -130,7 +133,7 @@ describe('<SenderAvatar />', () => {
           return new Response(png, { headers: { 'content-type': 'image/png' }, status: 200 })
         }
         await new Promise<void>((r) => {
-          release = r
+          gate.release = r
         })
         return new Response(null, { status: 204 })
       })
@@ -141,6 +144,6 @@ describe('<SenderAvatar />', () => {
 
     rerender(<SenderAvatar sender="B <b@slow-3.example>" />)
     await waitFor(() => expect(container.querySelector('img')).toBeNull())
-    release?.()
+    gate.release?.()
   })
 })
