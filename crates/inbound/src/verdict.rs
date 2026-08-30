@@ -93,7 +93,7 @@ pub struct FraudVerdict {
 /// no client writes is exactly the case this feature exists for, and
 /// scoring it 5.0 against an 8.0 bar would let it through.
 #[must_use]
-pub fn holds(findings: mailrs_fraud::Findings) -> bool {
+pub fn holds(findings: &mailrs_fraud::Findings) -> bool {
     findings.any()
 }
 
@@ -141,15 +141,15 @@ pub fn unexamined() -> PipelineInput {
 pub fn assess(input: &PipelineInput) -> FraudVerdict {
     let layers = vec![
         transport(&input.auth),
-        identity(input),
-        provenance(input),
+        from_findings(input, mailrs_fraud::Layer::Identity),
+        from_findings(input, mailrs_fraud::Layer::Provenance),
         content(input),
     ];
     let score = layers.iter().map(|l| l.score).sum();
     FraudVerdict {
         rules_version: RULES_VERSION.to_string(),
         score,
-        quarantined: holds(input.fraud),
+        quarantined: holds(&input.fraud),
         layers,
     }
 }
@@ -186,41 +186,43 @@ fn transport(auth: &AuthResults) -> Layer {
     }
 }
 
-/// Layer 2 — is the name it shows a claim it is entitled to make?
-fn identity(input: &PipelineInput) -> Layer {
+/// Layers 2 and 3 — and any other a rule files itself under.
+///
+/// **Grouped, not enumerated.** These were two functions of hard-coded
+/// `if`s, one per check, so every new rule meant editing the renderer
+/// as well as writing the rule. A finding now carries the review it
+/// speaks for and this collects them, which is what makes "many
+/// rules" a list rather than a diff across seven files.
+///
+/// The host's own non-rule signals — zero-width padding, sender
+/// trust — are folded in here rather than made into rules, because
+/// they come from elsewhere (`mailrs_textguard`, the auth fold) and
+/// pretending otherwise would put two owners on one fact.
+fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
     let mut score = 0.0;
-    let mut found: Vec<&str> = Vec::new();
-    if input.fraud.claims_our_name {
-        score += mailrs_fraud::impersonation::CLAIMS_OUR_NAME_SCORE;
-        found.push("display name claims this organisation");
+    let mut found: Vec<String> = Vec::new();
+    for f in input.fraud.in_layer(layer) {
+        score += f.score;
+        found.push(f.detail.clone());
     }
-    if input.fraud.impersonates_brand {
-        score += mailrs_fraud::brand::IMPERSONATES_BRAND_SCORE;
-        found.push(
-            "display name claims a company, from a domain that is not theirs and is new here",
-        );
+    if layer == mailrs_fraud::Layer::Identity {
+        if input.deception.unjustified_zero_width {
+            score += UNJUSTIFIED_ZERO_WIDTH_SCORE;
+            found.push("zero-width padding in the identifying text".into());
+        }
+        if input.auth.sender_trust_with(input.deception)
+            == crate::auth_header::SenderTrust::Suspicious
+        {
+            score += SUSPICIOUS_SENDER_SCORE;
+            found.push("sender trust: suspicious".into());
+        }
     }
-    if input.deception.unjustified_zero_width {
-        score += UNJUSTIFIED_ZERO_WIDTH_SCORE;
-        found.push("zero-width padding in the identifying text");
-    }
-    if input.auth.sender_trust_with(input.deception) == crate::auth_header::SenderTrust::Suspicious
-    {
-        score += SUSPICIOUS_SENDER_SCORE;
-        found.push("sender trust: suspicious");
-    }
-    layer_from("identity", score, found, "the name and address agree")
-}
-
-/// Layer 3 — did a real mail client write it?
-fn provenance(input: &PipelineInput) -> Layer {
-    let mut found: Vec<&str> = Vec::new();
-    let mut score = 0.0;
-    if input.fraud.generated_mailer {
-        score += mailrs_fraud::mailer_fingerprint::GENERATED_MAILER_SCORE;
-        found.push("X-Mailer is one no mail client writes");
-    }
-    layer_from("provenance", score, found, "nothing unusual in the headers")
+    let clean = match layer {
+        mailrs_fraud::Layer::Identity => "the name and address agree",
+        mailrs_fraud::Layer::Provenance => "nothing unusual in the headers",
+        _ => "nothing found",
+    };
+    layer_from(layer.as_str(), score, found, clean)
 }
 
 /// Layer 4 — does it read like the fraud it is?
@@ -255,7 +257,7 @@ fn outcome_for(score: f64) -> Outcome {
     }
 }
 
-fn layer_from(name: &str, score: f64, found: Vec<&str>, clean: &str) -> Layer {
+fn layer_from(name: &str, score: f64, found: Vec<String>, clean: &str) -> Layer {
     let detail = if found.is_empty() {
         clean.to_string()
     } else {
@@ -335,8 +337,10 @@ mod tests {
     #[test]
     fn the_campaign_passes_transport_and_is_held_anyway() {
         let mut i = input();
-        i.fraud.claims_our_name = true;
-        i.fraud.generated_mailer = true;
+        i.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_CLAIMS_OUR_NAME]);
+        i.fraud.extend(mailrs_fraud::findings_for(&[
+            mailrs_fraud::RULE_GENERATED_MAILER,
+        ]));
         let v = assess(&i);
 
         assert_eq!(
@@ -362,12 +366,13 @@ mod tests {
     /// on the allow-list.
     #[test]
     fn either_signal_alone_holds_a_conversation() {
-        for set in [
-            |i: &mut PipelineInput| i.fraud.claims_our_name = true,
-            |i: &mut PipelineInput| i.fraud.generated_mailer = true,
+        for rule in [
+            mailrs_fraud::RULE_CLAIMS_OUR_NAME,
+            mailrs_fraud::RULE_GENERATED_MAILER,
+            mailrs_fraud::RULE_IMPERSONATES_BRAND,
         ] {
             let mut i = input();
-            set(&mut i);
+            i.fraud = mailrs_fraud::findings_for(&[rule]);
             let v = assess(&i);
             assert!(
                 v.quarantined,
@@ -388,7 +393,7 @@ mod tests {
     #[test]
     fn a_brand_impersonation_is_named_and_held() {
         let mut i = input();
-        i.fraud.impersonates_brand = true;
+        i.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_IMPERSONATES_BRAND]);
         let v = assess(&i);
 
         let identity = v.layers.iter().find(|l| l.name == "identity").unwrap();
@@ -421,14 +426,14 @@ mod tests {
     /// that disagreed with the hold they were written for.
     #[test]
     fn holds_is_the_only_definition() {
-        let mut f = mailrs_fraud::Findings::default();
-        assert!(!holds(f));
-        f.generated_mailer = true;
-        assert!(holds(f));
+        let none = mailrs_fraud::Findings::new();
+        assert!(!holds(&none));
+        let one = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_GENERATED_MAILER]);
+        assert!(holds(&one));
 
         let mut i = input();
-        i.fraud = f;
-        assert_eq!(assess(&i).quarantined, holds(f));
+        i.fraud = one.clone();
+        assert_eq!(assess(&i).quarantined, holds(&one));
     }
 
     /// Transport contributes nothing to the score — on purpose, since
@@ -463,7 +468,7 @@ mod tests {
     #[test]
     fn it_round_trips_through_json() {
         let mut i = input();
-        i.fraud.claims_our_name = true;
+        i.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_CLAIMS_OUR_NAME]);
         i.content_score = 1.5;
         i.matched_rules = vec!["urgent_wire".into()];
         let before = assess(&i);
@@ -479,8 +484,10 @@ mod tests {
     #[test]
     fn the_total_is_the_sum_of_the_parts() {
         let mut i = input();
-        i.fraud.claims_our_name = true;
-        i.fraud.generated_mailer = true;
+        i.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_CLAIMS_OUR_NAME]);
+        i.fraud.extend(mailrs_fraud::findings_for(&[
+            mailrs_fraud::RULE_GENERATED_MAILER,
+        ]));
         i.content_score = 2.0;
         i.ai_score = 1.0;
         let v = assess(&i);

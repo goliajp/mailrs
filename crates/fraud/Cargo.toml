@@ -15,3 +15,8 @@ categories = ["email"]
 
 [lints]
 workspace = true
+
+[features]
+# Lets a downstream crate's tests build findings by rule id
+# without a second definition of what each rule looks like.
+testing = []

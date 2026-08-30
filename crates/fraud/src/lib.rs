@@ -46,9 +46,13 @@
 //!   memory of domains is a memory of the last wave.
 
 pub mod brand;
+pub mod finding;
 pub mod impersonation;
 pub mod mailer_fingerprint;
 
+#[cfg(any(test, feature = "testing"))]
+pub use finding::findings_for;
+pub use finding::{Finding, Findings, Layer};
 pub use impersonation::CLAIMS_OUR_NAME_SCORE;
 pub use mailer_fingerprint::GENERATED_MAILER_SCORE;
 
@@ -75,91 +79,156 @@ pub struct Policy {
     pub allowed_domains: Vec<String>,
 }
 
-/// What a message was found to be doing.
+/// Everything one message offers the rules, extracted once.
 ///
-/// Every field is a fact about this message alone: no history, no
-/// reputation, nothing that has to be kept between messages.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Findings {
-    /// The `From:` display name claims the receiving organisation while
-    /// the address is somewhere else.
-    pub claims_our_name: bool,
-    /// `X-Mailer` is the dotted-number gibberish one bulk tool writes.
-    pub generated_mailer: bool,
-    /// The `From:` display name claims a company the reader has an
-    /// account with, from a domain that is neither that company's nor
-    /// one this deployment has any history with.
-    pub impersonates_brand: bool,
-}
-
-impl Findings {
-    /// Whether anything was found at all.
-    #[must_use]
-    pub fn any(self) -> bool {
-        self.claims_our_name || self.generated_mailer || self.impersonates_brand
-    }
-}
-
-/// Run every check over one message's headers.
+/// Rules do not parse. The host reads the message and fills this in,
+/// because extraction has already gone wrong three separate ways
+/// when three code paths each did their own: the receiver, the sweep
+/// and the ingest read the `From` differently, and a folded
+/// `Message-ID` was invisible to one of them for a day.
 ///
-/// `from` is the **decoded** `From:` value, display name and address
-/// together; `x_mailer` the raw header value if the message carries
-/// one. Undecoded input is the way to make this always answer nothing —
-/// the names arrive base64'd inside `=?UTF-8?B?…?=` in every real
-/// sample.
-/// `domain_seen` is how many messages this deployment has ever had
-/// from the sender's registrable domain, not counting this one. The
-/// brand check is the pair of a claim and an unfamiliar domain; see
-/// [`brand`] for the corpus that says why neither half is enough.
-#[must_use]
-pub fn scan(from: &str, x_mailer: Option<&str>, policy: &Policy, domain_seen: u64) -> Findings {
-    Findings {
-        claims_our_name: impersonation::claims_our_name(
-            from,
-            &policy.org_names,
-            &policy.our_domains,
-            &policy.allowed_domains,
-        ),
-        generated_mailer: x_mailer.is_some_and(mailer_fingerprint::is_generated_mailer),
-        impersonates_brand: brand::impersonates_brand(from, brand::BRANDS, domain_seen),
-    }
+/// Borrowed throughout — this is built per message on a path that
+/// handles every message.
+#[derive(Debug, Clone, Default)]
+pub struct Facts<'a> {
+    /// The decoded `From:` — display name and address together, as
+    /// `mailrs_inbound::identity` produces it. Undecoded input is the
+    /// way to make every name check answer false: the names arrive
+    /// base64'd inside `=?UTF-8?B?…?=` in every real sample.
+    pub from: &'a str,
+    /// The sending host, lowercased: `mail02.marriottanji.com`.
+    pub domain: &'a str,
+    /// …and its registrable domain: `marriottanji.com`.
+    pub registrable: &'a str,
+    /// Messages this deployment has ever had from `registrable`,
+    /// **not counting this one**. Zero for a domain nothing has ever
+    /// arrived from — which is what makes a brand claim from it
+    /// suspicious.
+    pub domain_seen: u64,
+    /// `X-Mailer`, unfolded, when the message carries one.
+    pub x_mailer: Option<&'a str>,
+    /// The decoded subject.
+    pub subject: &'a str,
+    /// RFC 8601 tokens as the receiver recorded them: `pass`,
+    /// `fail`, `none`, … Empty when nothing was checked, which is a
+    /// different fact from `none`.
+    pub spf: &'a str,
+    /// DKIM's verdict, aggregated across signatures.
+    pub dkim: &'a str,
+    /// DMARC's verdict — the one that decides alignment.
+    pub dmarc: &'a str,
+    /// Zero-width characters in the identifying text that nothing
+    /// justifies — `mailrs_textguard`'s reading.
+    pub has_zero_width: bool,
+    /// A bidi override or isolate in the identifying text.
+    ///
+    /// `mailrs_textguard`'s reading again, and its own note on the
+    /// field is the whole argument: *"no legitimate use in a
+    /// sender's name."*
+    pub has_bidi_override: bool,
 }
 
-/// What these findings contribute to a spam total.
+/// Run every compiled check over one message.
 ///
-/// Additive, so two weak signals can reach a threshold neither reaches
-/// alone — which is the shape the real messages have.
+/// The scripted rules are a second producer of the same `Findings`;
+/// the caller merges. Neither knows about the other, and nothing
+/// downstream can tell which produced what — which is the point:
+/// a rule earns a compiled home by being measured, not by being
+/// special.
 #[must_use]
-pub fn score(findings: Findings) -> f64 {
-    let mut total = 0.0;
-    if findings.claims_our_name {
-        total += CLAIMS_OUR_NAME_SCORE;
+pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
+    let mut out = Findings::new();
+    if impersonation::claims_our_name(
+        facts.from,
+        &policy.org_names,
+        &policy.our_domains,
+        &policy.allowed_domains,
+    ) {
+        out.push(Finding::new(
+            RULE_CLAIMS_OUR_NAME,
+            Layer::Identity,
+            CLAIMS_OUR_NAME_SCORE,
+            "display name claims this organisation",
+        ));
     }
-    if findings.generated_mailer {
-        total += GENERATED_MAILER_SCORE;
+    if facts
+        .x_mailer
+        .is_some_and(mailer_fingerprint::is_generated_mailer)
+    {
+        out.push(Finding::new(
+            RULE_GENERATED_MAILER,
+            Layer::Provenance,
+            GENERATED_MAILER_SCORE,
+            "X-Mailer is one no mail client writes",
+        ));
     }
-    if findings.impersonates_brand {
-        total += brand::IMPERSONATES_BRAND_SCORE;
+    // A display name whose characters are reordered as they render.
+    //
+    // The one this was written for renders as `iCloud+` and contains
+    // no such word. Its display name is, codepoint by codepoint:
+    //
+    //     U+2066  LEFT-TO-RIGHT ISOLATE
+    //     i  C
+    //     U+202E  RIGHT-TO-LEFT OVERRIDE
+    //     +  d  u  o  l
+    //     U+202E  U+2069
+    //
+    // `+duol` draws backwards as `loud+`, so the screen says
+    // `iCloud+`. Every text comparison in this crate looked at a
+    // string that does not contain `icloud`, and none of them could
+    // have. (rustc rejects those codepoints in a comment for exactly
+    // this reason, which is why they are spelled out here.)
+    //
+    // So the rule is not about which brand is being claimed. It is
+    // that the name is built to read as something other than what it
+    // is, which is a statement about the sender's intent and needs no
+    // list to keep up to date.
+    if facts.has_bidi_override {
+        out.push(Finding::new(
+            RULE_BIDI_DISPLAY_NAME,
+            Layer::Identity,
+            BIDI_DISPLAY_NAME_SCORE,
+            "the display name is reordered as it renders — it shows one \
+             thing and says another",
+        ));
     }
-    total
-}
-
-/// Short names for what fired, for a log line somebody has to read when
-/// a message they wanted lands in Junk.
-#[must_use]
-pub fn reasons(findings: Findings) -> Vec<&'static str> {
-    let mut out = Vec::new();
-    if findings.claims_our_name {
-        out.push("from=claims-our-name");
-    }
-    if findings.generated_mailer {
-        out.push("x-mailer=generated");
-    }
-    if findings.impersonates_brand {
-        out.push("from=impersonates-brand");
+    if brand::impersonates_brand(facts.from, brand::BRANDS, facts.domain_seen) {
+        out.push(Finding::new(
+            RULE_IMPERSONATES_BRAND,
+            Layer::Identity,
+            brand::IMPERSONATES_BRAND_SCORE,
+            "display name claims a company, from a domain that is not \
+             theirs and is new here",
+        ));
     }
     out
 }
+
+/// Somebody claiming to be this organisation.
+///
+/// A rule id is a wire contract: a stored verdict names it, a
+/// release records it, and the per-rule release rate — the only
+/// honest false-positive measure there is — counts it. Renaming one
+/// is renaming a column.
+pub const RULE_CLAIMS_OUR_NAME: &str = "claims-our-name";
+/// An `X-Mailer` no mail client writes. See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_GENERATED_MAILER: &str = "x-mailer-generated";
+/// Somebody claiming to be a company the reader has an account with.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_IMPERSONATES_BRAND: &str = "impersonates-brand";
+/// A display name that renders as something other than what it says.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_BIDI_DISPLAY_NAME: &str = "bidi-display-name";
+
+/// Score for a display name carrying a bidi override.
+///
+/// As high as the two name checks, and for a stronger reason than
+/// either: those weigh a claim, and a claim can be innocent. This
+/// weighs a mechanism, and `mailrs_textguard`'s own note on the field
+/// is that there is *"no legitimate use in a sender's name."* A name
+/// that has to be reordered to read correctly was built to be
+/// misread.
+pub const BIDI_DISPLAY_NAME_SCORE: f64 = 4.5;
 
 #[cfg(test)]
 mod tests {
@@ -173,46 +242,122 @@ mod tests {
         }
     }
 
+    /// The facts of one message, with only what a case is about
+    /// filled in.
+    fn facts<'a>(from: &'a str, x_mailer: Option<&'a str>, seen: u64) -> Facts<'a> {
+        Facts {
+            from,
+            x_mailer,
+            domain_seen: seen,
+            ..Facts::default()
+        }
+    }
+
     #[test]
     fn a_clean_message_finds_nothing_and_scores_nothing() {
         let f = scan(
-            "Alice <alice@example.com>",
-            Some("Microsoft Outlook 16.0"),
+            &facts(
+                "Alice <alice@example.com>",
+                Some("Microsoft Outlook 16.0"),
+                0,
+            ),
             &policy(),
-            // A domain nothing has ever come from, so the brand
-            // check is free to fire — these cases are about the
-            // other two signals.
-            0,
         );
-        assert_eq!(f, Findings::default());
         assert!(!f.any());
-        assert_eq!(score(f), 0.0);
-        assert!(reasons(f).is_empty());
+        assert_eq!(f.score(), 0.0);
+        assert!(f.rules().is_empty());
     }
 
     /// One of the real ones, both signals at once.
     #[test]
     fn the_wave_this_was_built_against() {
         let f = scan(
-            "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
-            Some("phevb tmiyui 191.8187.55074.84700.25732"),
+            &facts(
+                "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
+                Some("phevb tmiyui 191.8187.55074.84700.25732"),
+                0,
+            ),
             &policy(),
-            // A domain nothing has ever come from, so the brand
-            // check is free to fire — these cases are about the
-            // other two signals.
-            0,
         );
-        assert!(f.claims_our_name && f.generated_mailer);
-        assert_eq!(score(f), CLAIMS_OUR_NAME_SCORE + GENERATED_MAILER_SCORE);
-        assert_eq!(reasons(f), ["from=claims-our-name", "x-mailer=generated"]);
+        assert!(f.has(RULE_CLAIMS_OUR_NAME) && f.has(RULE_GENERATED_MAILER));
+        assert_eq!(f.score(), CLAIMS_OUR_NAME_SCORE + GENERATED_MAILER_SCORE);
+    }
+
+    /// Every finding carries the review it speaks for, so the verdict
+    /// can group by it instead of naming each rule.
+    #[test]
+    fn each_finding_is_filed_under_a_review() {
+        let f = scan(
+            &facts(
+                "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
+                Some("phevb tmiyui 191.8187.55074.84700.25732"),
+                0,
+            ),
+            &policy(),
+        );
+        assert_eq!(f.in_layer(Layer::Identity).count(), 1);
+        assert_eq!(f.in_layer(Layer::Provenance).count(), 1);
+        assert_eq!(f.in_layer(Layer::Transport).count(), 0);
+    }
+
+    /// Every finding says what it saw. A rule that fires without a
+    /// sentence gives the reader a hold they cannot argue with.
+    #[test]
+    fn every_finding_explains_itself() {
+        let f = scan(
+            &facts("iCloud+ <zkxfp@zkxfp.zctxiot.com>", None, 0),
+            &policy(),
+        );
+        assert!(f.any());
+        for finding in f.iter() {
+            assert!(
+                !finding.detail.trim().is_empty(),
+                "{} said nothing",
+                finding.rule
+            );
+            assert!(!finding.rule.trim().is_empty());
+            assert!(finding.score > 0.0);
+        }
+    }
+
+    /// The one that got through, byte for byte.
+    ///
+    /// Its display name renders as `iCloud+` and contains no such
+    /// word — `\u{2066}iC\u{202e}+duol\u{202e}\u{2069}`, where the
+    /// override draws `+duol` backwards. The brand check compares
+    /// text and the text does not say it, so nothing that reads the
+    /// name could have caught this. What catches it is the mechanism.
+    #[test]
+    fn a_name_reordered_as_it_renders_is_caught_without_reading_it() {
+        let from = "\u{2066}iC\u{202e}+duol\u{202e}\u{2069} <zkxfp@zkxfp.zctxiot.com>";
+
+        // What the name checks see: not the word, and never will be.
+        let folded = impersonation::fold(from);
+        assert!(
+            !folded.contains("icloud"),
+            "the folded name contains the brand after all: {folded:?}"
+        );
+        let mut without = facts(from, None, 0);
+        without.has_bidi_override = false;
+        assert!(
+            !scan(&without, &policy()).has(RULE_BIDI_DISPLAY_NAME),
+            "fired without the deception being present"
+        );
+
+        // What catches it.
+        let mut with = facts(from, None, 0);
+        with.has_bidi_override = true;
+        let f = scan(&with, &policy());
+        assert!(f.has(RULE_BIDI_DISPLAY_NAME));
+        assert_eq!(f.in_layer(Layer::Identity).count(), 1);
     }
 
     /// A message with no `X-Mailer` at all is the common case and must
     /// not be treated as a generated one.
     #[test]
     fn an_absent_mailer_is_not_a_generated_one() {
-        let f = scan("Alice <alice@example.com>", None, &policy(), 0);
-        assert!(!f.generated_mailer);
+        let f = scan(&facts("Alice <alice@example.com>", None, 0), &policy());
+        assert!(!f.has(RULE_GENERATED_MAILER));
     }
 
     /// An empty policy turns off the checks that need one, and leaves
@@ -220,17 +365,19 @@ mod tests {
     #[test]
     fn an_empty_policy_still_reads_the_mailer() {
         let f = scan(
-            "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
-            Some("phevb tmiyui 191.8187.55074.84700.25732"),
+            &facts(
+                "GOLIA株式会社 <ipdxuawesj@auto360d.com>",
+                Some("phevb tmiyui 191.8187.55074.84700.25732"),
+                0,
+            ),
             &Policy::default(),
-            0,
         );
         assert!(
-            !f.claims_our_name,
+            !f.has(RULE_CLAIMS_OUR_NAME),
             "an unnamed organisation cannot be claimed"
         );
         assert!(
-            f.generated_mailer,
+            f.has(RULE_GENERATED_MAILER),
             "the mailer check needs no configuration"
         );
     }

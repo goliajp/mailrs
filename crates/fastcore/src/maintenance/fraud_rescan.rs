@@ -151,16 +151,42 @@ pub(crate) async fn fraud_rescan_route(
             // and would make every sender one more familiar than they
             // were when it decided.
             let seen = domain_seen(hist.as_mut(), &from).saturating_sub(1);
-            let findings = mailrs_fraud::scan(&from, x_mailer(&raw).as_deref(), &policy, seen);
+            // The same facts the receive path assembles, from the
+            // same extractors. Two assemblies of one message is how
+            // a folded header came to be visible on one path and not
+            // the other.
+            let host = from
+                .rfind('@')
+                .map(|at| from[at + 1..].trim_end_matches('>').trim().to_string())
+                .unwrap_or_default();
+            let registrable = mailrs_fraud::brand::registrable(&host);
+            let x = mailrs_inbound::x_mailer_header(&raw);
+            // The same reading the receive path takes, from the same
+            // function. Without it the sweep cannot see a display
+            // name that renders as something other than it says —
+            // and that is how the one the user asked about survived
+            // a full re-scan.
+            let deception = mailrs_inbound::deception_in_identity(&raw);
+            let facts = mailrs_fraud::Facts {
+                from: &from,
+                domain: &host,
+                registrable: &registrable,
+                domain_seen: seen,
+                x_mailer: x.as_deref(),
+                has_zero_width: deception.unjustified_zero_width,
+                has_bidi_override: deception.bidi_override,
+                ..mailrs_fraud::Facts::default()
+            };
+            let findings = mailrs_fraud::scan(&facts, &policy);
             // The one definition of "this is held", shared with the
             // verdict this sweep is about to store. `findings.any()`
             // here and a score threshold there is what left 43 held
             // conversations carrying a verdict that said otherwise.
-            if !mailrs_inbound::holds(findings) {
+            if !mailrs_inbound::holds(&findings) {
                 continue;
             }
             found += 1;
-            for r in mailrs_fraud::reasons(findings) {
+            for r in findings.rules() {
                 *by_reason.entry(r.to_string()).or_default() += 1;
             }
             if samples.len() < 25 {
@@ -168,8 +194,8 @@ pub(crate) async fn fraud_rescan_route(
                     "user": user,
                     "thread": tid,
                     "from": from,
-                    "reasons": mailrs_fraud::reasons(findings),
-                    "score": mailrs_fraud::score(findings),
+                    "reasons": findings.rules(),
+                    "score": findings.score(),
                 }));
             }
             if q.dry_run {
@@ -205,7 +231,7 @@ pub(crate) async fn fraud_rescan_route(
                     }
                 }
                 Action::Hold => {
-                    let verdict = rescan_verdict(&raw, findings);
+                    let verdict = rescan_verdict(&raw, &findings);
                     match serde_json::to_string(&verdict) {
                         Ok(json) => {
                             if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, &json) {
@@ -361,11 +387,6 @@ fn newest_raw(state: &Arc<FastcoreState>, user: &str, tid: &str) -> Option<(Stri
     Some((message_id, raw))
 }
 
-/// The `X-Mailer` header value, unfolded far enough to compare.
-fn x_mailer(raw: &[u8]) -> Option<String> {
-    header_value(raw, b"x-mailer:")
-}
-
 /// One header's value, by its lowercase name including the colon,
 /// with its continuation lines joined.
 ///
@@ -428,9 +449,9 @@ fn header_value(raw: &[u8], name_lower: &[u8]) -> Option<String> {
 /// that is the receipt, and reading it is not the same as re-running
 /// the check. Where the header is missing the layer reports
 /// not-applicable, which is what it is.
-fn rescan_verdict(raw: &[u8], findings: mailrs_fraud::Findings) -> mailrs_inbound::FraudVerdict {
+fn rescan_verdict(raw: &[u8], findings: &mailrs_fraud::Findings) -> mailrs_inbound::FraudVerdict {
     let mut input = mailrs_inbound::unexamined();
-    input.fraud = findings;
+    input.fraud = findings.clone();
     if let Some(value) = header_value(raw, b"authentication-results:") {
         for r in mailrs_inbound::auth_header::parse_auth_results(&value) {
             match r.method.as_str() {
@@ -472,12 +493,29 @@ Subject: Invoice\r\n\
 \r\n\
 body\r\n";
 
-    fn findings() -> mailrs_fraud::Findings {
-        mailrs_fraud::Findings {
-            claims_our_name: true,
-            generated_mailer: true,
-            impersonates_brand: false,
+    /// Just the `From:`, for a case that is only about the name.
+    fn facts(from: &str) -> mailrs_fraud::Facts<'_> {
+        mailrs_fraud::Facts {
+            from,
+            ..mailrs_fraud::Facts::default()
         }
+    }
+
+    fn findings() -> mailrs_fraud::Findings {
+        let mut f = mailrs_fraud::Findings::new();
+        f.push(mailrs_fraud::Finding::new(
+            mailrs_fraud::RULE_CLAIMS_OUR_NAME,
+            mailrs_fraud::Layer::Identity,
+            mailrs_fraud::CLAIMS_OUR_NAME_SCORE,
+            "display name claims this organisation",
+        ));
+        f.push(mailrs_fraud::Finding::new(
+            mailrs_fraud::RULE_GENERATED_MAILER,
+            mailrs_fraud::Layer::Provenance,
+            mailrs_fraud::GENERATED_MAILER_SCORE,
+            "X-Mailer is one no mail client writes",
+        ));
+        f
     }
 
     /// The receipt, read back. The campaign passed every check, so a
@@ -486,7 +524,7 @@ body\r\n";
     /// recorded.
     #[test]
     fn a_rescan_reads_the_transport_result_the_receiver_wrote() {
-        let v = rescan_verdict(HELD, findings());
+        let v = rescan_verdict(HELD, &findings());
         let t = v.layers.iter().find(|l| l.name == "transport").unwrap();
         assert_eq!(t.outcome, mailrs_inbound::Outcome::Pass);
         assert!(t.detail.contains("SPF pass"), "detail: {}", t.detail);
@@ -502,7 +540,7 @@ body\r\n";
     #[test]
     fn without_that_header_transport_is_not_a_pass() {
         let raw = b"From: x <a@b.invalid>\r\nMessage-ID: <m2@b.invalid>\r\n\r\nbody\r\n";
-        let v = rescan_verdict(raw, findings());
+        let v = rescan_verdict(raw, &findings());
         let t = v.layers.iter().find(|l| l.name == "transport").unwrap();
         assert_eq!(t.outcome, mailrs_inbound::Outcome::NotApplicable);
     }
@@ -525,10 +563,17 @@ Subject: hi\r\n\r\nbody\r\n";
     /// And the same for the header the scan itself convicts on — a
     /// folded `X-Mailer` read as absent is a check that silently does
     /// not fire.
+    ///
+    /// Read through `mailrs_inbound`, which is now the only reader:
+    /// this file had its own, and two readers of one header is how
+    /// the folded case came to work on one path and not the other.
     #[test]
     fn a_folded_x_mailer_is_still_seen() {
         let raw = b"From: a <a@b.invalid>\r\nX-Mailer:\r\n 4.28.1.9\r\n\r\nbody\r\n";
-        assert_eq!(x_mailer(raw).as_deref(), Some("4.28.1.9"));
+        assert_eq!(
+            mailrs_inbound::x_mailer_header(raw).as_deref(),
+            Some("4.28.1.9")
+        );
     }
 
     /// Joining stops at the next field, or every header would be one
@@ -537,14 +582,17 @@ Subject: hi\r\n\r\nbody\r\n";
     fn joining_stops_at_the_next_header() {
         let raw = b"Subject: one\r\n two\r\nX-Mailer: 9.9.9.9\r\n\r\nbody\r\n";
         assert_eq!(header_value(raw, b"subject:").as_deref(), Some("one two"));
-        assert_eq!(x_mailer(raw).as_deref(), Some("9.9.9.9"));
+        assert_eq!(
+            mailrs_inbound::x_mailer_header(raw).as_deref(),
+            Some("9.9.9.9")
+        );
     }
 
     /// A header quoted in the body is not a header.
     #[test]
     fn the_scan_stops_at_the_blank_line() {
         let raw = b"From: x <a@b.invalid>\r\n\r\nX-Mailer: 9.9.9.9\r\n";
-        assert_eq!(x_mailer(raw), None);
+        assert_eq!(mailrs_inbound::x_mailer_header(raw), None);
     }
 
     /// An empty org-name list is a policy that cannot convict on the
@@ -573,11 +621,12 @@ Subject: hi\r\n\r\nbody\r\n";
         };
 
         assert!(
-            mailrs_fraud::scan(&decoded, None, &configured, 0).claims_our_name,
+            mailrs_fraud::scan(&facts(&decoded), &configured)
+                .has(mailrs_fraud::RULE_CLAIMS_OUR_NAME),
             "the configured policy did not catch a message claiming to be us"
         );
         assert!(
-            !mailrs_fraud::scan(&decoded, None, &empty, 0).claims_our_name,
+            !mailrs_fraud::scan(&facts(&decoded), &empty).has(mailrs_fraud::RULE_CLAIMS_OUR_NAME),
             "an empty policy convicted, so this test cannot tell the two apart"
         );
     }
