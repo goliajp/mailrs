@@ -3659,6 +3659,7 @@ dependencies = [
  "mailrs-bayes",
  "mailrs-clamav",
  "mailrs-core",
+ "mailrs-core-sidestate",
  "mailrs-delivery-executor",
  "mailrs-dkim",
  "mailrs-dmarc",

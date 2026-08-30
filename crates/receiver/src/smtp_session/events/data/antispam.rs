@@ -119,6 +119,17 @@ pub(super) async fn run_antispam(
         .map(|f| f.to_string())
         .collect();
     let subject = mailrs_inbound::subject_header(&receive_ctx.message);
+    let to_display = mailrs_inbound::identity::to_display_name(&receive_ctx.message);
+    let reply_to = mailrs_inbound::identity::reply_to_address(&receive_ctx.message);
+    // Records this sending domain against the reply address, then
+    // counts — so the arrival that reaches the threshold convicts
+    // itself and not only the ones after it.
+    let reply_rotation = crate::spam_lists::reply_rotation_async(
+        ctx.spam_lists_client.clone(),
+        &sender_host,
+        &reply_to,
+    )
+    .await;
     let facts = mailrs_fraud::Facts {
         from: &decoded_from,
         subject: &subject,
@@ -136,6 +147,8 @@ pub(super) async fn run_antispam(
         has_executable_attachment: mailrs_fraud::attachment::any_executable(
             attachment_names.iter().map(String::as_str),
         ),
+        to_display: &to_display,
+        reply_rotation,
         ..mailrs_fraud::Facts::default()
     };
     let policy = mailrs_fraud::Policy {

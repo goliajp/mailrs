@@ -29,7 +29,7 @@ const HEAD_LIMIT: usize = 16 * 1024;
 /// inside base64, and a check on the undecoded text sees only ASCII.
 /// All five production examples arrived that way.
 pub fn deception_in_identity(raw: &[u8]) -> Deception {
-    let (from, subject) = decoded_identity(raw);
+    let (from, subject, ..) = decoded_identity(raw);
     mailrs_textguard::deception_in_any([from.as_str(), subject.as_str()])
 }
 
@@ -118,14 +118,46 @@ pub fn x_mailer_header(raw: &[u8]) -> Option<String> {
     value.filter(|v| !v.is_empty())
 }
 
-/// `From:` and `Subject:`, decoded. One parser, because a second copy
-/// is how the badge on new mail comes to disagree with the badge on
-/// old mail — the failure this module already exists to prevent.
-fn decoded_identity(raw: &[u8]) -> (String, String) {
+/// The `To:` display name, decoded — the sender's own claim about
+/// who this message is for.
+///
+/// Display name only: `李好 <lihao@golia.jp>` gives `李好`, and a
+/// bare address gives the empty string. The address itself would
+/// make a subject greeting `lihao` look answered, which is not what
+/// is being asked.
+pub fn to_display_name(raw: &[u8]) -> String {
+    let to = decoded_identity(raw).2;
+    match to.rfind('<') {
+        Some(open) => to[..open].trim().trim_matches('"').to_string(),
+        None => to.trim().trim_matches('"').to_string(),
+    }
+}
+
+/// The bare address in `Reply-To:`, lowercased.
+///
+/// Empty when the message carries no `Reply-To`, which is most of
+/// them — 36,318 production messages hold 265 distinct off-domain
+/// reply addresses between them.
+pub fn reply_to_address(raw: &[u8]) -> String {
+    let v = decoded_identity(raw).3;
+    let inner = match (v.rfind('<'), v.rfind('>')) {
+        (Some(a), Some(b)) if a < b => &v[a + 1..b],
+        _ => v.trim(),
+    };
+    inner.trim().to_ascii_lowercase()
+}
+
+/// `From:`, `Subject:`, `To:` and `Reply-To:`, decoded. One parser,
+/// because a second copy is how the badge on new mail comes to
+/// disagree with the badge on old mail — the failure this module
+/// already exists to prevent.
+fn decoded_identity(raw: &[u8]) -> (String, String, String, String) {
     let head = &raw[..raw.len().min(HEAD_LIMIT)];
     let text = String::from_utf8_lossy(head);
     let mut from = String::new();
     let mut subject = String::new();
+    let mut to = String::new();
+    let mut reply_to = String::new();
     let mut field: Option<&mut String> = None;
     let mut pending = String::new();
 
@@ -154,18 +186,69 @@ fn decoded_identity(raw: &[u8]) -> (String, String) {
         } else if let Some(rest) = lower.strip_prefix("subject:") {
             pending = line[line.len() - rest.len()..].trim().to_string();
             field = Some(&mut subject);
+        } else if let Some(rest) = lower.strip_prefix("to:") {
+            pending = line[line.len() - rest.len()..].trim().to_string();
+            field = Some(&mut to);
+        } else if let Some(rest) = lower.strip_prefix("reply-to:") {
+            pending = line[line.len() - rest.len()..].trim().to_string();
+            field = Some(&mut reply_to);
         }
     }
     if let Some(target) = field.take() {
         *target = mailrs_rfc2047::decode(pending.as_bytes()).into_owned();
     }
 
-    (from, subject)
+    (from, subject, to, reply_to)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// LinkedIn's `To:` carries the reader's name, and it arrives
+    /// encoded — 189 messages in the corpus, and the whole reason the
+    /// greeting rule compares against this header rather than a list
+    /// of names nobody can finish writing.
+    #[test]
+    fn the_to_display_name_is_decoded() {
+        let raw = format!(
+            "From: LinkedIn <x@linkedin.com>\r\nTo: {} <lihao@golia.jp>\r\n\r\nbody\r\n",
+            mailrs_rfc2047::encode("李好")
+        );
+        assert_eq!(to_display_name(raw.as_bytes()), "李好");
+    }
+
+    /// The campaign's `To:` is the bare address, which carries no
+    /// name at all — that is the contradiction with its subject.
+    #[test]
+    fn a_bare_address_carries_no_name() {
+        let raw = b"From: x@shiye.airmessage.cn\r\nTo: lihao@golia.jp\r\n\r\nbody\r\n";
+        assert_eq!(to_display_name(raw), "lihao@golia.jp");
+    }
+
+    /// Both forms the campaign uses, one of them folded — the shape
+    /// that cost a day when `Message-ID` was read without unfolding.
+    #[test]
+    fn the_reply_address_is_read_in_either_form_and_when_folded() {
+        for header in [
+            "Reply-To: suqiqi@linghit.com",
+            "Reply-To: <suqiqi@linghit.com>",
+            "Reply-To: 苏七七\r\n <suqiqi@linghit.com>",
+            "Reply-To: <SuQiQi@Linghit.COM>",
+        ] {
+            let raw = format!("From: x@shiye.airmessage.cn\r\n{header}\r\n\r\nbody\r\n");
+            assert_eq!(
+                reply_to_address(raw.as_bytes()),
+                "suqiqi@linghit.com",
+                "{header}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_reply_to_is_the_empty_string() {
+        assert_eq!(reply_to_address(b"From: x@a.com\r\n\r\nbody\r\n"), "");
+    }
 
     /// The production message the user reported, header block verbatim
     /// apart from the base64, which is this display name encoded:

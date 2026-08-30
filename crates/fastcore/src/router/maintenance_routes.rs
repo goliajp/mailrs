@@ -166,6 +166,13 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             "/v1/admin/maintenance:backfill-domain-seen",
             post(crate::maintenance::backfill_domain_seen_route),
         )
+        // Records which sending domains funnel into each off-domain
+        // reply address, so the rotation rule can convict a campaign
+        // whose first three domains already delivered.
+        .route(
+            "/v1/admin/maintenance:backfill-reply-rotation",
+            post(crate::maintenance::backfill_reply_rotation_route),
+        )
         .route(
             "/v1/admin/maintenance:backfill-thread-user",
             post(backfill_thread_user_route),
