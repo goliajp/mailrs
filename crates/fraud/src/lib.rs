@@ -50,6 +50,7 @@ pub mod brand;
 pub mod finding;
 pub mod impersonation;
 pub mod mailer_fingerprint;
+pub mod sending_host;
 
 #[cfg(any(test, feature = "testing"))]
 pub use finding::findings_for;
@@ -239,6 +240,21 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
              thing and says another",
         ));
     }
+    // A relay host whose name was minted rather than chosen.
+    //
+    // **Scored, never held.** 34 of the 36 senders it matches in the
+    // corpus are phishing — a strong prior, and not a fact about
+    // intent: Constant Contact numbers its relays for the same
+    // operational reason a phisher does. A legitimate bulk sender
+    // must not be hidden for running a mailing list.
+    if sending_host::host_label_looks_minted(facts.domain) {
+        out.push(Finding::scored(
+            RULE_MINTED_SENDING_HOST,
+            Layer::Provenance,
+            MINTED_SENDING_HOST_SCORE,
+            "the sending host's name was generated, not chosen",
+        ));
+    }
     // **Scored, not held.** See `brand` for why: this rule's second
     // half is not a property of the message at all.
     if brand::subject_claims_brand(facts.subject, facts.domain, facts.domain_seen) {
@@ -277,6 +293,17 @@ pub const RULE_IMPERSONATES_BRAND: &str = "impersonates-brand";
 /// A subject claiming a company the reader has an account with.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_SUBJECT_CLAIMS_BRAND: &str = "subject-claims-brand";
+/// A relay host whose leading label was minted rather than chosen.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_MINTED_SENDING_HOST: &str = "minted-sending-host";
+
+/// Score for a sending host whose name was generated.
+///
+/// Below the Junk threshold on its own. 34 of 36 is a prior worth
+/// acting on beside anything else and not worth acting on alone —
+/// which is exactly what a score buys.
+pub const MINTED_SENDING_HOST_SCORE: f64 = 3.0;
+
 /// A display name that renders as something other than what it says.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_BIDI_DISPLAY_NAME: &str = "bidi-display-name";
