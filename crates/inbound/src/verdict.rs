@@ -94,7 +94,7 @@ pub struct FraudVerdict {
 /// scoring it 5.0 against an 8.0 bar would let it through.
 #[must_use]
 pub fn holds(findings: &mailrs_fraud::Findings) -> bool {
-    findings.any()
+    findings.hold_worthy()
 }
 
 /// A blank slate: nothing checked, nothing claimed.
@@ -206,15 +206,24 @@ fn from_findings(input: &PipelineInput, layer: mailrs_fraud::Layer) -> Layer {
         found.push(f.detail.clone());
     }
     if layer == mailrs_fraud::Layer::Identity {
+        // The host's own signals, and they are scored rather than
+        // held: `mailrs_textguard` measured one legitimate message in
+        // forty carrying a zero-width character in its identifying
+        // text, and a suspicious sender-trust verdict on its own was
+        // never meant to hide mail.
+        //
+        // They are shown, because the reader asking "why is this
+        // here" wants them. Whether they *held* it is the finding's
+        // own `holds`, which is why the two can no longer disagree.
         if input.deception.unjustified_zero_width {
             score += UNJUSTIFIED_ZERO_WIDTH_SCORE;
-            found.push("zero-width padding in the identifying text".into());
+            found.push("zero-width padding in the identifying text (scored, not held)".into());
         }
         if input.auth.sender_trust_with(input.deception)
             == crate::auth_header::SenderTrust::Suspicious
         {
             score += SUSPICIOUS_SENDER_SCORE;
-            found.push("sender trust: suspicious".into());
+            found.push("sender trust: suspicious (scored, not held)".into());
         }
     }
     let clean = match layer {
