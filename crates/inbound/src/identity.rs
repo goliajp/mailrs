@@ -33,6 +33,26 @@ pub fn deception_in_identity(raw: &[u8]) -> Deception {
     mailrs_textguard::deception_in_any([from.as_str(), subject.as_str()])
 }
 
+/// The same reading, of the **display name alone**.
+///
+/// [`deception_in_identity`] folds the `From` and the `Subject`
+/// together, which is right for the sender-trust verdict and wrong
+/// for a rule about names: `mailrs_textguard` measured one legitimate
+/// message in forty carrying a zero-width space, and it was in a
+/// subject. Over 35,962 production messages, forty carry one inside
+/// the display name and every one of the forty is a phish.
+///
+/// The address is excluded too — a zero-width character cannot
+/// survive in one, and including it would only add ways to be wrong.
+pub fn deception_in_display_name(raw: &[u8]) -> Deception {
+    let from = decoded_identity(raw).0;
+    let display = match from.rfind('<') {
+        Some(open) => from[..open].trim().trim_matches('"').to_string(),
+        None => String::new(),
+    };
+    mailrs_textguard::deception_in_any([display.as_str()])
+}
+
 /// The decoded `From:` value — display name and address together.
 ///
 /// Separate from the deception check because two questions are asked of

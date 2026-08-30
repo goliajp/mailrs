@@ -45,6 +45,7 @@
 //!   was built against rotates its domain every few messages, so a
 //!   memory of domains is a memory of the last wave.
 
+pub mod attachment;
 pub mod brand;
 pub mod finding;
 pub mod impersonation;
@@ -120,6 +121,15 @@ pub struct Facts<'a> {
     /// Zero-width characters in the identifying text that nothing
     /// justifies — `mailrs_textguard`'s reading.
     pub has_zero_width: bool,
+    /// A zero-width character inside the **display name**.
+    ///
+    /// Narrower than `has_zero_width`, which also covers the subject
+    /// — and the difference is the whole rule. See [`scan`].
+    pub has_zero_width_in_name: bool,
+    /// An attachment whose extension the operating system would
+    /// execute: `.exe`, `.cab`, `.js`, `.lnk`, `.docm`, and the rest
+    /// of that family.
+    pub has_executable_attachment: bool,
     /// A bidi override or isolate in the identifying text.
     ///
     /// `mailrs_textguard`'s reading again, and its own note on the
@@ -183,6 +193,43 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
     // that the name is built to read as something other than what it
     // is, which is a statement about the sender's intent and needs no
     // list to keep up to date.
+    // Zero-width characters spliced between the letters of a name.
+    //
+    // `mailrs_textguard` scores these toward Junk and notes that one
+    // production message in forty carried one legitimately — but that
+    // reading covers the **subject** as well. Measured over 35,962
+    // messages, forty carry one inside the **display name** and every
+    // one of the forty is a phish: `M\u{200c}y\u{200d}JCB`,
+    // `Ama\u{200c}zon.co.jp (自動送信メール)`, `AEON\u{200d}`,
+    // `三\u{200c}井住\u{200b}友カー\u{feff}ド`. Nobody puts an
+    // invisible character in the middle of their own company's name
+    // by accident.
+    if facts.has_zero_width_in_name {
+        out.push(Finding::new(
+            RULE_ZERO_WIDTH_NAME,
+            Layer::Identity,
+            ZERO_WIDTH_NAME_SCORE,
+            "the display name has invisible characters spliced into it",
+        ));
+    }
+    // An attachment the operating system will run.
+    //
+    // One in 35,962: `RFQ-5086-26 TENDER.cab`, 139 KB, SPF fail, sent
+    // as a quotation request. Zero false positives in the corpus —
+    // the other 1,267 attachments are PDFs, images, spreadsheets and
+    // DMARC report gzips.
+    //
+    // This mailbox's threat is phishing rather than malware, and this
+    // is the one delivery vector that was tried. A rule that fires
+    // once a year and is right when it does is worth its line.
+    if facts.has_executable_attachment {
+        out.push(Finding::new(
+            RULE_EXECUTABLE_ATTACHMENT,
+            Layer::Content,
+            EXECUTABLE_ATTACHMENT_SCORE,
+            "carries an attachment the operating system would run",
+        ));
+    }
     if facts.has_bidi_override {
         out.push(Finding::new(
             RULE_BIDI_DISPLAY_NAME,
@@ -219,6 +266,28 @@ pub const RULE_IMPERSONATES_BRAND: &str = "impersonates-brand";
 /// A display name that renders as something other than what it says.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_BIDI_DISPLAY_NAME: &str = "bidi-display-name";
+
+/// A display name with invisible characters spliced into it.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_ZERO_WIDTH_NAME: &str = "zero-width-name";
+/// An attachment the operating system would run.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_EXECUTABLE_ATTACHMENT: &str = "executable-attachment";
+
+/// Score for invisible characters inside a display name.
+///
+/// Forty in the corpus, forty phishing. Weighted like the other name
+/// signals rather than higher: the measurement is of one mailbox's
+/// mail, and a name is a weaker thing to convict on than a file the
+/// machine would run.
+pub const ZERO_WIDTH_NAME_SCORE: f64 = 4.5;
+
+/// Score for an attachment the operating system would run.
+///
+/// The highest of them. One in 35,962 messages carried one and it
+/// was malware; the cost of holding a legitimate one is a click, and
+/// the cost of delivering a real one is the machine.
+pub const EXECUTABLE_ATTACHMENT_SCORE: f64 = 6.0;
 
 /// Score for a display name carrying a bidi override.
 ///
@@ -350,6 +419,57 @@ mod tests {
         let f = scan(&with, &policy());
         assert!(f.has(RULE_BIDI_DISPLAY_NAME));
         assert_eq!(f.in_layer(Layer::Identity).count(), 1);
+    }
+
+    /// Forty in the corpus, forty phishing — and the reason the rule
+    /// is about the **display name** rather than the identifying text
+    /// as a whole: `mailrs_textguard` measured one legitimate message
+    /// in forty carrying a zero-width space, and it was in a subject.
+    #[test]
+    fn invisible_characters_in_a_name_are_caught() {
+        // Real ones, byte for byte.
+        for from in [
+            "M\u{200c}y\u{200d}JC\u{feff}B <ohgcji@ohgcji.yymtjj.com>",
+            "Ama\u{200c}zon.co.jp (自動送信メール) <drink@drink.thinking-progress.com>",
+            "AEON\u{200d} <noreply@6eryj.esskkd.com>",
+        ] {
+            let mut f = facts(from, None, 0);
+            f.has_zero_width_in_name = true;
+            assert!(
+                scan(&f, &policy()).has(RULE_ZERO_WIDTH_NAME),
+                "not caught: {from}"
+            );
+        }
+    }
+
+    /// And the negative — the rule is the host's reading, so a name
+    /// without one must not fire it.
+    #[test]
+    fn an_ordinary_name_has_no_invisible_characters() {
+        let f = scan(&facts("Alice <alice@example.com>", None, 0), &policy());
+        assert!(!f.has(RULE_ZERO_WIDTH_NAME));
+    }
+
+    /// The one piece of malware the corpus contains, and the only
+    /// executable attachment in 1,268: `RFQ-5086-26 TENDER.cab`, SPF
+    /// fail, dressed as a quotation request.
+    #[test]
+    fn an_attachment_the_machine_would_run_is_the_heaviest_finding() {
+        let mut f = facts("Tender <tender@tsanglik.com.hk>", None, 99);
+        f.has_executable_attachment = true;
+        let found = scan(&f, &policy());
+        assert!(found.has(RULE_EXECUTABLE_ATTACHMENT));
+        assert_eq!(found.in_layer(Layer::Content).count(), 1);
+        // Heavier than any name signal — a name is a claim, a file
+        // the machine runs is the machine. Asserted on the finding
+        // rather than on the constants, which the compiler settles
+        // and a runtime check would only restate.
+        let weight = found
+            .iter()
+            .find(|f| f.rule == RULE_EXECUTABLE_ATTACHMENT)
+            .map(|f| f.score)
+            .expect("the finding is there");
+        assert!(weight > CLAIMS_OUR_NAME_SCORE);
     }
 
     /// A message with no `X-Mailer` at all is the common case and must
