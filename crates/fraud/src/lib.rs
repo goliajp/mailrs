@@ -239,6 +239,15 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
              thing and says another",
         ));
     }
+    if brand::subject_claims_brand(facts.subject, facts.domain, facts.domain_seen) {
+        out.push(Finding::new(
+            RULE_SUBJECT_CLAIMS_BRAND,
+            Layer::Identity,
+            brand::IMPERSONATES_BRAND_SCORE,
+            "the subject claims a company, from a domain that is not \
+             theirs and is new here",
+        ));
+    }
     if brand::impersonates_brand(facts.from, brand::BRANDS, facts.domain_seen) {
         out.push(Finding::new(
             RULE_IMPERSONATES_BRAND,
@@ -263,6 +272,9 @@ pub const RULE_GENERATED_MAILER: &str = "x-mailer-generated";
 /// Somebody claiming to be a company the reader has an account with.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_IMPERSONATES_BRAND: &str = "impersonates-brand";
+/// A subject claiming a company the reader has an account with.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_SUBJECT_CLAIMS_BRAND: &str = "subject-claims-brand";
 /// A display name that renders as something other than what it says.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_BIDI_DISPLAY_NAME: &str = "bidi-display-name";
