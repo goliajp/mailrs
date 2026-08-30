@@ -48,6 +48,7 @@
 pub mod attachment;
 pub mod brand;
 pub mod finding;
+pub mod hostname_claim;
 pub mod impersonation;
 pub mod mailer_fingerprint;
 pub mod sending_host;
@@ -240,6 +241,21 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
              thing and says another",
         ));
     }
+    // A hostname that names a company it is not.
+    //
+    // **Held.** A subdomain is chosen by whoever owns the parent, so
+    // `aliyun.rvezovp.cn` is a statement `rvezovp.cn` made about
+    // itself and it is false. Not a coincidence of wording, not a
+    // habit legitimate senders share — a lie in the envelope, and one
+    // the reader can be shown.
+    if let Some(company) = hostname_claim::hostname_claims_a_company(facts.domain) {
+        out.push(Finding::new(
+            RULE_HOSTNAME_CLAIMS_COMPANY,
+            Layer::Identity,
+            HOSTNAME_CLAIM_SCORE,
+            format!("the sending host puts `{company}` in front of a domain that is not theirs"),
+        ));
+    }
     // A relay host whose name was minted rather than chosen.
     //
     // **Scored, never held.** 34 of the 36 senders it matches in the
@@ -293,6 +309,17 @@ pub const RULE_IMPERSONATES_BRAND: &str = "impersonates-brand";
 /// A subject claiming a company the reader has an account with.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_SUBJECT_CLAIMS_BRAND: &str = "subject-claims-brand";
+/// A hostname naming a company that does not own it.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_HOSTNAME_CLAIMS_COMPANY: &str = "hostname-claims-company";
+
+/// Score for a hostname that borrows a company's name.
+///
+/// The heaviest of the name signals. The others weigh what a message
+/// says about itself, where wording can coincide; this weighs a
+/// label somebody registered, where it cannot.
+pub const HOSTNAME_CLAIM_SCORE: f64 = 5.0;
+
 /// A relay host whose leading label was minted rather than chosen.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_MINTED_SENDING_HOST: &str = "minted-sending-host";
