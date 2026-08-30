@@ -102,108 +102,9 @@ pub struct Brand {
     pub domains: &'static [&'static str],
 }
 
-/// The companies this deployment has actually seen impersonated,
-/// plus the ones every phishing kit ships with.
-///
-/// Deliberately short. Every entry is a chance to hide somebody's
-/// real mail, and the corpus above shows how easily a common word
-/// does that — `apple` alone matched three papers about apples. A
-/// name earns its place by being a company whose mail asks for money
-/// or credentials, not by being well known.
-pub const BRANDS: &[Brand] = &[
-    Brand {
-        name: "icloud",
-        domains: &["apple.com", "icloud.com", "me.com"],
-    },
-    Brand {
-        name: "apple",
-        domains: &["apple.com", "icloud.com", "itunes.com", "me.com"],
-    },
-    Brand {
-        name: "amazon",
-        domains: &[
-            "amazon.com",
-            "amazon.co.jp",
-            "amazon.jp",
-            "amazonses.com",
-            "amazonaws.com",
-            "aws.com",
-        ],
-    },
-    Brand {
-        name: "paypal",
-        domains: &["paypal.com", "paypal.co.jp"],
-    },
-    Brand {
-        name: "netflix",
-        domains: &["netflix.com"],
-    },
-    Brand {
-        name: "aeon",
-        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp"],
-    },
-    // Added 2026-08-30, after `ANAマイレージクラブ (自動配信)
-    // <system7yi9@dvikd.jsyoutom.com>` arrived and nothing fired.
-    // The name was in the display name all along; it was only in the
-    // subject list, so the check that reads the `From` had nothing to
-    // match. A brand belongs in both lists or in neither.
-    Brand {
-        name: "ANAマイレージクラブ",
-        domains: &["ana.co.jp", "anamile.jp"],
-    },
-    Brand {
-        name: "ANAカード",
-        domains: &["ana.co.jp", "anamile.jp"],
-    },
-    Brand {
-        name: "アマゾン",
-        domains: &["amazon.com", "amazon.co.jp", "amazon.jp"],
-    },
-    Brand {
-        name: "myjcb",
-        domains: &["jcb.co.jp"],
-    },
-    Brand {
-        name: "セゾンカード",
-        domains: &["saisoncard.co.jp"],
-    },
-    Brand {
-        name: "三井住友カード",
-        domains: &["smbc.co.jp", "smbc-card.com", "vpass.ne.jp"],
-    },
-    Brand {
-        name: "楽天カード",
-        domains: &["rakuten.co.jp", "rakuten.com", "rakuten-card.co.jp"],
-    },
-    Brand {
-        name: "mufg",
-        domains: &["mufg.jp", "bk.mufg.jp"],
-    },
-    Brand {
-        name: "smbc",
-        domains: &["smbc.co.jp", "smbc-card.com"],
-    },
-    Brand {
-        name: "jcb",
-        domains: &["jcb.co.jp"],
-    },
-    Brand {
-        name: "rakuten",
-        domains: &["rakuten.co.jp", "rakuten.com", "rakuten-card.co.jp"],
-    },
-    Brand {
-        name: "etc利用照会",
-        domains: &["etc-meisai.jp"],
-    },
-    Brand {
-        name: "sagawa",
-        domains: &["sagawa-exp.co.jp"],
-    },
-    Brand {
-        name: "ヤマト運輸",
-        domains: &["kuronekoyamato.co.jp"],
-    },
-];
+pub use tables::{BRANDS, SUBJECT_CLAIMS};
+
+mod tables;
 
 /// Whether `from` claims to be one of `brands` from a domain that is
 /// neither theirs nor familiar here.
@@ -243,108 +144,100 @@ pub fn impersonates_brand(from: &str, brands: &[Brand], domain_seen: u64) -> boo
     })
 }
 
-/// How a brand is named in a **subject**, where the wording is not a
-/// display name and a substring match is far more dangerous.
+/// Whether the display name **is** a brand's, sent from a domain
+/// that is not theirs.
 ///
-/// The measurement over 35,962 messages is what shaped these. A bare
-/// `amazon` in a subject matches **1,716** messages; narrowed to a
-/// domain the mailbox has no history with it matches 31, and all 31
-/// are phishing. The other 160 — from familiar domains — are every
-/// one legitimate: gift-card campaigns from freee, Money Forward,
-/// Recruit and Mercari, LinkedIn's Amazon news, Rakuten Bank on
-/// マイナンバー, 三井住友銀行 confirming a video appointment.
+/// [`impersonates_brand`] asks whether the name *contains* a brand,
+/// and that is why it needs a familiarity count propping it up: a
+/// newsletter about a bank names the bank. This asks whether the
+/// name **is** the brand, which nothing legitimate does from
+/// somebody else's domain — so it needs nothing about us at all,
+/// and can hide mail where the other cannot.
 ///
-/// So the patterns are deliberately narrow **and** the familiarity
-/// half is not optional. Loose ones like a bare `ANA` were dropped
-/// during the measurement: they matched
-/// `Artificial Intelligence for Enterprise` and
-/// `Practical Project Management`.
-pub const SUBJECT_CLAIMS: &[Brand] = &[
-    Brand {
-        name: "ANAマイレージ",
-        domains: &["ana.co.jp", "anamile.jp"],
-    },
-    Brand {
-        name: "ANAカード",
-        domains: &["ana.co.jp", "anamile.jp"],
-    },
-    Brand {
-        name: "【ANA】",
-        domains: &["ana.co.jp", "anamile.jp"],
-    },
-    Brand {
-        name: "MyJCB",
-        domains: &["jcb.co.jp"],
-    },
-    Brand {
-        name: "【JCB",
-        domains: &["jcb.co.jp"],
-    },
-    Brand {
-        name: "セゾンカード",
-        domains: &["saisoncard.co.jp"],
-    },
-    Brand {
-        name: "【SAISON",
-        domains: &["saisoncard.co.jp"],
-    },
-    Brand {
-        name: "【AEON",
-        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp", "aeon.com"],
-    },
-    Brand {
-        name: "【iAEON",
-        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp", "aeon.com"],
-    },
-    Brand {
-        name: "イオンカード",
-        domains: &["aeon.co.jp", "aeonbank.co.jp", "aeoncard.co.jp"],
-    },
-    Brand {
-        name: "楽天カード",
-        domains: &["rakuten.co.jp", "rakuten.com", "rakuten-card.co.jp"],
-    },
-    Brand {
-        name: "三井住友",
-        domains: &["smbc.co.jp", "smbc-card.com", "vpass.ne.jp"],
-    },
-    Brand {
-        name: "【SMBC",
-        domains: &["smbc.co.jp", "smbc-card.com", "vpass.ne.jp"],
-    },
-    Brand {
-        name: "AppleID",
-        domains: &["apple.com", "icloud.com", "me.com"],
-    },
-    Brand {
-        name: "Apple ID",
-        domains: &["apple.com", "icloud.com", "me.com"],
-    },
-    Brand {
-        name: "iCloud",
-        domains: &["apple.com", "icloud.com", "me.com"],
-    },
-    Brand {
-        name: "ETC利用照会",
-        domains: &["etc-meisai.jp"],
-    },
-    Brand {
-        name: "マイナポータル",
-        domains: &["myna.go.jp", "digital.go.jp"],
-    },
-    Brand {
-        name: "Amazon",
-        domains: &[
-            "amazon.com",
-            "amazon.co.jp",
-            "amazon.jp",
-            "amazonses.com",
-            "amazonaws.com",
-            "aws.com",
-            "audible.co.jp",
-        ],
-    },
-];
+/// Measured over 36,318 production messages. 157 name a brand from a
+/// domain that is not that brand's:
+///
+/// | display name | messages | what they are |
+/// |---|---|---|
+/// | contains it among other words | 61 | Ameba's newsletter naming SMBC, LinkedIn's job alert naming Amazon, a journal paper, a bank's meeting-room service — **and about eight Amazon phishes that append a word**, which [`impersonates_brand`] still scores |
+/// | **is** it | **96** | throwaway domains, `.top` registrations, the typosquat `aericanexpres.com`, and three spoofs of this deployment's own domain — one failing DMARC, two labelled 【訓練】, a phishing drill |
+///
+/// 96 of 96. The eight it gives up are the price of the eleven
+/// legitimate conversations the substring version wrongly held.
+///
+/// # The domain list is the load-bearing part
+///
+/// This convicts on *the sender not being one of the brand's
+/// domains*, so a brand whose list is short convicts the brand's own
+/// mail. `aeon.com` — the iAEON app's sender — was missing until a
+/// test written from the corpus caught it, and `american express`
+/// was not in the table at all, which is how the message that
+/// prompted this rule arrived unremarked.
+///
+/// It is the mirror of the rule about lists of ours: **a list used
+/// to spare may be incomplete and costs one held message; this list
+/// is used to spare, so keep it long.** Adding a *brand* is the
+/// dangerous direction, not adding a domain.
+///
+/// # What counts as the whole name
+///
+/// A parenthesised aside and a trademark mark are stripped first:
+/// `Amazon.co.jp (自動送信メール)` is a bare claim wearing dressing,
+/// and eight production messages use exactly that. Extra **words**
+/// are not stripped — those are what make `Amazon通过领英发送`
+/// LinkedIn rather than Amazon.
+#[must_use]
+pub fn brand_is_the_display_name(from: &str, brands: &[Brand]) -> bool {
+    let Some(address) = crate::impersonation::address_of(from) else {
+        return false;
+    };
+    let Some(domain) = address.rsplit('@').next() else {
+        return false;
+    };
+    let domain = domain.trim().trim_end_matches('>').to_ascii_lowercase();
+    if domain.is_empty() {
+        return false;
+    }
+    let display = crate::impersonation::display_name_of(from);
+    if display.is_empty() {
+        return false;
+    }
+    let folded = strip_decoration(&crate::impersonation::fold(&display));
+    brands.iter().any(|b| {
+        // The name, **or one of the brand's own domains written out
+        // as the name**: `Amazon.co.jp (自動送信メール)` claims to be
+        // Amazon exactly as much as `Amazon` does, and eight
+        // production messages make the claim that way.
+        let claims = folded == crate::impersonation::fold(b.name)
+            || b.domains
+                .iter()
+                .any(|d| folded == crate::impersonation::fold(d));
+        claims
+            && !b
+                .domains
+                .iter()
+                .any(|d| domain == *d || domain.ends_with(&format!(".{d}")))
+    })
+}
+
+/// Drop the parts of a display name that add nothing to the claim.
+fn strip_decoration(folded: &str) -> String {
+    let mut out = String::with_capacity(folded.len());
+    let mut depth = 0u32;
+    for c in folded.chars() {
+        match c {
+            '(' | '\u{ff08}' | '[' | '\u{ff3b}' | '\u{3010}' => depth += 1,
+            ')' | '\u{ff09}' | ']' | '\u{ff3d}' | '\u{3011}' => depth = depth.saturating_sub(1),
+            _ if depth == 0
+                && !matches!(c, '\u{ae}' | '\u{2122}' | '\u{a9}' | '\u{30fb}' | '|' | '/') =>
+            {
+                out.push(c)
+            }
+            _ => {}
+        }
+    }
+    out
+}
 
 /// Whether the **subject** claims a brand from a domain that is
 /// neither theirs nor familiar here.
@@ -491,6 +384,87 @@ mod tests {
         ] {
             assert!(
                 !impersonates_brand(from, BRANDS, seen),
+                "wrongly caught: {from}"
+            );
+        }
+    }
+
+    /// **Padding in the middle of the name.** A trailing one was
+    /// tolerated by the old substring comparison, so nothing failed
+    /// while `A\u{200c}NA` — which is in the corpus — went
+    /// unrecognised. Both forms must be seen through, and this
+    /// asserts the middle one specifically.
+    #[test]
+    fn padding_inside_the_name_does_not_hide_the_claim() {
+        for from in [
+            "A\u{200c}NA\u{30de}\u{30a4}\u{30ec}\u{30fc}\u{30b8}\u{30af}\u{30e9}\u{30d6} <a@osbac.hbruiyuan.com>",
+            "Ama\u{200b}zon <a@x.invalid>",
+            // Verbatim from production, including the byte-order
+            // mark the sender wedged after the S.
+            "S\u{feff}AISON <noreply@hxqsym.dwnrk.com>",
+        ] {
+            assert!(
+                brand_is_the_display_name(from, BRANDS) || impersonates_brand(from, BRANDS, 0),
+                "padding hid the claim: {from}"
+            );
+        }
+    }
+
+    /// The display name is the brand and nothing else. 96 in the
+    /// corpus and not one of them is real mail.
+    #[test]
+    fn a_display_name_that_is_only_the_brand_is_held() {
+        for from in [
+            "American Express <custsvc@lcacosmeticos.com>",
+            "American Express <a@takanashicamz.com>",
+            // A typosquat of the brand's own domain, which is not one
+            // of its domains and so is not spared by them.
+            "American Express <a@aericanexpres.com>",
+            "AEON <a@osjnb.ksxls.com>",
+            // Dressing, not extra words: still a bare claim.
+            "Amazon.co.jp (\u{81ea}\u{52d5}\u{9001}\u{4fe1}\u{30e1}\u{30fc}\u{30eb}) <a@fuliyingfeng.com>",
+            // And the padding that exists to beat this comparison.
+            "AEON\u{200d} <a@6eryj.esskkd.com>",
+            // A spoof of this deployment's own domain: DMARC failed,
+            // and two more like it are labelled \u{8a13}\u{7df4} \u{2014} a phishing drill.
+            "Netflix <takagi@golia.jp>",
+        ] {
+            assert!(
+                brand_is_the_display_name(from, BRANDS),
+                "not caught: {from}"
+            );
+        }
+    }
+
+    /// The 61 whose display name only *contains* a brand. These are
+    /// what the substring version wrongly held, and they are why
+    /// this one asks for the whole name.
+    #[test]
+    fn a_name_that_merely_mentions_a_brand_is_not_this_rule() {
+        for from in [
+            "Amazon\u{901a}\u{8fc7}\u{9886}\u{82f1}\u{53d1}\u{9001} <a@linkedin.com>",
+            "SMBC\u{30b3}\u{30f3}\u{30b7}\u{30e5}\u{30fc}\u{30de}\u{30fc}\u{30d5}\u{30a1}\u{30a4}\u{30ca}\u{30f3}\u{30b9}/\u{30a2}\u{30e1}\u{30d6}\u{30ed} <a@ameba.jp>",
+            "Apple RING E3 ligase MdMIEL1 inhibits anthocyanin <a@academia-mail.com>",
+            "\u{4e09}\u{4e95}\u{4f4f}\u{53cb}\u{9280}\u{884c}\u{30aa}\u{30f3}\u{30e9}\u{30a4}\u{30f3}\u{9762}\u{8ac7}\u{3010}ROOMS\u{3011} <a@rooms-online.jp>",
+        ] {
+            assert!(
+                !brand_is_the_display_name(from, BRANDS),
+                "wrongly caught: {from}"
+            );
+        }
+    }
+
+    /// The brand's own mail, whatever the display name says.
+    #[test]
+    fn the_brand_sending_as_itself_is_never_this() {
+        for from in [
+            "American Express <a@americanexpress.com>",
+            "Amazon Web Services <a@amazonaws.com>",
+            "Netflix <info@netflix.com>",
+            "AEON <a@aeon.com>",
+        ] {
+            assert!(
+                !brand_is_the_display_name(from, BRANDS),
                 "wrongly caught: {from}"
             );
         }

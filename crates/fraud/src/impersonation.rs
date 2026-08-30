@@ -103,10 +103,30 @@ pub(crate) fn display_name_of(from: &str) -> String {
 /// and `ＧＯＬＩＡ株式会社` are the same claim as `GOLIA株式会社`.
 pub(crate) fn fold(s: &str) -> String {
     s.chars()
-        .filter(|c| !c.is_whitespace())
+        .filter(|c| !c.is_whitespace() && !is_zero_width(c))
         .map(fold_char)
         .collect::<String>()
         .to_lowercase()
+}
+
+/// A character that occupies no space and so cannot tell two names
+/// apart.
+///
+/// `fold` did not drop these until 2026-08-31, and a test's comment
+/// claimed it did. The substring comparison tolerated a *trailing*
+/// one — `AEON\u{200d}` still contains `aeon` — which is why nothing
+/// failed; an insertion in the **middle** defeated it outright, and
+/// `A\u{200c}NAマイレージクラブ` in the corpus did exactly that.
+///
+/// Dropped for the comparison only. Their presence is still reported
+/// by `mailrs_textguard`, where it is evidence in its own right —
+/// this is about not letting padding hide a name, not about
+/// forgiving it.
+fn is_zero_width(c: &char) -> bool {
+    matches!(
+        c,
+        '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{2060}' | '\u{FEFF}' | '\u{180E}'
+    )
 }
 
 /// Full-width Latin letters and digits folded to their ASCII forms.
