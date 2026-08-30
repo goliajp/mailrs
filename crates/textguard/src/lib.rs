@@ -113,6 +113,60 @@ const UNJUSTIFIED_ZERO_WIDTH: &[char] = &[
     '\u{2064}', // INVISIBLE PLUS
 ];
 
+/// Zero-width characters that **do** have a typographic job — in
+/// some context.
+///
+/// A zero-width joiner is how an emoji family is built and how many
+/// Indic scripts form conjuncts; a byte-order mark is a legitimate
+/// artefact of transcoding. None of them may be listed as
+/// unjustified outright.
+///
+/// Wedged between two alphanumerics they have no job at all. That is
+/// what [`Deception::zero_width_inside_a_word`] reads, and it is
+/// what separates 17 phishing subjects from Duolingo's 22.
+const ZERO_WIDTH_ANYWHERE: &[char] = &[
+    '\u{200B}', // ZERO WIDTH SPACE
+    '\u{200C}', // ZERO WIDTH NON-JOINER      — legitimate in Indic scripts
+    '\u{200D}', // ZERO WIDTH JOINER          — legitimate in emoji sequences
+    '\u{2060}', // WORD JOINER
+    '\u{FEFF}', // ZERO WIDTH NO-BREAK SPACE  — legitimate as a BOM
+    '\u{180E}', // MONGOLIAN VOWEL SEPARATOR
+];
+
+/// Whether a zero-width character between two of these has no
+/// possible typographic job.
+///
+/// An **allow-list**, and it has to be. The first version asked
+/// `char::is_alphanumeric` on both sides, which is true of Arabic
+/// and Devanagari letters — so `می\u{200c}روم` and `क\u{200c}ख`
+/// would have been reported as forged. A zero-width non-joiner is
+/// how those scripts are written.
+///
+/// It was caught by `the_invisibles_that_typography_needs_are_left_alone`,
+/// which existed already and says in its own comment that flagging
+/// them "tells Persian and Hindi senders their mail looks forged".
+/// The corpus the wider version measured 17-for-17 on contains no
+/// Persian or Hindi mail at all — **a corpus not containing a case
+/// is not evidence the case does not arise.**
+///
+/// So: Latin letters, digits, Han, Kana and Hangul, where no
+/// zero-width character has ever had work to do. An unfamiliar
+/// script is not flagged, which is the safe direction.
+fn no_zero_width_belongs_between(c: char) -> bool {
+    c.is_ascii_alphanumeric()
+        || matches!(c,
+            '\u{3040}'..='\u{30FF}'   // Hiragana + Katakana
+            | '\u{31F0}'..='\u{31FF}' // Katakana phonetic extensions
+            | '\u{4E00}'..='\u{9FFF}' // CJK unified ideographs
+            | '\u{3400}'..='\u{4DBF}' // CJK extension A
+            | '\u{F900}'..='\u{FAFF}' // CJK compatibility ideographs
+            | '\u{AC00}'..='\u{D7AF}' // Hangul syllables
+            | '\u{FF10}'..='\u{FF19}' // fullwidth digits
+            | '\u{FF21}'..='\u{FF3A}' // fullwidth Latin capitals
+            | '\u{FF41}'..='\u{FF5A}' // fullwidth Latin small
+        )
+}
+
 /// What a piece of identifying text was found to contain.
 ///
 /// Two fields rather than one score, because the two carry different
@@ -126,12 +180,35 @@ pub struct Deception {
     /// conclusive — one production message in forty was a real newsletter
     /// with a zero-width space inside a long subject.
     pub unjustified_zero_width: bool,
+    /// A zero-width character with an alphanumeric on **both** sides.
+    ///
+    /// ```text
+    /// 【S\u{200b}A\u{200c}I\u{200d}S\u{feff}O\u{200b}N】本人認証サービス…
+    /// 【J\u{200d}CB】本人確\u{200c}認（利用者認\u{2060}証）のお願い
+    /// ```
+    ///
+    /// SAISON with four invisible characters through it, JCB with
+    /// three. It defeats a filter that looks for the brand name while
+    /// rendering identically to the reader — which is the entire
+    /// point, and is a thing no sender does to their own name.
+    ///
+    /// **Conclusive, where [`Self::unjustified_zero_width`] is not.**
+    /// That one is one production message in forty and holds nothing
+    /// on its own. This one is 17 of 35,575, and all seventeen are
+    /// phishing: SAISON, JCB four times, 楽天カード, SMBC, ANA twice,
+    /// Amazon three times, 3D セキュア twice.
+    ///
+    /// The difference is the neighbours. Duolingo puts a zero-width
+    /// character in 22 subjects and none of them are between two
+    /// letters — they are emoji joiners and left-to-right marks
+    /// around a user's name, both of which do real work.
+    pub zero_width_inside_a_word: bool,
 }
 
 impl Deception {
     /// Whether anything at all was found.
     pub fn any(self) -> bool {
-        self.bidi_override || self.unjustified_zero_width
+        self.bidi_override || self.unjustified_zero_width || self.zero_width_inside_a_word
     }
 }
 
@@ -143,15 +220,27 @@ impl Deception {
 /// `=?UTF-8?B?…?=`.
 pub fn deception_in(text: &str) -> Deception {
     let mut out = Deception::default();
-    for c in text.chars() {
+    // Previous and next character, so a zero-width one can be judged
+    // by its neighbours rather than by itself. A single pass: the
+    // window is two characters wide and nothing is re-read.
+    let mut prev: Option<char> = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
         if BIDI_CONTROLS.contains(&c) {
             out.bidi_override = true;
         } else if UNJUSTIFIED_ZERO_WIDTH.contains(&c) {
             out.unjustified_zero_width = true;
         }
-        if out.bidi_override && out.unjustified_zero_width {
-            break;
+        if ZERO_WIDTH_ANYWHERE.contains(&c)
+            && prev.is_some_and(no_zero_width_belongs_between)
+            && chars
+                .peek()
+                .copied()
+                .is_some_and(no_zero_width_belongs_between)
+        {
+            out.zero_width_inside_a_word = true;
         }
+        prev = Some(c);
     }
     out
 }
@@ -164,6 +253,7 @@ pub fn deception_in_any<'a>(texts: impl IntoIterator<Item = &'a str>) -> Decepti
         let d = deception_in(t);
         out.bidi_override |= d.bidi_override;
         out.unjustified_zero_width |= d.unjustified_zero_width;
+        out.zero_width_inside_a_word |= d.zero_width_inside_a_word;
     }
     out
 }
@@ -171,6 +261,81 @@ pub fn deception_in_any<'a>(texts: impl IntoIterator<Item = &'a str>) -> Decepti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Seventeen production subjects, and what they render as.
+    #[test]
+    fn a_brand_name_split_by_invisible_characters_is_found() {
+        for (text, renders) in [
+            (
+                "\u{200b}S\u{200b}A\u{200c}I\u{200d}S\u{feff}O\u{200b}N",
+                "SAISON",
+            ),
+            ("J\u{200d}CB", "JCB"),
+            ("J\u{2060}C\u{200b}B", "JCB"),
+            ("Am\u{200c}azon.co.jp", "Amazon.co.jp"),
+            ("A\u{200d}NA", "ANA"),
+            ("e\u{200b}+\u{feff}p\u{200c}l\u{200d}u\u{200b}s", "e+plus"),
+            // The zero-widths run through the Japanese too, so the
+            // neighbours here are a Latin letter and a katakana.
+            ("3D\u{200b}\u{30bb}\u{2060}\u{30ad}", "3D セキ"),
+            ("\u{672c}\u{200c}\u{4eba}\u{8a8d}\u{8a3c}", "本人認証"),
+        ] {
+            assert!(
+                deception_in(text).zero_width_inside_a_word,
+                "missed {renders}"
+            );
+        }
+    }
+
+    /// Duolingo's 22, which are the reason this is not simply "any
+    /// zero-width character". An emoji joiner and a left-to-right
+    /// mark both do real work.
+    #[test]
+    fn a_joiner_doing_its_job_is_not_deception() {
+        for text in [
+            "\u{1f469}\u{200d}\u{1f467}", // a family emoji
+            "\u{1f92f} 认真的？居然是那个\u{200e}Duo_167a7972\u{200e}吗？",
+            "\u{1f46f} \u{200e}Muxin\u{200e}想和你交个朋友！",
+            "plain text with no tricks",
+            "",
+            // The scripts a zero-width character belongs in. These
+            // are the reason the neighbour test is an allow-list.
+            "\u{645}\u{6cc}\u{200c}\u{631}\u{648}\u{645}", // Persian, ZWNJ
+            "\u{915}\u{200c}\u{916}",                      // Hindi, ZWNJ
+        ] {
+            assert!(
+                !deception_in(text).zero_width_inside_a_word,
+                "wrongly caught {text:?}"
+            );
+        }
+    }
+
+    /// At an edge it has only one neighbour, so it cannot be inside
+    /// a word — and a lone leading joiner is what a truncated
+    /// transcode leaves behind.
+    #[test]
+    fn a_zero_width_character_at_an_edge_is_not_inside_anything() {
+        assert!(!deception_in("\u{feff}Subject").zero_width_inside_a_word);
+        assert!(!deception_in("Subject\u{200b}").zero_width_inside_a_word);
+        assert!(!deception_in("\u{200d}").zero_width_inside_a_word);
+    }
+
+    /// The two readings are separate: the old one does not see a
+    /// joiner at all, and the new one does not fire on a zero-width
+    /// space between two spaces.
+    #[test]
+    fn the_two_readings_do_not_stand_in_for_each_other() {
+        let joined = deception_in("J\u{200d}CB");
+        assert!(joined.zero_width_inside_a_word);
+        assert!(
+            !joined.unjustified_zero_width,
+            "U+200D is legitimate elsewhere"
+        );
+
+        let spaced = deception_in("a \u{200b} b");
+        assert!(spaced.unjustified_zero_width);
+        assert!(!spaced.zero_width_inside_a_word);
+    }
 
     /// The five production messages, verbatim. Each is a real brand name
     /// written backwards behind a right-to-left override.
@@ -224,7 +389,13 @@ mod tests {
             d,
             Deception {
                 bidi_override: false,
-                unjustified_zero_width: true
+                unjustified_zero_width: true,
+                // `M\u{200b}yJC\u{2060}B` is also the sharper shape —
+                // both characters have a letter on either side. That
+                // is not an accident of this fixture: it was written
+                // from a phishing subject, and the narrower reading
+                // was measured on that whole family afterwards.
+                zero_width_inside_a_word: true,
             },
             "padding must not be reported as a bidi override"
         );

@@ -59,6 +59,38 @@ pub(crate) enum Action {
     Hold,
 }
 
+/// What the sweep should do with a conversation it has judged.
+///
+/// A function rather than two `if`s in the loop, so the **release**
+/// direction can be tested. It is the one that changes production
+/// data on the strength of a rule having been edited, and the loop
+/// around it needs a `FastcoreState` that a unit test cannot build.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) enum Disposition {
+    /// The findings hold. Apply the configured action.
+    Act,
+    /// Nothing holds it and it is not held. Leave it alone.
+    Leave,
+    /// Nothing holds it any more, and it is still hidden.
+    ///
+    /// This is what makes a rule change reach mail that is already
+    /// hidden. When the two brand rules were demoted to suspicion on
+    /// 2026-08-30 — familiarity with a sender is not grounds for
+    /// hiding their mail — thirty conversations went on being hidden
+    /// by a rule that no longer holds anything, and no sweep could
+    /// have let them out: the loop reached `continue` before it ever
+    /// looked at whether the thread was held.
+    Release,
+}
+
+pub(crate) fn disposition(holds: bool, currently_held: bool) -> Disposition {
+    match (holds, currently_held) {
+        (true, _) => Disposition::Act,
+        (false, true) => Disposition::Release,
+        (false, false) => Disposition::Leave,
+    }
+}
+
 #[derive(serde::Deserialize)]
 pub(crate) struct RescanQuery {
     /// Report without moving anything. **Default true.**
@@ -119,6 +151,13 @@ pub(crate) async fn fraud_rescan_route(
     let mut deleted = 0u64;
     let mut held = 0u64;
     let mut verdict_failed = 0u64;
+    // Held by a rule that no longer holds. Counted separately from
+    // `released` so a dry run says how many *would* be let go — a
+    // single number could not be told apart from "none were".
+    let mut held_but_unreadable = 0u64;
+    let mut releasable = 0u64;
+    let mut released = 0u64;
+    let mut release_samples: Vec<serde_json::Value> = Vec::new();
     let mut no_file = 0u64;
     // Which check fired, because "12 found" does not say whether the
     // one that needs an allow-list entry is among them.
@@ -146,6 +185,21 @@ pub(crate) async fn fraud_rescan_route(
 
             let Some((message_id, raw)) = newest_raw(&state, user, &tid) else {
                 no_file += 1;
+                // A conversation with no file cannot be re-judged, so
+                // it can never be released either — it stays hidden
+                // whatever the rules say afterwards. Counted apart
+                // from `no_file`, which otherwise folds that together
+                // with the ordinary case of a thread that was not
+                // held in the first place.
+                if state
+                    .mailbox
+                    .get_thread_for_user(user, &tid)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|t| t.quarantined)
+                {
+                    held_but_unreadable += 1;
+                }
                 continue;
             };
             let from = mailrs_inbound::from_header(&raw);
@@ -210,6 +264,7 @@ pub(crate) async fn fraud_rescan_route(
                 has_executable_attachment: mailrs_fraud::attachment::any_executable(
                     attachments.iter().copied(),
                 ),
+                has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
                 to_display: &to_display,
                 reply_rotation,
                 ..mailrs_fraud::Facts::default()
@@ -220,6 +275,47 @@ pub(crate) async fn fraud_rescan_route(
             // here and a score threshold there is what left 43 held
             // conversations carrying a verdict that said otherwise.
             if !mailrs_inbound::holds(&findings) {
+                // **And release it if it is still held.** The sweep
+                // that only ever adds is a sweep a rule change
+                // cannot reach: when the two brand rules were
+                // demoted to suspicion on 2026-08-30 — because
+                // whether this deployment finds a sender familiar
+                // may not be grounds for hiding their mail — thirty
+                // conversations went on being hidden by a rule that
+                // no longer holds anything, and nothing in the
+                // system could have noticed.
+                //
+                // Safe to do automatically because **every hold in
+                // production came from this sweep**: `set_quarantined
+                // (.., true)` has exactly one caller outside the
+                // tests, thirty lines below, and the only other
+                // production writer sets it false. There is no human
+                // judgement here to overrule.
+                let held_now = state
+                    .mailbox
+                    .get_thread_for_user(user, &tid)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|t| t.quarantined);
+                if disposition(false, held_now) != Disposition::Release {
+                    continue;
+                }
+                releasable += 1;
+                if release_samples.len() < 25 {
+                    release_samples.push(serde_json::json!({
+                        "user": user,
+                        "thread": tid,
+                        "from": from,
+                        "still_scored": findings.score(),
+                    }));
+                }
+                if q.dry_run {
+                    continue;
+                }
+                match state.mailbox.set_quarantined(user, &tid, false) {
+                    Ok(_) => released += 1,
+                    Err(e) => tracing::warn!(err = %e, tid, "release failed"),
+                }
                 continue;
             }
             found += 1;
@@ -309,6 +405,9 @@ pub(crate) async fn fraud_rescan_route(
         deleted,
         held,
         verdict_failed,
+        releasable,
+        released,
+        held_but_unreadable,
         already_junk,
         no_file,
         dry_run = q.dry_run,
@@ -327,6 +426,17 @@ pub(crate) async fn fraud_rescan_route(
         // folded into `held`, because a hold nobody can see the
         // reasons for is the one that turns into "my mail vanished".
         "verdict_failed": verdict_failed,
+        // Held by a rule that no longer holds anything. Two numbers
+        // rather than one: a dry run can only report `releasable`,
+        // and a single figure of 0 would not say whether it found
+        // none or was not allowed to act.
+        "releasable": releasable,
+        "released": released,
+        // Hidden, and its file is gone: it cannot be re-judged, so
+        // no rule change will ever let it out. Zero is the answer
+        // that means what it says.
+        "held_but_unreadable": held_but_unreadable,
+        "release_samples": release_samples,
         "already_junk": already_junk,
         "no_file": no_file,
         "by_reason": by_reason,
@@ -395,6 +505,26 @@ X-Mailer: 4.28.1.9\r\n\
 Subject: Invoice\r\n\
 \r\n\
 body\r\n";
+
+    /// A conversation the rules no longer hold, that is still
+    /// hidden, is let out. Nothing else about the sweep can do this
+    /// — every other path either holds or leaves alone.
+    #[test]
+    fn a_hold_a_rule_no_longer_supports_is_released() {
+        assert_eq!(disposition(false, true), Disposition::Release);
+    }
+
+    /// And the three that must not move.
+    #[test]
+    fn nothing_else_is_released() {
+        assert_eq!(disposition(true, true), Disposition::Act);
+        assert_eq!(disposition(true, false), Disposition::Act);
+        assert_eq!(
+            disposition(false, false),
+            Disposition::Leave,
+            "mail that was never held is not touched by the release path"
+        );
+    }
 
     /// Just the `From:`, for a case that is only about the name.
     fn facts(from: &str) -> mailrs_fraud::Facts<'_> {
