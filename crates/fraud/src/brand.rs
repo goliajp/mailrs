@@ -43,6 +43,34 @@
 //! So the check is the pair: **a brand claim from a domain with no
 //! history here**. Neither half convicts alone, and the corpus is
 //! what says where the line goes.
+//!
+//! # Why this scores and does not hide — 2026-08-30
+//!
+//! Familiarity is not a characteristic of fraud. It is a
+//! characteristic of *our own history*, and it is equally true of
+//! every legitimate correspondent writing for the first time. A rule
+//! resting on it cannot tell a reader why their mail was taken away:
+//! the honest sentence is "we have not heard from you before", which
+//! is not an accusation and should not carry the weight of one.
+//!
+//! It also decays in both directions. A sender who warms a domain for
+//! a week defeats it. A new supplier, a new bank, a new customer gets
+//! caught by it — and one already was: three messages from
+//! `rooms-online.jp`, all of them 三井住友銀行 confirming a video
+//! appointment, sat exactly on the line.
+//!
+//! The rules that *hide* mail are the ones naming something the
+//! message itself is doing and that has no legitimate use — a display
+//! name reordered as it renders, invisible characters spliced into a
+//! name, an `X-Mailer` no client writes, an attachment the machine
+//! would run. Those are answerable: a reader can be shown the
+//! characters. This one is a strong prior and belongs in the score,
+//! where it pushes mail toward Junk and the reader still sees it.
+//!
+//! Measured on the sweep of 2026-08-30: of 123 conversations the
+//! rules found, 84 carried one of those intrinsic signals and 39
+//! rested on this pair alone. One of the 39 was already a false
+//! positive.
 
 /// Messages ever seen from a domain, at or above which a brand claim
 /// is treated as ordinary mail.

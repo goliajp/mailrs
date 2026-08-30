@@ -239,8 +239,10 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
              thing and says another",
         ));
     }
+    // **Scored, not held.** See `brand` for why: this rule's second
+    // half is not a property of the message at all.
     if brand::subject_claims_brand(facts.subject, facts.domain, facts.domain_seen) {
-        out.push(Finding::new(
+        out.push(Finding::scored(
             RULE_SUBJECT_CLAIMS_BRAND,
             Layer::Identity,
             brand::IMPERSONATES_BRAND_SCORE,
@@ -249,7 +251,7 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
         ));
     }
     if brand::impersonates_brand(facts.from, brand::BRANDS, facts.domain_seen) {
-        out.push(Finding::new(
+        out.push(Finding::scored(
             RULE_IMPERSONATES_BRAND,
             Layer::Identity,
             brand::IMPERSONATES_BRAND_SCORE,
@@ -482,6 +484,69 @@ mod tests {
             .map(|f| f.score)
             .expect("the finding is there");
         assert!(weight > CLAIMS_OUR_NAME_SCORE);
+    }
+
+    /// **宁纵勿枉.** Only what the message itself is doing may hide
+    /// it.
+    ///
+    /// A brand claim is a strong prior, but its second half —
+    /// "and we have not heard from this domain before" — is a fact
+    /// about our own history, equally true of every legitimate
+    /// correspondent writing for the first time. It cannot be shown
+    /// to a reader as a reason. So it scores, and the reader still
+    /// sees the mail in Junk.
+    ///
+    /// What may hide mail is a characteristic of the message with no
+    /// legitimate use: a name reordered as it renders, invisible
+    /// characters spliced into one, an `X-Mailer` no client writes,
+    /// an attachment the machine would run.
+    #[test]
+    fn only_an_intrinsic_characteristic_may_hide_mail() {
+        // A brand claim and nothing else: scored, visible.
+        let mut brandish = facts(
+            "Amazon 配送センター <noreply@mail02.marriottanji.com>",
+            None,
+            0,
+        );
+        brandish.subject = "【重要】Amazonプライム：支払い方法未更新";
+        brandish.domain = "mail02.marriottanji.com";
+        let f = scan(&brandish, &policy());
+        assert!(f.any(), "the claim is still recorded");
+        assert!(f.score() > 0.0, "and still pushes toward Junk");
+        assert!(
+            !f.hold_worthy(),
+            "a claim resting on our own history hid the mail"
+        );
+
+        // The same message, now doing something to its own name.
+        let mut with_name = brandish.clone();
+        with_name.has_zero_width_in_name = true;
+        assert!(
+            scan(&with_name, &policy()).hold_worthy(),
+            "an invisible character spliced into a name is the message's own doing"
+        );
+    }
+
+    /// The four that may. Each names something the message is doing,
+    /// and each was measured right on nearly everything it fired on.
+    #[test]
+    fn the_intrinsic_signals_are_the_ones_that_hold() {
+        let hold_worthy: [(&str, fn(&mut Facts<'_>)); 4] = [
+            ("bidi", |f| f.has_bidi_override = true),
+            ("zero-width name", |f| f.has_zero_width_in_name = true),
+            ("executable", |f| f.has_executable_attachment = true),
+            ("generated mailer", |f| {
+                f.x_mailer = Some("phevb tmiyui 191.8187.55074.84700.25732")
+            }),
+        ];
+        for (what, set) in hold_worthy {
+            let mut i = facts("Someone <a@brand-new.example>", None, 0);
+            set(&mut i);
+            assert!(
+                scan(&i, &policy()).hold_worthy(),
+                "{what} did not earn a hold"
+            );
+        }
     }
 
     /// A message with no `X-Mailer` at all is the common case and must
