@@ -152,6 +152,9 @@ pub struct Facts<'a> {
     /// deployment has no history to count — which reads as *not
     /// rotating*, so a fresh install delivers rather than holds.
     pub reply_rotation: u32,
+    /// A zero-width character wedged between two alphanumerics —
+    /// `J\u{200d}CB`, `S\u{200b}A\u{200c}I\u{200d}S\u{feff}O\u{200b}N`.
+    pub has_zero_width_inside_a_word: bool,
     /// A bidi override or isolate in the identifying text.
     ///
     /// `mailrs_textguard`'s reading again, and its own note on the
@@ -276,6 +279,16 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
             format!("subject greets `{name}`, which the `To:` header does not name"),
         ));
     }
+    // A brand name split by invisible characters.
+    if facts.has_zero_width_inside_a_word {
+        out.push(Finding::new(
+            RULE_ZERO_WIDTH_IN_WORD,
+            Layer::Content,
+            ZERO_WIDTH_IN_WORD_SCORE,
+            "invisible characters are wedged inside a word, which defeats a \
+             filter while rendering unchanged to the reader",
+        ));
+    }
     // An address whose mailbox and domain were both generated.
     if minted_address::address_looks_minted(facts.from) {
         out.push(Finding::new(
@@ -379,6 +392,17 @@ pub const RULE_GREETS_A_STRANGER: &str = "greets-a-stranger";
 /// subject and leave the `To:` display name empty. Enough to push
 /// toward Junk; not enough to hide mail.
 pub const GREETS_A_STRANGER_SCORE: f64 = 2.0;
+
+/// Invisible characters wedged inside a word. See
+/// [`mailrs_textguard::Deception::zero_width_inside_a_word`].
+pub const RULE_ZERO_WIDTH_IN_WORD: &str = "zero-width-inside-a-word";
+
+/// Score for a word split by invisible characters.
+///
+/// Held. 17 of 35,575 production messages and all seventeen are
+/// phishing — SAISON, JCB four times, 楽天カード, SMBC, ANA twice,
+/// Amazon three times.
+pub const ZERO_WIDTH_IN_WORD_SCORE: f64 = 6.0;
 
 /// An address whose local part and registered domain both read as
 /// machine-minted. See [`minted_address`].

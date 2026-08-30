@@ -330,7 +330,12 @@ mod tests {
             deception_in_identity(raw.as_bytes()),
             Deception {
                 bidi_override: false,
-                unjustified_zero_width: true
+                unjustified_zero_width: true,
+                // The same name is also the narrower shape — every
+                // one of its invisibles has a Latin letter on both
+                // sides. That reading *is* conclusive, and this
+                // fixture came from a phish, so it should be.
+                zero_width_inside_a_word: true,
             }
         );
     }

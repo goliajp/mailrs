@@ -147,6 +147,7 @@ pub(super) async fn run_antispam(
         has_executable_attachment: mailrs_fraud::attachment::any_executable(
             attachment_names.iter().map(String::as_str),
         ),
+        has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
         to_display: &to_display,
         reply_rotation,
         ..mailrs_fraud::Facts::default()
