@@ -111,8 +111,7 @@ pub(crate) async fn backfill_reply_rotation_route(
                 if walked.is_multiple_of(PAUSE_EVERY) {
                     tokio::time::sleep(std::time::Duration::from_millis(q.pause_ms)).await;
                 }
-                let Some(raw) =
-                    super::fraud_rescan::reading::raw_for_message(&state, user, &mid)
+                let Some(raw) = super::fraud_rescan::reading::raw_for_message(&state, user, &mid)
                 else {
                     no_file += 1;
                     continue;
@@ -143,10 +142,8 @@ pub(crate) async fn backfill_reply_rotation_route(
     // The ones the rule is about, and the ones just below it — a
     // report that showed only the convicted could not say whether
     // the threshold is in the right place.
-    let mut rows: Vec<(&String, &std::collections::BTreeSet<String>)> = targets
-        .iter()
-        .filter(|(_, d)| d.len() >= 2)
-        .collect();
+    let mut rows: Vec<(&String, &std::collections::BTreeSet<String>)> =
+        targets.iter().filter(|(_, d)| d.len() >= 2).collect();
     rows.sort_by_key(|(_, d)| std::cmp::Reverse(d.len()));
     let rows: Vec<serde_json::Value> = rows
         .into_iter()
