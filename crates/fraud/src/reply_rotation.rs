@@ -106,7 +106,10 @@ mod tests {
 
     #[test]
     fn the_threshold_sits_between_the_conference_and_the_campaigns() {
-        assert!(!rotates(3), "JSWorld runs three conferences and is legitimate");
+        assert!(
+            !rotates(3),
+            "JSWorld runs three conferences and is legitimate"
+        );
         assert!(rotates(4));
         assert!(rotates(6), "the fortune-telling campaign");
         assert!(rotates(8));
@@ -137,6 +140,9 @@ mod tests {
     /// case and stray space cannot make two of them.
     #[test]
     fn one_reply_address_is_one_key() {
-        assert_eq!(rotation_key(" SuQiQi@Linghit.COM "), rotation_key("suqiqi@linghit.com"));
+        assert_eq!(
+            rotation_key(" SuQiQi@Linghit.COM "),
+            rotation_key("suqiqi@linghit.com")
+        );
     }
 }

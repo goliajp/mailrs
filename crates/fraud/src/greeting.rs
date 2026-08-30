@@ -46,9 +46,28 @@
 /// characters and a comma, and not a name at all. A test caught it
 /// on the first run, which is what this list is for.
 const NOT_NAMES: &[&str] = &[
-    "哈喽", "你好", "您好", "大家好", "亲爱的", "親愛的", "尊敬的",
-    "各位", "同学", "同學", "朋友", "老师", "老師", "先生", "女士",
-    "早上好", "下午好", "晚上好", "恭喜", "注意", "提醒", "通知",
+    "哈喽",
+    "你好",
+    "您好",
+    "大家好",
+    "亲爱的",
+    "親愛的",
+    "尊敬的",
+    "各位",
+    "同学",
+    "同學",
+    "朋友",
+    "老师",
+    "老師",
+    "先生",
+    "女士",
+    "早上好",
+    "下午好",
+    "晚上好",
+    "恭喜",
+    "注意",
+    "提醒",
+    "通知",
 ];
 
 /// The name a subject opens with, if it opens with one.
@@ -113,7 +132,11 @@ mod tests {
             "兰静思，您命中天乙贵人坐配偶，命定姻缘引财神入家门",
             "兰静思,您2026喜逢财星苏醒、转入好运，快请本命佛相助",
         ] {
-            assert_eq!(greets_someone_else(subject, "lihao@golia.jp"), Some("兰静思"), "{subject}");
+            assert_eq!(
+                greets_someone_else(subject, "lihao@golia.jp"),
+                Some("兰静思"),
+                "{subject}"
+            );
         }
     }
 
@@ -138,7 +161,13 @@ mod tests {
 
     #[test]
     fn a_subject_without_a_greeting_is_not_a_claim() {
-        for subject in ["【Amazon】配送状況のお知らせ", "Re: 見積書の件", "", "，leading comma", "这是一个很长的中文标题没有逗号"] {
+        for subject in [
+            "【Amazon】配送状況のお知らせ",
+            "Re: 見積書の件",
+            "",
+            "，leading comma",
+            "这是一个很长的中文标题没有逗号",
+        ] {
             assert_eq!(greeted_name(subject), None, "{subject}");
         }
     }
