@@ -531,19 +531,24 @@ mod tests {
     /// and each was measured right on nearly everything it fired on.
     #[test]
     fn the_intrinsic_signals_are_the_ones_that_hold() {
-        let hold_worthy: [(&str, fn(&mut Facts<'_>)); 4] = [
-            ("bidi", |f| f.has_bidi_override = true),
-            ("zero-width name", |f| f.has_zero_width_in_name = true),
-            ("executable", |f| f.has_executable_attachment = true),
-            ("generated mailer", |f| {
-                f.x_mailer = Some("phevb tmiyui 191.8187.55074.84700.25732")
-            }),
-        ];
-        for (what, set) in hold_worthy {
-            let mut i = facts("Someone <a@brand-new.example>", None, 0);
-            set(&mut i);
+        let base = || facts("Someone <a@brand-new.example>", None, 0);
+        let mut bidi = base();
+        bidi.has_bidi_override = true;
+        let mut zero_width = base();
+        zero_width.has_zero_width_in_name = true;
+        let mut executable = base();
+        executable.has_executable_attachment = true;
+        let mut mailer = base();
+        mailer.x_mailer = Some("phevb tmiyui 191.8187.55074.84700.25732");
+
+        for (what, f) in [
+            ("a name reordered as it renders", bidi),
+            ("invisible characters in a name", zero_width),
+            ("an attachment the machine runs", executable),
+            ("an X-Mailer no client writes", mailer),
+        ] {
             assert!(
-                scan(&i, &policy()).hold_worthy(),
+                scan(&f, &policy()).hold_worthy(),
                 "{what} did not earn a hold"
             );
         }
