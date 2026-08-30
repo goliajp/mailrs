@@ -98,7 +98,6 @@ impl ReceiveContext {
         // construction site — so no caller can forget it and no stage
         // ordering can leave it unset.
         let deception = crate::identity::deception_in_identity(&message);
-        let generated_mailer = crate::identity::mailer_looks_generated(&message);
         Self {
             client_ip,
             ehlo_domain: ehlo_domain.into(),
@@ -114,15 +113,11 @@ impl ReceiveContext {
             ptr_score: 0.0,
             ai_score: 0.0,
             deception,
-            fraud: mailrs_fraud::Findings {
-                claims_our_name: false,
-                generated_mailer,
-                // Needs a count of what this deployment has seen
-                // from the sender's domain, which the caller has and
-                // this constructor does not. The antispam stage
-                // fills it in beside `claims_our_name`.
-                impersonates_brand: false,
-            },
+            // Nothing yet. The rules run over `Facts` the caller
+            // assembles — this constructor has the message but not
+            // the sender history a brand claim needs, and a partial
+            // scan here would be a second place that decides.
+            fraud: mailrs_fraud::Findings::new(),
             from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
@@ -133,12 +128,17 @@ impl ReceiveContext {
     /// The From display name claims this organisation's own name from
     /// an address outside it.
     ///
-    /// Set by the caller, which is the only place that knows what the
-    /// organisation is called — see
-    /// `mailrs_inbound::impersonation::claims_our_name`.
+    /// Set by the caller, which is the only place that has the facts
+    /// the rules need — what this organisation is called, and how
+    /// familiar the sender's domain is.
+    ///
+    /// **One setter, not one per rule.** It was
+    /// `with_claims_our_name(bool)`, and a second signal meant a
+    /// second setter, a second field and a second call site. A rule
+    /// set that grows cannot have a builder method each.
     #[must_use]
-    pub fn with_claims_our_name(mut self, claims: bool) -> Self {
-        self.fraud.claims_our_name = claims;
+    pub fn with_fraud(mut self, findings: mailrs_fraud::Findings) -> Self {
+        self.fraud = findings;
         self
     }
 
@@ -162,7 +162,7 @@ impl ReceiveContext {
             ptr_score: self.ptr_score,
             ai_score: self.ai_score,
             deception: self.deception,
-            fraud: self.fraud,
+            fraud: self.fraud.clone(),
             spam_threshold,
             hostname: self.hostname.clone(),
             from_addr: self.from_addr.clone(),

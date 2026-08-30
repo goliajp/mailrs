@@ -43,24 +43,49 @@ pub fn from_header(raw: &[u8]) -> String {
     decoded_identity(raw).0
 }
 
-/// Whether the message's `X-Mailer` is the generated kind.
+/// The message's `X-Mailer`, unfolded, when it carries one.
 ///
-/// Read here rather than by a stage, for the same reason `deception` is:
-/// a property of the text, fixed before the pipeline starts, so nothing
-/// about stage ordering can leave it unset.
-pub fn mailer_looks_generated(raw: &[u8]) -> bool {
+/// The **value**, not a verdict about it. It was
+/// `mailer_looks_generated(raw) -> bool`, which folded the reading
+/// and the rule into one function — so the rule could not be
+/// rewritten, replaced or scripted without also rewriting the reader,
+/// and no other rule could see the header at all.
+///
+/// Read here rather than by a stage, for the same reason `deception`
+/// is: a property of the text, fixed before the pipeline starts, so
+/// nothing about stage ordering can leave it unset.
+///
+/// **Continuation lines are joined** (RFC 5322 §2.2.3). The version
+/// of this that did not cost a day on 2026-08-29: Exchange folds
+/// `Message-ID:` onto the next line and the same reader missed it, so
+/// a held conversation could not say why it was held. A folded
+/// `X-Mailer` would be a check that silently does not fire, which is
+/// worse — nothing would look wrong at all.
+pub fn x_mailer_header(raw: &[u8]) -> Option<String> {
     let head = &raw[..raw.len().min(HEAD_LIMIT)];
     let text = String::from_utf8_lossy(head);
+    let mut value: Option<String> = None;
     for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
         if line.is_empty() {
             break;
         }
+        if let Some(v) = &mut value {
+            match line.starts_with([' ', '\t']) {
+                true => {
+                    if !v.is_empty() {
+                        v.push(' ');
+                    }
+                    v.push_str(line.trim());
+                    continue;
+                }
+                false => break,
+            }
+        }
         if let Some(rest) = line.to_ascii_lowercase().strip_prefix("x-mailer:") {
-            let value = &line[line.len() - rest.len()..];
-            return mailrs_fraud::mailer_fingerprint::is_generated_mailer(value);
+            value = Some(line[line.len() - rest.len()..].trim().to_string());
         }
     }
-    false
+    value.filter(|v| !v.is_empty())
 }
 
 /// `From:` and `Subject:`, decoded. One parser, because a second copy

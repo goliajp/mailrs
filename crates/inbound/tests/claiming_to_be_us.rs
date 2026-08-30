@@ -68,7 +68,7 @@ fn it_reaches_junk_and_says_why() {
         ptr_score: 0.0,
         ai_score: 0.0,
         deception: Default::default(),
-        fraud: mailrs_fraud::Findings::default(),
+        fraud: mailrs_fraud::Findings::new(),
         spam_threshold: 5.0,
         hostname: "mx.golia.ai".into(),
         from_addr: "ipdxuawesj@auto360d.com".into(),
@@ -87,8 +87,20 @@ fn it_reaches_junk_and_says_why() {
         "a passing SPF/DKIM/DMARC scam was already being caught, which it was not"
     );
 
-    input.fraud.claims_our_name =
-        claims_our_name(&from_header(&scam_message()), &names(), &ours(), &allowed());
+    // Through the scan, not by poking a field: the test now asks the
+    // same question the receive path does, so a rule that stops
+    // firing fails here rather than only in production.
+    input.fraud = mailrs_fraud::scan(
+        &mailrs_fraud::Facts {
+            from: &from_header(&scam_message()),
+            ..mailrs_fraud::Facts::default()
+        },
+        &mailrs_fraud::Policy {
+            org_names: names(),
+            our_domains: ours(),
+            allowed_domains: allowed(),
+        },
+    );
     let DeliveryDecision::Junk { reason, .. } = make_delivery_decision(&input) else {
         panic!("the impersonation signal did not carry it to Junk");
     };
@@ -123,7 +135,10 @@ fn an_unknown_persona_is_still_caught_by_the_mailer() {
         &allowed()
     ));
     // The mailer fingerprint does.
-    assert!(mailrs_inbound::identity::mailer_looks_generated(&raw));
+    assert!(
+        mailrs_inbound::x_mailer_header(&raw)
+            .is_some_and(|v| mailrs_fraud::mailer_fingerprint::is_generated_mailer(&v))
+    );
 
     let mut input = mailrs_inbound::PipelineInput {
         greylisted: false,
@@ -140,7 +155,7 @@ fn an_unknown_persona_is_still_caught_by_the_mailer() {
         ptr_score: 0.0,
         ai_score: 0.0,
         deception: Default::default(),
-        fraud: mailrs_fraud::Findings::default(),
+        fraud: mailrs_fraud::Findings::new(),
         spam_threshold: 5.0,
         hostname: "mx.golia.ai".into(),
         from_addr: "kirschtaamot292@outlook.com".into(),
@@ -156,9 +171,16 @@ fn an_unknown_persona_is_still_caught_by_the_mailer() {
         "it was already being caught, which it was not"
     );
 
-    input.fraud.generated_mailer = mailrs_inbound::identity::mailer_looks_generated(&raw);
+    let x = mailrs_inbound::x_mailer_header(&raw);
+    input.fraud = mailrs_fraud::scan(
+        &mailrs_fraud::Facts {
+            x_mailer: x.as_deref(),
+            ..mailrs_fraud::Facts::default()
+        },
+        &mailrs_fraud::Policy::default(),
+    );
     let DeliveryDecision::Junk { reason, .. } = make_delivery_decision(&input) else {
         panic!("the mailer fingerprint did not carry it to Junk on its own");
     };
-    assert!(reason.contains("x-mailer=generated"), "reason: {reason}");
+    assert!(reason.contains("x-mailer-generated"), "reason: {reason}");
 }

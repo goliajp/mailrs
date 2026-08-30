@@ -295,7 +295,7 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     };
 
     // Fraud signals: claiming to be us, a mailer no client writes.
-    let fraud_score = mailrs_fraud::score(input.fraud);
+    let fraud_score = input.fraud.score();
 
     let total_score = input.content_score
         + input.ptr_score
@@ -343,13 +343,9 @@ fn build_junk_reason(input: &PipelineInput, total_score: f64, suspicious_score: 
     // needs to add a domain to the allow-list.
     // Named, because a false positive has to be findable in the log by
     // whoever needs to fix it.
-    let fraud = mailrs_fraud::score(input.fraud);
+    let fraud = input.fraud.score();
     if fraud > 0.0 {
-        let _ = write!(
-            out,
-            ", {}(+{fraud:.1})",
-            mailrs_fraud::reasons(input.fraud).join(", ")
-        );
+        let _ = write!(out, ", {}(+{fraud:.1})", input.fraud.rules().join(", "));
     }
     out.push_str(", ");
     // Inline the rule-name join — avoid `matched_rules.join(", ")` which
@@ -431,11 +427,16 @@ mod tests {
     #[test]
     fn a_generated_mailer_junks_on_its_own() {
         let mut input = baseline_input();
-        input.fraud.generated_mailer = true;
+        input.fraud.extend(mailrs_fraud::findings_for(&[
+            mailrs_fraud::RULE_GENERATED_MAILER,
+        ]));
         let DeliveryDecision::Junk { reason, .. } = make_delivery_decision(&input) else {
             panic!("5.0 did not reach a 5.0 threshold");
         };
-        assert!(reason.contains("x-mailer=generated"), "reason: {reason}");
+        assert!(
+            reason.contains(mailrs_fraud::RULE_GENERATED_MAILER),
+            "reason: {reason}"
+        );
     }
 
     /// And a deployment that raised its threshold still gets it beside
@@ -444,7 +445,9 @@ mod tests {
     fn a_generated_mailer_still_counts_under_a_higher_threshold() {
         let mut input = baseline_input();
         input.spam_threshold = 6.0;
-        input.fraud.generated_mailer = true;
+        input.fraud.extend(mailrs_fraud::findings_for(&[
+            mailrs_fraud::RULE_GENERATED_MAILER,
+        ]));
         assert!(matches!(
             make_delivery_decision(&input),
             DeliveryDecision::Accept { .. }
@@ -468,7 +471,7 @@ mod tests {
     #[test]
     fn claiming_our_name_alone_does_not_junk() {
         let mut input = baseline_input();
-        input.fraud.claims_our_name = true;
+        input.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_CLAIMS_OUR_NAME]);
         assert!(
             matches!(
                 make_delivery_decision(&input),
@@ -483,7 +486,7 @@ mod tests {
     #[test]
     fn claiming_our_name_junks_beside_any_other_signal() {
         let mut input = baseline_input();
-        input.fraud.claims_our_name = true;
+        input.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_CLAIMS_OUR_NAME]);
         input.content_score = 0.5;
         let d = make_delivery_decision(&input);
         let DeliveryDecision::Junk { reason, .. } = d else {
@@ -500,7 +503,7 @@ mod tests {
     #[test]
     fn claiming_our_name_junks_beside_a_suspicious_sender() {
         let mut input = baseline_input();
-        input.fraud.claims_our_name = true;
+        input.fraud = mailrs_fraud::findings_for(&[mailrs_fraud::RULE_CLAIMS_OUR_NAME]);
         input.deception = mailrs_textguard::Deception {
             unjustified_zero_width: true,
             ..Default::default()

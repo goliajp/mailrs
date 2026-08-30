@@ -92,19 +92,12 @@ pub(super) async fn run_antispam(
     // Read from the **decoded** `From:`: the names arrive base64'd
     // inside `=?UTF-8?B?…?=` in every sample, and a check on the raw
     // header sees only ASCII.
+    // The facts, assembled once, then one scan. This was three
+    // separate assignments into three separate fields, each with its
+    // own extraction — and the two that read the `From` read it
+    // differently for a while. One `Facts`, one `scan`, and a new
+    // rule needs neither a field nor a line here.
     let decoded_from = mailrs_inbound::identity::from_header(&receive_ctx.message);
-    receive_ctx.fraud.claims_our_name = mailrs_fraud::impersonation::claims_our_name(
-        &decoded_from,
-        &ctx.org_names,
-        &ctx.local_domains,
-        &ctx.org_name_allowed_domains,
-    );
-    // Somebody claiming to be a company the reader has an account
-    // with — Apple, Amazon, their bank — rather than claiming to be
-    // us. The other half of the check is how familiar the sender's
-    // domain is: measured over 35,962 messages, every phishing sender
-    // came from a domain seen once or twice and every legitimate one
-    // from a domain seen three times or more. See `mailrs_fraud::brand`.
     let sender_host = decoded_from
         .rfind('@')
         .map(|at| {
@@ -114,13 +107,26 @@ pub(super) async fn run_antispam(
                 .to_string()
         })
         .unwrap_or_default();
+    let registrable = mailrs_fraud::brand::registrable(&sender_host);
     let domain_seen =
         crate::spam_lists::domain_seen_async(ctx.spam_lists_client.clone(), &sender_host).await;
-    receive_ctx.fraud.impersonates_brand = mailrs_fraud::brand::impersonates_brand(
-        &decoded_from,
-        mailrs_fraud::brand::BRANDS,
+    let x_mailer = mailrs_inbound::identity::x_mailer_header(&receive_ctx.message);
+    let facts = mailrs_fraud::Facts {
+        from: &decoded_from,
+        domain: &sender_host,
+        registrable: &registrable,
         domain_seen,
-    );
+        x_mailer: x_mailer.as_deref(),
+        has_zero_width: receive_ctx.deception.unjustified_zero_width,
+        has_bidi_override: receive_ctx.deception.bidi_override,
+        ..mailrs_fraud::Facts::default()
+    };
+    let policy = mailrs_fraud::Policy {
+        org_names: ctx.org_names.clone(),
+        our_domains: ctx.local_domains.iter().map(|d| d.to_lowercase()).collect(),
+        allowed_domains: ctx.org_name_allowed_domains.clone(),
+    };
+    receive_ctx.fraud = mailrs_fraud::scan(&facts, &policy);
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;

@@ -1,0 +1,17 @@
+[package]
+name = "mailrs-fraud-lua"
+version = "0.0.0"
+edition = "2024"
+description = "Scripted fraud rules — a sandboxed Lua VM that turns a rule set into findings, so a new phishing shape does not need a release."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/goliajp/mailrs"
+authors = ["GOLIA K.K."]
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mailrs-fraud = { path = "../fraud", version = "0" }
+luna-jit = "3"
+tracing = "0.1"
