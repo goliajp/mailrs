@@ -48,9 +48,11 @@
 pub mod attachment;
 pub mod brand;
 pub mod finding;
+pub mod greeting;
 pub mod hostname_claim;
 pub mod impersonation;
 pub mod mailer_fingerprint;
+pub mod reply_rotation;
 pub mod sending_host;
 
 #[cfg(any(test, feature = "testing"))]
@@ -132,6 +134,23 @@ pub struct Facts<'a> {
     /// execute: `.exe`, `.cab`, `.js`, `.lnk`, `.docm`, and the rest
     /// of that family.
     pub has_executable_attachment: bool,
+    /// The `To:` header's display name, decoded.
+    ///
+    /// Compared against a name the subject greets. Deliberately the
+    /// message's *own* claim about who it is for rather than a list
+    /// of the reader's names: a list can never be complete, and an
+    /// incomplete one convicts every sender who greets the reader by
+    /// a name it happens to be missing. Production's account row says
+    /// `LI HAO`, the reader is also 李好, and LinkedIn greets 李好 by
+    /// name 189 times.
+    pub to_display: &'a str,
+    /// How many distinct registrable domains have sent mail to this
+    /// message's off-domain `Reply-To`, this one included.
+    ///
+    /// Zero when there is no off-domain reply address, or when the
+    /// deployment has no history to count — which reads as *not
+    /// rotating*, so a fresh install delivers rather than holds.
+    pub reply_rotation: u32,
     /// A bidi override or isolate in the identifying text.
     ///
     /// `mailrs_textguard`'s reading again, and its own note on the
@@ -241,6 +260,33 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
              thing and says another",
         ));
     }
+    // Mail that opens by greeting somebody else.
+    //
+    // **Held.** A sender greeting you by name claims to know who you
+    // are; when the name is not yours the claim is false on its face,
+    // and it says how the address was obtained — from a list where a
+    // stranger's name sat beside it. A reader can check it in a
+    // second: *this is addressed to 兰静思, and you are not.*
+    if let Some(name) = greeting::greets_someone_else(facts.subject, facts.to_display) {
+        out.push(Finding::scored(
+            RULE_GREETS_A_STRANGER,
+            Layer::Identity,
+            GREETS_A_STRANGER_SCORE,
+            format!("subject greets `{name}`, which the `To:` header does not name"),
+        ));
+    }
+    // One reply address collecting disposable sending domains.
+    if reply_rotation::rotates(facts.reply_rotation) {
+        out.push(Finding::new(
+            RULE_REPLY_DOMAIN_ROTATION,
+            Layer::Provenance,
+            REPLY_ROTATION_SCORE,
+            format!(
+                "replies go to a domain that {} different sending domains use",
+                facts.reply_rotation
+            ),
+        ));
+    }
     // A hostname that names a company it is not.
     //
     // **Held.** A subdomain is chosen by whoever owns the parent, so
@@ -309,6 +355,31 @@ pub const RULE_IMPERSONATES_BRAND: &str = "impersonates-brand";
 /// A subject claiming a company the reader has an account with.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_SUBJECT_CLAIMS_BRAND: &str = "subject-claims-brand";
+/// Mail that opens by greeting somebody who is not the reader.
+/// See [`RULE_CLAIMS_OUR_NAME`].
+pub const RULE_GREETS_A_STRANGER: &str = "greets-a-stranger";
+
+/// Score for a subject greeting a name the `To:` header does not
+/// carry.
+///
+/// **Suspicion, not a hold.** 146 in the corpus, of which the great
+/// majority are the fortune-telling campaign — but a dozen are
+/// LinkedIn subjects opening with a Chinese phrase that is not a
+/// name at all, and a handful are ordinary senders who greet in the
+/// subject and leave the `To:` display name empty. Enough to push
+/// toward Junk; not enough to hide mail.
+pub const GREETS_A_STRANGER_SCORE: f64 = 2.0;
+
+/// One reply address that many disposable sending domains funnel
+/// into. See [`reply_rotation`].
+pub const RULE_REPLY_DOMAIN_ROTATION: &str = "reply-domain-rotation";
+
+/// Score for reply-address domain rotation.
+///
+/// Held on its own. Measured at 258 messages across three campaigns
+/// with nothing legitimate above the threshold.
+pub const REPLY_ROTATION_SCORE: f64 = 6.0;
+
 /// A hostname naming a company that does not own it.
 /// See [`RULE_CLAIMS_OUR_NAME`].
 pub const RULE_HOSTNAME_CLAIMS_COMPANY: &str = "hostname-claims-company";

@@ -13,6 +13,29 @@
 
 use super::super::prelude::*;
 
+/// The raw bytes of **one** message, by its id.
+///
+/// [`newest_raw`] answers "what does this conversation look like",
+/// which is the right question when deciding whether to hide it. The
+/// rotation backfill asks a different one — *how many domains send
+/// to this reply address* — and a conversation's newest message
+/// cannot answer it: the fortune-telling campaign put 179 messages
+/// across six domains into a single mailbox, and looking only at the
+/// newest of each conversation would have seen a fraction of them.
+pub(in crate::maintenance) fn raw_for_message(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    mid: &str,
+) -> Option<Vec<u8>> {
+    let bytes = state.mailbox.user_message_view(user, mid).ok()??;
+    let wire =
+        serde_json::from_slice::<mailrs_core_api::method::message::MessageWire>(&bytes).ok()?;
+    if wire.blob_ref.is_empty() {
+        return None;
+    }
+    read_maildir_file(user, &wire.blob_ref)
+}
+
 /// The raw bytes of a thread's newest message, from this user's copy.
 pub(super) fn newest_raw(
     state: &Arc<FastcoreState>,
@@ -152,4 +175,25 @@ pub(super) fn domain_seen(conn: Option<&mut kevy_client::Connection>, from: &str
     let Some(at) = from.rfind('@') else { return 0 };
     let host = from[at + 1..].trim_end_matches('>').trim();
     mailrs_core_sidestate::families::domain_history::seen(conn, host)
+}
+
+/// How many registrable domains send to this message's off-domain
+/// reply address.
+///
+/// **Reads without recording.** The live path owns the writing; a
+/// sweep that also wrote would make the count depend on how many
+/// times the sweep had run over the same message, and the number
+/// that convicts would stop meaning what it says.
+///
+/// Zero without a store, which reads as *not rotating* — a missing
+/// store delivers here rather than holds, the opposite direction to
+/// [`domain_seen`] and for the same reason in both cases: be wrong
+/// towards the answer that does not hide mail.
+pub(super) fn reply_rotation(
+    conn: &mut Option<kevy_client::Connection>,
+    from_host: &str,
+    reply_addr: &str,
+) -> u32 {
+    let Some(conn) = conn.as_mut() else { return 0 };
+    mailrs_core_sidestate::families::reply_rotation::domains(conn, from_host, reply_addr)
 }

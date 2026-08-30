@@ -11,6 +11,7 @@ pub mod groups_admin;
 pub mod identity_link;
 pub mod outbound;
 pub mod prefs;
+pub mod reply_rotation;
 pub mod send;
 pub mod send_read;
 pub mod suppression;

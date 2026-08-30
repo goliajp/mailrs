@@ -31,7 +31,7 @@ use std::collections::HashMap;
 
 use super::prelude::*;
 
-mod reading;
+pub(super) mod reading;
 use reading::*;
 
 /// Threads between pauses.
@@ -189,6 +189,14 @@ pub(crate) async fn fraud_rescan_route(
                 .filter_map(|p| p.attachment_filename())
                 .collect();
             let subject = mailrs_inbound::subject_header(&raw);
+            let to_display = mailrs_inbound::identity::to_display_name(&raw);
+            let reply_to = mailrs_inbound::identity::reply_to_address(&raw);
+            // Read, not recorded. The sweep walks the same message
+            // more than once over its life, and a set does not care
+            // — but the live path is the one that owns the writing,
+            // and a sweep that also wrote would make "how many
+            // domains" depend on how often the sweep had run.
+            let reply_rotation = reading::reply_rotation(&mut hist, &host, &reply_to);
             let facts = mailrs_fraud::Facts {
                 from: &from,
                 subject: &subject,
@@ -202,6 +210,8 @@ pub(crate) async fn fraud_rescan_route(
                 has_executable_attachment: mailrs_fraud::attachment::any_executable(
                     attachments.iter().copied(),
                 ),
+                to_display: &to_display,
+                reply_rotation,
                 ..mailrs_fraud::Facts::default()
             };
             let findings = mailrs_fraud::scan(&facts, &policy);

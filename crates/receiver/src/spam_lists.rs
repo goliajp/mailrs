@@ -110,6 +110,40 @@ pub async fn domain_seen_async(client: Option<Arc<KevyNetClient>>, host: &str) -
     .unwrap_or(0)
 }
 
+/// How many registrable domains send to this message's off-domain
+/// `Reply-To`, counting this one.
+///
+/// Records first, then reads, so the domain in hand is included —
+/// the fourth arrival is the one that convicts, and it should convict
+/// itself rather than only its successors.
+///
+/// Zero without a network kevy, which reads as *not rotating*: the
+/// deployment delivers rather than hides, which is the safe direction
+/// to be wrong in when the store is unreachable.
+pub async fn reply_rotation_async(
+    client: Option<Arc<KevyNetClient>>,
+    from_host: &str,
+    reply_addr: &str,
+) -> u32 {
+    let Some(client) = client else { return 0 };
+    if !mailrs_fraud::reply_rotation::is_off_domain(from_host, reply_addr) {
+        return 0;
+    }
+    let (host, reply) = (from_host.to_string(), reply_addr.to_string());
+    tokio::task::spawn_blocking(move || {
+        client
+            .with_conn(|c| {
+                mailrs_core_sidestate::families::reply_rotation::record(c, &host, &reply);
+                Ok(mailrs_core_sidestate::families::reply_rotation::domains(
+                    c, &host, &reply,
+                ))
+            })
+            .unwrap_or(0)
+    })
+    .await
+    .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

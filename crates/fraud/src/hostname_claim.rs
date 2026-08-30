@@ -126,7 +126,7 @@ pub fn hostname_claims_a_company(host: &str) -> Option<&'static str> {
     }
     let labels: Vec<&str> = prefix.split('.').filter(|l| !l.is_empty()).collect();
     HOSTED_CLAIMS.iter().find_map(|b| {
-        let names_it = labels.iter().any(|l| *l == b.name);
+        let names_it = labels.contains(&b.name);
         let is_theirs = b
             .domains
             .iter()
