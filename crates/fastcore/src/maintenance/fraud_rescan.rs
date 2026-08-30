@@ -146,11 +146,23 @@ pub(crate) async fn fraud_rescan_route(
                 continue;
             };
             let from = mailrs_inbound::from_header(&raw);
-            // Not counting this message: the sweep runs over mail
-            // already delivered, so its own arrival is in the count
-            // and would make every sender one more familiar than they
-            // were when it decided.
-            let seen = domain_seen(hist.as_mut(), &from).saturating_sub(1);
+            // The count as it stands, **not** minus this message.
+            //
+            // It was minus one, reasoning that the sweep re-plays the
+            // moment the mail arrived and its own arrival should not
+            // make its sender look familiar. That is the wrong job:
+            // a sweep is not a re-enactment, it is a fresh judgement
+            // with everything known today. The subtraction only made
+            // every domain one message less familiar than it is, and
+            // on 2026-08-30 that pushed a legitimate sender off the
+            // edge — `three` messages from `rooms-online.jp`, the
+            // 三井住友銀行 appointment confirmations, read as `two`
+            // and were held.
+            //
+            // A threshold with a subtraction under it is a different
+            // threshold, and not the one the corpus was measured
+            // against.
+            let seen = domain_seen(hist.as_mut(), &from);
             // The same facts the receive path assembles, from the
             // same extractors. Two assemblies of one message is how
             // a folded header came to be visible on one path and not
