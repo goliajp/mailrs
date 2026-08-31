@@ -108,6 +108,13 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # went to 6.2.1 while the pin stayed at 5.4.
     ./scripts/check-kevy-versions.sh
 
+    # A cache with no expiry is a claim that nothing can change what
+    # it holds, and two of the three in this tree were false: a thread
+    # showed two messages of three through every reload, and a fraud
+    # verdict showed the reasons of a rule that had been retired.
+    # Not seeing mail is the same class of failure as not receiving it.
+    ./scripts/check-forever-caches.sh
+
     # Nothing verifies a TLS peer against a browser's roots alone.
     # `webpki-roots` tracks Mozilla's browser program and does not ship
     # `DigiCert Global Root CA`, which every Microsoft-hosted domain
