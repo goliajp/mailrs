@@ -364,9 +364,10 @@ export function ThreadContentPane({
                 <AiAnalysisPanel message={selectedMsg} />
 
                 {/* invite card (full RSVP UI) — timeline shows a compact one-liner */}
-                {/* No wrapper padding: the card is already a bordered,
-                    rounded area with its own `p-4` and `my-3`. A second
-                    frame around it draws the same box twice. */}
+                {/* No wrapper: this pane is the enclosed region, and
+                    the invite fills it edge to edge with its own
+                    padding. It used to carry a border and rounded
+                    corners of its own, which drew the same box twice. */}
                 {selectedMsg.invite_method && <InviteCard messageUid={selectedMsg.uid} />}
 
                 {/* email body */}

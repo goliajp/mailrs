@@ -234,7 +234,12 @@ export function InviteCard({
   }
 
   return (
-    <div className="border-border bg-bg-secondary my-3 rounded-lg border p-4">
+    // No frame of its own. The pane it renders into is already an
+    // enclosed region, so a border and rounded corners here drew the
+    // same box twice — a card inside a card. It fills the region edge
+    // to edge and keeps `p-4`, which is what held the spacing inside
+    // it; only the chrome is gone.
+    <div className="bg-bg-secondary p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Calendar className="text-fg-muted h-4 w-4" />
