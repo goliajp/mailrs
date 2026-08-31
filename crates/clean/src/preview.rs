@@ -33,38 +33,42 @@ pub fn preview_line(text: &str, max: usize) -> String {
     // Counted, not re-measured: `out.chars().count()` on every kept
     // character makes the cost of a preview quadratic in its own length.
     let mut kept = 0usize;
-    // A run of the same rule character, still being counted. Dropped
-    // once it reaches `RULE_RUN`, and written out as ordinary text if
-    // it stops short — `--` is how people write a dash.
-    let mut run_char = '\0';
+    // A run of rule characters, still being counted. Dropped once it
+    // reaches `RULE_RUN`, and written out as ordinary text if it stops
+    // short — `--` is how people write a dash.
     let mut run_len = 0usize;
+    // The characters of a run still being counted, so one short enough
+    // to be text can be written back verbatim. Only `RULE_RUN - 1` can
+    // ever be needed: at `RULE_RUN` the run is a bar and is dropped.
+    let mut run = ['\0'; RULE_RUN];
+    // A `text/plain` part is returned as the sender wrote it, and some
+    // senders write HTML into one. Over 10,000 production
+    // conversations 16 arrive that way, and 198 of the 202 entities in
+    // them are `&nbsp;` or `&zwnj;` — invisible characters spelled out
+    // as text, which is the one kind a preview must not show. They are
+    // turned back into characters here and then handled like any
+    // other, so `&nbsp;` collapses and `&zwnj;` is dropped.
+    //
+    // Only the invisible ones. `&amp;` and `&ldquo;` are content, and
+    // a preview that decoded them would be a half-built HTML parser
+    // living in the wrong crate — four occurrences, and the fix for
+    // those is upstream of here.
+    let text = decode_invisible_entities(text);
     for ch in text.chars() {
         if is_rule_char(ch) {
-            if ch == run_char {
-                run_len += 1;
-            } else {
-                flush_run(
-                    &mut out,
-                    &mut kept,
-                    &mut pending_space,
-                    run_char,
-                    run_len,
-                    max,
-                );
-                run_char = ch;
-                run_len = 1;
+            // **Any** rule characters in a row are one run, not one run
+            // per character. `───────┬────` is a single bar with a tee
+            // in it; counting each stretch separately left the tee
+            // behind as a one-character run and wrote it back as text.
+            // The kinds are kept so a short run can be written out
+            // exactly as it arrived.
+            if run_len < run.len() {
+                run[run_len] = ch;
             }
+            run_len += 1;
             continue;
         }
-        flush_run(
-            &mut out,
-            &mut kept,
-            &mut pending_space,
-            run_char,
-            run_len,
-            max,
-        );
-        run_char = '\0';
+        flush_run(&mut out, &mut kept, &mut pending_space, &run, run_len, max);
         run_len = 0;
         if is_zero_width(ch) {
             // Dropped, not turned into a space: a run of 552 of them is
@@ -89,15 +93,22 @@ pub fn preview_line(text: &str, max: usize) -> String {
         out.push(ch);
         kept += 1;
     }
-    flush_run(
-        &mut out,
-        &mut kept,
-        &mut pending_space,
-        run_char,
-        run_len,
-        max,
-    );
+    flush_run(&mut out, &mut kept, &mut pending_space, &run, run_len, max);
     out
+}
+
+/// Replace `&nbsp;` and `&zwnj;` with the characters they name.
+///
+/// A borrow when there is nothing to do, which is 9,984 conversations
+/// in 10,000.
+fn decode_invisible_entities(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains("&nbsp;") && !text.contains("&zwnj;") {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    std::borrow::Cow::Owned(
+        text.replace("&nbsp;", "\u{00A0}")
+            .replace("&zwnj;", "\u{200C}"),
+    )
 }
 
 /// How many of the same rule character make a line rather than a dash.
@@ -113,7 +124,7 @@ fn flush_run(
     out: &mut String,
     kept: &mut usize,
     pending_space: &mut bool,
-    ch: char,
+    run: &[char],
     len: usize,
     max: usize,
 ) {
@@ -125,23 +136,47 @@ fn flush_run(
         *kept += 1;
         *pending_space = false;
     }
-    for _ in 0..len {
+    for ch in run.iter().take(len) {
         if *kept >= max {
             out.push('…');
             return;
         }
-        out.push(ch);
+        out.push(*ch);
         *kept += 1;
     }
 }
 
 /// Characters mail uses to draw a line across the page.
 ///
-/// Deliberately short. A hyphen inside a word or a date is a single
-/// character and never reaches `RULE_RUN`; three in a row are a rule
-/// wherever they appear.
+/// A hyphen inside a word or a date is a single character and never
+/// reaches `RULE_RUN`; three in a row are a rule wherever they appear.
+///
+/// **Box drawing is most of it.** Measured over 10,000 production
+/// conversations, 975 — nearly one row in ten — open with a bar the
+/// ASCII list here does not know: `─` alone occurs 46,147 times,
+/// `━` 10,986, and Japanese newsletters build headers out of `┬ ┴ │
+/// ┏ ┗ ╋` around a title:
+///
+/// ```text
+/// ───────┬──── [Ameba]│[PR] ───────┴──── # [Amebaおすすめキャンペーン]…
+/// ━━━━━━━━━━━ じゃらんnetメールマガジン ━━━━━━━━ 2026年08月31日 本メールは…
+/// ```
+///
+/// The whole U+2500 block is here rather than the characters seen so
+/// far: every one of them draws a line, and a newsletter that
+/// switches to `╍` next month should not need another measurement.
+/// The fullwidth forms come from the same family of senders.
 fn is_rule_char(ch: char) -> bool {
-    matches!(ch, '-' | '=' | '_' | '*' | '~' | '—' | '–' | '·' | '•')
+    matches!(
+        ch,
+        '-' | '=' | '_' | '*' | '~' | '\u{2014}' | '\u{2013}' | '\u{00B7}' | '\u{2022}'
+            | '\u{2015}'                 // horizontal bar
+            | '\u{2500}'..='\u{257F}'    // box drawing, the whole block
+            | '\u{FF0D}'                 // fullwidth hyphen-minus
+            | '\u{FF1D}'                 // fullwidth equals
+            | '\u{FF5E}'                 // fullwidth tilde
+            | '\u{25A0}'..='\u{25AF}'    // squares, used the same way
+    )
 }
 
 /// Characters that occupy no width and carry no meaning in a preview.
@@ -274,6 +309,49 @@ mod tests {
         assert_eq!(preview_line(&stored, 120), stored);
     }
 
+    /// **The bars a Japanese newsletter actually draws**, verbatim
+    /// from production. 975 of 10,000 conversations opened with one of
+    /// these — `\u{2500}` alone occurs 46,147 times — and the ASCII
+    /// list did not know any of them.
+    #[test]
+    fn box_drawing_is_a_rule_line_too() {
+        assert_eq!(
+            preview_line(
+                "\u{2501}\u{2501}\u{2501}\u{2501}\u{2501} \u{3058}\u{3083}\u{3089}\u{3093}net \u{2501}\u{2501}\u{2501}\u{2501} 2026\u{5e74}08\u{6708}31\u{65e5}",
+                120
+            ),
+            "\u{3058}\u{3083}\u{3089}\u{3093}net 2026\u{5e74}08\u{6708}31\u{65e5}"
+        );
+        // A tee in the middle of a bar is part of the same bar. Counted
+        // per character kind, the tee was a run of one and came back as
+        // text — which is how `\u{252c}` ended up leading a preview.
+        assert_eq!(
+            preview_line(
+                "\u{2500}\u{2500}\u{2500}\u{252c}\u{2500}\u{2500}\u{2500} [Ameba] \u{2500}\u{2500}\u{2500}\u{2534}\u{2500}\u{2500}\u{2500} PR",
+                120
+            ),
+            "[Ameba] PR"
+        );
+        // And the fullwidth family, which the same senders use.
+        assert_eq!(
+            preview_line("A\n\u{ff1d}\u{ff1d}\u{ff1d}\u{ff1d}\nB", 120),
+            "A B"
+        );
+        assert_eq!(
+            preview_line("A\n\u{2015}\u{2015}\u{2015}\u{2015}\nB", 120),
+            "A B"
+        );
+    }
+
+    /// A run of *different* rule characters is still one run. The
+    /// version that counted each kind separately wrote every change of
+    /// character back as text, so a mixed bar came through in pieces.
+    #[test]
+    fn a_mixed_run_is_one_run() {
+        assert_eq!(preview_line("A -=- B", 120), "A B");
+        assert_eq!(preview_line("A -= B", 120), "A -= B", "two is still text");
+    }
+
     /// And what must survive it. Two dashes are how people write a
     /// dash, a hyphen lives inside words and dates, and a rule that is
     /// only two characters long is not a rule.
@@ -292,6 +370,33 @@ mod tests {
     #[test]
     fn a_short_run_at_the_limit_is_still_marked() {
         assert_eq!(preview_line("abc--", 4), "abc-…");
+    }
+
+    /// Verbatim from production: a sender writing HTML entities into
+    /// a `text/plain` part. 16 conversations in 10,000, and both of
+    /// these name characters that must not be visible.
+    #[test]
+    fn an_invisible_entity_spelled_out_is_still_invisible() {
+        assert_eq!(
+            preview_line(
+                "\u{cca8}\u{bd80}\u{d30c}\u{c77c}&nbsp; \u{b2e4}\u{c6b4}\u{b85c}\u{b4dc}",
+                120
+            ),
+            "\u{cca8}\u{bd80}\u{d30c}\u{c77c} \u{b2e4}\u{c6b4}\u{b85c}\u{b4dc}"
+        );
+        assert_eq!(preview_line("Sale&zwnj;&zwnj;ends", 120), "Saleends");
+    }
+
+    /// And what stays. Decoding these would be a half-built HTML
+    /// parser in a crate about collapsing whitespace, and `&amp;` in a
+    /// preview is ugly rather than broken.
+    #[test]
+    fn a_content_entity_is_left_where_it_is() {
+        assert_eq!(preview_line("Tom &amp; Jerry", 120), "Tom &amp; Jerry");
+        assert_eq!(
+            preview_line("&ldquo;quoted&rdquo;", 120),
+            "&ldquo;quoted&rdquo;"
+        );
     }
 
     #[test]
