@@ -209,12 +209,19 @@ pub(crate) async fn fraud_rescan_route(
                 // no longer holds anything, and nothing in the
                 // system could have noticed.
                 //
-                // Safe to do automatically because **every hold in
-                // production came from this sweep**: `set_quarantined
-                // (.., true)` has exactly one caller outside the
-                // tests, thirty lines below, and the only other
-                // production writer sets it false. There is no human
-                // judgement here to overrule.
+                // Safe to do automatically because **no hold is a
+                // person's judgement**. Two places set it: this
+                // sweep, and `ingest.rs`, which acts on the verdict
+                // the receive path stored. Both are the rules
+                // speaking, so the rules may take it back.
+                //
+                // The version of this comment that shipped on
+                // 2026-08-31 said the sweep was the only one. It was
+                // written from a grep that missed `ingest.rs`, and it
+                // is the reason held mail kept arriving unread: that
+                // path holds and — until the same day — did not mark
+                // read. A release path resting on "there is only one
+                // writer" has to name them.
                 let held_now = state
                     .mailbox
                     .get_thread_for_user(user, &tid)
