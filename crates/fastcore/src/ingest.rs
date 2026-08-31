@@ -219,10 +219,23 @@ pub(crate) fn ingest_delivered_file(
         }
         match serde_json::from_str::<mailrs_inbound::FraudVerdict>(json) {
             Ok(v) if v.quarantined => match state.mailbox.set_quarantined(addr, &root, true) {
-                Ok(true) => tracing::info!(
-                    %addr, %root, score = v.score, rules = %v.rules_version,
-                    "held: suspected fraud"
-                ),
+                Ok(true) => {
+                    // Read, at the same moment. A held conversation
+                    // that is also unread is bold, adds to the badge
+                    // and rings the phone — the attempt to defraud
+                    // getting exactly the attention it was sent to
+                    // get, which is what holding exists to remove.
+                    //
+                    // Both halves, through the function that writes
+                    // both: the axis column and the per-user rows the
+                    // count comes off. See
+                    // `rules/a-fact-with-two-homes.md`.
+                    crate::routes::thread_actions::mark_thread_read_everywhere(state, addr, &root);
+                    tracing::info!(
+                        %addr, %root, score = v.score, rules = %v.rules_version,
+                        "held: suspected fraud"
+                    )
+                }
                 Ok(false) => tracing::warn!(
                     %addr, %root,
                     "held nothing: no membership row to hold"
