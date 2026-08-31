@@ -25,7 +25,17 @@ chrono = { workspace = true }
 # exists to catch. Only `WhereClause` / `CompositeCol` / `composite_bounds`
 # come from here — everything else goes through the facade. See
 # `src/table_spec.rs`.
-kevy-index = "5.4"
+#
+# **It must be bumped by hand with it**, and on 2026-08-31 it was not:
+# the workspace went to 6.2.1 and this stayed at 5.4, which put two
+# generations of the crate in the graph exactly as the sentence above
+# says not to. The compiler caught it — `expected ValType, found
+# IndexValType`, with "there are multiple different versions of crate
+# `kevy_index`" underneath — because the two types are structurally
+# identical and differ only by which copy they came from. A comment
+# stating an invariant does not maintain it; `scripts/check-kevy-versions.sh`
+# now does.
+kevy-index = "6.2.1"
 
 [dev-dependencies]
 criterion = { workspace = true }
