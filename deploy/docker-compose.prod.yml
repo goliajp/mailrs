@@ -241,18 +241,30 @@ services:
 
   kevy-server:
     container_name: mailrs-kevy
-    # 5.1.0 since 2026-08-14. It replays a 3.18 AOF cleanly and reads it
-    # identically — same per-shard command counts, same 13 prefix counts on
-    # the same bytes. Rehearsed on a copy first; see
-    # .claude/plans/1D-kevy-server-3.18-to-5.1.md for the numbers.
+    # 6.2.1 since 2026-08-31, from 5.1.0. Rehearsed on a copy of the
+    # production directory on t02 before the swap, the same way 5.1.0
+    # was: four AOF shards replayed **(clean)**, 1,305,342 commands
+    # from 243 MB, and `bayes` — the trained corpus, the one thing
+    # here that cannot be rebuilt — came back 27,104 against 27,104.
+    # Every prefix without a TTL was +0; the four that differed (rl,
+    # gl, ag, session) are TTL'd and rebuildable, and the difference
+    # is the two instances' lazy-expiry progress, not the version:
+    # `TTL` answers -2 for the same keys `KEYS` lists on **both**.
+    # Five `bayes` values and four `mailrs` keys of four different
+    # types compared identically byte for byte.
     #
-    # Rolling back is a binary swap ONLY until the first BGREWRITEAOF. That
-    # rewrite flips the on-disk format v1 -> v2, and 3.18 against a v2 file
-    # does not refuse: it starts, calls each shard corrupt, drops the trailing
-    # bytes and comes up with 1 key instead of 33,636. Nothing on disk is lost
-    # unless it is then written to. After a rewrite, the only rollback is
-    # restoring the data directory.
-    image: ghcr.io/goliajp/kevy:5.1.0
+    # Reconcile on per-prefix `KEYS` counts, never `DBSIZE`: the two
+    # versions report it differently for the same store.
+    #
+    # Rolling back is a binary swap ONLY until the first BGREWRITEAOF.
+    # That rewrite flips the on-disk format, and the older server does
+    # not refuse the newer one: it starts, calls each shard corrupt,
+    # drops the trailing bytes and comes up with 1 key instead of
+    # 33,636. Nothing on disk is lost unless it is then written to.
+    # After a rewrite the only rollback is restoring the directory —
+    # `/apps/mailrs/kevy-backup-20260831-1422` is the copy taken
+    # before this swap.
+    image: ghcr.io/goliajp/kevy:6.2.1
     pull_policy: always
     mem_limit: 1g
     volumes:
