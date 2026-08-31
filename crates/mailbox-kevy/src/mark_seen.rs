@@ -460,6 +460,63 @@ mod tests {
         assert_eq!(unread(), 0, "the unread axis must drop it");
     }
 
+    /// **`mark_seen` alone does not make a conversation read**, and
+    /// the test above says otherwise only because it asks the shared
+    /// thread hash. A list renders `unread_count` off the **per-user**
+    /// membership row, and `mark_seen` does not write it: it writes
+    /// the axis column, and sinks the bit into a shared blob no read
+    /// path has consulted since stage 5 of the per-user message
+    /// projection.
+    ///
+    /// Two sides, each self-consistent — so a thread leaves every
+    /// unread list and stays bold in the one that shows it. That is
+    /// why `mark_thread_read_everywhere` exists in fastcore, and
+    /// calling only the first half is a mistake made twice: by the
+    /// read verbs until 2026-08-14, and by the fraud sweep on
+    /// 2026-08-31, where three held conversations came back unread
+    /// after being marked read.
+    #[test]
+    fn the_axis_and_the_count_are_two_writes() {
+        let s = store();
+        let u = "u@x.com";
+        s.record_message_arrival(&arr("t1", u, true)).unwrap();
+        // The counters `get_thread_for_user` returns come off the
+        // declared aggregate index, which is grouped by the per-user
+        // message row's flags — so the row has to exist for the count
+        // to mean anything. `arr` builds the thread, not the message.
+        s.upsert_user_message(
+            u,
+            "t1",
+            "m1",
+            100,
+            br#"{"message_id":"m1","sender":"other@z.com"}"#,
+            &crate::UserMessageFacts {
+                blob_ref: "f.host",
+                uid: 1,
+                flags: 0,
+                modseq: 1,
+            },
+        )
+        .unwrap();
+        let per_user = |s: &KevyMailboxStore| {
+            s.get_thread_for_user(u, "t1")
+                .unwrap()
+                .unwrap()
+                .unread_count
+        };
+        assert_eq!(per_user(&s), 1, "premise: it arrived unread");
+
+        s.mark_seen(u, "t1").unwrap();
+        assert_eq!(
+            per_user(&s),
+            1,
+            "the axis write alone must not be mistaken for a read receipt"
+        );
+
+        s.mark_thread_messages_seen(u, "t1").unwrap();
+        assert_eq!(per_user(&s), 0, "the rows are what a list counts");
+    }
+
     #[test]
     fn mark_seen_missing_thread_returns_false() {
         let s = store();

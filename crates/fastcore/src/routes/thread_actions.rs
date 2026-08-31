@@ -21,7 +21,11 @@ use crate::*;
 /// it reports which files are behind and this brings them in line.
 ///
 /// Returns whatever `mark_seen` returns — whether the thread row existed.
-fn mark_thread_read_everywhere(state: &Arc<FastcoreState>, user: &str, thread_id: &str) -> bool {
+pub(crate) fn mark_thread_read_everywhere(
+    state: &Arc<FastcoreState>,
+    user: &str,
+    thread_id: &str,
+) -> bool {
     let found = match state.mailbox.mark_seen(user, thread_id) {
         Ok(found) => found,
         Err(e) => {

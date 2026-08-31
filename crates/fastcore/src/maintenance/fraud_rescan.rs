@@ -321,9 +321,20 @@ pub(crate) async fn fraud_rescan_route(
                     // now" wearing a count that says the opposite.
                     // Releasing does not undo it, and should not — by
                     // then somebody *has* looked.
-                    if let Err(e) = state.mailbox.mark_seen(user, &tid) {
-                        tracing::warn!(err = %e, %user, %tid, "marking a held thread read failed");
-                    }
+                    // Through the same function the read verbs use,
+                    // not `mark_seen` alone. `mark_seen` writes the
+                    // axis column and a shared blob **no read path has
+                    // consulted since stage 5 of the per-user message
+                    // projection** — so the thread left every unread
+                    // list while `unread_count`, which is what the
+                    // review screen renders, stayed at one. Held and
+                    // bold, which is the thing this exists to stop.
+                    //
+                    // Found by checking after the sweep rather than by
+                    // any test: three held conversations came back
+                    // unread, and the docstring on the function beside
+                    // `mark_seen` had said why all along.
+                    crate::routes::thread_actions::mark_thread_read_everywhere(&state, user, &tid);
                 }
                 Action::Delete => match state.mailbox.delete_thread(user, &tid) {
                     Ok((_, blobs)) => {
