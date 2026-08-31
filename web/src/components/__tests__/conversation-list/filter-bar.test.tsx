@@ -302,35 +302,29 @@ describe('FilterBar — archived tab', () => {
   })
 
   /**
-   * **The Review tab says how many.**
+   * **The Review tab carries no number.**
    *
-   * The route was capped at 200 while 439 were held, so a tab reading
-   * `Review` and a page of 200 were indistinguishable from the whole.
-   * Asserted in both directions, because a count that is always
-   * rendered would be as wrong as one that never is: zero held is
-   * *nothing to review*, and a `0` beside the word is an invitation
-   * to go and look at nothing.
+   * A count of what was held is the held mail advertising itself: the
+   * screen exists so an attempt to defraud stops competing for
+   * attention, and `Review 443` puts it back on the tab. Held mail is
+   * marked read for the same reason.
+   *
+   * The count is not gone — `/api/quarantine` returns a `total`, and
+   * the route is no longer capped below the real figure. It is simply
+   * not something the reader is shown unprompted.
    */
-  it('puts the held count on the Review tab, and only when there is one', () => {
+  it('puts no number on the Review tab', () => {
     flatStub.conversations = [makeConversation()]
+    heldCountStub.value = 443
 
-    heldCountStub.value = 0
-    const { unmount } = render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-    expect(screen.getByText('Review')).toBeDefined()
-    expect(screen.queryByText('0')).toBeNull()
-    unmount()
-
-    heldCountStub.value = 439
     render(
       <Wrapper store={store}>
         <ConversationList />
       </Wrapper>
     )
-    expect(screen.getByText('439')).toBeDefined()
+
+    expect(screen.getByText('Review')).toBeDefined()
+    expect(screen.queryByText('443')).toBeNull()
     heldCountStub.value = 0
   })
 

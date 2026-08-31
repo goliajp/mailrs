@@ -272,3 +272,54 @@ fn asking_for_no_rows_still_answers_how_many() {
     assert_eq!(tids(&rows), ["t3", "t1"]);
     assert_eq!(total_with_rows, total);
 }
+
+/// **Held mail is on no unread axis, whatever its own flag says.**
+///
+/// The unread list keys on the `unread` flag, and the exclusion of
+/// held mail comes from `quarantined` sitting in the same ORDERPATH
+/// prefix as `archived` — not from a filter applied afterwards. So
+/// this holds a thread *while leaving it unread* and asks the unread
+/// axis for it: the row still says unread, and the axis must not
+/// return it.
+///
+/// Belt and braces on purpose. The sweep marks a held conversation
+/// read, which is the first line of defence and the one a reader
+/// sees. This is the second: if that write is ever dropped, or a
+/// message arrives into a held thread and makes it unread again, the
+/// conversation must still stay out of the badge, out of the unread
+/// list, and out of the dashboard's Recent Activity — which reads the
+/// ordinary list and takes its first five rows.
+#[test]
+fn a_held_thread_is_on_no_unread_axis_even_while_unread() {
+    let st = store();
+    let u = "alice@x.com";
+    for (tid, at) in [("held", 200), ("live", 100)] {
+        st.upsert_thread(u, &row(tid, at)).unwrap();
+    }
+    st.set_quarantined(u, "held", true).unwrap();
+
+    // Deliberately *not* marked read: this is the state the second
+    // line of defence exists for.
+    let unread = ListThreadsFilter {
+        has_unread: true,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &unread, 0, 10).unwrap();
+    assert!(
+        !tids(&rows).contains(&"held"),
+        "a held conversation was on the unread axis"
+    );
+    assert_eq!(
+        total,
+        rows.len(),
+        "the count and the rows came out of different walks"
+    );
+
+    // And the ordinary list the dashboard's Recent Activity slices its
+    // first five rows from.
+    let (live, live_total) = st
+        .list_threads_by_activity(u, &ListThreadsFilter::default(), 0, 10)
+        .unwrap();
+    assert_eq!(tids(&live), ["live"], "held mail reached the ordinary list");
+    assert_eq!(live_total, 1);
+}
