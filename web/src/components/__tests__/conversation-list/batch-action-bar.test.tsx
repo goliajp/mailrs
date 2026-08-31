@@ -2,7 +2,7 @@ import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,8 +16,8 @@ vi.mock('@/wire/endpoints/mutations', () => ({
   wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
 }))
 
-import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
 import { authAtom } from '@/store/auth'
+import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
 
 // v2.1 phase-5d: the mail-list conversations shape lives entirely in
 // React Query in production. Tests hoist a mutable stub and mock
@@ -220,48 +220,38 @@ afterEach(() => {
 })
 
 // helper: open the filter dropdown panel
-function openFilterPanel() {
-  fireEvent.click(screen.getByLabelText('Toggle filters'))
-}
 
 // domain selector tests removed — domains moved to sidebar
 
-describe('FilterBar — sort', () => {
+// The shared preamble — mocks, the Jotai store, `makeConversation` —
+// lives in `filter-bar.test.tsx`. It is duplicated here rather than
+// exported because a `vi.mock` factory is hoisted per file and cannot
+// be imported from another one.
+
+describe('BatchActionBar', () => {
   let store: ReturnType<typeof createStore>
 
   beforeEach(() => {
     store = makeStore()
-    flatStub.conversations = [makeConversation()]
-  })
-
-  it('shows sort options in filter dropdown', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    openFilterPanel()
-    expect(screen.getByText('Sort')).toBeDefined()
-    expect(screen.getByText('newest')).toBeDefined()
-    expect(screen.getByText('oldest')).toBeDefined()
-    expect(screen.getByText('Unread first')).toBeDefined()
-  })
-
-  it('applies oldest sort to conversations', () => {
-    const now = Math.floor(Date.now() / 1000)
     flatStub.conversations = [
-      makeConversation({
-        last_date: now,
-        subject: 'Newer',
-        thread_id: 'newer',
-      }),
-      makeConversation({
-        last_date: now - 86400,
-        subject: 'Older',
-        thread_id: 'older',
-      }),
+      makeConversation({ subject: 'Thread 1', thread_id: 't1' }),
+      makeConversation({ subject: 'Thread 2', thread_id: 't2' }),
     ]
+  })
+
+  it('does not show batch action bar initially', () => {
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    expect(screen.queryByText(/selected$/)).toBeNull()
+  })
+
+  it('shows batch action bar when batch mode active with selections', () => {
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1']))
 
     render(
       <Wrapper store={store}>
@@ -269,27 +259,35 @@ describe('FilterBar — sort', () => {
       </Wrapper>
     )
 
-    openFilterPanel()
-    fireEvent.click(screen.getByText('oldest'))
-
-    const items = screen.getAllByRole('listitem')
-    expect(items[0].textContent).toContain('Older')
-    expect(items[1].textContent).toContain('Newer')
-  })
-})
-
-describe('FilterBar — archived tab', () => {
-  let store: ReturnType<typeof createStore>
-
-  beforeEach(() => {
-    store = makeStore()
+    expect(screen.getByText('1 selected')).toBeDefined()
+    expect(screen.getByText('Mark read')).toBeDefined()
+    expect(screen.getByText('Mark unread')).toBeDefined()
+    expect(screen.getByText('Star')).toBeDefined()
+    expect(screen.getByText('Archive')).toBeDefined()
+    expect(screen.getByText('Delete')).toBeDefined()
+    expect(screen.getByText('Cancel')).toBeDefined()
   })
 
-  // v2.8.2 — Archived moved from the advanced-filter panel toggle to
-  // a first-class view tab; "All" became "Inbox" (user directive
-  // 2026-07-14).
-  it('shows Inbox and Archived as view tabs', () => {
-    flatStub.conversations = [makeConversation()]
+  it('toggles batch mode via batch select button', () => {
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    const batchButton = screen.getByLabelText('Enter batch select mode')
+    fireEvent.click(batchButton)
+
+    // now clicking a conversation should check it instead of selecting
+    const firstItem = screen.getAllByRole('listitem')[0]
+    fireEvent.click(firstItem.querySelector('button')!)
+    // batch action bar should appear
+    expect(screen.getByText('1 selected')).toBeDefined()
+  })
+
+  it('exits batch mode via cancel button', () => {
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1']))
 
     render(
       <Wrapper store={store}>
@@ -297,65 +295,36 @@ describe('FilterBar — archived tab', () => {
       </Wrapper>
     )
 
-    expect(screen.getByText('Inbox')).toBeDefined()
-    expect(screen.getByText('Archived')).toBeDefined()
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(screen.queryByText(/selected$/)).toBeNull()
+  })
+
+  it('shows correct count when multiple items selected', () => {
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    expect(screen.getByText('2 selected')).toBeDefined()
   })
 
   /**
-   * **The Review tab says how many.**
+   * Deleting forty threads asks first, the same as deleting one does.
    *
-   * The route was capped at 200 while 439 were held, so a tab reading
-   * `Review` and a page of 200 were indistinguishable from the whole.
-   * Asserted in both directions, because a count that is always
-   * rendered would be as wrong as one that never is: zero held is
-   * *nothing to review*, and a `0` beside the word is an invitation
-   * to go and look at nothing.
+   * The batch bar went straight to the wire: `onAction('delete')` →
+   * `wireBatchMutation`, no question, while the row beside it held the
+   * same verb for an answer. Deleting unlinks maildir files and there
+   * is nothing to restore from.
    */
-  it('puts the held count on the Review tab, and only when there is one', () => {
+  it('holds a batch delete for an answer, and names the number', async () => {
+    batchCalls.length = 0
     flatStub.conversations = [makeConversation()]
-
-    heldCountStub.value = 0
-    const { unmount } = render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-    expect(screen.getByText('Review')).toBeDefined()
-    expect(screen.queryByText('0')).toBeNull()
-    unmount()
-
-    heldCountStub.value = 439
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-    expect(screen.getByText('439')).toBeDefined()
-    heldCountStub.value = 0
-  })
-
-  /**
-   * Every tab is the same width, and the second row lines up under the
-   * first.
-   *
-   * They were two wrapped flex rows, so each tab was as wide as its own
-   * label: `Inbox` narrow, `Archived` wide, and the row below starting
-   * under nothing in particular. Asserted on the grid rather than on
-   * measured pixels — jsdom lays nothing out, so a width assertion here
-   * would pass whatever the classes said.
-   */
-  /**
-   * A held conversation is on screen only because the reader asked to
-   * see held ones. Unmarked, it is indistinguishable from ordinary
-   * mail — which is worse than hiding it, because the reader would
-   * have no way to tell the message judged an attempt to defraud them
-   * from the rest.
-   */
-  it('marks a held conversation, and marks nothing else', () => {
-    flatStub.conversations = [
-      makeConversation({ subject: 'Ordinary', thread_id: 't1' }),
-      makeConversation({ quarantined: true, subject: 'Held', thread_id: 't2' }),
-    ]
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
 
     render(
       <Wrapper store={store}>
@@ -363,62 +332,14 @@ describe('FilterBar — archived tab', () => {
       </Wrapper>
     )
 
-    // One mark, on the held row and not the other.
-    const marks = screen.getAllByLabelText('Held: suspected fraud')
-    expect(marks).toHaveLength(1)
-    expect(marks[0]?.closest('[role="option"], li, div')).not.toBeNull()
-    expect(screen.getByText('Ordinary')).toBeTruthy()
-  })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByText('Delete 2 conversations?')).toBeDefined()
+    expect(batchCalls, 'the delete went to the server before the question').toEqual([])
 
-  it('lays the tabs out as one five-column grid', () => {
-    flatStub.conversations = [makeConversation()]
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    const inbox = screen.getByText('Inbox')
-    const grid = inbox.parentElement
-    expect(grid?.className).toContain('grid-cols-5')
-    // Every tab in one container, not the overflow in a second row of
-    // its own. Derived from the registry rather than counted: the
-    // number was `8` until a ninth tab was added, and a test that
-    // pins a count is asserting how many lists exist, which is not
-    // what this one is about.
-    expect(grid?.children.length).toBe(MAIL_LIST_TABS.length)
-    for (const id of MAIL_LIST_TABS) {
-      const tab = screen.getByText(MAIL_LISTS[id].label)
-      expect(tab.className, `${MAIL_LISTS[id].label} does not fill its column`).toContain('w-full')
-    }
-  })
-
-  /**
-   * The tab asks the server for the archived axis; it does not sift the
-   * page it was given.
-   *
-   * This used to assert that an archived row disappeared from the Inbox,
-   * which the client did by filtering the page after the fact — from a
-   * page whose size the server had already reported, so the count and
-   * the rows disagreed. Since 2026-08-05 the server excludes archived
-   * threads from every list but this one, and what is left for the
-   * client to get right is which list it asks for.
-   */
-  it('switches to the archived axis when the Archived tab is clicked', async () => {
-    const { activeListAtom, showArchivedAtom } = await import('@/store/ui')
-    flatStub.conversations = [makeConversation()]
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-    expect(store.get(showArchivedAtom)).toBe(false)
-
-    fireEvent.click(screen.getByText('Archived'))
-
-    expect(store.get(activeListAtom)).toBe('archived')
-    expect(store.get(showArchivedAtom)).toBe(true)
+    // The sheet's own Delete is the second button with that name.
+    const confirms = screen.getAllByRole('button', { name: 'Delete' })
+    fireEvent.click(confirms[confirms.length - 1])
+    await waitFor(() => expect(batchCalls).toHaveLength(1))
+    expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
   })
 })

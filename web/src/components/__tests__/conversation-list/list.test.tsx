@@ -61,6 +61,10 @@ vi.mock('@/hooks/use-mail-queries', () => ({
     isFetchingNextPage: false,
     isPending: false,
   }),
+  // The Review tab's count. Zero here so the tab renders as it did
+  // before the count existed; the test that asserts the number shows
+  // supplies its own.
+  useQuarantineCountQuery: () => ({ data: 0 }),
 }))
 // Mutable, because switching lists is a change of this value and the
 // component does not remount when it happens — which is exactly what the

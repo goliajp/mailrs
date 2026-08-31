@@ -39,6 +39,11 @@ export const conversationKeys = {
     [...conversationKeys.infinites(), canonicaliseFilter(filter)] as const,
   infinites: () => [...conversationKeys.all(), 'infinite'] as const,
 
+  // The review list's count, which is not a page of the review list
+  // — it is asked for with `limit=0` and invalidated when a hold or a
+  // release changes it.
+  quarantineCount: () => [...conversationKeys.all(), 'quarantine-count'] as const,
+
   detail: (threadId: ThreadId) => [...conversationKeys.details(), threadId] as const,
   details: () => [...conversationKeys.all(), 'detail'] as const,
 } as const

@@ -234,7 +234,7 @@ impl Client {
         user: &str,
         limit: usize,
         before_ts: Option<i64>,
-    ) -> ApiResult<method::conversation::ListConversationsResponse> {
+    ) -> ApiResult<method::thread::QuarantineListResponse> {
         let mut path = format!("/v1/users/{}/quarantine?limit={limit}", Self::enc(user));
         if let Some(ts) = before_ts {
             path.push_str(&format!("&before_ts={ts}"));

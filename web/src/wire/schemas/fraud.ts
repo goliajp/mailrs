@@ -41,3 +41,18 @@ export const wireFraudVerdictResponseSchema = z.object({
 
 export type WireFraudLayer = z.infer<typeof wireFraudLayerSchema>
 export type WireFraudVerdict = z.infer<typeof wireFraudVerdictSchema>
+
+/**
+ * `GET /api/quarantine` — the envelope, read for its count.
+ *
+ * Backend: crates/webapi/src/handlers/quarantine.rs:`QuarantineListResponse`,
+ * `{items: Vec<ConversationResponse>, total: usize}`. Verified
+ * 2026-08-31 against that struct; it was a bare array until the same
+ * day, which is why `items` is optional here — a client running
+ * against an older core still parses, and reads a count of zero
+ * rather than throwing.
+ */
+export const wireQuarantineCountSchema = z.object({
+  items: z.array(z.unknown()).optional(),
+  total: z.number().int().nonnegative().default(0),
+})

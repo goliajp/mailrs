@@ -36,14 +36,25 @@ pub(crate) async fn list_quarantined(
     State(state): State<Arc<FastcoreState>>,
     Path(user): Path<String>,
     axum::extract::Query(q): axum::extract::Query<QuarantineQuery>,
-) -> Json<conv::ListConversationsResponse> {
+) -> Json<mailrs_core_api::method::thread::QuarantineListResponse> {
     let filter = ListThreadsFilter {
         quarantine: QuarantineScope::Only,
         before_ts: q.before_ts,
         ..Default::default()
     };
-    let limit = q.limit.unwrap_or(50).clamp(1, 200);
-    let (rows, _total) = state
+    // 1000, not 200. The old ceiling was below the number actually
+    // held — 439 on 2026-08-31 — and a caller who asked for more got
+    // a short page with nothing to say it was short. The bound stays
+    // because a route that will hydrate however many rows it is asked
+    // for is a way to make the process do arbitrary work; it is now
+    // far enough above the real figure to be a guard rather than a
+    // silent truncation, and `total` says when it bites.
+    // `min`, not `clamp(1, …)`. Zero asks only for the count, and
+    // the count is an index read the walk does anyway — so the review
+    // tab can put a number beside its name without hydrating rows it
+    // is not going to show.
+    let limit = q.limit.unwrap_or(50).min(1000);
+    let (rows, total) = state
         .mailbox
         .list_threads_by_activity(&user, &filter, 0, limit)
         .unwrap_or_else(|e| {
@@ -56,7 +67,7 @@ pub(crate) async fn list_quarantined(
         .into_iter()
         .map(crate::routes::message_ops::row_to_wire)
         .collect();
-    Json(conv::ListConversationsResponse { items })
+    Json(mailrs_core_api::method::thread::QuarantineListResponse { items, total })
 }
 
 /// `POST /v1/users/{user}/quarantine/{thread_id}/release` — it was not
