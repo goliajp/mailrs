@@ -2,7 +2,7 @@ import type { ConversationSummary } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +18,6 @@ vi.mock('@/wire/endpoints/mutations', () => ({
 
 import { MAIL_LIST_TABS, MAIL_LISTS } from '@/lib/mail-lists'
 import { authAtom } from '@/store/auth'
-import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
 
 // v2.1 phase-5d: the mail-list conversations shape lives entirely in
 // React Query in production. Tests hoist a mutable stub and mock
@@ -59,7 +58,16 @@ vi.mock('@/hooks/use-mail-queries', () => ({
     isFetchingNextPage: false,
     isPending: false,
   }),
+  // The Review tab's count. Zero here so the tab renders as it did
+  // before the count existed; the test that asserts the number shows
+  // supplies its own.
+  useQuarantineCountQuery: () => ({ data: heldCountStub.value }),
 }))
+
+// Mutable so one test can give the Review tab a number without every
+// other test rendering one. `vi.mock` is hoisted, so this has to be a
+// reference the factory closes over rather than a value it captures.
+const heldCountStub = { value: 0 }
 // Mutable, because switching lists is a change of this value and the
 // component does not remount when it happens — which is exactly what the
 // scroll and selection bugs were.
@@ -294,6 +302,39 @@ describe('FilterBar — archived tab', () => {
   })
 
   /**
+   * **The Review tab says how many.**
+   *
+   * The route was capped at 200 while 439 were held, so a tab reading
+   * `Review` and a page of 200 were indistinguishable from the whole.
+   * Asserted in both directions, because a count that is always
+   * rendered would be as wrong as one that never is: zero held is
+   * *nothing to review*, and a `0` beside the word is an invitation
+   * to go and look at nothing.
+   */
+  it('puts the held count on the Review tab, and only when there is one', () => {
+    flatStub.conversations = [makeConversation()]
+
+    heldCountStub.value = 0
+    const { unmount } = render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+    expect(screen.getByText('Review')).toBeDefined()
+    expect(screen.queryByText('0')).toBeNull()
+    unmount()
+
+    heldCountStub.value = 439
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+    expect(screen.getByText('439')).toBeDefined()
+    heldCountStub.value = 0
+  })
+
+  /**
    * Every tab is the same width, and the second row lines up under the
    * first.
    *
@@ -379,121 +420,5 @@ describe('FilterBar — archived tab', () => {
 
     expect(store.get(activeListAtom)).toBe('archived')
     expect(store.get(showArchivedAtom)).toBe(true)
-  })
-})
-
-describe('BatchActionBar', () => {
-  let store: ReturnType<typeof createStore>
-
-  beforeEach(() => {
-    store = makeStore()
-    flatStub.conversations = [
-      makeConversation({ subject: 'Thread 1', thread_id: 't1' }),
-      makeConversation({ subject: 'Thread 2', thread_id: 't2' }),
-    ]
-  })
-
-  it('does not show batch action bar initially', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    expect(screen.queryByText(/selected$/)).toBeNull()
-  })
-
-  it('shows batch action bar when batch mode active with selections', () => {
-    store.set(batchModeAtom, true)
-    store.set(selectedThreadIdsAtom, new Set(['t1']))
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    expect(screen.getByText('1 selected')).toBeDefined()
-    expect(screen.getByText('Mark read')).toBeDefined()
-    expect(screen.getByText('Mark unread')).toBeDefined()
-    expect(screen.getByText('Star')).toBeDefined()
-    expect(screen.getByText('Archive')).toBeDefined()
-    expect(screen.getByText('Delete')).toBeDefined()
-    expect(screen.getByText('Cancel')).toBeDefined()
-  })
-
-  it('toggles batch mode via batch select button', () => {
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    const batchButton = screen.getByLabelText('Enter batch select mode')
-    fireEvent.click(batchButton)
-
-    // now clicking a conversation should check it instead of selecting
-    const firstItem = screen.getAllByRole('listitem')[0]
-    fireEvent.click(firstItem.querySelector('button')!)
-    // batch action bar should appear
-    expect(screen.getByText('1 selected')).toBeDefined()
-  })
-
-  it('exits batch mode via cancel button', () => {
-    store.set(batchModeAtom, true)
-    store.set(selectedThreadIdsAtom, new Set(['t1']))
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    fireEvent.click(screen.getByText('Cancel'))
-    expect(screen.queryByText(/selected$/)).toBeNull()
-  })
-
-  it('shows correct count when multiple items selected', () => {
-    store.set(batchModeAtom, true)
-    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    expect(screen.getByText('2 selected')).toBeDefined()
-  })
-
-  /**
-   * Deleting forty threads asks first, the same as deleting one does.
-   *
-   * The batch bar went straight to the wire: `onAction('delete')` →
-   * `wireBatchMutation`, no question, while the row beside it held the
-   * same verb for an answer. Deleting unlinks maildir files and there
-   * is nothing to restore from.
-   */
-  it('holds a batch delete for an answer, and names the number', async () => {
-    batchCalls.length = 0
-    flatStub.conversations = [makeConversation()]
-    store.set(batchModeAtom, true)
-    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
-
-    render(
-      <Wrapper store={store}>
-        <ConversationList />
-      </Wrapper>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(screen.getByText('Delete 2 conversations?')).toBeDefined()
-    expect(batchCalls, 'the delete went to the server before the question').toEqual([])
-
-    // The sheet's own Delete is the second button with that name.
-    const confirms = screen.getAllByRole('button', { name: 'Delete' })
-    fireEvent.click(confirms[confirms.length - 1])
-    await waitFor(() => expect(batchCalls).toHaveLength(1))
-    expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
   })
 })

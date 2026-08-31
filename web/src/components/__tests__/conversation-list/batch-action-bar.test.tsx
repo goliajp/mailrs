@@ -1,0 +1,345 @@
+import type { ConversationSummary } from '@/lib/types'
+import type { ReactNode } from 'react'
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createStore, Provider } from 'jotai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The batch wire call, so a test can say whether it was reached.
+const batchCalls: Array<{ action: string; ids: string[] }> = []
+vi.mock('@/wire/endpoints/mutations', () => ({
+  wireBatchMutation: (action: string, ids: string[]) => {
+    batchCalls.push({ action, ids })
+    return Promise.resolve({ failed: 0, failed_thread_ids: [], message: 'Done', success: true })
+  },
+  wireMarkAllRead: () => Promise.resolve({ flipped: 0 }),
+}))
+
+import { authAtom } from '@/store/auth'
+import { batchModeAtom, selectedThreadIdsAtom } from '@/store/ui'
+
+// v2.1 phase-5d: the mail-list conversations shape lives entirely in
+// React Query in production. Tests hoist a mutable stub and mock
+// `useFlatConversations` to read it — same idea as seeding an atom,
+// no jotai plumbing. Set fields before calling `render(...)`.
+const flatStub: {
+  conversations: ConversationSummary[]
+  hasMore: boolean
+  initialLoading: boolean
+  loadingMore: boolean
+} = {
+  conversations: [],
+  hasMore: true,
+  initialLoading: false,
+  loadingMore: false,
+}
+
+// mock api module
+vi.mock('@/lib/api', () => ({
+  // `useCurrentListRows` calls every source hook so the hook order is
+  // fixed as the list changes; the draft one reaches lib/api even while
+  // disabled.
+  deleteDraft: vi.fn(() => Promise.resolve({ success: true })),
+  fetchJson: vi.fn(() => Promise.resolve([])),
+  listDrafts: vi.fn(() => Promise.resolve([])),
+  postJson: vi.fn(() => Promise.resolve({ success: true })),
+}))
+
+// mock react-query hooks used by ConversationList. The real ones need a
+// QueryClientProvider in the tree, which is overkill for the component
+// shape tests below.
+vi.mock('@/hooks/use-mail-queries', () => ({
+  useActionCountQuery: () => ({ data: { count: 0 } }),
+  useCategoriesQuery: () => ({ data: [] }),
+  useConversationsQuery: () => ({
+    data: { pageParams: [], pages: [] },
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isPending: false,
+  }),
+  // The Review tab's count. Zero here so the tab renders as it did
+  // before the count existed; the test that asserts the number shows
+  // supplies its own.
+  useQuarantineCountQuery: () => ({ data: heldCountStub.value }),
+}))
+
+// Mutable so one test can give the Review tab a number without every
+// other test rendering one. `vi.mock` is hoisted, so this has to be a
+// reference the factory closes over rather than a value it captures.
+const heldCountStub = { value: 0 }
+// Mutable, because switching lists is a change of this value and the
+// component does not remount when it happens — which is exactly what the
+// scroll and selection bugs were.
+const filtersStub: { current: Record<string, unknown> } = { current: {} }
+vi.mock('@/hooks/use-current-mail-filters', () => ({
+  useCurrentMailFilters: () => filtersStub.current,
+}))
+vi.mock('@/hooks/use-flat-conversations', () => ({
+  useFlatConversations: () => flatStub,
+}))
+const stubMutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() })
+vi.mock('@/hooks/use-mail-mutations', () => ({
+  useArchiveMutation: stubMutation,
+  useDeleteMutation: stubMutation,
+  useMarkJunkMutation: stubMutation,
+  useMarkNotificationMutation: stubMutation,
+  useMarkNotJunkMutation: stubMutation,
+  useMarkPromotionMutation: stubMutation,
+  useMarkReadMutation: stubMutation,
+  useMarkUnreadMutation: stubMutation,
+  useMoveToInboxMutation: stubMutation,
+  usePinMutation: stubMutation,
+  useSnoozeMutation: stubMutation,
+  useStarMutation: stubMutation,
+  useUnarchiveMutation: stubMutation,
+  useUnpinMutation: stubMutation,
+  useUnsnoozeMutation: stubMutation,
+  useUnstarMutation: stubMutation,
+}))
+
+// mock sonner toast
+vi.mock('sonner', () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}))
+
+// mock virtualizer — jsdom has zero-height elements so virtualizer won't render
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getTotalSize: () => count * 72,
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        index: i,
+        key: i,
+        size: 72,
+        start: i * 72,
+        measureElement: () => {},
+      })),
+    measureElement: () => {},
+  }),
+}))
+
+// mock localStorage
+function makeLocalStorageMock(): Storage {
+  const store: Record<string, string> = {}
+  return {
+    clear: () => {
+      for (const k in store) delete store[k]
+    },
+    getItem: (k: string) => store[k] ?? null,
+    key: (n: number) => Object.keys(store)[n] ?? null,
+    get length() {
+      return Object.keys(store).length
+    },
+    removeItem: (k: string) => {
+      delete store[k]
+    },
+    setItem: (k: string, v: string) => {
+      store[k] = v
+    },
+  } as Storage
+}
+vi.stubGlobal('localStorage', makeLocalStorageMock())
+
+// mock IntersectionObserver
+const mockIntersectionObserver = vi.fn().mockImplementation(
+  class {
+    disconnect = vi.fn()
+    observe = vi.fn()
+    unobserve = vi.fn()
+  } as any
+)
+vi.stubGlobal('IntersectionObserver', mockIntersectionObserver)
+
+function makeConversation(overrides: Partial<ConversationSummary> = {}): ConversationSummary {
+  return {
+    archived: false,
+    category: 'general',
+    flagged: false,
+    importance_level: 'normal',
+    importance_score: 0.3,
+    last_date: Math.floor(Date.now() / 1000),
+    message_count: 1,
+    participants: ['alice@example.com'],
+    pinned: false,
+    received_count: 1,
+    requires_action: false,
+    sent_count: 0,
+    snippet: 'A snippet',
+    subject: 'Test Subject',
+    thread_id: 'thread-1',
+    unread_count: 0,
+    ...overrides,
+  }
+}
+
+function makeStore() {
+  const store = createStore()
+  store.set(authAtom, {
+    accessible_domains: ['example.com', 'golia.jp'],
+    address: 'user@example.com',
+    display_name: 'Test User',
+    permissions: [],
+    token: 'test-token',
+  })
+  flatStub.initialLoading = false
+  return store
+}
+
+// `useCurrentListRows` calls every source hook so the hook order stays
+// fixed as the list changes (only one of them is enabled), which means a
+// QueryClient has to be in scope even for a test that mocks the
+// conversation query.
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { gcTime: 0, retry: false } },
+})
+
+function Wrapper({
+  children,
+  store,
+}: {
+  children: ReactNode
+  store: ReturnType<typeof createStore>
+}) {
+  return (
+    <QueryClientProvider client={testQueryClient}>
+      <Provider store={store}>{children}</Provider>
+    </QueryClientProvider>
+  )
+}
+
+// must import after mocks
+const { ConversationList } = await import('@/components/conversation-list')
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+// helper: open the filter dropdown panel
+
+// domain selector tests removed — domains moved to sidebar
+
+// The shared preamble — mocks, the Jotai store, `makeConversation` —
+// lives in `filter-bar.test.tsx`. It is duplicated here rather than
+// exported because a `vi.mock` factory is hoisted per file and cannot
+// be imported from another one.
+
+describe('BatchActionBar', () => {
+  let store: ReturnType<typeof createStore>
+
+  beforeEach(() => {
+    store = makeStore()
+    flatStub.conversations = [
+      makeConversation({ subject: 'Thread 1', thread_id: 't1' }),
+      makeConversation({ subject: 'Thread 2', thread_id: 't2' }),
+    ]
+  })
+
+  it('does not show batch action bar initially', () => {
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    expect(screen.queryByText(/selected$/)).toBeNull()
+  })
+
+  it('shows batch action bar when batch mode active with selections', () => {
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1']))
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    expect(screen.getByText('1 selected')).toBeDefined()
+    expect(screen.getByText('Mark read')).toBeDefined()
+    expect(screen.getByText('Mark unread')).toBeDefined()
+    expect(screen.getByText('Star')).toBeDefined()
+    expect(screen.getByText('Archive')).toBeDefined()
+    expect(screen.getByText('Delete')).toBeDefined()
+    expect(screen.getByText('Cancel')).toBeDefined()
+  })
+
+  it('toggles batch mode via batch select button', () => {
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    const batchButton = screen.getByLabelText('Enter batch select mode')
+    fireEvent.click(batchButton)
+
+    // now clicking a conversation should check it instead of selecting
+    const firstItem = screen.getAllByRole('listitem')[0]
+    fireEvent.click(firstItem.querySelector('button')!)
+    // batch action bar should appear
+    expect(screen.getByText('1 selected')).toBeDefined()
+  })
+
+  it('exits batch mode via cancel button', () => {
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1']))
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(screen.queryByText(/selected$/)).toBeNull()
+  })
+
+  it('shows correct count when multiple items selected', () => {
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    expect(screen.getByText('2 selected')).toBeDefined()
+  })
+
+  /**
+   * Deleting forty threads asks first, the same as deleting one does.
+   *
+   * The batch bar went straight to the wire: `onAction('delete')` →
+   * `wireBatchMutation`, no question, while the row beside it held the
+   * same verb for an answer. Deleting unlinks maildir files and there
+   * is nothing to restore from.
+   */
+  it('holds a batch delete for an answer, and names the number', async () => {
+    batchCalls.length = 0
+    flatStub.conversations = [makeConversation()]
+    store.set(batchModeAtom, true)
+    store.set(selectedThreadIdsAtom, new Set(['t1', 't2']))
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByText('Delete 2 conversations?')).toBeDefined()
+    expect(batchCalls, 'the delete went to the server before the question').toEqual([])
+
+    // The sheet's own Delete is the second button with that name.
+    const confirms = screen.getAllByRole('button', { name: 'Delete' })
+    fireEvent.click(confirms[confirms.length - 1])
+    await waitFor(() => expect(batchCalls).toHaveLength(1))
+    expect(batchCalls[0]).toEqual({ action: 'delete', ids: ['t1', 't2'] })
+  })
+})

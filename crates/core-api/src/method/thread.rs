@@ -48,6 +48,26 @@ pub const PATH_UNARCHIVE: &str = "/v1/users/{user}/threads/{thread_id}/unarchive
 /// because a message they expected never appeared.
 pub const PATH_QUARANTINE_LIST: &str = "/v1/users/{user}/quarantine";
 
+/// What the review list answers with.
+///
+/// Its own type rather than [`crate::method::conversation::ListConversationsResponse`]
+/// because it carries a **total**, and that is the whole point: the
+/// route computed one all along — the index count the same walk
+/// produces — and threw it away. A reader who was served a page and
+/// no count could not tell "this is everything" from "this is the
+/// first page of many", and on 2026-08-31 that difference was 200
+/// against 439.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuarantineListResponse {
+    /// This page, newest first.
+    pub items: Vec<crate::types::ConversationSummaryWire>,
+    /// How many are held in total, not how many are on this page.
+    ///
+    /// From the index, not from counting the rows returned — so it is
+    /// right even when the page is the last one and short.
+    pub total: usize,
+}
+
 /// Release one held conversation: it was not fraud.
 ///
 /// Clears the flag, returns the conversation to whatever list it

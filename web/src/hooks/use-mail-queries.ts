@@ -6,6 +6,7 @@ import { mailKeys, type MailListFilters } from '@/lib/query-keys'
 import { conversationKeys } from '@/store/query-keys-v21'
 import { wireFetch } from '@/wire/client'
 import { adminListGet } from '@/wire/endpoints/admin'
+import { fetchQuarantineCount } from '@/wire/endpoints/fraud'
 import {
   wireThreadDetailResponseSchema,
   wireThreadListResponseSchema,
@@ -96,6 +97,30 @@ export function useConversationsQuery(filters: MailListFilters, enabled: boolean
     // refetches a list that is already stale, and only this one.
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
+  })
+}
+
+/**
+ * How many conversations are held for review.
+ *
+ * Its own query rather than a field on the list: the list is an
+ * infinite one whose pages are plain arrays, and threading an
+ * envelope through them would touch the optimistic-update machinery
+ * and every test that indexes `pages[0][0]`. This asks the same route
+ * for `limit=0`, which returns the index count and hydrates nothing.
+ *
+ * The number matters because the route was capped at 200 while 439
+ * were held: a tab reading `Review` said nothing at all, and a page
+ * of 200 could not be told from the whole.
+ */
+export function useQuarantineCountQuery(enabled: boolean = true) {
+  return useQuery({
+    enabled,
+    queryKey: conversationKeys.quarantineCount(),
+    queryFn: ({ signal }) => fetchQuarantineCount(signal),
+    // It changes when the sweep runs or somebody releases one, not
+    // between renders.
+    staleTime: 60_000,
   })
 }
 

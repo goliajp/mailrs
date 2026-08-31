@@ -2,7 +2,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { SlidersHorizontal } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 
-import { useCategoriesQuery } from '@/hooks/use-mail-queries'
+import { useCategoriesQuery, useQuarantineCountQuery } from '@/hooks/use-mail-queries'
 import { MAIL_LIST_TABS, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
 import {
   activeListAtom,
@@ -64,6 +64,7 @@ function tabButtonClass(isActive: boolean): string {
 // otherwise re-create the tabs + filter-panel JSX even though the
 // atom-backed state is identical.
 export const FilterBar = memo(function FilterBar() {
+  const heldCount = useQuarantineCountQuery().data ?? 0
   const activeList = useAtomValue(activeListAtom)
   const selectList = useSetAtom(selectMailListAtom)
   const [section, setSection] = useAtom(importanceSectionAtom)
@@ -125,6 +126,16 @@ export const FilterBar = memo(function FilterBar() {
             onClick={() => handleTab(id)}
           >
             {MAIL_LISTS[id].label}
+            {/* Only Review carries a number, and only when it is not
+                zero. The tab said `Review` and nothing else while the
+                route was capped at 200 and 439 were held — a page a
+                reader could not tell from the whole. It is a count,
+                not a badge: held mail is marked read when it is held,
+                because drawing the eye to an attempt to defraud is
+                what holding exists to stop. */}
+            {id === 'quarantine' && heldCount > 0 && (
+              <span className="text-fg-muted ml-1 font-normal tabular-nums">{heldCount}</span>
+            )}
           </button>
         ))}
       </div>

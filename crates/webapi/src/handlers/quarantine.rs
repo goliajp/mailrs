@@ -31,13 +31,32 @@ pub async fn list_quarantine(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
     axum::extract::Query(q): axum::extract::Query<QuarantineQuery>,
-) -> Result<Json<Vec<ConversationResponse>>, StatusCode> {
+) -> Result<Json<QuarantineListResponse>, StatusCode> {
+    // `min`, not `clamp(1, …)`: **zero is a question**, and it is the
+    // cheap one — "how many are held" without hydrating a row. The
+    // review tab asks it to put a number beside its name, and the
+    // count comes off the index either way, so a page of nothing
+    // costs nothing.
     let resp = state
         .core
-        .list_quarantined(&user, q.limit.unwrap_or(50).clamp(1, 200), q.before_ts)
+        .list_quarantined(&user, q.limit.unwrap_or(50).min(1000), q.before_ts)
         .await
         .map_err(map_err)?;
-    Ok(Json(resp.items.into_iter().map(Into::into).collect()))
+    Ok(Json(QuarantineListResponse {
+        items: resp.items.into_iter().map(Into::into).collect(),
+        total: resp.total,
+    }))
+}
+
+/// The review list, with the count the page came out of.
+///
+/// A bare array until 2026-08-31, which left nowhere to say how many
+/// there were: the route was capped at 200 and 439 were held, so a
+/// reader was shown a page and could not tell it from the whole.
+#[derive(serde::Serialize)]
+pub struct QuarantineListResponse {
+    pub items: Vec<ConversationResponse>,
+    pub total: usize,
 }
 
 /// POST /api/quarantine/{thread_id}/release — it was not fraud.

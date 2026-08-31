@@ -237,3 +237,38 @@ fn the_merge_pages_without_dropping_or_repeating() {
     sorted.dedup();
     assert_eq!(sorted.len(), 8, "a row appeared on two pages: {seen:?}");
 }
+
+/// **A page of nothing still knows how many there are.**
+///
+/// The review tab puts the count beside its name, and asking for it
+/// should not mean hydrating rows nobody is going to look at. Zero is
+/// therefore a question rather than a mistake, and the route passes
+/// it through with `min` instead of clamping it up to one.
+///
+/// Worth a test of its own because the failure is quiet: a `limit` of
+/// zero that returned `total: 0` would read as "nothing is held",
+/// which is the one answer indistinguishable from the true one.
+#[test]
+fn asking_for_no_rows_still_answers_how_many() {
+    let st = store();
+    let u = "alice@x.com";
+    for (tid, at) in [("t3", 300), ("t2", 200), ("t1", 100)] {
+        st.upsert_thread(u, &row(tid, at)).unwrap();
+    }
+    st.set_quarantined(u, "t3", true).unwrap();
+    st.set_quarantined(u, "t1", true).unwrap();
+
+    let held = ListThreadsFilter {
+        quarantine: QuarantineScope::Only,
+        ..Default::default()
+    };
+    let (rows, total) = st.list_threads_by_activity(u, &held, 0, 0).unwrap();
+    assert!(rows.is_empty(), "a limit of zero returned rows");
+    assert_eq!(total, 2, "the count came back as the page size");
+
+    // And the same question with rows agrees, so the cheap form is
+    // not answering a different question from the expensive one.
+    let (rows, total_with_rows) = st.list_threads_by_activity(u, &held, 0, 10).unwrap();
+    assert_eq!(tids(&rows), ["t3", "t1"]);
+    assert_eq!(total_with_rows, total);
+}
