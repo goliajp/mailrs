@@ -102,6 +102,12 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # 2026-08-03, two at different versions. Costs nothing to check.
     ./scripts/check-workspace-deps.sh
 
+    # The same duplication one layer out: `kevy-index` is depended on
+    # directly and has to move with `kevy-embedded`. Its manifest has
+    # said so since it was written, and on 2026-08-31 the workspace
+    # went to 6.2.1 while the pin stayed at 5.4.
+    ./scripts/check-kevy-versions.sh
+
     # Nothing verifies a TLS peer against a browser's roots alone.
     # `webpki-roots` tracks Mozilla's browser program and does not ship
     # `DigiCert Global Root CA`, which every Microsoft-hosted domain

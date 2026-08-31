@@ -146,7 +146,19 @@ spg-embedded = "7.38.4"
 #   - `appendfsync always` group-commits on both reactors.
 #   - a forced rewrite no longer spikes the reactor for ~200 ms.
 # Data directories open in both directions; the release gate replays that.
-kevy-embedded = "5.4"
+# 6.2.1, from 5.4.1. The major is the milestone's name, not a break:
+# the changelog's own evidence is 1,871 public names at 5.4.1 and the
+# same 1,871 at 6.0.0, none added or removed, with the wire protocol,
+# the on-disk formats and the replication stream untouched — so a data
+# directory written by 5.4 opens, which is the only question that
+# matters to a deployment holding 36k messages. Verified against a
+# copy of production rather than reasoned about
+# (`rules/verify-on-a-copy-not-on-prod.md`).
+#
+# One behaviour changed in 6.2: `-0` and `0` are one score, so a
+# member stored at `-0` moves among others scored `±0`. Every score
+# this project writes is a timestamp or a count.
+kevy-embedded = "6.2.1"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /
@@ -158,7 +170,7 @@ kevy-embedded = "5.4"
 # 2.0.0 (108 names, no additions, no removals); what the bump brings is
 # `From<KevyError> for io::Error`, which has been available since 4.1.0
 # and lets 498 hand-written `.map_err(io::Error::other)` calls become `?`.
-kevy-client = "2.2"
+kevy-client = "6.2.1"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
