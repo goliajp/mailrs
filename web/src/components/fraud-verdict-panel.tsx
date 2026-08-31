@@ -46,10 +46,14 @@ export function FraudVerdictPanel({
   const qc = useQueryClient()
   const { data: verdict } = useQuery({
     enabled: messageId !== '',
-    // The verdict never changes after it is written, so this is as
-    // static as data gets.
+    // It does change. `maintenance:fraud-rescan` rewrites the verdict
+    // on every run — a new `rules_version` and a new set of reasons —
+    // and the rules moved several times on 2026-08-30 alone. The
+    // comment here used to say it never changes after it is written,
+    // which is how a reader would have gone on being shown the reasons
+    // a since-retired rule gave.
     queryKey: ['fraud-verdict', messageId],
-    staleTime: Infinity,
+    staleTime: 60_000,
     queryFn: ({ signal }) => fetchFraudVerdict(messageId, signal),
   })
   const release = useMutation({

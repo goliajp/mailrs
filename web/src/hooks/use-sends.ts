@@ -27,7 +27,14 @@ export function useRedraftQuery(sendId: null | string) {
   return useQuery({
     enabled: Boolean(getToken()) && Boolean(sendId),
     queryKey: mailKeys.redraft(sendId ?? ''),
-    // The envelope is immutable, so this never goes stale.
+    // `Infinity`, and this one earns it: the handler reads the bytes
+    // of the envelope that was submitted
+    // (`handlers/sends/redraft.rs::envelope_bytes`), and nothing
+    // rewrites a send that already failed — a retry makes a new send.
+    // writers-checked: 2026-09-01 — every caller of the send store,
+    // on the thread query and on the fraud verdict turned out to be
+    // false. `staleTime: Infinity` is a claim about the writers, so
+    // it is only ever as good as having enumerated them.
     staleTime: Infinity,
     queryFn: () => wireGetRedraft(sendId ?? ''),
   })
