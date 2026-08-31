@@ -90,6 +90,21 @@ export function useMailEvents(user: string) {
       ws.onopen = () => {
         reconnectDelay = RECONNECT_BASE
         setConnectionStatus('connected')
+        // **Refetch on connect.** Events live in kevy for five minutes
+        // (`live_sync.rs::publish_new_mail`, SET+EXPIRE 300), and the
+        // comment there says a consumer offline longer than that "is
+        // fine because the frontend refetches full state on WS
+        // reconnect". It did not: this handler reset the backoff, set
+        // the status and started the ping, and nothing else.
+        //
+        // With `staleTime: Infinity` on the thread query that is not a
+        // gap of five minutes but a permanent one — a thread opened
+        // before a reply arrives stays at the message count it had,
+        // through navigation and through reload, because the cache is
+        // persisted. Reported 2026-09-01: the list row carried the
+        // reply's timestamp and the conversation pane showed two
+        // messages where the server had three.
+        invalidateAllMail()
         pingTimer.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send('ping')
