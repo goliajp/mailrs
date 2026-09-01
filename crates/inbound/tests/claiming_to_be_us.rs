@@ -96,6 +96,7 @@ fn it_reaches_junk_and_says_why() {
             ..mailrs_fraud::Facts::default()
         },
         &mailrs_fraud::Policy {
+            account_names: Vec::new(),
             org_names: names(),
             our_domains: ours(),
             allowed_domains: allowed(),

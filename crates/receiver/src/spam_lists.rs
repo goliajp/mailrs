@@ -144,6 +144,25 @@ pub async fn reply_rotation_async(
     .unwrap_or(0)
 }
 
+/// The display names on this deployment's own accounts.
+///
+/// Published at boot by fastcore, which holds the account store; this
+/// process does not, and needs them to see a stranger wearing one of
+/// our own people's names. Empty switches that check off, which
+/// delivers rather than holds.
+pub async fn account_names_async(client: Option<Arc<KevyNetClient>>) -> Vec<String> {
+    let Some(client) = client else {
+        return Vec::new();
+    };
+    tokio::task::spawn_blocking(move || {
+        client
+            .with_conn(|c| Ok(mailrs_core_sidestate::families::account_names::read(c)))
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -25,6 +25,39 @@ use crate::*;
 /// does not by itself mean damage — under `replay_resync` it counts
 /// bytes hopped over to recover a good tail, which is a better outcome
 /// than surrendering it.
+/// Publish every account's display name to the shared kevy.
+///
+/// Best-effort and at boot only: accounts change rarely, and a
+/// receiver that reads nothing delivers rather than holds.
+fn publish_account_names(mailbox: &KevyMailboxStore) {
+    let Some(url) = crate::live_sync::network_kevy_url() else {
+        tracing::warn!(
+            "no network kevy — account display names unpublished, so the receiver cannot \
+             see somebody wearing one of our own people's names"
+        );
+        return;
+    };
+    let Ok(mut conn) = kevy_client::Connection::connect(&url) else {
+        return;
+    };
+    let names: Vec<String> = mailbox
+        .list_account_addresses()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|a| mailbox.get_account_blob(a).ok().flatten())
+        .filter_map(|b| serde_json::from_str::<serde_json::Value>(&b).ok())
+        .filter_map(|v| {
+            v.get("display_name")
+                .and_then(|d| d.as_str())
+                .map(str::trim)
+                .filter(|d| !d.is_empty())
+                .map(str::to_string)
+        })
+        .collect();
+    tracing::info!(count = names.len(), "published account display names");
+    mailrs_core_sidestate::families::account_names::publish(&mut conn, &names);
+}
+
 fn report_boot(store: &Store) -> bool {
     let r = store.open_report();
     let intact = !r.corrupt && r.dropped_bytes == 0;
@@ -141,6 +174,15 @@ pub async fn run() {
     // (Until 2026-08-01 this comment still said the zsets were authoritative
     // and nothing read the table, which had been false since the cutover.)
     mailbox.ensure_thread_table();
+
+    // Publish who holds an account here, for the receiver — which has
+    // no account store and has to know, or a stranger wearing one of
+    // our own people's names arrives unremarked
+    // (`impersonates_one_of_us`). One writer, one source: the
+    // alternative is a second copy in a variable, and that
+    // arrangement already failed once when `MAILRS_ORG_NAMES` was set
+    // on the receiver and not here.
+    publish_account_names(&mailbox);
 
     // Alias-store backend selector — RFC 20260705 Step 2.
     // Default (`embed` / unset): historical fastcore-owned alias table

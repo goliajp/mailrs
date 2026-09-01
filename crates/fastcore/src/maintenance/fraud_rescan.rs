@@ -46,7 +46,7 @@ pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RescanQuery>,
 ) -> axum::response::Response {
-    let policy = policy_from_env();
+    let policy = policy_from_env(&state);
     // One connection for the whole sweep. The brand check needs to
     // know how familiar each sender's domain is, and connecting per
     // thread would be 34,000 connections.
@@ -405,17 +405,54 @@ pub(crate) async fn fraud_rescan_route(
     .into_response()
 }
 
+/// The display name on every account row.
+///
+/// Read here rather than configured, because the store is the
+/// authority on who has an account and a variable is a second copy
+/// that can drift from it.
+fn account_display_names(state: &Arc<FastcoreState>) -> Vec<String> {
+    let Ok(addrs) = state.mailbox.list_account_addresses() else {
+        return Vec::new();
+    };
+    addrs
+        .iter()
+        .filter_map(|a| state.mailbox.get_account_blob(a).ok().flatten())
+        .filter_map(|blob| serde_json::from_str::<serde_json::Value>(&blob).ok())
+        .filter_map(|v| {
+            v.get("display_name")
+                .and_then(|d| d.as_str())
+                .map(str::trim)
+                .filter(|d| !d.is_empty())
+                .map(str::to_string)
+        })
+        .collect()
+}
+
 /// The fraud policy this process was configured with, and a warning
 /// when half of it is missing.
 ///
 /// A sweep with no org names cannot fire the impersonation rule, and
 /// its `found` count comes back looking like an answer. Say so.
-fn policy_from_env() -> mailrs_fraud::Policy {
+fn policy_from_env(state: &Arc<FastcoreState>) -> mailrs_fraud::Policy {
     let policy = mailrs_fraud::Policy {
         org_names: csv_env("MAILRS_ORG_NAMES"),
         our_domains: csv_env("MAILRS_LOCAL_DOMAINS"),
         allowed_domains: csv_env("MAILRS_ORG_NAME_ALLOWED_DOMAINS"),
+        // **From the account rows, not from the environment.** A
+        // deployment knows who holds an account on it, and asking an
+        // operator to keep a second copy in a variable is asking for
+        // the thing that already happened once: `MAILRS_ORG_NAMES`
+        // was set on the receiver and not on this process, so half
+        // the impersonation check was silently off for a day
+        // (`rules/a-policy-the-process-cannot-read.md`).
+        account_names: account_display_names(state),
     };
+    if policy.account_names.is_empty() {
+        tracing::warn!(
+            "fraud rescan: no account display names — the check for somebody wearing one of \
+             our own people's names cannot fire."
+        );
+    }
     if policy.org_names.is_empty() {
         tracing::warn!(
             "fraud rescan: MAILRS_ORG_NAMES is empty — the impersonation check cannot fire, \
@@ -603,11 +640,13 @@ Subject: hi\r\n\r\nbody\r\n";
         let decoded = mailrs_inbound::from_header(format!("From: {from}\r\n\r\n").as_bytes());
 
         let configured = mailrs_fraud::Policy {
+            account_names: Vec::new(),
             org_names: vec!["GOLIA K.K.".into()],
             our_domains: vec!["golia.jp".into()],
             allowed_domains: Vec::new(),
         };
         let empty = mailrs_fraud::Policy {
+            account_names: Vec::new(),
             org_names: Vec::new(),
             our_domains: vec!["golia.jp".into()],
             allowed_domains: Vec::new(),
