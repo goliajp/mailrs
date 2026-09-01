@@ -153,6 +153,10 @@ pub(super) async fn run_antispam(
         ..mailrs_fraud::Facts::default()
     };
     let policy = mailrs_fraud::Policy {
+        // From the shared store, published by fastcore at boot — not
+        // from this process's environment, which is where the org
+        // names live and is why half this check was off for a day.
+        account_names: crate::spam_lists::account_names_async(ctx.spam_lists_client.clone()).await,
         org_names: ctx.org_names.clone(),
         our_domains: ctx.local_domains.iter().map(|d| d.to_lowercase()).collect(),
         allowed_domains: ctx.org_name_allowed_domains.clone(),

@@ -16,6 +16,17 @@ pub const RULE_BRAND_IS_THE_NAME: &str = "brand-is-the-display-name";
 /// somebody wanted.
 pub const BRAND_IS_THE_NAME_SCORE: f64 = 6.0;
 
+/// Somebody wearing the name of one of this deployment's own people.
+/// See [`crate::impersonation::impersonates_one_of_us`].
+pub const RULE_IMPERSONATES_ONE_OF_US: &str = "impersonates-one-of-us";
+
+/// Score for a display name that is one of our own account holders.
+///
+/// Held. 9 of 36,717 production messages, 8 of them fraud; the ninth
+/// is a Jira notification from a domain that belongs in the
+/// allow-list.
+pub const IMPERSONATES_ONE_OF_US_SCORE: f64 = 6.0;
+
 /// Somebody claiming to be this organisation.
 ///
 /// A rule id is a wire contract: a stored verdict names it, a

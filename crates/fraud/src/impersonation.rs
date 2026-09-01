@@ -76,6 +76,80 @@ pub fn claims_our_name(from: &str, names: &[String], ours: &[String], allowed: &
         .any(|n| folded.contains(&fold(n)))
 }
 
+/// Whether the display name **is** one of this deployment's own
+/// account holders, sent from a domain that is not ours.
+///
+/// # Why this is separate from [`claims_our_name`]
+///
+/// That one reads the display name for the *organisation's* name.
+/// This arrived on 2026-09-01 and carried neither:
+///
+/// ```text
+/// From: LI HAO <rupture@jadhj.com>
+/// Subject: [業務連絡]GOLIA株式会社
+///
+/// 業務連絡の効率化を目的として、今後一部の連絡をLINEにて行います。
+/// ご自身のLINEアカウントのQRコードを本メールへの返信にてお送りください。
+/// ```
+///
+/// The display name is a **person** at this company — the reader
+/// himself — and the company name is in the subject and the
+/// signature, where neither the display-name check nor the brand
+/// table looks. Two more of the same campaign arrived from
+/// `rumail.cc` and `ecokaku.jp` with `L I N E` spaced out to miss a
+/// keyword.
+///
+/// # Whose names, and why this list can be complete
+///
+/// The account rows'. A deployment knows definitively who holds an
+/// account on it, which is what separates this from the set of names
+/// *the reader* is addressed by — that one cannot be finished, and a
+/// rule resting on it convicts whatever it is missing
+/// (`rules/a-list-of-mine-is-never-complete.md`).
+///
+/// # Measured
+///
+/// Over 36,717 production messages, 9 carry a display name equal to
+/// one of the thirteen account names from a domain that is not ours.
+/// **Eight are fraud** — the three LINE ones above, and five Amazon
+/// phishes that happen to sign themselves `No Reply`, which is also
+/// the name on `noreply@golia.jp`.
+///
+/// The ninth is a real Jira notification, `LI HAO
+/// <jira@golia.atlassian.net>`: a SaaS putting your name in the
+/// display name because you told it to. That is exactly what
+/// `allowed` is for, and `golia.atlassian.net` belongs in it.
+///
+/// **Whole name, not substring.** `fold` removes spaces, so a
+/// substring test would match any display name containing `LIHAO`.
+#[must_use]
+pub fn impersonates_one_of_us(
+    from: &str,
+    account_names: &[String],
+    ours: &[String],
+    allowed: &[String],
+) -> bool {
+    let Some(address) = address_of(from) else {
+        return false;
+    };
+    let Some(domain) = address.rsplit('@').next() else {
+        return false;
+    };
+    let domain = domain.trim().trim_end_matches('>').to_ascii_lowercase();
+    if domain.is_empty() || in_domain_list(&domain, ours) || in_domain_list(&domain, allowed) {
+        return false;
+    }
+    let display = display_name_of(from);
+    if display.is_empty() {
+        return false;
+    }
+    let folded = fold(&display);
+    account_names
+        .iter()
+        .filter(|n| !n.trim().is_empty())
+        .any(|n| folded == fold(n))
+}
+
 /// The address inside `<…>`, or the whole field when there are no
 /// angle brackets.
 pub(crate) fn address_of(from: &str) -> Option<&str> {
@@ -149,6 +223,110 @@ fn in_domain_list(domain: &str, list: &[String]) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    fn us() -> Vec<String> {
+        [
+            "LI HAO",
+            "No Reply",
+            "WEN SHUAI",
+            "XIA XI",
+            "YU WENXI",
+            "Sakai",
+            "TJ",
+            "GGI",
+            "QA",
+            "Roro",
+        ]
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+    }
+    /// **The campaign that prompted this rule**, verbatim from
+    /// production. The display name is the reader's own; the company
+    /// name is in the subject and the signature, where the
+    /// display-name check does not look.
+    #[test]
+    fn one_of_our_own_names_on_a_stranger_domain_is_caught() {
+        for from in [
+            "LI HAO <rupture@jadhj.com>",
+            "LI HAO <kevin_8055@rumail.cc>",
+            "LI HAO <keiri@ecokaku.jp>",
+            // Five Amazon phishes sign themselves this, which is also
+            // the name on `noreply@golia.jp`.
+            "noreply <noreply@mail01.lingshiluntan.com>",
+        ] {
+            assert!(
+                impersonates_one_of_us(from, &us(), &ours(), &[]),
+                "not caught: {from}"
+            );
+        }
+    }
+
+    /// The ninth of the nine: Jira putting the reader's name on a
+    /// notification because they told it to. `allowed` is what makes
+    /// the difference, and the rule is unusable without it.
+    #[test]
+    fn a_saas_we_told_our_names_to_is_left_alone() {
+        let allowed = vec!["golia.atlassian.net".to_string()];
+        assert!(!impersonates_one_of_us(
+            "LI HAO <jira@golia.atlassian.net>",
+            &us(),
+            &ours(),
+            &allowed
+        ));
+        // …and without the allow-list entry it would be caught, so
+        // the test is about the entry rather than about the domain
+        // happening not to match.
+        assert!(impersonates_one_of_us(
+            "LI HAO <jira@golia.atlassian.net>",
+            &us(),
+            &ours(),
+            &[]
+        ));
+    }
+
+    /// Our own people, sending from our own domains.
+    #[test]
+    fn our_own_mail_is_not_impersonation() {
+        for from in ["LI HAO <lihao@golia.jp>", "No Reply <noreply@golia.ai>"] {
+            assert!(!impersonates_one_of_us(from, &us(), &ours(), &[]));
+        }
+    }
+
+    /// **The whole name.** `fold` removes spaces, so a substring test
+    /// would convict any display name with `LIHAO` anywhere in it —
+    /// and the point of this rule is that the name is worn, not
+    /// mentioned.
+    #[test]
+    fn a_name_merely_contained_is_not_worn() {
+        for from in [
+            "LI HAO via LinkedIn <x@linkedin.com>",
+            "Notification for LI HAO <x@example.com>",
+        ] {
+            assert!(
+                !impersonates_one_of_us(from, &us(), &ours(), &[]),
+                "wrongly caught: {from}"
+            );
+        }
+    }
+
+    /// No names configured is the check switched off, not every
+    /// sender convicted.
+    #[test]
+    fn an_unconfigured_deployment_convicts_nobody() {
+        assert!(!impersonates_one_of_us(
+            "LI HAO <x@evil.invalid>",
+            &[],
+            &ours(),
+            &[]
+        ));
+        assert!(!impersonates_one_of_us(
+            "LI HAO <x@evil.invalid>",
+            &["".into(), "  ".into()],
+            &ours(),
+            &[]
+        ));
+    }
     use super::*;
 
     fn names() -> Vec<String> {

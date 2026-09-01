@@ -82,7 +82,18 @@ pub struct Policy {
     /// Domains allowed to carry the organisation's name in a display
     /// name — Slack, GitHub, Atlassian and the like, whose
     /// notifications say your company's name because you told them to.
+    ///
+    /// They are allowed the *people's* names too, and for the same
+    /// reason: `LI HAO <jira@golia.atlassian.net>` is Jira saying who
+    /// did the thing.
     pub allowed_domains: Vec<String>,
+    /// The display names on this deployment's own account rows.
+    ///
+    /// Unlike the set of names the *reader* is addressed by, this one
+    /// can be complete: a deployment knows who holds an account on
+    /// it. Empty turns the check off, which is the safe direction —
+    /// see [`impersonation::impersonates_one_of_us`].
+    pub account_names: Vec<String>,
 }
 
 /// Everything one message offers the rules, extracted once.
@@ -310,6 +321,21 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
             ),
         ));
     }
+    // Somebody wearing one of our own people's names.
+    if impersonation::impersonates_one_of_us(
+        facts.from,
+        &policy.account_names,
+        &policy.our_domains,
+        &policy.allowed_domains,
+    ) {
+        out.push(Finding::new(
+            RULE_IMPERSONATES_ONE_OF_US,
+            Layer::Identity,
+            IMPERSONATES_ONE_OF_US_SCORE,
+            "the display name is one of this deployment's own people, and \
+             the domain is not ours",
+        ));
+    }
     // A hostname that names a company it is not.
     //
     // **Held.** A subdomain is chosen by whoever owns the parent, so
@@ -386,6 +412,7 @@ mod tests {
 
     fn policy() -> Policy {
         Policy {
+            account_names: Vec::new(),
             org_names: vec!["GOLIA株式会社".into()],
             our_domains: vec!["golia.jp".into(), "golia.ai".into()],
             allowed_domains: vec!["slack.com".into(), "github.com".into()],
