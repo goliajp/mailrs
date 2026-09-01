@@ -158,7 +158,20 @@ spg-embedded = "7.38.4"
 # One behaviour changed in 6.2: `-0` and `0` are one score, so a
 # member stored at `-0` moves among others scored `±0`. Every score
 # this project writes is a timestamp or a count.
-kevy-embedded = "6.2.1"
+# 6.2.2 fixes what this project's own test suite reported: several
+# tests opening one persist directory at once. The second `Store`
+# appended its own `KEVYAOF2` magic into the first one's live AOF and
+# the next replay quarantined it silently — the same shape as the
+# `docker exec` backfill that opened `/data/kevy-fastcore` beside a
+# running fastcore. Every engine now claims its directory with an
+# advisory `flock` and a second open errors instead of interleaving.
+#
+# **That makes a deliberate double-open an error**, and four binaries
+# in the image do exactly that: `mailrs-fastcore-{migrate,
+# backfill-contacts,backfill-uid-index,backfill-usage}` all open
+# `MAILRS_KEVY_DATA_DIR`. Run them against a stopped fastcore, which
+# is what they always needed and now say so.
+kevy-embedded = "6.2.2"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /
@@ -170,7 +183,7 @@ kevy-embedded = "6.2.1"
 # 2.0.0 (108 names, no additions, no removals); what the bump brings is
 # `From<KevyError> for io::Error`, which has been available since 4.1.0
 # and lets 498 hand-written `.map_err(io::Error::other)` calls become `?`.
-kevy-client = "6.2.1"
+kevy-client = "6.2.2"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
