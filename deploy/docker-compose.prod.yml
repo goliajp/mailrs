@@ -241,6 +241,14 @@ services:
 
   kevy-server:
     container_name: mailrs-kevy
+    # 6.2.2 since 2026-09-01. It fixes what this project reported: a
+    # second engine on one persist directory used to interleave —
+    # appending its own `KEVYAOF2` magic into the live AOF, which the
+    # next replay quarantined silently — and now refuses with an
+    # advisory `flock`. Rehearsed on a copy the same way: four shards
+    # (clean), `bayes` 27,104 against 27,104, every prefix without a
+    # TTL +0.
+    #
     # 6.2.1 since 2026-08-31, from 5.1.0. Rehearsed on a copy of the
     # production directory on t02 before the swap, the same way 5.1.0
     # was: four AOF shards replayed **(clean)**, 1,305,342 commands
@@ -264,7 +272,7 @@ services:
     # After a rewrite the only rollback is restoring the directory —
     # `/apps/mailrs/kevy-backup-20260831-1422` is the copy taken
     # before this swap.
-    image: ghcr.io/goliajp/kevy:6.2.1
+    image: ghcr.io/goliajp/kevy:6.2.2
     pull_policy: always
     mem_limit: 1g
     volumes:

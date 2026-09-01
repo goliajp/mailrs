@@ -18,6 +18,21 @@
 //!
 //! Idempotent — a second run finds no losers and changes nothing.
 //! Run with the owning fastcore STOPPED (embedded kevy dir lock).
+//!
+//! # It opens the live kevy directory, so fastcore must be stopped
+//!
+//! kevy 6.2.2 claims a persist directory with an advisory `flock` on
+//! open, and a second engine on the same directory now **errors**.
+//! Before that it interleaved: the second `Store` appended its own
+//! `KEVYAOF2` magic into the first one's live AOF and the next replay
+//! quarantined the record silently. A `docker exec` of this binary
+//! beside a running fastcore also doubled the resident set and was
+//! OOM-killed at the 1 GB limit — the visible half of the same
+//! mistake.
+//!
+//! So: stop fastcore, run this, start it again. For anything that can
+//! be done in-process, prefer a `maintenance:` route on the running
+//! server, which is why most of the backfills are routes now.
 
 use kevy_embedded::{Config, Store};
 use mailrs_core_api::method::message::MessageWire;
