@@ -228,6 +228,14 @@ pub async fn handle_plain_connection(
     );
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
+    // The banner is the first line of every SMTP conversation. It was
+    // written straight to the socket, so the live monitor's transcript
+    // began at the client's EHLO with nothing above it.
+    ctx.event_bus.emit(SmtpEvent::ResponseSent {
+        id: conn_id,
+        response: greeting.trim_end().to_string(),
+        state_after: format!("{:?}", session.state),
+    });
     if framed.send(greeting).await.is_err() {
         ctx.metrics.on_disconnect();
         ctx.event_bus
@@ -356,6 +364,14 @@ pub async fn handle_tls_connection(
     );
 
     let greeting = Response::greeting(&ctx.hostname).format_greeting();
+    // The banner is the first line of every SMTP conversation. It was
+    // written straight to the socket, so the live monitor's transcript
+    // began at the client's EHLO with nothing above it.
+    ctx.event_bus.emit(SmtpEvent::ResponseSent {
+        id: conn_id,
+        response: greeting.trim_end().to_string(),
+        state_after: format!("{:?}", session.state),
+    });
     if framed.send(greeting).await.is_err() {
         ctx.metrics.on_disconnect();
         ctx.event_bus
