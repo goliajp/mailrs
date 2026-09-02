@@ -7,8 +7,19 @@ function getWsUrl() {
   const token = localStorage.getItem('mailrs_auth')
   const parsed = token ? JSON.parse(token) : null
   const tokenParam = parsed?.token ? `?token=${encodeURIComponent(parsed.token)}` : ''
-  return `${proto}//${location.host}/api/events${tokenParam}`
+  return `${proto}//${location.host}${SMTP_WS_PATH}${tokenParam}`
 }
+
+// The monitor's own stream. `/api/events` is the inbox feed and carries
+// a different event vocabulary entirely — pointing this hook at it is
+// why the page reported "connected" and showed nothing for as long as
+// the four-process split has existed.
+//
+// Spelled as its own literal rather than interpolated into the URL
+// above: `scripts/check-dead-routes.sh` scans for path literals, and a
+// path that only ever appears glued to a `${...}` is a path the gate
+// cannot see a caller for.
+const SMTP_WS_PATH = '/api/events/smtp'
 const STATUS_URL = '/api/status'
 
 export function useSmtpEvents() {

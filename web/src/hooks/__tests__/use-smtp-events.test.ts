@@ -14,6 +14,8 @@ let mockWs: {
   send: ReturnType<typeof vi.fn>
 }
 
+let lastWsUrl = ''
+
 class MockWebSocket {
   static CLOSED = 3
   static CLOSING = 2
@@ -28,7 +30,8 @@ class MockWebSocket {
   readyState = 1
   send = vi.fn()
 
-  constructor() {
+  constructor(url: string) {
+    lastWsUrl = url
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     mockWs = this
   }
@@ -43,6 +46,7 @@ describe('useSmtpEvents', () => {
       json: () =>
         Promise.resolve({
           active_connections: 0,
+          receiver_uptime_secs: 42,
           total_connections: 0,
           total_messages: 0,
           uptime_secs: 100,
@@ -73,6 +77,18 @@ describe('useSmtpEvents', () => {
       mockWs.onmessage?.({ data: JSON.stringify(event) })
     })
   }
+
+  // The defect this file did not catch for the life of the four-process
+  // split: the hook subscribed to `/api/events`, which is the inbox feed
+  // and carries `NewMessage` — never `ConnectionOpened`. Every other test
+  // here passes by pushing frames into `onmessage` by hand, so none of
+  // them can tell which stream those frames would really have come from.
+  it('subscribes to the SMTP trace stream, not the inbox feed', async () => {
+    await renderSmtpEvents()
+
+    expect(lastWsUrl).toContain('/api/events/smtp')
+    expect(lastWsUrl).toContain('token=test-token')
+  })
 
   it('returns initial state', async () => {
     const { result } = await renderSmtpEvents()

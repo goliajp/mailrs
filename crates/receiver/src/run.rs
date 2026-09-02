@@ -25,22 +25,33 @@ use crate::inbound::pipeline::build_inbound_pipeline;
 use crate::inbound::rate_limit::{RateLimitStore, TokenBucketConfig};
 use crate::inbound::stages::mail_auth::MailAuthResolvers;
 use crate::kevy_net::KevyNetClient;
-use crate::kevy_notify::{KevyEventPublisher, NOTIFY_CHANNEL, process_origin};
+use crate::kevy_notify::{
+    KevyEventPublisher, KevyTracePublisher, NOTIFY_CHANNEL, process_origin, publish_stats,
+};
 use crate::smtp_session::spool_sink::MaildirSpoolSink;
 use crate::smtp_session::{ConnectionContext, handle_plain_connection, handle_tls_connection};
+use crate::stats::{ReceiverCounters, SharedCounters};
 
 /// Connection / inbound-verdict metrics for the receiver. Emits prometheus
-/// counters via the global `metrics` recorder (a no-op if none is installed).
-struct ReceiverMetrics;
+/// counters via the global `metrics` recorder (a no-op if none is installed),
+/// and keeps the same three numbers in process-local atomics — prometheus is
+/// a scrape endpoint, and the live monitor wants the current values pushed
+/// to it over a socket.
+struct ReceiverMetrics {
+    counters: SharedCounters,
+}
 
 impl ConnectionMetrics for ReceiverMetrics {
     fn on_connect(&self) {
+        self.counters.on_connect();
         metrics::counter!("mailrs_receiver_connections_total").increment(1);
     }
     fn on_disconnect(&self) {
+        self.counters.on_disconnect();
         metrics::counter!("mailrs_receiver_disconnects_total").increment(1);
     }
     fn on_message_delivered(&self) {
+        self.counters.on_message();
         metrics::counter!("mailrs_receiver_spooled_total").increment(1);
     }
     fn inbound_accept(&self) {
@@ -233,12 +244,22 @@ pub async fn run() {
     // event bus that publishes cross-process events (SpoolDelivered) to the
     // shared kevy-server. The receiver only publishes — the core runs the
     // subscriber bridge.
+    let counters: SharedCounters = Arc::new(ReceiverCounters::default());
+    spawn_stats_heartbeat(kevy_client.clone(), counters.clone());
+
     let publisher = Arc::new(KevyEventPublisher::new(
         kevy_client.clone(),
         NOTIFY_CHANNEL.to_vec(),
         process_origin(),
     ));
-    let event_bus = EventBus::new(1024).with_publisher(publisher);
+    // Second channel, same mechanism: the SMTP session trace. Without
+    // this the whole protocol trace stops inside this process — the
+    // monitor page in webapi-fc connects, reports "connected", and shows
+    // nothing for as long as it is left open.
+    let trace_publisher = Arc::new(KevyTracePublisher::new(kevy_client.clone()));
+    let event_bus = EventBus::new(1024)
+        .with_publisher(publisher)
+        .with_trace_publisher(trace_publisher);
 
     let spool_sink: Option<Arc<dyn crate::smtp_session::SpoolSink>> =
         Some(Arc::new(MaildirSpoolSink::new(&cfg.spool_root)));
@@ -255,7 +276,9 @@ pub async fn run() {
         tls_state,
         users,
         event_bus,
-        metrics: Arc::new(ReceiverMetrics) as Arc<dyn ConnectionMetrics>,
+        metrics: Arc::new(ReceiverMetrics {
+            counters: counters.clone(),
+        }) as Arc<dyn ConnectionMetrics>,
         rate_limiter,
         local_domains: cfg.local_domains.clone(),
         org_names: cfg.org_names.clone(),
@@ -325,6 +348,25 @@ pub async fn run() {
     wait_for_shutdown().await;
     let _ = shutdown_tx.send(true);
     tracing::info!("mailrs-receiver shutting down");
+}
+
+/// Push the four counters onto the stats channel on a slow tick.
+///
+/// This is a heartbeat, not the periodic *repair* that
+/// `periodic-work-must-converge` is about: there is no stable "nothing to
+/// do" state to converge to, because `uptime_secs` differs on every tick
+/// by construction. What that rule does still demand is that the tick be
+/// cheap and bounded — one small PUBLISH to a channel that is a no-op
+/// when nobody has subscribed, and nothing written to the durable store.
+fn spawn_stats_heartbeat(client: Arc<KevyNetClient>, counters: SharedCounters) {
+    const TICK: std::time::Duration = std::time::Duration::from_secs(10);
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(TICK);
+        loop {
+            ticker.tick().await;
+            publish_stats(&client, &counters.snapshot());
+        }
+    });
 }
 
 #[cfg(unix)]

@@ -29,6 +29,68 @@ use mailrs_core::event_bus::{EventBus, SmtpEvent};
 /// The default pub/sub channel for mail notifications.
 pub const NOTIFY_CHANNEL: &[u8] = b"notify:new-mail";
 
+/// The SMTP live monitor's two channels. Defined in `core-sidestate`
+/// because the reader is a different process in a different crate — see
+/// the module docs there for why they are not spelled here.
+pub use mailrs_core_sidestate::smtp_monitor::{STATS_CHANNEL, TRACE_CHANNEL};
+
+/// Publishes one SMTP session's protocol trace to [`TRACE_CHANNEL`].
+///
+/// Unlike [`KevyEventPublisher`] this sends the **bare** `SmtpEvent`,
+/// with no origin envelope. The loop guard exists for a process that both
+/// publishes and subscribes; nothing subscribes to the trace channel except
+/// the monitor in another process, so an envelope here would only mean the
+/// reader has to know the envelope's shape — a second place for the wire
+/// format to be spelled, and the one that goes wrong silently.
+pub struct KevyTracePublisher {
+    client: Arc<KevyNetClient>,
+}
+
+impl KevyTracePublisher {
+    pub fn new(client: Arc<KevyNetClient>) -> Self {
+        Self { client }
+    }
+}
+
+impl mailrs_core::event_bus::EventPublisher for KevyTracePublisher {
+    fn publish(&self, event: &SmtpEvent) {
+        let Ok(json) = serde_json::to_vec(event) else {
+            return;
+        };
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            let _ = tokio::task::spawn_blocking(move || {
+                client.with_conn(|c| {
+                    c.publish(TRACE_CHANNEL, &json)
+                        .map(|_| ())
+                        .map_err(std::io::Error::from)
+                })
+            })
+            .await;
+        });
+    }
+}
+
+/// Publish one counter snapshot. Fire-and-forget, like the event
+/// publisher: a monitor nobody is watching must not be able to slow the
+/// receiver down, and a missed frame costs one tick of staleness.
+pub fn publish_stats(client: &Arc<KevyNetClient>, stats: &crate::stats::ReceiverStats) {
+    let Ok(json) = serde_json::to_vec(stats) else {
+        return;
+    };
+    let client = client.clone();
+    tokio::spawn(async move {
+        let _ = tokio::task::spawn_blocking(move || {
+            client.with_conn(|c| {
+                c.publish(STATS_CHANNEL, &json)
+                    .map(|_| ())
+                    .map_err(std::io::Error::from)
+            })
+        })
+        .await;
+    });
+}
+
 /// Wire envelope: an [`SmtpEvent`] plus the publishing process's
 /// `origin` id (for the subscriber's self-skip loop guard).
 #[derive(Serialize, Deserialize)]
@@ -172,6 +234,75 @@ mod tests {
             .expect("bridge should deliver within timeout")
             .expect("recv ok");
         assert!(matches!(got.event, SmtpEvent::NewMessage { .. }));
+    }
+
+    /// The monitor's contract, end to end over kevy's in-process bus:
+    /// what lands on the trace channel must parse as a **bare**
+    /// `SmtpEvent`, because `webapi` forwards the payload verbatim to
+    /// the browser and the browser parses it as one. An envelope here
+    /// would reach the page as `{"origin":…}` with no `type`, and the
+    /// page's `switch` would silently drop every frame — connected, and
+    /// still empty.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_trace_lands_on_the_wire_as_a_bare_event() {
+        use mailrs_core::event_bus::EventPublisher;
+
+        let url = "mem://trace-shape-test";
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            if let Ok(mut sub) = Subscriber::connect_channels(url, &[TRACE_CHANNEL])
+                && let Ok((chan, payload)) = sub.recv_message()
+            {
+                let _ = tx.send((chan, payload));
+            }
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let client = Arc::new(KevyNetClient::new(url));
+        KevyTracePublisher::new(client).publish(&SmtpEvent::CommandReceived {
+            id: 7,
+            command: "EHLO example.net".into(),
+            state_before: "Connected".into(),
+        });
+
+        let (chan, payload) = rx
+            .recv_timeout(Duration::from_secs(3))
+            .expect("trace should reach the channel");
+        assert_eq!(chan, TRACE_CHANNEL);
+        let event: SmtpEvent =
+            serde_json::from_slice(&payload).expect("payload must be a bare SmtpEvent");
+        assert!(matches!(event, SmtpEvent::CommandReceived { id: 7, .. }));
+    }
+
+    /// And the counters, on their own channel, in the shape the reader
+    /// deserialises. Same failure mode, different half.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stats_land_on_their_own_channel() {
+        let url = "mem://trace-stats-test";
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            if let Ok(mut sub) = Subscriber::connect_channels(url, &[STATS_CHANNEL])
+                && let Ok((chan, payload)) = sub.recv_message()
+            {
+                let _ = tx.send((chan, payload));
+            }
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let counters = crate::stats::ReceiverCounters::default();
+        counters.on_connect();
+        counters.on_message();
+        let client = Arc::new(KevyNetClient::new(url));
+        publish_stats(&client, &counters.snapshot());
+
+        let (chan, payload) = rx
+            .recv_timeout(Duration::from_secs(3))
+            .expect("stats should reach the channel");
+        assert_eq!(chan, STATS_CHANNEL);
+        let stats: crate::stats::ReceiverStats = serde_json::from_slice(&payload).unwrap();
+        assert_eq!(stats.total_connections, 1);
+        assert_eq!(stats.total_messages, 1);
+        assert_eq!(stats.active_connections, 1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

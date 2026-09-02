@@ -52,6 +52,15 @@ pub struct WebState {
     /// `/api/events` upgrade. Held here so all WS clients share
     /// a single kevy subscribe loop.
     pub event_bus: std::sync::OnceLock<handlers::events::EventBus>,
+    /// Fan-out for the SMTP live monitor's protocol trace, started on
+    /// the first `/api/events/smtp` upgrade. Separate from `event_bus`
+    /// on purpose — see `handlers::smtp_monitor`.
+    pub trace_bus: std::sync::OnceLock<handlers::smtp_monitor::TraceBus>,
+    /// Latest counter frame from `mailrs-receiver`. `None` until one
+    /// arrives, which `/api/status` reports as `null` — the receiver's
+    /// counters live in another process, and "not yet heard from" is a
+    /// different answer from "zero".
+    pub receiver_stats: Arc<handlers::smtp_monitor::StatsCache>,
     /// Wall-clock start of this webapi process, used to compute the
     /// `uptime_secs` field surfaced by `/api/health` + `/api/status`.
     /// UI status bars and SMTP-monitor cards read this to render a
@@ -110,6 +119,8 @@ impl WebState {
             core,
             bind_addr,
             event_bus: std::sync::OnceLock::new(),
+            trace_bus: std::sync::OnceLock::new(),
+            receiver_stats: Arc::new(handlers::smtp_monitor::StatsCache::default()),
             started_at: std::time::Instant::now(),
             llm_config,
         }
@@ -175,23 +186,32 @@ async fn readiness_handler(
 }
 
 /// /api/status — version + build info + webapi lifetime. No auth
-/// required. Additional metric fields (SMTP counters, queue depth) are
-/// nulled out here rather than pretending they're zero: in the fastcore
-/// 4-process split those counters live in `mailrs-receiver` +
-/// `mailrs-fastcore-sender`, not in this webapi process. UIs that render
-/// them treat `null` as "no data" (a dash), which is the truthful thing
-/// to show — v1.9.4 shipped a monitor page that read the absent fields
-/// as `0` and displayed `NaN` uptime; explicit nulls fix both.
+/// required.
+///
+/// The SMTP counters live in `mailrs-receiver`, a different process in
+/// the four-process split. They reach here over the monitor's stats
+/// channel (`handlers::smtp_monitor`) and are served from the cache that
+/// subscriber fills. Until a frame arrives they stay `null`, which UIs
+/// render as a dash — v1.9.4 shipped a monitor page that read the absent
+/// fields as `0` and displayed `NaN` uptime, and "unknown" told as
+/// "zero" is the failure this endpoint exists to avoid. `queue` is still
+/// null: its counter is in `mailrs-fastcore-sender` and nothing
+/// publishes it yet.
 async fn status_handler(
     axum::extract::State(state): axum::extract::State<Arc<WebState>>,
 ) -> axum::Json<serde_json::Value> {
+    // The three SMTP counters belong to `mailrs-receiver`, a different
+    // process. They arrive over the monitor's stats channel and are
+    // cached here; `None` until one does, which is not the same as zero.
+    let stats = state.receiver_stats.get();
     axum::Json(serde_json::json!({
         "service": "mailrs-webapi",
         "version": env!("CARGO_PKG_VERSION"),
         "uptime_secs": state.started_at.elapsed().as_secs(),
-        "active_connections": serde_json::Value::Null,
-        "total_connections": serde_json::Value::Null,
-        "total_messages": serde_json::Value::Null,
+        "active_connections": stats.map(|s| s.active_connections),
+        "total_connections": stats.map(|s| s.total_connections),
+        "total_messages": stats.map(|s| s.total_messages),
+        "receiver_uptime_secs": stats.map(|s| s.uptime_secs),
         "queue": serde_json::Value::Null,
     }))
 }
@@ -228,6 +248,11 @@ pub async fn run() {
     handlers::metrics::install();
 
     let state = Arc::new(WebState::from_env());
+    // Subscribe to the receiver's trace + counter channels now, not on
+    // the first monitor connection — `/api/status` answers from the
+    // cache this fills, and that endpoint has callers that never open
+    // the monitor.
+    handlers::smtp_monitor::spawn(&state);
     tracing::info!(
         bind = %state.bind_addr,
         version = env!("CARGO_PKG_VERSION"),
@@ -318,6 +343,8 @@ mod router_tests {
             )),
             bind_addr: "127.0.0.1:0".into(),
             event_bus: std::sync::OnceLock::new(),
+            trace_bus: std::sync::OnceLock::new(),
+            receiver_stats: Arc::new(handlers::smtp_monitor::StatsCache::default()),
             started_at: std::time::Instant::now(),
             llm_config: None,
         });
@@ -348,6 +375,8 @@ mod router_tests {
             )),
             bind_addr: "127.0.0.1:0".into(),
             event_bus: std::sync::OnceLock::new(),
+            trace_bus: std::sync::OnceLock::new(),
+            receiver_stats: Arc::new(handlers::smtp_monitor::StatsCache::default()),
             started_at: std::time::Instant::now(),
             llm_config: None,
         });

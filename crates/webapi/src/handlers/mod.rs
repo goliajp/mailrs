@@ -46,6 +46,7 @@ pub mod search;
 pub mod send;
 pub mod send_queue;
 pub mod sends;
+pub mod smtp_monitor;
 pub mod spam_lists;
 pub mod system_config;
 pub mod totp_util;

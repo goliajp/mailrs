@@ -69,8 +69,8 @@ export function Protocol() {
         />
         <StatusCard
           color="text-fg-secondary"
-          label="Uptime"
-          value={formatUptime(status?.uptime_secs)}
+          label="Receiver Uptime"
+          value={formatUptime(status?.receiver_uptime_secs)}
         />
       </div>
 

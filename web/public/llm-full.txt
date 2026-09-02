@@ -1047,11 +1047,27 @@ curl https://mail.golia.ai/api/admin/config/smtp \
 
 ### WebSocket
 
+Two streams, with different vocabularies. Neither carries the other's
+events, and asking the wrong one is indistinguishable from an idle server.
+
 ```
 wss://mail.golia.ai/api/events?token=<session_token>
 ```
 
-Real-time events for new messages, SMTP activity. Used by the web UI for live updates.
+Inbox changes — `NewMessage`, `InviteReceived`. Durable: served from
+kevy's change feed, so a client that reconnects does not miss what
+landed while it was away. Used by the web UI for live updates.
+
+```
+wss://mail.golia.ai/api/events/smtp?token=<session_token>
+```
+
+One SMTP session's protocol trace — `ConnectionOpened`,
+`CommandReceived`, `ResponseSent`, `TlsUpgraded`, `Authenticated`,
+`MessageDelivered`, `SpamRejected`, `MessageQueued`, `ConnectionClosed`
+— published by `mailrs-receiver`. Diagnostic and **not** durable: a
+frame published while nobody is subscribed is gone. Used by the SMTP
+live monitor.
 
 ---
 
