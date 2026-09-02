@@ -41,8 +41,18 @@ for path in glob.glob("crates/webapi/src/router/*.rs"):
 
 # Callers. The web's `wireFetch` takes paths without the `/api`
 # prefix and adds it, so both spellings count.
+#
+# `types.openapi.ts` is EXCLUDED, and that exclusion is the whole gate.
+# It is generated from `web/public/openapi.json`, so every documented
+# path appears in it as a string literal — 134 of 168 registered routes
+# on 2026-09-02. The spec was counting as a client, so for four routes
+# in five this check could not come out non-zero whatever any client
+# did. Removing it surfaced 26 routes in one go, listed in the allow
+# file under the dated backlog heading.
+GENERATED = {"web/src/lib/types.openapi.ts"}
 called = set()
 web = [f for ext in ("ts", "tsx") for f in glob.glob(f"web/src/**/*.{ext}", recursive=True)]
+web = [f for f in web if f.replace("\\", "/") not in GENERATED]
 for path in web + glob.glob("ios/Mailrs/**/*.swift", recursive=True):
     text = open(path).read()
     # Interpolations collapse *before* the scan, not after: a TS
@@ -57,8 +67,15 @@ for path in web + glob.glob("ios/Mailrs/**/*.swift", recursive=True):
     # path character, so a regex anchored on the closing quote saw
     # none of those: 19 paths across the tree were invisible, and a
     # route reached only that way looked dead. Terminate on `?` too.
+    # A path need not fill the whole literal. `html-frame.tsx` builds
+    # `${before}/api/proxy/link?url=${...}` — after the collapse above
+    # that reads `{}/api/proxy/link?url={}`, so a pattern anchored on
+    # the quotes saw the route and called it dead. Accept a collapsed
+    # interpolation as a boundary on either side; the quote anchor is
+    # still what keeps a route named in a comment from counting.
     for m in re.finditer(
-        r"""['"`](/(?:api/)?[a-zA-Z0-9/_{}$.:%-]*)(?:\?[^'"`]*)?['"`]""", text
+        r"""(?:['"`]|\{\})(/(?:api/)?[a-zA-Z0-9/_{}$.:%-]*)(?:\?[^'"`]*)?(?:['"`]|\{\})""",
+        text,
     ):
         raw = m.group(1)
         if not raw.startswith("/api"):

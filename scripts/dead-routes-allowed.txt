@@ -25,3 +25,55 @@
 /api/admin/audit/conversations/{thread_id}  # the audit page reads `/{thread_id}/messages`, which is the level it displays. The bare thread route returns the same rows unfiltered.
 /api/admin/audit-log/export                 # the audit page lists with `?limit=`; nobody has asked to download the log. Left because an export that has to be re-added later is worse than one that waits.
 /api/mail/sends/{send_id}/source            # `message/rfc822` bytes of a send. Web reaches `/redraft` and `/resend`, which are what the Send view offers; raw source has no UI on either client.
+
+# ============================================================
+# 2026-09-03 — the backlog this gate could not see
+#
+# Until today the caller scan read `web/src/lib/types.openapi.ts`,
+# which is GENERATED from `web/public/openapi.json` and therefore
+# contains a string literal for every documented path — 134 of 168
+# registered routes. The spec was counting as a client, so for four
+# routes in five this gate could not come out non-zero whatever any
+# client did. Excluding it surfaced the 25 below in one go.
+#
+# They are split by what was actually checked. The first group has a
+# verified reason. The second is DEBT: real gaps, dated, listed so the
+# gate ratchets — nothing NEW may join this file without a reason —
+# rather than staying invisible.
+# ============================================================
+
+# ---- verified: the caller is not in this repo ----
+
+/api/readiness                  # container/orchestrator probe. An in-repo client would be the wrong consumer.
+/api/keys/{address}/pgp         # "public PGP key lookup (unauthenticated)" — fetched by a correspondent's mail client, not by ours.
+/api/keys/{address}/smime       # as above.
+/api/auth/verify                # "password verification without session creation (internal RPC only)".
+/api/auth/verify-totp           # "internal-rpc TOTP code check (used by external IdP integrations to defer 2FA to mailrs)".
+/api/auth/oidc/login            # a browser redirect target; the UI never fetches it. 501 when no upstream IdP is configured.
+/api/auth/oidc/callback         # the IdP redirects the browser here. Same reason.
+/api/admin/oauth-clients        # mailrs as an OIDC provider: an operator API for registering relying parties. No admin UI has been asked for.
+/api/admin/oauth-clients/{client_id}  # as above.
+/api/admin/export               # a data export an operator runs against the API. Deliberately not a UI button.
+/api/mail/inline/{id}           # the URL is minted by the server — `inline-upload` answers `{url: "/api/mail/inline/<id>"}` and it lands in composed HTML. Reached, just never spelled by a client.
+
+# ---- DEBT (2026-09-03): a client is missing, not unnecessary ----
+#
+# Each of these is a capability with one side of the wire built. None
+# is fixed here; they are recorded so they stop being invisible. Do
+# not add to this section — a NEW route with no client is the thing
+# the gate exists to stop.
+
+/api/push/tokens/{token}        # DEBT: "sign-out unregisters the device" — and nothing calls it. iOS registers a token and never removes one, so push keeps reaching a signed-out device.
+/api/mail/templates/{id}        # DEBT: templates can be listed and created from the composer; DELETE has no caller, so a template cannot be removed from any interface.
+/api/mail/keys                  # DEBT: the list shape. Settings reads `/mail/keys/status` instead; one of the two is superseded and nobody has said which.
+/api/mail/messages/{uid}/flags  # DEBT: per-message IMAP flags over REST. The web works in thread verbs and never reaches it.
+/api/mail/spam-feedback         # DEBT: "record the user's spam vote" — no UI votes, so the store is always empty, so /api/admin/spam-feedback-stats always reports zero. Bayesian training now runs off the mark-junk hook; this pair may simply be superseded.
+/api/admin/spam-feedback-stats  # DEBT: the reader for the above. Cannot report anything but zero while nothing writes.
+/api/admin/rbl-status           # DEBT: reads `admin:rbl:status`, "populated by an out-of-band worker" that does not exist. A reader with no writer.
+/api/admin/reputation           # DEBT: reads `admin:reputation`, "empty until the reputation subsystem writes". Same shape.
+/api/admin/reconcile-maildir    # DEBT: scans for unindexed maildir files and reports counts. No UI surfaces it, so nobody sees the count.
+/api/admin/accounts/{address}/overrides  # DEBT: per-account policy overrides with no admin UI.
+/api/admin/cache/flush-conversations     # DEBT: its own doc says "no-op in the fastcore" topology. A route that does nothing, called by nobody — delete candidate rather than a gap.
+/api/conversations/semantic-search       # DEBT: search moved to kevy's text index on 2026-07-20; this may be the leftover of the vector path. Superseded or unfinished, unverified which.
+/api/bimi/{domain}              # DEBT: a bare BIMI TXT lookup. `/api/icon/{domain}` does its own `bimi_lookup` internally, so this looks superseded.
+/api/proxy/image                # DEBT: html-frame.tsx says in as many words that images are NOT proxied — the Shadow DOM fetches them directly, 5-10x faster. A leftover of the iframe era; delete candidate.
