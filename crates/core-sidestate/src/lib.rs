@@ -34,3 +34,4 @@ pub trait NetKevy: Send + Sync + 'static {
 }
 
 pub mod families;
+pub mod smtp_monitor;

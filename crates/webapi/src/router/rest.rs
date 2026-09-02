@@ -231,6 +231,14 @@ pub(super) fn unauth_routes() -> axum::Router<Arc<WebState>> {
         // set custom headers on WebSocket. Auth is inside the handler
         // (checks kevy `session:<token>` directly).
         .route("/api/events", get(handlers::events::ws_events))
+        // The SMTP live monitor's own stream. Same auth shape as
+        // `/api/events` (token in the query — a browser WebSocket
+        // cannot set a header), different vocabulary: protocol trace,
+        // not inbox changes.
+        .route(
+            "/api/events/smtp",
+            get(handlers::smtp_monitor::ws_smtp_trace),
+        )
         // Prometheus, unauth on internal network.
         .route("/metrics", get(handlers::metrics::prometheus_metrics))
         // Public-key lookup by address — unauth (used by any correspondent).

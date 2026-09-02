@@ -111,6 +111,30 @@ impl SmtpEvent {
                 | SmtpEvent::SpoolDelivered { .. }
         )
     }
+
+    /// Whether this event belongs to one SMTP session's protocol trace —
+    /// the stream the live monitor renders (`ConnectionOpened` through
+    /// `ConnectionClosed`, everything carrying a session `id`).
+    ///
+    /// Deliberately a *separate* question from [`Self::crosses_process`].
+    /// The notify channel wakes inboxes on every connected client; a
+    /// protocol trace is diagnostic and belongs only to whoever has the
+    /// monitor open, so it travels on its own channel and never enters
+    /// the durable change feed.
+    pub fn is_session_trace(&self) -> bool {
+        matches!(
+            self,
+            SmtpEvent::ConnectionOpened { .. }
+                | SmtpEvent::CommandReceived { .. }
+                | SmtpEvent::ResponseSent { .. }
+                | SmtpEvent::TlsUpgraded { .. }
+                | SmtpEvent::Authenticated { .. }
+                | SmtpEvent::MessageDelivered { .. }
+                | SmtpEvent::SpamRejected { .. }
+                | SmtpEvent::MessageQueued { .. }
+                | SmtpEvent::ConnectionClosed { .. }
+        )
+    }
 }
 
 /// Envelope wrapping an [`SmtpEvent`] for broadcast.
@@ -165,6 +189,12 @@ pub struct EventBus {
     /// When set, [`Self::emit`] also publishes cross-process-worthy
     /// events to a shared kevy-server (receiver-split topology).
     publisher: Option<Arc<dyn EventPublisher>>,
+    /// When set, [`Self::emit`] also publishes session-trace events
+    /// (see [`SmtpEvent::is_session_trace`]) to a second channel. The
+    /// SMTP live monitor is the only consumer; without it the whole
+    /// protocol trace stops at this process, which is what left that
+    /// page permanently empty in the four-process split.
+    trace_publisher: Option<Arc<dyn EventPublisher>>,
 }
 
 impl EventBus {
@@ -173,6 +203,7 @@ impl EventBus {
         Self {
             tx,
             publisher: None,
+            trace_publisher: None,
         }
     }
 
@@ -183,11 +214,23 @@ impl EventBus {
         self
     }
 
+    /// Attach the session-trace publisher. Same lifetime rule as
+    /// [`Self::with_publisher`] — set before the bus is cloned around.
+    pub fn with_trace_publisher(mut self, publisher: Arc<dyn EventPublisher>) -> Self {
+        self.trace_publisher = Some(publisher);
+        self
+    }
+
     pub fn emit(&self, event: SmtpEvent) {
         // cross-process publish (best-effort) for notify-worthy events,
         // before the local broadcast so a slow publisher doesn't gate it.
         if let Some(ref publisher) = self.publisher
             && event.crosses_process()
+        {
+            publisher.publish(&event);
+        }
+        if let Some(ref publisher) = self.trace_publisher
+            && event.is_session_trace()
         {
             publisher.publish(&event);
         }
@@ -266,6 +309,100 @@ mod tests {
         let j2 = env2.json();
         assert!(Arc::ptr_eq(&j1, &j2));
         assert!(j1.contains("\"type\":\"ConnectionClosed\""));
+    }
+
+    /// A publisher that records what it was handed. The two routing
+    /// questions the bus asks — `crosses_process` and `is_session_trace`
+    /// — are only meaningful if each publisher gets exactly its own set,
+    /// so the assertion is on what arrives, not on the predicate.
+    #[derive(Default)]
+    struct Recorder(std::sync::Mutex<Vec<String>>);
+
+    impl EventPublisher for Recorder {
+        fn publish(&self, event: &SmtpEvent) {
+            self.0.lock().unwrap().push(
+                serde_json::to_value(event).unwrap()["type"]
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+            );
+        }
+    }
+
+    #[test]
+    fn the_two_publishers_get_disjoint_sets() {
+        let notify = Arc::new(Recorder::default());
+        let trace = Arc::new(Recorder::default());
+        let bus = EventBus::new(64)
+            .with_publisher(notify.clone())
+            .with_trace_publisher(trace.clone());
+
+        bus.emit(SmtpEvent::ConnectionOpened {
+            id: 1,
+            addr: "1.2.3.4:25".into(),
+            tls: false,
+        });
+        bus.emit(SmtpEvent::CommandReceived {
+            id: 1,
+            command: "EHLO x".into(),
+            state_before: "Connected".into(),
+        });
+        bus.emit(SmtpEvent::ConnectionClosed { id: 1 });
+        bus.emit(SmtpEvent::SpoolDelivered {
+            spool_id: "s".into(),
+            recipient_count: 1,
+        });
+
+        // The monitor's stream. Without the trace publisher these three
+        // stop inside the receiver process and the live monitor is empty
+        // however long it stays connected.
+        assert_eq!(
+            *trace.0.lock().unwrap(),
+            ["ConnectionOpened", "CommandReceived", "ConnectionClosed"]
+        );
+        // …and the notify channel that wakes every client's inbox must
+        // not carry protocol chatter.
+        assert_eq!(*notify.0.lock().unwrap(), ["SpoolDelivered"]);
+    }
+
+    #[test]
+    fn no_event_is_both_a_notify_and_a_trace() {
+        let all: Vec<SmtpEvent> = vec![
+            SmtpEvent::ConnectionOpened {
+                id: 0,
+                addr: String::new(),
+                tls: false,
+            },
+            SmtpEvent::NewMessage {
+                user: String::new(),
+                thread_id: String::new(),
+                sender: String::new(),
+                subject: String::new(),
+                snippet: String::new(),
+            },
+            SmtpEvent::InviteReceived {
+                user: String::new(),
+                message_id: 0,
+                method: String::new(),
+                uid: String::new(),
+            },
+            SmtpEvent::SpoolDelivered {
+                spool_id: String::new(),
+                recipient_count: 0,
+            },
+            SmtpEvent::MessageDelivered {
+                id: 0,
+                from: String::new(),
+                to: vec![],
+                size: 0,
+            },
+        ];
+        for e in &all {
+            assert!(
+                !(e.crosses_process() && e.is_session_trace()),
+                "{e:?} would be published twice"
+            );
+        }
     }
 
     #[test]

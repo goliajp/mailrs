@@ -2988,6 +2988,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events/smtp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SMTP live monitor stream
+         * @description WebSocket upgrade. Streams one bare `SmtpEvent` JSON object per frame — the protocol trace published by `mailrs-receiver`. Distinct from `/api/events`, which carries inbox changes. Auth via `?token=`, because a browser WebSocket cannot set a header.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Switching Protocols — WebSocket */
+                101: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Missing or unknown session token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invites/{message_id}/counter": {
         parameters: {
             query?: never;

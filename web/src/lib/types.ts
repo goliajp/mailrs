@@ -225,12 +225,17 @@ export type Reservation = {
 }
 
 // v2 fastcore split: `/api/status` is served by mailrs-webapi, which
-// doesn't own SMTP counters (those live in mailrs-receiver). The webapi
-// returns `null` for fields it can't populate; the UI shows a `-` there
-// rather than a lying `0`.
+// doesn't own the SMTP counters — those live in mailrs-receiver and reach
+// webapi over the monitor's stats channel. Until a frame arrives they are
+// `null`, and the UI shows a `-` rather than a lying `0`.
+//
+// `uptime_secs` is this webapi process; `receiver_uptime_secs` is the
+// receiver's. They are different processes and restart independently, so
+// they are two fields rather than one.
 export type ServerStatus = {
   active_connections: null | number
   queue?: null | QueueStats
+  receiver_uptime_secs?: null | number
   total_connections: null | number
   total_messages: null | number
   uptime_secs: null | number
