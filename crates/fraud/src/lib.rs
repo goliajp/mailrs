@@ -55,6 +55,7 @@ pub mod mailer_fingerprint;
 pub mod minted_address;
 pub mod reply_rotation;
 pub mod sending_host;
+pub mod subject_is_our_name;
 
 #[cfg(any(test, feature = "testing"))]
 pub use finding::findings_for;
@@ -319,6 +320,22 @@ pub fn scan(facts: &Facts<'_>, policy: &Policy) -> Findings {
                 "replies go to a domain that {} different sending domains use",
                 facts.reply_rotation
             ),
+        ));
+    }
+    // A subject that is this organisation's name and nothing else.
+    if subject_is_our_name::subject_is_our_name(
+        facts.from,
+        facts.subject,
+        &policy.org_names,
+        &policy.our_domains,
+        &policy.allowed_domains,
+    ) {
+        out.push(Finding::new(
+            RULE_SUBJECT_IS_OUR_NAME,
+            Layer::Identity,
+            SUBJECT_IS_OUR_NAME_SCORE,
+            "the subject is this organisation's name and little else, from \
+             a domain that is not ours",
         ));
     }
     // Somebody wearing one of our own people's names.

@@ -214,7 +214,7 @@ pub(crate) fn fold_char(c: char) -> char {
 }
 
 /// A domain matches an entry exactly, or as a subdomain of it.
-fn in_domain_list(domain: &str, list: &[String]) -> bool {
+pub(crate) fn in_domain_list(domain: &str, list: &[String]) -> bool {
     list.iter().any(|d| {
         let d = d.trim().to_ascii_lowercase();
         !d.is_empty() && (domain == d || domain.ends_with(&format!(".{d}")))
