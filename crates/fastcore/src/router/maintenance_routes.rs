@@ -169,6 +169,15 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
         // Records which sending domains funnel into each off-domain
         // reply address, so the rotation rule can convict a campaign
         // whose first three domains already delivered.
+        // One file on disk, two message rows: the monolith registered
+        // a message under its real Message-ID and something later
+        // registered the same file under the synthetic id that path
+        // mints when there is none. Read-only — deleting a row needs
+        // to know which UID a client already has.
+        .route(
+            "/v1/admin/maintenance:duplicate-blob-census",
+            post(crate::maintenance::duplicate_blob_census_route),
+        )
         .route(
             "/v1/admin/maintenance:backfill-reply-rotation",
             post(crate::maintenance::backfill_reply_rotation_route),
