@@ -16,6 +16,18 @@ pub const RULE_BRAND_IS_THE_NAME: &str = "brand-is-the-display-name";
 /// somebody wanted.
 pub const BRAND_IS_THE_NAME_SCORE: f64 = 6.0;
 
+/// A subject that is this organisation's name and almost nothing
+/// else. See [`crate::subject_is_our_name`].
+pub const RULE_SUBJECT_IS_OUR_NAME: &str = "subject-is-our-name";
+
+/// Score for a subject that is only the organisation's name.
+///
+/// Held. 24 of 36,976 production messages, every one of them the
+/// same BEC campaign; the 66 messages that merely *name* the company
+/// are untouched, and the nearest of them has six characters beside
+/// the name where the threshold is four.
+pub const SUBJECT_IS_OUR_NAME_SCORE: f64 = 6.0;
+
 /// Somebody wearing the name of one of this deployment's own people.
 /// See [`crate::impersonation::impersonates_one_of_us`].
 pub const RULE_IMPERSONATES_ONE_OF_US: &str = "impersonates-one-of-us";
