@@ -179,6 +179,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             post(crate::maintenance::duplicate_blob_census_route),
         )
         .route(
+            "/v1/admin/maintenance:duplicate-blob-repair",
+            post(crate::maintenance::duplicate_blob_repair_route),
+        )
+        .route(
             "/v1/admin/maintenance:backfill-reply-rotation",
             post(crate::maintenance::backfill_reply_rotation_route),
         )
