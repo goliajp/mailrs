@@ -152,7 +152,7 @@ pub fn impersonates_one_of_us(
 
 /// The address inside `<…>`, or the whole field when there are no
 /// angle brackets.
-pub(crate) fn address_of(from: &str) -> Option<&str> {
+pub fn address_of(from: &str) -> Option<&str> {
     if let Some(open) = from.rfind('<') {
         let rest = &from[open + 1..];
         return Some(rest.split('>').next().unwrap_or(rest));
@@ -164,7 +164,7 @@ pub(crate) fn address_of(from: &str) -> Option<&str> {
 }
 
 /// Everything before the address, quotes stripped.
-pub(crate) fn display_name_of(from: &str) -> String {
+pub fn display_name_of(from: &str) -> String {
     let head = match from.rfind('<') {
         Some(open) => &from[..open],
         None => "",
@@ -175,7 +175,7 @@ pub(crate) fn display_name_of(from: &str) -> String {
 /// Case-folded and stripped of the spaces a sender puts between the
 /// characters of a name to slip a literal comparison — `GOLIA 株式会社`
 /// and `ＧＯＬＩＡ株式会社` are the same claim as `GOLIA株式会社`.
-pub(crate) fn fold(s: &str) -> String {
+pub fn fold(s: &str) -> String {
     s.chars()
         .filter(|c| !c.is_whitespace() && !is_zero_width(c))
         .map(fold_char)

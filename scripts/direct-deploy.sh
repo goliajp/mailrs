@@ -240,6 +240,21 @@ fi
 
 echo "==> [3/6] prod: save | ssh load + compose up"
 docker save "$GHCR" | gzip -1 | ssh "$PROD" 'gunzip | docker load'
+if [ "${VERIFY_FRAUD_MIGRATION:-0}" = 1 ]; then
+    ./scripts/check-fraud-migration.sh "$GHCR"
+fi
+# Mount the directory, not active.lua itself: rename must be visible to both
+# scoring roles. Never overwrite a bundle published independently of binaries.
+ssh "$PROD" "set -e
+mkdir -p /apps/mailrs/fraud-rules
+exec 9>/apps/mailrs/fraud-rules/.publish.lock
+flock -x 9
+if [ ! -f /apps/mailrs/fraud-rules/active.lua ]; then
+  docker run --rm --network none --entrypoint mailrs-fraud-check '$GHCR' bundle > /apps/mailrs/fraud-rules/bootstrap.lua
+  chmod 644 /apps/mailrs/fraud-rules/bootstrap.lua
+  mv /apps/mailrs/fraud-rules/bootstrap.lua /apps/mailrs/fraud-rules/active.lua
+fi"
+
 # Ship the compose file too. Without this a deploy silently keeps the
 # host's old one, so any environment change (a new variable, a changed
 # default) never reaches the containers while the version number and

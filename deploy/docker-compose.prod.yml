@@ -50,6 +50,7 @@ services:
       # — `mailrs-fraud`. Full names only: `golia` as a substring
       # matches 490 GitHub notifications carrying a `goliajp/…` path.
       MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
+      MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
       # Services that carry the company's name because we told them to.
       # Slack's workspace is legitimately called GOLIA株式会社, and its
       # notifications are three of the twelve messages that match.
@@ -64,6 +65,7 @@ services:
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
+      - /apps/mailrs/fraud-rules:/fraud-rules:ro
       - /apps/mailrs/certs:/certs:ro
     restart: unless-stopped
 
@@ -117,6 +119,7 @@ services:
       # receive path.
       MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
       MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
+      MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net
       MAILRS_SRS_SECRET: ${MAILRS_SRS_SECRET:-}
       # Must be an FQDN: it becomes Reporting-MTA in every DSN we
@@ -150,6 +153,7 @@ services:
       RUST_LOG: info
     volumes:
       - mailrs-data:/data
+      - /apps/mailrs/fraud-rules:/fraud-rules:ro
       - /apps/mailrs/certs:/certs:ro
       # The APNs key. Read-only, and the reason `MAILRS_APNS_KEY_PATH`
       # was inert before: the variable named /secrets and nothing

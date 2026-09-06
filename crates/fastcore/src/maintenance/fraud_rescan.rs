@@ -1,10 +1,7 @@
-//! Apply the fraud checks to mail that arrived before they existed.
+//! Re-evaluate historical mail with the same Lua rules as the receiver.
 //!
-//! `mailrs-fraud` runs at receive time, so a signal added on Tuesday
-//! reaches Wednesday's mail and never touches Monday's. The wave this
-//! was written for had been landing for months: fifty-odd messages
-//! sitting in inboxes, every one of which the new checks would have
-//! caught.
+//! Hot reload changes future scans; existing verdicts change only when
+//! this bounded sweep is explicitly applied.
 //!
 //! # Dry by default
 //!
@@ -193,7 +190,15 @@ pub(crate) async fn fraud_rescan_route(
                 reply_rotation,
                 ..mailrs_fraud::Facts::default()
             };
-            let findings = mailrs_fraud::scan(&facts, &policy);
+            let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
+                Ok(scan) => scan,
+                Err(error) => {
+                    tracing::error!(%error, %user, %tid, "fraud rescan evaluation failed; leaving thread unchanged");
+                    verdict_failed += 1;
+                    continue;
+                }
+            };
+            let findings = scan.findings;
             // The one definition of "this is held", shared with the
             // verdict this sweep is about to store. `findings.any()`
             // here and a score threshold there is what left 43 held
@@ -295,7 +300,8 @@ pub(crate) async fn fraud_rescan_route(
                     }
                 }
                 Action::Hold => {
-                    let verdict = rescan_verdict(&raw, &findings);
+                    let mut verdict = rescan_verdict(&raw, &findings);
+                    verdict.rules_version = scan.version.clone();
                     match serde_json::to_string(&verdict) {
                         Ok(json) => {
                             if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, &json) {

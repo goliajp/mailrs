@@ -61,7 +61,8 @@ RUN echo "cache-bust=$CACHE_BUST version=$VERSION" \
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-receiver \
+    cargo build --release --bin mailrs-fraud-check \
+    && cargo build --release --bin mailrs-receiver \
     && cargo build --release --bin mailrs-webapi \
     && cargo build --release --bin mailrs-sender \
     && cargo build --release --bin mailrs-fastcore \
@@ -72,6 +73,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cargo build --release --bin mailrs-fastcore-sender \
     && cargo build --release -p mailrs-pg-dump \
     && cargo build --release -p mailrs-core-sync \
+    && cp /build/target/release/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
     && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
@@ -124,6 +126,7 @@ RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sb
 # it comes back it should be a slim pg-core serving core-api — the same
 # contract fastcore serves — rather than a second implementation of
 # every protocol. See .claude/rfcs/20260722-monolith-out-of-image.md.
+COPY --from=rust-builder /usr/local/bin/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check
 COPY --from=rust-builder /usr/local/bin/mailrs-receiver /usr/local/bin/mailrs-receiver
 # Phase 3 (webapi split): same one-image-many-roles pattern. Idle unless
 # the container's entrypoint is overridden to `mailrs-webapi`. Talks to

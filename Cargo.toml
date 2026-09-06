@@ -11,6 +11,7 @@ resolver = "2"
 members = [
     "crates/test-docker",
     "crates/fraud",
+    "crates/fraud-lua",
     "crates/smtp-proto",
     "crates/storage-maildir",
     "crates/uidlist",
