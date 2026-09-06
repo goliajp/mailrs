@@ -41,9 +41,23 @@ Review the report's added/removed holds and samples before activation.
 
 Receiver and fastcore mount the **directory** read-only, so rename is visible to
 both. `MAILRS_FRAUD_RULES_FILE=/fraud-rules/active.lua` selects it. Each scoring
-worker checks at most every five seconds, on its next message. No timer scans
-old mail: use the existing bounded `maintenance:fraud-rescan` with a dry run,
-then `action=hold&dry_run=false` when applying the reviewed result.
+worker checks at most every five seconds, on its next message.
+
+Fastcore also detects the active bundle version and queues a durable historical
+backfill automatically (including the first deployment). It snapshots conversation
+identities, processes 100 per batch with pauses, then checkpoints before the next
+batch. A restart resumes that snapshot; new arrivals cannot shift an offset and
+skip old mail. A newer bundle replaces the outstanding job. Evaluation or write
+errors retain the batch cursor and retry with backoff; a fallback rule version
+does not count as success for the requested version. Completed jobs do no more
+mailbox scanning until the version changes.
+
+Progress is stored in `/data/kevy-fastcore/fraud-backfill/progress.json` and logged
+as `fraud backfill progress` (cursor, total, held, released, no_file, complete).
+`no_file` reports conversations whose original message cannot be read; they are
+left unchanged. Existing holds unsupported by the new rules are released; hold
+matches enter Review and become read. Replaying a batch only writes differences.
+The manual bounded `maintenance:fraud-rescan` remains available for a dry run.
 
 A verdict stores `lua:<SHA-256>` in its existing `rules_version` field. Compile
 failures keep that worker's current VM. An evaluation failure runs the previous

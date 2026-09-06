@@ -60,6 +60,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
 argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }

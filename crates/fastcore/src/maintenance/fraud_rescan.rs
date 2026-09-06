@@ -37,11 +37,33 @@ const PAUSE_EVERY: u64 = 25;
 pub(crate) use decision::*;
 
 mod decision;
+mod holding;
+
+pub(crate) fn snapshot(state: &FastcoreState) -> std::io::Result<Vec<(String, String)>> {
+    let mut targets = Vec::new();
+    for user in state.mailbox.list_account_addresses()? {
+        for tid in state.mailbox.all_thread_ids_for_user(&user)? {
+            targets.push((user.clone(), tid));
+        }
+    }
+    targets.sort();
+    Ok(targets)
+}
 
 /// `POST /v1/admin/maintenance:fraud-rescan?dry_run=false`
 pub(crate) async fn fraud_rescan_route(
     State(state): State<Arc<FastcoreState>>,
     Query(q): Query<RescanQuery>,
+) -> axum::response::Response {
+    rescan(state, q, None, None).await
+}
+
+/// The background worker supplies an immutable batch and pins its rule version.
+pub(crate) async fn rescan(
+    state: Arc<FastcoreState>,
+    q: RescanQuery,
+    targets: Option<Vec<(String, String)>>,
+    expected_version: Option<&str>,
 ) -> axum::response::Response {
     let policy = policy_from_env(&state);
     // One connection for the whole sweep. The brand check needs to
@@ -55,10 +77,10 @@ pub(crate) async fn fraud_rescan_route(
              familiar domain from a fresh one, so it will not fire"
         );
     }
-    let users = match state.mailbox.list_account_addresses() {
-        Ok(u) => u,
+    let targets = match targets.map(Ok).unwrap_or_else(|| snapshot(&state)) {
+        Ok(targets) => targets,
         Err(e) => {
-            tracing::error!(err = %e, "list_account_addresses failed");
+            tracing::error!(err = %e, "fraud snapshot failed");
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -85,282 +107,241 @@ pub(crate) async fn fraud_rescan_route(
     let mut by_reason: HashMap<String, u64> = HashMap::new();
     let mut samples: Vec<serde_json::Value> = Vec::new();
 
-    'walk: for user in &users {
-        for tid in state
-            .mailbox
-            .all_thread_ids_for_user(user)
-            .unwrap_or_default()
-        {
-            seen += 1;
-            if seen <= q.skip {
-                continue;
-            }
-            if walked >= q.limit {
-                stopped_early = true;
-                break 'walk;
-            }
-            walked += 1;
-            if walked.is_multiple_of(PAUSE_EVERY) {
-                tokio::time::sleep(std::time::Duration::from_millis(q.pause_ms)).await;
-            }
+    for (user, tid) in &targets {
+        seen += 1;
+        if seen <= q.skip {
+            continue;
+        }
+        if walked >= q.limit {
+            stopped_early = true;
+            break;
+        }
+        walked += 1;
+        if walked.is_multiple_of(PAUSE_EVERY) {
+            tokio::time::sleep(std::time::Duration::from_millis(q.pause_ms)).await;
+        }
 
-            let Some((message_id, raw)) = newest_raw(&state, user, &tid) else {
-                no_file += 1;
-                // A conversation with no file cannot be re-judged, so
-                // it can never be released either — it stays hidden
-                // whatever the rules say afterwards. Counted apart
-                // from `no_file`, which otherwise folds that together
-                // with the ordinary case of a thread that was not
-                // held in the first place.
-                if state
-                    .mailbox
-                    .get_thread_for_user(user, &tid)
-                    .ok()
-                    .flatten()
-                    .is_some_and(|t| t.quarantined)
-                {
-                    held_but_unreadable += 1;
-                }
-                continue;
-            };
-            let from = mailrs_inbound::from_header(&raw);
-            // The count as it stands, **not** minus this message.
-            //
-            // It was minus one, reasoning that the sweep re-plays the
-            // moment the mail arrived and its own arrival should not
-            // make its sender look familiar. That is the wrong job:
-            // a sweep is not a re-enactment, it is a fresh judgement
-            // with everything known today. The subtraction only made
-            // every domain one message less familiar than it is, and
-            // on 2026-08-30 that pushed a legitimate sender off the
-            // edge — `three` messages from `rooms-online.jp`, the
-            // 三井住友銀行 appointment confirmations, read as `two`
-            // and were held.
-            //
-            // A threshold with a subtraction under it is a different
-            // threshold, and not the one the corpus was measured
-            // against.
-            let seen = domain_seen(hist.as_mut(), &from);
-            // The same facts the receive path assembles, from the
-            // same extractors. Two assemblies of one message is how
-            // a folded header came to be visible on one path and not
-            // the other.
-            let host = from
-                .rfind('@')
-                .map(|at| from[at + 1..].trim_end_matches('>').trim().to_string())
-                .unwrap_or_default();
-            let registrable = mailrs_fraud::brand::registrable(&host);
-            let x = mailrs_inbound::x_mailer_header(&raw);
-            // The same reading the receive path takes, from the same
-            // function. Without it the sweep cannot see a display
-            // name that renders as something other than it says —
-            // and that is how the one the user asked about survived
-            // a full re-scan.
-            let deception = mailrs_inbound::deception_in_identity(&raw);
-            let name_deception = mailrs_inbound::deception_in_display_name(&raw);
-            let parsed = mailrs_mime::parse(&raw);
-            let attachments: Vec<&str> = parsed
-                .attachments()
-                .filter_map(|p| p.attachment_filename())
-                .collect();
-            let subject = mailrs_inbound::subject_header(&raw);
-            let to_display = mailrs_inbound::identity::to_display_name(&raw);
-            let reply_to = mailrs_inbound::identity::reply_to_address(&raw);
-            // Read, not recorded. The sweep walks the same message
-            // more than once over its life, and a set does not care
-            // — but the live path is the one that owns the writing,
-            // and a sweep that also wrote would make "how many
-            // domains" depend on how often the sweep had run.
-            let reply_rotation = reading::reply_rotation(&mut hist, &host, &reply_to);
-            let facts = mailrs_fraud::Facts {
-                from: &from,
-                subject: &subject,
-                domain: &host,
-                registrable: &registrable,
-                domain_seen: seen,
-                x_mailer: x.as_deref(),
-                has_zero_width: deception.unjustified_zero_width,
-                has_bidi_override: deception.bidi_override,
-                has_zero_width_in_name: name_deception.unjustified_zero_width,
-                has_executable_attachment: mailrs_fraud::attachment::any_executable(
-                    attachments.iter().copied(),
-                ),
-                has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
-                to_display: &to_display,
-                reply_rotation,
-                ..mailrs_fraud::Facts::default()
-            };
-            let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
-                Ok(scan) => scan,
-                Err(error) => {
-                    tracing::error!(%error, %user, %tid, "fraud rescan evaluation failed; leaving thread unchanged");
-                    verdict_failed += 1;
-                    continue;
-                }
-            };
-            let findings = scan.findings;
-            // The one definition of "this is held", shared with the
-            // verdict this sweep is about to store. `findings.any()`
-            // here and a score threshold there is what left 43 held
-            // conversations carrying a verdict that said otherwise.
-            if !mailrs_inbound::holds(&findings) {
-                // **And release it if it is still held.** The sweep
-                // that only ever adds is a sweep a rule change
-                // cannot reach: when the two brand rules were
-                // demoted to suspicion on 2026-08-30 — because
-                // whether this deployment finds a sender familiar
-                // may not be grounds for hiding their mail — thirty
-                // conversations went on being hidden by a rule that
-                // no longer holds anything, and nothing in the
-                // system could have noticed.
-                //
-                // Safe to do automatically because **no hold is a
-                // person's judgement**. Two places set it: this
-                // sweep, and `ingest.rs`, which acts on the verdict
-                // the receive path stored. Both are the rules
-                // speaking, so the rules may take it back.
-                //
-                // The version of this comment that shipped on
-                // 2026-08-31 said the sweep was the only one. It was
-                // written from a grep that missed `ingest.rs`, and it
-                // is the reason held mail kept arriving unread: that
-                // path holds and — until the same day — did not mark
-                // read. A release path resting on "there is only one
-                // writer" has to name them.
-                let held_now = state
-                    .mailbox
-                    .get_thread_for_user(user, &tid)
-                    .ok()
-                    .flatten()
-                    .is_some_and(|t| t.quarantined);
-                if disposition(false, held_now) != Disposition::Release {
-                    continue;
-                }
-                releasable += 1;
-                if release_samples.len() < 25 {
-                    release_samples.push(serde_json::json!({
-                        "user": user,
-                        "thread": tid,
-                        "from": from,
-                        "still_scored": findings.score(),
-                    }));
-                }
-                if q.dry_run {
-                    continue;
-                }
-                match state.mailbox.set_quarantined(user, &tid, false) {
-                    Ok(_) => released += 1,
-                    Err(e) => tracing::warn!(err = %e, tid, "release failed"),
-                }
+        let Some((message_id, raw)) = newest_raw(&state, user, tid) else {
+            no_file += 1;
+            // A conversation with no file cannot be re-judged, so
+            // it can never be released either — it stays hidden
+            // whatever the rules say afterwards. Counted apart
+            // from `no_file`, which otherwise folds that together
+            // with the ordinary case of a thread that was not
+            // held in the first place.
+            if state
+                .mailbox
+                .get_thread_for_user(user, tid)
+                .ok()
+                .flatten()
+                .is_some_and(|t| t.quarantined)
+            {
+                held_but_unreadable += 1;
+            }
+            continue;
+        };
+        let from = mailrs_inbound::from_header(&raw);
+        // The count as it stands, **not** minus this message.
+        //
+        // It was minus one, reasoning that the sweep re-plays the
+        // moment the mail arrived and its own arrival should not
+        // make its sender look familiar. That is the wrong job:
+        // a sweep is not a re-enactment, it is a fresh judgement
+        // with everything known today. The subtraction only made
+        // every domain one message less familiar than it is, and
+        // on 2026-08-30 that pushed a legitimate sender off the
+        // edge — `three` messages from `rooms-online.jp`, the
+        // 三井住友銀行 appointment confirmations, read as `two`
+        // and were held.
+        //
+        // A threshold with a subtraction under it is a different
+        // threshold, and not the one the corpus was measured
+        // against.
+        let seen = domain_seen(hist.as_mut(), &from);
+        // The same facts the receive path assembles, from the
+        // same extractors. Two assemblies of one message is how
+        // a folded header came to be visible on one path and not
+        // the other.
+        let host = from
+            .rfind('@')
+            .map(|at| from[at + 1..].trim_end_matches('>').trim().to_string())
+            .unwrap_or_default();
+        let registrable = mailrs_fraud::brand::registrable(&host);
+        let x = mailrs_inbound::x_mailer_header(&raw);
+        // The same reading the receive path takes, from the same
+        // function. Without it the sweep cannot see a display
+        // name that renders as something other than it says —
+        // and that is how the one the user asked about survived
+        // a full re-scan.
+        let deception = mailrs_inbound::deception_in_identity(&raw);
+        let name_deception = mailrs_inbound::deception_in_display_name(&raw);
+        let parsed = mailrs_mime::parse(&raw);
+        let attachments: Vec<&str> = parsed
+            .attachments()
+            .filter_map(|p| p.attachment_filename())
+            .collect();
+        let subject = mailrs_inbound::subject_header(&raw);
+        let to_display = mailrs_inbound::identity::to_display_name(&raw);
+        let reply_to = mailrs_inbound::identity::reply_to_address(&raw);
+        // Read, not recorded. The sweep walks the same message
+        // more than once over its life, and a set does not care
+        // — but the live path is the one that owns the writing,
+        // and a sweep that also wrote would make "how many
+        // domains" depend on how often the sweep had run.
+        let reply_rotation = reading::reply_rotation(&mut hist, &host, &reply_to);
+        let facts = mailrs_fraud::Facts {
+            from: &from,
+            subject: &subject,
+            domain: &host,
+            registrable: &registrable,
+            domain_seen: seen,
+            x_mailer: x.as_deref(),
+            has_zero_width: deception.unjustified_zero_width,
+            has_bidi_override: deception.bidi_override,
+            has_zero_width_in_name: name_deception.unjustified_zero_width,
+            has_executable_attachment: mailrs_fraud::attachment::any_executable(
+                attachments.iter().copied(),
+            ),
+            has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
+            to_display: &to_display,
+            reply_rotation,
+            ..mailrs_fraud::Facts::default()
+        };
+        let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
+            Ok(scan) => scan,
+            Err(error) => {
+                tracing::error!(%error, %user, %tid, "fraud rescan evaluation failed; leaving thread unchanged");
+                verdict_failed += 1;
                 continue;
             }
-            found += 1;
-            for r in findings.rules() {
-                *by_reason.entry(r.to_string()).or_default() += 1;
+        };
+        if expected_version.is_some_and(|version| version != scan.version) {
+            verdict_failed += 1;
+            continue;
+        }
+        let findings = scan.findings;
+        // The one definition of "this is held", shared with the
+        // verdict this sweep is about to store. `findings.any()`
+        // here and a score threshold there is what left 43 held
+        // conversations carrying a verdict that said otherwise.
+        if !mailrs_inbound::holds(&findings) {
+            // **And release it if it is still held.** The sweep
+            // that only ever adds is a sweep a rule change
+            // cannot reach: when the two brand rules were
+            // demoted to suspicion on 2026-08-30 — because
+            // whether this deployment finds a sender familiar
+            // may not be grounds for hiding their mail — thirty
+            // conversations went on being hidden by a rule that
+            // no longer holds anything, and nothing in the
+            // system could have noticed.
+            //
+            // Safe to do automatically because **no hold is a
+            // person's judgement**. Two places set it: this
+            // sweep, and `ingest.rs`, which acts on the verdict
+            // the receive path stored. Both are the rules
+            // speaking, so the rules may take it back.
+            //
+            // The version of this comment that shipped on
+            // 2026-08-31 said the sweep was the only one. It was
+            // written from a grep that missed `ingest.rs`, and it
+            // is the reason held mail kept arriving unread: that
+            // path holds and — until the same day — did not mark
+            // read. A release path resting on "there is only one
+            // writer" has to name them.
+            let held_now = state
+                .mailbox
+                .get_thread_for_user(user, tid)
+                .ok()
+                .flatten()
+                .is_some_and(|t| t.quarantined);
+            if disposition(false, held_now) != Disposition::Release {
+                continue;
             }
-            if samples.len() < 25 {
-                samples.push(serde_json::json!({
+            releasable += 1;
+            if release_samples.len() < 25 {
+                release_samples.push(serde_json::json!({
                     "user": user,
                     "thread": tid,
                     "from": from,
-                    "reasons": findings.rules(),
-                    "score": findings.score(),
+                    "still_scored": findings.score(),
                 }));
             }
             if q.dry_run {
                 continue;
             }
-            match q.action {
-                Action::Junk => {
-                    // **Read the bucket first.** `set_junk` answers
-                    // "did the row exist", not "did anything change" —
-                    // so counting its `true` as a move made
-                    // `already_junk` a number that could not come out
-                    // other than zero, and a second run reported
-                    // moving fifty threads that were already in Junk.
-                    let was_junk = state
-                        .mailbox
-                        .get_thread_for_user(user, &tid)
-                        .ok()
-                        .flatten()
-                        .is_some_and(|r| {
-                            // `bucket_of`, not a literal: the category
-                            // a Junk row carries is `spam`, and the
-                            // first version of this compared against
-                            // "junk" and was therefore never true.
-                            mailrs_mailbox_kevy::keys::bucket_of(&r.category)
-                                == mailrs_mailbox_kevy::keys::Bucket::Junk
-                        });
-                    match state.mailbox.set_junk(user, &tid, true) {
-                        Ok(_) if was_junk => already_junk += 1,
-                        Ok(_) => moved += 1,
-                        Err(e) => {
-                            tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
-                        }
-                    }
-                }
-                Action::Hold => {
-                    let mut verdict = rescan_verdict(&raw, &findings);
-                    verdict.rules_version = scan.version.clone();
-                    match serde_json::to_string(&verdict) {
-                        Ok(json) => {
-                            if let Err(e) = state.mailbox.set_fraud_verdict(&message_id, &json) {
-                                tracing::warn!(err = %e, %user, %tid, "storing the verdict failed");
-                                verdict_failed += 1;
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!(err = %e, "the verdict did not serialise");
-                            verdict_failed += 1;
-                        }
-                    }
-                    match state.mailbox.set_quarantined(user, &tid, true) {
-                        Ok(true) => held += 1,
-                        Ok(false) => tracing::warn!(%user, %tid, "held nothing: no membership row"),
-                        Err(e) => tracing::warn!(err = %e, %user, %tid, "holding failed"),
-                    }
-                    // **And mark it read.** A held conversation that
-                    // is also unread is bold in the review list, adds
-                    // to the badge, and rings the phone — which is
-                    // the attempt to defraud getting the attention it
-                    // was sent to get. Holding is meant to take the
-                    // attention away, and leaving the unread flag on
-                    // gives back most of what holding removed.
-                    //
-                    // Read is a claim about the reader, and this
-                    // makes it on their behalf. That is the trade:
-                    // the alternative is a review screen whose whole
-                    // purpose is "you do not need to look at these
-                    // now" wearing a count that says the opposite.
-                    // Releasing does not undo it, and should not — by
-                    // then somebody *has* looked.
-                    // Through the same function the read verbs use,
-                    // not `mark_seen` alone. `mark_seen` writes the
-                    // axis column and a shared blob **no read path has
-                    // consulted since stage 5 of the per-user message
-                    // projection** — so the thread left every unread
-                    // list while `unread_count`, which is what the
-                    // review screen renders, stayed at one. Held and
-                    // bold, which is the thing this exists to stop.
-                    //
-                    // Found by checking after the sweep rather than by
-                    // any test: three held conversations came back
-                    // unread, and the docstring on the function beside
-                    // `mark_seen` had said why all along.
-                    crate::routes::thread_actions::mark_thread_read_everywhere(&state, user, &tid);
-                }
-                Action::Delete => match state.mailbox.delete_thread(user, &tid) {
-                    Ok((_, blobs)) => {
-                        for b in &blobs {
-                            crate::routes::message_ops::unlink_maildir_file(user, b);
-                        }
-                        deleted += 1;
-                    }
-                    Err(e) => {
-                        tracing::warn!(err = %e, %user, %tid, "fraud rescan: delete failed");
-                    }
-                },
+            match state.mailbox.set_quarantined(user, tid, false) {
+                Ok(_) => released += 1,
+                Err(e) => tracing::warn!(err = %e, tid, "release failed"),
             }
+            continue;
+        }
+        found += 1;
+        for r in findings.rules() {
+            *by_reason.entry(r.to_string()).or_default() += 1;
+        }
+        if samples.len() < 25 {
+            samples.push(serde_json::json!({
+                "user": user,
+                "thread": tid,
+                "from": from,
+                "reasons": findings.rules(),
+                "score": findings.score(),
+            }));
+        }
+        if q.dry_run {
+            continue;
+        }
+        match q.action {
+            Action::Junk => {
+                // **Read the bucket first.** `set_junk` answers
+                // "did the row exist", not "did anything change" —
+                // so counting its `true` as a move made
+                // `already_junk` a number that could not come out
+                // other than zero, and a second run reported
+                // moving fifty threads that were already in Junk.
+                let was_junk = state
+                    .mailbox
+                    .get_thread_for_user(user, tid)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|r| {
+                        // `bucket_of`, not a literal: the category
+                        // a Junk row carries is `spam`, and the
+                        // first version of this compared against
+                        // "junk" and was therefore never true.
+                        mailrs_mailbox_kevy::keys::bucket_of(&r.category)
+                            == mailrs_mailbox_kevy::keys::Bucket::Junk
+                    });
+                match state.mailbox.set_junk(user, tid, true) {
+                    Ok(_) if was_junk => already_junk += 1,
+                    Ok(_) => moved += 1,
+                    Err(e) => {
+                        tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
+                    }
+                }
+            }
+            Action::Hold => {
+                let mut verdict = rescan_verdict(&raw, &findings);
+                verdict.rules_version = scan.version.clone();
+                match holding::apply(&state, user, tid, &message_id, &verdict) {
+                    Ok(changed) => held += u64::from(changed),
+                    Err(error) => {
+                        verdict_failed += 1;
+                        tracing::error!(%error, %user, %tid, "fraud hold incomplete");
+                    }
+                }
+            }
+            Action::Delete => match state.mailbox.delete_thread(user, tid) {
+                Ok((_, blobs)) => {
+                    for b in &blobs {
+                        crate::routes::message_ops::unlink_maildir_file(user, b);
+                    }
+                    deleted += 1;
+                }
+                Err(e) => {
+                    tracing::warn!(err = %e, %user, %tid, "fraud rescan: delete failed");
+                }
+            },
         }
     }
 
