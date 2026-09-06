@@ -29,6 +29,7 @@ pub mod bounce;
 mod calendar_sync;
 pub mod dmarc_ingest;
 pub mod fbl;
+pub mod fraud_backfill;
 mod headers;
 mod idle_backoff;
 mod imap;

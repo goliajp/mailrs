@@ -251,6 +251,7 @@ pub async fn run() {
     // is older than the per-user TTL (default 30 days).
     junk_ttl::spawn(state.clone());
     snooze_wake::spawn(state.clone());
+    crate::fraud_backfill::spawn(state.clone(), &kevy_dir);
     // Say now whether push is on, rather than at the first delivery.
     push::warm();
     aof_compact::spawn(state.clone(), kevy_dir.clone());

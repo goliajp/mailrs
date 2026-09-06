@@ -30,6 +30,7 @@ if [ "$mode" = --activate ]; then
     chmod 644 "$candidate"
     mv "$candidate" active.lua
     echo "Activated lua:$hash; scoring workers reload on their next message (poll interval <=5s)."
+    echo 'Historical backfill is queued automatically by fastcore; progress: /data/kevy-fastcore/fraud-backfill/progress.json'
 else
     echo 'Dry run only. Review the diff, then repeat with --activate.'
 fi

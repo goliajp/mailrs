@@ -64,16 +64,16 @@ pub(crate) fn disposition(holds: bool, currently_held: bool) -> Disposition {
 pub(crate) struct RescanQuery {
     /// Report without moving anything. **Default true.**
     #[serde(default = "yes")]
-    pub(super) dry_run: bool,
+    pub(crate) dry_run: bool,
     #[serde(default)]
-    pub(super) skip: u64,
+    pub(crate) skip: u64,
     #[serde(default = "default_limit")]
-    pub(super) limit: u64,
+    pub(crate) limit: u64,
     #[serde(default = "default_pause_ms")]
-    pub(super) pause_ms: u64,
+    pub(crate) pause_ms: u64,
     /// `junk` (default) or `delete`.
     #[serde(default)]
-    pub(super) action: Action,
+    pub(crate) action: Action,
 }
 
 fn yes() -> bool {
