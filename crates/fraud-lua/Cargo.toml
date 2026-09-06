@@ -13,5 +13,12 @@ workspace = true
 
 [dependencies]
 mailrs-fraud = { path = "../fraud", version = "0" }
-luna-jit = "3"
+luna-jit = "=3.0.0"
 tracing = "0.1"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+mailrs-inbound = { path = "../inbound", version = "1" }
+mailrs-mime = { path = "../mime", version = "2" }
+kevy-client = { workspace = true }
+mailrs-core-sidestate = { path = "../core-sidestate", version = "0" }

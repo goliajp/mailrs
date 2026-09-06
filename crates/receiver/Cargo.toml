@@ -34,6 +34,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 # DMARC verifier), so it stays free of spg / kevy-embedded.
 mailrs-core-sidestate = { path = "../core-sidestate" }
 mailrs-fraud = { path = "../fraud", version = "0" }
+mailrs-fraud-lua = { path = "../fraud-lua", version = "0" }
 mailrs-inbound = { path = "../inbound", version = "1" }
 mailrs-bayes = { path = "../bayes" }
 mailrs-rfc5322 = { path = "../rfc5322", version = "1" }

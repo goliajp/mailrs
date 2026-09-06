@@ -161,7 +161,20 @@ pub(super) async fn run_antispam(
         our_domains: ctx.local_domains.iter().map(|d| d.to_lowercase()).collect(),
         allowed_domains: ctx.org_name_allowed_domains.clone(),
     };
-    receive_ctx.fraud = mailrs_fraud::scan(&facts, &policy);
+    let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
+        Ok(scan) => scan,
+        Err(error) => {
+            tracing::error!(%error, "fraud rules unavailable; deferring message");
+            ctx.metrics.inbound_defer();
+            metrics::counter!("mailrs_inbound_verdict_total", "verdict" => "defer").increment(1);
+            return AntiSpamOutcome::Reject(Response::new(
+                451,
+                None,
+                "Temporary classification failure, please retry",
+            ));
+        }
+    };
+    receive_ctx.fraud = scan.findings;
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
@@ -171,7 +184,11 @@ pub(super) async fn run_antispam(
     // recording, and a verdict on all of them would bury the ones
     // that matter. `to_pipeline_input` is paid a second time here for
     // the same reason: only on the rare path.
-    let fraud_verdict = fraud_verdict_json(&receive_ctx, ctx.inbound_pipeline.spam_threshold());
+    let fraud_verdict = fraud_verdict_json(
+        &receive_ctx,
+        ctx.inbound_pipeline.spam_threshold(),
+        &scan.version,
+    );
     let full_message: Vec<u8> = std::mem::take(&mut receive_ctx.message);
     tracing::debug!(
         phase = "inbound_pipeline",
@@ -259,11 +276,16 @@ pub(super) async fn run_antispam(
 /// bookkeeping. The failure is logged rather than swallowed, because
 /// a verdict that silently never arrives is the shape this repository
 /// keeps finding: a reader guarded on a field nobody writes.
-fn fraud_verdict_json(ctx: &mailrs_inbound::ReceiveContext, spam_threshold: f64) -> Option<String> {
+fn fraud_verdict_json(
+    ctx: &mailrs_inbound::ReceiveContext,
+    spam_threshold: f64,
+    rules_version: &str,
+) -> Option<String> {
     if !ctx.fraud.any() && !ctx.deception.unjustified_zero_width {
         return None;
     }
-    let verdict = mailrs_inbound::assess(&ctx.to_pipeline_input(spam_threshold));
+    let mut verdict = mailrs_inbound::assess(&ctx.to_pipeline_input(spam_threshold));
+    verdict.rules_version = rules_version.into();
     match serde_json::to_string(&verdict) {
         Ok(json) => Some(json),
         Err(e) => {
