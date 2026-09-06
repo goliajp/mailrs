@@ -11,6 +11,11 @@
 
 use super::Brand;
 
+// Official email domains verified 2026-09-06 against:
+// https://help.openai.com/en/articles/11725090-verifying-communications-from-openai
+// The matcher includes subdomains, covering email/mail/tm/ads/sales.openai.com.
+const OPENAI_DOMAINS: &[&str] = &["openai.com", "c-openai.com"];
+
 /// The companies this deployment has actually seen impersonated,
 /// plus the ones every phishing kit ships with.
 ///
@@ -20,6 +25,17 @@ use super::Brand;
 /// name earns its place by being a company whose mail asks for money
 /// or credentials, not by being well known.
 pub const BRANDS: &[Brand] = &[
+    // User-reported screenshot, 2026-09-06: ChatGPT from
+    // admin@heavenerandassociates.com asks to update a failed payment.
+    // This is one reported sample, not a new corpus measurement.
+    Brand {
+        name: "chatgpt",
+        domains: OPENAI_DOMAINS,
+    },
+    Brand {
+        name: "openai",
+        domains: OPENAI_DOMAINS,
+    },
     Brand {
         name: "icloud",
         domains: &["apple.com", "icloud.com", "me.com"],
@@ -155,6 +171,14 @@ pub const BRANDS: &[Brand] = &[
 /// `Artificial Intelligence for Enterprise` and
 /// `Practical Project Management`.
 pub const SUBJECT_CLAIMS: &[Brand] = &[
+    Brand {
+        name: "chatgpt",
+        domains: OPENAI_DOMAINS,
+    },
+    Brand {
+        name: "openai",
+        domains: OPENAI_DOMAINS,
+    },
     Brand {
         name: "ANAマイレージ",
         domains: &["ana.co.jp", "anamile.jp"],

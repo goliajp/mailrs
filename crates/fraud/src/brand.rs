@@ -470,6 +470,71 @@ mod tests {
         }
     }
 
+    #[test]
+    fn openai_official_senders_are_spared_by_all_brand_checks() {
+        for name in ["ChatGPT", "OpenAI"] {
+            for domain in [
+                "openai.com",
+                "c-openai.com",
+                "email.openai.com",
+                "mail.openai.com",
+                "tm.openai.com",
+                "tm1.openai.com",
+                "ads.openai.com",
+                "sales.openai.com",
+            ] {
+                let from = format!("{name} <noreply@{domain}>");
+                assert!(!brand_is_the_display_name(&from, BRANDS), "{from}");
+                assert!(!impersonates_brand(&from, BRANDS, 0), "{from}");
+                assert!(
+                    !subject_claims_brand(
+                        &format!("{name}: お支払い方法を更新してください。"),
+                        domain,
+                        0
+                    ),
+                    "{domain}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn openai_lookalikes_and_rotated_domains_do_not_escape() {
+        for name in ["ChatGPT", "OpenAI", "ＣｈａｔＧＰＴ", "ChatGPT (自動送信)"] {
+            for domain in [
+                "unrelated.example",
+                "openai.com.evil.example",
+                "fakeopenai.com",
+                "fakec-openai.com",
+            ] {
+                let from = format!("{name} <admin@{domain}>");
+                assert!(brand_is_the_display_name(&from, BRANDS), "{from}");
+            }
+        }
+    }
+
+    #[test]
+    fn openai_mentions_only_score_and_respect_familiarity() {
+        for name in ["ChatGPT", "OpenAI"] {
+            let from = format!("Weekly {name} news <news@newsletter.example>");
+            let subject = format!("{name}: payment update");
+            assert!(!brand_is_the_display_name(&from, BRANDS));
+            assert!(impersonates_brand(&from, BRANDS, 0));
+            assert!(subject_claims_brand(&subject, "newsletter.example", 0));
+            assert!(!impersonates_brand(&from, BRANDS, FAMILIAR_AFTER));
+            assert!(!subject_claims_brand(
+                &subject,
+                "newsletter.example",
+                FAMILIAR_AFTER
+            ));
+        }
+        assert!(!subject_claims_brand(
+            "[最終リマインダー]: お支払い方法を更新してください。",
+            "unrelated.example",
+            0
+        ));
+    }
+
     /// The two halves are a pair. Neither convicts alone, and the
     /// test says so in both directions — otherwise the familiarity
     /// count could be dropped and nothing would fail.

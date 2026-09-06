@@ -462,6 +462,29 @@ mod tests {
         assert!(f.rules().is_empty());
     }
 
+    #[test]
+    fn reported_chatgpt_payment_phish_is_held_even_with_history_and_auth_pass() {
+        // Visible From and subject transcribed from the 2026-09-06 screenshot.
+        // Authentication and history below are hypothetical: neither should
+        // excuse an unrelated domain claiming to be ChatGPT.
+        for seen in [0, 100] {
+            let f = Facts {
+                from: "ChatGPT <admin@heavenerandassociates.com>",
+                domain: "heavenerandassociates.com",
+                registrable: "heavenerandassociates.com",
+                subject: "[最終リマインダー]: お支払い方法を更新してください。",
+                domain_seen: seen,
+                spf: "pass",
+                dkim: "pass",
+                dmarc: "pass",
+                ..Facts::default()
+            };
+            let found = scan(&f, &Policy::default());
+            assert!(found.has(RULE_BRAND_IS_THE_NAME));
+            assert!(found.hold_worthy());
+        }
+    }
+
     /// One of the real ones, both signals at once.
     #[test]
     fn the_wave_this_was_built_against() {
