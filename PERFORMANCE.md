@@ -58,10 +58,20 @@ pulls `:latest`. Either upgrade the container in the same change or measure the
 pair first; deploying it unmeasured is the one step in this table that has no
 evidence behind it at all.
 
+**Closed, 2026-09-07.** The container moves with the crates now: prod compose,
+the crate pins and `kevy_network.rs`'s default tag are all 6.3.0, and
+`scripts/check-kevy-versions.sh` fails when any of the three disagrees — so the
+untested pair this paragraph warns about is a diff someone has to write rather
+than something that happens by omission. The columns below are still client 2.0
+/ 2.2 against 3.18 / 5.1; they are a record of what was measured, not of what
+runs.
+
 ### Method
 
 ```bash
-# Column A — the harness defaults to kevy-server 3.18.0, so A needs no override
+# Column A — the harness defaulted to kevy-server 3.18.0 when this was run,
+# so A needed no override. That default is 6.3.0 today: reproducing column A
+# now needs KEVY_IMAGE=ghcr.io/goliajp/kevy:3.18.0 spelled out.
 BENCH_COMMIT=<sha> BENCH_CPUS=0-3 HOSTLABEL=lx64-x86_64-pin0-3 \
   ROUNDS=5 N=30 ./scripts/bench-api-e2e.sh fastcore
 
