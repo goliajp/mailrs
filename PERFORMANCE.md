@@ -58,13 +58,22 @@ pulls `:latest`. Either upgrade the container in the same change or measure the
 pair first; deploying it unmeasured is the one step in this table that has no
 evidence behind it at all.
 
-**Closed, 2026-09-07.** The container moves with the crates now: prod compose,
-the crate pins and `kevy_network.rs`'s default tag are all 6.3.0, and
-`scripts/check-kevy-versions.sh` fails when any of the three disagrees — so the
-untested pair this paragraph warns about is a diff someone has to write rather
-than something that happens by omission. The columns below are still client 2.0
-/ 2.2 against 3.18 / 5.1; they are a record of what was measured, not of what
-runs.
+**Closed, 2026-09-07.** The container moves with the crates now, in four
+places rather than three. `scripts/check-kevy-versions.sh` holds the crate
+pins, the prod compose and `kevy_network.rs`'s default tag to one version;
+`direct-deploy.sh` holds the *running container* to the compose, which is the
+one the first three could not reach and the one that had actually drifted —
+shipping the compose file is only half of a kevy upgrade, because the roll
+names four services and passes `--no-deps`, so `mailrs-kevy` keeps whatever it
+was started with. On the 6.2.2 -> 6.3.0 deploy the host's file said 6.3.0
+while the container ran 6.2.2, which is worse than either alone: the next
+plain `docker compose up -d` would have swapped the engine under a live mail
+server with no backup. The deploy now compares the two, and when they differ
+it reads the key count, stops the engine gracefully, copies the volume aside,
+rolls, and refuses to continue if the count collapses.
+
+The columns below are still client 2.0 / 2.2 against 3.18 / 5.1; they are a
+record of what was measured, not of what runs.
 
 ### Method
 

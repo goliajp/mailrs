@@ -294,6 +294,78 @@ scp -q deploy/docker-compose.prod.yml "$PROD:/apps/mailrs/docker-compose.yml"
 # Record what we wrote, so the next deploy can tell our own bytes from
 # someone else's edit.
 ssh "$PROD" "cd /apps/mailrs && cp docker-compose.yml docker-compose.yml.deployed"
+
+# The kevy-server container, which the roll below will not touch.
+#
+# That roll names four services and passes --no-deps, so `mailrs-kevy`
+# keeps running whatever it was started with. Shipping the compose file
+# is therefore only half of a kevy upgrade: on 2026-09-07 the file on
+# the host said 6.3.0 while the container ran 6.2.2, which is worse than
+# either one alone — the next person to run a plain `docker compose up
+# -d` would have swapped the engine underneath a live mail server with
+# no backup and no warning.
+#
+# So the tags are compared and acted on, before the four services roll
+# rather than after: kevy first means the mailrs processes come up
+# against the new engine with fresh pools. The other order leaves
+# webapi holding dead connections — measured at ~2 minutes of
+# `"kevy":false, "status":"degraded"` on :3103 while the pool evicts
+# them one op at a time.
+#
+# The backup is not optional and not cheap-to-skip prudence: the
+# compose file's own comment records that a swap-back stops working
+# after the first BGREWRITEAOF, when the older binary calls each shard
+# corrupt and comes up with 1 key instead of 33,636. 293 MB and ~10 s.
+if [ "${SKIP_KEVY:-0}" = 1 ]; then
+    echo "    !! SKIP_KEVY=1 — kevy-server left as it is; the compose file may now disagree with it"
+else
+    KEVY_WANT=$(awk -F: '/image: ghcr.io\/goliajp\/kevy:/ { print $NF; exit }' deploy/docker-compose.prod.yml)
+    KEVY_HAVE=$(ssh "$PROD" "docker inspect -f '{{.Config.Image}}' mailrs-kevy 2>/dev/null" | sed 's/.*://' || true)
+    if [ "$KEVY_WANT" = "$KEVY_HAVE" ]; then
+        echo "    kevy-server already on $KEVY_WANT"
+    else
+        echo "==> [3b/6] kevy-server $KEVY_HAVE -> $KEVY_WANT"
+        # Read the key count BEFORE the stop: it is the one number that
+        # says the new engine recovered what the old one held, and it
+        # cannot be taken afterwards.
+        KEYS_BEFORE=$(ssh "$PROD" "docker exec mailrs-kevy kevy-cli DBSIZE" 2>/dev/null | tr -dc '0-9')
+        echo "    keys before: ${KEYS_BEFORE:-?}"
+        ssh "$PROD" "set -e
+          docker stop -t 60 mailrs-kevy >/dev/null
+          ts=\$(date +%Y%m%d-%H%M)
+          cp -a /var/lib/docker/volumes/mailrs_kevy-server-data/_data /apps/mailrs/kevy-backup-\$ts
+          echo \"    backup: /apps/mailrs/kevy-backup-\$ts (\$(du -sh /apps/mailrs/kevy-backup-\$ts | cut -f1))\"
+          ls -dt /apps/mailrs/kevy-backup-* | tail -n +4 | xargs -r rm -rf
+          cd /apps/mailrs && docker compose up -d --no-deps kevy-server >/dev/null 2>&1"
+
+        for i in $(seq 1 45); do
+            KEVY_STATUS=$(ssh "$PROD" "docker inspect -f '{{.State.Health.Status}}' mailrs-kevy 2>/dev/null" || true)
+            [ "$KEVY_STATUS" = healthy ] && { echo "    kevy-server healthy (attempt $i/45)"; break; }
+            [ "$i" = 45 ] && { echo "!! kevy-server never became healthy (last: '$KEVY_STATUS')"; exit 1; }
+            sleep 2
+        done
+
+        # Every shard, not the last line: each of the four persists
+        # independently, so one dirty replay among four clean ones is
+        # exactly the case a `tail -1` would miss.
+        DIRTY=$(ssh "$PROD" "docker logs mailrs-kevy 2>&1 | grep -c 'replayed' " | tr -dc '0-9')
+        CLEAN=$(ssh "$PROD" "docker logs mailrs-kevy 2>&1 | grep -c '(clean)'" | tr -dc '0-9')
+        echo "    replay: $CLEAN of $DIRTY shard AOFs clean"
+        [ "$DIRTY" = "$CLEAN" ] || echo "!! a shard replay was not clean — AOF black-hole SOP, backup is above"
+
+        KEYS_AFTER=$(ssh "$PROD" "docker exec mailrs-kevy kevy-cli DBSIZE" 2>/dev/null | tr -dc '0-9')
+        echo "    keys after:  ${KEYS_AFTER:-?}"
+        # Keys may rise (writers kept going) and TTLs may expire, so this
+        # is a collapse detector, not an equality check: the 5.x-binary
+        # failure it is here to catch left 1 key out of 33,636.
+        if [ -n "$KEYS_BEFORE" ] && [ -n "$KEYS_AFTER" ] \
+           && [ "$KEYS_AFTER" -lt $(( KEYS_BEFORE / 2 )) ]; then
+            echo "!! keys collapsed $KEYS_BEFORE -> $KEYS_AFTER — restore the backup above before anything writes"
+            exit 1
+        fi
+    fi
+fi
+
 # Stop fastcore by itself first, and keep what it said on the way out.
 #
 # `compose up -d` recreates the container, and a recreated container
