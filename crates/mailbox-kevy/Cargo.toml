@@ -35,7 +35,7 @@ chrono = { workspace = true }
 # identical and differ only by which copy they came from. A comment
 # stating an invariant does not maintain it; `scripts/check-kevy-versions.sh`
 # now does.
-kevy-index = "6.2.2"
+kevy-index = "6.3.0"
 
 [dev-dependencies]
 criterion = { workspace = true }

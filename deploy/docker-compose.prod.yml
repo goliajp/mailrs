@@ -276,7 +276,7 @@ services:
     # After a rewrite the only rollback is restoring the directory —
     # `/apps/mailrs/kevy-backup-20260831-1422` is the copy taken
     # before this swap.
-    image: ghcr.io/goliajp/kevy:6.2.2
+    image: ghcr.io/goliajp/kevy:6.3.0
     pull_policy: always
     mem_limit: 1g
     volumes:
