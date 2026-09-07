@@ -30,18 +30,21 @@ use mailrs_server::{EventBus, SmtpEvent};
 
 /// Which kevy-server these run against.
 ///
-/// It was `latest`, and that hid the pair production would actually run. The
-/// workspace is on kevy-client 2.2; `deploy/docker-compose.prod.yml` pins
-/// kevy-server **3.18.0**. Shipping the Rust side without moving the container
-/// puts client 2.2 against server 3.18 into production — a combination the
-/// benchmark's two columns do not cover either (column A is client 2.0 against
-/// 3.18, column B is client 2.2 against 5.1) and which `latest` silently
-/// declined to test.
+/// It was `latest`, and that hid the pair production would actually run: the
+/// point of this default is that it names the tag in
+/// `deploy/docker-compose.prod.yml`, so shipping a client the container has
+/// never been tested against is a diff someone has to write rather than a
+/// silent pull.
+///
+/// **So it moves with that compose file.** It did not, once: the compose went
+/// to 6.x while this stayed at `3.18.0`, which tested client 6 against server
+/// 3.18 — a pair production has never run — under a comment explaining why
+/// that must not happen.
 ///
 /// `MAILRS_TEST_KEVY_TAG` overrides it, so the same suite can be pointed at the
 /// version prod runs and the version prod is going to.
 fn kevy_tag() -> String {
-    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "3.18.0".to_string())
+    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "6.3.0".to_string())
 }
 
 /// Start a kevy-server container and return its `kevy://host:port` URL.

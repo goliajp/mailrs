@@ -172,19 +172,35 @@ spg-embedded = "7.38.4"
 # backfill-contacts,backfill-uid-index,backfill-usage}` all open
 # `MAILRS_KEVY_DATA_DIR`. Run them against a stopped fastcore, which
 # is what they always needed and now say so.
-kevy-embedded = "6.2.2"
+#
+# 6.3.0 is additive here. The public surface goes 238 -> 239 with one
+# arrival (`hrandfield`) and nothing removed; the client's 108 names are
+# unchanged. What the release is mostly about is upstream's own gates —
+# ten benchmark anchors pinned to exact versions, and a RESP3 gate that
+# found five verbs replying with the wrong RESP3 type. None of the five
+# reach us: `hello3` is called nowhere in this tree, so every connection
+# is RESP2, and `ZPOPMIN` / `ZADD .. INCR` / `GEOPOS` / `SPOP key count` /
+# `HRANDFIELD .. WITHVALUES` appear in no mailrs code path. `CONFIG SET
+# notify-keyspace-events` is wired to the wire for the first time; this
+# project does not use keyspace notifications either.
+kevy-embedded = "6.3.0"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /
 # auth-guard). Blocking `&mut self` client → wrapped in spawn_blocking.
 #
-# On its own version line, not the workspace's: 2.2 pairs with kevy 5.x.
-# `cargo info` reports 2.1.0 as latest from a stale local index — check
-# the sparse index, not the cache. Its public surface is unchanged from
-# 2.0.0 (108 names, no additions, no removals); what the bump brings is
-# `From<KevyError> for io::Error`, which has been available since 4.1.0
-# and lets 498 hand-written `.map_err(io::Error::other)` calls become `?`.
-kevy-client = "6.2.2"
+# It used to carry a version line of its own — 2.x, on the theory that a
+# client's API grows at its own pace — and that is why 6.2.1 exists: the
+# published 2.2.0 still asked for `kevy-embedded ^5.0` while every sibling
+# pin in the tree read 6.x. Since 6.2.1 it moves with the workspace, so
+# **this line and the one above are bumped together, always**. Its public
+# surface is unchanged again at 6.3.0 (108 names, no additions, no
+# removals).
+#
+# `cargo info` can report a stale latest from the local cache — check the
+# sparse index (`curl -s https://index.crates.io/ke/vy/kevy-client`), not
+# the cache.
+kevy-client = "6.3.0"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
