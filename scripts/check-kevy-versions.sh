@@ -31,5 +31,25 @@ if [ "$(echo "$gens" | wc -l | tr -d ' ')" -gt 1 ]; then
     fail=1
 fi
 
-[ "$fail" -eq 0 ] && echo "kevy versions OK — all on $(echo "$gens" | tr -d '\n')"
+# The server container is not implied by the crate: `kevy-client` talks to
+# whatever `deploy/docker-compose.prod.yml` pins, and the integration test
+# that exists to cover that pair keeps its own default tag. Both have gone
+# stale before — the compose moved to 6.x while
+# `crates/server/tests/kevy_network.rs` stayed at 3.18.0, so the suite
+# tested a client/server pair production has never run, under a comment
+# saying why that must not happen.
+crate_ver=$(awk -F'"' '/^kevy-embedded = "/ { print $2; exit }' Cargo.toml)
+compose_ver=$(awk -F: '/image: ghcr.io\/goliajp\/kevy:/ { print $NF; exit }' deploy/docker-compose.prod.yml)
+test_ver=$(awk -F'"' '/env::var\("MAILRS_TEST_KEVY_TAG"\)/ { print $4; exit }' crates/server/tests/kevy_network.rs)
+
+if [ "$compose_ver" != "$crate_ver" ]; then
+    echo "!! kevy-server in deploy/docker-compose.prod.yml is $compose_ver, crates ask for $crate_ver"
+    fail=1
+fi
+if [ "$test_ver" != "$compose_ver" ]; then
+    echo "!! crates/server/tests/kevy_network.rs defaults to $test_ver, prod compose runs $compose_ver"
+    fail=1
+fi
+
+[ "$fail" -eq 0 ] && echo "kevy versions OK — crates, prod compose and the network test all on $crate_ver"
 exit "$fail"
