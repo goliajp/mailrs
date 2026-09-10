@@ -50,3 +50,30 @@ export function fitScale(contentWidth: number, hostWidth: number): number {
   if (contentWidth <= hostWidth) return 1
   return Math.max(MIN_FIT_SCALE, hostWidth / contentWidth)
 }
+
+/**
+ * The widest an HTML email is ever *designed* to be.
+ *
+ * The survey above tops out at 768. A table wider than this was not
+ * composed to be looked at whole on any screen — it is a pasted
+ * spreadsheet, or a data table that grew a column at a time — so the
+ * argument against reflowing does not apply to it: there is no layout
+ * the sender intended that reflowing would spoil.
+ */
+export const MAX_DESIGNED_WIDTH = 800
+
+/**
+ * Whether a table should be made to reflow into the column rather than
+ * scaled down with the rest of the message.
+ *
+ * Scaling is the right answer for a message someone laid out — it shows
+ * what they composed, just smaller. It is the wrong answer for one wide
+ * table in an otherwise ordinary message: the whole body shrinks with
+ * it, so the reader gets 7px prose because of a table further down that
+ * they may not even read.
+ */
+export function shouldReflowTable(tableWidth: number, column: number): boolean {
+  if (!Number.isFinite(tableWidth) || !Number.isFinite(column)) return false
+  if (column <= 0) return false
+  return tableWidth > column && tableWidth > MAX_DESIGNED_WIDTH
+}

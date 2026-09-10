@@ -3,7 +3,7 @@ import type { AttachmentInfo } from '@/lib/types'
 import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useRef } from 'react'
 
-import { fitHeight, fitScale } from '@/lib/fit-to-width'
+import { fitHeight, fitScale, shouldReflowTable } from '@/lib/fit-to-width'
 import { getToken } from '@/store/auth'
 
 const CJK_FONTS =
@@ -124,6 +124,51 @@ emailPurifier.addHook('afterSanitizeAttributes', (node) => {
 // the prebuilt body in <1 ms.
 const MAX_CACHE_ENTRIES = 50
 const sanitizeCache = new Map<string, string>()
+
+// Make one over-wide table reflow into the column it is in.
+//
+// The width almost always comes from something the source states
+// outright — a `width` attribute from a spreadsheet paste, `nowrap` on
+// every cell so each one asks for its longest line unbroken — rather
+// than from content that genuinely cannot be narrower. Withdrawing
+// those three declarations lets the table lay itself out against the
+// space it has; the text inside stays at its own size and wraps.
+//
+// `important` because the declaration being overruled may have come
+// from a `<style>` block in the message, which an ordinary inline style
+// would not outrank.
+function reflowTable(table: HTMLTableElement): void {
+  table.style.setProperty('width', 'auto', 'important')
+  table.style.setProperty('max-width', '100%', 'important')
+  table.style.setProperty('table-layout', 'auto', 'important')
+  // Both spellings, and only where it is actually declared: a cell that
+  // meant `white-space: pre` is left alone.
+  for (const el of table.querySelectorAll<HTMLElement>('[nowrap], [style*="nowrap"]')) {
+    el.removeAttribute('nowrap')
+    el.style.setProperty('white-space', 'normal', 'important')
+  }
+}
+
+/**
+ * Reflow the tables that are too wide to have been designed, before the
+ * message as a whole is measured.
+ *
+ * Marked once and skipped afterwards: this runs from the resize
+ * observer, so it has to reach a state where it stops changing anything
+ * — the same requirement `periodic-work-must-converge` names. A table
+ * already carrying `max-width: 100%` follows a column that changes
+ * later without being touched again.
+ */
+function reflowWideTables(wrap: HTMLElement): void {
+  const style = getComputedStyle(wrap)
+  const column = wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+  for (const table of wrap.querySelectorAll<HTMLTableElement>('table')) {
+    if (table.dataset.mailReflowed === '1') continue
+    if (!shouldReflowTable(table.scrollWidth, column)) continue
+    reflowTable(table)
+    table.dataset.mailReflowed = '1'
+  }
+}
 
 // CSS for the Shadow DOM mount. Equivalent to what the old iframe
 // srcdoc <style> block had — just scoped to the shadow root instead of
@@ -280,6 +325,10 @@ export function HtmlFrame({
       // Measure at full size, or a later pass measures an earlier pass's
       // result and the page shrinks a little further every time.
       reset()
+      // Before measuring, and not after: a table that reflows stops
+      // being part of what the message demands, so the prose around it
+      // is left at its own size instead of being scaled for it.
+      reflowWideTables(wrap)
       const hostWidth = host.clientWidth
       const contentWidth = wrap.scrollWidth
       const scale = fitScale(contentWidth, hostWidth)
