@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { fitHeight, fitScale, MIN_FIT_SCALE } from '@/lib/fit-to-width'
+import {
+  fitHeight,
+  fitScale,
+  MAX_DESIGNED_WIDTH,
+  MIN_FIT_SCALE,
+  shouldReflowTable,
+} from '@/lib/fit-to-width'
 
 // A phone column: 390 px viewport less the reading pane's padding.
 const PHONE = 366
@@ -57,5 +63,41 @@ describe('fitHeight', () => {
 
   it('is zero before anything has rendered', () => {
     expect(fitHeight(0, 0.5)).toBe(0)
+  })
+})
+
+describe('shouldReflowTable', () => {
+  /**
+   * The whole point of the split. A message laid out at one of the
+   * surveyed widths is scaled, because scaling shows what the sender
+   * composed; anything past the widest width anyone composes for was
+   * not laid out to be seen whole, so it is made to reflow instead.
+   */
+  it.each([600, 640, 650, 680, 700, 768])(
+    'leaves a %ipx table to be scaled with the message',
+    (width) => {
+      expect(shouldReflowTable(width, PHONE)).toBe(false)
+      expect(fitScale(width, PHONE)).toBeLessThan(1)
+    }
+  )
+
+  it('reflows a pasted spreadsheet rather than shrinking the prose around it', () => {
+    expect(shouldReflowTable(2100, 656)).toBe(true)
+  })
+
+  it('leaves a table that already fits alone, however wide the column', () => {
+    expect(shouldReflowTable(900, 1200)).toBe(false)
+    expect(shouldReflowTable(MAX_DESIGNED_WIDTH + 1, MAX_DESIGNED_WIDTH + 1)).toBe(false)
+  })
+
+  it('is exclusive at the design width, so 800 is still scaled', () => {
+    expect(shouldReflowTable(MAX_DESIGNED_WIDTH, PHONE)).toBe(false)
+    expect(shouldReflowTable(MAX_DESIGNED_WIDTH + 1, PHONE)).toBe(true)
+  })
+
+  it('answers no when it has not been measured yet', () => {
+    expect(shouldReflowTable(2100, 0)).toBe(false)
+    expect(shouldReflowTable(Number.NaN, PHONE)).toBe(false)
+    expect(shouldReflowTable(2100, Number.NaN)).toBe(false)
   })
 })
