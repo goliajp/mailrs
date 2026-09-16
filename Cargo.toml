@@ -183,7 +183,7 @@ spg-embedded = "7.38.4"
 # `HRANDFIELD .. WITHVALUES` appear in no mailrs code path. `CONFIG SET
 # notify-keyspace-events` is wired to the wire for the first time; this
 # project does not use keyspace notifications either.
-kevy-embedded = "6.3.0"
+kevy-embedded = "6.4.0"
 # kevy-client — synchronous RESP network client for a shared kevy-server.
 # Used when MAILRS_KEVY_URL is set: webapi's sessions and the fifteen
 # core-sidestate families, plus the anti subsystems (greylist / rate /
@@ -200,7 +200,7 @@ kevy-embedded = "6.3.0"
 # `cargo info` can report a stale latest from the local cache — check the
 # sparse index (`curl -s https://index.crates.io/ke/vy/kevy-client`), not
 # the cache.
-kevy-client = "6.3.0"
+kevy-client = "6.4.0"
 
 # Serialization.
 serde = { version = "1", features = ["derive"] }
