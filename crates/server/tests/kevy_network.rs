@@ -44,7 +44,7 @@ use mailrs_server::{EventBus, SmtpEvent};
 /// `MAILRS_TEST_KEVY_TAG` overrides it, so the same suite can be pointed at the
 /// version prod runs and the version prod is going to.
 fn kevy_tag() -> String {
-    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "6.3.0".to_string())
+    std::env::var("MAILRS_TEST_KEVY_TAG").unwrap_or_else(|_| "6.4.0".to_string())
 }
 
 /// Start a kevy-server container and return its `kevy://host:port` URL.

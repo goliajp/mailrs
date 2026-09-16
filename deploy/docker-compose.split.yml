@@ -39,7 +39,7 @@ services:
   # path).
   kevy-server:
     container_name: mailrs-kevy
-    image: ghcr.io/goliajp/kevy:6.3.0
+    image: ghcr.io/goliajp/kevy:6.4.0
     environment:
       KEVY_PORT: "6379"
       KEVY_AOF: "1"

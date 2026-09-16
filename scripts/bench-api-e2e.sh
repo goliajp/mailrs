@@ -13,7 +13,7 @@
 # Usage:
 #   scripts/bench-api-e2e.sh pg
 #   scripts/bench-api-e2e.sh fastcore
-#   KEVY_IMAGE=ghcr.io/goliajp/kevy:6.3.0 scripts/bench-api-e2e.sh fastcore
+#   KEVY_IMAGE=ghcr.io/goliajp/kevy:6.4.0 scripts/bench-api-e2e.sh fastcore
 #   scripts/bench-api-e2e.sh --compare        # 3-way table across saved runs
 #
 # Env:
@@ -80,7 +80,7 @@ KEVY_CONTAINER="mailrs-bench-kevy-$$"
 # is not a measurement, and `:latest` was 7.37.16 only by coincidence of the day
 # — `spg version` is what says so (`--version` answers "unknown command").
 SPG_IMAGE="${SPG_IMAGE:-goliakk/spg:7.37.16}"
-KEVY_IMAGE="${KEVY_IMAGE:-ghcr.io/goliajp/kevy:6.3.0}"
+KEVY_IMAGE="${KEVY_IMAGE:-ghcr.io/goliajp/kevy:6.4.0}"
 SECRET="bench-core-secret"
 BASE="http://127.0.0.1:${PORT}"
 
