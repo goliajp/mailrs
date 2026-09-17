@@ -84,6 +84,32 @@ pub const RULE_ZERO_WIDTH_IN_WORD: &str = "zero-width-inside-a-word";
 /// [`mailrs_textguard::Deception::zero_width_inside_a_word`].
 pub const ZERO_WIDTH_IN_WORD_SCORE: f64 = 6.0;
 
+/// A `From:` at one of this deployment's own domains, on a session
+/// that never authenticated as it.
+///
+/// Our own people submit authenticated, and the fraud scan runs only
+/// on sessions that did not — so a `From:` at our domain there is
+/// somebody outside saying they are us.  It is also what our own DNS
+/// already says about such mail: `_dmarc.golia.jp` publishes
+/// `p=quarantine; sp=reject`.
+///
+/// Why it needed its own rule: every hold-worthy identity rule starts
+/// with `external(m)`, which is false for our own domains — the
+/// exemption written for "outsiders claiming our name" also excused
+/// outsiders *using our domain*.  A BEC message from
+/// `aiyhccspbu@golia.jp`, display name `齋藤 真`, subject
+/// `ギリア株式会社 業務変更`, asking the reader to reply with their
+/// personal LINE QR code, reached the inbox with nothing but a
+/// "Suspicious sender" badge (2026-09-18).  The same campaign appears
+/// in [`minted_address`]'s own examples, from minted domains; this
+/// one had moved to ours, where `minted-address` cannot fire either
+/// because `golia` is a word somebody chose.
+pub const RULE_CLAIMS_OUR_DOMAIN: &str = "claims-our-domain";
+
+/// Score for a `From:` at our own domain from an unauthenticated
+/// session.  Holds: there is no innocent reading of it on this path.
+pub const CLAIMS_OUR_DOMAIN_SCORE: f64 = 6.0;
+
 /// An address whose local part and registered domain both read as
 /// machine-minted. See [`minted_address`].
 pub const RULE_MINTED_ADDRESS: &str = "minted-address";

@@ -150,6 +150,11 @@ pub(super) async fn run_antispam(
         has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
         to_display: &to_display,
         reply_rotation,
+        // `run_antispam` is called only when the session did not
+        // authenticate (`!is_authenticated` in `events/data/mod.rs`).
+        // Stated as a fact rather than left to the rules to assume
+        // from which code path they are running on.
+        unauthenticated: true,
         ..mailrs_fraud::Facts::default()
     };
     let policy = mailrs_fraud::Policy {

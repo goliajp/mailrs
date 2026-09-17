@@ -11,6 +11,35 @@ tracked separately in the release-web workflow.
 
 ## Unreleased — accumulating on `develop`, ships as **v2.2.0**
 
+### Mail claiming our own domain is held for review
+
+A BEC message from `aiyhccspbu@golia.jp` — display name `齋藤 真`,
+subject `ギリア株式会社 業務変更`, asking the reader to reply with
+their personal LINE QR code — reached the inbox with a "Suspicious
+sender" badge and nothing else. Every hold-worthy identity rule starts
+at `external(m)`, which is false for our own domains: the exemption
+written for outsiders claiming our *name* also excused outsiders using
+our *domain*. `minted-address` could not fire either, because `golia`
+is a word somebody chose.
+
+New rule `claims-our-domain` (identity, 6.0, holds). The fraud scan
+runs only on sessions that did not authenticate — our own people submit
+authenticated — so a `From:` at one of `MAILRS_LOCAL_DOMAINS` there is
+somebody outside saying they are us, which is also what
+`_dmarc.golia.jp` (`p=quarantine; sp=reject`) already says to do with
+it. Domains on the org-name allow-list stay exempt.
+
+It needs a new fact, `unauthenticated`, which the receiver sets and the
+historical sweep leaves false — so a rescan, which cannot know how a
+stored message was submitted, can never hold the mailbox's own internal
+history. That also means this catches new mail only; nothing already
+delivered moves.
+
+Not covered: the auth facts (`spf` / `dkim` / `dmarc`) are exposed to
+the rules but still never filled, because the fraud scan runs before
+the pipeline stage that computes them. A rule keyed on authentication
+is not expressible until that order changes.
+
 Rust-side kevy 3.17 network-op adoption + admin-panel data-source
 repair. Sits on top of the shipped `v2.0.0` GA and `web-v2026.07.08-1`
 web release; v2.1 web work is complete and covered further down.

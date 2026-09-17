@@ -55,6 +55,17 @@ rule('hostname-claims-company', 'identity', 5, true, function(m)
         end
     end
 end)
+-- Our own people submit authenticated, and this scan runs only on
+-- sessions that did not: a From at our domain here is somebody outside
+-- claiming to be us, which is also what our DMARC record says to do
+-- with it.  Every rule above starts at `external(m)`, so this is the
+-- one case they all decline to look at.
+rule('claims-our-domain', 'identity', 6, true, function(m)
+    if not m.unauthenticated or m.from_domain == '' then return end
+    if not owns(m.our_domains, m.from_domain) then return end
+    if owns(m.allowed_domains, m.from_domain) then return end
+    return 'the From address is at this organisation\'s own domain, on a session that did not authenticate as it'
+end)
 rule('minted-address', 'identity', 6, true, function(m)
     if minted(m.minted_local) and minted(m.minted_sld) then
         return 'neither the mailbox nor the domain is a word anybody chose'

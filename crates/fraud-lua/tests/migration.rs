@@ -33,7 +33,13 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
-    assert_eq!(rules.rule_count(), 16);
+    // Sixteen migrated rules plus `claims-our-domain`, which was
+    // written after the migration and has no Rust counterpart to
+    // compare against — the oracle below is frozen on purpose.  It
+    // cannot fire here either: it needs the `unauthenticated` fact,
+    // which these Facts leave false.  Its own tests are in
+    // `tests/our_domain.rs`.
+    assert_eq!(rules.rule_count(), 17);
     for from in &senders {
         for (subject, seen, to) in [
             (
@@ -111,6 +117,10 @@ fn all_sixteen_rules_have_positive_parity_coverage() {
             }
         }
     }
+    // The migrated sixteen, each fired at least once and each matching
+    // the frozen Rust oracle.  Rules added after the migration are not
+    // in this matrix and must not be: there is nothing to compare them
+    // with.
     assert_eq!(covered.len(), 16, "{covered:?}");
 }
 

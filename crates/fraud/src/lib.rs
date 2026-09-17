@@ -147,6 +147,16 @@ pub struct Facts<'a> {
     /// execute: `.exe`, `.cab`, `.js`, `.lnk`, `.docm`, and the rest
     /// of that family.
     pub has_executable_attachment: bool,
+    /// Whether the message arrived on an SMTP session that did not
+    /// authenticate.
+    ///
+    /// The receiver runs the fraud scan only for unauthenticated
+    /// sessions (`!is_authenticated && antispam_enabled`), so it sets
+    /// this; the historical sweep cannot know it and leaves it false.
+    /// That difference is the point — "nobody proved they were us" is
+    /// a fact about a connection, and a sweep over stored mail has no
+    /// connection to look at.  See the `claims-our-domain` rule.
+    pub unauthenticated: bool,
     /// The `To:` header's display name, decoded.
     ///
     /// Compared against a name the subject greets. Deliberately the
