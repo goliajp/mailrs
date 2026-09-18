@@ -118,6 +118,40 @@ pub fn x_mailer_header(raw: &[u8]) -> Option<String> {
     value.filter(|v| !v.is_empty())
 }
 
+/// The `authserv-id` of the first `Authentication-Results:` header —
+/// the server that wrote it.
+///
+/// Its use is telling how a stored message was submitted.  The
+/// receiver stamps this header on the inbound path only, which runs
+/// only for sessions that did not authenticate (`!is_authenticated`
+/// in `events/data/mod.rs`), and prepends it — so a stored message
+/// whose first one names *this* deployment came in as a stranger,
+/// and one our own people submitted has none of ours at all.
+///
+/// The first one, not any: a forwarded message carries the stamps of
+/// every hop that checked it, and the question here is who put the
+/// message in this mailbox.
+pub fn auth_results_authserv(raw: &[u8]) -> Option<String> {
+    let head = &raw[..raw.len().min(HEAD_LIMIT)];
+    let text = String::from_utf8_lossy(head);
+    for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
+        if line.is_empty() {
+            break;
+        }
+        let Some(rest) = line
+            .to_ascii_lowercase()
+            .strip_prefix("authentication-results:")
+            .map(|r| line[line.len() - r.len()..].to_string())
+        else {
+            continue;
+        };
+        // `Authentication-Results: mx.example.com; spf=pass; …`
+        let id = rest.split(';').next().unwrap_or("").trim();
+        return (!id.is_empty()).then(|| id.to_ascii_lowercase());
+    }
+    None
+}
+
 /// The `To:` display name, decoded — the sender's own claim about
 /// who this message is for.
 ///
@@ -203,6 +237,45 @@ fn decoded_identity(raw: &[u8]) -> (String, String, String, String) {
 
 #[cfg(test)]
 mod tests {
+
+    /// Our own stamp, as the receiver prepends it.  The sweep reads
+    /// this to tell mail that arrived from a stranger from mail this
+    /// deployment's own people submitted.
+    #[test]
+    fn the_first_authentication_results_names_the_server_that_wrote_it() {
+        let raw = b"Authentication-Results: mail.golia.ai;\r\n\tspf=fail;\r\n\tdmarc=fail\r\n\
+                    From: x <a@golia.jp>\r\n\r\nbody\r\n";
+        assert_eq!(
+            auth_results_authserv(raw).as_deref(),
+            Some("mail.golia.ai")
+        );
+    }
+
+    /// A forwarded message carries the stamps of every hop that
+    /// checked it.  The one that matters is the one on top — who put
+    /// the message in this mailbox.
+    #[test]
+    fn a_forwarders_stamp_underneath_is_not_ours() {
+        let raw = b"Authentication-Results: mx.forwarder.example; spf=pass\r\n\
+                    Authentication-Results: mail.golia.ai; spf=fail\r\n\
+                    From: x <a@golia.jp>\r\n\r\nbody\r\n";
+        assert_eq!(
+            auth_results_authserv(raw).as_deref(),
+            Some("mx.forwarder.example")
+        );
+    }
+
+    /// Mail our own people submitted carries no stamp of ours: the
+    /// receiver writes one only on the path that runs for sessions
+    /// that did not authenticate.
+    #[test]
+    fn a_message_with_no_stamp_says_nothing() {
+        let raw = b"From: x <a@golia.jp>\r\nSubject: hello\r\n\r\nbody\r\n";
+        assert_eq!(auth_results_authserv(raw), None);
+        // And a header below the body is not a header.
+        let raw = b"From: x <a@golia.jp>\r\n\r\nAuthentication-Results: mail.golia.ai; spf=pass\r\n";
+        assert_eq!(auth_results_authserv(raw), None);
+    }
     use super::*;
 
     /// LinkedIn's `To:` carries the reader's name, and it arrives

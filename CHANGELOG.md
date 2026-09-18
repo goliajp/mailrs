@@ -11,6 +11,39 @@ tracked separately in the release-web workflow.
 
 ## Unreleased — accumulating on `develop`, ships as **v2.2.0**
 
+### A sender with no avatar at all
+
+`Microsoft Rewards` from `customeremail.microsoftrewards.com` drew no
+avatar — not the letter fallback, nothing. The icon cascade asks
+Google (404 for that domain) and then DuckDuckGo, which answers `200
+image/x-icon` with **43 bytes**: a 1×1 transparent GIF, its way of
+saying it has no icon. Any 200 counted as a hit, so the UI stretched
+one transparent pixel into a 36 px circle.
+
+The cascade now measures what it got — PNG, GIF, ICO and JPEG state
+their size in the header, SVG (BIMI) is taken as-is — and treats
+anything under 8×8 as the provider saying no, carrying on to the next
+source and finally to the letter avatar. Hits live in kevy for a week,
+so the same test runs on the way out of the cache: placeholders
+already stored are dropped on first touch instead of lingering for
+seven days.
+
+### The sweep can tell how a stored message was submitted
+
+`claims-our-domain` needs to know that a message arrived on a session
+that did not authenticate, and the historical sweep had no way to know
+— so it declined, and mail already delivered could never be re-judged
+by it.
+
+It can now read it off the message: the receiver stamps
+`Authentication-Results:` on the inbound path only, which runs only
+for unauthenticated sessions, and prepends it. A stored message whose
+**first** such header names this deployment came in as a stranger; one
+our own people submitted carries none of ours. That needs
+`MAILRS_HOSTNAME` on the fastcore process, which only the receiver had
+— now in its compose block. Unset, the sweep says so in its log and
+the rule keeps declining, the same shape as the missing org names.
+
 ### Mail claiming our own domain is held for review
 
 A BEC message from `aiyhccspbu@golia.jp` — display name `齋藤 真`,
