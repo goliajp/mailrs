@@ -9,7 +9,14 @@ binary + fastcore stack, and `web-v<YYYY.MM.DD>-<seq>` for the React
 web UI. Only the Rust stream is enumerated below; web releases are
 tracked separately in the release-web workflow.
 
-## Unreleased — accumulating on `develop`, ships as **v2.2.0**
+## Since v2.0.0 — shipped straight from `develop`, up to **v2.86.0**
+
+Per-version enumeration stopped at `v2.0.0` (2026-07-07). Everything
+since has shipped by `scripts/direct-deploy.sh <version>`, which takes
+the version on the command line, and this section kept accumulating
+under a heading that still said "ships as v2.2.0" while production ran
+2.85.0. The notes below are per change, newest first, with the version
+it landed in where that is known.
 
 ### A sender with no avatar at all
 
@@ -72,6 +79,42 @@ Not covered: the auth facts (`spf` / `dkim` / `dmarc`) are exposed to
 the rules but still never filled, because the fraud scan runs before
 the pipeline stage that computes them. A rule keyed on authentication
 is not expressible until that order changes.
+
+#### Corrected in v2.86.0 — it held 62 of this deployment's own mail
+
+The paragraph above is wrong in the way that matters: "our own people
+submit authenticated" is not true of this deployment's own services.
+They submit to the MX without SMTP AUTH, from the container bridge, and
+some of them are unsigned — `devops@` (38 conversations), `alias-verify@`
+(36), `noreply@`, `qa@`, `postmaster@`, all `spf=softfail dkim=none
+dmarc=fail`. Of 108 messages in that class, three were the real thing.
+The sweep did hold them too: by then it read our own
+`Authentication-Results` stamp back off the stored message, so
+"unauthenticated" was answerable historically after all, and the
+activation's backfill applied it to 36,676 threads.
+
+Rolled back to the previous bundle first (the backfill released all 63),
+then the rule was given the two facts that can tell our own mail from a
+forgery:
+
+* **where the connection came from.** Our services reach us at
+  172.18.0.1; a forger cannot borrow our own host's address. The
+  receiver reads it off the socket, the sweep off the first `Received:`
+  line it wrote, and a message with no line to read counts as outside.
+* **what alignment said.** `dmarc == 'fail'`, not `~= 'pass'`:
+  production has mail from a public address that IS us and proves it
+  (`spf=pass dmarc=pass`), and a rule firing on "not proven" would hold
+  that too. Unknown declines.
+
+The receiver could not answer the second one at all — it scans before
+the pipeline stage that checks alignment — so it now scans again
+afterwards, and that pass is the verdict `ingest.rs` holds a
+conversation by. The accept/junk/reject decision above it is made
+before, and is not revisited.
+
+The rule's tests are three real production shapes copied out of the
+maildir: the reported BEC is held, the control plane's own mail is not,
+and neither is the verified public sender at our domain.
 
 Rust-side kevy 3.17 network-op adoption + admin-panel data-source
 repair. Sits on top of the shipped `v2.0.0` GA and `web-v2026.07.08-1`
