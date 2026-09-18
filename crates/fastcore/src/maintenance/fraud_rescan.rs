@@ -411,6 +411,68 @@ pub(crate) async fn rescan(
 
 #[cfg(test)]
 mod tests {
+
+    /// The message this rule was written for, as production stored it
+    /// (`lihao/cur/1789680401.…`, 2026-09-18 06:26 JST).  It went to
+    /// Junk on `dmarc=fail` and nothing held it, so it never reached
+    /// the review screen.
+    ///
+    /// Everything the hold needs is in these headers: our own receiver
+    /// stamped it, which it does only for sessions that did not
+    /// authenticate, and the `From` is at one of our domains.  The
+    /// `spf=pass; dkim=pass` belong to `pvyo.cn`, the sender's own
+    /// domain — aligned with nothing.
+    #[test]
+    fn the_reported_bec_message_is_held_by_the_new_rule() {
+        let raw: &[u8] = b"Authentication-Results: mail.golia.ai;\r\n\
+\tspf=pass;\r\n\tdkim=pass;\r\n\tarc=none;\r\n\
+\tdmarc=fail reason=\"policy=quarantine\"\r\n\
+Received: from mail.golia.ai (162.4.137.23:39822)\r\n\
+\tby mail.golia.ai with ESMTP\r\n\
+Sender: <mliwzodler@pvyo.cn>\r\n\
+Reply-To: consciencequade@zohomail.jp\r\n\
+From: =?utf-8?B?6b2L6JekIOecnw==?= <aiyhccspbu@golia.jp>\r\n\
+To: \"finance@golia.jp\" <finance@golia.jp>\r\n\
+Subject: =?utf-8?B?44Ku44Oq44Ki5qCq5byP5Lya56S+IOalreWLmeWkieabtA==?=\r\n\
+X-Mailer: Slrkinlwm 169\r\n\r\nbody\r\n";
+
+        let our_stamp = "mail.golia.ai";
+        let stamp = mailrs_inbound::identity::auth_results_authserv(raw);
+        assert_eq!(stamp.as_deref(), Some(our_stamp), "our own stamp is on it");
+
+        let from = mailrs_inbound::from_header(raw);
+        let facts = mailrs_fraud::Facts {
+            from: &from,
+            subject: &mailrs_inbound::subject_header(raw),
+            x_mailer: None,
+            unauthenticated: stamp.as_deref() == Some(our_stamp),
+            ..mailrs_fraud::Facts::default()
+        };
+        let policy = mailrs_fraud::Policy {
+            our_domains: vec!["golia.jp".into(), "golia.ai".into()],
+            ..mailrs_fraud::Policy::default()
+        };
+        let mut rules = mailrs_fraud_lua::Rules::compile(mailrs_fraud_lua::DEFAULT_SOURCE)
+            .expect("shipped bundle compiles");
+        let findings = rules.classify(&facts, &policy).findings;
+        assert!(
+            findings.has(mailrs_fraud::RULE_CLAIMS_OUR_DOMAIN),
+            "{findings:?}"
+        );
+        assert!(
+            findings.hold_worthy(),
+            "it would still not be held: {findings:?}"
+        );
+
+        // And without our stamp — a message somebody submitted
+        // authenticated — the same headers hold nothing.
+        let facts = mailrs_fraud::Facts {
+            from: &from,
+            unauthenticated: false,
+            ..mailrs_fraud::Facts::default()
+        };
+        assert!(!rules.classify(&facts, &policy).findings.hold_worthy());
+    }
     use super::*;
 
     const HELD: &[u8] = b"Authentication-Results: mx.golia.jp; spf=pass; dkim=pass; dmarc=pass\r\n\
