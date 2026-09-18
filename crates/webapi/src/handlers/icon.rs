@@ -210,9 +210,7 @@ fn icon_dimensions(b: &[u8]) -> Option<(u32, u32)> {
             let marker = b[i + 1];
             let len = u16::from_be_bytes(b[i + 2..i + 4].try_into().ok()?) as usize;
             // SOF0..SOF15, minus the four that are not frame headers.
-            if (0xC0..=0xCF).contains(&marker)
-                && !matches!(marker, 0xC4 | 0xC8 | 0xCC | 0xD8)
-            {
+            if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC | 0xD8) {
                 let h = u16::from_be_bytes(b[i + 5..i + 7].try_into().ok()?);
                 let w = u16::from_be_bytes(b[i + 7..i + 9].try_into().ok()?);
                 return Some((u32::from(w), u32::from(h)));
@@ -411,7 +409,10 @@ mod tests {
     /// as before rather than dropped.
     #[test]
     fn vector_and_unknown_formats_are_kept() {
-        assert!(usable_icon("image/svg+xml", b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"));
+        assert!(usable_icon(
+            "image/svg+xml",
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"
+        ));
         assert!(usable_icon("image/webp", b"RIFF????WEBPVP8 "));
         assert_eq!(icon_dimensions(b"RIFF????WEBPVP8 "), None);
     }

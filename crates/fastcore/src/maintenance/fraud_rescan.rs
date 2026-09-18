@@ -219,11 +219,9 @@ pub(crate) async fn rescan(
             // cannot tell its own stamp from a forwarder's, so it says
             // "not known" and the rules that need it decline — see the
             // warning in `policy_from_env`'s neighbour below.
-            unauthenticated: our_stamp
-                .as_deref()
-                .is_some_and(|host| {
-                    mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
-                }),
+            unauthenticated: our_stamp.as_deref().is_some_and(|host| {
+                mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
+            }),
             ..mailrs_fraud::Facts::default()
         };
         let scan = match mailrs_fraud_lua::scan(&facts, &policy) {

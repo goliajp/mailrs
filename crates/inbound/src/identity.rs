@@ -245,10 +245,7 @@ mod tests {
     fn the_first_authentication_results_names_the_server_that_wrote_it() {
         let raw = b"Authentication-Results: mail.golia.ai;\r\n\tspf=fail;\r\n\tdmarc=fail\r\n\
                     From: x <a@golia.jp>\r\n\r\nbody\r\n";
-        assert_eq!(
-            auth_results_authserv(raw).as_deref(),
-            Some("mail.golia.ai")
-        );
+        assert_eq!(auth_results_authserv(raw).as_deref(), Some("mail.golia.ai"));
     }
 
     /// A forwarded message carries the stamps of every hop that
@@ -273,7 +270,8 @@ mod tests {
         let raw = b"From: x <a@golia.jp>\r\nSubject: hello\r\n\r\nbody\r\n";
         assert_eq!(auth_results_authserv(raw), None);
         // And a header below the body is not a header.
-        let raw = b"From: x <a@golia.jp>\r\n\r\nAuthentication-Results: mail.golia.ai; spf=pass\r\n";
+        let raw =
+            b"From: x <a@golia.jp>\r\n\r\nAuthentication-Results: mail.golia.ai; spf=pass\r\n";
         assert_eq!(auth_results_authserv(raw), None);
     }
     use super::*;
