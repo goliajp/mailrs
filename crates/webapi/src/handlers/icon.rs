@@ -84,10 +84,10 @@ pub async fn get_icon(Path(domain): Path<String>) -> Response {
     // so a version that stops storing them would still serve the ones
     // already stored for another seven days; the same test on the way
     // out retires them on first touch.
-    if let Some((ct, body)) = lookup_cache(&clean_domain).await {
-        if usable_icon(&ct, &body) {
-            return build_ok(&ct, body);
-        }
+    if let Some((ct, body)) = lookup_cache(&clean_domain).await
+        && usable_icon(&ct, &body)
+    {
+        return build_ok(&ct, body);
     }
     // 2. Negative-cache hit → skip the cascade, return 204.
     if is_cached_miss(&clean_domain).await {
