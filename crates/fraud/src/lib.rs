@@ -147,6 +147,16 @@ pub struct Facts<'a> {
     /// execute: `.exe`, `.cab`, `.js`, `.lnk`, `.docm`, and the rest
     /// of that family.
     pub has_executable_attachment: bool,
+    /// Whether the peer that delivered it was on a loopback or private
+    /// address — this deployment's own host or LAN.
+    ///
+    /// Its own systems submit to the MX without SMTP AUTH: measured on
+    /// production, `devops@golia.jp` and friends arrive from
+    /// `172.18.0.1` (the container bridge) with `spf=softfail
+    /// dkim=none dmarc=fail`, indistinguishable by authentication from
+    /// a spoof. What distinguishes them is where they came from, which
+    /// is not something a forger can borrow.
+    pub peer_is_private: bool,
     /// Whether the message arrived on an SMTP session that did not
     /// authenticate.
     ///

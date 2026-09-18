@@ -55,16 +55,30 @@ rule('hostname-claims-company', 'identity', 5, true, function(m)
         end
     end
 end)
--- Our own people submit authenticated, and this scan runs only on
--- sessions that did not: a From at our domain here is somebody outside
--- claiming to be us, which is also what our DMARC record says to do
--- with it.  Every rule above starts at `external(m)`, so this is the
--- one case they all decline to look at.
+-- A From at our own domain that nothing authenticated as us.  Every
+-- rule above starts at `external(m)`, so this is the one case they all
+-- decline to look at.
+--
+-- Three conditions, and the first version had only one.  "Did not
+-- authenticate" alone held 62 conversations of this deployment's own
+-- system mail: its services submit to the MX without SMTP AUTH, from
+-- the container bridge, and some of them are unsigned — `devops@`,
+-- `noreply@`, `alias-verify@`, `spf=softfail dkim=none dmarc=fail`.
+-- Authentication cannot tell those from a forgery; where they came
+-- from can, and a forger cannot borrow our own host's address.
+--
+-- `dmarc == 'fail'` and not `~= 'pass'`: unknown must decline.  The
+-- receiver scans before the stage that checks alignment (it rescans
+-- after, which is where this fires), the sweep reads it off the stored
+-- header, and neither may guess.  Production has mail from a public
+-- address that IS us and says so — `spf=pass dmarc=pass` — and a rule
+-- that fired on "not proven" would hold that too.
 rule('claims-our-domain', 'identity', 6, true, function(m)
-    if not m.unauthenticated or m.from_domain == '' then return end
-    if not owns(m.our_domains, m.from_domain) then return end
+    if not m.unauthenticated or m.peer_is_private then return end
+    if m.dmarc ~= 'fail' then return end
+    if m.from_domain == '' or not owns(m.our_domains, m.from_domain) then return end
     if owns(m.allowed_domains, m.from_domain) then return end
-    return 'the From address is at this organisation\'s own domain, on a session that did not authenticate as it'
+    return 'the From address is at this organisation\'s own domain, from a public address, and DMARC says it is not us'
 end)
 rule('minted-address', 'identity', 6, true, function(m)
     if minted(m.minted_local) and minted(m.minted_sld) then

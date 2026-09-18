@@ -155,6 +155,13 @@ pub(super) async fn run_antispam(
         // Stated as a fact rather than left to the rules to assume
         // from which code path they are running on.
         unauthenticated: true,
+        // This deployment's own services submit to the MX without
+        // SMTP AUTH, from the container bridge.
+        peer_is_private: mailrs_inbound::identity::address_is_private(addr.ip()),
+        // SPF, DKIM and DMARC are not known yet — the stage that
+        // checks them runs below, in the pipeline. The rules that ask
+        // decline here and get their answer from the rescan further
+        // down.
         ..mailrs_fraud::Facts::default()
     };
     let policy = mailrs_fraud::Policy {
@@ -180,9 +187,39 @@ pub(super) async fn run_antispam(
         }
     };
     receive_ctx.fraud = scan.findings;
+    // Which bundle answered, for the verdict below. Both passes run
+    // the same one, so the second need not report it again.
+    let rules_version = scan.version;
 
     let started = std::time::Instant::now();
     let decision = ctx.inbound_pipeline.run(&mut receive_ctx).await;
+    // Scan again, now that alignment is known.
+    //
+    // The scan above cannot see SPF, DKIM or DMARC: the stage that
+    // checks them is in the pipeline that just ran.  A rule that turns
+    // on alignment — `claims-our-domain`, which asks whether a `From`
+    // at one of our own domains was authenticated as ours — therefore
+    // declines on the first pass and answers on this one.  The stored
+    // verdict is what `ingest.rs` holds a conversation by, so this is
+    // the pass that decides it; the accept/junk/reject decision above
+    // is already made and is not revisited, because the two questions
+    // are different ones.
+    let facts = mailrs_fraud::Facts {
+        spf: &receive_ctx.auth_results.spf,
+        dkim: &receive_ctx.auth_results.dkim,
+        dmarc: &receive_ctx.auth_results.dmarc,
+        ..facts
+    };
+    match mailrs_fraud_lua::scan(&facts, &policy) {
+        Ok(rescan) => receive_ctx.fraud = rescan.findings,
+        // The first pass stands, and is already what the context
+        // holds: it ran the same rules on everything but alignment,
+        // and a rule set that went away for a moment is not a reason
+        // to drop what it found.
+        Err(error) => {
+            tracing::warn!(%error, "fraud rules unavailable for the alignment pass; keeping the first verdict");
+        }
+    }
     // Only when something was found. The verdict costs four small
     // string builds, and this runs on every message that reaches the
     // server — but a message nobody suspected has no finding worth
@@ -192,7 +229,7 @@ pub(super) async fn run_antispam(
     let fraud_verdict = fraud_verdict_json(
         &receive_ctx,
         ctx.inbound_pipeline.spam_threshold(),
-        &scan.version,
+        &rules_version,
     );
     let full_message: Vec<u8> = std::mem::take(&mut receive_ctx.message);
     tracing::debug!(

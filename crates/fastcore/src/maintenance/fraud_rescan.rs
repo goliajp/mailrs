@@ -186,6 +186,7 @@ pub(crate) async fn rescan(
             .attachments()
             .filter_map(|p| p.attachment_filename())
             .collect();
+        let auth = mailrs_inbound::identity::auth_results_tokens(&raw);
         let subject = mailrs_inbound::subject_header(&raw);
         let to_display = mailrs_inbound::identity::to_display_name(&raw);
         let reply_to = mailrs_inbound::identity::reply_to_address(&raw);
@@ -222,7 +223,17 @@ pub(crate) async fn rescan(
             unauthenticated: our_stamp.as_deref().is_some_and(|host| {
                 mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
             }),
-            ..mailrs_fraud::Facts::default()
+            // Where it came from and what alignment said, both read
+            // back off what the receiver wrote down: the connection is
+            // gone and the DNS answers of the day are not worth
+            // re-asking.  A message with no `Received:` line to read
+            // is treated as arriving from outside, which is the
+            // conservative direction for the only rule that asks.
+            peer_is_private: mailrs_inbound::identity::first_received_peer_ip(&raw)
+                .is_some_and(mailrs_inbound::identity::address_is_private),
+            spf: &auth.0,
+            dkim: &auth.1,
+            dmarc: &auth.2,
         };
         let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
             Ok(scan) => scan,
@@ -412,40 +423,29 @@ pub(crate) async fn rescan(
 #[cfg(test)]
 mod tests {
 
-    /// The message this rule was written for, as production stored it
-    /// (`lihao/cur/1789680401.…`, 2026-09-18 06:26 JST).  It went to
-    /// Junk on `dmarc=fail` and nothing held it, so it never reached
-    /// the review screen.
-    ///
-    /// Everything the hold needs is in these headers: our own receiver
-    /// stamped it, which it does only for sessions that did not
-    /// authenticate, and the `From` is at one of our domains.  The
-    /// `spf=pass; dkim=pass` belong to `pvyo.cn`, the sender's own
-    /// domain — aligned with nothing.
-    #[test]
-    fn the_reported_bec_message_is_held_by_the_new_rule() {
-        let raw: &[u8] = b"Authentication-Results: mail.golia.ai;\r\n\
-\tspf=pass;\r\n\tdkim=pass;\r\n\tarc=none;\r\n\
-\tdmarc=fail reason=\"policy=quarantine\"\r\n\
-Received: from mail.golia.ai (162.4.137.23:39822)\r\n\
-\tby mail.golia.ai with ESMTP\r\n\
-Sender: <mliwzodler@pvyo.cn>\r\n\
-Reply-To: consciencequade@zohomail.jp\r\n\
-From: =?utf-8?B?6b2L6JekIOecnw==?= <aiyhccspbu@golia.jp>\r\n\
-To: \"finance@golia.jp\" <finance@golia.jp>\r\n\
-Subject: =?utf-8?B?44Ku44Oq44Ki5qCq5byP5Lya56S+IOalreWLmeWkieabtA==?=\r\n\
-X-Mailer: Slrkinlwm 169\r\n\r\nbody\r\n";
-
-        let our_stamp = "mail.golia.ai";
+    /// Everything the sweep reads off a stored message, in one place,
+    /// so a test can hand it the bytes production stored.
+    fn facts_as_the_sweep_reads_them(raw: &[u8], our_stamp: &str) -> (String, bool, bool, String) {
         let stamp = mailrs_inbound::identity::auth_results_authserv(raw);
-        assert_eq!(stamp.as_deref(), Some(our_stamp), "our own stamp is on it");
+        let (_, _, dmarc) = mailrs_inbound::identity::auth_results_tokens(raw);
+        (
+            mailrs_inbound::from_header(raw),
+            stamp.as_deref() == Some(our_stamp),
+            mailrs_inbound::identity::first_received_peer_ip(raw)
+                .is_some_and(mailrs_inbound::identity::address_is_private),
+            dmarc,
+        )
+    }
 
-        let from = mailrs_inbound::from_header(raw);
+    fn holds_as_the_sweep_would(raw: &[u8]) -> bool {
+        let (from, unauthenticated, peer_is_private, dmarc) =
+            facts_as_the_sweep_reads_them(raw, "mail.golia.ai");
         let facts = mailrs_fraud::Facts {
             from: &from,
             subject: &mailrs_inbound::subject_header(raw),
-            x_mailer: None,
-            unauthenticated: stamp.as_deref() == Some(our_stamp),
+            unauthenticated,
+            peer_is_private,
+            dmarc: &dmarc,
             ..mailrs_fraud::Facts::default()
         };
         let policy = mailrs_fraud::Policy {
@@ -456,22 +456,82 @@ X-Mailer: Slrkinlwm 169\r\n\r\nbody\r\n";
             .expect("shipped bundle compiles");
         let findings = rules.classify(&facts, &policy).findings;
         assert!(
-            findings.has(mailrs_fraud::RULE_CLAIMS_OUR_DOMAIN),
+            findings.has(mailrs_fraud::RULE_CLAIMS_OUR_DOMAIN) == findings.hold_worthy()
+                || !findings.has(mailrs_fraud::RULE_CLAIMS_OUR_DOMAIN),
             "{findings:?}"
         );
-        assert!(
-            findings.hold_worthy(),
-            "it would still not be held: {findings:?}"
-        );
+        findings.has(mailrs_fraud::RULE_CLAIMS_OUR_DOMAIN)
+    }
 
-        // And without our stamp — a message somebody submitted
-        // authenticated — the same headers hold nothing.
-        let facts = mailrs_fraud::Facts {
-            from: &from,
-            unauthenticated: false,
-            ..mailrs_fraud::Facts::default()
-        };
-        assert!(!rules.classify(&facts, &policy).findings.hold_worthy());
+    /// The message this rule was written for, as production stored it
+    /// (`lihao/cur/1789680401.…`, 2026-09-18 06:26 JST).  It went to
+    /// Junk on `dmarc=fail` and nothing held it, so it never reached
+    /// the review screen.
+    ///
+    /// Our own receiver stamped it — so it arrived as a stranger — from
+    /// a public address, and DMARC failed.  The `spf=pass; dkim=pass`
+    /// belong to `pvyo.cn`, the sender's own domain, aligned with
+    /// nothing.
+    #[test]
+    fn the_reported_bec_message_is_held() {
+        let raw: &[u8] = b"Authentication-Results: mail.golia.ai;\r\n\
+\tspf=pass;\r\n\tdkim=pass;\r\n\tarc=none;\r\n\
+\tdmarc=fail reason=\"policy=quarantine\"\r\n\
+Received: from mail.golia.ai (162.4.137.23:39822)\r\n\
+\tby mail.golia.ai with ESMTP\r\n\
+Sender: <mliwzodler@pvyo.cn>\r\n\
+From: =?utf-8?B?6b2L6JekIOecnw==?= <aiyhccspbu@golia.jp>\r\n\
+To: \"finance@golia.jp\" <finance@golia.jp>\r\n\
+Subject: =?utf-8?B?44Ku44Oq44Ki5qCq5byP5Lya56S+IOalreWLmeWkieabtA==?=\r\n\r\nbody\r\n";
+
+        let (_, unauth, private, dmarc) = facts_as_the_sweep_reads_them(raw, "mail.golia.ai");
+        assert!(unauth, "our own stamp is on it");
+        assert!(!private, "162.4.137.23 is not one of ours");
+        assert_eq!(dmarc, "fail");
+        assert!(holds_as_the_sweep_would(raw));
+    }
+
+    /// And this deployment's own control plane, as production stored it
+    /// — `devops@golia.jp`, submitted to the MX from the container
+    /// bridge without SMTP AUTH and unsigned, so authentication reads
+    /// exactly like the forgery above.
+    ///
+    /// The first version of the rule held 62 of these.  The user
+    /// noticed within the hour: "这不是 review 应该有的啊，这是我们自己
+    /// 系统发的".
+    #[test]
+    fn our_own_control_plane_mail_is_not_held() {
+        let raw: &[u8] = b"Authentication-Results: mail.golia.ai;\r\n\
+\tspf=softfail;\r\n\tdkim=none;\r\n\tarc=none;\r\n\
+\tdmarc=fail reason=\"policy=quarantine\"\r\n\
+Received: from mail.golia.ai (172.18.0.1:58646)\r\n\
+\tby mail.golia.ai with ESMTP\r\n\
+From: devops@golia.jp\r\n\
+To: lihao@golia.jp\r\n\
+Subject: [devops] expo SDK 58 - latest 57.0.23 -> 57.0.24\r\n\r\nbody\r\n";
+
+        let (_, unauth, private, dmarc) = facts_as_the_sweep_reads_them(raw, "mail.golia.ai");
+        assert!(unauth, "it did not authenticate either");
+        assert!(private, "172.18.0.1 is this host");
+        assert_eq!(dmarc, "fail", "and nothing signed it");
+        assert!(
+            !holds_as_the_sweep_would(raw),
+            "our own control plane was held"
+        );
+    }
+
+    /// The third shape production has: a public sender at our domain
+    /// that DMARC verified.  Aligned means it is us.
+    #[test]
+    fn a_verified_public_sender_at_our_domain_is_not_held() {
+        let raw: &[u8] = b"Authentication-Results: mail.golia.ai;\r\n\
+\tspf=pass;\r\n\tdkim=none;\r\n\tdmarc=pass\r\n\
+Received: from mail.golia.ai (115.124.28.66:22574)\r\n\
+\tby mail.golia.ai with ESMTP\r\n\
+From: noreply@golia.jp\r\n\
+To: lihao@golia.jp\r\n\
+Subject: notice\r\n\r\nbody\r\n";
+        assert!(!holds_as_the_sweep_would(raw));
     }
     use super::*;
 

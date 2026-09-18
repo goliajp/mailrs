@@ -77,6 +77,7 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("has_bidi_override", f.has_bidi_override),
         ("has_executable_attachment", f.has_executable_attachment),
         ("unauthenticated", f.unauthenticated),
+        ("peer_is_private", f.peer_is_private),
     ] {
         t.set(lua, k, v).map_err(|e| lua.vm().error_text(&e))?;
     }
