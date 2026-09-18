@@ -118,6 +118,11 @@ services:
       # drifts is a sweep that judges by different rules than the
       # receive path.
       MAILRS_LOCAL_DOMAINS: golia.jp,golia.ai,dadaya.jp,marspot.com,bitreits.com,doracawl.com,madcawl.com
+      # Which stamp on `Authentication-Results:` is ours. The fraud
+      # rescan reads it to tell mail that arrived from a stranger
+      # from mail our own people submitted; unset, it says so and
+      # the rules that need it decline.
+      MAILRS_HOSTNAME: mail.golia.ai
       MAILRS_ORG_NAMES: GOLIA株式会社,GOLIA K.K.
       MAILRS_FRAUD_RULES_FILE: /fraud-rules/active.lua
       MAILRS_ORG_NAME_ALLOWED_DOMAINS: slack.com,github.com,atlassian.net

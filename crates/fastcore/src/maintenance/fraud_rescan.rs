@@ -66,6 +66,22 @@ pub(crate) async fn rescan(
     expected_version: Option<&str>,
 ) -> axum::response::Response {
     let policy = policy_from_env(&state);
+    // This deployment's own `authserv-id`, for telling its stamp from
+    // a forwarder's.  Unset means the sweep cannot tell how any stored
+    // message was submitted, and every rule that asks declines rather
+    // than guesses — the same shape as the missing org names above,
+    // and said out loud for the same reason.
+    let our_stamp = std::env::var("MAILRS_HOSTNAME")
+        .ok()
+        .map(|h| h.trim().to_ascii_lowercase())
+        .filter(|h| !h.is_empty());
+    if our_stamp.is_none() {
+        tracing::warn!(
+            "fraud rescan: MAILRS_HOSTNAME is unset — this sweep cannot tell mail that arrived \
+             from a stranger from mail this deployment's own people submitted, so \
+             `claims-our-domain` cannot fire on any of it"
+        );
+    }
     // One connection for the whole sweep. The brand check needs to
     // know how familiar each sender's domain is, and connecting per
     // thread would be 34,000 connections.
@@ -205,6 +221,19 @@ pub(crate) async fn rescan(
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
             to_display: &to_display,
             reply_rotation,
+            // How this message was submitted, read back off the
+            // message itself: the receiver stamps
+            // `Authentication-Results:` on the inbound path only, and
+            // that path runs only for sessions that did not
+            // authenticate.  Without `MAILRS_HOSTNAME` this process
+            // cannot tell its own stamp from a forwarder's, so it says
+            // "not known" and the rules that need it decline — see the
+            // warning in `policy_from_env`'s neighbour below.
+            unauthenticated: our_stamp
+                .as_deref()
+                .is_some_and(|host| {
+                    mailrs_inbound::identity::auth_results_authserv(&raw).as_deref() == Some(host)
+                }),
             ..mailrs_fraud::Facts::default()
         };
         let scan = match mailrs_fraud_lua::scan(&facts, &policy) {
