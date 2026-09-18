@@ -152,6 +152,130 @@ pub fn auth_results_authserv(raw: &[u8]) -> Option<String> {
     None
 }
 
+/// The `spf` / `dkim` / `dmarc` tokens of the first
+/// `Authentication-Results:` header — what the server that wrote it
+/// concluded.
+///
+/// Read back by the sweep, which has no connection to ask and no DNS
+/// to re-check: the receiver already did both and wrote the answer
+/// down. Tokens only (`pass`, `fail`, `none`, `softfail`); the
+/// `reason="…"` that DMARC carries is dropped.
+pub fn auth_results_tokens(raw: &[u8]) -> (String, String, String) {
+    let head = &raw[..raw.len().min(HEAD_LIMIT)];
+    let text = String::from_utf8_lossy(head);
+    let mut value: Option<String> = None;
+    for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
+        if line.is_empty() {
+            break;
+        }
+        if let Some(v) = &mut value {
+            // Folded continuation — every result sits on its own line
+            // in what the receiver writes.
+            if line.starts_with([' ', '\t']) {
+                v.push(' ');
+                v.push_str(line.trim());
+                continue;
+            }
+            break;
+        }
+        if line
+            .to_ascii_lowercase()
+            .starts_with("authentication-results:")
+        {
+            value = Some(line.to_string());
+        }
+    }
+    let Some(v) = value else {
+        return (String::new(), String::new(), String::new());
+    };
+    let token = |method: &str| -> String {
+        for part in v.split(';') {
+            let part = part.trim();
+            if let Some(rest) = part
+                .to_ascii_lowercase()
+                .strip_prefix(&format!("{method}="))
+                .map(|r| part[part.len() - r.len()..].to_string())
+            {
+                return rest
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .trim_end_matches(',')
+                    .to_ascii_lowercase();
+            }
+        }
+        String::new()
+    };
+    (token("spf"), token("dkim"), token("dmarc"))
+}
+
+/// The peer address in the first `Received:` header this deployment
+/// wrote — `Received: from mail.golia.ai (162.4.137.23:39822)`.
+///
+/// The sweep's answer to "where did this come from", for the same
+/// reason as [`auth_results_tokens`]: the connection is long gone and
+/// the receiver wrote down what it saw.
+pub fn first_received_peer_ip(raw: &[u8]) -> Option<std::net::IpAddr> {
+    let head = &raw[..raw.len().min(HEAD_LIMIT)];
+    let text = String::from_utf8_lossy(head);
+    let mut in_received = false;
+    let mut collected = String::new();
+    for line in text.split("\r\n").flat_map(|l| l.split('\n')) {
+        if line.is_empty() {
+            break;
+        }
+        if in_received {
+            if line.starts_with([' ', '\t']) {
+                collected.push(' ');
+                collected.push_str(line.trim());
+                continue;
+            }
+            break;
+        }
+        if line.to_ascii_lowercase().starts_with("received:") {
+            in_received = true;
+            collected.push_str(line);
+        }
+    }
+    let open = collected.find('(')?;
+    let close = collected[open..].find(')')? + open;
+    let inside = &collected[open + 1..close];
+    // `IP:port`, and IPv6 would carry colons of its own — take the
+    // last one as the separator.
+    let addr = match inside.rsplit_once(':') {
+        Some((ip, port)) if port.chars().all(|c| c.is_ascii_digit()) => ip,
+        _ => inside,
+    };
+    addr.trim().trim_matches(['[', ']']).parse().ok()
+}
+
+/// Whether an address belongs to this host or its private network.
+///
+/// Loopback, RFC 1918 / RFC 4193 and link-local. A message delivered
+/// from one of these came from inside the deployment — its own
+/// services submit to the MX without SMTP AUTH — and a sender on the
+/// internet cannot present one.
+pub fn address_is_private(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_loopback() || v4.is_private() || v4.is_link_local() || v4.is_unspecified()
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                // fc00::/7 unique-local, fe80::/10 link-local.
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+                // ::ffff:a.b.c.d — a v4 peer seen through a v6 socket,
+                // which is how a container bridge often arrives.
+                || v6.to_ipv4_mapped().is_some_and(|v4| {
+                    v4.is_loopback() || v4.is_private() || v4.is_link_local()
+                })
+        }
+    }
+}
+
 /// The `To:` display name, decoded — the sender's own claim about
 /// who this message is for.
 ///
@@ -237,6 +361,78 @@ fn decoded_identity(raw: &[u8]) -> (String, String, String, String) {
 
 #[cfg(test)]
 mod tests {
+
+    /// The tokens the receiver wrote, read back without the `reason`
+    /// DMARC carries.
+    #[test]
+    fn the_transport_tokens_are_read_off_the_header() {
+        let raw = b"Authentication-Results: mail.golia.ai;\r\n\
+\tspf=pass;\r\n\tdkim=pass;\r\n\tarc=none;\r\n\
+\tdmarc=fail reason=\"policy=quarantine\"\r\n\
+From: x <a@golia.jp>\r\n\r\nbody\r\n";
+        let (spf, dkim, dmarc) = auth_results_tokens(raw);
+        assert_eq!(
+            (spf.as_str(), dkim.as_str(), dmarc.as_str()),
+            ("pass", "pass", "fail")
+        );
+        // No header at all: three empty strings, which every rule that
+        // asks treats as "not checked".
+        let (spf, dkim, dmarc) = auth_results_tokens(b"From: x <a@golia.jp>\r\n\r\nbody\r\n");
+        assert!(spf.is_empty() && dkim.is_empty() && dmarc.is_empty());
+    }
+
+    /// Where the message came from, out of the `Received:` line this
+    /// deployment wrote.
+    #[test]
+    fn the_peer_address_is_read_off_the_first_received() {
+        let outside = b"Received: from mail.golia.ai (162.4.137.23:39822)\r\n\
+\tby mail.golia.ai with ESMTP\r\n\
+From: x <a@golia.jp>\r\n\r\nbody\r\n";
+        let inside = b"Received: from mail.golia.ai (172.18.0.1:58646)\r\n\
+From: devops@golia.jp\r\n\r\nbody\r\n";
+        assert_eq!(
+            first_received_peer_ip(outside).map(address_is_private),
+            Some(false)
+        );
+        assert_eq!(
+            first_received_peer_ip(inside).map(address_is_private),
+            Some(true)
+        );
+        // Nothing to read is not "from inside": the only rule that
+        // asks must not be talked out of firing by a missing header.
+        assert_eq!(
+            first_received_peer_ip(b"From: x <a@golia.jp>\r\n\r\nx\r\n"),
+            None
+        );
+    }
+
+    /// Loopback, RFC 1918, link-local and a v4 peer seen through a v6
+    /// socket all count as inside; a public address does not.
+    #[test]
+    fn inside_and_outside_addresses_are_told_apart() {
+        for inside in [
+            "127.0.0.1",
+            "172.18.0.1",
+            "10.1.2.3",
+            "192.168.0.9",
+            "169.254.1.1",
+            "::1",
+            "fd00::1",
+            "fe80::1",
+            "::ffff:172.18.0.1",
+        ] {
+            assert!(address_is_private(inside.parse().unwrap()), "{inside}");
+        }
+        for outside in [
+            "162.4.137.23",
+            "115.124.28.66",
+            "8.8.8.8",
+            "2001:4860:4860::8888",
+            "::ffff:8.8.8.8",
+        ] {
+            assert!(!address_is_private(outside.parse().unwrap()), "{outside}");
+        }
+    }
 
     /// Our own stamp, as the receiver prepends it.  The sweep reads
     /// this to tell mail that arrived from a stranger from mail this
