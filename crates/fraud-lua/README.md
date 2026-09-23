@@ -1,6 +1,6 @@
 # Lua fraud rules on Luna
 
-The receiver and historical fraud rescan run all 16 predicates through
+The receiver and historical fraud rescan run all 18 predicates through
 `luna-jit = 3.0.0` from **goliajp/luna**. JIT is disabled for these bounded
 scripts because native loops bypass Luna's interpreter instruction budget.
 The existing Rust rule functions remain a migration oracle; neither production
@@ -56,7 +56,10 @@ Progress is stored in `/data/kevy-fastcore/fraud-backfill/progress.json` and log
 as `fraud backfill progress` (cursor, total, held, released, no_file, complete).
 `no_file` reports conversations whose original message cannot be read; they are
 left unchanged. Existing holds unsupported by the new rules are released; hold
-matches enter Review and become read. Replaying a batch only writes differences.
+matches enter Review and become read. A conversation nothing holds, whose fraud
+score alone reaches the Junk threshold (5), is moved to Junk — the same sum the
+receive path uses, so a scored rule also reaches mail delivered before it
+existed; `junked` counts them. Replaying a batch only writes differences.
 The manual bounded `maintenance:fraud-rescan` remains available for a dry run.
 
 A verdict stores `lua:<SHA-256>` in its existing `rules_version` field. Compile
