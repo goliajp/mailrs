@@ -50,14 +50,36 @@ pub(crate) enum Disposition {
     /// have let them out: the loop reached `continue` before it ever
     /// looked at whether the thread was held.
     Release,
+    /// Nothing holds it, but the fraud score alone reaches the Junk
+    /// threshold — the same sum that sends it to Junk on the receive
+    /// path, where `make_delivery_decision` adds `findings.score()`.
+    ///
+    /// Without it a scored rule reaches new mail only: the sweep acted
+    /// on hold-grade findings and nothing else, so the twenty-one
+    /// `subject-cut-from-the-address` messages delivered before that
+    /// rule existed would have stayed in the inbox for good.
+    ///
+    /// Junk only, whatever `action` says. A score is suspicion, and
+    /// suspicion does not earn a hold or a delete.
+    Junk,
 }
 
-pub(crate) fn disposition(holds: bool, currently_held: bool) -> Disposition {
-    match (holds, currently_held) {
-        (true, _) => Disposition::Act,
-        (false, true) => Disposition::Release,
-        (false, false) => Disposition::Leave,
+pub(crate) fn disposition(holds: bool, junks: bool, currently_held: bool) -> Disposition {
+    match (holds, currently_held, junks) {
+        (true, _, _) => Disposition::Act,
+        (false, true, _) => Disposition::Release,
+        (false, false, true) => Disposition::Junk,
+        (false, false, false) => Disposition::Leave,
     }
+}
+
+/// Whether the fraud findings alone would send a message to Junk on
+/// the receive path. The threshold is the default because fastcore is
+/// not given the receiver's `MAILRS_SPAM_SCORE_THRESHOLD`, and
+/// production sets it nowhere (checked 2026-09-23 with `docker
+/// inspect mailrs-receiver`).
+pub(crate) fn junks_on_its_own(findings: &mailrs_fraud::Findings) -> bool {
+    findings.score() >= mailrs_inbound::DEFAULT_SPAM_THRESHOLD
 }
 
 #[derive(serde::Deserialize)]

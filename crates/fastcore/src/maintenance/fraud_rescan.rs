@@ -112,6 +112,13 @@ pub(crate) async fn rescan(
     // one that needs an allow-list entry is among them.
     let mut by_reason: HashMap<String, u64> = HashMap::new();
     let mut samples: Vec<serde_json::Value> = Vec::new();
+    // Not held, but scored into Junk — kept apart from `found`, which
+    // has always meant "hold-grade", so an old reading still compares.
+    let mut scored_found = 0u64;
+    let mut scored_moved = 0u64;
+    let mut scored_already_junk = 0u64;
+    let mut scored_by_reason: HashMap<String, u64> = HashMap::new();
+    let mut scored_samples: Vec<serde_json::Value> = Vec::new();
 
     for (user, tid) in &targets {
         seen += 1;
@@ -282,8 +289,33 @@ pub(crate) async fn rescan(
                 .ok()
                 .flatten()
                 .is_some_and(|t| t.quarantined);
-            if disposition(false, held_now) != Disposition::Release {
-                continue;
+            match disposition(false, junks_on_its_own(&findings), held_now) {
+                Disposition::Release => {}
+                Disposition::Junk => {
+                    scored_found += 1;
+                    for r in findings.rules() {
+                        *scored_by_reason.entry(r.to_string()).or_default() += 1;
+                    }
+                    if scored_samples.len() < 25 {
+                        scored_samples.push(serde_json::json!({
+                            "user": user,
+                            "thread": tid,
+                            "from": from,
+                            "subject": subject,
+                            "reasons": findings.rules(),
+                            "score": findings.score(),
+                        }));
+                    }
+                    if !q.dry_run {
+                        match move_to_junk(&state, user, tid) {
+                            Some(true) => scored_already_junk += 1,
+                            Some(false) => scored_moved += 1,
+                            None => {}
+                        }
+                    }
+                    continue;
+                }
+                Disposition::Act | Disposition::Leave => continue,
             }
             releasable += 1;
             if release_samples.len() < 25 {
@@ -320,34 +352,11 @@ pub(crate) async fn rescan(
             continue;
         }
         match q.action {
-            Action::Junk => {
-                // **Read the bucket first.** `set_junk` answers
-                // "did the row exist", not "did anything change" —
-                // so counting its `true` as a move made
-                // `already_junk` a number that could not come out
-                // other than zero, and a second run reported
-                // moving fifty threads that were already in Junk.
-                let was_junk = state
-                    .mailbox
-                    .get_thread_for_user(user, tid)
-                    .ok()
-                    .flatten()
-                    .is_some_and(|r| {
-                        // `bucket_of`, not a literal: the category
-                        // a Junk row carries is `spam`, and the
-                        // first version of this compared against
-                        // "junk" and was therefore never true.
-                        mailrs_mailbox_kevy::keys::bucket_of(&r.category)
-                            == mailrs_mailbox_kevy::keys::Bucket::Junk
-                    });
-                match state.mailbox.set_junk(user, tid, true) {
-                    Ok(_) if was_junk => already_junk += 1,
-                    Ok(_) => moved += 1,
-                    Err(e) => {
-                        tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
-                    }
-                }
-            }
+            Action::Junk => match move_to_junk(&state, user, tid) {
+                Some(true) => already_junk += 1,
+                Some(false) => moved += 1,
+                None => {}
+            },
             Action::Hold => {
                 let mut verdict = rescan_verdict(&raw, &findings);
                 verdict.rules_version = scan.version.clone();
@@ -416,8 +425,43 @@ pub(crate) async fn rescan(
         "no_file": no_file,
         "by_reason": by_reason,
         "samples": samples,
+        "scored_found": scored_found,
+        "scored_moved_to_junk": scored_moved,
+        "scored_already_junk": scored_already_junk,
+        "scored_by_reason": scored_by_reason,
+        "scored_samples": scored_samples,
     }))
     .into_response()
+}
+
+/// Move a conversation to Junk. `Some(true)` when it was already
+/// there, `None` when the write failed (logged).
+///
+/// **Reads the bucket first.** `set_junk` answers "did the row exist",
+/// not "did anything change" — so counting its `true` as a move made
+/// `already_junk` a number that could not come out other than zero,
+/// and a second run reported moving fifty threads that were already in
+/// Junk.
+fn move_to_junk(state: &FastcoreState, user: &str, tid: &str) -> Option<bool> {
+    let was_junk = state
+        .mailbox
+        .get_thread_for_user(user, tid)
+        .ok()
+        .flatten()
+        .is_some_and(|r| {
+            // `bucket_of`, not a literal: the category a Junk row
+            // carries is `spam`, and the first version of this
+            // compared against "junk" and was therefore never true.
+            mailrs_mailbox_kevy::keys::bucket_of(&r.category)
+                == mailrs_mailbox_kevy::keys::Bucket::Junk
+        });
+    match state.mailbox.set_junk(user, tid, true) {
+        Ok(_) => Some(was_junk),
+        Err(e) => {
+            tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -548,19 +592,56 @@ body\r\n";
     /// — every other path either holds or leaves alone.
     #[test]
     fn a_hold_a_rule_no_longer_supports_is_released() {
-        assert_eq!(disposition(false, true), Disposition::Release);
+        assert_eq!(disposition(false, false, true), Disposition::Release);
+        assert_eq!(disposition(false, true, true), Disposition::Release);
     }
 
     /// And the three that must not move.
     #[test]
     fn nothing_else_is_released() {
-        assert_eq!(disposition(true, true), Disposition::Act);
-        assert_eq!(disposition(true, false), Disposition::Act);
+        assert_eq!(disposition(true, false, true), Disposition::Act);
+        assert_eq!(disposition(true, false, false), Disposition::Act);
+        assert_eq!(disposition(true, true, false), Disposition::Act);
         assert_eq!(
-            disposition(false, false),
+            disposition(false, false, false),
             Disposition::Leave,
             "mail that was never held is not touched by the release path"
         );
+    }
+
+    /// A score that reaches the Junk threshold on its own moves a
+    /// conversation nothing holds — and only that: below the
+    /// threshold it is left, and a hold still wins.
+    #[test]
+    fn a_score_alone_at_the_threshold_is_junked_and_nothing_less() {
+        assert_eq!(disposition(false, true, false), Disposition::Junk);
+        assert_eq!(disposition(false, false, false), Disposition::Leave);
+        assert_eq!(disposition(true, true, false), Disposition::Act);
+    }
+
+    /// The reported `Hao` message scores into Junk by itself, and a
+    /// message that trips nothing does not. Read through the same
+    /// function the sweep calls, so the threshold is the one it uses.
+    #[test]
+    fn the_cut_from_the_address_campaign_reaches_junk_in_the_sweep() {
+        let policy = mailrs_fraud::Policy {
+            our_domains: vec!["golia.jp".into()],
+            ..mailrs_fraud::Policy::default()
+        };
+        let mut rules = mailrs_fraud_lua::Rules::compile(mailrs_fraud_lua::DEFAULT_SOURCE)
+            .expect("shipped bundle compiles");
+        let mut judge = |subject: &str| {
+            let facts = mailrs_fraud::Facts {
+                from: "Erica Flores <ericaf_flores@caredealspark.com>",
+                subject,
+                to_display: "lihao@golia.jp",
+                ..mailrs_fraud::Facts::default()
+            };
+            let f = rules.classify(&facts, &policy).findings;
+            (mailrs_inbound::holds(&f), junks_on_its_own(&f))
+        };
+        assert_eq!(judge("Hao"), (false, true));
+        assert_eq!(judge("Quarterly contracts"), (false, false));
     }
 
     /// Just the `From:`, for a case that is only about the name.

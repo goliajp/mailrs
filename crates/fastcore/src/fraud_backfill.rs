@@ -15,6 +15,10 @@ struct Progress {
     total: usize,
     held: u64,
     released: u64,
+    /// Not held, scored into Junk. `default` so a journal written
+    /// before this field existed still reads.
+    #[serde(default)]
+    junked: u64,
     no_file: u64,
     complete: bool,
 }
@@ -84,6 +88,7 @@ pub async fn run_once(
             total: targets.len(),
             held: 0,
             released: 0,
+            junked: 0,
             no_file: 0,
             complete: false,
         };
@@ -141,12 +146,15 @@ pub async fn run_once(
     progress.released += result["released"]
         .as_u64()
         .ok_or("missing released count")?;
+    progress.junked += result["scored_moved_to_junk"]
+        .as_u64()
+        .ok_or("missing scored_moved_to_junk count")?;
     progress.no_file += result["no_file"].as_u64().ok_or("missing no_file count")?;
     progress.complete = end == progress.total;
     save(&progress_file, &progress)?;
     tracing::info!(version=%current, cursor=end, total=progress.total,
         complete=progress.complete, held=progress.held, released=progress.released,
-        no_file=progress.no_file, "fraud backfill progress");
+        junked=progress.junked, no_file=progress.no_file, "fraud backfill progress");
     Ok(!progress.complete)
 }
 
