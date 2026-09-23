@@ -279,10 +279,12 @@ pub fn address_is_private(ip: std::net::IpAddr) -> bool {
 /// The `To:` display name, decoded — the sender's own claim about
 /// who this message is for.
 ///
-/// Display name only: `李好 <lihao@golia.jp>` gives `李好`, and a
-/// bare address gives the empty string. The address itself would
-/// make a subject greeting `lihao` look answered, which is not what
-/// is being asked.
+/// Display name only: `李好 <lihao@golia.jp>` gives `李好`. A `To:`
+/// with no display name gives the **bare address** — it is not
+/// stripped — and so does the Outlook form `"lihao@golia.jp"
+/// <lihao@golia.jp>`, whose display name *is* the address. The
+/// `subject-cut-from-the-address` rule reads the mailbox from exactly
+/// that; `a_bare_address_carries_no_name` pins it.
 pub fn to_display_name(raw: &[u8]) -> String {
     let to = decoded_identity(raw).2;
     match to.rfind('<') {
