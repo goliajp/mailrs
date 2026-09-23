@@ -104,3 +104,37 @@ rule('greets-a-stranger', 'identity', 2, false, function(m)
         name = name .. c
     end
 end)
+-- A subject that is one word, and the word is a piece of the recipient's
+-- own address read as a name: `Hao`, to `lihao@golia.jp`.
+--
+-- Nobody who knows the reader writes this.  It is what a mail merge
+-- produces from a list of bare addresses: split the mailbox, guess a
+-- first name, put it in the subject.  The body then opens `Hao, would 4
+-- to 8 more high-paying contracts ...` from a domain registered for the
+-- purpose — 21 domains in the corpus, one message each, under a handful
+-- of recurring personas.
+--
+-- Measured over 39,685 production messages on 2026-09-23: 21 subjects
+-- are a single word cut from the recipient's address, and all 21 are
+-- this campaign.
+--
+-- **Scored, not held.**  It is cold sales, not a fraud on its face, and
+-- one legitimate stranger writing `Hao` would be convicted by a hold —
+-- so it pushes toward Junk, where the reader still sees it.  5 is the
+-- Junk threshold: alone it is enough to leave the inbox, and no more.
+--
+-- The address is read from `to_display`, which carries it when the
+-- `To:` has no display name or uses the address as one (every sample).
+-- A `To:` with a real name leaves no address to cut, and the rule
+-- declines — the safe direction.
+rule('subject-cut-from-the-address', 'identity', 5, false, function(m)
+    if not external(m) then return end
+    local word = (trim(m.subject):gsub('[,.!?:]+$', ''))
+    if not word:match('^[A-Za-z][A-Za-z]+$') then return end
+    local mailbox = trim(m.to_display):lower():match('^([a-z0-9._+-]+)@[a-z0-9.-]+$')
+    if not mailbox then return end
+    word = word:lower()
+    if word ~= mailbox and contains(mailbox, word) then
+        return 'the subject is only `' .. trim(m.subject) .. '`, a piece of the recipient\'s own address read as a name'
+    end
+end)

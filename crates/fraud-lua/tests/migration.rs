@@ -33,13 +33,14 @@ fn all_existing_sender_fixtures_match_compiled_rules() {
         account_names: vec!["LI HAO".into(), "No Reply".into(), "李好".into()],
     };
     let mut rules = Rules::compile(DEFAULT_SOURCE).unwrap();
-    // Sixteen migrated rules plus `claims-our-domain`, which was
-    // written after the migration and has no Rust counterpart to
-    // compare against — the oracle below is frozen on purpose.  It
-    // cannot fire here either: it needs the `unauthenticated` fact,
-    // which these Facts leave false.  Its own tests are in
-    // `tests/our_domain.rs`.
-    assert_eq!(rules.rule_count(), 17);
+    // Sixteen migrated rules plus two written after the migration,
+    // which have no Rust counterpart to compare against — the oracle
+    // below is frozen on purpose.  Neither can fire here:
+    // `claims-our-domain` needs the `unauthenticated` fact, which these
+    // Facts leave false, and `subject-cut-from-the-address` needs an
+    // address in `to_display`, which none of these carries.  Their own
+    // tests are in `tests/our_domain.rs` and `tests/cut_from_address.rs`.
+    assert_eq!(rules.rule_count(), 18);
     for from in &senders {
         for (subject, seen, to) in [
             (
