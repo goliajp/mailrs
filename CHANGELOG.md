@@ -9,7 +9,7 @@ binary + fastcore stack, and `web-v<YYYY.MM.DD>-<seq>` for the React
 web UI. Only the Rust stream is enumerated below; web releases are
 tracked separately in the release-web workflow.
 
-## Since v2.0.0 — shipped straight from `develop`, up to **v2.86.0**
+## Since v2.0.0 — shipped straight from `develop`, up to **v2.87.0**
 
 Per-version enumeration stopped at `v2.0.0` (2026-07-07). Everything
 since has shipped by `scripts/direct-deploy.sh <version>`, which takes
@@ -17,6 +17,27 @@ the version on the command line, and this section kept accumulating
 under a heading that still said "ships as v2.2.0" while production ran
 2.85.0. The notes below are per change, newest first, with the version
 it landed in where that is known.
+
+### `Hao` — a subject cut from the reader's own address (2.87.0)
+
+A cold-sales campaign sends mail whose subject is one word: a piece of
+the recipient's mailbox read as a first name — `Hao` to
+`lihao@golia.jp` — with a body opening `Hao, would 4 to 8 more
+high-paying contracts … move the needle?`, from a domain registered for
+the purpose. 21 of 39,685 production messages have that subject shape
+and all 21 are this campaign. The new rule `subject-cut-from-the-address`
+scores 5 — the Junk threshold — and never holds: it is cold sales, not
+fraud on its face.
+
+A scored rule used to reach only new mail. The historical sweep acted on
+hold-grade findings and nothing else, so everything delivered before a
+scored rule existed stayed where it was. It now also moves a conversation
+nothing holds, whose fraud score alone reaches the threshold, to Junk —
+the sum the receive path already uses — and the backfill journal counts
+them as `junked`. Run first on a local copy of production: 37,018
+conversations, 29 scored into Junk (16 of this campaign, 13 Amazon /
+Apple / JCB phishing the brand rules score at 7.5–9), 18 moved and 11
+already there; no hold added or released.
 
 ### A sender with no avatar at all
 
