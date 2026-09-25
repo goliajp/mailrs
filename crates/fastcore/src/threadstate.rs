@@ -8,7 +8,7 @@
 //! **Both directions in the same change**, as with the uidlist and the
 //! keywords: the verbs append, and the self-heal replays the log onto the
 //! rows a rebuilt index would otherwise be missing. A log nothing reads
-//! back is the `one-side-of-the-wire` shape.
+//! back is the `both-halves-of-the-wire` shape.
 
 use std::sync::Arc;
 

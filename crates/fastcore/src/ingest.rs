@@ -229,7 +229,7 @@ pub(crate) fn ingest_delivered_file(
                     // Both halves, through the function that writes
                     // both: the axis column and the per-user rows the
                     // count comes off. See
-                    // `rules/a-fact-with-two-homes.md`.
+                    // `.claude/rules/both-halves-of-the-wire.md`.
                     crate::routes::thread_actions::mark_thread_read_everywhere(state, addr, &root);
                     tracing::info!(
                         %addr, %root, score = v.score, rules = %v.rules_version,

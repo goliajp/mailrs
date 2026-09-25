@@ -8,7 +8,7 @@
 //! The first run reports and changes nothing. That is not politeness —
 //! it is the only way to see what a new signal would have done to a
 //! real mailbox before it does it, and this repository has a rule about
-//! it (`measure-before-you-cut-over`). Pass `dry_run=false` to move
+//! it (`verify-on-a-copy`). Pass `dry_run=false` to move
 //! them.
 //!
 //! # Bounded, and it pauses

@@ -10,7 +10,7 @@
 //!
 //! Two hundred of the two hundred and fifteen were invisible to the repair
 //! that exists to fix them, and no number of runs would have moved them —
-//! `measure-before-you-cut-over`'s "a verification metric that cannot come
+//! `verify-on-a-copy`'s "a verification metric that cannot come
 //! out zero", one step upstream: a *repair* whose own shadow cannot reach
 //! zero.
 //!

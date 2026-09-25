@@ -88,7 +88,7 @@ impl KevyMailboxStore {
         // distinguish. `modseq` only ever moves forward.
         //
         // See `rules/common/coding-style.md` — Null vs Zero — and
-        // `rules/one-side-of-the-wire.md`.
+        // `.claude/rules/both-halves-of-the-wire.md`.
         let known = self.user_message_facts(user, message_id).ok().flatten();
         let blob_ref: &str = match (per_user.blob_ref.is_empty(), &known) {
             (true, Some(k)) if !k.blob_ref.is_empty() => &k.blob_ref,

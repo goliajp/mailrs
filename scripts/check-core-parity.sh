@@ -90,7 +90,7 @@ extract() {
     # bare URLs then hides a whole verb: deleting the GET half of
     # `/v1/users/{user}/mailboxes/{name}` left the URL in the set, because the
     # DELETE half still mounted it, and the gate reported parity. A client
-    # doing the missing verb gets 405, which is the one-side-of-the-wire
+    # doing the missing verb gets 405, which is the both-halves-of-the-wire
     # failure this exists to catch. The contract is (method, URL).
     #
     # The call is bounded by paren depth rather than by a line count, because

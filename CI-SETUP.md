@@ -19,7 +19,7 @@
 >   repo uses `SSH_KEY` / `SSH_HOST` / `SSH_USER`.
 >
 > For what is true today: [`DEPLOY.md`](DEPLOY.md) and
-> `.claude/rules/dev-deploy-workflow.md`.
+> `.claude/runbooks/release-and-deploy.md`.
 >
 > Kept because the cutover checkpoints below record *why* each step was
 > taken, which the current docs do not. Everything after this banner is a

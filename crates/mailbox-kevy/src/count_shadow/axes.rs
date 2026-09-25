@@ -22,7 +22,7 @@
 //! The shadow separates the population that *can* exhibit the defect
 //! (threads with more than one owner) from the one that cannot, because
 //! a difference outside it means the correction itself is wrong —
-//! `rules/measure-before-you-cut-over.md`.
+//! `.claude/rules/verify-on-a-copy.md`.
 
 use std::io;
 

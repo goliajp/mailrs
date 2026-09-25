@@ -154,7 +154,7 @@ spg-embedded = "7.38.4"
 # directory written by 5.4 opens, which is the only question that
 # matters to a deployment holding 36k messages. Verified against a
 # copy of production rather than reasoned about
-# (`rules/verify-on-a-copy-not-on-prod.md`).
+# (`.claude/rules/verify-on-a-copy.md`).
 #
 # One behaviour changed in 6.2: `-0` and `0` are one score, so a
 # member stored at `-0` moves among others scored `±0`. Every score
@@ -210,7 +210,7 @@ serde_json = "1"
 # mailrs-core (the UserStore credential file). password-hash + rand_core
 # pinned to older majors — argon2 0.5.x (latest) hard-deps password-hash
 # 0.5, and rsa 0.9.x (latest) hard-deps rand_core 0.6. Unpin when argon2
-# 0.6 / rsa 0.10 publish. See rust-deps-and-warnings.md §6.
+# 0.6 / rsa 0.10 publish. See the dependency policy in .claude/CLAUDE.md.
 argon2 = "0.5"
 password-hash = "0.5"
 rand_core = { version = "0.6", features = ["std"] }

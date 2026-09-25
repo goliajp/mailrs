@@ -379,7 +379,7 @@ def msg(uid, sender, trust, html):
             # uid 2 is the invitation. Attached to a message that
             # already exists rather than added as a new conversation:
             # a new row shifts every ordinal the two suites assert on,
-            # which is the lesson `a-fixture-is-an-interface` was
+            # which is the lesson `mobile-tests` was
             # written from.
             "invite_method": "REQUEST" if uid == 2 else ""}
 

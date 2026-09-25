@@ -14,7 +14,7 @@
 #   ./scripts/build-pg-core.sh --tag v2.47.0
 #
 # Local arm64 build and direct push, matching `direct-deploy.sh` rather than
-# CI: everyday releases here do not go through CI (rules/dev-deploy-workflow.md),
+# CI: everyday releases here do not go through CI (.claude/runbooks/release-and-deploy.md),
 # and this is not the exception.
 set -euo pipefail
 cd "$(dirname "$0")/.."

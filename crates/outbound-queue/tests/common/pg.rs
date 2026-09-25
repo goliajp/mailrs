@@ -1,7 +1,8 @@
 //! Shared Postgres fixture for outbound-queue integration tests.
 //!
-//! Starts an ephemeral `postgres:17-alpine` container per call, applies the
-//! `outbound_queue` + `suppression_list` DDL subset our code touches, and
+//! Starts an ephemeral `postgres:11-alpine` container per call — the
+//! default tag of `testcontainers_modules::postgres::Postgres` 0.15 —
+//! applies the `outbound_queue` + `suppression_list` DDL subset our code touches, and
 //! returns a connected `PgPool` alongside the container handle. The handle
 //! MUST be kept alive for the lifetime of the pool — dropping it stops the
 //! container.

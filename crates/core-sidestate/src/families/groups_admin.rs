@@ -197,7 +197,7 @@ pub async fn get_sieve<S: NetKevy>(
 /// script to PG `sieve_scripts` instead, so a script saved through the
 /// contract was invisible to the GET on the same URL and applied to no mail —
 /// a 204 for a write with no reader, which is the shape
-/// `rules/one-side-of-the-wire.md` exists for.
+/// `.claude/rules/both-halves-of-the-wire.md` exists for.
 pub async fn set_sieve<S: NetKevy>(
     State(state): State<Arc<S>>,
     Path(address): Path<String>,

@@ -1,10 +1,14 @@
-//! kevy KV store — in-process `kevy_embedded::Store` only.
+//! kevy KV store for this (dormant, monolith) process — the in-process
+//! `kevy_embedded::Store`.
 //!
-//! Phase C completed the migration off the network kevy container.
-//! Every subsystem now uses [`KevyStore`] (= `Arc<kevy_embedded::Store>`)
-//! either directly or via the trait implementations in mailrs-shield /
-//! mailrs-intelligence / mailrs-outbound-queue, which take the same
-//! `kevy_embedded::Store` handle.
+//! This process opens only the embedded store: every subsystem here uses
+//! [`KevyStore`] (= `Arc<kevy_embedded::Store>`) either directly or via
+//! the trait implementations in mailrs-shield / mailrs-intelligence /
+//! mailrs-outbound-queue. That is not true of production: the fastcore
+//! stack runs a `kevy-server` container, and all four roles connect to
+//! it as `kevy://kevy-server:6379` (`MAILRS_KEVY_URL` in
+//! `deploy/docker-compose.prod.yml`) for bayes, spam, greylist, contacts
+//! and the change feed, beside fastcore's own embedded store.
 //!
 //! Embedded mode performance ≈ 10× over the network path (no syscall,
 //! no RESP serialization, no socket round-trip) and AOF + snapshot

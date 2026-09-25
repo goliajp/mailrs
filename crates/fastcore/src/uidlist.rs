@@ -7,7 +7,7 @@
 //! the opposite as accepted: switch lanes and every client resyncs.
 //!
 //! **Both directions ship together, deliberately.** A file written and
-//! never read is the `one-side-of-the-wire` shape this repo has now been
+//! never read is the `both-halves-of-the-wire` shape this repo has now been
 //! bitten by five times in one day — it looks finished from both ends and
 //! does nothing. So:
 //!

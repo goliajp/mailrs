@@ -8,7 +8,7 @@
 > Kept as the record of how those investigations were run — the method
 > (`TREE.md`'s page → assets → APIs → numbers walk) is still the method.
 > For current perf work see `PERFORMANCE.md`, the criterion benches, and
-> `.claude/rules/perf-decomposition-vs-polish.md`.
+> `~/.claude-shared/global/methodology/perf-decomposition-vs-polish.md`.
 
 Workspace for production performance work. Not shipped, not user-facing — only used to record measurements and drive fixes.
 
