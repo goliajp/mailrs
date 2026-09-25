@@ -1,14 +1,11 @@
 name: release
 
-# Triggered by pushing a `v<semver>` tag (matches the scheme used by
-# scripts/release.sh + scripts/bump.sh). Runs the same gate as the test
-# workflow, then builds + pushes the multi-stage Docker image to GHCR
-# under `ghcr.io/<owner>/mailrs:<version>`.
-#
-# Remote deployment (pulling the new image + docker-compose up) is NOT
-# triggered here yet — that's the v5.3 cutover step. Until then,
-# `scripts/release.sh` keeps doing the deploy and CI just builds the
-# image as a parallel artifact.
+# Triggered by pushing a `v<semver>` tag, cut with scripts/release-tag.sh.
+# Runs the full test gate, builds the multi-arch image to GHCR under
+# `ghcr.io/<owner>/mailrs:<version>`, deploys the fastcore stack to t02
+# and publishes a GitHub Release. The everyday release path is
+# scripts/direct-deploy.sh; this one is for when the multi-arch image and
+# the GitHub Release are wanted.
 
 on:
   push:
