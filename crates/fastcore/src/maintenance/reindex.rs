@@ -15,7 +15,7 @@
 //! **Conditional, and it counts writes.** Every step compares before it
 //! writes and reports what it changed, so a healthy mailbox reports zero —
 //! a reconcile whose output cannot come out zero is not a verification
-//! (`measure-before-you-cut-over`), and a counter incremented before the
+//! (`verify-on-a-copy`), and a counter incremented before the
 //! write is how the read-state backfill reported repairing 215 rows it
 //! never touched (`periodic-work-must-converge`).
 //!

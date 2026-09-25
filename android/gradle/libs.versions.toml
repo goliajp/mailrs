@@ -1,5 +1,5 @@
 # Latest stable, checked against the registries rather than remembered —
-# the same rule `.claude/rules/rust-deps-and-warnings.md` states for the
+# the same rule the dependency policy in `.claude/CLAUDE.md` states for the
 # Rust workspace. Checked 2026-08-17.
 [versions]
 agp = "9.3.1"

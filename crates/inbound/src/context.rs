@@ -278,7 +278,7 @@ mod tests {
     /// **The field has to be filled by the constructor**, because there
     /// is exactly one and every caller would otherwise have to remember.
     /// A `deception` nobody writes is the shape of every defect
-    /// `one-side-of-the-wire` records: each side self-consistent, no
+    /// `both-halves-of-the-wire` records: each side self-consistent, no
     /// test red, and the feature silently doing nothing.
     #[test]
     fn the_constructor_reads_the_identity_headers() {

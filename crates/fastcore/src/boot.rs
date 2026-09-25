@@ -5,7 +5,7 @@
 //! torn frame at the AOF tail; replay stops there while appends continue
 //! past it, so every restart rolls the store back to the moment of the
 //! tear and new writes vanish. That is what
-//! `.claude/rules/dev-deploy-workflow.md` means by "部署后必看 replay
+//! `.claude/runbooks/release-and-deploy.md` means by "部署后必看 replay
 //! 日志是否 (clean)".
 
 use std::sync::Arc;

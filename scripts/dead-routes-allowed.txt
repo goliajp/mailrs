@@ -11,7 +11,7 @@
 
 # ---- measurement and one-shot migrations ----
 
-/api/mail/sends:shadow          # a shadow route: it exists to be compared against, per measure-before-you-cut-over. A client would defeat the point.
+/api/mail/sends:shadow          # a shadow route: it exists to be compared against, per verify-on-a-copy. A client would defeat the point.
 /api/agent/keys:migrate-legacy  # one-shot migration, run by hand once. Kept so a rollback can re-run it.
 
 # ---- an operator's view of a self-service store ----

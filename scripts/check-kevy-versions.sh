@@ -6,8 +6,9 @@
 # types are structurally identical and differ only by which copy they
 # came from, so it surfaces as `expected ValType, found IndexValType`
 # a hundred lines from the cause — if it surfaces at all. `kevy-index`
-# is depended on directly (kevy-embedded does not re-export
-# `TableSpec`), and its manifest comment has said "pinned to
+# is depended on directly (kevy-embedded re-exports `TableSpec` but not
+# the query-clause types `WhereClause` / `CompositeCol` /
+# `composite_bounds`), and its manifest comment has said "pinned to
 # kevy-embedded's version, deliberately" since it was written. On
 # 2026-08-31 the workspace went to 6.2.1 and that pin stayed at 5.4.
 # A comment stating an invariant does not maintain it.

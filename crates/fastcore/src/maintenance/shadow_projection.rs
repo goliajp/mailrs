@@ -1,6 +1,6 @@
 //! Shadows over the per-user **thread** projection.
 //!
-//! `.claude/rules/measure-before-you-cut-over.md` is the rule these serve:
+//! `.claude/rules/verify-on-a-copy.md` is the rule these serve:
 //! the first reading is usually migration debt, not the defect.
 
 use super::prelude::*;

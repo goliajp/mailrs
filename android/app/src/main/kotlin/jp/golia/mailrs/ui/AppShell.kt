@@ -278,7 +278,7 @@ fun MailrsApp(vm: MailViewModel, state: UiState) {
                     Screen.Settings -> Box(peeled) {
                         // The screens those buttons open. Without
                         // these the rows are controls that do nothing,
-                        // the shape `one-side-of-the-wire.md` names.
+                        // the shape `both-halves-of-the-wire` names.
                         when {
                             state.mailAccountsOpen -> MailboxesScreen()
                             state.mergedMailOpen -> MergedMailScreen()
