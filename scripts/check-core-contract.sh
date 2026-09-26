@@ -19,14 +19,14 @@
 #     paths the core client constructs   vs   routes fastcore registers
 #
 # A path asked for and not served fails, unless
-# `.claude/core-contract-allow.txt` names it with a reason.
+# `scripts/core-contract-allow.txt` names it with a reason.
 #
 # Exit 0 = every path the client can ask for has somewhere to land.
 set -euo pipefail
 export LC_ALL=C
 cd "$(dirname "$0")/.."
 
-ALLOW=".claude/core-contract-allow.txt"
+ALLOW="scripts/core-contract-allow.txt"
 
 python3 - "$ALLOW" <<'PYEOF'
 import glob

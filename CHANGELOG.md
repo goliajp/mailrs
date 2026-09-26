@@ -447,7 +447,7 @@ been accumulating on `develop` since v1.9.4.
 - **Upstream tracking:** kevy-client 1.13 does not wrap kevy-server's
   3.17 features (brpop / hexpire / zinterstore / idx / changes_since).
   Phase 4 (BRPOP), Phase 5 (HEXPIRE), and Phase 7/8 for network paths
-  remain blocked. See `.claude-profile-2/.../memory/feedback-kevy-client-1.13-gaps.md`.
+  remain blocked.
 - **Docs / rules:** ARCHITECTURE.md fastcore-topology refresh + crate
   count 44 → 59, README.md dropped legacy `docker compose up postgres
   kevy` (both engines in-process since v1.7.95), PERFORMANCE.md
