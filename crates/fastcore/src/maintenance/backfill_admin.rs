@@ -227,10 +227,9 @@ pub(crate) async fn backfill_webhook_owners_route(
 
 /// `POST /v1/admin/maintenance:sweep-legacy-admin-keys` — one-shot
 /// in-process cleanup of the pre-P6 admin keyspace (roadmap Phase
-/// 11.2's embedded half, executed as an RPC per
-/// `feedback-junk-backfill-oom-finding`: a `docker exec` sweep binary
-/// would double-open the embedded kevy and OOM replaying the AOF;
-/// running inside the live fastcore process costs nothing).
+/// 11.2's embedded half, executed as an RPC because a `docker exec`
+/// sweep binary would double-open the embedded kevy and OOM replaying
+/// the AOF; running inside the live fastcore process costs nothing).
 ///
 /// Deletes:
 ///   - `mailrs:alias:<addr>` legacy strings (NOT `mailrs:alias:v2:*`)

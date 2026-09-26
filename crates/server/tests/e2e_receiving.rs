@@ -239,8 +239,7 @@ hello world from the baseline test\r\n";
     // hundred other test binaries and a docker container start on the
     // same machine: 2.95 s on 2026-08-15, failing a deploy, then 3 out of
     // 3 passing in isolation. A budget that measures the host rather than
-    // the code trains people to wave red away, which is the real damage
-    // (`feedback-load-dependent-test-flakes`).
+    // the code trains people to wave red away, which is the real damage.
     //
     // 10 s is still 300x the observed span, so a stall — which means
     // "never" or "many seconds" — trips it exactly as before, while

@@ -28,8 +28,7 @@ SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no"
 #                            patterns (migrate-038 redirect_uris, migrate-039
 #                            message_data) doesn't surface as a type/arity mismatch
 #                            on SPG dump-load. positional `--inserts` was tried in
-#                            v1.7.107 and broke round-11 acceptance — see SPG
-#                            mailrs-migration-feedback-followup-d-validate-11.md.
+#                            v1.7.107 and broke round-11 acceptance.
 #   --on-conflict-do-nothing : PG 16+; avoid pre-seed dup collisions on fresh-load
 #   --no-owner --no-privileges : strip role grants that mean nothing outside prod
 PG_DUMP_FLAGS="--data-only --column-inserts --on-conflict-do-nothing --no-owner --no-privileges"

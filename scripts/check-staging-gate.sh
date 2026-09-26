@@ -25,8 +25,7 @@
 # tail, which no longer exists in prod. The 3.0% / 15s ceiling below
 # stays as a conservative safety net until Stage B lands the pipeline /
 # view refactor + we re-baseline against fastcore's actual list p95
-# (expected sub-10ms). Ratchet DOWN as each Stage B tag lands, per
-# memory feedback-staging-stricter-than-prod.
+# (expected sub-10ms). Ratchet DOWN as each Stage B tag lands.
 #
 # Budget = baseline × 1.3 ceiling. New ships have to STAY at-or-below
 # the current cascade noise; introducing new cascade hotspots fails.
