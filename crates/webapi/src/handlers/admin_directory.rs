@@ -90,7 +90,7 @@ pub async fn sync_aliases_to_fastcore(state: &Arc<WebState>) -> usize {
 /// alias-store (`mailrs:aliases:index` set + per-source
 /// `mailrs:alias:<addr>` string). The legacy `admin:aliases` hash
 /// this used to walk was emptied when the alias data flipped to
-/// network-kevy back-end (`project-alias-recovery-2026-07-05`), so
+/// network-kevy back-end (2026-07-05), so
 /// this handler returned `[]` regardless of the 40+ live aliases —
 /// the admin panel showed "no aliases configured" even for a
 /// super-admin. `id` is a deterministic i64 hash of `source` so the

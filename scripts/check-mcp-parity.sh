@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # check-mcp-parity.sh — assert both MCP lanes expose the same tool set.
 #
-# mailrs ships two independent MCP implementations (project rule
-# `feedback-fastcore-core-mode-parity`): the fastcore lane
+# mailrs ships two independent MCP implementations: the fastcore lane
 # (kevy-backed, what prod runs) and the monolith lane (spg SQL, the
 # staging dogfood lane). Neither declares `name = "..."` on its
 # `#[tool]` attributes, so **the exposed MCP tool name is the Rust

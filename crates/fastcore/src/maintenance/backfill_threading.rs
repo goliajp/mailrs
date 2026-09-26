@@ -14,7 +14,8 @@ use super::prelude::*;
 /// component's fragments merge into a canonical thread (the one holding
 /// the component's oldest message — deterministic, so reruns are
 /// idempotent no-ops). Also seeds the msgid→thread index for every
-/// message. In-process per `feedback-junk-backfill-oom-finding`.
+/// message. In-process for the same reason as the admin-key sweep: a
+/// separate binary would double-open the embedded kevy.
 pub(crate) async fn backfill_threading_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {
