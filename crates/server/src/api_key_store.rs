@@ -24,7 +24,7 @@ pub(crate) struct ApiKeyRecord {
 /// from PG on every verify — there is no kevy cache for API keys (a
 /// previous version cached this struct for 300s, which left a window
 /// where a revoked key remained valid after the cache_delete call site
-/// was missed by some admin paths; see classic-errors / 2026-06-07).
+/// was missed by some admin paths on 2026-06-07).
 #[derive(Debug, Clone)]
 pub(crate) struct VerifiedApiKey {
     pub key_hash: String,

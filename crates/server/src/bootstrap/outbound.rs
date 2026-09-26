@@ -188,8 +188,7 @@ pub(crate) fn make_delivery_event_sender(
                 // "user sent to this address" fact, and it is never
                 // deleted. `has_sent_to` reads it directly, so a
                 // counter would only add a second source of truth that
-                // can drift from the queue
-                // (RFC 20260721-self-hosted-importance-ranking).
+                // can drift from the queue.
                 SmtpEvent::DeliverySuccess { queue_id, domain }
             }
             DeliveryEvent::Failed {

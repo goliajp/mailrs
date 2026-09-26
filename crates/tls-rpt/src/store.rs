@@ -12,7 +12,7 @@
 //!
 //! ## Data-architecture lens
 //!
-//! Per `common/data-architecture.md`, facts are the source of
+//! Facts are the source of
 //! truth (append-only, immutable). [`crate::Report`] is a
 //! derivation — recomputable from the facts at any time. Storing
 //! both is fine; the contract is that any disagreement between a

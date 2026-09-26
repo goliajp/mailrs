@@ -14,9 +14,8 @@ import { expect, test } from '@playwright/test'
  *
  * Every check asserts the content is actually on screen before it
  * measures. Without that this suite passes at its brightest when the
- * stubs stop matching and every screen renders empty — the failure mode
- * `verify-on-a-copy` calls a verification that cannot come
- * out zero.
+ * stubs stop matching and every screen renders empty — a verification
+ * that cannot come out zero.
  */
 
 const PHONES = [

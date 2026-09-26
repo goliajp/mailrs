@@ -3,7 +3,7 @@
 //! A submodule rather than a sibling: it reads the shadow's test helpers
 //! and the parent's private items, and in Rust a child sees its parent's
 //! privates while two siblings see neither's. Split out under the 500-line
-//! rule (`rules/common/file-size.md`), which refused the 2.70.2 deploy at
+//! rule, which refused the 2.70.2 deploy at
 //! 540 — the ratchet working as intended, since the baseline is empty and
 //! is meant to stay that way.
 
@@ -26,7 +26,7 @@ impl KevyMailboxStore {
     ///
     /// **Conditional, so it converges.** A row already carrying the right
     /// group is skipped and not counted, so a second pass over a repaired
-    /// mailbox does no writes and reports none — `rules/periodic-work-must-converge.md`.
+    /// mailbox does no writes and reports none.
     /// The maildir self-heal `zadd`'d unconditionally every 31 seconds and
     /// logged `sent_added=255 created=0` forever, which is how a sweep that
     /// does no useful work hides the fact.

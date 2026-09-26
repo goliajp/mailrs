@@ -14,9 +14,7 @@
 //! `excluded` counter in `AggStats` counts coerce failures, not rows a
 //! filter skipped. So "count only the unseen ones" cannot be *asked*; it
 //! has to be answered by which group a row lands in. The composite is
-//! forced by the engine, and `rules/kevy-patterns.md` →
-//! `kevy/orderpath-not-another-column` is satisfied the only way it can be:
-//! this is the single function that produces one, so a row's group can
+//! forced by the engine, and this is the single function that produces one, so a row's group can
 //! never disagree with the row.
 //!
 //! **Why three states and not two flags.** From `message_arrival.rs`, the

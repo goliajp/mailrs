@@ -12,7 +12,7 @@
 --
 -- Without this index the lookup is a seq scan over a table that stores
 -- full message bodies, once per inbound message — the exact shape of
--- the 2026-07-19 incident (see rules/hot-path-needs-a-plan.md, where a
+-- the 2026-07-19 incident (where a
 -- 48k-row table served 309 billion rows because a composite index's
 -- leading column was not supplied).
 --

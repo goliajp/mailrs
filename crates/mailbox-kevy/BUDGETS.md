@@ -23,8 +23,7 @@ ops."*
 
 ## Path taxonomy
 
-`list_threads_by_activity` and the badge counts are **warm** per
-`rules/rust/patterns.md` — one call per conversation-list load. `deliver_message`
+`list_threads_by_activity` and the badge counts are **warm** — one call per conversation-list load. `deliver_message`
 is warm too, once per arriving mail. `backfill_thread_user` is **cold**: a
 timer runs it, and what matters there is that its stable state is cheap, not
 that any one pass is fast.
@@ -81,7 +80,7 @@ all gates in one test so nothing measures anything else.
 ## Two of these gate a property, not a speed
 
 **`backfill/converged/200`** asserts the sweep's `written` counter is zero on
-a second pass over an unchanged page. `periodic-work-must-converge` asks for a
+a second pass over an unchanged page. Periodic work needs a
 stable state that is *cheap*, not merely idempotent, and only a write counter
 can falsify that — overwriting a value with the one already there is
 idempotent and is not convergent, which cost a core hours on 2026-07-19 while

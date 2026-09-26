@@ -114,8 +114,7 @@ pub fn read_send(
 ///
 /// `None` for "no change needed" rather than returning the current value:
 /// a write that stores what is already there costs a round trip and makes
-/// the reported count a lie about how much moved
-/// (`periodic-work-must-converge`).
+/// the reported count a lie about how much moved.
 fn next_thread_id<'a>(
     current: &str,
     merged: &'a std::collections::HashMap<String, String>,
@@ -141,7 +140,7 @@ fn next_thread_id<'a>(
 ///
 /// Maintained rather than resolved on read: the merge knows precisely which
 /// ids died, so this runs once per merge instead of a lookup per row per
-/// list render (`kevy/every-writer-maintains-the-row`).
+/// list render.
 pub fn repoint_threads(
     conn: &mut kevy_client::Connection,
     user: &str,

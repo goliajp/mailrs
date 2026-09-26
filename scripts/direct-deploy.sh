@@ -151,7 +151,7 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     ./scripts/check-inert-fields.sh
     ./scripts/check-outbound-keys.sh
     # A fourth of the same family: a blocking BRPOP on a runtime worker.
-    # `kevy/no-blocking-pop-wrap` required the wrapper and listed the one
+    # A written rule required the wrapper and listed the one
     # call site that lacked it among its compliant callers — so fastcore
     # burned a worker permanently and could not exit on SIGTERM, while the
     # rule said otherwise. Prose cannot tell it has stopped being true.
@@ -159,7 +159,7 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
 
     # The 500-line limit, as a ratchet: a new file over it fails, and a
     # file already on the baseline may only shrink. 51 files were over it
-    # with no gate at all, because the copy of `file-size.md` this repo
+    # with no gate at all, because the copy of the file-size rule this repo
     # carried until 2026-08-02 listed *torajs*'s debt table — so mailrs's
     # own overruns had never been written down.
     ./scripts/check-file-size.sh

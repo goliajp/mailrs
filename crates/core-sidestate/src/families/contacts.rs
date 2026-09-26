@@ -77,7 +77,7 @@ pub async fn search_contacts<S: NetKevy>(
 ///
 /// The counter uses HINCRBY rather than read-modify-write: two messages
 /// from the same sender arriving concurrently would otherwise lose one
-/// increment (project rule `kevy/atomic-counter`).
+/// increment.
 pub fn record_inbound(
     conn: &mut kevy_client::Connection,
     user: &str,
@@ -194,7 +194,7 @@ impl Engagement {
 /// Counters, not an event log: the learner needs rates per sender
 /// (opened 9 of 10, archived unread 8 of 10), and a rate is all a raw
 /// log would be reduced to anyway. HINCRBY keeps concurrent marks from
-/// losing increments (`kevy/atomic-counter`).
+/// losing increments.
 ///
 /// Best-effort by contract — the caller is servicing a user action that
 /// must not fail because a derived counter could not be written.

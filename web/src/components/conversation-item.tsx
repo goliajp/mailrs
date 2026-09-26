@@ -190,7 +190,7 @@ export const ConversationItem = memo(function ConversationItem({
         // two row-heights into the same list and broke the virtualizer's
         // dynamic-size measureElement path (measureElement race +
         // selected-state re-measure + absolute-positioned siblings ⇒
-        // intermittent row overlap, see classic-errors.md). With a
+        // intermittent row overlap). With a
         // fixed height the virtualizer never has to re-measure anything,
         // so the overlap bug class is eliminated by construction —
         // no patch, no hack.

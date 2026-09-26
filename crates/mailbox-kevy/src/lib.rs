@@ -149,10 +149,9 @@ impl KevyMailboxStore {
     /// Returns `(scanned, written)`. **Only writes where the row is
     /// absent or a field differs** — a second run over converged data
     /// writes nothing and reports `written == 0`, which is what makes
-    /// it safe to call repeatedly and what
-    /// `periodic-work-must-converge` asks for. An idempotent hset that
-    /// rewrites identical bytes is idempotent but not convergent; the
-    /// difference is the whole point of that rule.
+    /// it safe to call repeatedly. An idempotent hset that
+    /// rewrites identical bytes is idempotent but not convergent, and the
+    /// difference is the whole point.
     ///
     /// `offset` / `limit` page through one user's activity index so the
     /// caller can spread the work across ticks instead of holding the

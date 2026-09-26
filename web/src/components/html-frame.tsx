@@ -154,8 +154,8 @@ function reflowTable(table: HTMLTableElement): void {
  * message as a whole is measured.
  *
  * Marked once and skipped afterwards: this runs from the resize
- * observer, so it has to reach a state where it stops changing anything
- * — the same requirement `periodic-work-must-converge` names. A table
+ * observer, so it has to reach a state where it stops changing anything.
+ * A table
  * already carrying `max-width: 100%` follows a column that changes
  * later without being touched again.
  */
@@ -316,8 +316,7 @@ export function HtmlFrame({
     // observing, so without a settled state every notification redoes the
     // same arithmetic and rewrites the same values — the browser reports
     // that as `ResizeObserver loop completed with undelivered
-    // notifications`, and it is the shape `periodic-work-must-converge`
-    // names: idempotent is not the same as convergent.
+    // notifications`: idempotent is not the same as convergent.
     let settled = ''
 
     const fit = () => {

@@ -5,8 +5,7 @@
 //! A UID is a promise to an IMAP client: *this number will mean this
 //! message for as long as `UIDVALIDITY` does not change*. Break it and
 //! every client re-downloads the mailbox. So a UID cannot be recomputed
-//! from the mail — it is a **fact**, in the sense
-//! `common/data-architecture.md` uses the word, and facts do not belong in
+//! from the mail — it is a **fact**, and facts do not belong in
 //! an index that may be rebuilt.
 //!
 //! mailrs kept UIDs in the serving lane's database, which is the thing a

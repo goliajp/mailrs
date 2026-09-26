@@ -10,8 +10,8 @@
 //!
 //! Two hundred of the two hundred and fifteen were invisible to the repair
 //! that exists to fix them, and no number of runs would have moved them —
-//! `verify-on-a-copy`'s "a verification metric that cannot come
-//! out zero", one step upstream: a *repair* whose own shadow cannot reach
+//! "A verification metric that cannot come out zero", one step
+//! upstream: a *repair* whose own shadow cannot reach
 //! zero.
 //!
 //! The cause is one line. A thread whose counter says read while no message

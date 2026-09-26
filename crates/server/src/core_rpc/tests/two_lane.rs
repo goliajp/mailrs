@@ -12,7 +12,7 @@
 //! - per-user state — read, starred, archived, pinned, snoozed — which is the
 //!   whole subject of the July per-user-thread-state work;
 //! - the counts the UI renders as badges;
-//! - paging, where `kevy/total-order-or-paging-breaks` says a non-total sort
+//! - paging, where a non-total sort
 //!   skips or repeats a row at a page boundary. On prod that collided 929
 //!   times over 30k rows because `activity` is whole seconds, so this seeds
 //!   same-second threads deliberately.

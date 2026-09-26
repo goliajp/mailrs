@@ -78,7 +78,7 @@ def path_to_summary(path: str, method: str) -> str:
 def stub_operation(path: str, method: str) -> dict:
     return {
         "summary": path_to_summary(path, method),
-        "description": "Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub — full schema TBD.",
         "responses": {
             "200": {
                 "description": "Success",

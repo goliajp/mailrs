@@ -23,8 +23,7 @@ pub fn account_permissions(address: &str) -> String {
 //
 // The legacy admin-CRUD store pattern is `mailrs:{alias,domain}:<x>`
 // string + `mailrs:{aliases,domains}:index` set; listing walks the set
-// and issues per-key GETs (N+1 RTT). See RFC
-// `20260709-v2.3-p6-admin-crud-idx-query.md` §1.
+// and issues per-key GETs (N+1 RTT).
 //
 // Phase 9 (this commit) introduces a parallel `v2:` hash keyspace that
 // the roadmap Phase 10 will switch reads to via `idx_query_range`, and

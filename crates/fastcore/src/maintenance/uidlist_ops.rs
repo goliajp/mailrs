@@ -7,7 +7,7 @@
 //!
 //! It reports `walked` as well as `dropped`, because a sweep that reports
 //! only what it changed cannot tell "nothing to do" from "nothing looked
-//! at" — `periodic-work-must-converge`.
+//! at".
 
 use super::prelude::*;
 

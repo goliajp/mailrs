@@ -24,7 +24,7 @@ ignore = [
     # Re-evaluate when: (a) upstream `rsa` ships a fix, (b) we add
     # any RSA-using endpoint that returns per-op timing (e.g. RSA-
     # based TLS, S/MIME decrypt-by-recipient).
-    { id = "RUSTSEC-2023-0071", reason = "DKIM uses RSA but does not expose per-op timing to attackers; tracked in REFACTOR-V2-v0.6-security.md" },
+    { id = "RUSTSEC-2023-0071", reason = "DKIM uses RSA but does not expose per-op timing to attackers" },
 ]
 
 [licenses]

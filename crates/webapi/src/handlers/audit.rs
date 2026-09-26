@@ -1,7 +1,7 @@
 //! Unified audit log (G12) — append-only fact stream in network kevy.
 //!
-//! Every admin-side mutation records one immutable fact. Per the
-//! data-architecture rules audit rows are FACTS: append-only, never
+//! Every admin-side mutation records one immutable fact. Audit rows
+//! are FACTS: append-only, never
 //! updated, carrying both `occurred_at` (when the action happened) and
 //! `recorded_at` (when we logged it — identical here since we log
 //! synchronously, but kept distinct so the schema doesn't lie).

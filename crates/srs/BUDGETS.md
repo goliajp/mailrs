@@ -27,7 +27,7 @@ by timing analysis.
 
 ## Regression budgets
 
-15-30× headroom over observed P95 per `rules/rust/patterns.md`.
+15-30× headroom over observed P95.
 
 | Path | Budget | Observed P95 (dev) | Headroom |
 |---|---:|---:|---:|

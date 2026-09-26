@@ -277,8 +277,8 @@ mod tests {
 
     /// **The field has to be filled by the constructor**, because there
     /// is exactly one and every caller would otherwise have to remember.
-    /// A `deception` nobody writes is the shape of every defect
-    /// `both-halves-of-the-wire` records: each side self-consistent, no
+    /// A `deception` nobody writes is a familiar defect: each side
+    /// self-consistent, no
     /// test red, and the feature silently doing nothing.
     #[test]
     fn the_constructor_reads_the_identity_headers() {
@@ -327,7 +327,7 @@ mod tests {
     // Contract: the structured `AuthResults::sender_trust()` fold must
     // agree with the header-parse fold on the same SPF/DKIM/DMARC tokens.
     // Both delegate to `fold_sender_trust`; this pins that they can't
-    // drift (feedback-two-impls-need-a-contract-test).
+    // drift.
     #[test]
     fn structured_and_header_folds_agree() {
         use crate::auth_header::{build_auth_header, parse_auth_results, sender_trust};

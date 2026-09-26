@@ -1,5 +1,5 @@
 //! Tests for `compose` — kept in their own file only because the module
-//! they belong to is at the size limit. `file-size.md` counts a trailing
+//! they belong to is at the size limit. The file-size limit counts a trailing
 //! inline `#[cfg(test)] mod tests` as free, and these are two separate
 //! named modules, so they do not qualify.
 

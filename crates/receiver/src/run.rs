@@ -352,10 +352,9 @@ pub async fn run() {
 
 /// Push the four counters onto the stats channel on a slow tick.
 ///
-/// This is a heartbeat, not the periodic *repair* that
-/// `periodic-work-must-converge` is about: there is no stable "nothing to
+/// This is a heartbeat, not a periodic *repair*: there is no stable "nothing to
 /// do" state to converge to, because `uptime_secs` differs on every tick
-/// by construction. What that rule does still demand is that the tick be
+/// by construction. What still applies is that the tick be
 /// cheap and bounded — one small PUBLISH to a channel that is a no-op
 /// when nobody has subscribed, and nothing written to the durable store.
 fn spawn_stats_heartbeat(client: Arc<KevyNetClient>, counters: SharedCounters) {

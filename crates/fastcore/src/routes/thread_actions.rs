@@ -15,7 +15,7 @@ use crate::*;
 /// counter, this user's message rows, and the maildir file names.
 ///
 /// The counter alone is what the three read verbs wrote until 2026-08-14,
-/// and the shape of that omission is `both-halves-of-the-wire`: each layer
+/// and the shape of that omission: each layer
 /// was self-consistent, nothing failed, and mail read in the web stayed
 /// bold in every IMAP client. The store may not touch the filesystem, so
 /// it reports which files are behind and this brings them in line.

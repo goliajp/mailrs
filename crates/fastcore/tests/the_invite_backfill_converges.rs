@@ -8,8 +8,8 @@
 //! exists for exactly those, so the assertions are: it finds them, it
 //! writes them, and **a second run changes nothing**.
 //!
-//! That last one is the assertion `periodic-work-must-converge` is
-//! about, and the one a repair can otherwise pass forever by counting
+//! That last one is the assertion that matters for periodic work, and
+//! the one a repair can otherwise pass forever by counting
 //! attempts instead of changes.
 
 use std::sync::Arc;

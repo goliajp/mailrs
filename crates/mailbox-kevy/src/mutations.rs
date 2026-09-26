@@ -245,8 +245,7 @@ impl KevyMailboxStore {
     /// majority of calls, and costs an empty range scan to produce:
     /// the index is keyed on `snoozed_until`, every ordinary row
     /// stores `0`, and this asks for `[1, now]`. Nothing is written
-    /// when nothing is due, which is what
-    /// `periodic-work-must-converge` asks of anything on a timer.
+    /// when nothing is due, as anything on a timer should.
     pub fn wake_snoozed(&self, now: i64) -> io::Result<usize> {
         let (rows, _) = self.store().idx_query(
             b"threaduser.snoozed_until",

@@ -17,8 +17,7 @@ impl Client {
     /// v2.7.2 §Phase 12 §12.1: called from admin write handlers'
     /// success branches. `detail` is free-form text (JSON string OK
     /// for structured actions). Non-blocking best-effort — a network
-    /// hiccup here must not break the business write, per RFC
-    /// `20260610-audit-log-retrofit.md` failure-mode decision.
+    /// hiccup here must not break the business write.
     pub async fn log_audit(
         &self,
         actor: &str,

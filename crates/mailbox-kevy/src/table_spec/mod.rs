@@ -103,8 +103,7 @@ impl KevyMailboxStore {
     ///
     /// Returns `(scanned, planted)`. Convergent, not merely idempotent:
     /// a row that already carries all five is not written, so the second
-    /// boot after a spec change reports `planted: 0` and touches nothing
-    /// (`periodic-work-must-converge`).
+    /// boot after a spec change reports `planted: 0` and touches nothing.
     ///
     /// Only runs when the declaration is about to change, which is the
     /// only moment the set of columns an index needs can have grown.

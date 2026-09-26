@@ -3,8 +3,8 @@
 //! Axum panics at construction on a duplicate or malformed path, not at
 //! compile time — so a route table can be green across the whole test
 //! suite and still take the process down on the next boot. 4,483
-//! workspace tests were passing while nothing built this router
-//! (`rules/api-update-checklist.md`), and splitting the route table
+//! workspace tests were passing while nothing built this router,
+//! and splitting the route table
 //! across files is exactly the change that would exercise that gap.
 
 use std::sync::Arc;

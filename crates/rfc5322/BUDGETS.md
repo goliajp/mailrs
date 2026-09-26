@@ -12,7 +12,7 @@ including the vs.-`mail-parser` comparison.
 
 RFC 5322 parsing is a **per-message warm** path — every inbound SMTP
 DATA, every JMAP body fetch, every IMAP FETCH BODY[HEADER] uses it.
-Per `rules/rust/patterns.md`, warm budgets sit ≤ 10 ms. The actual
+Warm budgets sit ≤ 10 ms. The actual
 work here is hundreds of nanoseconds.
 
 ## Budgets

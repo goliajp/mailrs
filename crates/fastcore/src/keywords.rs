@@ -7,8 +7,8 @@
 //! reads; what changes is which of the two is the authority.
 //!
 //! **Both directions, in the same change.** The verb writes the bit; the
-//! self-heal reads it back onto the row. A file written and never read is
-//! the `both-halves-of-the-wire` shape, and a bit set by a verb that a
+//! self-heal reads it back onto the row. A file written and never read
+//! does nothing, and a bit set by a verb that a
 //! rebuild cannot see is exactly the loss this step exists to stop.
 //!
 //! The store may not touch the filesystem, so the split is the one A3

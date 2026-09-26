@@ -7,7 +7,7 @@
 //!
 //! Claiming is exclusive (a `zrem` that either removes the member or does
 //! not), so running more than one of these does not double-POST. The loop
-//! backs off when the queue is empty, per `periodic-work-must-converge` —
+//! backs off when the queue is empty —
 //! an idle mailbox should not cost a request every five seconds forever.
 
 use std::sync::Arc;

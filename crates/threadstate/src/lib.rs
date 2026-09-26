@@ -23,8 +23,7 @@
 //! {"tid":"t-0@x","at":1786651020,"category":"notification"}
 //! ```
 //!
-//! A correction is a new record, never an edit — `common/data-architecture.md`
-//! again. A record states only the fields it changes, so the two lines
+//! A correction is a new record, never an edit. A record states only the fields it changes, so the two lines
 //! above leave the thread snoozed *and* categorised.
 //!
 //! **File order decides, not `at`.** Appends are ordered by construction,

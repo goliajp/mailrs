@@ -120,8 +120,7 @@ pub(super) enum Outcome {
     Permanent(String),
 }
 
-/// Report one recipient's outcome onto the Send row (RFC
-/// 20260730-send-status S2).
+/// Report one recipient's outcome onto the Send row.
 ///
 /// Called once, before the outcome is matched for queue handling, so
 /// every arm is covered by construction. The match here is exhaustive:

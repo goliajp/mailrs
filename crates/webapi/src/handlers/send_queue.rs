@@ -68,7 +68,7 @@ pub(crate) fn send_system_mail(
 /// sent. The alternative is what this replaces —
 /// `mirror_send_to_sender_view`, which records the same fact
 /// best-effort, returns `()`, and left a delivered mail invisible in
-/// Sent for 1m42s on 2026-07-30 (RFC 20260730-send-status).
+/// Sent for 1m42s on 2026-07-30.
 pub(crate) fn enqueue_outbound_at(
     sender: &str,
     recipients: &[String],
@@ -279,7 +279,7 @@ pub(crate) async fn mirror_send_to_sender_view(
     // the enqueue and could not know this yet: the file is produced here,
     // afterwards. Resend re-enqueues these bytes and re-edit parses them
     // back into compose fields, so without this both buttons have nothing
-    // to act on (RFC 20260730-send-status S2).
+    // to act on.
     //
     // A synthetic `kevy:` ref means the maildir write failed — the bytes
     // are not on disk, so it is recorded as-is rather than pretending a

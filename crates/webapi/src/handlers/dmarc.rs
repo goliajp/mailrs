@@ -10,7 +10,7 @@
 //! `crates/fastcore/src/dmarc_ingest.rs`; the two must move together.
 //!
 //! Per-source aggregates are computed on read rather than stored. They
-//! are a derivation (`common/data-architecture.md`), the volume is a few
+//! are a derivation, the volume is a few
 //! reports per day, and a stored copy could drift from the rows it
 //! summarises.
 

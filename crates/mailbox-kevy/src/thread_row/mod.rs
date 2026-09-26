@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn membership_backfill_converges() {
-        // `periodic-work-must-converge`: the second pass over data that
+        // Periodic work must converge: the second pass over data that
         // is already right must write nothing. An unconditional hset
         // would be idempotent and still churn the AOF forever.
         let st = store();

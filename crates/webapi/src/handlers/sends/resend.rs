@@ -1,7 +1,6 @@
 //! Re-sending a message that already went out, and the id the copy gets.
 
-//! The Send list — one row per send, with delivery status
-//! (RFC 20260730-send-status S3).
+//! The Send list — one row per send, with delivery status.
 //!
 //! Distinct from the Sent conversation axis this will replace. That axis
 //! lists conversations, and status is a property of an attempt: three
@@ -55,7 +54,7 @@ pub(crate) async fn envelope_bytes(user: &str, send_id: &str) -> Result<Vec<u8>,
 ///
 /// For downloading or inspecting a send exactly as it left. **Not** the
 /// re-edit path: re-edit reads `:redraft` and the attachment bytes never
-/// enter the browser (RFC 20260730-send-status S4 addendum).
+/// enter the browser.
 pub async fn send_source(
     State(_state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,

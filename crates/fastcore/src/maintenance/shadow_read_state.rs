@@ -4,7 +4,7 @@
 //! before anything moves, because the first number in a comparison like
 //! this is usually a backfill gap rather than the defect, and cutting a
 //! read over on it once nearly shipped a bigger fault than the one being
-//! repaired (`verify-on-a-copy`).
+//! repaired.
 //!
 //! What it compares, per user, per message:
 //!

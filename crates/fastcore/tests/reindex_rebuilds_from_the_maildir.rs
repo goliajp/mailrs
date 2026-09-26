@@ -13,7 +13,7 @@
 //! onto tier 2, whatever the row currently says.
 //!
 //! It must be able to report zero — a reconcile whose output cannot come
-//! out zero is not a verification (`verify-on-a-copy`).
+//! out zero is not a verification.
 
 use std::sync::Arc;
 

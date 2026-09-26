@@ -285,8 +285,8 @@ pub fn compose_dsn(
 /// 40 s with one set — which is the production configuration, so every
 /// deploy was waiting out `docker stop`'s grace period and being killed.
 ///
-/// `kevy/no-blocking-pop-wrap` already required this, and already listed
-/// this call site as one of its compliant callers.
+/// A written rule already required this, and already listed this call
+/// site as one of its compliant callers.
 pub fn spawn_bounce_drain(state: Arc<FastcoreState>) -> tokio::task::JoinHandle<()> {
     tokio::task::spawn_blocking(move || {
         let Some(url) = crate::live_sync::network_kevy_url() else {

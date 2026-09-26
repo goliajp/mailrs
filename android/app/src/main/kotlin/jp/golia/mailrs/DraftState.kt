@@ -22,7 +22,7 @@ import jp.golia.mailrs.wire.Wire
  *
  * The composer used to mirror these into its own `remember`d state
  * and hand them back on send. That is the pattern this codebase has
- * a rule against (`frontend/no-rq-mirror.md`), and it had a second
+ * a rule against, and it had a second
  * cost here: the back gesture cancels through the shell, which
  * cannot see a screen's local variables, so leaving by the gesture
  * everybody uses would have thrown the text away.

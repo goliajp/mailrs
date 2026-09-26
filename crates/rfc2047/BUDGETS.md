@@ -9,7 +9,7 @@ numbers vs `mail-parser`.
 
 Encoded-word decoding is a **per-message warm** path. Every Subject
 + every From display name from non-Latin senders goes through here.
-Per `rules/rust/patterns.md`: warm budgets sit ≤ 10 ms; actual work
+Warm budgets sit ≤ 10 ms; actual work
 is tens to a hundred nanoseconds.
 
 ## Budgets

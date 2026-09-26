@@ -136,7 +136,7 @@ impl PgMailboxStore {
     /// Needs `idx_outbound_sender_recipient`; this runs once per inbound
     /// message during importance scoring, and without a matching index
     /// the predicate degrades to a seq scan over a table that stores
-    /// full message bodies (see `rules/hot-path-needs-a-plan.md`).
+    /// full message bodies.
     pub async fn has_sent_to(
         &self,
         user: &str,

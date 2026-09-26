@@ -1,8 +1,8 @@
 //! The scheduled-send sweep's predicate uses its index — asserted, not
 //! assumed.
 //!
-//! `rules/hot-path-needs-a-plan.md` says every hot-path predicate needs an
-//! execution plan somebody has looked at, and it says so because of the
+//! Every hot-path predicate needs an execution plan somebody has looked
+//! at, because of the
 //! 2026-07-19 incident: a 48k-row table served **309 billion rows** to a
 //! sweep because a composite index's leading column was a scope rather
 //! than the predicate's column. The rule's own words: *"这张表有 19 个索引,

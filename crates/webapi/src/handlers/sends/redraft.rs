@@ -1,8 +1,7 @@
 //! Turning a sent message back into a draft, and the address helpers
 //! that reconstruct its recipients.
 
-//! The Send list — one row per send, with delivery status
-//! (RFC 20260730-send-status S3).
+//! The Send list — one row per send, with delivery status.
 //!
 //! Distinct from the Sent conversation axis this will replace. That axis
 //! lists conversations, and status is a property of an attempt: three
