@@ -14,7 +14,7 @@ extraction + calendar invite finding).
 Network / disk dominate inbound wall-clock time; the parser is the
 CPU piece.
 
-## Measured (criterion, M-series Mac, release; v4 ckpt 4, 2026-06-02)
+## Measured (criterion, M-series Mac, release; 2026-06-02)
 
 Standalone parse paths:
 
@@ -37,9 +37,6 @@ Transfer-encoding decoders (base64 4 KB input):
 |---|---:|
 | `decode_base64` clean (no WSP, fast-path) | ~2.5 µs |
 | `decode_base64` wrapped (RFC 2045 76-col WSP, strip path) | ~6.5 µs |
-
-The previous BUDGETS.md numbers (~170 ns simple / ~830 ns multipart /
-~1.4 µs find_calendar) were pre-v4-round-13 — kept in git history.
 
 ## Regression budgets
 

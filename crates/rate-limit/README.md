@@ -257,7 +257,7 @@ algorithm change is a major-version bump.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -266,7 +266,7 @@ algorithm change is a major-version bump.
 | **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 121 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

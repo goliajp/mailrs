@@ -120,7 +120,7 @@ is dominated by DNS round-trips (typical 5-50 ms). Reproduce:
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -129,7 +129,7 @@ is dominated by DNS round-trips (typical 5-50 ms). Reproduce:
 | **bench** | ✅ 2 file(s) criterion + ✅ 2 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 2.3 MB |
 | **fuzz** | ✅ 1 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

@@ -94,7 +94,7 @@ timeout.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -103,7 +103,7 @@ timeout.
 | **bench** | ✅ 1 file(s) criterion + ✅ 0 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 241 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

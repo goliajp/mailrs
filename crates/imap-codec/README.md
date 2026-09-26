@@ -71,7 +71,7 @@ match codec.decode(&mut buf).unwrap() {
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -80,7 +80,7 @@ match codec.decode(&mut buf).unwrap() {
 | **bench** | ✅ 1 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 27 KB |
 | **fuzz** | ✅ 1 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 
@@ -110,10 +110,8 @@ Headline numbers (criterion, M-series Mac, release):
 | `decode/literal/102400b` | 100 KB | 13.2 µs | 7.7 GB/s |
 | `encode/long_140b` | 140 B | 39.4 ns | — |
 
-**v4 round 1** (2026-06-02, Case A): no exploitable hot path —
-the line scanner is already memchr-anchored (added during v3
-cycle), the literal path is `BytesMut::split_to + to_vec`
-(memcpy bound). All ops sit within ~30 % of the hardware floor.
+The line scanner is memchr-anchored and the literal path is `BytesMut::split_to + to_vec`
+(memcpy bound); all ops sit within ~30 % of the hardware floor.
 
 Full table + methodology in workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
 Regression budgets in [`BUDGETS.md`](BUDGETS.md). Run

@@ -95,7 +95,7 @@ Both are stable for v1.x. The v2 plan is to consolidate around the trait surface
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -104,7 +104,7 @@ Both are stable for v1.x. The v2 plan is to consolidate around the trait surface
 | **bench** | ✅ 1 file(s) criterion + ✅ 6 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 2.8 MB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 

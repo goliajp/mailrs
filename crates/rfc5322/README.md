@@ -85,7 +85,7 @@ Future MIME work goes in a separate crate.
 ## Performance
 
 **Measured** (criterion, M-series Mac, release, 100-sample median;
-v4 round 1, 2026-06-02):
+2026-06-02):
 
 | Operation | body size | mailrs-rfc5322 | mail-parser 0.11 | speedup |
 |---|---:|---:|---:|---:|
@@ -104,18 +104,13 @@ Note the **mailrs-rfc5322 numbers are constant in body size** —
 separating headers from body. `mail-parser` builds the full Message
 tree on every parse, so it's linear in body size.
 
-**v4 round 1** swapped two `iter().position()` byte-scans for
-`memchr::memchr` in `header.rs` — header lookup dropped from 222 ns
-to 84 ns (−62 % / **2.6×**), and the speedup ratio vs mail-parser
-tripled (11-33× → 31-91×).
-
 Reproduce with `cargo bench -p mailrs-rfc5322 --bench parse`. Workspace
 [PERFORMANCE.md](../../PERFORMANCE.md) carries the same table; per the
 project's "no fake numbers" rule, every number traces to a measurement.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -124,7 +119,7 @@ project's "no fake numbers" rule, every number traces to a measurement.
 | **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 43 KB |
 | **fuzz** | ✅ 1 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

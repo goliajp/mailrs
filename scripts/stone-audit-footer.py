@@ -28,7 +28,21 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TARGET_DIR = Path("/Volumes/INTEL2T/workspace-cache/cargo-target")
+
+
+def cargo_target_dir() -> Path:
+    """`CARGO_TARGET_DIR` if set, else the directory cargo itself reports."""
+    env = os.environ.get("CARGO_TARGET_DIR")
+    if env:
+        return Path(env)
+    meta = subprocess.run(
+        ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+        cwd=ROOT, check=True, capture_output=True, text=True,
+    )
+    return Path(json.loads(meta.stdout)["target_directory"])
+
+
+TARGET_DIR = cargo_target_dir()
 COV_FILE = Path("/tmp/cov2.out")
 
 BEGIN = "<!-- AUDIT-FOOTER:BEGIN -->"
@@ -163,7 +177,7 @@ def build_footer(crate: str) -> str:
     lines = [
         BEGIN,
         "",
-        "## Stone audit (v3 cycle, 2026-05-25)",
+        "## Stone audit (2026-05-25)",
         "",
         "| Axis | Status |",
         "|---|---|",
@@ -172,7 +186,7 @@ def build_footer(crate: str) -> str:
         f"| **bench** | {bench_count(d)} criterion + {perf_gate_count(d)} `perf_gate.rs` |",
         f"| **size** | release rlib: {fmt_size(rlib_size_bytes(crate))} |",
         f"| **fuzz** | {fuzz_status(d)} |",
-        f"| **mem**  | dhat profile pending (v3.4 backlog) |",
+        f"| **mem**  | no dhat profile yet |",
         "",
     ]
     competitors = find_competitor_notes(crate)

@@ -17,7 +17,7 @@ work here is hundreds of nanoseconds.
 
 ## Budgets
 
-| Path | Budget | Observed P95 (release, v4 round 1) | Headroom |
+| Path | Budget | Observed P95 (release) | Headroom |
 |---|---:|---:|---:|
 | `Message::header` (Subject + From, single message) | 10 µs | **~85 ns** | ~120× |
 | `Message::body` (first call, includes scan) | 10 µs | **~105 ns** | ~95× |
@@ -39,12 +39,6 @@ Real measured medians on M-series Mac, release profile, 100-sample.
 | body locate | 5 KB | **105 ns** | 3654 ns | **34.7×** |
 | body locate | 20 KB | **105 ns** | 7674 ns | **73.0×** |
 | received-chain walk (3 hops, 5 KB body) | — | **127 ns** | 3691 ns | **29.1×** |
-
-**v4 round 1** (2026-06-02): swapped two `iter().position()` byte-by-byte
-scans in `header.rs` (LF in `find_unfolded_line_end`, colon in
-`parse_header_line`) for `memchr::memchr`. Header lookup dropped from
-222 ns → 84 ns (−62 % / **2.6×**); the speedup vs mail-parser tripled
-(11-33× → 31-91×).
 
 `mailrs-rfc5322` is **constant-time in body size** because the scanner
 stops at the empty-line terminator separating headers from body.

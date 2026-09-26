@@ -68,7 +68,7 @@ See [`examples/parse_and_format.rs`](examples/parse_and_format.rs) for a longer 
 
 Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release profile. Medians from 100-sample runs.
 
-3-run honest medians, v4 ckpt 6 (2026-06-03):
+3-run medians (2026-06-03):
 
 | Operation | Median | Notes |
 |---|---|---|
@@ -96,7 +96,7 @@ Re-run locally with `cargo bench -p mailrs-imap-proto`. See [`tests/perf_gate.rs
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -105,7 +105,7 @@ Re-run locally with `cargo bench -p mailrs-imap-proto`. See [`tests/perf_gate.rs
 | **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 308 KB |
 | **fuzz** | ✅ 2 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

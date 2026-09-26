@@ -266,7 +266,7 @@ should compute their own final decision from the signals.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -275,7 +275,7 @@ should compute their own final decision from the signals.
 | **bench** | ✅ 1 file(s) criterion + ✅ 7 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 223 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 

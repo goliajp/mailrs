@@ -60,7 +60,7 @@ Filenames look like `1684500000.M123456P9999Q0.hostname:2,S` — timestamp + uni
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -69,7 +69,7 @@ Filenames look like `1684500000.M123456P9999Q0.hostname:2,S` — timestamp + uni
 | **bench** | ✅ 2 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 126 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 
