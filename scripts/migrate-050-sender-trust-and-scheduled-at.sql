@@ -2,7 +2,7 @@
 --
 -- Sizing note, because the plan for this migration was much larger. It
 -- budgeted two new tables — `threads` and `thread_users` — on the strength of
--- a line in .claude/rfcs/20260730-per-user-thread-state.md saying the PG lane
+-- a line in the per-user thread state RFC saying the PG lane
 -- still had the multi-owner defect the kevy side had been fixed for. It does
 -- not: crates/mailbox/tests/multi_owner.rs proves that on both backend axes.
 -- `messages` is one row per mailbox and a mailbox belongs to one account, so a

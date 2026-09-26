@@ -1,7 +1,7 @@
 name: test
 
 # cargo test + bun test on the prod-bound branches only — the three named
-# below. We don't use PRs (see .claude/rules/common/git-workflow.md); a
+# below. We don't use PRs; a
 # git-flow branch finish is the merge path.
 #
 # master:       production tip

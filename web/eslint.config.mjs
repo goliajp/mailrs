@@ -168,7 +168,7 @@ export default eslintTs.config(
             {
               importNames: ['postJson', 'putJson', 'deleteJson', 'fetchJson', 'fetchList'],
               message:
-                'v2.1 wire boundary: use `wire/endpoints/<domain>` adapters instead of raw `lib/api.ts` helpers. Every network call must Zod-validate the response — see `.claude/plans/v2.1-webapp-linear-checklist-2026-07-08.md`.',
+                'v2.1 wire boundary: use `wire/endpoints/<domain>` adapters instead of raw `lib/api.ts` helpers. Every network call must Zod-validate the response.',
               name: '@/lib/api',
             },
           ],

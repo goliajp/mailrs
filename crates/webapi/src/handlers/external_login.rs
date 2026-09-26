@@ -13,7 +13,7 @@
 //! Linked identity → straight in. Unlinked → the identity is parked
 //! server-side under a single-use handle and the browser is sent to the login
 //! page; the password login that follows claims the handle and writes the
-//! link. See `.claude/rfcs/20260801-external-login.md`.
+//! link.
 
 use std::sync::Arc;
 

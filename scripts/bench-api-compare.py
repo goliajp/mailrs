@@ -161,8 +161,7 @@ def main() -> int:
     print(
         "—  this arm did not measure that endpoint. Either it does not serve it "
         "(the SQL core\n"
-        "   does not serve conversations:search — see "
-        ".claude/two-lane-known-diff.txt) or the row\n"
+        "   does not serve conversations:search) or the row\n"
         "   is arm-specific by construction. It is never a zero and never a tie."
     )
 

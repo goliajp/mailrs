@@ -30,7 +30,7 @@ use super::prelude::*;
 ///   became true for every row the moment the shared one was blanked, and
 ///   a check that always fires reports nothing.
 ///
-/// Read-only. See `.claude/rfcs/20260731-per-user-message-projection.md`.
+/// Read-only.
 pub(crate) async fn usermsg_shadow_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {

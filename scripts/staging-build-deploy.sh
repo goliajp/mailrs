@@ -8,7 +8,7 @@
 #
 # Prod stays CI-owned: when staging has soaked green on a commit, cut a
 # v* tag from that SAME commit and release.yml checks the verdict sha
-# before deploying to t02. See .claude/runbooks/release-and-deploy.md.
+# before deploying to t02.
 #
 # Usage:
 #   ./scripts/staging-build-deploy.sh              # clean tree required

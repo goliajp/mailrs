@@ -1,7 +1,6 @@
 //! `mailrs-mailbox-kevy` — kevy-backed mailbox store (experimental).
 //!
-//! Phase 7 of the 4-process split (checklist
-//! `.claude/notes/arch-split-plus-fastcore-checklist-2026-06-30.md` §7).
+//! Phase 7 of the 4-process split.
 //!
 //! ## Design rationale
 //!

@@ -167,8 +167,7 @@ pub(crate) fn select_carried(
 /// send that failed), which are the two paths that rebuild an outgoing
 /// message from a stored one. It was inline in the forward path until
 /// redraft needed it; copying it would have put two answers to "which
-/// parts are body, which are files" in the tree, and the copies drift
-/// (`.claude/rules/feedback-two-impls-need-a-contract-test`).
+/// parts are body, which are files" in the tree, and the copies drift.
 ///
 /// A part is a body part when it is text/plain or text/html **and** is
 /// not `Content-Disposition: attachment` — an attachment-disposition

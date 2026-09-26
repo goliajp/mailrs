@@ -79,9 +79,8 @@ The cross-lane suite is the check:
 cargo test -p mailrs-server --features core-rpc,spg two_lane
 ```
 
-Tolerated differences and their reasons are in
-`.claude/two-lane-known-diff.txt`. Anything not on that list is a
-regression, and the list is held honest by a test that fails when an
+Tolerated differences are excluded explicitly. Anything not excluded is a
+regression, and the exclusions are held honest by a test that fails when an
 exclusion has stopped being necessary.
 
 ## Notes

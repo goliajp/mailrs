@@ -1,8 +1,8 @@
 //! Rebuild the index from the maildir — the operation the three sidecar
 //! files exist for.
 //!
-//! Step 6 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. Steps 3
-//! to 5 put UIDs, keyword bits and thread decisions beside the mail, and
+//! Earlier steps
+//! put UIDs, keyword bits and thread decisions beside the mail, and
 //! the self-heal reads them back — **only on the branch that creates a
 //! thread**, because that is the branch that was there to extend. On a
 //! mailbox whose rows already exist, which is every mailbox on production,

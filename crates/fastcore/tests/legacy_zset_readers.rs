@@ -9,7 +9,7 @@
 //! contacts backfill all became no-ops nobody noticed.
 //!
 //! Measured on prod 2026-07-31: thirteen of the fifteen zsets were empty on
-//! every account — `.claude/notes/legacy-zset-census-2026-07-31.md`.
+//! every account.
 //!
 //! Writes are covered too, and for a sharper reason: a writer keeps a
 //! dropped index alive. `drop-legacy-zsets` emptied all fifteen on prod, and

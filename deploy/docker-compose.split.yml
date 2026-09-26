@@ -105,7 +105,7 @@ services:
     # Explicit, because the default entrypoint of the main image is not this
     # and never was. This service was written for `mailrs-server` — the fat
     # binary that started every role at once — which the main image has not
-    # built since `.claude/rfcs/20260722-monolith-out-of-image.md`. So the
+    # built since 2026-07-22. So the
     # service named a binary that does not ship, which is why this mode was
     # undeployable rather than merely dormant.
     #

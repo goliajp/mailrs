@@ -1,11 +1,10 @@
 //! A rebuilt index keeps the UIDs the maildir already promised.
 //!
-//! Step 3 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. A UID is a
+//! A UID is a
 //! promise to an IMAP client — *this number means this message until
 //! UIDVALIDITY changes* — so it cannot be recomputed, and until now it
-//! lived only in the serving lane's database.
-//! `.claude/two-lane-known-diff.txt` §7 records the consequence as
-//! accepted: switch lanes and "IMAP clients resync".
+//! lived only in the serving lane's database, so switching lanes made
+//! IMAP clients resync.
 //!
 //! This drives the real thing: deliver, wipe the index the way a lane
 //! switch or a rebuild does, run the self-heal, and read the UID back.

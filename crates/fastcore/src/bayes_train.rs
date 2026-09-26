@@ -1,7 +1,6 @@
 //! Bayesian spam-corpus training + storage, network-kevy backed.
 //!
-//! RFC `.claude/rfcs/20260713-bayes-antispam-engine.md`. The pure
-//! math lives in the `mailrs-bayes` stone; this module is the
+//! The pure math lives in the `mailrs-bayes` stone; this module is the
 //! cement/steel glue: read a thread's raw messages from the maildir,
 //! tokenize them, and HINCRBY the per-token spam/ham counts into the
 //! shared network kevy so the receiver process (a different binary)

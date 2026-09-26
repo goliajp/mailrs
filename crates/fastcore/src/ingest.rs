@@ -163,8 +163,7 @@ pub(crate) fn ingest_delivered_file(
             // filename, their uid, their flags. A thread can have several
             // owners and each has a different file on disk, so a single
             // `blob_ref` on the shared blob is one owner's — 74 messages on
-            // production were served to a user the row did not name. See
-            // `.claude/rfcs/20260731-per-user-message-projection.md`.
+            // production were served to a user the row did not name.
             if let Err(e) = state.mailbox.upsert_user_message(
                 addr,
                 &root,
@@ -228,8 +227,7 @@ pub(crate) fn ingest_delivered_file(
                     //
                     // Both halves, through the function that writes
                     // both: the axis column and the per-user rows the
-                    // count comes off. See
-                    // `.claude/rules/both-halves-of-the-wire.md`.
+                    // count comes off.
                     crate::routes::thread_actions::mark_thread_read_everywhere(state, addr, &root);
                     tracing::info!(
                         %addr, %root, score = v.score, rules = %v.rules_version,

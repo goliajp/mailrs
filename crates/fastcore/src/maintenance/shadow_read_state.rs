@@ -1,7 +1,6 @@
 //! The read-state shadow: the maildir's flags against the index's belief.
 //!
-//! Step 1 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`, and
-//! read-only. Nothing is written here — the point is to have the number
+//! Read-only. Nothing is written here — the point is to have the number
 //! before anything moves, because the first number in a comparison like
 //! this is usually a backfill gap rather than the defect, and cutting a
 //! read over on it once nearly shipped a bigger fault than the one being

@@ -1,7 +1,7 @@
 //! `mailrs-pg-core` — the SQL core, fastcore's peer.
 //!
-//! Not the fat process `.claude/rfcs/20260722-monolith-out-of-image.md` ruled
-//! out: same boot sequence as `mailrs-server`, a different role set. On are the
+//! Not the fat process taken out of the image on 2026-07-22:
+//! same boot sequence as `mailrs-server`, a different role set. On are the
 //! core-api contract, the spool drain that indexes arrivals, and the protocols
 //! this side owns (IMAP, POP3, ManageSieve). Off are the four another process
 //! owns — SMTP, the web tier, outbound delivery, the RBL monitor. Pointing

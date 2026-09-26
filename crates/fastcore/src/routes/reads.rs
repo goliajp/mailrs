@@ -2,8 +2,7 @@
 //!
 //! Each of these reads **this user's** membership row, not the shared
 //! thread hash. The shared one has no user segment, so on a thread two
-//! accounts both received it holds whichever owner wrote last — see
-//! `.claude/rules/verify-on-a-copy.md`.
+//! accounts both received it holds whichever owner wrote last.
 
 use std::sync::Arc;
 

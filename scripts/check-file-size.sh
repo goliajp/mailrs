@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-file-size.sh — the 500-line hard limit, as a ratchet.
 #
-# `.claude/rules/common/file-size.md` sets 500 lines per file across every
+# The house rule sets 500 lines per file across every
 # language. mailrs had 45 files over it and no gate, because the copy of
 # that rule it carried until 2026-08-02 listed *torajs*'s debt table —
 # fourteen paths that do not exist here — so this repo's own overruns were

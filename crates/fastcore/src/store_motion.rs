@@ -1,6 +1,6 @@
 //! Whether the store moved while a sweep was reading it.
 //!
-//! Phase S of `.claude/plans/nodefer-round2-2026-08-15.md`. Every
+//! Every
 //! reconcile and shadow route walks thirty thousand threads while mail
 //! arrives, so a difference it reports may be a message that landed
 //! mid-walk and a zero may be one that landed behind its cursor. Round 1

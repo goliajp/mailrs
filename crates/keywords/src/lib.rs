@@ -17,8 +17,7 @@
 //! # Why these facts are here rather than in the index
 //!
 //! `archived` and `pinned` are a person's decisions and cannot be
-//! recomputed from the mail, so by the rule in
-//! `.claude/rfcs/20260814-the-maildir-is-the-store.md` they belong next to
+//! recomputed from the mail, so they belong next to
 //! it. They were per-user index columns, which is the thing a lane switch
 //! replaces.
 //!

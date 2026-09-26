@@ -15,8 +15,7 @@
 //! blob + the count keys so `stats` matches the pg-core table counts.
 //!
 //! v2.5.1 §P8-B-A (roadmap Phase 6.2) — introduces a **dual-write** to
-//! the new single-hash job FSM layout described in
-//! `.claude/rfcs/20260709-v2.3-p8b-outbound-job-state-fsm.md`:
+//! the new single-hash job FSM layout:
 //!
 //!   `mailrs:outbound:job:{id}`      hash {state, attempts, blob,
 //!                                         created_at, updated_at,

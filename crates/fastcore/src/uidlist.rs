@@ -1,10 +1,9 @@
 //! The maildir's UID map, and the two directions it is used in.
 //!
-//! Step 3 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. A UID is a
+//! A UID is a
 //! promise to an IMAP client and cannot be recomputed, so it is a fact and
-//! belongs beside the mail; the index's copy is a cache of it. What that
-//! buys is in `.claude/two-lane-known-diff.txt` §7, which currently records
-//! the opposite as accepted: switch lanes and every client resyncs.
+//! belongs beside the mail; the index's copy is a cache of it. Without the
+//! file, switching lanes makes every IMAP client resync.
 //!
 //! **Both directions ship together, deliberately.** A file written and
 //! never read is the `both-halves-of-the-wire` shape this repo has now been

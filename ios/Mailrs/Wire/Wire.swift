@@ -4,8 +4,7 @@ import Foundation
 ///
 /// Written against the Rust handlers, not against `openapi.json` — that
 /// file has drifted before, and the web client shipped nine schemas
-/// disagreeing with the backend because they were written from it
-/// (`.claude/rules/frontend/wire-schema-verification.md`). Each type
+/// disagreeing with the backend because they were written from it. Each type
 /// below names the handler it mirrors so the next person can check.
 enum Wire {
     /// Backend: `crates/webapi/src/handlers/auth/session.rs` — `LoginRequest`.

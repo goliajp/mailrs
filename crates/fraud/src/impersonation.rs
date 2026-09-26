@@ -104,8 +104,7 @@ pub fn claims_our_name(from: &str, names: &[String], ours: &[String], allowed: &
 /// The account rows'. A deployment knows definitively who holds an
 /// account on it, which is what separates this from the set of names
 /// *the reader* is addressed by — that one cannot be finished, and a
-/// rule resting on it convicts whatever it is missing
-/// (`.claude/rules/fraud-rules.md`).
+/// rule resting on it convicts whatever it is missing.
 ///
 /// # Measured
 ///

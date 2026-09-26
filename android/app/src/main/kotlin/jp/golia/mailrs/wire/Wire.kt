@@ -8,8 +8,7 @@ import kotlinx.serialization.Serializable
  * What the server sends, named as the server names it.
  *
  * **Written against the handlers, not against another client.**
- * `.claude/rules/frontend/wire-schema-verification.md` requires it, and
- * the first draft of this file — copied from the iOS Swift types —
+ * The first draft of this file — copied from the iOS Swift types —
  * proved the rule twice in five minutes: it declared `snoozed_until`,
  * which `ConversationResponse` does not have at all, and `body_text` /
  * `body_html`, which are really `text_body` / `html_body`. Neither

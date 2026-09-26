@@ -2,8 +2,7 @@
 //!
 //! Removing a structure means removing its readers **and** its writers: a
 //! surviving writer refills a key nothing reads, and the census then shows
-//! a healthy number for a dead axis. See
-//! `.claude/rules/kevy-patterns.md` → `kevy/delete-an-index-by-its-readers`.
+//! a healthy number for a dead axis.
 
 use super::prelude::*;
 

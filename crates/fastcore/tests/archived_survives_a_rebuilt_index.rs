@@ -1,6 +1,5 @@
 //! Archiving is a decision, so a rebuilt index must not lose it.
 //!
-//! Step 4 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`.
 //! `archived` and `pinned` are things a person did and cannot be
 //! recomputed from the mail, so they belong beside it — as Maildir++
 //! keyword bits, with `mailrs-keywords` recording which letter means what.

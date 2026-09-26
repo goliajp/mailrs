@@ -58,8 +58,6 @@ while IFS= read -r hit; do
 done < <(grep -rn 'rustls-tls-webpki-roots\|"rustls-tls"' --include='Cargo.toml' Cargo.toml crates/ || true)
 
 if [ "$fail" -ne 0 ]; then
-    echo
-    echo "See .claude/incidents/INC-2026-08-17-microsoft-mail-untrusted-root.md"
     exit 1
 fi
 

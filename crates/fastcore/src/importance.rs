@@ -1,7 +1,5 @@
 //! Inbound importance scoring for the fastcore lane.
 //!
-//! RFC `.claude/rfcs/20260721-self-hosted-importance-ranking.md`.
-//!
 //! The heuristic scorer (`mailrs-intelligence`) and the relationship
 //! facts (the shared side-state contacts hashes on network kevy) both
 //! already existed; the monolith lane scored every inbound message with

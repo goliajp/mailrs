@@ -33,7 +33,7 @@ import type { WireSend, WireSendStatus } from '@/wire/schemas/sends'
  *
  * The third line is the one that was missing. `null` is not `0`: a send
  * with no row has an unknown outcome and the honest display of unknown is
- * nothing at all (`.claude/rules/common/coding-style.md` → Null vs Zero).
+ * nothing at all.
  *
  * The join key is `message_id`. Both sides store it bare, without angle
  * brackets — verified against a prod capture of each on 2026-07-30. If one

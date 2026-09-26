@@ -111,8 +111,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # host-bind-mounted secrets (certs, ACME) to a stable id. Without the
 # explicit `-u/-g`, `useradd -r` picks the next free system uid (typically
 # 999 on a stock debian:trixie-slim), which can shift between base-image
-# versions and silently break bind-mount permissions. See
-# .claude/memory/ghcr-cert-perm-trap.md for the v1.7.89 incident.
+# versions and silently break bind-mount permissions (the v1.7.89 incident).
 RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sbin/nologin mailrs
 
 # The monolith (mailrs-server) is deliberately NOT built or shipped.
@@ -125,7 +124,7 @@ RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sb
 # pg/spg core mode is wanted later, just not as this fat process. When
 # it comes back it should be a slim pg-core serving core-api — the same
 # contract fastcore serves — rather than a second implementation of
-# every protocol. See .claude/rfcs/20260722-monolith-out-of-image.md.
+# every protocol.
 COPY --from=rust-builder /usr/local/bin/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check
 COPY --from=rust-builder /usr/local/bin/mailrs-receiver /usr/local/bin/mailrs-receiver
 # Phase 3 (webapi split): same one-image-many-roles pattern. Idle unless

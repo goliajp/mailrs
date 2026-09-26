@@ -8,10 +8,6 @@
 // On macOS host (dev only) the same type resolves to a delegating
 // stub over `std::alloc::System`, so a developer running cargo
 // from a laptop sees zero behaviour change.
-//
-// See:
-//   .claude/notes/rss-leak-attribution-allocator-2026-06-18.md
-//   .claude/incidents/INC-2026-06-18-session-eviction-by-mem-watchdog.md
 #[global_allocator]
 static ALLOC: mailrs_mmalloc::MailrsAllocator = mailrs_mmalloc::MailrsAllocator;
 

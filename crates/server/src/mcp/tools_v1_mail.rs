@@ -1,8 +1,7 @@
 //! v1 MCP tools that act on mail: threads, messages, sending, contacts.
 //!
 //! Split out of `mcp/mod.rs` on 2026-08-02, which held all sixty-one v1
-//! tools in one 2,450-line file — the very thing
-//! `.claude/rules/mcp-two-lane-parity.md` says not to keep doing. Tool
+//! tools in one 2,450-line file. Tool
 //! **names** are the wire contract and must match the fastcore lane;
 //! `scripts/check-mcp-parity.sh` holds both to the same 82.
 

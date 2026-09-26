@@ -69,8 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # host-bind-mounted secrets (certs, ACME) to a stable id. Without the
 # explicit `-u/-g`, `useradd -r` picks the next free system uid (typically
 # 999 on a stock debian:trixie-slim), which can shift between base-image
-# versions and silently break bind-mount permissions. See
-# .claude/memory/ghcr-cert-perm-trap.md for the v1.7.89 incident.
+# versions and silently break bind-mount permissions (the v1.7.89 incident).
 RUN groupadd -r -g 10001 mailrs && useradd -r -u 10001 -g mailrs -d /data -s /sbin/nologin mailrs
 
 COPY --from=rust-builder /usr/local/bin/mailrs-server /usr/local/bin/mailrs-server

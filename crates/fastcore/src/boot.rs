@@ -4,9 +4,8 @@
 //! The graceful stop is not decoration. A hard kill mid-write leaves a
 //! torn frame at the AOF tail; replay stops there while appends continue
 //! past it, so every restart rolls the store back to the moment of the
-//! tear and new writes vanish. That is what
-//! `.claude/runbooks/release-and-deploy.md` means by "部署后必看 replay
-//! 日志是否 (clean)".
+//! tear and new writes vanish, which is why the replay log is checked for
+//! `(clean)` after every deploy.
 
 use std::sync::Arc;
 

@@ -1,6 +1,6 @@
 //! mailrs-core-api HTTP RPC server, hosted inside the monolith.
 //!
-//! Phase 2 — checklist `.claude/notes/arch-split-plus-fastcore-checklist-2026-06-30.md` §2.
+//! Phase 2 of the 4-process split.
 //!
 //! This module is compiled ONLY when the `core-rpc` cargo feature is on.
 //! Without that feature the file is `#[cfg]`-skipped and the monolith

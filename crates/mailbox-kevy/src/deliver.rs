@@ -15,8 +15,7 @@
 //! Not currently atomic across the two halves (the underlying
 //! `Store::atomic<R>` closure can't run zadd-on-the-thread-zset and
 //! the per-message string set in the same block via AtomicCtx 1.15.0
-//! — same gap reported in
-//! .claude/notes/kevy-feedback-atomicctx-zrem-hdel-2026-07-01.md).
+//! — same gap reported upstream).
 //! Either half can succeed independently; the worst case is a
 //! sub-millisecond window where the thread row is updated but the
 //! blob isn't yet visible. UI re-fetches resolve.

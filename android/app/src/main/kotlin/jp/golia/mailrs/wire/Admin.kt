@@ -6,8 +6,7 @@ import kotlinx.serialization.Serializable
 /**
  * The operator's half of the API.
  *
- * Written against the handlers and the wire types they return, per
- * `.claude/rules/frontend/wire-schema-verification.md`:
+ * Written against the handlers and the wire types they return:
  * `crates/core-api/src/method/admin/directory.rs` for accounts, aliases
  * and domains; `crates/webapi/src/handlers/admin_directory.rs` for the
  * routes. Every list answers `{items: [...]}` rather than a bare array —

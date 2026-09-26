@@ -2,8 +2,7 @@
 //!
 //! `pop_next` uses BRPOP with a bounded wait and a WATCH+CAS check on the
 //! row's state, so a crash between the pop and the claim leaves the item
-//! recoverable rather than lost — `.claude/rules/kevy-patterns.md` →
-//! `kevy/no-blocking-pop-wrap`.
+//! recoverable rather than lost.
 
 use std::time::Duration;
 

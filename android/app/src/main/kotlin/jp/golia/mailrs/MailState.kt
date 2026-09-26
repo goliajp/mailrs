@@ -16,9 +16,8 @@ import jp.golia.mailrs.wire.Wire
  * the way to shorten a view model is to stop nesting its types inside
  * it. Nothing changed but where they live.
  *
- * `UiState` is one value and the only one: `.claude/rules/frontend/
- * no-rq-mirror.md` is about a screen keeping a second copy of what a
- * store already holds, and the answer here is the same — there is one
+ * `UiState` is one value and the only one: a screen must not keep a
+ * second copy of what a store already holds, so there is one
  * copy of every fact and the screens read it.
  */
 data class UiState(

@@ -28,8 +28,7 @@
 //! `munmap` on `Span::drop` (rather than being retained in a
 //! per-thread arena like glibc malloc does), which is the
 //! proximate fix for the RSS climb that mailrs-server bleeds
-//! under glibc malloc (see
-//! `.claude/notes/rss-leak-attribution-allocator-2026-06-18.md`).
+//! under glibc malloc.
 //!
 //! ## Layered structure
 //!

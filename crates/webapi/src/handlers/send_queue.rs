@@ -3,7 +3,7 @@
 //!
 //! `enqueue_outbound_at` is the fallible half the send depends on;
 //! `mirror_send_to_sender_view` is best-effort throughout and returns
-//! `()`. `.claude/rfcs/20260730-send-status.md` is about that asymmetry.
+//! `()`.
 
 use std::sync::Arc;
 

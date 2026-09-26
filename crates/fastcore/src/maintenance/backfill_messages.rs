@@ -1,5 +1,4 @@
-//! Backfills over the per-user message projection
-//! (`.claude/rfcs/20260731-per-user-message-projection.md`).
+//! Backfills over the per-user message projection.
 
 use super::prelude::*;
 
@@ -13,8 +12,6 @@ use super::prelude::*;
 /// of a thread is served every message in it whoever it was delivered to.
 ///
 /// Idempotent — rerunning re-derives the same rows from the same files.
-///
-/// See `.claude/rfcs/20260731-per-user-message-projection.md`.
 pub(crate) async fn backfill_user_messages_route(
     State(state): State<Arc<FastcoreState>>,
 ) -> axum::response::Response {

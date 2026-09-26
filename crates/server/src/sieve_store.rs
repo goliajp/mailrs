@@ -13,7 +13,7 @@
 //! this crate's three call sites used the table. So with the SQL core serving
 //! ManageSieve and delivery, a script saved in the UI would have filtered no
 //! mail, and one saved over ManageSieve would have been invisible to the UI —
-//! neither raising an error, which is `.claude/rules/both-halves-of-the-wire.md` exactly.
+//! neither raising an error.
 //!
 //! PG `sieve_scripts` now has no reader and no writer. The table stays in
 //! `init-schema.sql` — dropping it is a migration and it costs nothing empty —

@@ -48,8 +48,7 @@ pub(super) fn policy_from_env(state: &Arc<FastcoreState>) -> mailrs_fraud::Polic
         // operator to keep a second copy in a variable is asking for
         // the thing that already happened once: `MAILRS_ORG_NAMES`
         // was set on the receiver and not on this process, so half
-        // the impersonation check was silently off for a day
-        // (`.claude/rules/both-halves-of-the-wire.md`).
+        // the impersonation check was silently off for a day.
         account_names: account_display_names(state),
     };
     if policy.account_names.is_empty() {
