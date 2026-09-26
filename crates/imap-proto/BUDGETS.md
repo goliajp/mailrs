@@ -2,7 +2,7 @@
 
 Enforced by `tests/perf_gate.rs`. Run `cargo test -p mailrs-imap-proto --test perf_gate`.
 
-| Path | Budget | Observed P95 (release, v4 ckpt 6) | Headroom |
+| Path | Budget | Observed P95 (release) | Headroom |
 | --- | ---: | ---: | ---: |
 | `parse_command` (complex `UID SEARCH`) | 200 µs | ~164 ns | ~1200× |
 | `sequence_set_to_uids` (~2000 UIDs across 3 ranges) | 1 ms | ~5.8 µs | ~170× |

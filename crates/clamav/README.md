@@ -92,7 +92,7 @@ Reproduce: `cargo bench -p mailrs-clamav --bench clamav`. Workspace
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -101,7 +101,7 @@ Reproduce: `cargo bench -p mailrs-clamav --bench clamav`. Workspace
 | **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 88 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 

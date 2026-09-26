@@ -7,7 +7,7 @@ Native RFC 5228 Sieve interpreter for `mailrs-sieve`.
 **0.1 — first slice.** Tokenizer + parser + minimal evaluator for the
 RFC 5228 base. Differential-tested against `sieve-rs` on a small
 script set (5-10 scripts). Full parity (200-script corpus + the
-extensions in v8 ckpt 5) lands across subsequent releases.
+extensions mailrs delivers) lands across subsequent releases.
 
 ## Why
 
@@ -20,8 +20,8 @@ under Apache-2.0/MIT, no exception needed.
 
 The wrapper crate `mailrs-sieve` is untouched in this slice — it
 still routes to `sieve-rs`. Once the differential parity reaches
-≥ 99 % (v8 ckpt 5 → 6 trigger), the wrapper switches over and the
-AGPL exception is removed (ckpt 6).
+≥ 99 %, the wrapper switches over and the AGPL exception is
+removed.
 
 ## Scope (0.1)
 

@@ -10,7 +10,7 @@ All public ops are sub-millisecond on M-series Mac. Budgets sit at
 ~10-50× the observed median to catch order-of-magnitude regressions
 without flaking under cargo-test-workspace parallel CPU contention.
 
-## Measured (release, M-series Mac, v4 round 1 — 2026-06-02)
+## Measured (release, M-series Mac, 2026-06-02)
 
 | Path | Median | Budget (`perf_gate.rs`) | Headroom |
 |---|---:|---:|---:|
@@ -24,8 +24,7 @@ without flaking under cargo-test-workspace parallel CPU contention.
 | `encode/short_12b` | 38 ns | — | — |
 | `encode/long_140b` | 39.4 ns | — | — |
 
-v4 ckpt 2 = **Case A** — line scanner already memchr-anchored
-(v3 cycle), literal path is `BytesMut::split_to` + `to_vec`
+The line scanner is memchr-anchored and the literal path is `BytesMut::split_to` + `to_vec`
 (memcpy bound). No exploitable hot path; numbers sit within
 ~30 % of the hardware floor.
 

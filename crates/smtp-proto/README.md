@@ -85,7 +85,7 @@ Measured with criterion 0.8 on Apple Silicon (M-series), `cargo bench`, release 
 | `is_valid("alice.smith+work@…")` | **6 ns** | typical mailbox address |
 | `split_address("alice@…")` | **7 ns** | local / domain split, no copy |
 | `format_ehlo_response(host, [6 caps])` | **38 ns** | full multi-line greeting, one allocation |
-| `unstuff_data` 1 KB body | **168 ns** | RFC 5321 §4.5.2 dot-stuffing removal; v4 round 1 memchr scan |
+| `unstuff_data` 1 KB body | **168 ns** | RFC 5321 §4.5.2 dot-stuffing removal; memchr scan |
 | `unstuff_data` 100 KB body | **20.85 µs** | 4.9 GB/s throughput; per-inbound-message hot path |
 
 Re-run locally with `cargo bench -p mailrs-smtp-proto`. Numbers vary ±30% with system load — what matters is the order of magnitude (~20-200 ns per parse). See [`tests/perf_gate.rs`](tests/perf_gate.rs) for the regression budgets that gate CI.
@@ -100,7 +100,7 @@ It's also the foundation of the [mailrs] mail server, which uses it on the inbou
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -109,7 +109,7 @@ It's also the foundation of the [mailrs] mail server, which uses it on the inbou
 | **bench** | ✅ 2 file(s) criterion + ✅ 5 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 311 KB |
 | **fuzz** | ✅ 2 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

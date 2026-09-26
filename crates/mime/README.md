@@ -97,7 +97,7 @@ whichever subset they need without the rest.
 
 ## Performance
 
-Measured (criterion, M-series Mac, release; v4 ckpt 4, 2026-06-02):
+Measured (criterion, M-series Mac, release; 2026-06-02):
 
 | Operation | Median |
 |---|---:|
@@ -113,18 +113,16 @@ Compared to `mail-parser` 0.11 on the same realistic invite shape
 | simple body_text | **86 ns** | 210 ns | **mailrs 2.4×** ✅ |
 | invite, find text/calendar part | **619 ns** | 664 ns | **mailrs +7%** ✅ |
 
-These are the post-`v4 round 17` numbers: `mailrs-mime` 2.0 swapped
-`ContentType.{type_, subtype}` from `String` to `compact_str::CompactString`
-(inline ≤24 bytes), zero-allocating the common MIME type tags.
-`v4 round 13` collapsed five redundant header scans into one.
-`v4 round 24` added a base64 fast-path that skips the WSP-strip
-copy on clean payloads.
+`ContentType.{type_, subtype}` are `compact_str::CompactString`
+(inline ≤24 bytes), so the common MIME type tags do not allocate.
+Headers are collected in a single scan, and base64 decoding has a
+fast path that skips the WSP-strip copy on clean payloads.
 
 Reproduce: `cargo bench -p mailrs-mime --bench mime`.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -133,7 +131,7 @@ Reproduce: `cargo bench -p mailrs-mime --bench mime`.
 | **bench** | ✅ 1 file(s) criterion + ✅ 3 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 142 KB |
 | **fuzz** | ✅ 1 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons (from PERFORMANCE.md)
 

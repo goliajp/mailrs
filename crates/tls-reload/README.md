@@ -104,7 +104,7 @@ which has its own perf coverage.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -113,7 +113,7 @@ which has its own perf coverage.
 | **bench** | ✅ 0 file(s) criterion + ❌ none `perf_gate.rs` |
 | **size** | release rlib: 164 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 

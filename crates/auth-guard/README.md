@@ -119,7 +119,7 @@ table.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -128,7 +128,7 @@ table.
 | **bench** | ✅ 1 file(s) criterion + ✅ 4 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 131 KB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 

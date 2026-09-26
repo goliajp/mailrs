@@ -10,7 +10,7 @@ All public ops are sub-millisecond on M-series Mac. Budgets sit at
 ~10-50× the observed median to catch order-of-magnitude regressions
 without flaking under cargo-test-workspace parallel CPU contention.
 
-## Measured (release, M-series Mac, v4 round 1 — 2026-06-02)
+## Measured (release, M-series Mac, 2026-06-02)
 
 | Path | Median | Budget (`perf_gate.rs`) | Headroom |
 |---|---:|---:|---:|

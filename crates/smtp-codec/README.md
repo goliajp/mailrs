@@ -79,7 +79,7 @@ custom policies without committing to one of the three modes.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -88,7 +88,7 @@ custom policies without committing to one of the three modes.
 | **bench** | ✅ 1 file(s) criterion + ✅ 1 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 47 KB |
 | **fuzz** | ✅ 1 target(s) |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 
@@ -118,8 +118,7 @@ Headline numbers (criterion, M-series Mac, release):
 | `has_smuggle_sequence` | 907 ns | 113 GB/s |
 | `normalize_line_endings` | 18.8 µs | 5.5 GB/s |
 
-**v4 round 1** (2026-06-02): memchr-anchored rewrites of all three
-scanners gave 2-31× speed-ups on real-payload shapes. Full table +
+All three scanners are memchr-anchored. Full table +
 methodology in the workspace [`PERFORMANCE.md`](../../PERFORMANCE.md).
 Regression budgets in [`BUDGETS.md`](BUDGETS.md). Run
 `cargo bench -p mailrs-smtp-codec` to reproduce.

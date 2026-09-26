@@ -177,7 +177,7 @@ Trait-first code is unaffected.
 
 <!-- AUDIT-FOOTER:BEGIN -->
 
-## Stone audit (v3 cycle, 2026-05-25)
+## Stone audit (2026-05-25)
 
 | Axis | Status |
 |---|---|
@@ -186,7 +186,7 @@ Trait-first code is unaffected.
 | **bench** | ✅ 2 file(s) criterion + ✅ 7 gate(s) `perf_gate.rs` |
 | **size** | release rlib: 2.7 MB |
 | **fuzz** | ❌ none |
-| **mem**  | dhat profile pending (v3.4 backlog) |
+| **mem**  | no dhat profile yet |
 
 ### Competitor comparisons
 
