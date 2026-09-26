@@ -20,8 +20,6 @@ store, a SQL table, whatever) and persists training deltas. Training
 signal in mailrs comes from the user's mark-junk / mark-not-junk
 actions — the data-sovereignty loop.
 
-Design: `.claude/rfcs/20260713-bayes-antispam-engine.md`.
-
 ## License
 
 Apache-2.0 OR MIT.

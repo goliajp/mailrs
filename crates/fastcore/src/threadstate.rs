@@ -1,6 +1,6 @@
 //! The per-thread decisions, written beside the mail.
 //!
-//! Step 5 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. A snooze
+//! A snooze
 //! carries a timestamp and a verdict carries a value, so neither fits in a
 //! flag or a keyword bit — they go in an append-only log next to the mail,
 //! and the membership row stays the index that serves them.

@@ -1,7 +1,6 @@
 //! `archived` and `pinned`, written where they cannot be rebuilt away.
 //!
-//! Step 4 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. Both are
-//! a person's decisions, so by the rule in §1 they live next to the mail —
+//! Both are a person's decisions, so they live next to the mail —
 //! as Maildir++ keyword bits in each message's `:2,` suffix, with
 //! `mailrs-keywords` saying which letter means what. They stay on the
 //! membership row as well, because that is the index the conversation list

@@ -53,8 +53,7 @@ impl KevyMailboxStore {
     /// user the row did not name, their `blob_ref` pointing into somebody
     /// else's maildir.
     ///
-    /// Stage 1 of `.claude/rfcs/20260731-per-user-message-projection.md`:
-    /// written and not yet read, so a backfill and a shadow comparison can
+    /// Written and not yet read, so a backfill and a shadow comparison can
     /// run before anything depends on it.
     pub fn upsert_user_message(
         &self,
@@ -86,9 +85,6 @@ impl KevyMailboxStore {
         // `flags` is deliberately **not** protected: zero is a legitimate
         // value there (unread, unflagged), so it has no "unknown" to
         // distinguish. `modseq` only ever moves forward.
-        //
-        // See `rules/common/coding-style.md` — Null vs Zero — and
-        // `.claude/rules/both-halves-of-the-wire.md`.
         let known = self.user_message_facts(user, message_id).ok().flatten();
         let blob_ref: &str = match (per_user.blob_ref.is_empty(), &known) {
             (true, Some(k)) if !k.blob_ref.is_empty() => &k.blob_ref,

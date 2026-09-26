@@ -180,9 +180,7 @@ fn greylist_first_seen_and_ttl_survive_restart() {
     // replay, so the read-back remainder moves by whatever the wall clock
     // did in between: an NTP step backwards inside the write→reopen window
     // inflates it by exactly the step. Measured once at +1912 ms during a
-    // ten-minute fully-parallel run, never in isolation — the traced
-    // explanation is in `.claude/notes/kevy-ttl-inflated-on-reload-*.md`
-    // and kevy's reply.
+    // ten-minute fully-parallel run, never in isolation.
     //
     // Do not widen the tolerance to make that go away. The assertion is
     // true of the engine and the flake rate is the NTP step frequency on

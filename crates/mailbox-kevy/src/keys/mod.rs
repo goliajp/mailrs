@@ -53,8 +53,6 @@ pub fn thread_messages(thread_id: &str) -> String {
 /// row did not name. `blob_ref` was the only one that announced itself, by
 /// naming a maildir file in somebody else's mailbox, so the body came back
 /// empty. The other five were simply wrong.
-///
-/// See `.claude/rfcs/20260731-per-user-message-projection.md`.
 pub fn user_message(user: &str, message_id: &str) -> String {
     format!("mailrs:usermsg:{user}:{message_id}")
 }

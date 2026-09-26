@@ -6,8 +6,8 @@
 //! one `#[tool_router]` block, combined in `mod.rs`.
 //!
 //! Tool **names** are the wire contract and must stay identical to the
-//! monolith lane; `scripts/check-mcp-parity.sh` fails when they diverge
-//! (`.claude/rules/mcp-two-lane-parity.md`). Moving a tool between files
+//! monolith lane; `scripts/check-mcp-parity.sh` fails when they diverge.
+//! Moving a tool between files
 //! does not change its name, which is why this is safe to do at all.
 
 use rmcp::ErrorData as McpError;

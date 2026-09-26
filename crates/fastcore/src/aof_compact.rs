@@ -5,9 +5,8 @@
 //! loop) and a huge blast radius when a torn tail frame black-holed the
 //! log (the 07-17 data-loss incident). kevy's built-in auto-rewrite
 //! only fires on 100% growth, which a large baseline effectively never
-//! reaches. Until kevy ships an absolute-size trigger (feedback filed:
-//! `.claude/notes/kevy-feedback-aof-blackhole-2026-07-17.md` §3.1),
-//! compact host-side: check hourly, rewrite when the on-disk AOF
+//! reaches. Until kevy ships an absolute-size trigger (feedback filed
+//! upstream), compact host-side: check hourly, rewrite when the on-disk AOF
 //! exceeds the threshold. A rewrite of ~120K keys measured ~1 s and is
 //! fully online, so the hourly check is effectively free.
 

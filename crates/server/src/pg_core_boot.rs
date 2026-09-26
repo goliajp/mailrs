@@ -34,7 +34,7 @@
 /// Off, because another process owns each: SMTP (`mailrs-receiver`), the web
 /// tier (`mailrs-webapi`), outbound delivery (`mailrs-fastcore-sender`), and
 /// the RBL monitor. Selecting roles is the whole difference between this and
-/// the fat process `.claude/rfcs/20260722-monolith-out-of-image.md` ruled out —
+/// the fat process taken out of the image on 2026-07-22 —
 /// that one's defining property was starting all of them at once.
 ///
 /// Env: everything `ServerConfig::from_env()` reads, which includes

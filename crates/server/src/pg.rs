@@ -15,8 +15,7 @@
 //!   the same alias, so "pg" here reads as "SQL backend, whichever one
 //!   this build ships". Renaming symmetrically would ripple through
 //!   ~30 sites in monolith + break the spg dogfood lane deploy without
-//!   any user-visible benefit. See
-//!   `.claude/notes/todo-legacy-pg-naming-post-spg-cutover.md`.
+//!   any user-visible benefit.
 //! - The `"pg"` JSON key is a public health-endpoint field pinned by
 //!   the current frontend; a rename must go through a deprecation
 //!   window (dual-emit) and is scoped out here.

@@ -1,7 +1,6 @@
 //! mailrs-sender — outbound delivery + webhook + DMARC report worker.
 //!
-//! Phase 4 of the 4-process split (checklist
-//! `.claude/notes/arch-split-plus-fastcore-checklist-2026-06-30.md` §4).
+//! Phase 4 of the 4-process split.
 //!
 //! Today this crate is a **scaffold**: it boots a `mailrs-core-api`
 //! client, probes core liveness, and idles waiting for the worker loops

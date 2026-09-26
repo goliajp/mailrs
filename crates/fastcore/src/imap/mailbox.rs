@@ -1,8 +1,7 @@
 //! Mailbox-level commands: LIST, SELECT, CLOSE, APPEND, IDLE.
 //!
 //! IDLE reads the kevy change feed rather than a broadcast channel, so a
-//! client stays caught up across a fastcore restart —
-//! `.claude/rules/kevy-patterns.md` → `kevy/change-stream`.
+//! client stays caught up across a fastcore restart.
 
 use std::sync::Arc;
 

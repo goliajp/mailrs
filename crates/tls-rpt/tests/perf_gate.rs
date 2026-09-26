@@ -10,9 +10,8 @@
 //! `build 100-success 174.986µs (budget 150µs)`, while the same four
 //! passed in 0.06 s alone and `perf-gates.sh` (release) passed in the
 //! same run. `cargo test --workspace` runs 231 test binaries at once,
-//! and a debug budget under that measures the host, which is what
-//! `.claude/CLAUDE.md` says about asserting an optimised-build number
-//! in a dev build.
+//! and a debug budget under that measures the host: an optimised-build
+//! number does not belong in a dev-build assertion.
 //!
 //! The other 16 debug-mode gates are left alone: they survived two
 //! full-load runs the same day, so their authors' slack is holding.

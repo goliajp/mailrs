@@ -23,7 +23,7 @@
 //! The synthetic id is minted only by
 //! `crates/server/src/smtp_session/process_delivered.rs`, in
 //! `mailrs-server` — out of the image since
-//! `.claude/rfcs/20260722-monolith-out-of-image.md`. Their dates run
+//! 2026-07-22. Their dates run
 //! 2026-03-04 to **2026-07-02** and stop there, twenty days before
 //! that removal and two months before today.
 //!

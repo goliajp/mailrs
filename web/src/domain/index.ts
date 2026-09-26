@@ -2,8 +2,6 @@
  * Layer 1 barrel — the domain contract every other layer imports from.
  * Nothing above layer 1 should reach into a sub-module directly; use
  * this file.
- *
- * See `.claude/rfcs/20260707-v2.1-webapp-reconstruction.md` §2.1.
  */
 
 export type {

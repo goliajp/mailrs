@@ -1,6 +1,6 @@
 //! A snooze carries a timestamp, so no bit can hold it.
 //!
-//! Step 5 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. Read and
+//! Read and
 //! archived fit in the file name; `snoozed_until`, a classifier verdict and
 //! an importance score do not. They go in an append-only log beside the
 //! mail, and the row stays the index that serves them.

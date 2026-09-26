@@ -1,8 +1,8 @@
 //! Rebuilding the index from what the maildir says — for threads that
 //! already exist.
 //!
-//! Step 6 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. Steps 3,
-//! 4 and 5 put UIDs, keyword bits and thread decisions beside the mail,
+//! Earlier steps
+//! put UIDs, keyword bits and thread decisions beside the mail,
 //! and the self-heal reads them back — **but only on the branch that
 //! creates a thread**, because that is the branch that existed to be
 //! extended. On a mailbox whose rows are already there, which is every

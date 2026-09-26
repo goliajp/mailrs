@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
  * The app's state, in one place.
  *
  * There is exactly one copy of every fact here. The web client learned
- * that the hard way — `.claude/rules/frontend/no-rq-mirror.md` — where a
+ * that the hard way: a
  * component kept its own `useState` mirror of the query cache and the
  * two diverged on every A→B→A navigation. A second copy of "which
  * thread is open" or "what messages it has" would do the same thing

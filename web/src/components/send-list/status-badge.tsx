@@ -12,8 +12,7 @@ const BASE = 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-mini whi
  * Renders nothing when there is no state to render. Every send made
  * before the projection shipped has no record, and an "unknown" pill on
  * hundreds of historical rows would be noise claiming to be information —
- * absence of a record is shown as absence of a badge
- * (`.claude/rules/common/coding-style.md` → Null vs Zero).
+ * absence of a record is shown as absence of a badge.
  */
 export function StatusBadge({ status }: { status: null | WireSendStatus }) {
   if (!status) return null

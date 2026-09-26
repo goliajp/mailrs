@@ -1,6 +1,6 @@
 //! The per-thread decisions a file name cannot hold.
 //!
-//! Step 5 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. Maildir
+//! Maildir
 //! flags carry one bit each and keyword bits carry one more, which is
 //! enough for *read* and *archived* and not for:
 //!

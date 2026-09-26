@@ -6,8 +6,7 @@
 //! not close the gap, because it only writes rows that are *missing*,
 //! never rows that are wrong.
 //!
-//! That asymmetry is the whole subject of the change this exists for
-//! (`.claude/rfcs/20260816-a-check-mark-is-an-identity-claim.md`): five
+//! That asymmetry is the whole subject of the change this exists for: five
 //! production messages whose display name is a brand written backwards
 //! behind a right-to-left override were stored as `verified`, because
 //! every authentication check passed — and they did pass, on a domain

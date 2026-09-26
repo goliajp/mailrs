@@ -16,7 +16,7 @@
 #     later with one set — the production configuration. Every deploy was
 #     waiting out `docker stop`'s grace period and taking a SIGKILL.
 #
-# `.claude/rules/kevy-patterns.md` → `kevy/no-blocking-pop-wrap` has required
+# A written rule (`kevy/no-blocking-pop-wrap`) has required
 # the wrapper since kevy-client 1.14, and listed that exact call site among
 # its compliant callers. Prose could not tell that it had stopped being true.
 #

@@ -6,13 +6,11 @@ both test suites.
 ## Why
 
 The response direction is covered: Zod schemas, plus a rule requiring the
-handler to be named and a real captured response used as the fixture
-(`.claude/rules/frontend/wire-schema-verification.md`).
+handler to be named and a real captured response used as the fixture.
 
 The request direction had nothing, and on 2026-07-30 an audit of all 35
 request bodies found **nine wrong** — four failing every call, five
-succeeding while dropping what the user had asked for (see
-`.claude/notes/request-body-audit-2026-07-30.md`).
+succeeding while dropping what the user had asked for.
 
 Tests existed and did not help. `api.test.ts` asserted the snooze body was
 `{until: <ISO string>}` and passed on every run for months while every

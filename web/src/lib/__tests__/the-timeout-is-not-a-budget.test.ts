@@ -8,8 +8,7 @@ import { describe, expect, it } from 'vitest'
  * default five seconds, a laptop also running a release build failed
  * five of them, then two, then none — always "Test timed out in
  * 5000ms", never an assertion. A red that moves with the load is a red
- * people learn to skim past, and this repository has the note to prove
- * it (`.claude/rules` on load-dependent flakes).
+ * people learn to skim past.
  *
  * So the timeout is generous on purpose. This test says so out loud,
  * because a future reader finding `testTimeout: 20_000` would

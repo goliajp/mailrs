@@ -15,8 +15,7 @@
 //! takeover: an identity provider says what account *it* authenticated, and
 //! an email claim is that provider's opinion about a string. What the caller
 //! does with an [`ExternalIdentity`] — link it, require a password first,
-//! refuse it — is a policy decision that belongs above this layer. See
-//! `.claude/rfcs/20260801-external-login.md`.
+//! refuse it — is a policy decision that belongs above this layer.
 
 #![deny(missing_docs)]
 

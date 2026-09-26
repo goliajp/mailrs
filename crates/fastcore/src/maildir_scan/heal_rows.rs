@@ -8,8 +8,7 @@
 //! Every write here is conditional and the closure reports whether
 //! anything changed. It used to `zadd` a legacy index and bump its counter
 //! unconditionally, so a fully healed mailbox logged `sent_added=255
-//! created=0` every 31 seconds forever
-//! (`.claude/rules/periodic-work-must-converge.md`).
+//! created=0` every 31 seconds forever.
 
 use mailrs_core_api::method::message::FLAG_SEEN;
 use std::sync::Arc;

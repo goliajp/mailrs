@@ -298,8 +298,7 @@ case "$ARM" in
     #
     # It used to be bulk SQL: 98 MB of batched INSERTs handed to `psql` or to
     # `spg import`. spg could not do it — forty minutes at 99.8% CPU and 3.85 GB
-    # resident with the catalog and WAL both untouched, killed there. Written up
-    # in .claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md §3b.
+    # resident with the catalog and WAL both untouched, killed there.
     #
     # Seeding is not timed. The panel starts after the fingerprint check, and
     # the fingerprint is what proves the arms hold the same rows however they
@@ -407,8 +406,7 @@ add_ep "conversations/{thread}"   "$BASE/api/conversations/$THREAD_ID"
 # the store's search takes none of them, so mounting it would answer a wider
 # question than the one asked: searching from Inbox would return Junk and Sent
 # threads. That is one of the eleven in scripts/core-parity-baseline.txt and it
-# is left there deliberately, with the reasoning in
-# .claude/two-lane-known-diff.txt.
+# is left there deliberately.
 #
 # Timing an endpoint one arm 404s produces a number that looks like speed and
 # is absence, so the row is simply not added. The comparison renders the empty

@@ -11,8 +11,8 @@
 # Usage:
 #   ./scripts/staging-fastcore-up.sh [--image-tag <tag>] [--with-webapi]
 #
-# Default --image-tag is `staging-local` (canonical since 2026-07-04,
-# per .claude/runbooks/release-and-deploy.md: local buildx arm64 → save|ssh load →
+# Default --image-tag is `staging-local` (canonical since 2026-07-04:
+# local buildx arm64 → save|ssh load →
 # t01 has `ghcr.io/goliajp/mailrs:staging-local` never in registry).
 # Historical: pre-fastcore-cutover this defaulted to `arch-split-fastcore`
 # from a GHCR-published dev tag; that tag is stale.

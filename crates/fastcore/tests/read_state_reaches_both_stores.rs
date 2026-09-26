@@ -1,6 +1,6 @@
 //! Marking a message read must reach the maildir file name, not just the index.
 //!
-//! Step 2 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`. The file
+//! The file
 //! name is what an IMAP client reads, so an index-only write means mail read
 //! in the web stays bold in Apple Mail forever — measured on production
 //! before this landed: 14,704 messages the index called read and the maildir

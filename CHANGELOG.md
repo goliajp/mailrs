@@ -143,8 +143,7 @@ web release; v2.1 web work is complete and covered further down.
 
 ### kevy 3.17 network path (Phase 1-3)
 
-kevy team shipped `kevy-client 1.14.0` on 2026-07-08
-(`.claude/notes/kevy-team-response-2026-07-08.md`) with the wraps
+kevy team shipped `kevy-client 1.14.0` on 2026-07-08 with the wraps
 that were gating every network-side kevy 3.x adoption path —
 BRPOP / BLPOP / BZPOPMIN / HEXPIRE / HPEXPIRE / HPERSIST /
 ZINTERSTORE-with-weights / IDX_* / FEED_READ / pipeline. Workspace
@@ -163,12 +162,7 @@ lifted 1.13 → 1.14 (API-compatible, no code churn).
   Bounce delivery latency: uniform 0-10 s → **0 ms** on hot,
   timer-bounded on idle. Commit `15f953cc`.
 
-`.claude/rules/kevy-patterns.md::kevy/no-blocking-pop-wrap`
-updated with the concrete `spawn_blocking` + timer-bound pattern
-and points at both landings as reference callers.
-
-Phases 4-8 status (from `.claude/plans/v2.2-kevy-3x-adoption-
-2026-07-08.md`) after this cycle's audit:
+Phases 4-8 status after this cycle's audit:
 
 - Phase 4 · HEXPIRE for sidecar TTL — **N/A**. Every `HSET +
   EXPIRE` pattern in webapi expires the whole hash key, which is
@@ -181,9 +175,7 @@ Phases 4-8 status (from `.claude/plans/v2.2-kevy-3x-adoption-
   `mailbox-kevy/src/list_threads.rs` already uses `zinterstore`
   (landed v1.9.4 Stage B.6).
 - Phase 6 · idx_query for admin CRUD — **deferred**, needs a
-  data-model migration to hash-field entries. Called out in the
-  existing `.claude/rules/kevy-patterns.md::kevy/secondary-index`
-  Exceptions block.
+  data-model migration to hash-field entries.
 - Phase 7 · feed_read for WS bridge — **deferred**, no
   user-visible regression from the current pubsub broadcast.
   WS clients refetch full state on reconnect, so lost pubsub
@@ -240,8 +232,7 @@ Session-observed:
 
 ## Unreleased-web — accumulating on `develop`, ships as **web-v2.1.0**
 
-Web-side architectural redesign begun 2026-07-07 (RFC
-`.claude/rfcs/20260707-v2.1-webapp-reconstruction.md`). The Rust
+Web-side architectural redesign begun 2026-07-07. The Rust
 binary + fastcore stack landed as `v2.0.0` on 2026-07-07; this
 section covers the web-only redesign that ships next.
 
@@ -466,8 +457,6 @@ been accumulating on `develop` since v1.9.4.
   callout, DEPLOY.md rewritten end-to-end for the release.yml + git
   flow model with a manual rollback runbook, `web/public/openapi.json`
   version 0.9.3 → 2.0.0, CHANGELOG.md (this file) established.
-  `.claude/rules/kevy-patterns.md` skeleton exists locally (gitignored
-  per project convention).
 
 ## v1.9.4 — 2026-07-06
 

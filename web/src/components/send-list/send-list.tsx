@@ -42,7 +42,7 @@ type Item = { label: string; type: 'divider' } | { row: SendRow; type: 'row' }
  * Rows key on `message_id`, never `uid`: `applyOptimisticSent` writes
  * `uid: 0` on every placeholder, so two fresh sends collide on that key
  * and React leaves the stale node behind — two sends rendered three rows
- * on 2026-07-30 (`.claude/rules/frontend/react-key-contract.md`).
+ * on 2026-07-30.
  */
 export function SendList() {
   const { all: rows, loading: isLoading, rows: visible } = useSendRows()

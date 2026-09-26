@@ -14,8 +14,7 @@
 //! The link is keyed on `(issuer, subject)` and never on the email address.
 //! An email is a provider's opinion about a string — GitHub's is typed by the
 //! account holder and unverified, Apple's is a per-app relay — and the
-//! subject is the only part that is both stable and the provider's own. See
-//! `.claude/rfcs/20260801-external-login.md`.
+//! subject is the only part that is both stable and the provider's own.
 
 use kevy_client::Connection;
 

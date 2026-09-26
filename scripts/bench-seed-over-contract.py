@@ -4,8 +4,7 @@
 The kevy arm is seeded by `mailrs-fastcore-migrate`, which reads this same
 NDJSON and writes kevy directly. The SQL arm was seeded by handing 98 MB of
 batched INSERTs to `spg import`, which after forty minutes was at 99.8% CPU and
-3.85 GB resident with nothing on disk — see
-`.claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md` §3b.
+3.85 GB resident with nothing on disk.
 
 So the SQL arm is seeded here instead, over HTTP, through `deliver_message` —
 which both cores serve, and which the migration tool itself uses. That makes the

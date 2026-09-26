@@ -13,8 +13,7 @@
 //!   — this is the key bit: tells the kernel we don't need the pages,
 //!   the resident pages return to the OS even though the VMA stays
 //!   mapped. glibc's per-thread arenas refuse to do this; that
-//!   refusal is the proximate cause of mailrs's RSS climb (see
-//!   `.claude/notes/rss-leak-attribution-allocator-2026-06-18.md`).
+//!   refusal is the proximate cause of mailrs's RSS climb.
 //!
 //! All other syscalls — read, write, open, fcntl, gettimeofday … —
 //! stay on libc/std for the bulk of mailrs-server; only the

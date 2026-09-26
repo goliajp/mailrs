@@ -8,8 +8,6 @@
 //! The trait is intentionally minimal: 4 methods, all sync `io::Result`.
 //! Async wrappers live at the caller (axum handlers already spawn on a
 //! blocking pool for the current KevyMailboxStore paths).
-//!
-//! See `.claude/rfcs/20260705-alias-sync-across-stacks.md` for the design.
 
 use std::io;
 

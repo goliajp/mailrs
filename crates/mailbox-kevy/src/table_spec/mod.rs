@@ -1,7 +1,6 @@
 //! The declared `threaduser` table, and the admin indexes.
 //!
-//! A query axis is **declared**, never maintained by hand
-//! (`.claude/rules/kevy-patterns.md` → `kevy/declare-dont-maintain`). The
+//! A query axis is **declared**, never maintained by hand. The
 //! spec is its own function so the column/orderpath agreement can be
 //! asserted: kevy panics rather than returning an error when an ORDERPATH
 //! names a column the table never declared, and that panic is at boot.

@@ -2,8 +2,7 @@
 //!
 //! `mirror_send_to_sender_view` writes the copy the Send view reads and is
 //! best-effort throughout, while `enqueue_outbound_at` is the fallible one
-//! the send actually depends on. That asymmetry is the shape of
-//! `.claude/rfcs/20260730-send-status.md`.
+//! the send actually depends on.
 
 use std::sync::Arc;
 

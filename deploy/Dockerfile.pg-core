@@ -34,7 +34,7 @@ ARG FEATURES=core-rpc,spg
 #
 # Same boot sequence either way — the difference is the role set. `run()` turns
 # every role on, which is what made that binary "the monolith" and is what
-# `.claude/rfcs/20260722-monolith-out-of-image.md` ruled out. `mailrs-pg-core`
+# was ruled out on 2026-07-22. `mailrs-pg-core`
 # selects: the core-api contract, the spool drain that indexes arrivals, and
 # IMAP / POP3 / ManageSieve, and leaves SMTP, the web tier, outbound delivery
 # and the RBL monitor to the processes that own them.

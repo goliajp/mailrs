@@ -46,8 +46,7 @@ class MessageBodyFlowTest : MailrsUiTest() {
         // be slow", and a duration is the wrong thing to wait on
         // either way. This waits for the WebView itself.
         //
-        // Through `compose.waitUntil`, which pumps the app: see
-        // `.claude/rules/mobile-tests.md`, where sleeping the
+        // Through `compose.waitUntil`, which pumps the app: sleeping the
         // instrumentation thread meant a coroutine never ran at all
         // and the failure read as a network problem.
         var content = 0

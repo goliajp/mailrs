@@ -1,7 +1,6 @@
 //! mailrs-webapi — REST + MCP + JMAP + CalDAV/CardDAV frontend.
 //!
-//! Phase 3 of the 4-process split (checklist
-//! `.claude/notes/arch-split-plus-fastcore-checklist-2026-06-30.md` §3).
+//! Phase 3 of the 4-process split.
 //!
 //! This crate is currently a scaffold — no routes mounted yet. Subsequent
 //! loops fill in the REST and MCP handlers by copying the existing

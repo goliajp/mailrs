@@ -10,8 +10,7 @@ import { redraftSchema, scheduledListSchema, sendsSchema } from '../schemas/send
  * Not edited to match the schema. Nine schemas drifted from their handlers
  * on 2026-07-08 because their fixtures were written from the schema, so
  * fixture and schema agreed while the backend sent something else and the
- * UI rendered an empty list with no error
- * (`.claude/rules/frontend/wire-schema-verification.md`).
+ * UI rendered an empty list with no error.
  */
 const CAPTURED = [
   {

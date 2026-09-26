@@ -4,7 +4,7 @@
 //! or an empty system pays for work it cannot use: the maildir self-heal
 //! read 48,613 files every 31 seconds and reported repairs it had not made,
 //! on a host shared with other services (2026-07-19). The rule that came out
-//! of it is `.claude/rules/periodic-work-must-converge.md`.
+//! of it: periodic work must converge.
 //!
 //! Two loops in this crate had the same doubling written out inline and
 //! neither had a test. One definition means the shape is stated once and

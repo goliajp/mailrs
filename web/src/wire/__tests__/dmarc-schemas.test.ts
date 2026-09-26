@@ -8,7 +8,7 @@
  * literal, so renaming a Rust field breaks the Rust test before this
  * one can start failing silently in the browser.
  *
- * Per `.claude/rules/frontend/wire-schema-verification.md`: fixtures
+ * Fixtures
  * must come from the real handler shape, never from what the schema
  * happens to expect.
  */

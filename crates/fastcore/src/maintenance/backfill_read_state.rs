@@ -1,7 +1,7 @@
 //! One-time reconciliation of read state between the maildir and the index.
 //!
-//! Step 2 of `.claude/rfcs/20260814-the-maildir-is-the-store.md`, run after
-//! the two write paths were fixed so nothing new accumulates behind it.
+//! Run after the two write paths were fixed so nothing new accumulates
+//! behind it.
 //!
 //! # Which way the facts travel here, and why it is not the steady rule
 //!

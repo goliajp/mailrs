@@ -1,7 +1,7 @@
 //! Per-user conversation state on a thread two accounts both received.
 //!
 //! This exists to settle a sizing question with a measurement instead of a
-//! reading. `.claude/rfcs/20260730-per-user-thread-state.md` fixed a
+//! reading. An earlier change fixed a
 //! multi-owner defect on the kevy side — putting a conversation away did it
 //! for everyone who could see it — and recorded that "the PG lane still has
 //! the multi-owner bug those fixed". The plan for reactivating this lane

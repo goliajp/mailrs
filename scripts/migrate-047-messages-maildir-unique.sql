@@ -1,7 +1,7 @@
 -- migrate-047: (mailbox_id, maildir_id) uniqueness on messages.
 --
 -- Groundwork for the receiver-decouple notification + reconcile design
--- (.claude/plans/20260614-mailrs-receiver-exec.html, step S1.1). The core
+-- (step S1.1). The core
 -- will discover newly-delivered mail via a pub/sub notification and fall
 -- back to a low-frequency reconcile sweep — both of which can ask to index
 -- the SAME delivered maildir file more than once (a re-fired notification,

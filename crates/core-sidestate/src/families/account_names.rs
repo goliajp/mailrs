@@ -9,8 +9,7 @@
 //! second copy in a variable somebody has to keep in step, which is
 //! the arrangement that already failed once: `MAILRS_ORG_NAMES` was
 //! set on the receiver and not on fastcore, and half the
-//! impersonation check was silently off for a day
-//! (`.claude/rules/both-halves-of-the-wire.md`).
+//! impersonation check was silently off for a day.
 //!
 //! Read by [`mailrs_fraud::impersonation::impersonates_one_of_us`],
 //! which convicts a display name that **is** one of these from a

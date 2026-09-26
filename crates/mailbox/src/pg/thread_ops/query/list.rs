@@ -77,8 +77,8 @@ impl PgMailboxStore {
         // The badge itself is still blank on this lane: `snoozed_until` is
         // hard-coded to 0 in the projection, and adding the column does not
         // compile because sqlx implements `FromRow` for tuples up to sixteen
-        // elements and this projection uses all sixteen. See
-        // `.claude/two-lane-known-diff.txt`. Reachable-but-unlabelled is a
+        // elements and this projection uses all sixteen.
+        // Reachable-but-unlabelled is a
         // strictly better place to be stuck than unreachable.
         if !archived {
             conditions.push(

@@ -1,6 +1,5 @@
 /**
- * Branded id types — layer 1 of the v2.1 architecture (see
- * `.claude/rfcs/20260707-v2.1-webapp-reconstruction.md`).
+ * Branded id types — layer 1 of the v2.1 architecture.
  *
  * A branded type is a nominal wrapper on top of a primitive. Two
  * distinct `string`-brands cannot be silently swapped even though

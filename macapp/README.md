@@ -1,8 +1,7 @@
 # Mailrs — native SwiftUI client
 
 Cross-platform (iOS 17+, iPadOS 17+, macOS 14+) native client for the mailrs
-backend. One codebase, three platforms. See
-`../.claude/rfcs/20260421-macapp-swiftui-port.md` for the v1 RFC / roadmap.
+backend. One codebase, three platforms.
 
 **Status:** M1 (login shell). M2–M5 pending.
 

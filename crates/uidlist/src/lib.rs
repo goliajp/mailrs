@@ -10,10 +10,9 @@
 //! an index that may be rebuilt.
 //!
 //! mailrs kept UIDs in the serving lane's database, which is the thing a
-//! lane switch replaces: `.claude/two-lane-known-diff.txt` §7 records the
-//! consequence as accepted — "uid / mailbox_id / modseq identity — not
-//! preserved across a switch by design … IMAP clients resync". This file
-//! is what makes that line unnecessary.
+//! lane switch replaces, so uid / mailbox_id / modseq identity was not
+//! preserved across a switch and IMAP clients had to resync. This file
+//! is what makes that resync unnecessary.
 //!
 //! # The format is Dovecot's
 //!

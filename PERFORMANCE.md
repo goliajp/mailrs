@@ -38,8 +38,7 @@ with a GIN index behind them; the synthetic control's body was one character
 repeated, so it produced one token and the index barely grew, while real bodies
 produce hundreds each. spg's per-row cost roughly doubles between 1,500 and 3,500
 rows (1.40 → 1.33 → 2.83 ms) where PostgreSQL's full-file time says its own stays
-flat. Controls, prefix timings and a reproduction in
-`.claude/notes/spg-7.37.16-reactivation-feedback-2026-08-13.md` §3b.
+flat.
 
 The way through is to seed the SQL arm the way the kevy arm is seeded — through
 the contract's `deliver_message` — which both cores serve and which makes the
@@ -282,8 +281,7 @@ A — spot-check 即可，不深挖").
 
 Full-workspace `cargo bench --workspace` snapshot taken at commit
 `f76c8d4`. Serves as the diff anchor every subsequent v4 stone-ckpt
-will measure against. Per the v4 RFC
-(`.claude/rfcs/20260602-v4-perf-squeeze.md`), each stone-ckpt compares
+will measure against. Per the v4 RFC, each stone-ckpt compares
 its post-optimization numbers to this baseline; drift > 10 % flags an
 investigation.
 
@@ -296,7 +294,7 @@ investigation.
 - git HEAD: `f76c8d4`
 - Profile: `release` (workspace default — fat LTO + cgu=1)
 
-**Raw artifacts** (local-only, `.claude/` gitignored): full log saved
+**Raw artifacts** (local-only): full log saved
 at `/tmp/v4-baseline-20260602-1926.log` (380 KB, 6939 lines, 309
 criterion rows across 38 stones); per-stone JSON dump at
 `/tmp/v4-baseline-per-stone.json`.
@@ -819,7 +817,7 @@ Workspace total (line-coverage, `cargo llvm-cov --workspace --summary-only`):
 
 The headline number is dragged down by `mailrs-server`'s web/admin/OIDC/RSVP
 handlers — those are framework-wiring code that
-[`testing.md`](.claude/rules/common/testing.md) explicitly puts in the
+the testing rules explicitly put in the
 **Skip** bucket ("glue code, framework wiring, dependency injection setup,
 trivial getters/setters"). Published crates look very different — sampled
 from the cov report:

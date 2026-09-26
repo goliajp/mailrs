@@ -113,7 +113,7 @@ misbehaves in prod, the recovery is manual:
    been quarantined by kevy 3.17 (look for
    `aof-*.aof.panic-quarantine.<unix_ts>`); dropping that leaves a
    clean replay.
-5. **File an incident note** in `.claude/incidents/` with the
+5. **File an incident note** with the
    failed tag, symptoms, revert path, and root-cause hypothesis.
 
 For v2.0.0 specifically: the change-feed refactor (Stage B.8) sets
