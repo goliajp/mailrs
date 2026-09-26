@@ -125,10 +125,10 @@ fi
 rm -f "$PKG_LOG"
 
 # rlib size after release build
+TARGET_DIR="${CARGO_TARGET_DIR:-$(cargo metadata --format-version 1 --no-deps | python3 -c 'import json,sys;print(json.load(sys.stdin)["target_directory"])')}"
 RLIB=""
-for cand in /Volumes/INTEL2T/workspace-cache/cargo-target/release/lib"${NAME//-/_}.rlib"; do
-    [ -f "$cand" ] && RLIB="$cand"
-done
+cand="$TARGET_DIR/release/lib${NAME//-/_}.rlib"
+[ -f "$cand" ] && RLIB="$cand"
 if [ -n "$RLIB" ]; then
     SZ=$(du -h "$RLIB" | cut -f1)
     echo "- release rlib: $SZ (\`$RLIB\`)" >> "$REPORT"
