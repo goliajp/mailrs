@@ -1,4 +1,4 @@
-//! Performance regression gates. See [BUDGETS.md](../BUDGETS.md).
+//! Performance regression gates.
 //!
 //! Release only. Every budget here was derived from an optimised build, and
 //! asserting one in a dev build measures host contention instead of code
@@ -298,7 +298,7 @@ fn store_ops_within_budget() {
     );
 
     // 15 µs, from this gate's own 3.58 µs. Criterion reports 163 ns for the
-    // same call and the two have not been reconciled — see BUDGETS.md. Every
+    // same call and the two have not been reconciled. Every
     // other row here agrees with criterion to within a few percent, so the
     // budget follows the instrument that runs in CI rather than the one that
     // disagrees with it.

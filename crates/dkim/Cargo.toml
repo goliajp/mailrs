@@ -31,8 +31,7 @@ memchr = "2"
 # RSA primitives via aws-lc-rs (native AWS-LC bindings). ~3× faster
 # RSA-2048 sign vs the pure-Rust `rsa` crate it replaced in 3.0.
 # Pulled in by `rustls` in the workspace anyway, so no new dep tree
-# weight — just an explicit use here. Closes the dkim_sign regression
-# observed during the v6 ckpt 3 PERFORMANCE.md walk.
+# weight — just an explicit use here. Closes a dkim_sign regression.
 aws-lc-rs = "1"
 # PKCS#8 PEM parsing — `aws-lc-rs::RsaKeyPair::from_pkcs8` takes DER,
 # this gives us PEM → DER. workspace already has it via rustls.

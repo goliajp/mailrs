@@ -2,8 +2,8 @@
 
 Run from Darwin 25.5.0 arm64
 ```
-   Compiling mailrs-dkim v1.1.3 (/Users/doracawl/workspace/goliajp/mailrs/crates/dkim)
-   Compiling mailrs-cross-runner v0.0.0 (/Users/doracawl/workspace/goliajp/mailrs/bench-harness/rust-runner)
+   Compiling mailrs-dkim v1.1.3 (crates/dkim)
+   Compiling mailrs-cross-runner v0.0.0 (bench-harness/rust-runner)
     Finished `release` profile [optimized] target(s) in 4.13s
 ## Rust
 rust/mailrs-spf/parse: 65.0 ns/op (1000000 iters)

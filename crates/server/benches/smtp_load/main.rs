@@ -1,9 +1,7 @@
 //! Sustained SMTP-receive load bench.
 //!
-//! Purpose: substantiate (or refute) the "+10-20% throughput" claim from
-//! commit `9f21e0b` ("perf-first release profile"). PERFORMANCE.md tags
-//! that claim as unmeasured; this bench produces reproducible numbers
-//! so it can move into the "Measured" table — or be retracted entirely.
+//! Purpose: measure the throughput effect of the perf-first release
+//! profile from commit `9f21e0b` with reproducible numbers.
 //!
 //! What this benches
 //! -----------------
