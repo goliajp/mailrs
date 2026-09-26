@@ -66,7 +66,7 @@ import jp.golia.mailrs.MailViewModel
 /**
  * Writing a message.
  *
- * **Typing belongs at the top.** `ios/DESIGN.md`: a `Form` spends a
+ * **Typing belongs at the top.** A `Form` spends a
  * section header, a card and two paddings on each of To and Subject,
  * which puts the editor three hundred points down — under the keyboard,
  * which is where it is needed. One compact line per field, and the

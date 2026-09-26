@@ -119,9 +119,7 @@ mailrs-arc 1.0 ships ARC as a standalone primitive. Use it with
 mailrs-spf / mailrs-dkim / mailrs-dmarc (the rest of the email-auth
 stack) or stand-alone with whatever auth stack you already have.
 
-For mailrs's own server, mailrs-arc 1.1 closes
-[DEPS_AUDIT](https://github.com/goliajp/mailrs/blob/main/DEPS_AUDIT.md)
-candidate #1 — the server's inbound stage can swap
+For mailrs's own server, with mailrs-arc 1.1 the server's inbound stage can swap
 `mail_authenticator.verify_arc` for `verify_chain_with_crypto` and
 drop `mail-auth` from runtime dependencies entirely.
 

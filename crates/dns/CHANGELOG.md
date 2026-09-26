@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- DEPS_AUDIT #3 stone. Light hickory-resolver wrapper for the
+- Light hickory-resolver wrapper for the
   email-server use case.
 - `DnsResolver` trait with 5 async methods (lookup_txt / _a / _aaaa
   / _mx / _ptr).

@@ -133,7 +133,7 @@ is dominated by DNS round-trips (typical 5-50 ms). Reproduce:
 
 ### Competitor comparisons (from PERFORMANCE.md)
 
-- `mailrs-spf` vs `mail-auth` 0.9 (SPF half — the DEPS_AUDIT #1 reason)
+- `mailrs-spf` vs `mail-auth` 0.9 (SPF half)
 
 <!-- AUDIT-FOOTER:END -->
 

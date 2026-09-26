@@ -31,8 +31,7 @@
 //!
 //! ## Why 0-dep
 //!
-//! Per `DEPS_AUDIT.md`, mailrs
-//! does not import `libc` / `nix` / `rustix` etc. for runtime —
+//! mailrs does not import `libc` / `nix` / `rustix` etc. for runtime —
 //! every new external crate becomes a security audit surface and an
 //! ABI-stability dependency. The torajs project has been driving
 //! its own `metal-level` syscall layer for the same reason; this

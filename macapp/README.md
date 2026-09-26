@@ -3,8 +3,6 @@
 Cross-platform (iOS 17+, iPadOS 17+, macOS 14+) native client for the mailrs
 backend. One codebase, three platforms.
 
-**Status:** M1 (login shell). M2–M5 pending.
-
 ## Prerequisites
 
 - Xcode 16+ (tested with Xcode 26.4)

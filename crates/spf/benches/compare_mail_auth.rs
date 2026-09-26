@@ -1,7 +1,6 @@
 //! Head-to-head: `mailrs-spf` record parsing vs `mail-auth` 0.9 (the SPF
 //! half of Stalwart's email-auth crate, which is the de-facto Rust
-//! competitor and the crate this whole stone was carved out to replace —
-//! see DEPS_AUDIT #1).
+//! competitor and the crate this whole stone was carved out to replace).
 //!
 //! Both libraries parse a wire-format `v=spf1 …` TXT record into a structured
 //! representation. We compare:

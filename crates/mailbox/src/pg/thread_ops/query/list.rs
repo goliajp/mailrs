@@ -165,7 +165,7 @@ impl PgMailboxStore {
         // perf: SubPlan 5 + 8 (per-row lookups on email_analysis for
         // requires_action and spam/scam exclusion) collapsed into a single
         // LEFT JOIN. one merge/hash join instead of ~36k index probes
-        // per request (perfs/topics/01 fix-c).
+        // per request.
         // "all" must mean ALL: the default view never hides mail by
         // category. category is an opt-in filter only (pass a category to
         // narrow to it, e.g. a Spam folder). nothing silently disappears
@@ -206,7 +206,7 @@ impl PgMailboxStore {
             Some("action") => having_parts
                 .push("COALESCE(BOOL_OR(ea.requires_action), false) = true".to_string()),
             // perf: ordered aggregate replaces a per-group SubPlan that ran
-            // a LIMIT-1 query on messages for each thread (perfs/topics/07).
+            // a LIMIT-1 query on messages for each thread.
             // matches the SELECT-list expression so PG computes it once.
             Some("important") => having_parts.push(
                 "COALESCE((array_agg(m.importance_level ORDER BY m.importance_score DESC NULLS LAST))[1], 'normal') IN ('critical', 'important')".to_string()

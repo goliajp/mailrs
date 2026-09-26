@@ -231,7 +231,7 @@ pub(crate) struct MailStats {
 
 /// Kevy TTL for `/api/mail/stats` payload — short enough that user-perceived
 /// staleness is bounded, long enough to absorb the dashboard's 60 s refresh
-/// loop and any tab-focus refetches. perfs/topics/02.
+/// loop and any tab-focus refetches.
 const MAIL_STATS_TTL_SECS: u64 = 30;
 
 /// batch action type

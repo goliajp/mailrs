@@ -33,9 +33,7 @@ project-specific glue that turns those libraries into a running server.
   benches, a regression budget (`tests/perf_gate.rs`), `#![deny(missing_docs)]`,
   and a libFuzzer target wherever it parses untrusted input.
 
-See [DEPS_AUDIT.md](./DEPS_AUDIT.md) for which external dependencies were
-replaced by in-house crates, and [PERFORMANCE.md](./PERFORMANCE.md) for the
-full benchmark ledger.
+See [PERFORMANCE.md](./PERFORMANCE.md) for the full benchmark ledger.
 
 ## Library crates
 
@@ -128,4 +126,4 @@ full benchmark ledger.
 - Configuration is environment-variable driven (`MAILRS_*`).
 - PostgreSQL is optional — the server starts in degraded mode if unavailable.
 - Full-text search is **served by two kevy `KIND text` indexes**: one over the thread rows' synthesised `search_blob` field (subject + senders + preview), one over per-message body text in `mailrs:msgtext:<message-id>` rows. Bodies are kept out of the thread row because a thread accumulates messages — folding them in would grow a single value without bound and rewrite all of it on every arrival — and are capped at 8 KiB, since prod's median message file is 34 KB and the terms that identify a message sit near its top. Header matches rank ahead of body matches. Both indexes are maintained by kevy's commit hook — the index lives in the same store, in the same write, as the rows it describes. Dictionary-free CJK bigrams, so Japanese and Chinese are searchable without an analyzer. A Meilisearch sidecar previously held this index; it was removed 2026-07-19 after it silently diverged from the rows (three files each carried their own copy of the index-naming rule, two disagreed, and search returned nothing for weeks). The monolith lane answers the same queries from Postgres (`search_vector @@ plainto_tsquery` unioned with ILIKE), which also needs no external service.
-- Kevy runs **in-process via `kevy_embedded::Store`** (v9 Phase C, v1.7.95+). Production also runs one network `kevy-server` container (no valkey / redis): all four fastcore roles connect to it as `kevy://kevy-server:6379` for bayes, spam, greylist, contacts and the change feed, beside fastcore's own embedded store. AOF + snapshot persistence at `MAILRS_KEVY_DATA_DIR` (default `/data/kevy`); `Store::publish` / `Store::subscribe` carry the `queue:notify` pub/sub between cement and the `mailrs-outbound-queue` delivery worker. Stones (`mailrs-shield` / `mailrs-intelligence` / `mailrs-outbound-queue`) all take `kevy_embedded::Store` directly, no RPC. See `kvdb.md` rule for the full backend history.
+- Kevy runs **in-process via `kevy_embedded::Store`** (v9 Phase C, v1.7.95+). Production also runs one network `kevy-server` container (no valkey / redis): all four fastcore roles connect to it as `kevy://kevy-server:6379` for bayes, spam, greylist, contacts and the change feed, beside fastcore's own embedded store. AOF + snapshot persistence at `MAILRS_KEVY_DATA_DIR` (default `/data/kevy`); `Store::publish` / `Store::subscribe` carry the `queue:notify` pub/sub between cement and the `mailrs-outbound-queue` delivery worker. Stones (`mailrs-shield` / `mailrs-intelligence` / `mailrs-outbound-queue`) all take `kevy_embedded::Store` directly, no RPC.

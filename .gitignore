@@ -8,6 +8,7 @@ dist/
 *.key
 users.toml
 .env
+deploy/.env.production
 
 .idea/
 .env.local

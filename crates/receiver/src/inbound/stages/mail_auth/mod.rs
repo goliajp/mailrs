@@ -56,7 +56,7 @@ pub trait DmarcReportSink: Send + Sync {
 /// returns `Decide(Reject)`; otherwise returns `Continue`.
 ///
 /// Built on the in-house `mailrs-spf` / `mailrs-dkim` / `mailrs-arc` /
-/// `mailrs-dmarc` crates (DEPS_AUDIT #1 closed — `mail-auth` removed).
+/// `mailrs-dmarc` crates (`mail-auth` removed).
 pub struct MailAuthStage {
     resolvers: MailAuthResolvers,
     dmarc_sink: Option<Arc<dyn DmarcReportSink>>,

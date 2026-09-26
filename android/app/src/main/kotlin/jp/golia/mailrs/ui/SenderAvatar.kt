@@ -88,7 +88,7 @@ object SenderAvatar {
  * The avatar, with the unread dot on its rim.
  *
  * The dot carries its own accessibility label: colour alone is not a
- * signal, which `ios/DESIGN.md` states and both other clients obey.
+ * signal, and both other clients obey that too.
  */
 @Composable
 fun SenderAvatarView(sender: String, size: Dp = 36.dp, unread: Boolean = false) {

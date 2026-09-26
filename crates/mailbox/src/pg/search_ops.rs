@@ -34,7 +34,7 @@ impl PgMailboxStore {
             String::new()
         };
 
-        // perf (perfs/topic-06): previous shape was a huge WHERE OR-chain
+        // perf: previous shape was a huge WHERE OR-chain
         // across 5 ILIKE columns + tsvector + EXISTS. PG can't BitmapOr that
         // so it seq-scanned every row of the user's mailbox — 575 ms on
         // lihao@golia.jp.

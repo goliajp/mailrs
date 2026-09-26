@@ -84,5 +84,4 @@ fi
 
 echo
 echo "next: set the split compose's image to $FULL, bring it up alongside the"
-echo "running core, and follow deploy/dual-mode-switch.md — which starts with"
-echo "'mailrs-core-sync --dry-run', not with the sync."
+echo "running core, and start with 'mailrs-core-sync --dry-run', not with the sync."
