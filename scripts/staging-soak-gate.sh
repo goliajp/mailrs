@@ -9,8 +9,7 @@
 #
 # release.yml's prod-deploy job reads STATUS_FILE over SSH and refuses
 # to ship when sha != current tag's commit, or pass != true, or the
-# verdict is older than MAX_AGE_SECS. See
-# `~/.claude-profile-1/projects/*/memory/feedback-staging-stricter-than-prod.md`.
+# verdict is older than MAX_AGE_SECS.
 
 set -u
 SOAK_SECS="${SOAK_SECS:-1800}"

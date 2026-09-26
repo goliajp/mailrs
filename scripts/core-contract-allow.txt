@@ -1,0 +1,7 @@
+# Paths the core client can construct that fastcore does not serve.
+#
+# One line each, with the reason. A line here is a claim that nothing
+# will call the method — not a place to park a route someone means to
+# add.
+
+/v1/mailboxes/*/messages/uid/*/raw | CoreApiClient::get_message_raw has no caller outside crates/server, and the only router that ever served it is the monolith's core_rpc. Dead client method; delete it rather than serve it

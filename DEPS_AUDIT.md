@@ -20,9 +20,7 @@ and `kevy-client` (network wrapper) deps track the sibling
 `kevy-client 1.13` does not yet wrap several 3.17-only server ops
 (BRPOP / HEXPIRE / ZINTERSTORE / IDX_CREATE / CHANGES_SINCE); until
 that lands, the network kevy paths (webapi, sender, bounce) do not
-benefit from Stage B.4-B.8 embedded refactors. See
-`.claude-profile-2/.../memory/feedback-kevy-client-1.13-gaps.md` for
-the tracked upstream gap.
+benefit from Stage B.4-B.8 embedded refactors.
 
 ## ✅ Candidates resolved
 
