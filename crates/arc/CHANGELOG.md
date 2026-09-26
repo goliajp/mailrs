@@ -128,8 +128,7 @@ public API so callers can't produce malformed chains by accident.
 
 This release lets the server drop its `mail_authenticator.verify_arc`
 call (and ultimately `mail-auth` from its runtime deps once the
-remaining DKIM / SPF shadow paths are removed). Tracked under
-DEPS_AUDIT #1.
+remaining DKIM / SPF shadow paths are removed).
 
 ## [1.0.0] - 2026-05-23
 
@@ -206,9 +205,7 @@ Measured (criterion, M-series Mac, release):
 ### Roadmap
 
 - **1.1.0** — Cryptographic AMS + AS verify, plus ARC sealing
-  (adding a new set on outbound forward). Closes
-  [DEPS_AUDIT](https://github.com/goliajp/mailrs/blob/main/DEPS_AUDIT.md)
-  candidate #1 — the server can drop `mail-auth` from its runtime
+  (adding a new set on outbound forward). The server can drop `mail-auth` from its runtime
   deps once this lands.
 
 [1.0.0]: https://github.com/goliajp/mailrs/releases/tag/mailrs-arc-v1.0.0

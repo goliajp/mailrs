@@ -34,8 +34,8 @@ import jp.golia.mailrs.wire.Wire
 /**
  * One conversation, as a row — the unit everything multiplies.
  *
- * Two lines, no preview. `ios/DESIGN.md`: *"the preview line answers a
- * question triage doesn't ask, and costs a third of every row"*, a call
+ * Two lines, no preview: the preview line answers a question triage
+ * doesn't ask, and costs a third of every row — a call
  * the web made on 2026-07-17 and iOS inherited. The first Android draft
  * had a snippet line, which is exactly the thing all three had already
  * decided against.

@@ -82,8 +82,7 @@ No code change.
 
 ### Added
 
-- Initial release. Carved out as the #1 candidate from the project's
-  DEPS_AUDIT (replacing the SPF half of `mail-auth`).
+- Initial release. Replaces the SPF half of `mail-auth`.
 - `Record::parse(&str) -> Result<Record, SpfError>` — RFC 7208 §4
   record parser.
 - `Mechanism` enum: `All`, `Ip4`, `Ip6`, `A`, `Mx`, `Include`,

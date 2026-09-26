@@ -15,8 +15,7 @@ crates** (most published on
 These library crates cover the full email-protocol + auth stack and are
 individually reusable in any Rust project; the server binary wires them
 into a deployable mail server. See [ARCHITECTURE.md](./ARCHITECTURE.md)
-for the crate-by-crate breakdown and [DEPS_AUDIT.md](./DEPS_AUDIT.md) for
-the rewrite-vs-keep ledger on every external dependency.
+for the crate-by-crate breakdown.
 
 ```
 server (mailrs-server binary)

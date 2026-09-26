@@ -453,9 +453,7 @@ been accumulating on `develop` since v1.9.4.
   kevy` (both engines in-process since v1.7.95), PERFORMANCE.md
   added a v2 kevy 3.17 refactor row with a per-site table and the
   staging soak `slow_pct` trend (0.72 % → 0.59 % → 0.67 %),
-  DEPS_AUDIT.md marker for the kevy stack + kevy-client 1.13 gap
-  callout, DEPLOY.md rewritten end-to-end for the release.yml + git
-  flow model with a manual rollback runbook, `web/public/openapi.json`
+  `web/public/openapi.json`
   version 0.9.3 → 2.0.0, CHANGELOG.md (this file) established.
 
 ## v1.9.4 — 2026-07-06

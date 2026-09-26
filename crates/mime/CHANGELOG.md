@@ -76,7 +76,7 @@ No lib code change.
 
 ### Added
 
-- Initial release. DEPS_AUDIT #2 stone — replaces residual
+- Initial release. Replaces residual
   `mail-parser` usage where only the MIME tree shape matters.
 - `parse(raw) -> Part` top-level entry.
 - `Part` struct with `content_type`, `disposition`, `content_id`,

@@ -40,8 +40,8 @@ import androidx.compose.ui.unit.sp
 /**
  * The sign-in screen is a front door.
  *
- * `ios/DESIGN.md`: the mark, the name, one line of what this is, and a
- * full-width prominent button — *"not another table row"*. The first
+ * The mark, the name, one line of what this is, and a full-width
+ * prominent button — not another table row. The first
  * Android draft was three bare fields and a text button, which is the
  * table row.
  *

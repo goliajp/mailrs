@@ -45,7 +45,7 @@ modules complete the DMARC half of `stalwart/mail-auth`:
 
 ### Notes
 
-- This is the last piece of the **DEPS_AUDIT #1** story (the others were
+- This is the last piece of replacing `mail-auth` (the others were
   `mailrs-spf` and `mailrs-dkim`). With 1.1.0, `mailrs-dmarc` +
   `mailrs-spf` + `mailrs-dkim` together cover everything mail-auth
   shipped for inbound verification.

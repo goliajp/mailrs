@@ -1,7 +1,6 @@
 //! Switch there, switch back, and compare both times.
 //!
-//! `deploy/dual-mode-switch.md` says to rehearse the rollback before needing it,
-//! and gives the criterion: the same differences appearing on both passes is
+//! Rehearse the rollback before needing it. The criterion: the same differences appearing on both passes is
 //! what shows the write path did not pollute anything on the way through, while
 //! differences that appear only on the second pass are new damage.
 //!

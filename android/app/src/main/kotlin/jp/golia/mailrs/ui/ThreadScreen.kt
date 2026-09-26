@@ -322,9 +322,9 @@ private fun MessageCard(threadId: String, m: Wire.Message, state: UiState, vm: M
 /**
  * State is a mark and a colour, not a sentence.
  *
- * `ios/DESIGN.md`: *"'Suspicious sender' spelled out beside a name and a
- * time was two words too many for the line; it is an orange shield now,
- * with the words kept as the accessibility label"*. The first Android
+ * 'Suspicious sender' spelled out beside a name and a time was two words
+ * too many for the line; it is an orange shield now, with the words kept
+ * as the accessibility label. The first Android
  * draft spelled it out, which is the thing that made the header wrap.
  *
  * **There is no positive mark** — see `SenderIdentity`.

@@ -61,13 +61,13 @@ let result = verify(&resolver, raw_message).await;
 
 ## Why a new crate?
 
-`mail-auth` includes DKIM but bundles it with SPF + DMARC + ARC. By
-the project's DEPS_AUDIT we want each in a focused stone so:
+`mail-auth` includes DKIM but bundles it with SPF + DMARC + ARC. We
+want each in a focused stone so:
 - the perf of each step is measurable independently
 - the API shape is tunable per-RFC
 - the crate's transitive deps stay tight per use case
 
-`mailrs-spf` shipped first (DEPS_AUDIT #1). This is its sibling.
+`mailrs-spf` shipped first. This is its sibling.
 
 ## Performance
 

@@ -104,8 +104,7 @@ This is the last building block for the outbound DKIM cutover.
 Once integrated, the outbound queue can drop `mail-auth`'s signer.
 Combined with the inbound shadow paths (mailrs-spf / mailrs-dkim
 verify_all / mailrs-arc / mailrs-dmarc), that's the full code path
-needed to remove `mail-auth` from server runtime deps — the final
-close on DEPS_AUDIT #1.
+needed to remove `mail-auth` from server runtime deps.
 
 ## [1.3.0] - 2026-05-23
 
@@ -152,7 +151,7 @@ close on DEPS_AUDIT #1.
 ### Impact on `mailrs` server
 
 This release is the prerequisite for cutting server DMARC over to
-`mailrs-dmarc` (DEPS_AUDIT #1 final step). DMARC alignment needs
+`mailrs-dmarc`. DMARC alignment needs
 per-signature `d=`, which requires `verify_all`.
 
 ## [1.2.0] - 2026-05-23
@@ -273,7 +272,7 @@ RFC 8463 specifics:
 
 ### Added
 
-- Initial release. DEPS_AUDIT #1 sibling to `mailrs-spf` 1.0.0.
+- Initial release. Sibling to `mailrs-spf` 1.0.0.
 - DKIM-Signature header parser supporting all RFC 6376 tags
   (v, a, b, bh, c, d, h, l, q, s, t, x, i, z).
 - Canonicalization: simple + relaxed for both header and body, all 4

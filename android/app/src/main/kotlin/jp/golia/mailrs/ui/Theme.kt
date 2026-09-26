@@ -22,8 +22,8 @@ import androidx.compose.ui.graphics.Color
  *
  * **Not Material You.** The first version of this screen took
  * `dynamicLightColorScheme` from the wallpaper, which is the idiomatic
- * Android thing and the wrong one here: `ios/DESIGN.md` says the three
- * clients are "one blood-line", and a mail list whose accent is
+ * Android thing and the wrong one here: the three clients are one
+ * blood-line, and a mail list whose accent is
  * whatever the phone's wallpaper suggests is not that. The accent is
  * GOLIA blue on every client.
  *

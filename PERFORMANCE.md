@@ -849,7 +849,7 @@ budgets; `--ignore-run-fail` lets the summary still print).
 
 Honest comparison. Wins **and** losses. Bench source: `crates/<crate>/benches/compare_<competitor>.rs` (each crate's compare bench is reproducible in-tree).
 
-#### `mailrs-spf` vs `mail-auth` 0.9 (SPF half — the DEPS_AUDIT #1 reason)
+#### `mailrs-spf` vs `mail-auth` 0.9 (SPF half)
 
 3-run noise-controlled median (M-series Mac, release, criterion
 default 100 samples × 3 fresh invocations):
