@@ -13,7 +13,7 @@ package jp.golia.mailrs.wire
  * whole seconds, so several threads share one. Asking for
  * `before_ts = oldest.lastDate` drops every sibling of that second that
  * did not fit on the page — **silently**, because a shorter list looks
- * exactly like the end of the mailbox. `kevy-patterns.md` measured 929
+ * exactly like the end of the mailbox. Production measured 929
  * such collisions over 30k rows on this data.
  *
  * So the next page asks for `oldest.lastDate + 1`, deliberately

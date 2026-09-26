@@ -8,7 +8,7 @@
 //! **Both directions in the same change**, as with the uidlist and the
 //! keywords: the verbs append, and the self-heal replays the log onto the
 //! rows a rebuilt index would otherwise be missing. A log nothing reads
-//! back is the `both-halves-of-the-wire` shape.
+//! back does nothing.
 
 use std::sync::Arc;
 
@@ -49,8 +49,8 @@ pub(crate) fn about(thread_id: &str) -> mailrs_threadstate::Record {
 /// fresh index the row has defaults and the log has what the reader
 /// actually decided.
 /// Returns whether anything on the row had to change, so a caller that
-/// reports its work reports writes rather than attempts — the
-/// `periodic-work-must-converge` shape, and the one the read-state
+/// reports its work reports writes rather than attempts — the shape
+/// the read-state
 /// backfill got wrong by counting before writing.
 pub(crate) fn apply_to_row(
     state: &Arc<FastcoreState>,

@@ -2,8 +2,8 @@
 //!
 //! Lived in `shadow_counts.rs` until 2026-08-16, and moved out ahead of
 //! that file's deletion because three callers outside it need it — the
-//! axis shadow and `reindex` twice. `kevy/delete-an-index-by-its-readers`
-//! is usually read as "find the readers of the data"; the same care
+//! axis shadow and `reindex` twice. Deleting an index starts with finding
+//! the readers of the data; the same care
 //! applies to the code: deleting a file takes every function in it,
 //! including the ones somebody else depends on, and the compiler tells
 //! you only at the call site ("method not found") rather than where it

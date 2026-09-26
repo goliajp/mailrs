@@ -75,7 +75,7 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
         //
         // `autodeclare: 0`: the engine may not declare paths for us. The
         // whole point of this table is that a query axis is declared and
-        // therefore reviewable (`kevy/declare-dont-maintain`); a path that
+        // therefore reviewable; a path that
         // appeared because a query was refused once is a path nobody chose.
         // Off is also the upstream default.
         window: None,
@@ -117,8 +117,7 @@ pub(crate) fn thread_user_spec() -> kevy_embedded::TableSpec {
             // read filters `snoozed_until <= now`, so a row comes back
             // when its time passes and nothing has to sweep it awake.
             // A flag would need that sweep, and a sweep that flips one
-            // bit per thread per minute is the shape
-            // `periodic-work-must-converge` exists to refuse.
+            // bit per thread per minute never converges.
             col("snoozed_until", ValType::I64),
         ],
         // The boolean predicates, each keyed on its own flag with

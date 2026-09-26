@@ -98,9 +98,7 @@ extension Session {
     /// Take rows off **both** stores.
     ///
     /// `conversations` and `searchResults` hold the same rows twice —
-    /// the web has one array and cannot have this bug, which is the
-    /// same argument `frontend/no-rq-mirror` makes about mirroring a
-    /// query into state. Until there is one store here, every removal
+    /// the web has one array and cannot have this bug. Until there is one store here, every removal
     /// has to say so twice, and archive and delete only ever said it
     /// once: archiving a thread while a search was on screen left the
     /// row sitting in the results, and tapping it opened a thread that

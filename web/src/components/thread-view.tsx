@@ -257,8 +257,8 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
 
   // hooks for the timeline render. Must live above the early-return below —
   // moving them after the `if (!selectedId) return …` makes the hook call
-  // order vary between renders and trips classic-errors → "React hooks
-  // after early return". Both work for `!selectedId`: handleSelectMsg
+  // order vary between renders (React hooks after an early return).
+  // Both work for `!selectedId`: handleSelectMsg
   // captures only the setter, timelineItems short-circuits on `messages`
   // being empty.
   const hasCollapsedTimeline = messages.length > 5 && !showAllMessages

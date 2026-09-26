@@ -1,5 +1,4 @@
-//! Reading the Send projection, and checking it before anything reads it
-//! (RFC 20260730-send-status S3).
+//! Reading the Send projection, and checking it before anything reads it.
 //!
 //! ## One row per send, not per conversation
 //!

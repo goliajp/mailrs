@@ -1,5 +1,5 @@
 //! Tests for `table_query`, in their own file only because the module
-//! they belong to sits at the size limit — `file-size.md` counts a single
+//! they belong to sits at the size limit — the file-size limit counts a single
 //! trailing `mod tests` as free, and these are two named modules.
 
 #![cfg(test)]

@@ -357,9 +357,8 @@ impl PgMailboxStore {
     /// from "archived on purpose".
     ///
     /// Writes nothing when nothing is due: the `DELETE … RETURNING` matches no
-    /// rows and the `UPDATE` has nothing to join to, which is what
-    /// `rules/periodic-work-must-converge.md` asks of anything on a timer — the
-    /// idle tick must be free, not merely idempotent.
+    /// rows and the `UPDATE` has nothing to join to. The idle tick must be
+    /// free, not merely idempotent.
     pub async fn wake_snoozed(&self) -> Result<u64, sqlx::Error> {
         let due: Vec<(String, String)> = sqlx::query_as(
             "DELETE FROM snoozed_conversations

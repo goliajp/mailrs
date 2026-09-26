@@ -63,7 +63,7 @@ pub struct OutboundMessageWire {
     pub updated_at: i64,
     /// The send this job belongs to — one send fans out to one job per
     /// recipient, and the sender needs the group to report a per-
-    /// recipient outcome against it (RFC 20260730-send-status S2).
+    /// recipient outcome against it.
     ///
     /// `Option` because rows enqueued before this field existed
     /// deserialize with `None`, and because the tls-rpt and bounce paths

@@ -119,7 +119,7 @@ Plus two UI bug fixes that were caught along the way (v1.4.26):
 
 ## Outstanding (deferred or product-blocked)
 
-- **topic-01 fix-d** (`thread_summary` snapshot table) — strategic refactor that would bring `/api/conversations` to flat-select latency. Aligns with `data-architecture.md`. Worth doing once the mailbox grows past ~100k threads/account.
+- **topic-01 fix-d** (`thread_summary` snapshot table) — strategic refactor that would bring `/api/conversations` to flat-select latency. Worth doing once the mailbox grows past ~100k threads/account.
 - **topic-01 fix-b** (raise `work_mem` from 4 MB to 16+ MB) — server-side config tuning, eliminates the 7.5 MB external-merge sort on every list query. Should be reviewed alongside other Postgres tuning.
 - **topic-04 auto-open UX** — product call. The default behaviour of opening the most recent thread when the user enters /mail is what drives the residual page weight; a "list-only" or "preview pane" option would let heavy users opt out.
 

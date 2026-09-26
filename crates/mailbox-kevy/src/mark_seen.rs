@@ -125,8 +125,8 @@ impl KevyMailboxStore {
     /// is an exact count of the wrong thing, with nothing to detect it.
     ///
     /// Three call sites used to hset `flags` directly. They are the whole
-    /// reason this is a function rather than three lines repeated:
-    /// `rules/kevy-patterns.md` → `kevy/every-writer-maintains-the-row`.
+    /// reason this is a function rather than three lines repeated: every
+    /// writer maintains the row.
     fn write_flags(
         &self,
         user: &str,
@@ -267,7 +267,6 @@ mod tests {
     /// the column it groups by, so a stale column produces an exact count
     /// of the wrong thing.
     ///
-    /// `rules/kevy-patterns.md` → `kevy/every-writer-maintains-the-row`.
     /// The membership-row version of this test caught the main ingest path
     /// writing no row at all; this is the same shape one level down.
     #[test]

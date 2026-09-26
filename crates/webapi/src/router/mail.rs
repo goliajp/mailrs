@@ -187,7 +187,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         )
         // The Send list — one row per send, with delivery status. Not
         // wired into the UI yet; `:shadow` is the gate that says whether
-        // it is safe to (RFC 20260730-send-status S3).
+        // it is safe to.
         .route("/api/mail/sends", get(handlers::sends::list_sends))
         .route(
             "/api/mail/sends:shadow",
@@ -216,7 +216,7 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
         )
         // Re-edit: compose fields plus attachment *metadata*. The bytes
         // stay server-side and the following send names the ones to keep
-        // by index (RFC 20260730-send-status S4 addendum).
+        // by index.
         .route(
             "/api/mail/sends/{send_id}/redraft",
             get(handlers::sends::send_redraft),

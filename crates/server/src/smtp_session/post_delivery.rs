@@ -62,7 +62,7 @@ pub(super) async fn post_delivery_process(
     let is_reply = mb_store.has_sent_to(user, sender).await.unwrap_or(false);
 
     // Signal derivation is shared with the fastcore lane so the two
-    // can't drift (RFC 20260721-self-hosted-importance-ranking).
+    // can't drift.
     let signals = importance::signals_for_inbound(
         importance::MessageFacts {
             is_bulk_sender: is_bulk,

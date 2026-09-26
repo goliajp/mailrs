@@ -837,7 +837,7 @@ from the cov report:
 | spf/record | 85.1 % |
 
 Crates land at 85–99 % line coverage; everything below 80 % is server-side
-framework wiring. The workspace 80 % bar from `testing.md` is satisfied for
+framework wiring. The workspace 80 % bar is satisfied for
 all 41 published crates individually, even though the workspace-wide rollup
 sits at 58.66 % because of the server binary.
 

@@ -43,7 +43,7 @@ sources() {
     find android/app/src -name '*.kt' 2>/dev/null | sort
 }
 
-# Carve-out #1 from rules/common/file-size.md: generated code is exempt,
+# Carve-out #1: generated code is exempt,
 # and the marker has to be grep-able. Both spellings are accepted — the
 # rule asks for `CODEGEN:`, and generators write their own banner.
 generated() {
@@ -100,7 +100,7 @@ fail=0
 if [ -n "$over" ]; then
     echo "!! over the $LIMIT-line limit and not in the baseline:"
     printf "%b\n" "$over"
-    echo "   Split it, or add a carve-out per rules/common/file-size.md."
+    echo "   Split it, or add a CODEGEN: / CARVE-OUT: marker."
     fail=1
 fi
 if [ -n "$grew" ]; then

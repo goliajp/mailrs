@@ -262,7 +262,7 @@ fn store_ops_within_budget() {
     let (scanned, first) = st.backfill_thread_user(USER, 0, 200).unwrap();
     assert!(scanned > 0, "the sweep should have rows to walk");
     let (_, again) = st.backfill_thread_user(USER, 0, 200).unwrap();
-    // The property, not the speed. `periodic-work-must-converge` asks for a
+    // The property, not the speed. Periodic work needs a
     // stable state that is cheap, and a write counter is the only thing that
     // can falsify it: overwriting a value with the one already there is
     // idempotent and is not convergent, which cost a core hours on

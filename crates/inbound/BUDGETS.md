@@ -9,7 +9,7 @@ Run `cargo test -p mailrs-inbound --test perf_gate` to check.
 ## Path taxonomy
 
 The inbound pipeline is a **warm** path — per-message latency, not
-per-frame. Per `rules/rust/patterns.md`: warm budgets sit ≤ 10 ms total.
+per-frame. Warm budgets sit ≤ 10 ms total.
 Every path below runs once per inbound SMTP DATA transaction, on the
 critical line between the client's `.\r\n` and the 250/451/550 response.
 

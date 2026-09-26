@@ -19,8 +19,7 @@
 //!
 //! One boot sequence rather than two, deliberately. A second copy of this
 //! ordering would drift from the first, and the drift would show up as
-//! "works on one core, not the other" — the failure
-//! `feedback-two-impls-need-a-contract-test` is about. A role gate cannot
+//! "works on one core, not the other". A role gate cannot
 //! drift from itself.
 
 use std::sync::Arc;
@@ -428,7 +427,7 @@ pub(crate) async fn run_with_roles(roles: Roles) {
     //
     // Logged only when something happened. A line every minute saying zero is
     // the shape that turned the maildir sweep's own idle report into the noise
-    // hiding it (`rules/periodic-work-must-converge.md`).
+    // hiding it.
     if let Some(mb) = mailbox_store.clone() {
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));

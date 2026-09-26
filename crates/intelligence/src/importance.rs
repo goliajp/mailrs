@@ -186,8 +186,7 @@ pub struct MessageFacts {
 /// This exists so the two lanes can't drift: the subtle parts are the
 /// mailing-list fallback (an unknown sender falls back to the bulk-header
 /// verdict) and the three fixed values below — duplicating those by hand
-/// per lane is exactly how the lanes diverge
-/// (see the two-impls-need-a-contract-test rule).
+/// per lane is exactly how the lanes diverge.
 ///
 /// Fixed for the inbound path:
 /// - `is_direct_recipient = true` — the message was delivered to this

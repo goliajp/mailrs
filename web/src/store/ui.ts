@@ -214,8 +214,7 @@ export const composeDraftSourceAtom = atom<ComposeDraftSource | null>(null)
 // `attachments` are descriptions, not files: the bytes never left the
 // server. On send, the kept ones are named back by `index` and the server
 // re-extracts them from the original envelope — which is the only way a
-// 15 MB re-edit costs no transfer and cannot lose its files (RFC
-// 20260730-send-status S4 addendum).
+// 15 MB re-edit costs no transfer and cannot lose its files.
 export type ComposeRedraftSource = {
   attachments: { content_type: string; filename: string; index: number; size: number }[]
   bcc: string

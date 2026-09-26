@@ -378,9 +378,7 @@ def msg(uid, sender, trust, html):
             "requires_action": False, "sender_intent": "",
             # uid 2 is the invitation. Attached to a message that
             # already exists rather than added as a new conversation:
-            # a new row shifts every ordinal the two suites assert on,
-            # which is the lesson `mobile-tests` was
-            # written from.
+            # a new row shifts every ordinal the two suites assert on.
             "invite_method": "REQUEST" if uid == 2 else ""}
 
 

@@ -119,8 +119,7 @@ export function VirtualConversationList({
     // absolute-positioned children — selected-state re-renders fire
     // measureElement again, the virtualizer cache updates, but
     // already-rendered siblings keep their stale `translateY`. Visible
-    // result: row overlap (classic-errors.md "react-virtual on a
-    // WebSocket-fed list MUST pass getItemKey" entry was a partial
+    // result: row overlap (passing getItemKey was a partial
     // fix; the real fix is below — kill the dynamic-size path
     // entirely so there is nothing to race against).
     estimateSize: (index) => {

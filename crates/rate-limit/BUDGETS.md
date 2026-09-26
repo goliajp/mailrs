@@ -8,7 +8,7 @@ Run `cargo test -p mailrs-rate-limit --test perf_gate` to check.
 
 ## Path taxonomy
 
-Rate-limit checks are **warm** path per `rules/rust/patterns.md` — one
+Rate-limit checks are **warm** path — one
 call per inbound TCP accept (SMTP) or per HTTP request (web API).
 Budgets sit comfortably below the ≤ 10 ms warm-path ceiling because a
 rate-limit check that takes meaningful time defeats its own purpose:

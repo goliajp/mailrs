@@ -18,7 +18,7 @@
 //! reporter*, so the org name is part of the key.
 //!
 //! Per-source aggregates are deliberately **not** stored. They are a
-//! derivation (`common/data-architecture.md`) and the read path
+//! derivation and the read path
 //! recomputes them from rows — at a few reports per day there is
 //! nothing to gain from a second copy that could drift.
 //!

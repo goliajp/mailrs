@@ -63,8 +63,8 @@ pub async fn spawn(state: Arc<FastcoreState>) {
     // a mailbox is quiet precisely when someone is waiting for the first
     // message. An empty tick costs two readdirs on two empty directories.
     //
-    // Checked against periodic-work-must-converge on 2026-08-01: the rule
-    // is about loops whose resting state is expensive, and this one's is
+    // Checked on 2026-08-01 against the rule that periodic work must
+    // converge: the rule is about loops whose resting state is expensive, and this one's is
     // not. Written down because this loop looks like the violation
     // `calendar_sync` actually was.
     loop {

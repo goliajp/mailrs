@@ -6,7 +6,7 @@
 //! file, switching lanes makes every IMAP client resync.
 //!
 //! **Both directions ship together, deliberately.** A file written and
-//! never read is the `both-halves-of-the-wire` shape this repo has now been
+//! never read is the shape this repo has now been
 //! bitten by five times in one day — it looks finished from both ends and
 //! does nothing. So:
 //!

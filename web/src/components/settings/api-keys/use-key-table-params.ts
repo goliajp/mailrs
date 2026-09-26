@@ -15,8 +15,7 @@ export type KeyTableParams = {
 export const TABLE_PARAM_NAMES = ['dir', 'page', 'q', 'size', 'sort'] as const
 
 /**
- * Search / sort / page live in the URL, per `rules/typescript/patterns.md`
- * ("URL as State") — a link to a filtered, sorted page reopens on the same
+ * Search / sort / page live in the URL — a link to a filtered, sorted page reopens on the same
  * view. `replace: true` keeps table fiddling out of the back-button history.
  */
 export function useKeyTableParams(): {

@@ -229,8 +229,7 @@ export const useMoveToInboxMutation = () => useBucketMoveMutation(wireMoveToInbo
 //
 // One helper, two callers, on purpose: the "reply-box copies
 // new-conversation's optimistic write" road ends with the two drifting
-// out of sync the first time we tweak the placeholder shape
-// (feedback-two-impls-need-a-contract-test).
+// out of sync the first time we tweak the placeholder shape.
 
 export function applyOptimisticSent(msg: {
   message_id: string

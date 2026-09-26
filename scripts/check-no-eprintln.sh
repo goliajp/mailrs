@@ -18,7 +18,6 @@ if [ -n "$hits" ]; then
     echo "$hits" >&2
     echo "" >&2
     echo "Use tracing::{error,warn,info,debug}! with event= field instead." >&2
-    echo "See REFACTOR-V2-v0.4-log-audit.md for schema." >&2
     exit 1
 fi
 

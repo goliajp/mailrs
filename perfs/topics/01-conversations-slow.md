@@ -121,7 +121,7 @@ The thread-correlated subqueries each get a cheap index probe, but **5–6 probe
 |---|---|---|
 | **A. LATERAL join for "latest message per thread"** — replace subqueries 1, 2, 4, 6, 9 with one `LATERAL (SELECT … FROM messages WHERE thread_id = m.thread_id ORDER BY internal_date DESC LIMIT 1)` and another for `email_analysis`. | Single SQL change; planner gets to see the join shape; reuses `idx_messages_thread_date`. | Still O(threads) lookups, just one set of them — should drop probes from ~250 to ~50. |
 | **B. CTE that pre-computes `(thread_id, latest_message_id, latest_internal_date)`** then joins for all the per-thread fields. | Cleanest single-pass plan. | Slightly more code; need to verify planner doesn't materialise the CTE for the wrong shape. |
-| **C. Derive a `thread_summary` snapshot table** updated on message insert/update, holding all per-thread aggregates. The list endpoint becomes a flat `SELECT` from `thread_summary` joined to `mailboxes`. | Sub-50 ms target reachable; aligns with `data-architecture.md` (facts vs derivations — the per-thread aggregate is a derivation). | Maintenance work: trigger or app-level write path on every message insert/flag change. Risk of drift, needs a backfill script. |
+| **C. Derive a `thread_summary` snapshot table** updated on message insert/update, holding all per-thread aggregates. The list endpoint becomes a flat `SELECT` from `thread_summary` joined to `mailboxes`. | Sub-50 ms target reachable; the per-thread aggregate is a derivation. | Maintenance work: trigger or app-level write path on every message insert/flag change. Risk of drift, needs a backfill script. |
 | **D. Move the spam/scam exclusion out of `NOT EXISTS` into a join with a partial index `WHERE category IN ('spam','scam')`.** | Kills the per-row subquery (8). | Smaller wins; doesn't address subqueries 1–6/9. |
 
 Recommendation: **A first** (low-risk, single-file change, immediate win), measure, then evaluate whether C is worth the operational cost.
@@ -177,7 +177,7 @@ Listed in order of effort vs. payoff:
 | **a** | Move `last_sender` from a HAVING SubPlan to an aggregate expression: `(array_agg(m.sender ORDER BY m.internal_date DESC))[1]`. Same data, computed once during the GroupAggregate pass instead of 16 793 separate index scans. | Eliminates SubPlan 7 (~80–100 ms). | Low: same semantics, single SQL change. |
 | **b** | Bump Postgres `work_mem` from default (4 MB) to ≥ 16 MB so the 7.4 MB sort stays in memory. | Eliminates disk I/O on this query (~30–50 ms) and on every other multi-row sort. | Low (config), but is a global setting — scale with concurrency. |
 | **c** | Hoist `requires_action` and the spam/scam exclusion into a single `LEFT JOIN email_analysis_latest` derived from `LATERAL (SELECT … FROM messages WHERE thread_id = … ORDER BY internal_date DESC LIMIT 1)`. | Eliminates SubPlan 5 + 8 (~50 ms). | Medium: bigger SQL rewrite. |
-| **d** | Materialise a `thread_summary` snapshot table (one row per `(user_address, thread_id)`) updated on every message insert/flag change. Endpoint becomes a flat indexed select. | Sub-50 ms target reachable, hardens future scaling. | High: write-path changes, backfill, drift management. Aligns with `data-architecture.md` (derivation snapshot). |
+| **d** | Materialise a `thread_summary` snapshot table (one row per `(user_address, thread_id)`) updated on every message insert/flag change. Endpoint becomes a flat indexed select. | Sub-50 ms target reachable, hardens future scaling. | High: write-path changes, backfill, drift management. |
 
 Recommendation: **a + b first** (one PR each, both reversible). Re-measure. Only consider c/d if `?limit=50` doesn't drop under ~100 ms.
 
@@ -274,5 +274,5 @@ Next levers:
    multi-row aggregation. Server-wide setting, should be reviewed.
 2. **fix-d (`thread_summary` snapshot table)** — strategic refactor.
    Brings the endpoint to flat-select latency (sub-50 ms) and stops
-   being O(threads in user's mailbox). Aligns with the `data-architecture.md`
-   "facts vs derivations" principle (per-thread aggregate is a derivation).
+   being O(threads in user's mailbox). The per-thread aggregate is a
+   derivation.

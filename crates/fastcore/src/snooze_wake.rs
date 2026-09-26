@@ -4,8 +4,8 @@
 //! due back; this asks the index for anything due and clears both
 //! fields. Every ordinary membership row stores `0`, so the query is
 //! `[1, now]` over a range that is empty until something is actually
-//! waiting — the idle tick performs no writes at all, which is what
-//! `periodic-work-must-converge` asks of anything on a timer.
+//! waiting — the idle tick performs no writes at all, as anything on a
+//! timer should.
 //!
 //! A minute is the resolution. A thread asked back "tomorrow morning"
 //! arriving at 08:00:37 is the same promise kept; a second-accurate

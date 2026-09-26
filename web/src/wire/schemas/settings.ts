@@ -216,7 +216,7 @@ export const calendarFeedListSchema = z.union([
 // Backend: crates/webapi/src/handlers/spam_lists.rs:83 —
 // `list_whitelist` / `list_blacklist` answer
 // `Json({"entries": [String]})`. Verified against the handler on
-// 2026-08-10, per frontend/wire-schema-verification.
+// 2026-08-10.
 export const senderListSchema = z.object({
   entries: z.array(z.string()).default([]),
 })

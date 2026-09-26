@@ -173,9 +173,8 @@ impl KevyMailboxStore {
         // dismissed-unread gate all read through here, and every one of
         // them would see zero the day nothing writes the fields.
         //
-        // Readers first, writers after — `kevy/delete-an-index-by-its-readers`
-        // in the direction the rule is usually read, and the direction the
-        // deletion audit said this had to go.
+        // Readers first, writers after — the direction the deletion audit
+        // said this had to go.
         //
         // `None` from the index means it cannot see the thread, not that the
         // thread is empty, so the stored numbers stand in. Not called inside

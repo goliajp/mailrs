@@ -4558,7 +4558,7 @@
     "/.well-known/jwks.json": {
       "get": {
         "summary": "Get .well known jwks.json",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4576,7 +4576,7 @@
     "/.well-known/openid-configuration": {
       "get": {
         "summary": "Get .well known openid configuration",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4594,7 +4594,7 @@
     "/Autodiscover/Autodiscover.xml": {
       "post": {
         "summary": "Create Autodiscover Autodiscover.xml",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4623,7 +4623,7 @@
     "/api/admin/audit/accounts": {
       "get": {
         "summary": "Get admin audit accounts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4641,7 +4641,7 @@
     "/api/admin/audit/conversations": {
       "get": {
         "summary": "Get admin audit conversations",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4659,7 +4659,7 @@
     "/api/admin/audit/conversations/{thread_id}/messages": {
       "get": {
         "summary": "Get admin audit conversations messages",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4677,7 +4677,7 @@
     "/api/admin/audit/messages/{uid}/raw": {
       "get": {
         "summary": "Get admin audit messages raw",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4695,7 +4695,7 @@
     "/api/admin/export": {
       "get": {
         "summary": "Get admin export",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4713,7 +4713,7 @@
     "/api/admin/oauth-clients": {
       "get": {
         "summary": "Get admin oauth clients",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4729,7 +4729,7 @@
       },
       "post": {
         "summary": "Create admin oauth clients",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4757,7 +4757,7 @@
     "/api/admin/oauth-clients/{client_id}": {
       "delete": {
         "summary": "Delete admin oauth clients",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4775,7 +4775,7 @@
     "/api/admin/rbl-status": {
       "get": {
         "summary": "Get admin rbl status",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4793,7 +4793,7 @@
     "/api/admin/reputation": {
       "get": {
         "summary": "Get admin reputation",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4811,7 +4811,7 @@
     "/api/admin/spam-feedback-stats": {
       "get": {
         "summary": "Get admin spam feedback stats",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4829,7 +4829,7 @@
     "/api/admin/suppressions": {
       "delete": {
         "summary": "Delete admin suppressions",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4845,7 +4845,7 @@
       },
       "get": {
         "summary": "Get admin suppressions",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4863,7 +4863,7 @@
     "/api/admin/system-config": {
       "get": {
         "summary": "Get admin system config",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4881,7 +4881,7 @@
     "/api/admin/system-config/{key}": {
       "delete": {
         "summary": "Delete admin system config",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4897,7 +4897,7 @@
       },
       "put": {
         "summary": "Update admin system config",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4925,7 +4925,7 @@
     "/api/auth/change-password": {
       "post": {
         "summary": "Create auth change password",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4953,7 +4953,7 @@
     "/api/auth/oidc/callback": {
       "get": {
         "summary": "Get auth oidc callback",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4971,7 +4971,7 @@
     "/api/auth/oidc/config": {
       "get": {
         "summary": "Get auth oidc config",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -4989,7 +4989,7 @@
     "/api/auth/oidc/login": {
       "get": {
         "summary": "Get auth oidc login",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5007,7 +5007,7 @@
     "/api/auth/recovery-email": {
       "get": {
         "summary": "Get auth recovery email",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5023,7 +5023,7 @@
       },
       "post": {
         "summary": "Create auth recovery email",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5051,7 +5051,7 @@
     "/api/auth/verify": {
       "post": {
         "summary": "Create auth verify",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5079,7 +5079,7 @@
     "/api/auth/verify-totp": {
       "post": {
         "summary": "Create auth verify totp",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5107,7 +5107,7 @@
     "/api/bimi/{domain}": {
       "get": {
         "summary": "Get bimi",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5125,7 +5125,7 @@
     "/api/calendar/conflicts": {
       "get": {
         "summary": "Get calendar conflicts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5143,7 +5143,7 @@
     "/api/calendar/feeds": {
       "get": {
         "summary": "Get calendar feeds",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5159,7 +5159,7 @@
       },
       "post": {
         "summary": "Create calendar feeds",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5187,7 +5187,7 @@
     "/api/calendar/feeds/{feed_id}": {
       "delete": {
         "summary": "Delete calendar feeds",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5205,7 +5205,7 @@
     "/api/events": {
       "get": {
         "summary": "Get events",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5237,7 +5237,7 @@
     "/api/invites/{message_id}/counter": {
       "post": {
         "summary": "Create invites counter",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5265,7 +5265,7 @@
     "/api/invites/{message_id}/rsvp": {
       "post": {
         "summary": "Create invites rsvp",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5293,7 +5293,7 @@
     "/api/mail/ai/generate-subject": {
       "post": {
         "summary": "Create mail ai generate subject",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5321,7 +5321,7 @@
     "/api/mail/check-deliverability": {
       "post": {
         "summary": "Create mail check deliverability",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5349,7 +5349,7 @@
     "/api/mail/spam-feedback": {
       "post": {
         "summary": "Create mail spam feedback",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5377,7 +5377,7 @@
     "/api/mail/stats": {
       "get": {
         "summary": "Get mail stats",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5395,7 +5395,7 @@
     "/api/proxy/image": {
       "get": {
         "summary": "Get proxy image",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5413,7 +5413,7 @@
     "/api/proxy/link": {
       "get": {
         "summary": "Get proxy link",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5431,7 +5431,7 @@
     "/dav/": {
       "delete": {
         "summary": "Delete dav",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5447,7 +5447,7 @@
       },
       "get": {
         "summary": "Get dav",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5463,7 +5463,7 @@
       },
       "patch": {
         "summary": "Patch dav",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5490,7 +5490,7 @@
       },
       "post": {
         "summary": "Create dav",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5517,7 +5517,7 @@
       },
       "put": {
         "summary": "Update dav",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5546,7 +5546,7 @@
     "/dav/calendars/{user}/": {
       "delete": {
         "summary": "Delete dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5562,7 +5562,7 @@
       },
       "get": {
         "summary": "Get dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5578,7 +5578,7 @@
       },
       "patch": {
         "summary": "Patch dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5605,7 +5605,7 @@
       },
       "post": {
         "summary": "Create dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5632,7 +5632,7 @@
       },
       "put": {
         "summary": "Update dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5661,7 +5661,7 @@
     "/dav/calendars/{user}/{calendar}/": {
       "delete": {
         "summary": "Delete dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5677,7 +5677,7 @@
       },
       "get": {
         "summary": "Get dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5693,7 +5693,7 @@
       },
       "patch": {
         "summary": "Patch dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5720,7 +5720,7 @@
       },
       "post": {
         "summary": "Create dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5747,7 +5747,7 @@
       },
       "put": {
         "summary": "Update dav calendars",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5776,7 +5776,7 @@
     "/dav/contacts/{user}/": {
       "delete": {
         "summary": "Delete dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5792,7 +5792,7 @@
       },
       "get": {
         "summary": "Get dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5808,7 +5808,7 @@
       },
       "patch": {
         "summary": "Patch dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5835,7 +5835,7 @@
       },
       "post": {
         "summary": "Create dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5862,7 +5862,7 @@
       },
       "put": {
         "summary": "Update dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5891,7 +5891,7 @@
     "/dav/contacts/{user}/{book}/": {
       "delete": {
         "summary": "Delete dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5907,7 +5907,7 @@
       },
       "get": {
         "summary": "Get dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5923,7 +5923,7 @@
       },
       "patch": {
         "summary": "Patch dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5950,7 +5950,7 @@
       },
       "post": {
         "summary": "Create dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -5977,7 +5977,7 @@
       },
       "put": {
         "summary": "Update dav contacts",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -6006,7 +6006,7 @@
     "/jmap/eventsource/": {
       "get": {
         "summary": "Get jmap eventsource",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -6024,7 +6024,7 @@
     "/mail/config-v1.1.xml": {
       "get": {
         "summary": "Get mail config v1.1.xml",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -6042,7 +6042,7 @@
     "/oauth/authorize": {
       "get": {
         "summary": "Get oauth authorize",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -6060,7 +6060,7 @@
     "/oauth/token": {
       "post": {
         "summary": "Create oauth token",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",
@@ -6114,7 +6114,7 @@
     "/oauth/userinfo": {
       "get": {
         "summary": "Get oauth userinfo",
-        "description": "Stub \u2014 full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.",
+        "description": "Stub \u2014 full schema TBD.",
         "responses": {
           "200": {
             "description": "Success",

@@ -45,8 +45,8 @@ pub struct SyncOpts {
     /// Read the source and the destination, write nothing, and report what a
     /// real run would move.
     ///
-    /// The point is not caution for its own sake. `verify-on-a-copy`
-    /// is about the first number: a shadow read that reports a large difference
+    /// The point is not caution for its own sake. It is about the first
+    /// number: a shadow read that reports a large difference
     /// is usually reporting a backfill gap rather than a defect, and the way to
     /// tell is to look at what the difference *consists of* before acting on it.
     /// A count of 19,779 differing rows on this repo's last such migration

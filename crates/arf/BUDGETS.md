@@ -18,7 +18,7 @@ order-of-magnitude regression triggers CI failure.
 | `parse(hotmail_sample)` | < 30 µs | ~2 µs |
 | `parse(non_arf_input)` | < 5 µs | < 200 ns |
 
-15-30× headroom over observed P95 per `rules/rust/patterns.md`.
+15-30× headroom over observed P95.
 
 ## What's measured but not gated
 

@@ -33,8 +33,7 @@ pub fn user_next_uid(user: &str) -> String {
 // v2.6.2 §P6 legacy drop: the legacy `mailrs:alias:<addr>` /
 // `mailrs:domain:<name>` string keys and their companion
 // `mailrs:{aliases,domains}:index` sets are gone. The v2 hash
-// keyspace + range indexes below are canonical. See RFC
-// 20260709-v2.3-p6-admin-crud-idx-query.md for the migration path.
+// keyspace + range indexes below are canonical.
 
 /// Per-thread message index — zset member = message_id (RFC string),
 /// score = internal_date (epoch seconds). One ZRANGE returns the

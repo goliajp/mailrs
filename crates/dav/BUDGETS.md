@@ -10,7 +10,7 @@ Run `cargo test -p mailrs-dav --test perf_gate` to check. Run
 ## Path taxonomy
 
 CalDAV / CardDAV request/response is a **warm** path — per-request
-latency, not per-frame. Per `rules/rust/patterns.md`: warm budgets sit
+latency, not per-frame. Warm budgets sit
 ≤ 10 ms.
 
 ## Budgets

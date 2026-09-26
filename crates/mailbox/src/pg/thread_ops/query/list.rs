@@ -230,9 +230,7 @@ impl PgMailboxStore {
         // second tie, and the order between tied rows was whatever the planner
         // happened to produce — undefined between two calls with the same
         // arguments. A paged reader sees that as a row skipped or repeated at a
-        // boundary, intermittently, which is the defect
-        // `rules/kevy-patterns.md` → `kevy/total-order-or-paging-breaks`
-        // describes; the kevy lane closed it with a folded-hash `ord` column
+        // boundary, intermittently; the kevy lane closed it with a folded-hash `ord` column
         // after measuring 929 collisions over 30k rows on prod, and this side
         // had no tie-break at all. Found by the cross-lane comparison: the two
         // cores agreed on every row and every field, and disagreed only *within*

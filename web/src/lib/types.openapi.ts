@@ -1758,7 +1758,7 @@ export interface paths {
         };
         /**
          * Get .well known jwks.json
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -1797,7 +1797,7 @@ export interface paths {
         };
         /**
          * Get .well known openid configuration
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -1838,7 +1838,7 @@ export interface paths {
         put?: never;
         /**
          * Create Autodiscover Autodiscover.xml
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -1879,7 +1879,7 @@ export interface paths {
         };
         /**
          * Get admin audit accounts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -1918,7 +1918,7 @@ export interface paths {
         };
         /**
          * Get admin audit conversations
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -1957,7 +1957,7 @@ export interface paths {
         };
         /**
          * Get admin audit conversations messages
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -1996,7 +1996,7 @@ export interface paths {
         };
         /**
          * Get admin audit messages raw
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2035,7 +2035,7 @@ export interface paths {
         };
         /**
          * Get admin export
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2074,7 +2074,7 @@ export interface paths {
         };
         /**
          * Get admin oauth clients
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2099,7 +2099,7 @@ export interface paths {
         put?: never;
         /**
          * Create admin oauth clients
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -2143,7 +2143,7 @@ export interface paths {
         post?: never;
         /**
          * Delete admin oauth clients
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -2179,7 +2179,7 @@ export interface paths {
         };
         /**
          * Get admin rbl status
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2218,7 +2218,7 @@ export interface paths {
         };
         /**
          * Get admin reputation
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2257,7 +2257,7 @@ export interface paths {
         };
         /**
          * Get admin spam feedback stats
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2296,7 +2296,7 @@ export interface paths {
         };
         /**
          * Get admin suppressions
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2322,7 +2322,7 @@ export interface paths {
         post?: never;
         /**
          * Delete admin suppressions
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -2358,7 +2358,7 @@ export interface paths {
         };
         /**
          * Get admin system config
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2398,7 +2398,7 @@ export interface paths {
         get?: never;
         /**
          * Update admin system config
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         put: {
             parameters: {
@@ -2427,7 +2427,7 @@ export interface paths {
         post?: never;
         /**
          * Delete admin system config
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -2465,7 +2465,7 @@ export interface paths {
         put?: never;
         /**
          * Create auth change password
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -2506,7 +2506,7 @@ export interface paths {
         };
         /**
          * Get auth oidc callback
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2545,7 +2545,7 @@ export interface paths {
         };
         /**
          * Get auth oidc config
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2584,7 +2584,7 @@ export interface paths {
         };
         /**
          * Get auth oidc login
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2623,7 +2623,7 @@ export interface paths {
         };
         /**
          * Get auth recovery email
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2648,7 +2648,7 @@ export interface paths {
         put?: never;
         /**
          * Create auth recovery email
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -2691,7 +2691,7 @@ export interface paths {
         put?: never;
         /**
          * Create auth verify
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -2734,7 +2734,7 @@ export interface paths {
         put?: never;
         /**
          * Create auth verify totp
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -2775,7 +2775,7 @@ export interface paths {
         };
         /**
          * Get bimi
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2814,7 +2814,7 @@ export interface paths {
         };
         /**
          * Get calendar conflicts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2853,7 +2853,7 @@ export interface paths {
         };
         /**
          * Get calendar feeds
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -2878,7 +2878,7 @@ export interface paths {
         put?: never;
         /**
          * Create calendar feeds
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -2922,7 +2922,7 @@ export interface paths {
         post?: never;
         /**
          * Delete calendar feeds
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -2958,7 +2958,7 @@ export interface paths {
         };
         /**
          * Get events
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3043,7 +3043,7 @@ export interface paths {
         put?: never;
         /**
          * Create invites counter
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3086,7 +3086,7 @@ export interface paths {
         put?: never;
         /**
          * Create invites rsvp
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3129,7 +3129,7 @@ export interface paths {
         put?: never;
         /**
          * Create mail ai generate subject
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3172,7 +3172,7 @@ export interface paths {
         put?: never;
         /**
          * Create mail check deliverability
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3215,7 +3215,7 @@ export interface paths {
         put?: never;
         /**
          * Create mail spam feedback
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3256,7 +3256,7 @@ export interface paths {
         };
         /**
          * Get mail stats
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3295,7 +3295,7 @@ export interface paths {
         };
         /**
          * Get proxy image
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3334,7 +3334,7 @@ export interface paths {
         };
         /**
          * Get proxy link
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3373,7 +3373,7 @@ export interface paths {
         };
         /**
          * Get dav
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3397,7 +3397,7 @@ export interface paths {
         };
         /**
          * Update dav
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         put: {
             parameters: {
@@ -3425,7 +3425,7 @@ export interface paths {
         };
         /**
          * Create dav
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3453,7 +3453,7 @@ export interface paths {
         };
         /**
          * Delete dav
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -3479,7 +3479,7 @@ export interface paths {
         head?: never;
         /**
          * Patch dav
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         patch: {
             parameters: {
@@ -3516,7 +3516,7 @@ export interface paths {
         };
         /**
          * Get dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3540,7 +3540,7 @@ export interface paths {
         };
         /**
          * Update dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         put: {
             parameters: {
@@ -3568,7 +3568,7 @@ export interface paths {
         };
         /**
          * Create dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3596,7 +3596,7 @@ export interface paths {
         };
         /**
          * Delete dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -3622,7 +3622,7 @@ export interface paths {
         head?: never;
         /**
          * Patch dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         patch: {
             parameters: {
@@ -3659,7 +3659,7 @@ export interface paths {
         };
         /**
          * Get dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3683,7 +3683,7 @@ export interface paths {
         };
         /**
          * Update dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         put: {
             parameters: {
@@ -3711,7 +3711,7 @@ export interface paths {
         };
         /**
          * Create dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3739,7 +3739,7 @@ export interface paths {
         };
         /**
          * Delete dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -3765,7 +3765,7 @@ export interface paths {
         head?: never;
         /**
          * Patch dav calendars
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         patch: {
             parameters: {
@@ -3802,7 +3802,7 @@ export interface paths {
         };
         /**
          * Get dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3826,7 +3826,7 @@ export interface paths {
         };
         /**
          * Update dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         put: {
             parameters: {
@@ -3854,7 +3854,7 @@ export interface paths {
         };
         /**
          * Create dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -3882,7 +3882,7 @@ export interface paths {
         };
         /**
          * Delete dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -3908,7 +3908,7 @@ export interface paths {
         head?: never;
         /**
          * Patch dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         patch: {
             parameters: {
@@ -3945,7 +3945,7 @@ export interface paths {
         };
         /**
          * Get dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -3969,7 +3969,7 @@ export interface paths {
         };
         /**
          * Update dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         put: {
             parameters: {
@@ -3997,7 +3997,7 @@ export interface paths {
         };
         /**
          * Create dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -4025,7 +4025,7 @@ export interface paths {
         };
         /**
          * Delete dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         delete: {
             parameters: {
@@ -4051,7 +4051,7 @@ export interface paths {
         head?: never;
         /**
          * Patch dav contacts
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         patch: {
             parameters: {
@@ -4088,7 +4088,7 @@ export interface paths {
         };
         /**
          * Get jmap eventsource
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -4127,7 +4127,7 @@ export interface paths {
         };
         /**
          * Get mail config v1.1.xml
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -4166,7 +4166,7 @@ export interface paths {
         };
         /**
          * Get oauth authorize
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {
@@ -4207,7 +4207,7 @@ export interface paths {
         put?: never;
         /**
          * Create oauth token
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         post: {
             parameters: {
@@ -4258,7 +4258,7 @@ export interface paths {
         };
         /**
          * Get oauth userinfo
-         * @description Stub — full schema TBD. See REFACTOR-V2-v0.5-api-drift.md.
+         * @description Stub — full schema TBD.
          */
         get: {
             parameters: {

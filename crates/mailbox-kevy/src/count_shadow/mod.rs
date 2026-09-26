@@ -7,8 +7,8 @@
 //! 32,278 threads across thirteen accounts on production, every field,
 //! zero differences (2026-08-15). Nothing writes the stored counters
 //! since C5b-2, so the comparison now has one live side and one that is
-//! permanently zero — a metric that cannot come out non-zero, which
-//! `verify-on-a-copy` calls not a verification at all. It was
+//! permanently zero — a metric that cannot come out non-zero, which is
+//! not a verification at all. It was
 //! deleted rather than adjusted to keep reporting something.
 //!
 //! What survives is the part that still has two sides: the group column

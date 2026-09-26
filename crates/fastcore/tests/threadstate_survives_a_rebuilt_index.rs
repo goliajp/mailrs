@@ -6,7 +6,7 @@
 //! mail, and the row stays the index that serves them.
 //!
 //! Zero is a value in this log, not an absence — it un-snoozes — which is
-//! the `Null vs Zero` distinction `common/coding-style.md` names, and the
+//! the `Null vs Zero` distinction, and the
 //! reason a replay has to be able to tell "put it back" from "nothing was
 //! said about it".
 

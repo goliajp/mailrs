@@ -2,7 +2,7 @@
 --
 -- Sizing note, because the plan for this migration was much larger. It
 -- budgeted two new tables — `threads` and `thread_users` — on the strength of
--- a line in the per-user thread state RFC saying the PG lane
+-- an earlier claim that the PG lane
 -- still had the multi-owner defect the kevy side had been fixed for. It does
 -- not: crates/mailbox/tests/multi_owner.rs proves that on both backend axes.
 -- `messages` is one row per mailbox and a mailbox belongs to one account, so a
@@ -58,7 +58,7 @@ ALTER TABLE outbound_queue
 --
 -- Expect an Index Scan. "Rows Removed by Filter: <table size>" means the
 -- planner ignored it — and this table stores full message bodies, so a seq
--- scan here is the 2026-07-19 shape (rules/hot-path-needs-a-plan.md: a
+-- scan here is the 2026-07-19 shape (a
 -- 48k-row table served 309 billion rows because a composite index's leading
 -- column was never supplied).
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_outbound_scheduled_at

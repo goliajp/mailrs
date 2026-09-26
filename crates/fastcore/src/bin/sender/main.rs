@@ -219,8 +219,7 @@ async fn process_one(cfg: Cfg, id: String) {
             // Relationship fact: the user has now sent to this address.
             // This is the only writer of `sent_count`, and without it
             // `is_mutual` / `has_sent_to` — the strongest inbound
-            // importance signals — can never become true
-            // (RFC 20260721-self-hosted-importance-ranking).
+            // importance signals — can never become true.
             record_sent_relationship(&cfg, &sender, &recipient);
             if let Err(e) = drop_blob(cfg, id.clone()).await {
                 tracing::error!(%id, err = %e, "drop_blob after success failed");

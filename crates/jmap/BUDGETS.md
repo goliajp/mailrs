@@ -10,7 +10,7 @@ Run `cargo test -p mailrs-jmap --test perf_gate` to check. Run
 ## Path taxonomy
 
 JMAP request/response is a **warm** path — per-request latency, not
-per-frame. Per `rules/rust/patterns.md`: warm budgets sit ≤ 10 ms.
+per-frame. Warm budgets sit ≤ 10 ms.
 
 ## Budgets
 

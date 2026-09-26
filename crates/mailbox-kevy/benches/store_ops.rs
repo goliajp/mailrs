@@ -254,7 +254,7 @@ fn writes(c: &mut Criterion) {
 
     // The periodic sweep, on a store that has nothing left to repair.
     //
-    // This is the instrument for `periodic-work-must-converge`: the sweep's
+    // This is the instrument for convergence: the sweep's
     // stable state has to be *cheap*, not merely idempotent. Overwriting a
     // value with the one already there is idempotent and is not convergent,
     // and the 2026-07-19 incident — 48,613 files re-read every 31 seconds,
