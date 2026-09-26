@@ -243,7 +243,7 @@ hello world from the baseline test\r\n";
     //
     // 10 s is still 300x the observed span, so a stall — which means
     // "never" or "many seconds" — trips it exactly as before, while
-    // machine load does not. See crates/server/BUDGETS.md.
+    // machine load does not.
     let latency = new_message_latency.expect("NewMessage observed");
     assert!(
         latency < Duration::from_secs(10),

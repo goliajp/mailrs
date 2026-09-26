@@ -1,9 +1,8 @@
 //! Per-operation cost of the store production actually runs on.
 //!
 //! This crate had no benchmark and no perf gate until 2026-08-13, which is
-//! why the last kevy upgrade shipped with no per-op numbers at all —
-//! `PERFORMANCE.md` says so in as many words: *"Not benched separately:
-//! throughput on individual embedded ops."* Forty gates and fifty-two
+//! why the last kevy upgrade shipped with no per-op numbers at all. Forty
+//! gates and fifty-two
 //! benchmarks in this workspace, and the two store-shaped ones ran against
 //! an in-memory `Vec`.
 //!
