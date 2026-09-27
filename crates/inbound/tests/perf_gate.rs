@@ -249,3 +249,73 @@ async fn pipeline_run_dispatch_overhead_under_budget() {
         "Pipeline::run dispatch median {median:?} exceeded {budget:?}"
     );
 }
+
+#[cfg(not(debug_assertions))]
+/// The reported advance-fee letter, about 3 KB of flowed plain text.
+fn advance_fee_letter() -> Vec<u8> {
+    let mut raw = b"From: David Konczol <info@nexforce.in>\r\n\
+Subject: RE: PARTNERSHIP PROPOSITION\r\n\
+Content-Type: text/plain; charset=UTF-8; format=flowed\r\n\
+\r\n"
+        .to_vec();
+    for _ in 0..12 {
+        raw.extend_from_slice(
+            b"The transaction pertains to an unclaimed savings deposit, and we \r\n\
+have monitored the account fund for the past years without a claim.\r\n\
+We ask for your Company's urgent consent to be in partnership.\r\n",
+        );
+    }
+    raw.extend_from_slice(b"US$10,200,000.00 ... split equally, 50% apiece.\r\n");
+    raw
+}
+
+#[cfg(not(debug_assertions))]
+/// The worst case the reader allows: an HTML part past the read limit.
+fn large_html() -> Vec<u8> {
+    let mut raw = b"From: news <n@example.com>\r\n\
+Content-Type: text/html; charset=UTF-8\r\n\
+\r\n"
+        .to_vec();
+    while raw.len() < 300 * 1024 {
+        raw.extend_from_slice(
+            b"<p>Revenue grew to <b>$57 million</b>, 90% of the total&nbsp;this year.</p>\r\n",
+        );
+    }
+    raw
+}
+
+// release only: the budget is an optimised build's, see scripts/perf-gates.sh
+#[cfg(not(debug_assertions))]
+#[test]
+fn offers_the_reader_a_sum_letter_under_budget() {
+    let raw = advance_fee_letter();
+    let parsed = mailrs_mime::parse(&raw);
+    let median = time_median(|| {
+        std::hint::black_box(mailrs_inbound::body::offers_the_reader_a_sum(&parsed));
+    });
+    // Budget: 150 µs, 3× the worst P95 seen on a loaded dev machine
+    // (10–50 µs). The text is re-decoded and lowercased; parsing is the
+    // caller's and is not in this number.
+    let budget = Duration::from_micros(150);
+    assert!(
+        median < budget,
+        "offers_the_reader_a_sum (letter) median {median:?} exceeded {budget:?}"
+    );
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn offers_the_reader_a_sum_large_html_under_budget() {
+    let raw = large_html();
+    let parsed = mailrs_mime::parse(&raw);
+    let median = time_median(|| {
+        std::hint::black_box(mailrs_inbound::body::offers_the_reader_a_sum(&parsed));
+    });
+    // Budget: 3.5 ms, 3× the observed P95 (~1.1 ms). The read stops
+    // at `READ_LIMIT`, so this is the ceiling for any message size.
+    let budget = Duration::from_micros(3_500);
+    assert!(
+        median < budget,
+        "offers_the_reader_a_sum (300 KiB html) median {median:?} exceeded {budget:?}"
+    );
+}

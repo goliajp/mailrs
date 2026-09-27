@@ -216,6 +216,8 @@ pub(crate) async fn rescan(
                 attachments.iter().copied(),
             ),
             has_zero_width_inside_a_word: deception.zero_width_inside_a_word,
+            offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
+            is_bulk: mailrs_inbound::body::is_bulk(&raw),
             to_display: &to_display,
             reply_rotation,
             // How this message was submitted, read back off the
@@ -641,6 +643,41 @@ body\r\n";
         };
         assert_eq!(judge("Hao"), (false, true));
         assert_eq!(judge("Quarterly contracts"), (false, false));
+    }
+
+    /// The letter reported on 2026-09-28, as stored: every
+    /// authentication check passed, so the offer in the text is the
+    /// only thing the sweep can move it on.
+    #[test]
+    fn the_advance_fee_letter_reaches_junk_in_the_sweep() {
+        let raw = b"Authentication-Results: mail.golia.ai;\r\n\tspf=pass;\r\n\tdkim=pass;\r\n\tdmarc=pass\r\n\
+From: David Konczol <info@nexforce.in>\r\n\
+Subject: RE: PARTNERSHIP PROPOSITION\r\n\
+Reply-To: admin@yourmindcoach.in\r\n\
+Content-Type: text/plain; charset=UTF-8; format=flowed\r\n\
+\r\n\
+in the sum of  Ten Million, Two Hundred Thousand United States Dollars \r\n\
+only (US$10,200,000.00). This money would be split equally, 50% apiece.\r\n";
+        let parsed = mailrs_mime::parse(raw);
+        let from = mailrs_inbound::from_header(raw);
+        let subject = mailrs_inbound::subject_header(raw);
+        let facts = mailrs_fraud::Facts {
+            from: &from,
+            subject: &subject,
+            offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
+            is_bulk: mailrs_inbound::body::is_bulk(raw),
+            ..mailrs_fraud::Facts::default()
+        };
+        let mut rules = mailrs_fraud_lua::Rules::compile(mailrs_fraud_lua::DEFAULT_SOURCE)
+            .expect("shipped bundle compiles");
+        let f = rules
+            .classify(&facts, &mailrs_fraud::Policy::default())
+            .findings;
+        assert!(f.has("offers-the-reader-a-sum"));
+        assert_eq!(
+            (mailrs_inbound::holds(&f), junks_on_its_own(&f)),
+            (false, true)
+        );
     }
 
     /// Just the `From:`, for a case that is only about the name.

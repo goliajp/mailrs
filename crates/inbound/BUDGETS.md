@@ -25,6 +25,8 @@ critical line between the client's `.\r\n` and the 250/451/550 response.
 | `format_auth_results_header` | 20 µs | ~0.7 µs | ~30× | Bare value + `Authentication-Results: ` prefix |
 | `ReceiveContext::to_pipeline_input` | 5 µs | ~125 ns | ~30× | Clones AuthResults + rules + hostname per message |
 | `Pipeline::run` (dispatch only, 4 noop stages) | 100 µs | ~3 µs | ~30× | Framework cost of async dispatch + final decision call. Real stages' I/O is not in this budget. |
+| `body::offers_the_reader_a_sum` (3 KB letter) | 150 µs | 10–50 µs | 3× | Release only. Decode + lowercase the text parts; the parse is the caller's |
+| `body::offers_the_reader_a_sum` (300 KiB HTML) | 3.5 ms | ~1.1 ms | 3× | Release only. Ceiling for any size: the read stops at 256 KiB |
 
 Real-world `Pipeline::run` cost is dominated by the stage backends (DNS
 resolver, ClamAV TCP, LLM API) which are owned by the downstream
