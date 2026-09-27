@@ -45,6 +45,7 @@
 //!   was built against rotates its domain every few messages, so a
 //!   memory of domains is a memory of the last wave.
 
+pub mod advance_fee;
 pub mod attachment;
 pub mod brand;
 pub mod finding;
@@ -193,6 +194,15 @@ pub struct Facts<'a> {
     /// field is the whole argument: *"no legitimate use in a
     /// sender's name."*
     pub has_bidi_override: bool,
+    /// The text offers its reader part of a sum in the millions —
+    /// [`advance_fee::offers_the_reader_a_sum`].
+    pub offers_the_reader_a_sum: bool,
+    /// The message carries `List-Unsubscribe` or `List-Id`.
+    ///
+    /// A newsletter reporting somebody's revenue reads like an offer
+    /// more often than a letter does. Absence says nothing: plenty of
+    /// bulk mail carries neither header, so this can only excuse.
+    pub is_bulk: bool,
 }
 
 /// Run every compiled check over one message.
