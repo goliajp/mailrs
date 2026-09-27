@@ -78,6 +78,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
         ("has_executable_attachment", f.has_executable_attachment),
         ("unauthenticated", f.unauthenticated),
         ("peer_is_private", f.peer_is_private),
+        ("offers_the_reader_a_sum", f.offers_the_reader_a_sum),
+        ("is_bulk", f.is_bulk),
     ] {
         t.set(lua, k, v).map_err(|e| lua.vm().error_text(&e))?;
     }

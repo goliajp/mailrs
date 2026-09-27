@@ -148,6 +148,8 @@ pub(super) async fn run_antispam(
             attachment_names.iter().map(String::as_str),
         ),
         has_zero_width_inside_a_word: receive_ctx.deception.zero_width_inside_a_word,
+        offers_the_reader_a_sum: mailrs_inbound::body::offers_the_reader_a_sum(&parsed),
+        is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
         to_display: &to_display,
         reply_rotation,
         // `run_antispam` is called only when the session did not

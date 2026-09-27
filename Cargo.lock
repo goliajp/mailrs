@@ -3645,6 +3645,7 @@ dependencies = [
  "async-trait",
  "criterion 0.8.2",
  "mailrs-fraud",
+ "mailrs-mime",
  "mailrs-rfc2047",
  "mailrs-textguard",
  "metrics",
