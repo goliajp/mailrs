@@ -1,12 +1,15 @@
-//! Server-level perf regression gates.
+//! Perf regression gates for the inbound path's composition of stones.
 //!
-//! mailrs-server is a binary crate, so we can't `use` its internal
-//! modules from a `tests/` file. What we *can* do is measure the
-//! composition of stones the server links together — the same hot-path
-//! recipe an inbound SMTP delivery follows: `smtp-proto` session +
-//! command parse → `maildir` delivery. If a workspace bump silently
-//! makes any of those slower in our actual call shape, this gate
-//! catches it before deploy.
+//! No single stone's gate measures the recipe an inbound SMTP delivery
+//! follows: `smtp-proto` session + command parse → `maildir` delivery,
+//! with the `rfc5322` lookups and the `dmarc` evaluation along the way.
+//! If a workspace bump silently makes any of those slower in our actual
+//! call shape, this gate catches it before deploy.
+//!
+//! These lived in the monolith's crate until 2026-09-29. There, the
+//! release build of this one file also linked the monolith's binaries and
+//! its dev-dependencies with fat LTO: a one-line change to a crate they
+//! depend on cost the perf gates 358-388 s, against 9-18 s without it.
 //!
 //! Each test asserts a single budget with ~5-10× headroom over the
 //! observed mean on a clean M-series Mac. The budgets are intentionally
