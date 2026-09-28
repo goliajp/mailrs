@@ -76,20 +76,14 @@ async fn setup_kevy() -> (testcontainers::ContainerAsync<GenericImage>, String) 
         .start()
         .await
         .expect("start kevy container");
-    let host = container
-        .get_host()
-        .await
-        .expect("container host")
-        .to_string();
-    // Force IPv4 loopback: docker maps the port on both 127.0.0.1 and
-    // [::1], but the IPv6 proxy resets the data path here (the TCP
-    // connect to ::1 still succeeds, so multi-addr fallthrough doesn't
-    // help). kevy binds 0.0.0.0 (IPv4), so pin the client to it.
-    let host = if host == "localhost" {
-        "127.0.0.1".to_string()
-    } else {
-        host
-    };
+    // kevy binds 0.0.0.0 (IPv4), so the client is pinned to it.
+    let host = mailrs_test_docker::ipv4_loopback(
+        &container
+            .get_host()
+            .await
+            .expect("container host")
+            .to_string(),
+    );
     let port = container
         .get_host_port_ipv4(6379)
         .await

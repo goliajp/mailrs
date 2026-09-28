@@ -220,7 +220,19 @@ if [ "${WEB_ONLY:-0}" = 1 ]; then
     echo "==> [1-4/6] skipped (WEB_ONLY)"
 elif [ "${SKIP_BUILD:-0}" != 1 ]; then
     echo "==> [1/6] local arm64 build ($VERSION)"
+    # A builder of our own, named here rather than whichever one the machine
+    # currently has selected. The shared default builder's cache is evicted
+    # by other projects' builds within hours, so the target cache mount in
+    # Dockerfile never survived between deploys and every image build ran
+    # the release profile from nothing. The GC policy lives in
+    # scripts/buildkitd.toml; it applies when the builder is created, so
+    # after changing it run `docker buildx rm mailrs-release` once.
+    BUILDER=mailrs-release
+    docker buildx inspect "$BUILDER" >/dev/null 2>&1 \
+        || docker buildx create --name "$BUILDER" --driver docker-container \
+            --buildkitd-config scripts/buildkitd.toml >/dev/null
     docker buildx build \
+        --builder "$BUILDER" \
         --platform linux/arm64 \
         --build-arg VERSION="$VERSION" \
         --build-arg CACHE_BUST="direct-$VERSION" \

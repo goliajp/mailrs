@@ -2,6 +2,12 @@
 FROM rust:1-trixie AS chef
 RUN cargo install cargo-chef --locked --version ^0.1
 WORKDIR /build
+# The pinned toolchain, installed here so the cook below compiles with the
+# same rustc as the build after it. The image's own default is newer, and
+# the rustc version is part of every artifact's hash: cooking with it
+# produced nothing the final build could reuse.
+COPY rust-toolchain.toml ./
+RUN rustup toolchain install
 
 # stage 1b: planner — produces recipe.json describing the dep graph.
 # This layer is cheap (no compile), but its output (recipe.json) is the
@@ -39,13 +45,24 @@ ARG CACHE_BUST=none
 ARG CARGO_BUILD_JOBS=8
 ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}
 
-# Cook external deps — buildx GHA cache makes this layer skip entirely
-# on subsequent builds where Cargo.toml/Cargo.lock are unchanged.
+# Cook external deps — this layer is skipped entirely on builds where
+# Cargo.toml/Cargo.lock are unchanged.
+#
+# One cook per package, selected exactly as the build below selects it.
+# Each cargo invocation resolves dependency features for the packages it
+# was given, so a whole-workspace cook builds a feature set no binary is
+# built with, and the build below recompiled those dependencies anyway.
+# Building the packages together instead would unify their features, which
+# changes what ships: the receiver and webapi would pick up another
+# package's TLS verifier features.
 COPY --from=planner /build/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo chef cook --release --recipe-path recipe.json
+    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-sender \
+             mailrs-fastcore mailrs-pg-dump mailrs-core-sync; do \
+        cargo chef cook --release --recipe-path recipe.json -p "$p" --bins || exit 1; \
+    done
 
 # Now copy the real source. Layer below invalidates on any crate code
 # change, but external deps stay cached above.
@@ -61,18 +78,13 @@ RUN echo "cache-bust=$CACHE_BUST version=$VERSION" \
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --bin mailrs-fraud-check \
-    && cargo build --release --bin mailrs-receiver \
-    && cargo build --release --bin mailrs-webapi \
-    && cargo build --release --bin mailrs-sender \
-    && cargo build --release --bin mailrs-fastcore \
-    && cargo build --release --bin mailrs-fastcore-migrate \
-    && cargo build --release --bin mailrs-fastcore-backfill-contacts \
-    && cargo build --release --bin mailrs-fastcore-backfill-uid-index \
-    && cargo build --release --bin mailrs-fastcore-backfill-usage \
-    && cargo build --release --bin mailrs-fastcore-sender \
-    && cargo build --release -p mailrs-pg-dump \
-    && cargo build --release -p mailrs-core-sync \
+    cargo build --release -p mailrs-fraud-lua --bins \
+    && cargo build --release -p mailrs-receiver --bins \
+    && cargo build --release -p mailrs-webapi --bins \
+    && cargo build --release -p mailrs-sender --bins \
+    && cargo build --release -p mailrs-fastcore --bins \
+    && cargo build --release -p mailrs-pg-dump --bins \
+    && cargo build --release -p mailrs-core-sync --bins \
     && cp /build/target/release/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
