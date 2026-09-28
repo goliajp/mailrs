@@ -51,8 +51,29 @@ pub fn pkix_root_store() -> rustls::RootCertStore {
     // overlap heavily; `add_trust_anchors` de-duplicates by subject, and
     // a duplicate anchor costs a comparison, while a missing one costs
     // an operator's mail.
+    add_compiled_anchors(&mut store);
+    store
+}
+
+/// `DigiCert Global Root CA`, DER, SHA-256
+/// `4348a0e9444c78cb265e058d5e8944b4d84f9662bd26db257f8934a443c70161`.
+///
+/// Compiled in because the platform store stopped being enough. The
+/// Ubuntu `ca-certificates` on GitHub's runners no longer carries it
+/// (240 anchors, this one absent), and Debian will follow the same
+/// Mozilla lifecycle — at which point an ordinary image rebuild would
+/// have undone the 2026-08-17 fix without a line of this repo changing.
+const DIGICERT_GLOBAL_ROOT_CA: &[u8] = include_bytes!("anchors/digicert-global-root-ca.der");
+
+/// The anchors that do not depend on the host: Mozilla's set, plus the
+/// roots mail operators still chain to after browsers moved on.
+fn add_compiled_anchors(store: &mut rustls::RootCertStore) {
     store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     store
+        .add(rustls::pki_types::CertificateDer::from(
+            DIGICERT_GLOBAL_ROOT_CA,
+        ))
+        .expect("compiled-in anchor is a valid certificate");
 }
 
 /// Say what the platform store gave us when it gave us less than all of
@@ -117,6 +138,20 @@ mod trust_store_tests {
     /// MTA-STS enforce a failed handshake correctly refuses to
     /// downgrade, so the mail died — for **every Microsoft 365 tenant**,
     /// not only hotmail.
+    /// The same anchor with no help from the host: this is what keeps
+    /// Microsoft reachable when a distribution drops the root.
+    #[test]
+    fn the_root_microsofts_mail_anchors_at_is_compiled_in() {
+        let mut store = rustls::RootCertStore::empty();
+        add_compiled_anchors(&mut store);
+        assert!(
+            subjects(&store)
+                .iter()
+                .any(|s| s.contains("DigiCert Global Root CA")),
+            "the compiled-in anchors lack the root Microsoft's mail chains to"
+        );
+    }
+
     #[test]
     fn the_root_microsofts_mail_anchors_at_is_trusted() {
         let s = subjects(&pkix_root_store());

@@ -3861,6 +3861,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailrs-perf-recipes"
+version = "0.0.0"
+dependencies = [
+ "mailrs-dmarc",
+ "mailrs-maildir",
+ "mailrs-rfc5322",
+ "mailrs-smtp-proto",
+ "tempfile",
+]
+
+[[package]]
 name = "mailrs-pg-dump"
 version = "0.0.1"
 dependencies = [
