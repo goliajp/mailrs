@@ -53,7 +53,8 @@ async fn start_mailpit() -> (
     // additional grace period before we hit the HTTP API
     tokio::time::sleep(Duration::from_millis(500)).await;
 
-    let host = container.get_host().await.expect("host").to_string();
+    let host =
+        mailrs_test_docker::ipv4_loopback(&container.get_host().await.expect("host").to_string());
     let smtp = container
         .get_host_port_ipv4(ContainerPort::Tcp(MAILPIT_SMTP_PORT))
         .await

@@ -56,7 +56,8 @@ async fn start_pg() -> (ContainerAsync<GenericImage>, crate::pg::BackendPool) {
         .start()
         .await
         .expect("start pgvector");
-    let host = container.get_host().await.expect("host");
+    let host =
+        mailrs_test_docker::ipv4_loopback(&container.get_host().await.expect("host").to_string());
     let port = container.get_host_port_ipv4(5432).await.expect("port");
     let url = format!("postgres://postgres:test@{host}:{port}/mailrs_test");
     // race the listener readiness
