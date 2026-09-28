@@ -1,4 +1,8 @@
 //! Regression budgets for `mailrs-srs`. See [BUDGETS.md](../BUDGETS.md).
+//!
+//! Release only: `scripts/perf-gates.sh` runs these in the profile the budgets
+//! were measured in. A debug build on another machine measures that machine.
+#![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};
 

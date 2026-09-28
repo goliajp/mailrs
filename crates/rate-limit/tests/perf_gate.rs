@@ -4,6 +4,10 @@
 //! the TCP accept and the protocol greeting (SMTP `220` / IMAP `OK`).
 //! Rate limiting that takes more than a few µs per check defeats the
 //! point of rate limiting at all.
+//!
+//! Release only: `scripts/perf-gates.sh` runs these in the profile the budgets
+//! were measured in. A debug build on another machine measures that machine.
+#![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};
 

@@ -5,6 +5,10 @@
 //! budget either useless or require running tests in `--release`. The
 //! criterion bench in `benches/core.rs` covers that path; this file
 //! enforces the cheap algorithmic paths only.
+//!
+//! Release only: `scripts/perf-gates.sh` runs these in the profile the budgets
+//! were measured in. A debug build on another machine measures that machine.
+#![cfg(not(debug_assertions))]
 
 use std::time::{Duration, Instant};
 
