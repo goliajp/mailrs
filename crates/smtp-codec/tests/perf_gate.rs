@@ -1,4 +1,8 @@
 //! Regression budgets for `mailrs-smtp-codec`. See BUDGETS.md.
+//!
+//! Release only: `scripts/perf-gates.sh` runs these in the profile the budgets
+//! were measured in. A debug build on another machine measures that machine.
+#![cfg(not(debug_assertions))]
 
 use mailrs_smtp_codec::{has_smuggle_sequence, normalize_line_endings};
 use std::time::{Duration, Instant};

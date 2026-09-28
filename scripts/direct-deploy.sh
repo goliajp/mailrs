@@ -18,7 +18,9 @@
 #      described here as living "outside CI" and was in practice
 #      whatever the person deploying remembered to run. It is now part
 #      of the script, because the alternative is that it happens
-#      sometimes.
+#      sometimes. clippy and the tests run on a Linux runner
+#      (scripts/remote-gate.sh) alongside steps 0-1 here; nothing is
+#      published until it passes.
 #   1. buildx a linux/arm64 image locally (t01 + t02 are both arm64)
 #   2. push ghcr.io/goliajp/mailrs:<version> (arm64-only; best-effort —
 #      a push failure warns but never blocks the deploy)
@@ -164,56 +166,27 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # own overruns had never been written down.
     ./scripts/check-file-size.sh
 
-    # testcontainers goes through bollard, which does not pick up the
-    # credentials the Docker CLI has, so a cold pull fails with
-    # "401 authentication required" and reads like an auth bug rather
-    # than a missing image. Warm them first; both are no-ops once cached.
-    docker pull -q postgres:11-alpine >/dev/null 2>&1 || true
-    docker pull -q axllent/mailpit:latest >/dev/null 2>&1 || true
-
     cargo fmt --all --check
-    cargo clippy --workspace --all-targets -- -D warnings
-    # The dormant pg/spg lane, which nothing above reaches: features are off
-    # by default, so `--workspace --all-targets` never sees the code behind
-    # `spg` or `core-rpc`, and test.yml — the only thing that did build them
-    # — runs on master/release/hotfix, whose tip predates develop by weeks.
-    #
-    # It had been broken since the 2026-08-02 file split, in 23 places. All
-    # of them one root cause: that commit moved these files a directory
-    # deeper and nothing that referenced position followed — relative
-    # `include_str!` paths, `super::*` globs, and a re-export widened past
-    # its own visibility. Plus a `cfg` with two comma-separated predicates,
-    # which is malformed, so that file had never compiled at all.
-    #
-    # `--all-targets` matters and both axes matter: the lane's two test files
-    # sit on opposite sides of the `spg` switch (the in-memory pg-core suite
-    # needs it, the real-Postgres bidirectional sync test needs it off), so
-    # a single invocation type-checks exactly one of them. Test-only rot is
-    # the kind this lane had.
-    # ~19s cold for the spg dependency tree, seconds warm.
-    cargo check -p mailrs-server --features core-rpc,spg --all-targets
-    cargo check -p mailrs-server --features core-rpc --all-targets
-    # --no-fail-fast: cargo stops at the first failing test binary, which
-    # hides every red behind it. Three separate failures were found this
-    # way on 2026-07-29, each only after the previous one was fixed.
-    cargo test --workspace --no-fail-fast
+
+    # clippy, the dormant-lane checks and the test suite run on a Linux
+    # runner, started now and collected before anything is published;
+    # remote-gate.sh says why. The perf budgets below and the image build
+    # after them share this machine in turn, while the runner works.
+    REMOTE_LOG=$(mktemp -t mailrs-remote-gate)
+    echo "    remote gate started; log: $REMOTE_LOG"
+    ./scripts/remote-gate.sh "$HEAD_AT_START" > "$REMOTE_LOG" 2>&1 &
+    REMOTE_PID=$!
+    # A failure here or in the build exits the script; the runner's lane
+    # must not outlive it.
+    trap 'kill "$REMOTE_PID" 2>/dev/null || true' EXIT
+
     # Release-profile budgets, ~23s once target/release is warm; the
-    # first run after a clean target/ pays for a full fat-LTO build.
+    # first run after a clean target/ pays for a full fat-LTO build. They
+    # were measured on this machine and fail on the runner's slower cores,
+    # so they stay here — and nothing else builds here while they run.
     ./scripts/perf-gates.sh
 else
     echo "!! [0/6] SKIP_GATE=1 — shipping unverified code to prod"
-fi
-
-# The gate takes minutes and `docker buildx build .` sends the working
-# directory, not the commit — so a tree edited while the gate ran ships
-# code the gate never saw and no commit records. Checking once at the
-# top does not cover that window; this one caught nothing on 2026-07-30
-# only because the deploy was killed by hand.
-assert_clean_tree
-if [ "$(git rev-parse HEAD)" != "$HEAD_AT_START" ]; then
-    echo "!! HEAD moved during the gate ($HEAD_AT_START -> $(git rev-parse HEAD))"
-    echo "!! the gate verified a different commit than this would ship"
-    exit 1
 fi
 
 if [ "${WEB_ONLY:-0}" = 1 ]; then
@@ -241,6 +214,33 @@ elif [ "${SKIP_BUILD:-0}" != 1 ]; then
         .
 else
     echo "==> [1/6] SKIP_BUILD=1 — reusing local $TAG"
+fi
+
+if [ -n "${REMOTE_PID:-}" ]; then
+    echo "==> [0/6] waiting for the remote gate"
+    REMOTE_RC=0
+    wait "$REMOTE_PID" || REMOTE_RC=$?
+    trap - EXIT
+    if [ "$REMOTE_RC" != 0 ]; then
+        echo "!! remote gate failed — nothing was published. Last lines of $REMOTE_LOG:"
+        tail -40 "$REMOTE_LOG"
+        exit 1
+    fi
+    grep -E '^test result: ' "$REMOTE_LOG" \
+        | awk '{p+=$4; f+=$6} END {print "    remote gate green: " p " passed, " f " failed"}'
+    rm -f "$REMOTE_LOG"
+fi
+
+# The gate and the image build take minutes, and `docker buildx build .`
+# sends the working directory, not the commit — so a tree edited while
+# they ran ships code the gate never saw and no commit records. Checking
+# once at the top does not cover that window; this one caught nothing on
+# 2026-07-30 only because the deploy was killed by hand.
+assert_clean_tree
+if [ "$(git rev-parse HEAD)" != "$HEAD_AT_START" ]; then
+    echo "!! HEAD moved during the gate ($HEAD_AT_START -> $(git rev-parse HEAD))"
+    echo "!! the gate verified a different commit than this would ship"
+    exit 1
 fi
 
 if [ "${WEB_ONLY:-0}" != 1 ]; then
