@@ -1,0 +1,15 @@
+# Garbage-collection policy for the builder direct-deploy.sh builds the image
+# on. Kept apart from the machine's default builder on purpose: that one is
+# shared with every other project on the host, and its cache is evicted by
+# their builds within hours, so the cargo target cache mount in Dockerfile
+# never survived from one deploy to the next and every image build compiled
+# the release profile from nothing.
+#
+# One rule, covering cache mounts as well as layers. buildkit's default
+# policy caps cache mounts at about 500 MB, far below a release target dir.
+[worker.oci]
+  gc = true
+  [[worker.oci.gcpolicy]]
+    all = true
+    keepDuration = "720h"
+    maxUsedSpace = "60GB"
