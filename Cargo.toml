@@ -10,6 +10,7 @@ rust-version = "1.97"
 resolver = "2"
 members = [
     "crates/test-docker",
+    "crates/perf-recipes",
     "crates/fraud",
     "crates/fraud-lua",
     "crates/smtp-proto",
@@ -288,3 +289,9 @@ panic = "unwind"
 # the largest single thing on these machines — 104 GB in smix alone — and the
 # debug info is most of it.
 debug = 1
+# macOS defaults to "unpacked", which leaves every compile's object files in
+# target/debug/deps and never removes them: 97,088 of that directory's
+# 103,155 entries on 2026-09-28. Each freshly linked test binary's first exec
+# gets slower as the directory grows. "packed" writes one .dSYM per binary
+# instead, and backtraces keep file and line. Linux behaves the same either way.
+split-debuginfo = "packed"
