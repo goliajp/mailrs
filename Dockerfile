@@ -59,8 +59,7 @@ COPY --from=planner /build/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-sender \
-             mailrs-fastcore mailrs-pg-dump mailrs-core-sync; do \
+    for p in mailrs-fraud-lua mailrs-receiver mailrs-webapi mailrs-fastcore; do \
         cargo chef cook --release --recipe-path recipe.json -p "$p" --bins || exit 1; \
     done
 
@@ -81,22 +80,16 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release -p mailrs-fraud-lua --bins \
     && cargo build --release -p mailrs-receiver --bins \
     && cargo build --release -p mailrs-webapi --bins \
-    && cargo build --release -p mailrs-sender --bins \
     && cargo build --release -p mailrs-fastcore --bins \
-    && cargo build --release -p mailrs-pg-dump --bins \
-    && cargo build --release -p mailrs-core-sync --bins \
     && cp /build/target/release/mailrs-fraud-check /usr/local/bin/mailrs-fraud-check \
     && cp /build/target/release/mailrs-receiver /usr/local/bin/mailrs-receiver \
     && cp /build/target/release/mailrs-webapi /usr/local/bin/mailrs-webapi \
-    && cp /build/target/release/mailrs-sender /usr/local/bin/mailrs-sender \
     && cp /build/target/release/mailrs-fastcore /usr/local/bin/mailrs-fastcore \
     && cp /build/target/release/mailrs-fastcore-migrate /usr/local/bin/mailrs-fastcore-migrate \
     && cp /build/target/release/mailrs-fastcore-backfill-contacts /usr/local/bin/mailrs-fastcore-backfill-contacts \
     && cp /build/target/release/mailrs-fastcore-backfill-uid-index /usr/local/bin/mailrs-fastcore-backfill-uid-index \
     && cp /build/target/release/mailrs-fastcore-backfill-usage /usr/local/bin/mailrs-fastcore-backfill-usage \
-    && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender \
-    && cp /build/target/release/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump \
-    && cp /build/target/release/mailrs-core-sync /usr/local/bin/mailrs-core-sync
+    && cp /build/target/release/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender
 
 # stage 2: build frontend
 FROM oven/bun:1-debian AS web-builder
@@ -143,10 +136,6 @@ COPY --from=rust-builder /usr/local/bin/mailrs-receiver /usr/local/bin/mailrs-re
 # the container's entrypoint is overridden to `mailrs-webapi`. Talks to
 # the core via mailrs-core-api over HTTP — no PG access in this binary.
 COPY --from=rust-builder /usr/local/bin/mailrs-webapi /usr/local/bin/mailrs-webapi
-# Phase 4 (sender split): outbound delivery / webhook / DMARC report
-# worker. Idle until entrypoint is overridden to `mailrs-sender`. Talks
-# to core via mailrs-core-api.
-COPY --from=rust-builder /usr/local/bin/mailrs-sender /usr/local/bin/mailrs-sender
 # Phase 8 (fastcore): kevy-backed core RPC. Idle until entrypoint is
 # overridden to `mailrs-fastcore`. Listens on :3301 when started.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore /usr/local/bin/mailrs-fastcore
@@ -160,11 +149,9 @@ COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-backfill-usage /usr/loca
 # and delivers via MX + STARTTLS. Idle unless entrypoint is overridden
 # to `mailrs-fastcore-sender`.
 COPY --from=rust-builder /usr/local/bin/mailrs-fastcore-sender /usr/local/bin/mailrs-fastcore-sender
-# Phase 10b (prod migration): spg → NDJSON dumper.
-# Run via `docker exec mailrs mailrs-pg-dump [--user X] [--since T]`
-# and pipe stdout into mailrs-fastcore-migrate.
-COPY --from=rust-builder /usr/local/bin/mailrs-pg-dump /usr/local/bin/mailrs-pg-dump
-COPY --from=rust-builder /usr/local/bin/mailrs-core-sync /usr/local/bin/mailrs-core-sync
+# The pg/spg lane's binaries (mailrs-sender, mailrs-pg-dump,
+# mailrs-core-sync) are not in this image: nothing in production runs
+# them, and deploy/Dockerfile.pg-core builds that lane's own image.
 COPY --from=web-builder /build/dist /opt/mailrs/web
 
 # Grant the binary capability to bind privileged ports (< 1024) so it
