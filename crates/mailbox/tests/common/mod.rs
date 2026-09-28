@@ -70,7 +70,13 @@ mod backend {
             .await
             .expect("failed to start pgvector container");
 
-        let host = container.get_host().await.expect("container host");
+        let host = mailrs_test_docker::ipv4_loopback(
+            &container
+                .get_host()
+                .await
+                .expect("container host")
+                .to_string(),
+        );
         let port = container
             .get_host_port_ipv4(5432)
             .await

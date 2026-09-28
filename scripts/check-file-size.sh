@@ -31,67 +31,65 @@ UPDATE=0
 
 sources() {
     find crates -name '*.rs' ! -path '*/target/*' | sort
-    find web/src \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | sort
+    { find web/src \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null || true; } | sort
     # The iOS app was outside this gate until 2026-08-09, so it grew five
     # files past the limit while the rest of the repo was held to it. The
     # rule says every language; the script now looks where the rule does.
-    find ios/Mailrs ios/MailrsTests ios/MailrsUITests -name '*.swift' 2>/dev/null | sort
+    # A missing directory means no files there, not a failed check —
+    # under pipefail a bare find would end the list here and skip the
+    # Android files below without a word.
+    { find ios/Mailrs ios/MailrsTests ios/MailrsUITests -name '*.swift' 2>/dev/null || true; } | sort
     # And the Android app, for the same reason and by the same argument:
     # it was outside this gate while it was written, and grew a
     # 1,460-line view model on the day the rest of the repo had none over
     # 500. The rule says every language.
-    find android/app/src -name '*.kt' 2>/dev/null | sort
+    { find android/app/src -name '*.kt' 2>/dev/null || true; } | sort
 }
 
-# Carve-out #1: generated code is exempt,
-# and the marker has to be grep-able. Both spellings are accepted — the
-# rule asks for `CODEGEN:`, and generators write their own banner.
-generated() {
-    head -5 "$1" | grep -qiE 'CODEGEN:|auto-generated|@generated|DO NOT EDIT'
+# Carve-out #1: generated code is exempt, and the marker has to be
+# grep-able. Both spellings are accepted — the rule asks for `CODEGEN:`,
+# and generators write their own banner. The Rust counter reports it
+# itself; the others are checked here.
+#
+# Every file is counted in one pass per language. A few processes per
+# file used to cost about twenty seconds, nearly all of it fork and exec.
+counts() {
+    sources | grep '\.rs$' | tr '\n' '\0' | xargs -0 awk -f "$AWK"
+    sources | grep -v '\.rs$' | tr '\n' '\0' | xargs -0 awk '
+        FNR <= 5 && tolower($0) ~ /codegen:|auto-generated|@generated|do not edit/ { print FILENAME }
+    ' | sort -u > "$TMP_GEN"
+    sources | grep -v '\.rs$' | tr '\n' '\0' | xargs -0 wc -l \
+        | awk -v gen="$TMP_GEN" '
+            BEGIN { while ((getline g < gen) > 0) skip[g] = 1 }
+            { n = $1; sub(/^[[:space:]]*[0-9]+[[:space:]]+/, ""); if ($0 != "total" && !($0 in skip)) print n " " $0 }
+        '
 }
 
-count() {
-    case "$1" in
-        *.rs) awk -f "$AWK" "$1" ;;
-        *)    wc -l < "$1" | tr -d ' ' ;;
-    esac
-}
+TMP_GEN=$(mktemp)
+trap 'rm -f "$TMP_GEN"' EXIT
 
-# bash 3.2 (macOS) has no associative arrays, so the baseline is looked up
-# by grep. It is 45 lines; this is not the slow part.
-baseline_of() {
-    [ -f "$BASELINE" ] || return 0
-    awk -v want="$1" '$2 == want { print $1; found = 1 } END { if (!found) print "" }' "$BASELINE"
-}
-
-over=""       # not in baseline, over the limit
-grew=""       # in baseline, larger than it
-shrunk=""     # in baseline, now under the limit
-current=""
-
-while read -r f; do
-    [ -f "$f" ] || continue
-    generated "$f" && continue
-    n=$(count "$f")
-    b=$(baseline_of "$f")
-
-    # Everything still over the limit stays on the (rewritten) baseline,
-    # whether it was there before or is being seeded now.
-    [ "$n" -gt "$LIMIT" ] && current="$current$n $f\n"
-
-    if [ -n "$b" ]; then
-        if [ "$n" -gt "$b" ]; then
-            grew="$grew\n  $f: $b -> $n"
-        elif [ "$n" -le "$LIMIT" ]; then
-            shrunk="$shrunk\n  $f ($n)"
-        fi
-    elif [ "$n" -gt "$LIMIT" ]; then
-        over="$over\n  $f: $n"
-    fi
-done < <(sources)
+# Everything still over the limit stays on the (rewritten) baseline,
+# whether it was there before or is being seeded now.
+report=$(counts | awk -v limit="$LIMIT" -v baseline="$BASELINE" '
+    BEGIN { while ((getline line < baseline) > 0) { split(line, f, " "); base[f[2]] = f[1] } }
+    $1 == "GEN" { next }
+    {
+        n = $1 + 0; path = $0; sub(/^[0-9]+ /, "", path)
+        if (n > limit) print "current\t" n " " path
+        if (path in base) {
+            if (n > base[path] + 0) print "grew\t  " path ": " base[path] " -> " n
+            else if (n <= limit) print "shrunk\t  " path " (" n ")"
+        } else if (n > limit) print "over\t  " path ": " n
+    }
+')
+section() { printf "%s\n" "$report" | awk -F'\t' -v k="$1" '$1 == k { print $2 }'; }
+current=$(section current)
+over=$(section over)
+grew=$(section grew)
+shrunk=$(section shrunk)
 
 if [ "$UPDATE" = 1 ]; then
-    printf "%b" "$current" | sort -rn > "$BASELINE"
+    if [ -n "$current" ]; then printf "%s\n" "$current"; fi | sort -rn > "$BASELINE"
     echo "baseline rewritten: $(grep -c . "$BASELINE") files over $LIMIT"
     exit 0
 fi
@@ -99,13 +97,13 @@ fi
 fail=0
 if [ -n "$over" ]; then
     echo "!! over the $LIMIT-line limit and not in the baseline:"
-    printf "%b\n" "$over"
+    printf "%s\n" "$over"
     echo "   Split it, or add a CODEGEN: / CARVE-OUT: marker."
     fail=1
 fi
 if [ -n "$grew" ]; then
     echo "!! grew past its baseline (the baseline only goes down):"
-    printf "%b\n" "$grew"
+    printf "%s\n" "$grew"
     echo "   Take the additions somewhere else, or split first."
     fail=1
 fi
@@ -114,7 +112,7 @@ fi
 remaining=$(grep -c . "$BASELINE" 2>/dev/null || echo 0)
 if [ -n "$shrunk" ]; then
     echo "file size OK — and these dropped under $LIMIT:"
-    printf "%b\n" "$shrunk"
+    printf "%s\n" "$shrunk"
     echo "   Run ./scripts/check-file-size.sh --update to retire them."
 else
     echo "file size OK — $remaining file(s) still on the baseline"

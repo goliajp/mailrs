@@ -61,6 +61,22 @@ const HEARTBEAT: Duration = Duration::from_secs(5);
 /// `STALE_AFTER` needed, one layer down.
 pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// The host to reach a container's IPv4-mapped port on.
+///
+/// testcontainers reports `localhost`, and the ports fixtures ask for come
+/// from `get_host_port_ipv4`. Where `localhost` resolves to `::1` first,
+/// the client connects to docker's IPv6 proxy instead: the TCP connect
+/// succeeds, then the data path is reset, so falling through to the next
+/// address never happens. That showed up as `Connection reset by peer`
+/// and as a non-HTTP answer from mailpit, on a host whose resolver puts
+/// `::1` first, and only there.
+pub fn ipv4_loopback(host: &str) -> String {
+    match host {
+        "localhost" => "127.0.0.1".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// Held while one container comes up. Released on drop, including on panic.
 pub struct StartupLock(PathBuf, Option<tokio::task::JoinHandle<()>>);
 

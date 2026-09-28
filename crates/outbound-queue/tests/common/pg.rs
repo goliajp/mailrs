@@ -107,11 +107,13 @@ pub async fn start_pg() -> (TestHandle, BackendPool) {
         .await
         .expect("start postgres container");
 
-    let host = container
-        .get_host()
-        .await
-        .expect("get container host")
-        .to_string();
+    let host = mailrs_test_docker::ipv4_loopback(
+        &container
+            .get_host()
+            .await
+            .expect("get container host")
+            .to_string(),
+    );
     let port = container
         .get_host_port_ipv4(5432)
         .await
