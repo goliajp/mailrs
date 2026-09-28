@@ -1,0 +1,17 @@
+[package]
+name = "mailrs-perf-recipes"
+version = "0.0.0"
+edition = "2024"
+description = "Test-only: release perf budgets for the inbound path's composition of stones."
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+mailrs-dmarc = { path = "../dmarc", version = "2" }
+mailrs-maildir = { path = "../storage-maildir", version = "1.2" }
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
+mailrs-smtp-proto = { path = "../smtp-proto", version = "1" }
+tempfile = "3"
