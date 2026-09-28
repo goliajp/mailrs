@@ -1,4 +1,8 @@
 //! Regression budgets for `mailrs-imap-codec`. See BUDGETS.md.
+//!
+//! Release only: `scripts/perf-gates.sh` runs these in the profile the budgets
+//! were measured in. A debug build on another machine measures that machine.
+#![cfg(not(debug_assertions))]
 
 use bytes::BytesMut;
 use mailrs_imap_codec::ImapCodec;
