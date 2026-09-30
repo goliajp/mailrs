@@ -356,10 +356,11 @@ mod tests {
     }
 
     #[test]
-    fn parse_record_skips_modifiers() {
-        // `redirect=` is a modifier, not a mechanism — silently skipped in v1.0.
-        let r = Record::parse("v=spf1 redirect=spf.example.com").unwrap();
+    fn parse_record_keeps_redirect_and_skips_other_modifiers() {
+        let r = Record::parse("v=spf1 exp=explain.example.com redirect=spf.example.com").unwrap();
         assert_eq!(r.mechanisms.len(), 0);
+        assert_eq!(r.redirect.as_deref(), Some("spf.example.com"));
+        assert!(Record::parse("v=spf1 redirect=a.example redirect=b.example").is_err());
     }
 
     #[test]
