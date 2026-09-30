@@ -29,6 +29,7 @@ use super::prelude::*;
 
 pub(super) mod reading;
 use config::{our_authserv_id, policy_from_env};
+use holding::move_to_junk;
 use reading::*;
 
 /// Threads between pauses.
@@ -116,6 +117,7 @@ pub(crate) async fn rescan(
     let mut scored_found = 0u64;
     let mut scored_moved = 0u64;
     let mut scored_already_junk = 0u64;
+    let mut scored_whitelisted = 0u64;
     let mut scored_by_reason: HashMap<String, u64> = HashMap::new();
     let mut scored_samples: Vec<serde_json::Value> = Vec::new();
 
@@ -293,6 +295,12 @@ pub(crate) async fn rescan(
             match disposition(false, junks_on_its_own(&findings), held_now) {
                 Disposition::Release => {}
                 Disposition::Junk => {
+                    // the receive path lets a whitelisted sender past
+                    // every score, so the sweep must not score them back
+                    if sender_whitelisted(&mut hist, user, &raw) {
+                        scored_whitelisted += 1;
+                        continue;
+                    }
                     scored_found += 1;
                     for r in findings.rules() {
                         *scored_by_reason.entry(r.to_string()).or_default() += 1;
@@ -429,40 +437,11 @@ pub(crate) async fn rescan(
         "scored_found": scored_found,
         "scored_moved_to_junk": scored_moved,
         "scored_already_junk": scored_already_junk,
+        "scored_but_whitelisted": scored_whitelisted,
         "scored_by_reason": scored_by_reason,
         "scored_samples": scored_samples,
     }))
     .into_response()
-}
-
-/// Move a conversation to Junk. `Some(true)` when it was already
-/// there, `None` when the write failed (logged).
-///
-/// **Reads the bucket first.** `set_junk` answers "did the row exist",
-/// not "did anything change" — so counting its `true` as a move made
-/// `already_junk` a number that could not come out other than zero,
-/// and a second run reported moving fifty threads that were already in
-/// Junk.
-fn move_to_junk(state: &FastcoreState, user: &str, tid: &str) -> Option<bool> {
-    let was_junk = state
-        .mailbox
-        .get_thread_for_user(user, tid)
-        .ok()
-        .flatten()
-        .is_some_and(|r| {
-            // `bucket_of`, not a literal: the category a Junk row
-            // carries is `spam`, and the first version of this
-            // compared against "junk" and was therefore never true.
-            mailrs_mailbox_kevy::keys::bucket_of(&r.category)
-                == mailrs_mailbox_kevy::keys::Bucket::Junk
-        });
-    match state.mailbox.set_junk(user, tid, true) {
-        Ok(_) => Some(was_junk),
-        Err(e) => {
-            tracing::warn!(err = %e, %user, %tid, "fraud rescan: set_junk failed");
-            None
-        }
-    }
 }
 
 #[cfg(test)]

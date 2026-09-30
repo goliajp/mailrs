@@ -70,6 +70,9 @@ pub struct ReceiveContext {
     /// lookup. The caller (fastcore inbound handler) sets this before
     /// running the pipeline; stages don't touch it.
     pub from_addr: String,
+    /// The bare `From:` header address, lowercased — see
+    /// [`PipelineInput::header_from_addr`](crate::PipelineInput).
+    pub header_from_addr: String,
     /// Recipient's per-user whitelist. Populated by the caller with a
     /// snapshot of `spam:{user}:whitelist` for `recipient`.
     pub recipient_whitelist: std::collections::HashSet<String>,
@@ -98,6 +101,7 @@ impl ReceiveContext {
         // construction site — so no caller can forget it and no stage
         // ordering can leave it unset.
         let deception = crate::identity::deception_in_identity(&message);
+        let header_from_addr = crate::identity::from_address(&message);
         Self {
             client_ip,
             ehlo_domain: ehlo_domain.into(),
@@ -119,6 +123,7 @@ impl ReceiveContext {
             // scan here would be a second place that decides.
             fraud: mailrs_fraud::Findings::new(),
             from_addr: String::new(),
+            header_from_addr,
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
@@ -166,6 +171,7 @@ impl ReceiveContext {
             spam_threshold,
             hostname: self.hostname.clone(),
             from_addr: self.from_addr.clone(),
+            header_from_addr: self.header_from_addr.clone(),
             recipient_whitelist: self.recipient_whitelist.clone(),
             local_domains: self.local_domains.clone(),
             recipient_blacklist: self.recipient_blacklist.clone(),

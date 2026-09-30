@@ -44,6 +44,7 @@ fn default_input() -> PipelineInput {
         spam_threshold: 5.0,
         hostname: "mx.example.com".into(),
         from_addr: String::new(),
+        header_from_addr: String::new(),
         recipient_whitelist: std::collections::HashSet::new(),
         recipient_blacklist: std::collections::HashSet::new(),
         local_domains: std::collections::HashSet::new(),
