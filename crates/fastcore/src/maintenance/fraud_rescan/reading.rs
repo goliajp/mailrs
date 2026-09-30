@@ -200,7 +200,8 @@ pub(super) fn reply_rotation(
 
 /// Whether `user` marked this message's sender not junk.
 ///
-/// A list that cannot be read counts as naming the sender, the same
+/// Without a store there is no list, so nothing is on it. A list that
+/// exists but cannot be read counts as naming the sender, the same
 /// direction as [`reply_rotation`]: be wrong towards the answer that
 /// does not hide mail.
 pub(super) fn sender_whitelisted(
@@ -209,7 +210,7 @@ pub(super) fn sender_whitelisted(
     raw: &[u8],
 ) -> bool {
     let Some(conn) = conn.as_mut() else {
-        return true;
+        return false;
     };
     match mailrs_core_sidestate::families::sender_lists::whitelist(conn, user) {
         // the envelope sender is not kept with the message

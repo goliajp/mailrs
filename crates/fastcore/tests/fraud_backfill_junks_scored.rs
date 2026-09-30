@@ -95,6 +95,7 @@ async fn the_backfill_junks_a_scored_campaign_and_nothing_else() {
     unsafe {
         std::env::set_var("MAILRS_MAILDIR", &root);
         std::env::set_var("MAILRS_FRAUD_RULES_FILE", &rules);
+        std::env::set_var("MAILRS_KEVY_URL", "mem://fraud-backfill-junks-scored");
     }
     let store = KevyMailboxStore::new(Arc::new(
         kevy_embedded::Store::open(kevy_embedded::Config::default()).unwrap(),
@@ -124,4 +125,20 @@ async fn the_backfill_junks_a_scored_campaign_and_nothing_else() {
         Bucket::Junk,
         "the control must not move"
     );
+
+    // Once the recipient says the sender is not junk, a later sweep
+    // leaves their mail where it is — the receive path already does.
+    let mut kevy = kevy_client::Connection::connect("mem://fraud-backfill-junks-scored").unwrap();
+    kevy.sadd(
+        mailrs_core_sidestate::families::sender_lists::whitelist_key(USER).as_bytes(),
+        &[b"ericaf_flores@caredealspark.com".as_slice()],
+    )
+    .unwrap();
+    add(&state.mailbox, &root, "cut-again", "Hao");
+    let journal = tmp.path().join("job-after-not-junk");
+    assert!(!run_once(state.clone(), &journal, &rules).await.unwrap());
+    let progress: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(journal.join("progress.json")).unwrap()).unwrap();
+    assert_eq!(progress["junked"], 0, "{progress}");
+    assert_ne!(bucket(&state, "cut-again"), Bucket::Junk);
 }
