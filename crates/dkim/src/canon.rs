@@ -173,6 +173,9 @@ fn collapse_trailing_crlf(input: &[u8]) -> Vec<u8> {
 /// is collapsed away). Used by the relaxed header canon.
 fn unfold_value(input: &str) -> String {
     let bytes = input.as_bytes();
+    // only ASCII CR / LF bytes are dropped, so every non-ASCII sequence is
+    // copied whole; pushing bytes one by one as chars would re-encode UTF-8
+    // as Latin-1 and break signatures over headers like `From: Acme® <…>`
     let mut out = String::with_capacity(input.len());
     let mut i = 0;
     while i < bytes.len() {
@@ -192,8 +195,13 @@ fn unfold_value(input: &str) -> String {
             i += 1;
             continue;
         }
-        out.push(bytes[i] as char);
-        i += 1;
+        // a bare CR / LF that is not a fold is kept as-is
+        let run = bytes[i + 1..]
+            .iter()
+            .position(|&b| b == b'\r' || b == b'\n')
+            .map_or(bytes.len(), |p| i + 1 + p);
+        out.push_str(&input[i..run]);
+        i = run;
     }
     out
 }
@@ -313,5 +321,24 @@ mod tests {
     fn header_relaxed_handles_tabs() {
         let r = canonicalize_header("X", "\thello\tworld", Canon::Relaxed);
         assert_eq!(r, b"x:hello world\r\n");
+    }
+
+    #[test]
+    fn header_relaxed_keeps_utf8_bytes() {
+        let r = canonicalize_header(
+            "From",
+            " Acme\u{ae} Insight\r\n \u{65e5}\u{672c} <a@b.c>",
+            Canon::Relaxed,
+        );
+        assert_eq!(
+            r,
+            "from:Acme\u{ae} Insight \u{65e5}\u{672c} <a@b.c>\r\n".as_bytes()
+        );
+    }
+
+    #[test]
+    fn header_relaxed_keeps_bare_lf() {
+        let r = canonicalize_header("X", "a\nb", Canon::Relaxed);
+        assert_eq!(r, b"x:a\nb\r\n");
     }
 }

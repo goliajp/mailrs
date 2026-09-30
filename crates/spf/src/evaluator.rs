@@ -4,6 +4,7 @@
 use std::net::IpAddr;
 
 use crate::error::{SpfError, SpfResult};
+use crate::macros::expand;
 use crate::record::{Mechanism, Qualifier, Record, ip_in_subnet};
 use crate::resolver::SpfResolver;
 
@@ -150,6 +151,20 @@ async fn eval_record<R: SpfResolver + ?Sized>(
             return Ok(qualifier_to_result(mech.qualifier()));
         }
     }
+    if let Some(target) = &record.redirect {
+        // RFC 7208 §6.1: the target's result is the result, and a target
+        // without a record is a permerror rather than none
+        let target = expand(target, input, current_domain)?;
+        state.depth += 1;
+        let sub = Box::pin(verify_inner(resolver, input, &target, state)).await?;
+        state.depth -= 1;
+        return match sub {
+            SpfResult::None => Err(SpfError::InvalidRecord(format!(
+                "redirect target has no record: {target}"
+            ))),
+            r => Ok(r),
+        };
+    }
     // No mechanism matched → Neutral per RFC 7208 §4.7.
     Ok(SpfResult::Neutral)
 }
@@ -202,7 +217,12 @@ async fn mech_matches_impl<R: SpfResolver + ?Sized>(
             ip6_prefix,
             ..
         } => {
-            let target = domain.as_deref().unwrap_or(current_domain);
+            let target = expand(
+                domain.as_deref().unwrap_or(current_domain),
+                input,
+                current_domain,
+            )?;
+            let target = target.as_ref();
             state.charge()?;
             let ips = match input.ip {
                 IpAddr::V4(_) => resolver.lookup_a(target).await?,
@@ -225,7 +245,12 @@ async fn mech_matches_impl<R: SpfResolver + ?Sized>(
             ip6_prefix,
             ..
         } => {
-            let target = domain.as_deref().unwrap_or(current_domain);
+            let target = expand(
+                domain.as_deref().unwrap_or(current_domain),
+                input,
+                current_domain,
+            )?;
+            let target = target.as_ref();
             state.charge()?;
             let mxs = resolver.lookup_mx(target).await?;
             for (_pref, mx_host) in mxs {
@@ -250,17 +275,17 @@ async fn mech_matches_impl<R: SpfResolver + ?Sized>(
             // Recurse — the included record is evaluated as its own
             // sub-SPF. RFC 7208 §5.2: only `Pass` from the included
             // record counts as a match for this mechanism.
+            let target = expand(domain, input, current_domain)?;
             state.depth += 1;
-            let sub = verify_inner(resolver, input, domain, state).await?;
+            let sub = verify_inner(resolver, input, &target, state).await?;
             state.depth -= 1;
             Ok(matches!(sub, SpfResult::Pass))
         }
         Mechanism::Exists { domain, .. } => {
-            // RFC 7208 §5.7: any A record for the resolved name = match.
-            // We don't expand macros in v1.0 (out of scope); we look up
-            // the literal name.
+            // RFC 7208 §5.7: any A record for the expanded name = match.
+            let target = expand(domain, input, current_domain)?;
             state.charge()?;
-            let ips = resolver.lookup_a(domain).await?;
+            let ips = resolver.lookup_a(&target).await?;
             Ok(!ips.is_empty())
         }
     }
@@ -486,5 +511,70 @@ mod tests {
         )
         .await;
         assert_eq!(res, SpfResult::Pass);
+    }
+
+    #[tokio::test]
+    async fn include_with_macros_is_expanded_before_lookup() {
+        let r = FakeResolver::default()
+            .with_txt(
+                "focusai.com",
+                vec!["v=spf1 include:%{ir}.%{v}.%{d}.spf.has.pphosted.com ~all"],
+            )
+            .with_txt(
+                "141.227.125.74.in-addr.focusai.com.spf.has.pphosted.com",
+                vec!["v=spf1 ip4:74.125.227.141 -all"],
+            );
+        let pass = verify(
+            &r,
+            &input("74.125.227.141", "g.example", "no-reply@focusai.com"),
+        )
+        .await;
+        assert_eq!(pass, SpfResult::Pass);
+        let other = verify(
+            &r,
+            &input("74.125.227.142", "g.example", "no-reply@focusai.com"),
+        )
+        .await;
+        assert_eq!(other, SpfResult::SoftFail);
+    }
+
+    #[tokio::test]
+    async fn exists_with_macros_is_expanded_before_lookup() {
+        let r = FakeResolver::default()
+            .with_txt("example.com", vec!["v=spf1 exists:%{ir}._spf.%{d} -all"])
+            .with_a("4.3.2.1._spf.example.com", vec!["127.0.0.2"]);
+        let res = verify(&r, &input("1.2.3.4", "h", "a@example.com")).await;
+        assert_eq!(res, SpfResult::Pass);
+    }
+
+    #[tokio::test]
+    async fn redirect_takes_the_target_result() {
+        let r = FakeResolver::default()
+            .with_txt(
+                "example.com",
+                vec!["v=spf1 ip4:10.0.0.1 redirect=_spf.%{d}"],
+            )
+            .with_txt("_spf.example.com", vec!["v=spf1 ip4:1.2.3.4 -all"]);
+        let pass = verify(&r, &input("1.2.3.4", "h", "a@example.com")).await;
+        assert_eq!(pass, SpfResult::Pass);
+        let fail = verify(&r, &input("5.6.7.8", "h", "a@example.com")).await;
+        assert_eq!(fail, SpfResult::Fail);
+    }
+
+    #[tokio::test]
+    async fn redirect_is_ignored_once_a_mechanism_matches() {
+        let r = FakeResolver::default()
+            .with_txt("example.com", vec!["v=spf1 ~all redirect=_spf.example.com"])
+            .with_txt("_spf.example.com", vec!["v=spf1 +all"]);
+        let res = verify(&r, &input("5.6.7.8", "h", "a@example.com")).await;
+        assert_eq!(res, SpfResult::SoftFail);
+    }
+
+    #[tokio::test]
+    async fn redirect_to_a_domain_without_record_is_permerror() {
+        let r = FakeResolver::default()
+            .with_txt("example.com", vec!["v=spf1 redirect=nothing.example"]);
+        let res = verify(&r, &input("5.6.7.8", "h", "a@example.com")).await;
+        assert_eq!(res, SpfResult::PermError);
     }
 }

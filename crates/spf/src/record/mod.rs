@@ -106,8 +106,8 @@ pub enum Mechanism {
     Exists {
         /// Qualifier applied on match.
         qualifier: Qualifier,
-        /// Domain template to look up. Macro expansion is out of v1 scope;
-        /// the literal template is used as-is. `CompactString` per `A.domain`.
+        /// Domain template to look up; macros are expanded at evaluation
+        /// time. `CompactString` per `A.domain`.
         domain: CompactString,
     },
 }
@@ -133,6 +133,9 @@ pub struct Record {
     /// All mechanisms in document order (the evaluator walks them
     /// left-to-right and stops at the first non-implicit match).
     pub mechanisms: Vec<Mechanism>,
+    /// `redirect=` target (RFC 7208 §6.1), evaluated when no mechanism
+    /// matches. Other modifiers are ignored.
+    pub redirect: Option<CompactString>,
 }
 
 impl Record {
@@ -164,6 +167,7 @@ impl Record {
 
         let bytes = after_version.as_bytes();
         let mut mechanisms = Vec::with_capacity(4);
+        let mut redirect = None;
 
         // tok_start: start of the current token's bytes (or end-of-input
         // if we're between tokens).
@@ -195,7 +199,17 @@ impl Record {
                 (Some(_), None) => true,
                 _ => false,
             };
-            if !is_modifier {
+            if is_modifier {
+                if let Some(target) = token_bytes.strip_prefix(b"redirect=") {
+                    if redirect.is_some() {
+                        return Err(SpfError::InvalidRecord("duplicate redirect=".into()));
+                    }
+                    // SAFETY: same valid `&str` slicing as the mechanism branch below
+                    redirect = Some(CompactString::from(unsafe {
+                        std::str::from_utf8_unchecked(target)
+                    }));
+                }
+            } else {
                 // SAFETY: bytes come from a valid `&str` and we only
                 // sliced on memchr-found byte boundaries, all ASCII.
                 let token = unsafe { std::str::from_utf8_unchecked(token_bytes) };
@@ -226,6 +240,9 @@ impl Record {
             pos = tok_end + 1;
         }
 
-        Ok(Record { mechanisms })
+        Ok(Record {
+            mechanisms,
+            redirect,
+        })
     }
 }

@@ -5,11 +5,13 @@
 //! Module layout:
 //! - [`record`] — TXT-record string → typed [`Record`]
 //! - [`evaluator`] — typed Record + DNS → [`SpfResult`]
+//! - [`macros`] — domain-spec macro expansion (RFC 7208 §7)
 //! - [`resolver`] — [`SpfResolver`] trait + (optional) hickory impl
 //! - [`error`] — error / temp-fail / perm-fail types
 
 pub mod error;
 pub mod evaluator;
+pub mod macros;
 pub mod record;
 pub mod resolver;
 
