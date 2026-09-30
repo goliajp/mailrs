@@ -220,16 +220,29 @@ pub async fn run() {
     );
 
     // manual TLS only (ACME stays core-side for phase 1); plain SMTP if unset.
+    // The files are followed afterwards, so a renewed certificate reaches
+    // 465, 587 and STARTTLS on 25 without a restart.
     let tls_state = match (&cfg.tls_cert, &cfg.tls_key) {
-        (Some(cert), Some(key)) => match mailrs_tls_reload::load_tls_config(cert, key) {
-            Ok(c) => Some(mailrs_tls_reload::TlsState::new(
-                Arc::try_unwrap(c).unwrap_or_else(|arc| (*arc).clone()),
-            )),
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to load TLS cert/key; starting without TLS");
-                None
+        (Some(cert), Some(key)) => {
+            let loaded = mailrs_tls_reload::load_tls_config(cert, key)
+                .and_then(|c| Ok((c, mailrs_tls_reload::CertWatcher::new(cert, key)?)));
+            match loaded {
+                Ok((c, watcher)) => {
+                    let state = mailrs_tls_reload::TlsState::new(Arc::unwrap_or_clone(c));
+                    mailrs_tls_reload::spawn_watch(
+                        state.clone(),
+                        watcher,
+                        std::time::Duration::from_secs(60),
+                        "receiver",
+                    );
+                    Some(state)
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to load TLS cert/key; starting without TLS");
+                    None
+                }
             }
-        },
+        }
         _ => None,
     };
 
