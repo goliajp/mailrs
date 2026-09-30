@@ -203,9 +203,8 @@ pub async fn mark_junk(
 /// POST /api/conversations/{thread_id}/mark-not-junk
 /// v2.4.1 Phase 3 (RFC-B §3.4) — move thread to Inbox AND add
 /// the thread's senders to the recipient's whitelist so future
-/// arrivals from the same sender bypass the score threshold when
-/// authed (§D5 requires SPF or DKIM pass at delivery time — see
-/// `crates/inbound/src/decision.rs`).
+/// arrivals from the same sender skip Junk (see
+/// `mailrs_inbound::make_delivery_decision` for the one exception).
 pub async fn mark_not_junk(
     State(state): State<Arc<WebState>>,
     Extension(AuthedUser(user)): Extension<AuthedUser>,
@@ -250,7 +249,7 @@ pub async fn mark_not_junk(
         let user_lc = user.to_lowercase();
         let senders = senders_csv;
         let _ = crate::handlers::kevy_util::with_kevy(move |c| {
-            let wl_key = format!("spam:{user_lc}:whitelist");
+            let wl_key = mailrs_core_sidestate::families::sender_lists::whitelist_key(&user_lc);
             // Bare addresses only: delivery compares the envelope
             // sender, so a stored `Name <addr>` never matches and the
             // whitelist silently does nothing.

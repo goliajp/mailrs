@@ -15,6 +15,7 @@ pub mod prefs;
 pub mod reply_rotation;
 pub mod send;
 pub mod send_read;
+pub mod sender_lists;
 pub mod suppression;
 pub mod webhook_outbox;
 pub mod webhooks;

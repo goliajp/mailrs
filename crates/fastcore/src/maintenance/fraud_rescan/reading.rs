@@ -197,3 +197,25 @@ pub(super) fn reply_rotation(
     let Some(conn) = conn.as_mut() else { return 0 };
     mailrs_core_sidestate::families::reply_rotation::domains(conn, from_host, reply_addr)
 }
+
+/// Whether `user` marked this message's sender not junk.
+///
+/// A list that cannot be read counts as naming the sender, the same
+/// direction as [`reply_rotation`]: be wrong towards the answer that
+/// does not hide mail.
+pub(super) fn sender_whitelisted(
+    conn: &mut Option<kevy_client::Connection>,
+    user: &str,
+    raw: &[u8],
+) -> bool {
+    let Some(conn) = conn.as_mut() else {
+        return true;
+    };
+    match mailrs_core_sidestate::families::sender_lists::whitelist(conn, user) {
+        // the envelope sender is not kept with the message
+        Ok(list) => {
+            mailrs_inbound::sender_listed(&list, "", &mailrs_inbound::identity::from_address(raw))
+        }
+        Err(_) => true,
+    }
+}
