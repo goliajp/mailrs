@@ -20,6 +20,8 @@ arc-swap = "1"
 rustls = "0.23"
 rustls-pki-types = { version = "1", features = ["alloc"] }
 tokio-rustls = "0.26"
+tokio = { version = "1", features = ["rt", "time"] }
+tracing = "0.1"
 
 [dev-dependencies]
 criterion = { workspace = true }
