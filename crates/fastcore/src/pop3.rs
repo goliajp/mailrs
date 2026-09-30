@@ -7,11 +7,12 @@
 //!
 //! Auth uses the same kevy account store as IMAP.
 
-use std::path::Path;
 use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
+
+use mailrs_tls_reload::TlsState;
 
 use crate::FastcoreState;
 use crate::imap::backend::{self, ImapMessage};
@@ -51,29 +52,13 @@ pub async fn spawn(state: Arc<FastcoreState>) {
 }
 
 /// Spawn implicit-TLS POP3S listener on `MAILRS_POP3S_BIND`
-/// (default `0.0.0.0:995`). Reuses `MAILRS_TLS_CERT` +
-/// `MAILRS_TLS_KEY` (same paths as IMAPS + receiver).
-pub async fn spawn_tls(state: Arc<FastcoreState>) {
+/// (default `0.0.0.0:995`), sharing IMAPS's certificate state.
+pub async fn spawn_tls(state: Arc<FastcoreState>, tls: TlsState) {
     let bind = std::env::var("MAILRS_POP3S_BIND").unwrap_or_else(|_| "0.0.0.0:995".to_string());
     if bind.eq_ignore_ascii_case("off") || bind.is_empty() {
         tracing::debug!("MAILRS_POP3S_BIND=off — skipping POP3S listener");
         return;
     }
-    let (Ok(cert_path), Ok(key_path)) = (
-        std::env::var("MAILRS_TLS_CERT"),
-        std::env::var("MAILRS_TLS_KEY"),
-    ) else {
-        tracing::debug!("MAILRS_TLS_CERT / MAILRS_TLS_KEY unset — skipping POP3S listener");
-        return;
-    };
-    let acceptor = match crate::imap::load_tls_acceptor(Path::new(&cert_path), Path::new(&key_path))
-    {
-        Ok(a) => a,
-        Err(e) => {
-            tracing::error!(error = %e, %cert_path, %key_path, "pop3s: TLS config load failed");
-            return;
-        }
-    };
     let listener = match TcpListener::bind(&bind).await {
         Ok(l) => l,
         Err(e) => {
@@ -91,7 +76,7 @@ pub async fn spawn_tls(state: Arc<FastcoreState>) {
             }
         };
         let state = state.clone();
-        let acceptor = acceptor.clone();
+        let acceptor = tls.acceptor();
         tokio::spawn(async move {
             tracing::debug!(%peer, "pop3s: connection open");
             match acceptor.accept(sock).await {
