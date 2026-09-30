@@ -299,7 +299,15 @@ pub fn to_display_name(raw: &[u8]) -> String {
 /// them — 36,318 production messages hold 265 distinct off-domain
 /// reply addresses between them.
 pub fn reply_to_address(raw: &[u8]) -> String {
-    let v = decoded_identity(raw).3;
+    bare_address(&decoded_identity(raw).3)
+}
+
+/// The bare address in `From:`, lowercased. Empty without one.
+pub fn from_address(raw: &[u8]) -> String {
+    bare_address(&decoded_identity(raw).0)
+}
+
+fn bare_address(v: &str) -> String {
     let inner = match (v.rfind('<'), v.rfind('>')) {
         (Some(a), Some(b)) if a < b => &v[a + 1..b],
         _ => v.trim(),
@@ -512,6 +520,14 @@ From: devops@golia.jp\r\n\r\nbody\r\n";
                 "{header}"
             );
         }
+    }
+
+    #[test]
+    fn the_from_address_is_bare_and_lowercased() {
+        let raw =
+            "From: =?UTF-8?B?UXVhbGNvbW3CriBJbnNpZ2h0?=\r\n <No-Reply@FocusAI.com>\r\n\r\nbody\r\n";
+        assert_eq!(from_address(raw.as_bytes()), "no-reply@focusai.com");
+        assert_eq!(from_address(b"Subject: x\r\n\r\n"), "");
     }
 
     #[test]

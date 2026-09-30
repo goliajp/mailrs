@@ -20,6 +20,7 @@ use axum::Extension;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::Json;
+use mailrs_core_sidestate::families::sender_lists::{blacklist_key, whitelist_key};
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
@@ -28,14 +29,6 @@ use crate::handlers::kevy_util::with_kevy;
 #[derive(serde::Deserialize)]
 pub struct AddRequest {
     pub address: String,
-}
-
-fn whitelist_key(user: &str) -> String {
-    format!("spam:{}:whitelist", user.to_lowercase())
-}
-
-fn blacklist_key(user: &str) -> String {
-    format!("spam:{}:blacklist", user.to_lowercase())
 }
 
 fn list_set(user: &str, key: &str) -> Result<Vec<String>, StatusCode> {

@@ -123,23 +123,21 @@ pub struct PipelineInput {
     /// blacklist lookup. Empty when unavailable (very early failures
     /// before header parse); in that case the recipient-list decisions
     /// below fall through to the score-based path.
-    ///
-    /// v2.4.1 Phase 3 (RFC-B) addition.
     pub from_addr: String,
-    /// Recipient's per-user whitelist — envelope sender addresses this
-    /// recipient has explicitly marked as "not junk". Populated by the
-    /// caller (fastcore inbound handler) for each `rcpt` before running
-    /// the pipeline. A whitelist hit routes to Accept **only** if SPF
-    /// or DKIM verified — prevents a phishing sender from claiming a
-    /// whitelisted `From:` and bypassing the score path.
-    ///
-    /// v2.4.1 Phase 3 (RFC-B) addition.
+    /// The bare address in the `From:` header, lowercased. The lists
+    /// below match it as well as the envelope sender: "not junk" stores
+    /// the addresses a person sees, and mail sent through a delivery
+    /// service carries a bounce address in the envelope instead.
+    pub header_from_addr: String,
+    /// Recipient's per-user whitelist — sender addresses this recipient
+    /// has marked as "not junk". Populated by the caller for each `rcpt`
+    /// before running the pipeline. A hit is Accept whatever our own
+    /// scoring says; see [`make_delivery_decision`] for what still
+    /// overrules it.
     pub recipient_whitelist: std::collections::HashSet<String>,
-    /// Recipient's per-user blacklist — envelope sender addresses this
-    /// recipient has explicitly marked as junk / blocked. A blacklist
-    /// hit routes straight to Junk, bypassing the score threshold path.
-    ///
-    /// v2.4.1 Phase 3 (RFC-B) addition.
+    /// Recipient's per-user blacklist — sender addresses this recipient
+    /// has explicitly marked as junk / blocked. A blacklist hit routes
+    /// straight to Junk, bypassing the score threshold path.
     pub recipient_blacklist: std::collections::HashSet<String>,
     /// The domains this server is the mail host for, lowercased.
     ///
@@ -156,15 +154,26 @@ pub struct PipelineInput {
     pub local_domains: std::collections::HashSet<String>,
 }
 
+/// Whether a per-user sender list names this message's envelope sender
+/// or its `From:` address. Both are lowercased by the caller; an empty
+/// address never matches.
+pub fn sender_listed(
+    list: &std::collections::HashSet<String>,
+    envelope_from: &str,
+    header_from: &str,
+) -> bool {
+    [envelope_from, header_from]
+        .into_iter()
+        .any(|addr| !addr.is_empty() && list.contains(addr))
+}
+
 /// Pure policy combiner. Order of precedence (high → low):
 ///
 /// 1. Greylist (highest — defer before any other work).
 /// 2. Virus found (hard 550 reject).
 /// 3. DMARC policy=reject (hard 550 reject).
-/// 4. **Recipient whitelist hit + SPF-or-DKIM pass → Accept** (v2.4.1
-///    Phase 3, RFC-B §D5). The auth requirement prevents a phishing
-///    sender from spoofing a whitelisted `From:` and bypassing the
-///    score path.
+/// 4. **Recipient whitelist hit → Accept**, unless DMARC failed under
+///    the sender domain's `p=quarantine`.
 /// 5. **Recipient blacklist hit → Junk** (v2.4.1 Phase 3, RFC-B §D4).
 ///    Runs after virus / DMARC-reject so a blacklist entry can't save
 ///    virus mail from a hard reject, but before content scoring so an
@@ -210,20 +219,20 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
         };
     }
 
-    // v2.4.1 Phase 3 (RFC-B §D5) — recipient whitelist. Bypass the
-    // score / DMARC-quarantine path only when SPF or DKIM pass; a
-    // spoofed `From:` shouldn't earn Accept just because the true
-    // owner of that address is whitelisted.
-    if !input.from_addr.is_empty() && input.recipient_whitelist.contains(&input.from_addr) {
-        let spf_pass = input.auth.spf.eq_ignore_ascii_case("pass");
-        let dkim_pass = input.auth.dkim.eq_ignore_ascii_case("pass");
-        if spf_pass || dkim_pass {
-            return DeliveryDecision::Accept { auth_header };
-        }
-        // Whitelist hit but no auth pass — fall through to normal
-        // scoring path. Do NOT log the ignored whitelist here; the
-        // score / DMARC-quarantine decision that follows is the
-        // authoritative one.
+    // The recipient said this sender is not junk, and that outranks
+    // every score of ours — including a failed SPF or DKIM check, which
+    // is as often our verifier or the sender's setup as it is a forgery.
+    // What still overrules it is the domain owner saying that mail
+    // failing DMARC is not theirs (`p=quarantine` here, `p=reject`
+    // above): a whitelisted bank address is exactly what a phisher
+    // writes into `From:`.
+    if sender_listed(
+        &input.recipient_whitelist,
+        &input.from_addr,
+        &input.header_from_addr,
+    ) && input.auth.dmarc_policy != DmarcPolicy::Quarantine
+    {
+        return DeliveryDecision::Accept { auth_header };
     }
 
     // Our own people are not strangers.
@@ -259,10 +268,18 @@ pub fn make_delivery_decision(input: &PipelineInput) -> DeliveryDecision {
     // Junk (never SMTP-reject; §D8 restricts hard 550 to virus +
     // DMARC-reject only). Runs after virus / DMARC-reject so a
     // blacklist entry can't override those safety gates.
-    if !input.from_addr.is_empty() && input.recipient_blacklist.contains(&input.from_addr) {
+    if sender_listed(
+        &input.recipient_blacklist,
+        &input.from_addr,
+        &input.header_from_addr,
+    ) {
+        let listed = match input.recipient_blacklist.contains(&input.from_addr) {
+            true => &input.from_addr,
+            false => &input.header_from_addr,
+        };
         return DeliveryDecision::Junk {
             auth_header,
-            reason: format!("recipient blacklist: {}", input.from_addr),
+            reason: format!("recipient blacklist: {listed}"),
         };
     }
 
@@ -414,6 +431,7 @@ mod tests {
             spam_threshold: 5.0,
             hostname: "mx.example.com".into(),
             from_addr: String::new(),
+            header_from_addr: String::new(),
             recipient_whitelist: std::collections::HashSet::new(),
             recipient_blacklist: std::collections::HashSet::new(),
             local_domains: std::collections::HashSet::new(),
@@ -858,20 +876,68 @@ mod tests {
     }
 
     #[test]
-    fn whitelist_hit_without_auth_falls_through_to_score() {
-        // Neither SPF nor DKIM passed. A phishing sender spoofing a
-        // whitelisted address must NOT ride the whitelist bypass.
+    fn whitelist_hit_without_auth_still_accepts() {
+        // SPF temperror, DKIM fail, DMARC fail under p=none, and a score
+        // over the line: what a legitimate one-time-password mail looked
+        // like to us when our verifiers misread it. The recipient had
+        // already said it is not junk.
         let mut input = baseline_input();
-        input.from_addr = "friend@golia.jp".into();
-        input.recipient_whitelist = whitelist_of("friend@golia.jp");
-        input.auth.spf = "fail".into();
+        input.from_addr = "no-reply@focusai.com".into();
+        input.recipient_whitelist = whitelist_of("no-reply@focusai.com");
+        input.auth.spf = "temperror".into();
         input.auth.dkim = "fail".into();
-        input.content_score = 10.0;
-        // Falls through to the score-based Junk path.
+        input.auth.dmarc = "fail".into();
+        input.auth.dmarc_policy = DmarcPolicy::None;
+        input.content_score = 3.5;
+        input.ai_score = -1.0;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+        input.recipient_whitelist.clear();
         assert!(matches!(
             make_delivery_decision(&input),
             DeliveryDecision::Junk { .. }
         ));
+    }
+
+    #[test]
+    fn whitelist_matches_the_from_header_when_the_envelope_differs() {
+        let mut input = baseline_input();
+        input.from_addr = "bounce-8841@mailer.esp.example".into();
+        input.header_from_addr = "news@shop.example".into();
+        input.recipient_whitelist = whitelist_of("news@shop.example");
+        input.content_score = 10.0;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Accept { .. }
+        ));
+    }
+
+    #[test]
+    fn whitelist_does_not_override_dmarc_quarantine() {
+        // the domain owner says mail failing DMARC is not theirs
+        let mut input = baseline_input();
+        input.header_from_addr = "service@bank.example".into();
+        input.recipient_whitelist = whitelist_of("service@bank.example");
+        input.auth.dmarc = "fail".into();
+        input.auth.dmarc_policy = DmarcPolicy::Quarantine;
+        assert!(matches!(
+            make_delivery_decision(&input),
+            DeliveryDecision::Junk { .. }
+        ));
+    }
+
+    #[test]
+    fn blacklist_matches_the_from_header_too() {
+        let mut input = baseline_input();
+        input.from_addr = "bounce@esp.example".into();
+        input.header_from_addr = "spammer@evil.com".into();
+        input.recipient_blacklist = whitelist_of("spammer@evil.com");
+        match make_delivery_decision(&input) {
+            DeliveryDecision::Junk { reason, .. } => assert!(reason.contains("spammer@evil.com")),
+            other => panic!("expected Junk, got {other:?}"),
+        }
     }
 
     #[test]
@@ -943,9 +1009,9 @@ mod tests {
     }
 
     #[test]
-    fn empty_from_addr_disables_both_lists() {
-        // Both whitelist and blacklist should skip when from_addr
-        // is empty — no lookup can meaningfully hit.
+    fn empty_addresses_disable_both_lists() {
+        // Both whitelist and blacklist should skip when neither address
+        // is known — no lookup can meaningfully hit.
         let mut input = baseline_input();
         input.recipient_whitelist = whitelist_of("someone@example.com");
         input.recipient_blacklist = whitelist_of("someone@example.com");

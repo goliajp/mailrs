@@ -17,20 +17,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use mailrs_core_sidestate::families::sender_lists::{blacklist_key, whitelist_key};
+
 use crate::kevy_net::KevyNetClient;
-
-/// kevy key holding the recipient's whitelist. Set of lowercased
-/// email addresses. Read-only from the receiver; the webapi handles
-/// writes when a user clicks "mark not junk" or manages the list
-/// from settings.
-fn whitelist_key(user: &str) -> String {
-    format!("spam:{user}:whitelist")
-}
-
-/// Same as `whitelist_key` for the blacklist.
-fn blacklist_key(user: &str) -> String {
-    format!("spam:{user}:blacklist")
-}
 
 /// Snapshot both lists in one round trip pair. The caller then hands
 /// the results to `ReceiveContext.recipient_whitelist` /
