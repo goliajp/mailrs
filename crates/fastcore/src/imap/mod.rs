@@ -9,11 +9,10 @@ mod query;
 pub mod search_eval;
 mod session;
 
-use std::path::Path;
 use std::sync::Arc;
 
+use mailrs_tls_reload::TlsState;
 use tokio::net::TcpListener;
-use tokio_rustls::TlsAcceptor;
 
 use crate::FastcoreState;
 
@@ -51,30 +50,15 @@ pub async fn spawn(state: Arc<FastcoreState>) {
 }
 
 /// Bind implicit-TLS IMAPS on `MAILRS_IMAPS_BIND` (default
-/// `0.0.0.0:993`). Loads the TLS cert / key from `MAILRS_TLS_CERT`
-/// / `MAILRS_TLS_KEY` at startup and wraps every accepted socket in
-/// a rustls acceptor before entering the session state machine.
-/// Silently skipped when either the bind or the cert paths are unset.
-pub async fn spawn_tls(state: Arc<FastcoreState>) {
+/// `0.0.0.0:993`) and wrap every accepted socket in whichever
+/// certificate `tls` holds at that moment, so a renewal reaches new
+/// connections without a restart.
+pub async fn spawn_tls(state: Arc<FastcoreState>, tls: TlsState) {
     let bind = std::env::var("MAILRS_IMAPS_BIND").unwrap_or_else(|_| "0.0.0.0:993".to_string());
     if bind.eq_ignore_ascii_case("off") || bind.is_empty() {
         tracing::debug!("MAILRS_IMAPS_BIND=off — skipping IMAPS listener");
         return;
     }
-    let (Ok(cert_path), Ok(key_path)) = (
-        std::env::var("MAILRS_TLS_CERT"),
-        std::env::var("MAILRS_TLS_KEY"),
-    ) else {
-        tracing::debug!("MAILRS_TLS_CERT / MAILRS_TLS_KEY unset — skipping IMAPS listener");
-        return;
-    };
-    let acceptor = match load_tls_acceptor(Path::new(&cert_path), Path::new(&key_path)) {
-        Ok(a) => a,
-        Err(e) => {
-            tracing::error!(error = %e, %cert_path, %key_path, "imaps: TLS config load failed");
-            return;
-        }
-    };
     let listener = match TcpListener::bind(&bind).await {
         Ok(l) => l,
         Err(e) => {
@@ -92,7 +76,7 @@ pub async fn spawn_tls(state: Arc<FastcoreState>) {
             }
         };
         let state = state.clone();
-        let acceptor = acceptor.clone();
+        let acceptor = tls.acceptor();
         tokio::spawn(async move {
             tracing::debug!(%peer, "imaps: connection open");
             match acceptor.accept(sock).await {
@@ -102,12 +86,4 @@ pub async fn spawn_tls(state: Arc<FastcoreState>) {
             tracing::debug!(%peer, "imaps: connection closed");
         });
     }
-}
-
-/// Load rustls from PEM cert + key. Returns a `TlsAcceptor` cloneable
-/// per-connection. Shared with POP3S — same cert files.
-pub(crate) fn load_tls_acceptor(cert_path: &Path, key_path: &Path) -> std::io::Result<TlsAcceptor> {
-    let cfg = mailrs_tls_reload::load_tls_config(cert_path, key_path)?;
-    let cfg_owned = std::sync::Arc::try_unwrap(cfg).unwrap_or_else(|arc| (*arc).clone());
-    Ok(TlsAcceptor::from(std::sync::Arc::new(cfg_owned)))
 }

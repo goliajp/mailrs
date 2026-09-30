@@ -70,6 +70,7 @@ use routes::*;
 pub mod sender_sts;
 mod sieve_apply;
 mod spool_drain;
+mod tls;
 pub mod tlsrpt;
 pub mod tlsrpt_ingest;
 mod webhook_delivery;

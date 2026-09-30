@@ -3,7 +3,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
@@ -91,15 +91,20 @@ impl TlsState {
 pub fn load_tls_config(cert_path: &Path, key_path: &Path) -> io::Result<Arc<ServerConfig>> {
     let cert_data = std::fs::read(cert_path)?;
     let key_data = std::fs::read(key_path)?;
+    config_from_pem(&cert_data, &key_data)
+}
 
+/// Build a server config from PEM bytes already in memory. Same rules
+/// as [`load_tls_config`].
+pub fn config_from_pem(cert_data: &[u8], key_data: &[u8]) -> io::Result<Arc<ServerConfig>> {
     use rustls_pki_types::pem::PemObject;
     use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 
-    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(&cert_data)
+    let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(cert_data)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
 
-    let key = PrivateKeyDer::from_pem_slice(&key_data)
+    let key = PrivateKeyDer::from_pem_slice(key_data)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e:?}")))?;
 
     let config = ServerConfig::builder()
@@ -108,6 +113,81 @@ pub fn load_tls_config(cert_path: &Path, key_path: &Path) -> io::Result<Arc<Serv
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     Ok(Arc::new(config))
+}
+
+/// Check the files every `every` for as long as the process runs,
+/// logging each swap and each failure under `service`.
+///
+/// Must be called inside a tokio runtime.
+pub fn spawn_watch(
+    state: TlsState,
+    mut watcher: CertWatcher,
+    every: std::time::Duration,
+    service: &'static str,
+) {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(every);
+        tick.tick().await;
+        loop {
+            tick.tick().await;
+            match watcher.check(&state) {
+                Ok(true) => {
+                    tracing::info!(service, "tls: certificate on disk changed; now serving it")
+                }
+                Ok(false) => {}
+                Err(e) => tracing::warn!(
+                    service,
+                    error = %e,
+                    "tls: certificate on disk changed but cannot be used; still serving the previous one"
+                ),
+            }
+        }
+    });
+}
+
+/// Follows a cert/key pair on disk and swaps new contents into a
+/// [`TlsState`], so a renewed certificate is served without a restart.
+///
+/// It compares file contents, not timestamps: an atomic `mv` over the
+/// old file, a copy that keeps the source's mtime and an in-place
+/// rewrite all look the same. Reading two small PEM files is the whole
+/// cost of a check that finds nothing.
+pub struct CertWatcher {
+    cert_path: PathBuf,
+    key_path: PathBuf,
+    loaded: (Vec<u8>, Vec<u8>),
+}
+
+impl CertWatcher {
+    /// Start from the files as they are now, which is what the
+    /// [`TlsState`] this will be checked against was built from.
+    pub fn new(cert_path: &Path, key_path: &Path) -> io::Result<Self> {
+        Ok(Self {
+            cert_path: cert_path.to_path_buf(),
+            key_path: key_path.to_path_buf(),
+            loaded: (std::fs::read(cert_path)?, std::fs::read(key_path)?),
+        })
+    }
+
+    /// Re-read both files and, if either changed, build a config from
+    /// what was read and swap it in. `Ok(true)` means a new certificate
+    /// is now being served.
+    ///
+    /// An error leaves the old certificate in place and is returned
+    /// again on every later check until the files are usable — which is
+    /// also what a cert and key replaced one after the other look like
+    /// for the moment in between.
+    pub fn check(&mut self, state: &TlsState) -> io::Result<bool> {
+        let cert = std::fs::read(&self.cert_path)?;
+        let key = std::fs::read(&self.key_path)?;
+        if cert == self.loaded.0 && key == self.loaded.1 {
+            return Ok(false);
+        }
+        let config = config_from_pem(&cert, &key)?;
+        state.swap(Arc::try_unwrap(config).unwrap_or_else(|arc| (*arc).clone()));
+        self.loaded = (cert, key);
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -148,6 +228,51 @@ mod tests {
         std::fs::write(&cert_path, cert_pem).unwrap();
         std::fs::write(&key_path, key_pem).unwrap();
         (cert_path, key_path)
+    }
+
+    fn fresh_pem() -> (String, String) {
+        let c = rcgen::generate_simple_self_signed(vec!["localhost".into()]).expect("rcgen");
+        (c.cert.pem(), c.key_pair.serialize_pem())
+    }
+
+    #[test]
+    fn a_watcher_swaps_only_when_the_files_change() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let state = TlsState::new((*load_tls_config(&cert_path, &key_path).unwrap()).clone());
+        let mut watcher = CertWatcher::new(&cert_path, &key_path).unwrap();
+        let before = state.current();
+
+        assert!(!watcher.check(&state).unwrap(), "nothing changed");
+        assert!(Arc::ptr_eq(&before, &state.current()));
+
+        let (cert, key) = fresh_pem();
+        std::fs::write(&cert_path, cert).unwrap();
+        std::fs::write(&key_path, key).unwrap();
+        assert!(watcher.check(&state).unwrap(), "renewed pair is swapped in");
+        assert!(!Arc::ptr_eq(&before, &state.current()));
+        assert!(!watcher.check(&state).unwrap(), "and only once");
+    }
+
+    /// The moment between replacing the certificate and replacing the
+    /// key: the new certificate with the old key. The old pair must stay
+    /// in service, and the next check after the key lands must swap.
+    #[test]
+    fn a_half_replaced_pair_keeps_the_old_one_until_the_key_lands() {
+        install_crypto_provider();
+        let (cert_path, key_path) = make_self_signed_pem_files();
+        let state = TlsState::new((*load_tls_config(&cert_path, &key_path).unwrap()).clone());
+        let mut watcher = CertWatcher::new(&cert_path, &key_path).unwrap();
+        let before = state.current();
+
+        let (cert, key) = fresh_pem();
+        std::fs::write(&cert_path, &cert).unwrap();
+        assert!(watcher.check(&state).is_err(), "new cert with the old key");
+        assert!(Arc::ptr_eq(&before, &state.current()));
+
+        std::fs::write(&key_path, &key).unwrap();
+        assert!(watcher.check(&state).unwrap());
+        assert!(!Arc::ptr_eq(&before, &state.current()));
     }
 
     #[test]

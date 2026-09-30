@@ -274,18 +274,21 @@ pub async fn run() {
     tokio::spawn(async move {
         imap::spawn(imap_state).await;
     });
-    let imaps_state = state.clone();
-    tokio::spawn(async move {
-        imap::spawn_tls(imaps_state).await;
-    });
     let pop3_state = state.clone();
     tokio::spawn(async move {
         pop3::spawn(pop3_state).await;
     });
-    let pop3s_state = state.clone();
-    tokio::spawn(async move {
-        pop3::spawn_tls(pop3s_state).await;
-    });
+    if let Some(tls) = crate::tls::from_env() {
+        let imaps_state = state.clone();
+        let imaps_tls = tls.clone();
+        tokio::spawn(async move {
+            imap::spawn_tls(imaps_state, imaps_tls).await;
+        });
+        let pop3s_state = state.clone();
+        tokio::spawn(async move {
+            pop3::spawn_tls(pop3s_state, tls).await;
+        });
+    }
     // Webhook delivery — drains the kevy outbox. Until 2026-07-31 a
     // subscription could be created and nothing would ever fire on this
     // lane; there was no queue and no worker.
