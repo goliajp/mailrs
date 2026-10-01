@@ -41,8 +41,10 @@
 //! flattening them into "delivery failed" is what makes a support
 //! conversation impossible.
 
+mod delete;
 mod read;
 
+pub use delete::*;
 pub use read::*;
 
 /// Message-level state, derived from the recipient rows.

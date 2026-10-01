@@ -424,8 +424,13 @@ pub async fn delete_thread(
         .core
         .delete_thread(&user, &thread_id)
         .await
-        .map(|_| StatusCode::NO_CONTENT)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    // The Send rows for the mail in it go too, or the Send list keeps
+    // showing them with nothing behind.
+    crate::handlers::kevy_util::with_kevy(move |c| {
+        mailrs_core_sidestate::families::send::delete_sends_in_thread(c, &user, &thread_id)
+    })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Debug, serde::Deserialize)]
