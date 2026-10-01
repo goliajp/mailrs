@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { mailKeys } from '@/lib/query-keys'
 import { getToken } from '@/store/auth'
-import { wireCancelSend, wireGetRedraft, wireListSends, wireResend } from '@/wire/endpoints/sends'
+import {
+  wireCancelSend,
+  wireDeleteSend,
+  wireGetRedraft,
+  wireListSends,
+  wireResend,
+} from '@/wire/endpoints/sends'
 
 /**
  * Stop a send that has not gone out.
@@ -18,6 +24,20 @@ export function useCancelSendMutation() {
     mutationFn: (sendId: string) => wireCancelSend(sendId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: mailKeys.sends() })
+    },
+  })
+}
+
+/**
+ * Delete a finished send. The Send list joins two sources and the
+ * server removes both, so everything mail-shaped is refetched.
+ */
+export function useDeleteSendMutation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (sendId: string) => wireDeleteSend(sendId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: mailKeys.all() })
     },
   })
 }

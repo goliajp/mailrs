@@ -15,10 +15,15 @@ vi.mock('@/hooks/use-sent-messages', () => ({
 }))
 
 const cancelCalls: string[] = []
+const deleteCalls: string[] = []
 vi.mock('@/hooks/use-sends', () => ({
   useCancelSendMutation: () => ({
     isPending: false,
     mutate: (id: string) => cancelCalls.push(id),
+  }),
+  useDeleteSendMutation: () => ({
+    isPending: false,
+    mutate: (id: string) => deleteCalls.push(id),
   }),
   useResendMutation: () => ({ isPending: false, mutate: vi.fn() }),
   useSendsQuery: () => ({ data: stub.sends }),
@@ -243,5 +248,43 @@ describe('cancelling a send', () => {
     expect(buttons).toHaveLength(2)
     fireEvent.click(buttons[1] as HTMLElement)
     expect(cancelCalls).toHaveLength(1)
+  })
+})
+
+describe('SendList delete', () => {
+  afterEach(() => {
+    deleteCalls.length = 0
+  })
+
+  // a failed send that the sender has given up on has to be able to leave
+  // the list; before this the only way out was deleting the conversation,
+  // which left the send record behind
+  it('deletes the failed send it was opened on', () => {
+    stub.sends = [
+      send({ send_id: 'a@golia.jp', status: 'delivered' }),
+      send({
+        recipients: [
+          {
+            code: 550,
+            delivered: false,
+            message: '5.7.1 blocked',
+            pending: false,
+            recipient: 'x@hotmail.com',
+          },
+        ],
+        send_id: 'b@golia.jp#r1',
+        status: 'failed',
+      }),
+    ]
+    stub.messages = [msg({ message_id: 'a@golia.jp' }), msg({ message_id: 'b@golia.jp' })]
+    renderList()
+
+    expect(screen.queryByText('Delete')).toBeNull()
+    const failedRow = screen
+      .getAllByRole('listitem')
+      .find((item) => item.textContent?.includes('Failed'))
+    fireEvent.click(failedRow?.querySelector('button') as HTMLElement)
+    fireEvent.click(screen.getByText('Delete'))
+    expect(deleteCalls).toEqual(['b@golia.jp#r1'])
   })
 })

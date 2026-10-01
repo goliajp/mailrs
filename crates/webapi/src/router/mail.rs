@@ -207,6 +207,10 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             get(handlers::sends::send_source),
         )
         .route(
+            "/api/mail/sends/{send_id}",
+            delete(handlers::sends::delete_send),
+        )
+        .route(
             "/api/mail/sends/{send_id}/cancel",
             post(handlers::sends::cancel_send),
         )

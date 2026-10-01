@@ -65,6 +65,8 @@ export function invalidateMail() {
   // rows from the per-message Send view — refetch so SendList doesn't
   // stale-display messages whose thread has already gone.
   queryClient.invalidateQueries({ queryKey: mailKeys.sent() }).catch(() => {})
+  // the server drops a deleted thread's send records too
+  queryClient.invalidateQueries({ queryKey: [...mailKeys.all(), 'sends'] }).catch(() => {})
   // v2.1 phase-3 — after the mail list migrated onto
   // `conversationKeys.infinite`, we broaden the invalidation to the
   // whole `conversation` entity namespace so both list + infinite
