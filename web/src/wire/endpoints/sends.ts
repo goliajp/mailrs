@@ -61,6 +61,18 @@ export function wireCancelSend(sendId: string): Promise<WireCancelResult> {
 // first, and only the caller's own.
 
 /**
+ * `DELETE /api/mail/sends/{sendId}` — remove a finished send, its
+ * resends and the sender's own copy. 409 while it is still going out.
+ */
+export async function wireDeleteSend(sendId: string): Promise<void> {
+  await wireFetch(emptyResponseSchema, {
+    allowEmpty: true,
+    method: 'DELETE',
+    path: `/mail/sends/${encodeURIComponent(sendId)}`,
+  })
+}
+
+/**
  * A failed send as compose fields. The attachments come back described
  * but not transferred — a later send names the ones to keep by index and
  * the server re-extracts the bytes it never sent to the browser.

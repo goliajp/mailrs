@@ -24,6 +24,8 @@ use mailrs_core_sidestate::families::send_read;
 
 mod cancel;
 pub use cancel::cancel_send;
+mod delete;
+pub use delete::delete_send;
 mod redraft;
 mod resend;
 

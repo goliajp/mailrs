@@ -316,6 +316,10 @@ pub(crate) async fn list_sent_messages(
             if !mailrs_mailbox_kevy::senders_csv_contains_user(&w.sender, &user) {
                 continue;
             }
+            // deleting a failed send from the Send list flags its copy
+            if w.flags & mailrs_core_api::method::message::FLAG_DELETED != 0 {
+                continue;
+            }
             items.push(SentMessageSummary {
                 uid: w.uid,
                 message_id: w.message_id,
