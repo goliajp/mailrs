@@ -23,7 +23,7 @@ export function StatusFilter({
   value: null | WireSendStatus
 }) {
   return (
-    <div className="border-border/60 flex items-center gap-1 overflow-x-auto border-b px-3 py-1.5">
+    <div className="border-border/60 flex flex-wrap items-center gap-1 border-b px-3 py-1.5">
       <button className={chipClass(value === null)} onClick={() => onChange(null)} type="button">
         All
       </button>

@@ -9,7 +9,7 @@ import { FilterBar } from '@/components/conversation-list-filter-bar'
 import { ListSearchInput } from '@/components/list-search-input'
 import { SenderAvatar } from '@/components/sender-avatar'
 import { useCurrentSelection, useSendRows } from '@/hooks/use-current-list'
-import { useCancelSendMutation, useResendMutation } from '@/hooks/use-sends'
+import { useCancelSendMutation, useDeleteSendMutation, useResendMutation } from '@/hooks/use-sends'
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowClass } from '@/lib/list-row-class'
@@ -55,6 +55,7 @@ export function SendList() {
   const setComposingNew = useSetAtom(composingNewAtom)
   const resend = useResendMutation()
   const cancel = useCancelSendMutation()
+  const remove = useDeleteSendMutation()
 
   const attention = useMemo(() => rows.filter(needsAttention).length, [rows])
 
@@ -114,6 +115,16 @@ export function SendList() {
     })
   }
 
+  const handleDelete = (sendId: string) => {
+    remove.mutate(sendId, {
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not delete'),
+      onSuccess: () => {
+        setExpanded(null)
+        toast.success('Deleted')
+      },
+    })
+  }
+
   const handleResend = (sendId: string) => {
     resend.mutate(sendId, {
       onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not resend'),
@@ -140,9 +151,11 @@ export function SendList() {
           return (
             <SendRowView
               cancelling={cancel.isPending}
+              deleting={remove.isPending}
               expanded={expanded === id}
               key={id}
               onCancel={handleCancel}
+              onDelete={handleDelete}
               onOpen={openMessage}
               onRedraft={() => void handleRedraft(item.row.send?.send_id ?? '')}
               onResend={handleResend}
@@ -169,8 +182,10 @@ export function SendList() {
 
 const SendRowView = memo(function SendRowView({
   cancelling,
+  deleting,
   expanded,
   onCancel,
+  onDelete,
   onOpen,
   onRedraft,
   onResend,
@@ -180,8 +195,10 @@ const SendRowView = memo(function SendRowView({
   selected,
 }: {
   cancelling: boolean
+  deleting: boolean
   expanded: boolean
   onCancel: (sendId: string) => void
+  onDelete: (sendId: string) => void
   onOpen: (row: SendRow) => void
   onRedraft: () => void
   onResend: (sendId: string) => void
@@ -236,6 +253,8 @@ const SendRowView = memo(function SendRowView({
       </div>
       {expanded && row.send && (
         <FailureDetail
+          deleting={deleting}
+          onDelete={() => onDelete(row.send?.send_id ?? '')}
           onRedraft={onRedraft}
           onResend={() => onResend(row.send?.send_id ?? '')}
           resending={resending}
