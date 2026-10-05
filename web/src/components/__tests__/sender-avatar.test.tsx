@@ -29,6 +29,8 @@ function stubAuthStorage(token: null | string) {
   })
 }
 
+let iconPixels = new Uint8ClampedArray()
+
 beforeEach(() => {
   stubAuthStorage('test-token')
   // URL.createObjectURL isn't in jsdom.
@@ -36,6 +38,20 @@ beforeEach(() => {
     configurable: true,
     value: (blob: Blob) => `blob:${blob.size}`,
   })
+  // jsdom neither decodes images nor has a canvas; the plate is
+  // measured from whatever `iconPixels` holds
+  Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+    configurable: true,
+    value: () => Promise.resolve(),
+  })
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: () => ({
+      drawImage: () => undefined,
+      getImageData: () => ({ data: iconPixels }),
+    }),
+  })
+  iconPixels = new Uint8ClampedArray([20, 20, 20, 255])
   // Ping AUTH_JSON so the linter doesn't flag it while we keep it
   // as a self-documenting fixture.
   void AUTH_JSON
@@ -69,6 +85,22 @@ describe('<SenderAvatar />', () => {
     await waitFor(() => expect(container.querySelector('img')).not.toBeNull())
     const img = container.querySelector('img')!
     expect(img.src).toMatch(/^blob:/)
+  })
+
+  it('backs a dark logo with white and a light logo with black', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
+    )
+
+    const dark = render(<SenderAvatar sender="ICLR <noreply@dark-logo-7.example>" />)
+    await waitFor(() => expect(dark.container.querySelector('img')).not.toBeNull())
+    expect(dark.container.querySelector('img')!.className).toContain('bg-white')
+
+    iconPixels = new Uint8ClampedArray([250, 250, 250, 255, 0, 0, 0, 0])
+    const light = render(<SenderAvatar sender="Apple <news@light-logo-8.example>" />)
+    await waitFor(() => expect(light.container.querySelector('img')).not.toBeNull())
+    expect(light.container.querySelector('img')!.className).toContain('bg-black')
   })
 
   it('never fires an anonymous fetch when no auth token is present', async () => {

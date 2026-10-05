@@ -1,17 +1,24 @@
+import type { IconPlate } from '@/lib/icon-plate'
+
 import { cx } from '@goliapkg/gds'
 import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
+import { iconPlate } from '@/lib/icon-plate'
 import { getToken } from '@/store/auth'
+
+type Icon = { plate: IconPlate; url: string }
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
   return match ? match[1] : null
 }
 
-// unified icon cache: domain → verified image URL or null
-const iconCache = new Map<string, null | string>()
-const iconInflight = new Map<string, Promise<null | string>>()
+// unified icon cache: domain → verified image and its backing plate, or null
+const iconCache = new Map<string, Icon | null>()
+const iconInflight = new Map<string, Promise<Icon | null>>()
+
+const PLATE_CLASS: Record<IconPlate, string> = { black: 'bg-black', white: 'bg-white' }
 
 export const SenderAvatar = memo(function SenderAvatar({
   className,
@@ -23,7 +30,7 @@ export const SenderAvatar = memo(function SenderAvatar({
   size?: number
 }) {
   const domain = extractDomain(sender)
-  const [iconUrl, setIconUrl] = useState<null | string>(() => {
+  const [icon, setIcon] = useState<Icon | null>(() => {
     if (domain && iconCache.has(domain)) return iconCache.get(domain)!
     return null
   })
@@ -44,11 +51,11 @@ export const SenderAvatar = memo(function SenderAvatar({
     //
     // The same held for any sender whose icon was not yet cached: the
     // old logo stayed on screen until the fetch resolved.
-    setIconUrl(domain ? (iconCache.get(domain) ?? null) : null)
+    setIcon(domain ? (iconCache.get(domain) ?? null) : null)
     if (!domain || iconCache.has(domain)) return
     let cancelled = false
-    resolveIcon(domain).then((url) => {
-      if (!cancelled) setIconUrl(url)
+    resolveIcon(domain).then((resolved) => {
+      if (!cancelled) setIcon(resolved)
     })
     return () => {
       cancelled = true
@@ -56,16 +63,19 @@ export const SenderAvatar = memo(function SenderAvatar({
   }, [domain])
 
   // verified icon (BIMI or apple-touch-icon)
-  if (iconUrl) {
+  if (icon) {
     return (
       <img
         alt={initial}
-        className={cx(`shrink-0 rounded-full object-cover ${sizeClass}`, className)}
+        className={cx(
+          `shrink-0 rounded-full object-cover ${sizeClass} ${PLATE_CLASS[icon.plate]}`,
+          className
+        )}
         onError={() => {
           iconCache.set(domain!, null)
-          setIconUrl(null)
+          setIcon(null)
         }}
-        src={iconUrl}
+        src={icon.url}
       />
     )
   }
@@ -83,6 +93,21 @@ export const SenderAvatar = memo(function SenderAvatar({
   )
 })
 
+// a blob: url is same-origin, so the canvas is not tainted and the
+// pixels can be read back
+async function measurePlate(url: string): Promise<IconPlate> {
+  const img = new Image()
+  img.src = url
+  await img.decode()
+  const side = 32
+  const canvas = document.createElement('canvas')
+  canvas.width = side
+  canvas.height = side
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+  ctx.drawImage(img, 0, 0, side, side)
+  return iconPlate(ctx.getImageData(0, 0, side, side).data)
+}
+
 /**
  * Fetch a small pixmap for `domain` through the mailrs icon cascade
  * (`/api/icon/{domain}` — BIMI → Google favicons → DDG icons). The
@@ -90,7 +115,9 @@ export const SenderAvatar = memo(function SenderAvatar({
  * hit on a warm cache, not a fanout to external services per render.
  *
  * Wire contract of `/api/icon/{domain}`:
- *   - 200 + image bytes → resolve to a blob URL
+ *   - 200 + image bytes → resolve to a blob URL and the plate drawn
+ *                          behind it (bytes that fail to decode
+ *                          resolve to `null`)
  *   - 204 No Content     → resolve to `null` (no icon anywhere;
  *                          fall back to the coloured initial)
  *   - anything else      → resolve to `null` and don't retry within
@@ -101,7 +128,7 @@ export const SenderAvatar = memo(function SenderAvatar({
  * sender domain rendered in the inbox — a 401/404 wall was the
  * 2026-07-07 UX regression this replaces.
  */
-function resolveIcon(domain: string): Promise<null | string> {
+function resolveIcon(domain: string): Promise<Icon | null> {
   if (iconCache.has(domain)) return Promise.resolve(iconCache.get(domain)!)
   const existing = iconInflight.get(domain)
   if (existing) return existing
@@ -121,9 +148,10 @@ function resolveIcon(domain: string): Promise<null | string> {
         const blob = await r.blob()
         if (blob.size > 0) {
           const url = URL.createObjectURL(blob)
-          iconCache.set(domain, url)
+          const icon = { plate: await measurePlate(url), url }
+          iconCache.set(domain, icon)
           iconInflight.delete(domain)
-          return url
+          return icon
         }
       }
       // 204 or non-2xx → no icon available, cache the null so we
