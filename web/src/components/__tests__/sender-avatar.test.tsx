@@ -29,7 +29,7 @@ function stubAuthStorage(token: null | string) {
   })
 }
 
-let iconPixels = new Uint8ClampedArray()
+const FINISHED = new Blob(['finished icon bytes'])
 
 beforeEach(() => {
   stubAuthStorage('test-token')
@@ -38,8 +38,12 @@ beforeEach(() => {
     configurable: true,
     value: (blob: Blob) => `blob:${blob.size}`,
   })
-  // jsdom neither decodes images nor has a canvas; the plate is
-  // measured from whatever `iconPixels` holds
+  Object.defineProperty(globalThis.URL, 'revokeObjectURL', {
+    configurable: true,
+    value: () => undefined,
+  })
+  // jsdom neither decodes images nor has a canvas; the finished icon
+  // comes back as FINISHED
   Object.defineProperty(HTMLImageElement.prototype, 'decode', {
     configurable: true,
     value: () => Promise.resolve(),
@@ -48,10 +52,16 @@ beforeEach(() => {
     configurable: true,
     value: () => ({
       drawImage: () => undefined,
-      getImageData: () => ({ data: iconPixels }),
+      getImageData: (_x: number, _y: number, w: number, h: number) => ({
+        data: new Uint8ClampedArray(w * h * 4),
+      }),
+      putImageData: () => undefined,
     }),
   })
-  iconPixels = new Uint8ClampedArray([20, 20, 20, 255])
+  Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
+    configurable: true,
+    value: (done: (b: Blob) => void) => done(FINISHED),
+  })
   // Ping AUTH_JSON so the linter doesn't flag it while we keep it
   // as a self-documenting fixture.
   void AUTH_JSON
@@ -87,20 +97,15 @@ describe('<SenderAvatar />', () => {
     expect(img.src).toMatch(/^blob:/)
   })
 
-  it('backs a dark logo with white and a light logo with black', async () => {
+  it('shows the finished icon, not the raw download', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
     )
 
-    const dark = render(<SenderAvatar sender="ICLR <noreply@dark-logo-7.example>" />)
-    await waitFor(() => expect(dark.container.querySelector('img')).not.toBeNull())
-    expect(dark.container.querySelector('img')!.className).toContain('bg-white')
-
-    iconPixels = new Uint8ClampedArray([250, 250, 250, 255, 0, 0, 0, 0])
-    const light = render(<SenderAvatar sender="Apple <news@light-logo-8.example>" />)
-    await waitFor(() => expect(light.container.querySelector('img')).not.toBeNull())
-    expect(light.container.querySelector('img')!.className).toContain('bg-black')
+    const { container } = render(<SenderAvatar sender="ICLR <noreply@finished-7.example>" />)
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull())
+    expect(container.querySelector('img')!.getAttribute('src')).toBe(`blob:${FINISHED.size}`)
   })
 
   it('never fires an anonymous fetch when no auth token is present', async () => {
