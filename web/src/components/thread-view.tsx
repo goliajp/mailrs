@@ -21,6 +21,7 @@ import { useThreadActions } from '@/hooks/use-thread-actions'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { extractEmail } from '@/lib/avatar'
 import { formatFullDate } from '@/lib/format'
+import { splitAddressList } from '@/lib/recipients'
 import { defaultReadingTarget } from '@/lib/thread-reading'
 import { authAtom } from '@/store/auth'
 import {
@@ -317,10 +318,7 @@ export function ThreadView({ onBack }: { onBack?: () => void }) {
   const replyAllRecipients = lastMsg
     ? (() => {
         const senderEmail = extractEmail(lastMsg.sender)
-        const recipientEmails = lastMsg.recipients
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
+        const recipientEmails = splitAddressList(lastMsg.recipients).map(extractEmail)
         const all = new Set([senderEmail, ...recipientEmails])
         all.delete(myEmail)
         return [...all].join(', ')

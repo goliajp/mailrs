@@ -77,7 +77,7 @@ pub fn addr_key(mailbox: &str) -> String {
 /// ```
 pub fn list_contains(list: &str, wanted: &str) -> bool {
     let key = addr_key(wanted);
-    list.split(',').any(|m| addr_key(m) == key)
+    split_list(list).any(|m| addr_key(m) == key)
 }
 
 /// Whether every address in `list` is `wanted`.
@@ -92,16 +92,68 @@ pub fn list_contains(list: &str, wanted: &str) -> bool {
 pub fn list_is_only(list: &str, wanted: &str) -> bool {
     let key = addr_key(wanted);
     let mut any = false;
-    for m in list.split(',') {
-        if m.trim().is_empty() {
-            continue;
-        }
+    for m in split_list(list) {
         any = true;
         if addr_key(m) != key {
             return false;
         }
     }
     any
+}
+
+/// The mailboxes of a comma-separated list, trimmed, empty entries
+/// skipped.
+///
+/// Commas inside a quoted display name or an angle-bracketed address do
+/// not separate: `"Lastname, Firstname" <x@y>` is one mailbox, and a plain
+/// split turns it into a bogus `"Lastname` plus a second entry holding
+/// the address.
+///
+/// ```
+/// use mailrs_rfc5322::split_list;
+/// let all: Vec<_> = split_list(r#""Anthropic, PBC" <a@b.com>, c@d.com"#).collect();
+/// assert_eq!(all, [r#""Anthropic, PBC" <a@b.com>"#, "c@d.com"]);
+/// ```
+pub fn split_list(list: &str) -> impl Iterator<Item = &str> {
+    let mut rest = list;
+    std::iter::from_fn(move || {
+        loop {
+            if rest.is_empty() {
+                return None;
+            }
+            let end = next_separator(rest);
+            let (item, tail) = rest.split_at(end);
+            rest = tail.strip_prefix(',').unwrap_or(tail);
+            let item = item.trim();
+            if !item.is_empty() {
+                return Some(item);
+            }
+        }
+    })
+}
+
+/// Byte offset of the first comma outside quotes and angle brackets, or
+/// the length when there is none. A backslash escapes the next character
+/// inside quotes (RFC 5322 §3.2.4 quoted-pair).
+fn next_separator(s: &str) -> usize {
+    let mut quoted = false;
+    let mut angle = false;
+    let mut escaped = false;
+    for (i, c) in s.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' if quoted => escaped = true,
+            '"' if !angle => quoted = !quoted,
+            '<' if !quoted => angle = true,
+            '>' if !quoted => angle = false,
+            ',' if !quoted && !angle => return i,
+            _ => {}
+        }
+    }
+    s.len()
 }
 
 #[cfg(test)]
@@ -183,5 +235,42 @@ mod tests {
     fn list_handles_spacing_and_empty_elements() {
         assert!(list_contains("a@x.com , b@x.com ,, c@x.com", "b@x.com"));
         assert!(!list_contains("", "a@x.com"));
+    }
+
+    /// prod showed `"Anthropic, PBC" <invoice+statements@mail.anthropic.com>`
+    /// as two participants, `"anthropic` and `PBC" <…>`.
+    #[test]
+    fn a_comma_in_a_quoted_display_name_does_not_split() {
+        let all: Vec<_> =
+            split_list(r#""Anthropic, PBC" <invoice@mail.anthropic.com>,c@d.com"#).collect();
+        assert_eq!(
+            all,
+            [
+                r#""Anthropic, PBC" <invoice@mail.anthropic.com>"#,
+                "c@d.com"
+            ]
+        );
+    }
+
+    #[test]
+    fn an_escaped_quote_does_not_end_the_quoted_name() {
+        let all: Vec<_> = split_list(r#""say \"hi, there\"" <a@b.com>, c@d.com"#).collect();
+        assert_eq!(all, [r#""say \"hi, there\"" <a@b.com>"#, "c@d.com"]);
+    }
+
+    #[test]
+    fn empty_entries_are_skipped() {
+        let all: Vec<_> = split_list(" a@b.com ,, ,c@d.com,").collect();
+        assert_eq!(all, ["a@b.com", "c@d.com"]);
+        assert_eq!(split_list("").count(), 0);
+    }
+
+    /// The user's own display name with a comma in it used to read as a
+    /// second, address-less sender, so their own-only threads were not
+    /// "only me".
+    #[test]
+    fn only_holds_for_a_quoted_name_with_a_comma() {
+        assert!(list_is_only(r#""Li, Hao" <a@b.com>"#, "a@b.com"));
+        assert!(list_contains(r#""Li, Hao" <a@b.com>"#, "a@b.com"));
     }
 }
