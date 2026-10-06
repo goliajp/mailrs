@@ -6,25 +6,52 @@ export const LIFTED_DARK: Rgb = [63, 63, 70]
 const WHITE: Rgb = [255, 255, 255]
 
 const LIGHT_GLYPH = 0.4
-const NEAR_BLACK = 0.03
+const NEAR_BLACK = 0.05
 const OPAQUE = 200
 
+// how an icon sits in its disc, read from the image drawn edge to edge:
+// - background: it brings its own background of this colour (a disc, a
+//   rounded square, padded or not)
+// - glyph: a shape on transparency, redrawn inset by GLYPH_INSET so its
+//   corners stay inside the disc and a 16 px favicon is not blown up to
+//   the full avatar
+// - opaque: a full-bleed picture with no single background colour; drawn
+//   as it is
+export type IconShape = { colour: Rgb; kind: 'background' } | { kind: 'glyph' } | { kind: 'opaque' }
+
+export const GLYPH_INSET = 0.16
+
+// the disc's outer band, from this fraction of the side out from the
+// centre to its edge. corner specks of a square favicon live there
+const RIM_START = 0.47
+
 // a sender icon is drawn as a disc (object-cover, rounded-full) and is
-// made fully opaque here, in place, so it never shows the page through:
-// - an icon with its own background (a rounded-square logo) has the
-//   transparency outside that background filled with its colour, so the
-//   corners do not show a foreign rim
+// made fully opaque, in place, so it never shows the page through:
+// - an icon with its own background has the transparency outside it and
+//   the disc's outer band painted its colour, so a rounded square's
+//   corners or a square's corner specks do not show as a foreign rim
 // - any transparency left, a bare glyph's or the inside of a ring logo,
 //   gets a plate: white unless the glyph itself is light
 // - a near-black background is lifted to grey, white staying white, so a
 //   black disc does not merge with the dark page
-export function finishIcon(rgba: Uint8ClampedArray, side: number): void {
-  const rim = rimColour(rgba, side)
+export function finishIcon(rgba: Uint8ClampedArray, side: number, shape: IconShape): void {
   let plate = WHITE
   if (glyphLuminance(rgba) > LIGHT_GLYPH) plate = LIFTED_DARK
-  if (rim) fillOutside(rgba, side, rim)
+  if (shape.kind === 'background') {
+    fillOutside(rgba, side, shape.colour)
+    paintRim(rgba, side, shape.colour)
+  }
   composite(rgba, plate)
-  if (rim && luminance(rim) < NEAR_BLACK) lift(rgba, rim, LIFTED_DARK)
+  if (shape.kind === 'background' && luminance(shape.colour) < NEAR_BLACK) {
+    lift(rgba, shape.colour, LIFTED_DARK)
+  }
+}
+
+export function iconShape(rgba: Uint8ClampedArray, side: number): IconShape {
+  const colour = backgroundColour(rgba, side)
+  if (colour) return { colour, kind: 'background' }
+  if (insideDisc(rgba, side, 0.5) > 0.95) return { kind: 'opaque' }
+  return { kind: 'glyph' }
 }
 
 function composite(rgba: Uint8ClampedArray, under: Rgb): void {
@@ -71,13 +98,16 @@ function glyphLuminance(rgba: Uint8ClampedArray): number {
 }
 
 // a levels adjustment: `from` maps to `to`, white stays white, so the
-// glyph and its antialiased edge keep their shape
+// glyph and its antialiased edge keep their shape. anything darker than
+// `from` (the low end of a gradient tile) becomes `to` too, or it would
+// sink back into the page
 function lift(rgba: Uint8ClampedArray, from: Rgb, to: Rgb): void {
   for (let i = 0; i < rgba.length; i += 4) {
     for (let c = 0; c < 3; c++) {
       const span = 255 - from[c]
       if (span <= 0) continue
-      rgba[i + c] = to[c] + ((rgba[i + c] - from[c]) * (255 - to[c])) / span
+      const above = Math.max(0, rgba[i + c] - from[c])
+      rgba[i + c] = to[c] + (above * (255 - to[c])) / span
     }
   }
 }
@@ -92,27 +122,22 @@ function luminance([r, g, b]: Rgb): number {
   return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
 }
 
-// the icon's own background: walking in from the disc's edge along each
-// of RAYS rays, the first opaque pixel is the outer layer. it counts as a
+// the icon's own background: walking in from the disc's outer band along
+// each of RAYS rays, the first opaque pixel is the outer layer. it counts as a
 // background when nearly every ray meets it in the outer part of the disc
 // (an enclosing shape such as a disc or a padded rounded square; the gaps
 // between a clover's leaves let rays through), most rays agree on its
 // colour, and what it encloses is mostly opaque (a ring, a q or a dotted
-// globe encloses empty space and stays a glyph). null for a glyph on
-// transparency
+// globe encloses empty space and stays a glyph)
 const RAYS = 64
 const REACH = 0.35
 
-function distance(a: Rgb, b: Rgb): number {
-  return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])
-}
-
-function rimColour(rgba: Uint8ClampedArray, side: number): null | Rgb {
+function backgroundColour(rgba: Uint8ClampedArray, side: number): null | Rgb {
   const centre = (side - 1) / 2
   const hits: Rgb[] = []
   for (let k = 0; k < RAYS; k++) {
     const angle = (2 * Math.PI * k) / RAYS
-    for (let r = side / 2 - 0.5; r >= side * REACH; r -= 0.5) {
+    for (let r = side * RIM_START; r >= side * REACH; r -= 0.5) {
       const x = Math.round(centre + r * Math.cos(angle))
       const y = Math.round(centre + r * Math.sin(angle))
       const i = (y * side + x) * 4
@@ -128,15 +153,36 @@ function rimColour(rgba: Uint8ClampedArray, side: number): null | Rgb {
   }) as Rgb
   const agree = hits.filter((p) => distance(p, median) < 60).length
   if (agree < RAYS * 0.8) return null
-  let inner = 0
-  let filled = 0
+  if (insideDisc(rgba, side, REACH) < 0.6) return null
+  return median
+}
+
+function distance(a: Rgb, b: Rgb): number {
+  return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])
+}
+
+// the opaque fraction of the pixels within `radius` of the centre, as a
+// fraction of the side
+function insideDisc(rgba: Uint8ClampedArray, side: number, radius: number): number {
+  const centre = (side - 1) / 2
+  let all = 0
+  let opaque = 0
   for (let y = 0; y < side; y++) {
     for (let x = 0; x < side; x++) {
-      if (Math.hypot(x - centre, y - centre) >= side * REACH) continue
-      inner++
-      if (rgba[(y * side + x) * 4 + 3] >= OPAQUE) filled++
+      if (Math.hypot(x - centre, y - centre) >= side * radius) continue
+      all++
+      if (rgba[(y * side + x) * 4 + 3] >= OPAQUE) opaque++
     }
   }
-  if (filled < inner * 0.6) return null
-  return median
+  return opaque / all
+}
+
+function paintRim(rgba: Uint8ClampedArray, side: number, colour: Rgb): void {
+  const centre = (side - 1) / 2
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      if (Math.hypot(x - centre, y - centre) < side * RIM_START) continue
+      rgba.set([...colour, 255], (y * side + x) * 4)
+    }
+  }
 }
