@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `split_list`: the mailboxes of a comma-separated list, with commas
+  inside a quoted display name or an angle-bracketed address left alone.
+
+### Fixed
+
+- `list_contains` and `list_is_only` no longer split
+  `"Lastname, Firstname" <x@y>` into two entries; `list_is_only` used to
+  answer no for a list holding only such a mailbox.
+
 ## [1.0.1] - 2026-05-22
 
 ### Changed

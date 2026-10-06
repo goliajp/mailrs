@@ -10,8 +10,9 @@
 //! Wire contract:
 //!
 //! - `GET /api/icon/{domain}` — auth-required (Bearer). On hit,
-//!   returns the icon bytes with the upstream `Content-Type`. On miss
-//!   returns **`204 No Content`**, not 404 — the browser then renders
+//!   returns the icon bytes with the upstream `Content-Type`. A
+//!   subdomain with no icon of its own gets its registrable domain's.
+//!   On miss returns **`204 No Content`**, not 404 — the browser then renders
 //!   the fallback letter avatar without polluting the devtools
 //!   console with a red row per unknown-icon domain.
 //!
@@ -79,24 +80,50 @@ pub async fn get_icon(Path(domain): Path<String>) -> Response {
         return no_content();
     }
 
+    if let Some((ct, body)) = resolve(&clean_domain).await {
+        return build_ok(&ct, body);
+    }
+    // Mail is often sent from a subdomain that has no icon of its own
+    // (`mail.anthropic.com`, `em.example.com`) while the organisation's
+    // domain has one. The subdomain's miss stays cached; the fallback is
+    // its own cached lookup.
+    if let Some(org) = organisation(&clean_domain)
+        && org != clean_domain
+        && let Some((ct, body)) = resolve(&org).await
+    {
+        return build_ok(&ct, body);
+    }
+    no_content()
+}
+
+/// The registrable domain (`mail.example.co.jp` → `example.co.jp`), never
+/// a public suffix on its own.
+fn organisation(domain: &str) -> Option<String> {
+    let org = psl::domain(domain.as_bytes())?;
+    std::str::from_utf8(org.as_bytes()).ok().map(str::to_string)
+}
+
+/// The icon for exactly `domain`: cache, then the upstream cascade, with
+/// both outcomes cached.
+async fn resolve(clean_domain: &str) -> Option<(String, Vec<u8>)> {
     // 1. Positive-cache hit → return bytes verbatim, unless what was
     // cached is one of the placeholders below.  Hits live for a week,
     // so a version that stops storing them would still serve the ones
     // already stored for another seven days; the same test on the way
     // out retires them on first touch.
-    if let Some((ct, body)) = lookup_cache(&clean_domain).await
+    if let Some((ct, body)) = lookup_cache(clean_domain).await
         && usable_icon(&ct, &body)
     {
-        return build_ok(&ct, body);
+        return Some((ct, body));
     }
-    // 2. Negative-cache hit → skip the cascade, return 204.
-    if is_cached_miss(&clean_domain).await {
-        return no_content();
+    // 2. Negative-cache hit → skip the cascade.
+    if is_cached_miss(clean_domain).await {
+        return None;
     }
 
     // 3. Cascade upstreams. First one to return a real icon wins.
     let client = http_client();
-    let upstream_urls = build_upstream_urls(&clean_domain).await;
+    let upstream_urls = build_upstream_urls(clean_domain).await;
     for url in upstream_urls {
         match client.get(&url).send().await {
             Ok(resp) if resp.status().is_success() => {
@@ -128,8 +155,8 @@ pub async fn get_icon(Path(domain): Path<String>) -> Response {
                     continue;
                 }
                 let vec = bytes.to_vec();
-                store_hit(&clean_domain, &ct, &vec).await;
-                return build_ok(&ct, vec);
+                store_hit(clean_domain, &ct, &vec).await;
+                return Some((ct, vec));
             }
             _ => continue,
         }
@@ -137,8 +164,8 @@ pub async fn get_icon(Path(domain): Path<String>) -> Response {
 
     // 4. Nothing worked — remember this so we don't walk the cascade
     // again for the same domain within the miss TTL.
-    store_miss(&clean_domain).await;
-    no_content()
+    store_miss(clean_domain).await;
+    None
 }
 
 /// Smallest icon worth drawing.  Real favicons start at 16×16; the
@@ -352,6 +379,24 @@ async fn store_miss(domain: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_sender_subdomain_falls_back_to_its_registrable_domain() {
+        assert_eq!(
+            organisation("mail.anthropic.com").as_deref(),
+            Some("anthropic.com")
+        );
+        assert_eq!(
+            organisation("em.news.example.co.jp").as_deref(),
+            Some("example.co.jp")
+        );
+        assert_eq!(
+            organisation("anthropic.com").as_deref(),
+            Some("anthropic.com")
+        );
+        // a public suffix alone is not an organisation
+        assert_eq!(organisation("co.jp"), None);
+    }
 
     /// DuckDuckGo's answer for a domain it has no icon for, byte for
     /// byte off the wire (2026-09-18,
