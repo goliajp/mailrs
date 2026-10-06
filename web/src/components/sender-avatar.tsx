@@ -65,10 +65,13 @@ export const SenderAvatar = memo(function SenderAvatar({
   // verified icon (BIMI or apple-touch-icon)
   if (icon) {
     return (
+      // the hairline ring is for icons that bring their own opaque
+      // background: it covers the plate, and a black or white disc can
+      // match the page exactly
       <img
         alt={initial}
         className={cx(
-          `shrink-0 rounded-full object-cover ${sizeClass} ${PLATE_CLASS[icon.plate]}`,
+          `shrink-0 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/25 ${sizeClass} ${PLATE_CLASS[icon.plate]}`,
           className
         )}
         onError={() => {
