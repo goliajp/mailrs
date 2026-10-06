@@ -2,9 +2,10 @@ export type IconPlate = 'black' | 'white'
 
 // a sender icon is often a transparent favicon; drawn straight onto the
 // page a dark logo vanishes on a dark theme and a white one on a light
-// theme. the plate is chosen from the icon itself, never the theme:
-// whichever of black or white contrasts more with the alpha-weighted
-// mean luminance of its visible pixels
+// theme. the plate is chosen from the icon itself, never the theme, from
+// the alpha-weighted mean luminance of its visible pixels
+const LIGHT_LOGO = 0.4
+
 export function iconPlate(rgba: Uint8ClampedArray): IconPlate {
   let weight = 0
   let sum = 0
@@ -17,10 +18,12 @@ export function iconPlate(rgba: Uint8ClampedArray): IconPlate {
   }
   if (weight === 0) return 'white'
   const lum = sum / weight
-  // wcag contrast against white is 1.05 / (lum + 0.05), against black
-  // (lum + 0.05) / 0.05; they are equal at lum ≈ 0.179
-  if (1.05 / (lum + 0.05) >= (lum + 0.05) / 0.05) return 'white'
-  return 'black'
+  // black only for clearly light logos. the wcag crossover (≈ 0.18) sends
+  // mid-tone blues and greens to black, and a black plate disappears into
+  // a dark page, leaving the logo as hard to see as with no plate; a
+  // mid-tone logo on white reads on both themes
+  if (lum > LIGHT_LOGO) return 'black'
+  return 'white'
 }
 
 function linear(channel: number): number {
