@@ -51,11 +51,17 @@ beforeEach(() => {
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
     value: () => ({
+      beginPath: () => undefined,
+      clearRect: () => undefined,
+      clip: () => undefined,
       drawImage: () => undefined,
       getImageData: (_x: number, _y: number, w: number, h: number) => ({
         data: new Uint8ClampedArray(w * h * 4),
       }),
       putImageData: () => undefined,
+      rect: () => undefined,
+      restore: () => undefined,
+      save: () => undefined,
     }),
   })
   Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
