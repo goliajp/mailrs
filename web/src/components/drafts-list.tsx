@@ -15,6 +15,7 @@ import { useDraftRows } from '@/hooks/use-current-list'
 import { useDeleteDraftMutation } from '@/hooks/use-drafts'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { MAIL_ROW_CONTENT, MAIL_ROW_FOCUS, mailRowStateClass } from '@/lib/list-row-class'
+import { splitAddressList } from '@/lib/recipients'
 import { composeDraftSourceAtom, composeReplySourceAtom, composingNewAtom } from '@/store/ui'
 
 // rows interleaved with Today / Yesterday / weekday group pills, same
@@ -199,7 +200,7 @@ function draftTitle(subject: string): string {
 ///
 /// Copied in shape from the send list, which draws the same row.
 function firstRecipient(to: string): string {
-  const first = to.split(',')[0]?.trim()
+  const first = splitAddressList(to)[0]
   if (!first) return '?'
   return first
 }
