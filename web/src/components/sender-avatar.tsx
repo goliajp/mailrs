@@ -1,24 +1,18 @@
-import type { IconPlate } from '@/lib/icon-plate'
-
 import { cx } from '@goliapkg/gds'
 import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
-import { iconPlate } from '@/lib/icon-plate'
+import { finishIcon } from '@/lib/icon-finish'
 import { getToken } from '@/store/auth'
-
-type Icon = { plate: IconPlate; url: string }
 
 function extractDomain(sender: string): null | string {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/)
   return match ? match[1] : null
 }
 
-// unified icon cache: domain → verified image and its backing plate, or null
-const iconCache = new Map<string, Icon | null>()
-const iconInflight = new Map<string, Promise<Icon | null>>()
-
-const PLATE_CLASS: Record<IconPlate, string> = { black: 'bg-black', white: 'bg-white' }
+// unified icon cache: domain → finished image URL or null
+const iconCache = new Map<string, null | string>()
+const iconInflight = new Map<string, Promise<null | string>>()
 
 export const SenderAvatar = memo(function SenderAvatar({
   className,
@@ -30,7 +24,7 @@ export const SenderAvatar = memo(function SenderAvatar({
   size?: number
 }) {
   const domain = extractDomain(sender)
-  const [icon, setIcon] = useState<Icon | null>(() => {
+  const [icon, setIcon] = useState<null | string>(() => {
     if (domain && iconCache.has(domain)) return iconCache.get(domain)!
     return null
   })
@@ -65,20 +59,14 @@ export const SenderAvatar = memo(function SenderAvatar({
   // verified icon (BIMI or apple-touch-icon)
   if (icon) {
     return (
-      // the hairline ring is for icons that bring their own opaque
-      // background: it covers the plate, and a black or white disc can
-      // match the page exactly
       <img
         alt={initial}
-        className={cx(
-          `shrink-0 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/25 ${sizeClass} ${PLATE_CLASS[icon.plate]}`,
-          className
-        )}
+        className={cx(`shrink-0 rounded-full object-cover ${sizeClass}`, className)}
         onError={() => {
           iconCache.set(domain!, null)
           setIcon(null)
         }}
-        src={icon.url}
+        src={icon}
       />
     )
   }
@@ -97,18 +85,35 @@ export const SenderAvatar = memo(function SenderAvatar({
 })
 
 // a blob: url is same-origin, so the canvas is not tainted and the
-// pixels can be read back
-async function measurePlate(url: string): Promise<IconPlate> {
+// pixels can be read back. the centre square is taken, as object-cover
+// would show it, so a wide wordmark is cropped rather than squeezed
+async function finishedIconUrl(raw: string): Promise<string> {
   const img = new Image()
-  img.src = url
+  img.src = raw
   await img.decode()
-  const side = 32
+  const crop = Math.min(img.naturalWidth, img.naturalHeight)
+  const side = Math.min(128, Math.max(64, crop))
   const canvas = document.createElement('canvas')
   canvas.width = side
   canvas.height = side
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-  ctx.drawImage(img, 0, 0, side, side)
-  return iconPlate(ctx.getImageData(0, 0, side, side).data)
+  ctx.drawImage(
+    img,
+    (img.naturalWidth - crop) / 2,
+    (img.naturalHeight - crop) / 2,
+    crop,
+    crop,
+    0,
+    0,
+    side,
+    side
+  )
+  const pixels = ctx.getImageData(0, 0, side, side)
+  finishIcon(pixels.data, side)
+  ctx.putImageData(pixels, 0, 0)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  URL.revokeObjectURL(raw)
+  return URL.createObjectURL(blob!)
 }
 
 /**
@@ -118,9 +123,9 @@ async function measurePlate(url: string): Promise<IconPlate> {
  * hit on a warm cache, not a fanout to external services per render.
  *
  * Wire contract of `/api/icon/{domain}`:
- *   - 200 + image bytes → resolve to a blob URL and the plate drawn
- *                          behind it (bytes that fail to decode
- *                          resolve to `null`)
+ *   - 200 + image bytes → resolve to a blob URL of the icon made
+ *                          opaque for the disc (bytes that fail to
+ *                          decode resolve to `null`)
  *   - 204 No Content     → resolve to `null` (no icon anywhere;
  *                          fall back to the coloured initial)
  *   - anything else      → resolve to `null` and don't retry within
@@ -131,7 +136,7 @@ async function measurePlate(url: string): Promise<IconPlate> {
  * sender domain rendered in the inbox — a 401/404 wall was the
  * 2026-07-07 UX regression this replaces.
  */
-function resolveIcon(domain: string): Promise<Icon | null> {
+function resolveIcon(domain: string): Promise<null | string> {
   if (iconCache.has(domain)) return Promise.resolve(iconCache.get(domain)!)
   const existing = iconInflight.get(domain)
   if (existing) return existing
@@ -150,11 +155,10 @@ function resolveIcon(domain: string): Promise<Icon | null> {
       if (r.status === 200) {
         const blob = await r.blob()
         if (blob.size > 0) {
-          const url = URL.createObjectURL(blob)
-          const icon = { plate: await measurePlate(url), url }
-          iconCache.set(domain, icon)
+          const url = await finishedIconUrl(URL.createObjectURL(blob))
+          iconCache.set(domain, url)
           iconInflight.delete(domain)
-          return icon
+          return url
         }
       }
       // 204 or non-2xx → no icon available, cache the null so we
