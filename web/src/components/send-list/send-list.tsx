@@ -13,6 +13,7 @@ import { useCancelSendMutation, useDeleteSendMutation, useResendMutation } from 
 import { extractEmail, extractName } from '@/lib/avatar'
 import { dateGroupLabel, formatFullDate } from '@/lib/format'
 import { mailRowClass } from '@/lib/list-row-class'
+import { splitAddressList } from '@/lib/recipients'
 import {
   composeRedraftSourceAtom,
   composingNewAtom,
@@ -266,8 +267,7 @@ const SendRowView = memo(function SendRowView({
 })
 
 function firstRecipient(to: string): string {
-  const first = to.split(',')[0]?.trim() ?? ''
-  return first || to
+  return splitAddressList(to)[0] ?? to
 }
 
 function groupByDate(rows: readonly SendRow[]): Item[] {
@@ -285,10 +285,7 @@ function groupByDate(rows: readonly SendRow[]): Item[] {
 }
 
 function recipientLabel(to: string): string {
-  const parts = to
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+  const parts = splitAddressList(to)
   if (parts.length === 0) return '—'
   const first = extractName(parts[0]) || extractEmail(parts[0]) || parts[0]
   if (parts.length === 1) return first

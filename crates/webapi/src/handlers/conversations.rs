@@ -92,6 +92,44 @@ fn parse_accounts(raw: Option<&str>) -> Option<Vec<String>> {
 }
 
 #[cfg(test)]
+mod participant_tests {
+    use super::ConversationResponse;
+
+    /// prod listed `"Anthropic, PBC" <invoice+statements@mail.anthropic.com>`
+    /// as `"anthropic +1`, with a `"` for an avatar.
+    #[test]
+    fn a_quoted_display_name_with_a_comma_is_one_participant() {
+        let wire: mailrs_core_api::types::ConversationSummaryWire =
+            serde_json::from_value(serde_json::json!({
+                "thread_id": "t1",
+                "subject": "Your receipt",
+                "participants": "\"Anthropic, PBC\" <invoice@mail.anthropic.com>,me@golia.jp",
+                "message_count": 1,
+                "unread_count": 0,
+                "last_date": 0,
+                "category": "",
+                "flagged": false,
+                "snippet": "",
+                "pinned": false,
+                "archived": false,
+                "importance_level": "",
+                "importance_score": 0.0,
+                "requires_action": false,
+                "sent_count": 0
+            }))
+            .unwrap();
+        let resp = ConversationResponse::from(wire);
+        assert_eq!(
+            resp.participants,
+            [
+                "\"Anthropic, PBC\" <invoice@mail.anthropic.com>",
+                "me@golia.jp"
+            ]
+        );
+    }
+}
+
+#[cfg(test)]
 mod account_param_tests {
     use super::parse_accounts;
 
@@ -161,10 +199,8 @@ pub struct ConversationResponse {
 
 impl From<mailrs_core_api::types::ConversationSummaryWire> for ConversationResponse {
     fn from(w: mailrs_core_api::types::ConversationSummaryWire) -> Self {
-        let participants: Vec<String> = w
-            .participants
-            .split(',')
-            .map(|s| mailrs_rfc2047::decode(s.trim().as_bytes()).into_owned())
+        let participants: Vec<String> = mailrs_rfc5322::split_list(&w.participants)
+            .map(|s| mailrs_rfc2047::decode(s.as_bytes()).into_owned())
             .filter(|s| !s.is_empty())
             .collect();
         let received_count = w.message_count.saturating_sub(w.sent_count);
