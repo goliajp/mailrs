@@ -2,7 +2,7 @@ import { cx } from '@goliapkg/gds'
 import { memo, useEffect, useState } from 'react'
 
 import { avatarColor, avatarInitial } from '@/lib/avatar'
-import { finishIcon } from '@/lib/icon-finish'
+import { finishedIconUrl } from '@/lib/finish-icon-image'
 import { getToken } from '@/store/auth'
 
 function extractDomain(sender: string): null | string {
@@ -83,38 +83,6 @@ export const SenderAvatar = memo(function SenderAvatar({
     </div>
   )
 })
-
-// a blob: url is same-origin, so the canvas is not tainted and the
-// pixels can be read back. the centre square is taken, as object-cover
-// would show it, so a wide wordmark is cropped rather than squeezed
-async function finishedIconUrl(raw: string): Promise<string> {
-  const img = new Image()
-  img.src = raw
-  await img.decode()
-  const crop = Math.min(img.naturalWidth, img.naturalHeight)
-  const side = Math.min(128, Math.max(64, crop))
-  const canvas = document.createElement('canvas')
-  canvas.width = side
-  canvas.height = side
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-  ctx.drawImage(
-    img,
-    (img.naturalWidth - crop) / 2,
-    (img.naturalHeight - crop) / 2,
-    crop,
-    crop,
-    0,
-    0,
-    side,
-    side
-  )
-  const pixels = ctx.getImageData(0, 0, side, side)
-  finishIcon(pixels.data, side)
-  ctx.putImageData(pixels, 0, 0)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  URL.revokeObjectURL(raw)
-  return URL.createObjectURL(blob!)
-}
 
 /**
  * Fetch a small pixmap for `domain` through the mailrs icon cascade
