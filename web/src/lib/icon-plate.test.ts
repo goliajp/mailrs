@@ -29,6 +29,13 @@ describe('iconPlate', () => {
     expect(iconPlate(pixels([255, 220, 0, 255]))).toBe('black')
   })
 
+  it('puts mid-tone logos on white, not on a black plate that sinks into a dark page', () => {
+    // sonatype's violet hexagon and tokyo-kosha's green leaf, both measured
+    // just past the wcag crossover
+    expect(iconPlate(pixels([106, 92, 255, 255]))).toBe('white')
+    expect(iconPlate(pixels([0, 140, 70, 255]))).toBe('white')
+  })
+
   it('falls back to white for an image with no visible pixel', () => {
     expect(iconPlate(pixels([0, 0, 0, 0]))).toBe('white')
   })
