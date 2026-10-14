@@ -71,7 +71,15 @@ export function mailRowClass(state: MailRowState): string {
  * `flagged` wins the left border: a send that failed is worth more of the
  * user's attention than which row happens to be open, and the two never
  * need to be distinguished at once.
+ *
+ * A read row dims only the parts marked `data-row-dims`, never the whole
+ * row: opacity on the row made the sender's icon translucent too, so the
+ * page showed through it and a logo read as washed out next to the same
+ * logo on an unread row.
  */
+const ROW_DIM =
+  '[&_[data-row-dims]]:opacity-70 hover:[&_[data-row-dims]]:opacity-100 [&_[data-row-dims]]:transition-opacity'
+
 export function mailRowStateClass(state: MailRowState): string {
   const isSelected = Boolean(state.selected) && !state.batchMode
   const border = state.flagged
@@ -80,6 +88,6 @@ export function mailRowStateClass(state: MailRowState): string {
       ? 'border-l-accent'
       : 'border-l-transparent'
   const bg = isSelected || state.checked ? 'bg-accent/10' : 'hover:bg-bg-secondary'
-  const dim = state.muted && !isSelected && !state.checked ? 'opacity-70 hover:opacity-100' : ''
+  const dim = state.muted && !isSelected && !state.checked ? ROW_DIM : ''
   return `${border} ${bg} ${dim}`
 }
