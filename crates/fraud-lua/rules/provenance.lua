@@ -30,3 +30,13 @@ rule('minted-sending-host', 'provenance', 3, false, function(m)
         return 'the sending host\'s name was generated, not chosen'
     end
 end)
+-- A `Date:` days ahead of arrival sorts the letter above everything that
+-- comes after it, which is the point of writing it. A mis-set clock or a
+-- mislabelled zone is off by hours, at most a day (UTC+14 against
+-- UTC-12): of 43,072 production letters three were ahead by more than an
+-- hour, a county notice by seven, and only this kind by more than one day.
+rule('dated-in-the-future', 'provenance', 6, true, function(m)
+    if m.date_ahead > 2 * 86400 then
+        return 'dated ' .. math.floor(m.date_ahead / 86400) .. ' days after it arrived, so it sorts above every letter that follows'
+    end
+end)

@@ -222,6 +222,13 @@ pub(crate) async fn rescan(
             is_bulk: mailrs_inbound::body::is_bulk(&raw),
             to_display: &to_display,
             reply_rotation,
+            // against the arrival this deployment stamped, not the
+            // clock: once the claimed date has passed, the clock would
+            // release what the live path held
+            date_ahead: mailrs_inbound::dates::date_ahead_of(
+                &raw,
+                mailrs_inbound::dates::received_epoch(&raw),
+            ),
             // How this message was submitted, read back off the
             // message itself: the receiver stamps
             // `Authentication-Results:` on the inbound path only, and

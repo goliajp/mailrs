@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::{
     FastcoreState, extract_headers, extract_sender_trust, file_mtime_epoch, maildir_filename_epoch,
-    maildir_keyword_bits, maildir_seen_flag, resolve_thread_by_ancestry,
+    maildir_keyword_bits, maildir_seen_flag, resolve_thread_by_ancestry, sort_date,
 };
 
 pub(crate) struct MailFile {
@@ -162,13 +162,9 @@ pub(crate) fn scan_maildir(user: &str, since: i64) -> Vec<MailFile> {
         // 0. Without these fallbacks the affected messages sorted to
         // 1970 and inbound replies could end up ahead of the sent
         // copy in the thread timeline.
-        let date = if date > 0 {
-            date
-        } else {
-            maildir_filename_epoch(&bare)
-                .or_else(|| file_mtime_epoch(path))
-                .unwrap_or(0)
-        };
+        let date = sort_date(date, maildir_filename_epoch(&bare))
+            .or_else(|| file_mtime_epoch(path))
+            .unwrap_or(0);
         parsed.push(MailFile {
             filename: blob_ref,
             size,

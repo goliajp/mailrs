@@ -230,6 +230,18 @@ pub(crate) fn resolve_thread_by_ancestry(
 /// when the message's `Date:` header is missing or unparseable. Filter
 /// out obviously bogus epochs (<= year 2000) so we don't backdate
 /// modern mail into 1970 territory.
+/// The time a message sorts by: its `Date:`, unless that is missing or
+/// later than its arrival. A sender who writes a date a month ahead
+/// would otherwise keep the conversation above everything that arrives
+/// until then.
+pub(crate) fn sort_date(header: i64, arrival: Option<i64>) -> Option<i64> {
+    match arrival {
+        Some(arrival) if header <= 0 || header > arrival => Some(arrival),
+        _ if header > 0 => Some(header),
+        _ => None,
+    }
+}
+
 pub(crate) fn maildir_filename_epoch(name: &str) -> Option<i64> {
     let first = name.split('.').next()?;
     let n: i64 = first.parse().ok()?;
@@ -300,6 +312,30 @@ pub(crate) fn body_text_for_search(raw: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_date_ahead_of_arrival_sorts_at_arrival() {
+        // tintgate.com, delivered 2026-10-12, dated 2026-11-12
+        assert_eq!(
+            sort_date(1_794_508_832, Some(1_791_830_446)),
+            Some(1_791_830_446)
+        );
+    }
+
+    #[test]
+    fn a_date_before_arrival_is_kept() {
+        assert_eq!(
+            sort_date(1_791_830_000, Some(1_791_830_446)),
+            Some(1_791_830_000)
+        );
+        assert_eq!(sort_date(1_791_830_000, None), Some(1_791_830_000));
+    }
+
+    #[test]
+    fn no_date_falls_back_to_arrival() {
+        assert_eq!(sort_date(0, Some(1_791_830_446)), Some(1_791_830_446));
+        assert_eq!(sort_date(0, None), None);
+    }
 
     /// A From display name encoded per RFC 2047, the way the real ones
     /// arrive — the override is invisible in the raw bytes.
