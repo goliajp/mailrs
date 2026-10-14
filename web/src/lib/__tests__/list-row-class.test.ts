@@ -43,9 +43,15 @@ describe('mailRowClass', () => {
   })
 
   it('dims a read row only while it is neither selected nor ticked', () => {
-    expect(mailRowClass({ muted: true })).toContain('opacity-70')
+    expect(mailRowClass({ muted: true })).toContain('[&_[data-row-dims]]:opacity-70')
     expect(mailRowClass({ muted: true, selected: true })).not.toContain('opacity-70')
     expect(mailRowClass({ checked: true, muted: true })).not.toContain('opacity-70')
+  })
+
+  it('never dims the row as a whole, which would dim its icon too', () => {
+    const tokens = mailRowClass({ muted: true }).split(' ')
+    expect(tokens).not.toContain('opacity-70')
+    expect(tokens).not.toContain('hover:opacity-100')
   })
 
   /**

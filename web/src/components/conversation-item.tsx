@@ -203,7 +203,7 @@ export const ConversationItem = memo(function ConversationItem({
           above; the action buttons opt back in. */}
       <div className={`pointer-events-none relative z-10 ${MAIL_ROW_CONTENT}`}>
         {batchMode && (
-          <div className="mt-0.5 flex shrink-0 items-center">
+          <div className="mt-0.5 flex shrink-0 items-center" data-row-dims>
             <div
               className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-colors ${
                 checked ? 'border-accent bg-accent' : 'border-border bg-bg'
@@ -214,7 +214,7 @@ export const ConversationItem = memo(function ConversationItem({
           </div>
         )}
         <SenderAvatar sender={displayParticipant} size={36} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" data-row-dims>
           <div className="flex items-center justify-between gap-2">
             <span className={getSenderClass({ hasUnread, isOwn })}>
               {name}
