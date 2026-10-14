@@ -316,6 +316,30 @@ describe('ConversationItem rendering', () => {
     expect(screen.getByText('Alice Smith')).toBeDefined()
   })
 
+  // opacity on the whole row made the sender's icon translucent, so a
+  // logo on a read row looked washed out beside the same logo unread
+  it('dims a read row without dimming its sender icon', () => {
+    flatStub.conversations = [
+      makeConversation({
+        participants: ['Zed Example <zed@example.com>'],
+        subject: 'Already read',
+        unread_count: 0,
+      }),
+    ]
+
+    render(
+      <Wrapper store={store}>
+        <ConversationList />
+      </Wrapper>
+    )
+
+    const subject = screen.getByText('Already read')
+    expect(subject.closest('[data-row-dims]')).not.toBeNull()
+    expect(screen.getByText('Z').closest('[data-row-dims]')).toBeNull()
+    const row = subject.closest('[role="listitem"]')!
+    expect(row.className.split(' ')).not.toContain('opacity-70')
+  })
+
   it('shows unread count badge', () => {
     flatStub.conversations = [makeConversation({ unread_count: 5 })]
 
