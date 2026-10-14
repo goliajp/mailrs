@@ -21,6 +21,7 @@ mailrs-textguard = { path = "../textguard", version = "0" }
 mailrs-mime = { path = "../mime", version = "2" }
 mailrs-rfc2047 = { path = "../rfc2047", version = "1" }
 async-trait = "0.1"
+chrono = { workspace = true }
 serde = { workspace = true }
 tracing = "0.1"
 metrics = "0.24"

@@ -224,30 +224,7 @@ fn strip_angle(v: &str) -> String {
 ///
 /// Returns `None` when the header is empty / unparseable.
 fn parse_rfc5322_date(s: &str) -> Option<i64> {
-    let s = s.trim();
-    if s.is_empty() {
-        return None;
-    }
-    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(s) {
-        return Some(dt.timestamp());
-    }
-    // Retry ladder for the messy real world:
-    //   1. Strip a trailing " (CFWS)" comment (RFC 5322 §3.3 permits it,
-    //      chrono rejects it).
-    //   2. Strip a leading "Weekday, " prefix — many senders ship a
-    //      day-of-week that disagrees with the date (chrono treats that
-    //      as Impossible even though the timestamp is well-formed).
-    let no_comment = s.split(" (").next().unwrap_or(s).trim_end();
-    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(no_comment) {
-        return Some(dt.timestamp());
-    }
-    let no_dow = match no_comment.find(", ") {
-        Some(idx) => no_comment[idx + 2..].trim_start(),
-        None => no_comment,
-    };
-    chrono::DateTime::parse_from_rfc2822(no_dow)
-        .ok()
-        .map(|dt| dt.timestamp())
+    mailrs_inbound::dates::parse_date(s)
 }
 
 // ── Account (auth) — Phase 8 ────────────────────────────────────────
