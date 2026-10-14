@@ -177,6 +177,10 @@ fn compare(baseline: &str, candidate: &str, root: &str, limit: usize) -> Result<
             has_executable_attachment: mailrs_fraud::attachment::any_executable(
                 parsed.attachments().filter_map(|p| p.attachment_filename()),
             ),
+            date_ahead: mailrs_inbound::dates::date_ahead_of(
+                &raw,
+                mailrs_inbound::dates::received_epoch(&raw),
+            ),
             ..Facts::default()
         };
         let old = match &mut before {
