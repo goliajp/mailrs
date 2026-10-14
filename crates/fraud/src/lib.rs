@@ -203,6 +203,11 @@ pub struct Facts<'a> {
     /// more often than a letter does. Absence says nothing: plenty of
     /// bulk mail carries neither header, so this can only excuse.
     pub is_bulk: bool,
+    /// Seconds the `Date:` header is ahead of the message's arrival:
+    /// the clock on the live path, this deployment's own `Received:`
+    /// stamp in a sweep. Zero when it is not ahead or either time is
+    /// missing.
+    pub date_ahead: i64,
 }
 
 /// Run every compiled check over one message.
