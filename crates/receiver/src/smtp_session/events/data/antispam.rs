@@ -152,6 +152,10 @@ pub(super) async fn run_antispam(
         is_bulk: mailrs_inbound::body::is_bulk(&receive_ctx.message),
         to_display: &to_display,
         reply_rotation,
+        date_ahead: mailrs_inbound::dates::date_ahead_of(
+            &receive_ctx.message,
+            Some(chrono::Utc::now().timestamp()),
+        ),
         // `run_antispam` is called only when the session did not
         // authenticate (`!is_authenticated` in `events/data/mod.rs`).
         // Stated as a fact rather than left to the rules to assume

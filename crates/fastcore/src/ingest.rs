@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::headers::{
     body_text_for_search, extract_headers, extract_sender_trust, maildir_filename_epoch,
-    resolve_thread_by_ancestry,
+    resolve_thread_by_ancestry, sort_date,
 };
 use crate::{FastcoreState, enqueue_webhooks_for_arrival};
 
@@ -44,11 +44,7 @@ pub(crate) fn ingest_delivered_file(
         return;
     }
     let bare = blob_ref.rsplit('/').next().unwrap_or(blob_ref);
-    let date = if date > 0 {
-        date
-    } else {
-        maildir_filename_epoch(bare).unwrap_or(0)
-    };
+    let date = sort_date(date, maildir_filename_epoch(bare)).unwrap_or(0);
     // v2.9.5 threading fix — prefer the thread an ancestor actually
     // landed in (msgid index) over deriving one from raw headers.
     // References[0] is NOT a stable conversation root (each hop can

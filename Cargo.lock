@@ -3643,6 +3643,7 @@ name = "mailrs-inbound"
 version = "1.2.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "criterion 0.8.2",
  "mailrs-fraud",
  "mailrs-mime",

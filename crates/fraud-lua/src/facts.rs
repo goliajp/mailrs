@@ -67,6 +67,8 @@ fn fill(lua: &mut Lua, t: LuaTable, f: &Facts<'_>, p: &Policy) -> Result<(), Str
     .map_err(|e| lua.vm().error_text(&e))?;
     t.set(lua, "reply_rotation", i64::from(f.reply_rotation))
         .map_err(|e| lua.vm().error_text(&e))?;
+    t.set(lua, "date_ahead", f.date_ahead)
+        .map_err(|e| lua.vm().error_text(&e))?;
     for (k, v) in [
         ("has_zero_width", f.has_zero_width),
         ("has_zero_width_in_name", f.has_zero_width_in_name),
