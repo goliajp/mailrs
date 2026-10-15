@@ -59,6 +59,10 @@ pub(super) fn maintenance_routes(r: Router<Arc<FastcoreState>>) -> Router<Arc<Fa
             post(threadrow_shadow_route),
         )
         .route(
+            "/v1/admin/maintenance:future-dates",
+            post(crate::maintenance::future_dates::future_dates_route),
+        )
+        .route(
             "/v1/admin/maintenance:thread-date-audit",
             post(crate::maintenance::thread_date_audit::thread_date_audit_route),
         )
