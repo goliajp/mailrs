@@ -178,10 +178,3 @@ pub(super) fn parse_seq_bound(s: &str, messages: &[ImapMessage], by_uid: bool) -
         s.parse().unwrap_or(0)
     }
 }
-
-pub(super) fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
-    }
-    haystack.windows(needle.len()).position(|w| w == needle)
-}

@@ -33,6 +33,8 @@
 //! - **BODYSTRUCTURE** — `build_bodystructure` recurses through
 //!   multipart trees and emits the RFC-9051 §7.5.2 form. Lives in
 //!   the [`bodystructure`] module.
+//! - **ENVELOPE** — `build_envelope` reads the header block into the
+//!   RFC-9051 §7.5.2 envelope. Lives in the [`envelope`] module.
 //!
 //! All helpers are pure functions — no I/O, no async.
 
@@ -40,13 +42,16 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod bodystructure;
+pub mod envelope;
+mod header_fields;
 pub mod mime;
 
 pub use bodystructure::build_bodystructure;
+pub use envelope::build_envelope;
 pub use mime::{
-    MimeInfo, extract_body_section, extract_header_fields, extract_header_section,
-    extract_mime_part, find_line_offset, parse_mime_headers, split_mime_parts,
-    trim_part_trailing_newline,
+    MimeInfo, extract_body_section, extract_header_fields, extract_header_fields_except,
+    extract_header_section, extract_mime_part, find_line_offset, parse_mime_headers,
+    split_mime_parts, trim_part_trailing_newline,
 };
 
 /// IMAP `\Seen` system flag. Bit-0 of the standard u32 mask.

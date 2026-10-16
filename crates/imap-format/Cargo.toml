@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
+mailrs-rfc5322 = { path = "../rfc5322", version = "1" }
 # SIMD byte scanner — used in mime.rs for the body/header offset
 # scans (extract_header_section / extract_body_section /
 # find_line_offset). Per-FETCH BODY[HEADER]/BODY[TEXT] hot path.
