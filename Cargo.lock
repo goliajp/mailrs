@@ -3628,6 +3628,7 @@ version = "1.0.1"
 dependencies = [
  "chrono",
  "criterion 0.8.2",
+ "mailrs-rfc5322",
  "memchr",
 ]
 
