@@ -287,6 +287,7 @@ pub(crate) async fn run_with_roles(roles: Roles) {
         account_store: domain_store
             .clone()
             .map(|d| d as Arc<dyn mailrs_receiver::AccountStore>),
+        credential_store: None,
         queue_notifier: kevy_embedded_store.as_ref().map(|s| {
             Arc::new(mailrs_outbound_queue::KevyNotifier::new(s.as_ref().clone()))
                 as Arc<dyn mailrs_outbound_queue::Notifier>

@@ -25,8 +25,11 @@ use mailrs_core::spool::decode_spool_blob;
 use crate::FastcoreState;
 
 mod deliver;
+mod relay;
+mod stuck;
 
 pub(crate) use deliver::*;
+use stuck::{forget_departed, stuck_is_new};
 
 /// Spawn the drain loop. Env:
 /// - `MAILRS_SPOOL_ROOT` — spool base, default `/data/.spool`
@@ -78,30 +81,6 @@ pub async fn spawn(state: Arc<FastcoreState>) {
             tracing::info!(delivered = total, "fastcore spool drain tick");
         }
         tokio::time::sleep(Duration::from_secs(interval_secs)).await;
-    }
-}
-
-/// Filenames already reported as undeliverable. A spool file that
-/// cannot be resolved stays on disk by design, so without this every
-/// drain tick would re-log it forever.
-static STUCK_REPORTED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
-    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
-
-/// `true` the first time `filename` is seen as stuck. Also drops names
-/// that have since left the spool, so a file that is fixed and then
-/// breaks again is reported afresh.
-fn stuck_is_new(filename: &str) -> bool {
-    match STUCK_REPORTED.lock() {
-        Ok(mut set) => set.insert(filename.to_string()),
-        // A poisoned mutex must not silence the warning.
-        Err(_) => true,
-    }
-}
-
-/// Forget any reported name no longer present in the spool.
-fn forget_departed(present: &std::collections::HashSet<String>) {
-    if let Ok(mut set) = STUCK_REPORTED.lock() {
-        set.retain(|name| present.contains(name));
     }
 }
 
@@ -163,6 +142,16 @@ pub(crate) fn drain_once(
             // logging) gets the canonical form too, so the address a
             // human reads in a log is the one the lookups used.
             let fwd = &canonical_recipient(raw_fwd);
+            if relay::relays_outward(env.is_authenticated, fwd, relay::local_domains()) {
+                match relay::enqueue_submission(&env.reverse_path, raw_fwd, body) {
+                    Ok(()) => delivered_here += 1,
+                    Err(e) => {
+                        tracing::warn!(to = %raw_fwd, error = %e, "submission relay enqueue failed");
+                        unresolved.push(fwd.clone());
+                    }
+                }
+                continue;
+            }
             // 1. Resolve the addressable recipient — direct maildir, or
             //    the alias table (`mailrs:alias:<addr>` → target). Both
             //    cases return the address we'll actually deliver TO.

@@ -71,6 +71,9 @@ pub struct ConnectionContext {
     /// receiver doesn't bind the spg-backed `DomainStore` — in-process today,
     /// network-backed in the receiver-split topology.
     pub account_store: Option<Arc<dyn AccountStore>>,
+    /// Account password hashes held by the core, for submission auth in
+    /// the split topology. `None` in the monolith, which has `account_store`.
+    pub credential_store: Option<Arc<dyn crate::CredentialStore>>,
     /// Wakes the outbound delivery worker after the receiving path
     /// enqueues relay / sieve-redirect / vacation mail. Abstracted as a
     /// trait so the receiver doesn't bind the in-process kevy store —

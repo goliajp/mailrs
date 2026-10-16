@@ -52,6 +52,10 @@ pub struct ReceiverConfig {
     pub tls_key: Option<PathBuf>,
     pub users_file: Option<PathBuf>,
     pub srs_secret: Option<String>,
+    /// core RPC base and shared secret; submission auth reads account
+    /// password hashes from the core through them
+    pub core_rpc_base: Option<String>,
+    pub core_api_secret: Option<String>,
 }
 
 fn env_str(name: &str, default: &str) -> String {
@@ -133,6 +137,8 @@ impl ReceiverConfig {
             tls_key: env_opt_nonempty("MAILRS_TLS_KEY").map(PathBuf::from),
             users_file: env_opt_nonempty("MAILRS_USERS_FILE").map(PathBuf::from),
             srs_secret: env_opt_nonempty("MAILRS_SRS_SECRET"),
+            core_rpc_base: env_opt_nonempty("MAILRS_CORE_RPC_BASE"),
+            core_api_secret: env_opt_nonempty(mailrs_core_api::AUTH_SECRET_ENV),
         }
     }
 }
