@@ -253,6 +253,19 @@ pub async fn run() {
         }),
         None => UserStore::empty(),
     });
+    let credential_store = match (&cfg.core_rpc_base, &cfg.core_api_secret) {
+        (Some(base), Some(secret)) => Some(Arc::new(crate::CoreCredentialStore::new(
+            base.clone(),
+            secret.clone(),
+        )) as Arc<dyn crate::CredentialStore>),
+        _ => {
+            tracing::warn!(
+                "MAILRS_CORE_RPC_BASE / MAILRS_CORE_API_SECRET not both set: \
+                 submission auth accepts users.toml entries only"
+            );
+            None
+        }
+    };
 
     // event bus that publishes cross-process events (SpoolDelivered) to the
     // shared kevy-server. The receiver only publishes — the core runs the
@@ -305,6 +318,7 @@ pub async fn run() {
         smuggle_protection: cfg.smuggle_protection,
         auth_guard,
         account_store: None,
+        credential_store,
         queue_notifier: None,
         srs_secret: cfg.srs_secret.clone(),
         ldap_config: None,

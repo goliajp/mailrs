@@ -59,6 +59,9 @@ services:
       MAILRS_MAILDIR: /data/maildir
       MAILRS_USERS_FILE: /data/users.toml
       MAILRS_KEVY_URL: kevy://kevy-server:6379
+      # submission auth reads account password hashes from the core
+      MAILRS_CORE_RPC_BASE: ${MAILRS_CORE_RPC_BASE:-http://mailrs-fastcore:3301}
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_ANTISPAM_ENABLED: "true"
       MAILRS_TLS_CERT: /certs/fullchain.pem
       MAILRS_TLS_KEY: /certs/privkey.pem

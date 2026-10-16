@@ -78,6 +78,9 @@ services:
       MAILRS_HOSTNAME: ${MAILRS_HOSTNAME:-mail.golia.ai}
       MAILRS_SPOOL_ROOT: /data/.spool
       MAILRS_KEVY_URL: kevy://kevy-server:6379
+      # submission auth reads account password hashes from the core
+      MAILRS_CORE_RPC_BASE: http://mailrs:3300
+      MAILRS_CORE_API_SECRET: ${MAILRS_CORE_API_SECRET}
       MAILRS_LOCAL_DOMAINS: ${MAILRS_LOCAL_DOMAINS:-}
       MAILRS_PORT: "25"
       MAILRS_SUBMISSION_PORT: "587"
