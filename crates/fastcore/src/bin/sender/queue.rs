@@ -161,29 +161,6 @@ pub(super) async fn recover_stale(cfg: Cfg) -> std::io::Result<usize> {
     .map_err(|e| std::io::Error::other(format!("join: {e}")))?
 }
 
-pub(super) async fn promote_due(cfg: Cfg) -> std::io::Result<()> {
-    spawn_blocking(move || {
-        let mut c = kevy(&cfg.kevy_url)?;
-        let now = now_secs() as f64;
-        // ascending by score; batch of 100 due items per tick is plenty
-        let members = c.zrange(SCHEDULED_KEY, 0, 99)?;
-        for m in members {
-            let score = c.zscore(SCHEDULED_KEY, &m)?.unwrap_or(f64::MAX);
-            if score > now {
-                break; // rest are future
-            }
-            // due: pending first, then remove from scheduled — a crash
-            // between the two re-promotes harmlessly (idempotent).
-            // v2.5.3 §P8-B-C: promote to v2 pending-idx directly.
-            c.lpush(PENDING_IDX_KEY, &[m.as_slice()])?;
-            c.zrem(SCHEDULED_KEY, &[m.as_slice()])?;
-        }
-        Ok(())
-    })
-    .await
-    .map_err(|e| std::io::Error::other(format!("join: {e}")))?
-}
-
 /// Fetch the envelope for `id`. Returns `Ok(None)` if blob missing.
 ///
 /// v2.5.3 §P8-B-C: reads the v2 job hash's `blob` field (enqueue's

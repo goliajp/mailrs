@@ -15,7 +15,7 @@ use axum::{
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-use mailrs_core_sidestate::families::outbound::PENDING_IDX;
+use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX};
 
 // Split by subject on 2026-08-02 — 1,687 lines holding password recovery,
 // TOTP, system config, groups, audit and the agent surface. Re-exported so
@@ -314,23 +314,22 @@ pub async fn delete_greylist_entry(Path(id): Path<i64>) -> Result<StatusCode, St
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ── Admin: outbound queue admin view ──────────────────────────────
-
 pub async fn list_admin_queue() -> Result<Json<serde_json::Value>, StatusCode> {
-    // Return the last 100 IDs in pending + inflight.
-    // v2: read the pending-idx sender actually drains; the legacy
-    // `mailrs:outbound:pending` / `mailrs:outbound:inflight` lists have
-    // been dead since Phase 8.1 (see stone outbound.rs), so the old
-    // read returned only stuck ghosts.
+    // Up to 100 ids each: queued, waiting between attempts, in flight.
     let ids = with_kevy(|c| {
         let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
+        let retrying = c.zrange(RETRY_IDX, 0, 99).unwrap_or_default();
         let inflight = c
             .lrange(b"mailrs:outbound:inflight", 0, 99)
             .unwrap_or_default();
-        Ok((pending, inflight))
+        Ok((pending, retrying, inflight))
     })?;
     let mut items = Vec::new();
-    for (label, list) in [("pending", &ids.0), ("inflight", &ids.1)] {
+    for (label, list) in [
+        ("pending", &ids.0),
+        ("retrying", &ids.1),
+        ("inflight", &ids.2),
+    ] {
         for b in list {
             let id_str = String::from_utf8_lossy(b).to_string();
             let key = format!("mailrs:outbound:job:{id_str}");

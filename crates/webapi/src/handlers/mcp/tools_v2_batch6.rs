@@ -8,26 +8,31 @@ use rmcp::{tool, tool_router};
 
 use super::MailrsMcpService;
 use crate::handlers::kevy_util::with_kevy;
-use mailrs_core_sidestate::families::outbound::PENDING_IDX;
+use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX};
 
 #[tool_router(router = tool_router_v2_batch6, vis = "pub")]
 impl MailrsMcpService {
     #[tool(
-        description = "List the current outbound queue (last 100 IDs from pending + inflight) with each envelope's sender / recipient / subject. Admin-gated read."
+        description = "List the current outbound queue (up to 100 IDs each from pending, retrying and inflight) with each envelope's sender / recipient / subject. Admin-gated read."
     )]
     async fn list_admin_queue(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let (pending_ids, inflight_ids): (Vec<Vec<u8>>, Vec<Vec<u8>>) = with_kevy(|c| {
+        let (pending_ids, retrying_ids, inflight_ids) = with_kevy(|c| {
             let pending = c.lrange(PENDING_IDX, 0, 99).unwrap_or_default();
+            let retrying = c.zrange(RETRY_IDX, 0, 99).unwrap_or_default();
             let inflight = c
                 .lrange(b"mailrs:outbound:inflight", 0, 99)
                 .unwrap_or_default();
-            Ok((pending, inflight))
+            Ok((pending, retrying, inflight))
         })
         .map_err(|_| McpError::internal_error("queue list read", None))?;
         let mut items = Vec::new();
-        for (label, ids) in [("pending", &pending_ids), ("inflight", &inflight_ids)] {
+        for (label, ids) in [
+            ("pending", &pending_ids),
+            ("retrying", &retrying_ids),
+            ("inflight", &inflight_ids),
+        ] {
             for b in ids {
                 let id_str = String::from_utf8_lossy(b).to_string();
                 let key = format!("mailrs:outbound:job:{id_str}");
