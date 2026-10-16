@@ -47,7 +47,21 @@ export function finishIcon(rgba: Uint8ClampedArray, side: number, shape: IconSha
   }
 }
 
+// a favicon service flattens a transparent icon onto opaque white, so a
+// red rounded square comes back framed in white, and the frame either
+// reads as the background or, where the square's corners reach the disc's
+// outer band, leaves no single background at all. when clearing the white
+// connected to the border uncovers an enclosing shape of another colour,
+// that shape is the background and `rgba` keeps the white cleared
 export function iconShape(rgba: Uint8ClampedArray, side: number): IconShape {
+  const framed = rgba.slice()
+  if (clearOutside(framed, side) > 0) {
+    const inner = backgroundColour(framed, side)
+    if (inner && distance(inner, WHITE) >= NEAR_WHITE) {
+      rgba.set(framed)
+      return { colour: inner, kind: 'background' }
+    }
+  }
   const colour = backgroundColour(rgba, side)
   if (colour) return { colour, kind: 'background' }
   if (insideDisc(rgba, side, 0.5) > 0.95) return { kind: 'opaque' }
@@ -62,8 +76,43 @@ function composite(rgba: Uint8ClampedArray, under: Rgb): void {
   }
 }
 
+const NEAR_WHITE = 24
+
+// flood fill from the image border through opaque near-white pixels,
+// making them transparent
+function clearOutside(rgba: Uint8ClampedArray, side: number): number {
+  let cleared = 0
+  floodFromBorder(
+    side,
+    (p) =>
+      rgba[p * 4 + 3] >= OPAQUE &&
+      distance([rgba[p * 4], rgba[p * 4 + 1], rgba[p * 4 + 2]], WHITE) < NEAR_WHITE,
+    (p) => {
+      rgba[p * 4 + 3] = 0
+      cleared++
+    }
+  )
+  return cleared
+}
+
 // flood fill from the image border through non-opaque pixels
 function fillOutside(rgba: Uint8ClampedArray, side: number, colour: Rgb): void {
+  floodFromBorder(
+    side,
+    (p) => rgba[p * 4 + 3] < OPAQUE,
+    (p) => {
+      const a = rgba[p * 4 + 3] / 255
+      for (let c = 0; c < 3; c++) rgba[p * 4 + c] = rgba[p * 4 + c] * a + colour[c] * (1 - a)
+      rgba[p * 4 + 3] = 255
+    }
+  )
+}
+
+function floodFromBorder(
+  side: number,
+  passes: (p: number) => boolean,
+  visit: (p: number) => void
+): void {
   const seen = new Uint8Array(side * side)
   const stack: number[] = []
   for (let k = 0; k < side; k++) {
@@ -71,11 +120,9 @@ function fillOutside(rgba: Uint8ClampedArray, side: number, colour: Rgb): void {
   }
   while (stack.length > 0) {
     const p = stack.pop()!
-    if (seen[p] || rgba[p * 4 + 3] >= OPAQUE) continue
+    if (seen[p] || !passes(p)) continue
     seen[p] = 1
-    const a = rgba[p * 4 + 3] / 255
-    for (let c = 0; c < 3; c++) rgba[p * 4 + c] = rgba[p * 4 + c] * a + colour[c] * (1 - a)
-    rgba[p * 4 + 3] = 255
+    visit(p)
     const x = p % side
     if (x > 0) stack.push(p - 1)
     if (x < side - 1) stack.push(p + 1)
