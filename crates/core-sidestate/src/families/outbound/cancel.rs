@@ -45,7 +45,8 @@ pub const CANCELLED_REASON: &str = "cancelled before delivery";
 /// drained and rebuilt without them — the same shape
 /// `remove_inflight_and_del` already uses, and for the same reason.
 ///
-/// **Only `pending-idx` and `scheduled-idx`.** A job already claimed by
+/// **Only jobs still waiting: on `pending-idx`, or between attempts on
+/// [`RETRY_IDX`].** A job already claimed by
 /// the sender is in flight: taking it out from under the worker would
 /// race a delivery that may already have been accepted, and the honest
 /// answer there is "too late", not a silent removal.
@@ -68,6 +69,17 @@ pub fn drop_queued_jobs(conn: &mut kevy_client::Connection, send_id: &str) -> Ve
     for b in kept {
         let _ = conn.lpush(PENDING_IDX, &[b.as_slice()]);
     }
+    // without this a cancelled job between attempts would be released by
+    // the due-sweep and sent anyway
+    for m in conn.zrange(RETRY_IDX, 0, -1).unwrap_or_default() {
+        let id = String::from_utf8_lossy(&m).parse::<i64>().ok();
+        if let Some(i) = id.filter(|i| job_belongs_to(conn, *i, send_id)) {
+            let _ = conn.zrem(RETRY_IDX, &[m.as_slice()]);
+            let _ = conn.del(&[job_key(i).as_bytes()]);
+            let _ = conn.del(&[format!("mailrs:outbound:{i}").as_bytes()]);
+            removed.push(i);
+        }
+    }
     removed
 }
 
@@ -88,6 +100,27 @@ fn job_belongs_to(conn: &mut kevy_client::Connection, id: i64, send_id: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A job between attempts is not on `pending-idx`; a cancel that only
+    /// drained the list would leave it to be released and sent.
+    #[test]
+    fn a_cancel_removes_a_job_waiting_for_its_retry() {
+        let mut c = kevy_client::Connection::connect("mem://cancel-retry-idx").unwrap();
+        for (id, send) in [(41, "s-cancel"), (42, "s-other")] {
+            let blob = format!(r#"{{"send_id":"{send}"}}"#);
+            c.hset(
+                job_key(id).as_bytes(),
+                &[(b"blob" as &[u8], blob.as_bytes())],
+            )
+            .unwrap();
+            c.zadd(RETRY_IDX, &[(1.0, id.to_string().as_bytes())])
+                .unwrap();
+        }
+        assert_eq!(drop_queued_jobs(&mut c, "s-cancel"), vec![41]);
+        assert_eq!(c.zrange(RETRY_IDX, 0, -1).unwrap(), vec![b"42".to_vec()]);
+        assert!(c.hget(job_key(41).as_bytes(), b"blob").unwrap().is_none());
+        assert!(c.hget(job_key(42).as_bytes(), b"blob").unwrap().is_some());
+    }
 
     /// A cancel is not a recall. The counts are three separate facts
     /// and the type keeps them apart, because collapsing "stopped" and

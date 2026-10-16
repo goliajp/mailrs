@@ -44,9 +44,11 @@ use mailrs_core_api::method::outbound::{
 use crate::NetKevy;
 
 mod cancel;
+mod retry_idx;
 mod terminal;
 
 pub use cancel::*;
+pub use retry_idx::RETRY_IDX;
 pub use terminal::*;
 
 fn now_secs() -> i64 {
@@ -359,18 +361,14 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
             bounced: 0,
         });
     };
-    // v2.5.3 §P8-B-C (Phase 8.2): `pending` from `pending-idx` llen —
-    // may over-count while duplicate LPUSH entries drain (see Phase 8.1
-    // memory), but converges to the true pending count once the sender
-    // dedupes them. `inflight` is deprecated in the v2 layout (sender
-    // no longer LPUSHes the legacy list; a truly precise count would
-    // need a job-hash SCAN which is too expensive for a stats
-    // endpoint) — returned as 0. Terminal counters still read from
-    // the legacy counter keys because the webapi RPC mark_* path
-    // continues to INCR them.
+    // `pending` counts the queue and the jobs waiting between attempts.
+    // `inflight` would need a job-hash SCAN, too expensive here, so it
+    // is 0. Terminal counters come from the legacy counter keys, which
+    // the webapi mark_* path still INCRs.
     let replies = conn
         .pipeline(|p| {
             p.cmd(&[b"LLEN", b"mailrs:outbound:pending-idx"]);
+            p.cmd(&[b"ZCARD", RETRY_IDX]);
             p.cmd(&[b"GET", b"mailrs:outbound:delivered:count"]);
             p.cmd(&[b"GET", b"mailrs:outbound:failed:count"]);
             p.cmd(&[b"GET", b"mailrs:outbound:bounced:count"]);
@@ -392,11 +390,11 @@ pub async fn stats<S: NetKevy>(State(state): State<Arc<S>>) -> Json<QueueStatsRe
         }
     }
     Json(QueueStatsResponse {
-        pending: int_at(&replies, 0),
+        pending: int_at(&replies, 0) + int_at(&replies, 1),
         inflight: 0,
-        delivered: cnt_at(&replies, 1),
-        failed: cnt_at(&replies, 2),
-        bounced: cnt_at(&replies, 3),
+        delivered: cnt_at(&replies, 2),
+        failed: cnt_at(&replies, 3),
+        bounced: cnt_at(&replies, 4),
     })
 }
 

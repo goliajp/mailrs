@@ -16,7 +16,7 @@ use mailrs_message_store::MessageStore;
 
 use crate::WebState;
 use crate::handlers::conversations::AuthedUser;
-use mailrs_core_sidestate::families::outbound::{PENDING_IDX, SCHEDULED_IDX};
+use mailrs_core_sidestate::families::outbound::{PENDING_IDX, RETRY_IDX, SCHEDULED_IDX};
 
 fn map_err(e: mailrs_core_api::error::CoreApiError) -> StatusCode {
     StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -304,36 +304,36 @@ pub async fn cancel_pending_send(
         for id in keep {
             c.lpush(PENDING_IDX, &[id.as_slice()])?;
         }
-        // also sweep the scheduled zset — a scheduled send hasn't reached
-        // the pending list yet, so cancelling it must look here too (G13).
-        // v2 scheduled key is `scheduled-idx` (see stone outbound.rs).
-        let sched = c.zrange(SCHEDULED_IDX, 0, -1)?;
-        for id_bytes in sched {
-            let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
-                continue;
-            };
-            let hkey = format!("mailrs:outbound:job:{id_str}");
-            let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
-                continue;
-            };
-            let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-                continue;
-            };
-            let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
-            let md: String = env
-                .get("message_data_b64")
-                .and_then(|v| v.as_str())
-                .and_then(|b64| {
-                    use base64::Engine as _;
-                    base64::engine::general_purpose::STANDARD.decode(b64).ok()
-                })
-                .map(|b| String::from_utf8_lossy(&b).into_owned())
-                .unwrap_or_default();
-            let header = format!("Message-ID: <{target}>\r\n");
-            if sender == user_c && md.contains(&header) {
-                c.zrem(SCHEDULED_IDX, &[id_bytes.as_slice()])?;
-                c.del(&[hkey.as_bytes()])?;
-                removed += 1;
+        // a scheduled send, or one between attempts, is not on the pending
+        // list yet, so cancelling it must look in both zsets too
+        for zkey in [SCHEDULED_IDX, RETRY_IDX] {
+            for id_bytes in c.zrange(zkey, 0, -1)? {
+                let Ok(id_str) = std::str::from_utf8(&id_bytes) else {
+                    continue;
+                };
+                let hkey = format!("mailrs:outbound:job:{id_str}");
+                let Some(bytes) = c.hget(hkey.as_bytes(), b"blob")? else {
+                    continue;
+                };
+                let Ok(env) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+                    continue;
+                };
+                let sender = env.get("sender").and_then(|v| v.as_str()).unwrap_or("");
+                let md: String = env
+                    .get("message_data_b64")
+                    .and_then(|v| v.as_str())
+                    .and_then(|b64| {
+                        use base64::Engine as _;
+                        base64::engine::general_purpose::STANDARD.decode(b64).ok()
+                    })
+                    .map(|b| String::from_utf8_lossy(&b).into_owned())
+                    .unwrap_or_default();
+                let header = format!("Message-ID: <{target}>\r\n");
+                if sender == user_c && md.contains(&header) {
+                    c.zrem(zkey, &[id_bytes.as_slice()])?;
+                    c.del(&[hkey.as_bytes()])?;
+                    removed += 1;
+                }
             }
         }
         Ok(removed)

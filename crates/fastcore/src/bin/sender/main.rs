@@ -29,20 +29,18 @@ use tokio::task::spawn_blocking;
 
 mod config;
 mod deliver;
+mod mock;
 mod outcome;
 mod queue;
 mod retry;
+mod retry_queue;
 
 use config::*;
 use deliver::*;
 use outcome::*;
 use queue::*;
+use retry_queue::*;
 
-// v2.5.3 §P8-B-C: sender BRPOPs the v2 pending-idx now, not the
-// legacy list. Enqueue still LPUSHes both (via core-sidestate) —
-// Phase 8.2 drops the legacy write path. Duplicate ids in
-// pending-idx (from Phase 6.2/7 LPUSH-without-RPOP semantics) are
-// filtered by the WATCH+CAS state=pending check in `pop_next`.
 /// The queue and the schedule, named by the crate that writes them.
 ///
 /// Both were local copies of the strings here. The scheduled one had
@@ -180,8 +178,12 @@ async fn process_one(cfg: Cfg, id: String) {
         return;
     }
 
+    if mock::is_mock_recipient(&recipient) {
+        return mock::report_delivered(cfg, id, &envelope, &sender, &recipient).await;
+    }
+
     // Enforce a per-item retry floor. If we picked this up too soon,
-    // put it back and let another item run first.
+    // park it until the floor has passed.
     //
     // The floor grows with the attempt (`Backoff::smtp_outbound`)
     // rather than being flat: a remote that is down should not be
@@ -190,10 +192,8 @@ async fn process_one(cfg: Cfg, id: String) {
     let now = now_secs();
     let floor = retry::retry_floor_secs(attempts_prev, jitter_seed).max(cfg.retry_min_secs);
     if attempts_prev > 0 && (now - last_attempt_at) < floor {
-        tracing::debug!(%id, attempts_prev, floor, "retry floor not reached, requeuing");
-        let _ = requeue(cfg.clone(), id, envelope).await;
-        // Sleep briefly so the loop doesn't spin on a single retry-floor item.
-        tokio::time::sleep(Duration::from_millis(cfg.poll_ms.max(500))).await;
+        tracing::debug!(%id, attempts_prev, floor, "retry floor not reached, parking");
+        let _ = schedule_retry(cfg.clone(), id, envelope, last_attempt_at + floor).await;
         return;
     }
 
@@ -260,9 +260,10 @@ async fn process_one(cfg: Cfg, id: String) {
             env["attempts"] = serde_json::Value::from(attempts);
             env["last_error"] = serde_json::Value::from(reason.clone());
             env["last_attempt_at"] = serde_json::Value::from(now_secs());
-            tracing::info!(%id, attempts, %reason, "transient — requeue tail");
-            if let Err(e) = requeue(cfg, id, env).await {
-                tracing::error!(err = %e, "requeue after transient failed");
+            let floor = retry::retry_floor_secs(attempts, jitter_seed).max(cfg.retry_min_secs);
+            tracing::info!(%id, attempts, %reason, retry_in = floor, "transient — parked for retry");
+            if let Err(e) = schedule_retry(cfg, id, env, now_secs() + floor).await {
+                tracing::error!(err = %e, "schedule_retry after transient failed");
             }
         }
     }
@@ -316,8 +317,6 @@ async fn main() {
     // enough that idle brpop dominates wall-clock over the wake-up +
     // reissue overhead. 5 s makes a due-sweep miss at most 5 s from
     // wall-clock — the sender loop's scheduled-sweep resolution.
-    // v2.2 §2 (2026-07-08): supersedes MAILRS_SENDER_POLL_MS as the
-    // idle-cadence knob (poll_ms retained only for error backoff).
     let brpop_wait = Duration::from_secs(5);
     let mut consecutive_errors: u32 = 0;
     let mut last_stale_sweep = now_secs();
