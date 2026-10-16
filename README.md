@@ -181,4 +181,6 @@ PostgreSQL and Kevy are optional — the server starts in degraded mode if eithe
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.
+
+© 2026 GOLIA K.K.
