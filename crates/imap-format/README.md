@@ -25,6 +25,7 @@ BODYSTRUCTURE assembly, §9 ABNF for FLAGS / INTERNALDATE).
 | **BODY[] section parsing** | `parse_header_fields_request` / `parse_generic_body_sections` |
 | **MIME walk** | `extract_header_section` / `extract_body_section` / `extract_header_fields` / `parse_mime_headers` (→ `MimeInfo`) / `split_mime_parts` / `find_line_offset` / `trim_part_trailing_newline` / `extract_mime_part` |
 | **BODYSTRUCTURE** | `build_bodystructure` (top-level, recurses into multipart) |
+| **ENVELOPE** | `build_envelope` (header block → RFC 9051 §7.5.2 envelope) |
 
 ## Quick start
 

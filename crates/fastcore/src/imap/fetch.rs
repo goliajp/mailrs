@@ -10,6 +10,7 @@ use std::sync::Arc;
 use mailrs_maildir::Flag;
 
 use super::backend::{self, ImapMessage};
+use super::fetch_items::fetch_items;
 use crate::FastcoreState;
 
 use super::query::*;
@@ -52,45 +53,6 @@ pub(super) fn fetch_response(
     }
     out.push(format_ok(tag, "FETCH completed"));
     out
-}
-
-pub(super) fn fetch_items(msg: &ImapMessage, attrs: &str, by_uid: bool) -> Vec<(String, String)> {
-    let mut items = Vec::new();
-    let upper = attrs.to_uppercase();
-    if by_uid || upper.contains("UID") {
-        items.push(("UID".into(), msg.uid.to_string()));
-    }
-    if upper.contains("FLAGS") {
-        let flags_str = flags_to_imap(&msg.flags);
-        items.push(("FLAGS".into(), format!("({flags_str})")));
-    }
-    if upper.contains("INTERNALDATE") {
-        items.push((
-            "INTERNALDATE".into(),
-            format!("\"{}\"", format_internal_date(msg.internal_date)),
-        ));
-    }
-    if upper.contains("RFC822.SIZE") || upper.contains("SIZE") {
-        items.push(("RFC822.SIZE".into(), msg.size.to_string()));
-    }
-    if upper.contains("BODY[HEADER]") || upper.contains("RFC822.HEADER") {
-        if let Some(bytes) = backend::read_message(msg) {
-            let head_end = memmem(&bytes, b"\r\n\r\n")
-                .or_else(|| memmem(&bytes, b"\n\n"))
-                .unwrap_or(bytes.len());
-            let head = &bytes[..head_end];
-            let s = String::from_utf8_lossy(head).to_string();
-            items.push(("BODY[HEADER]".into(), format!("{{{}}}\r\n{}", s.len(), s)));
-        }
-    } else if (upper.contains("BODY[]") || upper.contains("RFC822"))
-        && let Some(bytes) = backend::read_message(msg)
-    {
-        items.push((
-            "BODY[]".into(),
-            format!("{{{}}}\r\n{}", bytes.len(), String::from_utf8_lossy(&bytes)),
-        ));
-    }
-    items
 }
 
 pub(super) fn flags_to_imap(flags: &[Flag]) -> String {

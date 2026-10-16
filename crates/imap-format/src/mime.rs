@@ -6,36 +6,7 @@
 //! multipart body by boundary, and extracting a specific MIME
 //! part by section number (`"1"`, `"1.MIME"`, `"1.1"`, ...).
 
-/// extract only the specified header fields from raw message
-pub fn extract_header_fields(data: &[u8], fields: &[String]) -> Vec<u8> {
-    let header = extract_header_section(data);
-    let header_str = String::from_utf8_lossy(&header);
-    let mut result = Vec::new();
-    let mut include = false;
-    for line in header_str.lines() {
-        if line.is_empty() {
-            break;
-        }
-        if line.starts_with(' ') || line.starts_with('\t') {
-            if include {
-                result.extend_from_slice(line.as_bytes());
-                result.extend_from_slice(b"\r\n");
-            }
-        } else {
-            include = false;
-            if let Some(colon) = line.find(':') {
-                let name = line[..colon].trim().to_uppercase();
-                if fields.contains(&name) {
-                    include = true;
-                    result.extend_from_slice(line.as_bytes());
-                    result.extend_from_slice(b"\r\n");
-                }
-            }
-        }
-    }
-    result.extend_from_slice(b"\r\n");
-    result
-}
+pub use crate::header_fields::{extract_header_fields, extract_header_fields_except};
 
 /// Find the end of the header section: returns the byte offset
 /// **after** the last byte of the header/body separator (so the
