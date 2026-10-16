@@ -57,6 +57,32 @@ describe('finishIcon', () => {
     expect(at(px, S, 16, 16)).toEqual(WHITE)
   })
 
+  it('looks past a white frame a favicon service flattened the icon onto', () => {
+    // google's favicon service returns jadealmanac.com's red rounded
+    // square on opaque white
+    const red: Px = [204, 29, 63, 255]
+    const px = image(S, (x, y) => {
+      if (x < 3 || x > 28 || y < 3 || y > 28) return WHITE
+      if (Math.abs(x - 16) < 3 && Math.abs(y - 16) < 3) return WHITE
+      return red
+    })
+    finish(px)
+    expect(at(px, S, 0, 0)).toEqual(red)
+    expect(at(px, S, 1, 16)).toEqual(red)
+    expect(at(px, S, 16, 16)).toEqual(WHITE)
+  })
+
+  it('keeps a white background when nothing inside it encloses the icon', () => {
+    const red: Px = [190, 0, 0, 255]
+    const px = image(S, (x, y) => {
+      if (Math.abs(x - 16) < 3 && y > 6 && y < 26) return red
+      return WHITE
+    })
+    finish(px)
+    expect(at(px, S, 1, 16)).toEqual(WHITE)
+    expect(at(px, S, 16, 16)).toEqual(red)
+  })
+
   it('lifts a black disc to grey and keeps its white glyph white', () => {
     const px = image(S, (x, _y, d) => {
       if (d > 0.5) return CLEAR
