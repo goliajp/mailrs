@@ -32,7 +32,9 @@ impl MailrsMcpService {
     async fn list_groups(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let items = admin_read_hash(b"admin:groups")?;
+        let items = admin_read_hash(
+            mailrs_core_sidestate::families::permission_groups::GROUPS_KEY.as_bytes(),
+        )?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))
@@ -52,7 +54,8 @@ impl MailrsMcpService {
     async fn list_email_groups(&self) -> Result<CallToolResult, McpError> {
         let user = self.require_user()?.to_string();
         self.require_admin(&user).await?;
-        let items = admin_read_hash(b"admin:email-groups")?;
+        let items =
+            admin_read_hash(mailrs_core_sidestate::families::email_groups::GROUPS_KEY.as_bytes())?;
         Ok(CallToolResult::success(vec![Content::text(
             serde_json::json!({ "items": items }).to_string(),
         )]))

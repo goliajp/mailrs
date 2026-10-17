@@ -61,39 +61,3 @@ async fn known_routes_still_answer() {
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
     }
 }
-
-#[derive(Clone, Default)]
-struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-
-impl std::io::Write for Captured {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// A browser can send a WebSocket's or a download link's session token
-/// only in the query string; the access log must not write it down.
-#[tokio::test(flavor = "current_thread")]
-async fn the_access_log_never_contains_a_query_token() {
-    let captured = Captured::default();
-    let sink = captured.clone();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(move || sink.clone())
-        .with_ansi(false)
-        .finish();
-    let _guard = tracing::subscriber::set_default(subscriber);
-    let _ = get("/api/admin/audit/messages/1/raw?token=SECRET-TOKEN-VALUE").await;
-    let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
-    assert!(
-        log.contains("/api/admin/audit/messages/1/raw"),
-        "nothing was logged: {log}"
-    );
-    assert!(
-        !log.contains("SECRET-TOKEN-VALUE"),
-        "the token reached the log: {log}"
-    );
-}

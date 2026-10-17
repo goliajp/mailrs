@@ -5,21 +5,28 @@ import { RotateCcw, Save, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { AdminEmptyState, AdminErrorState, AdminPageShell } from '@/components/admin-page'
+import { ReadOnlyField } from '@/components/admin-system-config/read-only-field'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminObjectGet, adminPut } from '@/wire/endpoints/admin'
 
 // Backend: crates/webapi/src/handlers/system_config.rs — fn get_system_config
 type ConfigEntry = {
-  default_value: string
+  default_value: null | string
   description: string
+  /** false for settings read once at process start, and for keys nothing reads */
+  editable: boolean
+  /** where a read-only setting is set */
+  env_var?: string
   group: string
   key: string
+  note?: null | string
   source: string
   /** unix seconds; only on a value saved from this page or the MCP tool */
   updated_at?: number
   updated_by?: string
-  value: string
+  /** null when webapi cannot see the value */
+  value: null | string
 }
 
 type GroupedEntries = Record<string, ConfigEntry[]>
@@ -41,12 +48,14 @@ const SOURCE_STYLES: Record<string, string> = {
   database: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   default: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
   env: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+  unknown: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
 }
 
 const SOURCE_LABELS: Record<string, string> = {
   database: 'Database',
   default: 'Default',
   env: 'Environment',
+  unknown: 'Not visible here',
 }
 
 export function AdminSystemConfig() {
@@ -124,7 +133,7 @@ export function AdminSystemConfig() {
 
   return (
     <AdminPageShell
-      subtitle="Server settings and where each value comes from"
+      subtitle="Ports, hostname and TLS are set in compose and read when each process starts. Local domains are managed on the Domains page"
       title="System Configuration"
     >
       {renderBody()}
@@ -143,16 +152,16 @@ function ConfigField({
   onReset: (key: string) => void
   onSave: (key: string, value: string) => void
 }) {
-  const [localValue, setLocalValue] = useState(entry.value)
+  const [localValue, setLocalValue] = useState(entry.value ?? '')
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
 
   // sync local value when entry changes from parent
   useEffect(() => {
-    setLocalValue(entry.value)
+    setLocalValue(entry.value ?? '')
   }, [entry.value])
 
-  const dirty = localValue !== entry.value
+  const dirty = localValue !== (entry.value ?? '')
   const saved = savedBy(entry)
 
   const handleSave = async () => {
@@ -171,6 +180,32 @@ function ConfigField({
     } finally {
       setResetting(false)
     }
+  }
+
+  const resetButton = entry.source === 'database' && (
+    <button
+      className="text-fg-secondary hover:bg-bg-secondary inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors disabled:opacity-50"
+      disabled={resetting}
+      onClick={handleReset}
+    >
+      <RotateCcw className="h-3 w-3" />
+      {resetting && 'Resetting...'}
+      {!resetting && 'Reset to default'}
+    </button>
+  )
+
+  if (!entry.editable) {
+    return (
+      <ReadOnlyField
+        badge={<SourceBadge source={entry.source} />}
+        description={entry.description}
+        envVar={entry.env_var}
+        label={entry.key}
+        note={entry.note}
+        reset={resetButton}
+        value={entry.value}
+      />
+    )
   }
 
   return (
@@ -198,17 +233,7 @@ function ConfigField({
           {saving && 'Saving...'}
           {!saving && 'Save'}
         </button>
-        {entry.source === 'database' && (
-          <button
-            className="text-fg-secondary hover:bg-bg-secondary inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors disabled:opacity-50"
-            disabled={resetting}
-            onClick={handleReset}
-          >
-            <RotateCcw className="h-3 w-3" />
-            {resetting && 'Resetting...'}
-            {!resetting && 'Reset to default'}
-          </button>
-        )}
+        {resetButton}
       </div>
     </div>
   )

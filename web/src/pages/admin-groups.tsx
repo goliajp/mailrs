@@ -1,12 +1,10 @@
 import type { GroupInfo } from '@/components/admin-groups/group-info'
-import type { DomainInfo } from '@/lib/types'
 
 import { useQuery } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
 import { Fragment, useState } from 'react'
 
 import { GroupDetail } from '@/components/admin-groups/group-detail'
-import { domainLabel } from '@/components/admin-groups/group-info'
 import {
   AdminEmptyState,
   AdminErrorState,
@@ -19,7 +17,7 @@ import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminListGet, adminPost, adminStringListGet } from '@/wire/endpoints/admin'
 
-const HEADERS = ['Name', 'Domain', 'Builtin', 'Description', 'Actions']
+const HEADERS = ['Name', 'Builtin', 'Description', 'Actions']
 
 export function AdminGroups() {
   const {
@@ -33,12 +31,6 @@ export function AdminGroups() {
   })
   const groups = groupsData ?? []
 
-  const { data: domainsData } = useQuery({
-    queryKey: adminKeys.domains(),
-    queryFn: ({ signal }) => adminListGet<DomainInfo>('/admin/domains', signal),
-  })
-  const domains = domainsData ?? []
-
   const { data: allPermissionsData } = useQuery({
     queryKey: adminKeys.permissions(),
     queryFn: ({ signal }) => adminStringListGet('/admin/permissions', signal),
@@ -48,16 +40,11 @@ export function AdminGroups() {
   const [adding, setAdding] = useState(false)
   const [expandedId, setExpandedId] = useState<null | number>(null)
   const [deleteTarget, setDeleteTarget] = useState<null | number>(null)
-  const [form, setForm] = useState({
-    description: '',
-    domain: '',
-    name: '',
-  })
+  const [form, setForm] = useState({ description: '', name: '' })
 
   const addGroup = useAdminMutation({
     invalidateKey: adminKeys.groups(),
-    mutationFn: (vars: { description: string; domain: string | undefined; name: string }) =>
-      adminPost('/admin/groups', vars),
+    mutationFn: (vars: { description: string; name: string }) => adminPost('/admin/groups', vars),
     successMsg: (vars) => `Group "${vars.name}" added`,
   })
 
@@ -72,12 +59,11 @@ export function AdminGroups() {
     addGroup.mutate(
       {
         description: form.description.trim(),
-        domain: form.domain || undefined,
         name: form.name.trim(),
       },
       {
         onSuccess: () => {
-          setForm({ description: '', domain: '', name: '' })
+          setForm({ description: '', name: '' })
           setAdding(false)
         },
       }
@@ -105,7 +91,8 @@ export function AdminGroups() {
           </button>
         )
       }
-      title="Groups"
+      subtitle="A member gets every permission of every group it belongs to, on top of its own, on every domain"
+      title="Permission groups"
     >
       {adding && (
         <div className="border-border mb-4 space-y-2 rounded-lg border p-4">
@@ -118,19 +105,6 @@ export function AdminGroups() {
               placeholder="Group name"
               value={form.name}
             />
-            <select
-              aria-label="Domain"
-              className="border-border bg-bg-secondary flex-1 rounded-md border px-3 py-1.5 text-sm"
-              onChange={(e) => setForm({ ...form, domain: e.target.value })}
-              value={form.domain}
-            >
-              <option value="">(Global)</option>
-              {domains.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
           </div>
           <input
             aria-label="Description"
@@ -150,7 +124,7 @@ export function AdminGroups() {
             <button
               className="text-fg-secondary hover:bg-bg-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
               onClick={() => {
-                setForm({ description: '', domain: '', name: '' })
+                setForm({ description: '', name: '' })
                 setAdding(false)
               }}
             >
@@ -161,7 +135,7 @@ export function AdminGroups() {
       )}
 
       {isPending ? (
-        <AdminTableSkeleton cols={5} headers={HEADERS} rows={4} />
+        <AdminTableSkeleton cols={4} headers={HEADERS} rows={4} />
       ) : error ? (
         <AdminErrorState error={error} onRetry={() => refetch()} />
       ) : groups.length === 0 && !adding ? (
@@ -176,7 +150,6 @@ export function AdminGroups() {
             <thead className="border-border bg-bg-secondary border-b">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Name</th>
-                <th className="px-4 py-2.5 font-medium">Domain</th>
                 <th className="px-4 py-2.5 font-medium">Builtin</th>
                 <th className="px-4 py-2.5 font-medium">Description</th>
                 <th className="px-4 py-2.5 text-right font-medium">Actions</th>
@@ -187,7 +160,6 @@ export function AdminGroups() {
                 <Fragment key={group.id}>
                   <tr className="border-border border-b last:border-0">
                     <td className="px-4 py-3 font-medium">{group.name}</td>
-                    <td className="text-fg-secondary px-4 py-3">{domainLabel(group.domain)}</td>
                     <td className="px-4 py-3">
                       {group.is_builtin && (
                         <span className="bg-surface text-fg-secondary inline-block rounded px-2 py-0.5 text-xs font-medium">

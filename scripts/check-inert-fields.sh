@@ -54,3 +54,46 @@ if inert:
     sys.exit(1)
 print(f"thread hash fields: {len(written)} written, all parsed")
 PYEOF
+
+# The same rule for the System Config page: a key the page can change
+# must be read by a running process. Every setting there used to be
+# stored and read by nothing — ports and TLS that only a restart can
+# change, and a size limit no listener looked at. An editable key needs
+# a file outside webapi (and outside the dormant monolith) whose code
+# names both the hash and the key as string literals.
+python3 <<'PYEOF'
+import glob
+import re
+import sys
+
+catalog = open("crates/webapi/src/handlers/system_config/catalog.rs").read()
+consts = dict(re.findall(r'const ([A-Z_]+): &str = "([a-z_]+)";', catalog))
+editable = []
+for block in re.findall(r"Setting \{(.*?)\n    \},", catalog, re.S):
+    if "Kind::Editable" not in block:
+        continue
+    m = re.search(r'key: (?:"([a-z_]+)"|([A-Z_]+)),', block)
+    editable.append(m.group(1) or consts[m.group(2)])
+if not editable:
+    print("!! no editable system-config key found in catalog.rs; the parser is out of date")
+    sys.exit(1)
+
+def code(path):
+    return "\n".join(l for l in open(path) if not l.lstrip().startswith("//"))
+
+sources = [
+    p for p in glob.glob("crates/*/src/**/*.rs", recursive=True)
+    if not p.startswith(("crates/webapi/", "crates/server/"))
+]
+texts = {p: code(p) for p in sources}
+holders = [p for p, t in texts.items() if '"admin:system-config"' in t]
+inert = [k for k in editable if not any(f'"{k}"' in texts[p] for p in holders)]
+if inert:
+    print("!! editable on the System Config page, read by no process:")
+    for k in inert:
+        print(f"   {k}")
+    print("\n   Give it a reader that names admin:system-config and the key, or")
+    print("   make it read-only in crates/webapi/src/handlers/system_config/catalog.rs.")
+    sys.exit(1)
+print(f"system-config keys: {len(editable)} editable, all read ({', '.join(holders)})")
+PYEOF

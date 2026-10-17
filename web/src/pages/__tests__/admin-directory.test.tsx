@@ -92,7 +92,7 @@ describe('<AdminAliases />', () => {
 })
 
 describe('<AdminGroups />', () => {
-  it('reads permissions and members as string lists and labels the domain', async () => {
+  it('reads permissions and members as string lists and claims no domain scope', async () => {
     stub({
       'GET /api/admin/domains': { items: [] },
       'GET /api/admin/groups': {
@@ -106,9 +106,11 @@ describe('<AdminGroups />', () => {
       'GET /api/admin/permissions': { permissions: ['admin.accounts', 'admin.aliases'] },
     })
     renderPage(<AdminGroups />)
-    expect(await screen.findByText('Global')).toBeInTheDocument()
-    expect(screen.getByText('—')).toBeInTheDocument()
-    expect(screen.queryByText('(Global)')).toBeNull()
+    expect(await screen.findByText('everyone')).toBeInTheDocument()
+    // permissions are not limited to a domain, so the page offers no domain
+    expect(screen.getByText(/on every domain/)).toBeInTheDocument()
+    expect(screen.queryByText('Global')).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Domain' })).toBeNull()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Manage' })[0])
     expect(await screen.findByText('qa@golia.jp')).toBeInTheDocument()

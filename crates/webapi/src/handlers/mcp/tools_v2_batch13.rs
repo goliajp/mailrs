@@ -169,7 +169,13 @@ impl MailrsMcpService {
             }),
         )
         .await
-        .map_err(|c| map_status(c, "set_system_config"))?;
+        .map_err(|(code, Json(body))| match code {
+            StatusCode::BAD_REQUEST => McpError::invalid_params(
+                body["error"].as_str().unwrap_or("refused").to_string(),
+                None,
+            ),
+            _ => map_status(code, "set_system_config"),
+        })?;
         crate::handlers::audit::record(&user, "system_config.set", &params.key, &params.value);
         Ok(ok_result())
     }

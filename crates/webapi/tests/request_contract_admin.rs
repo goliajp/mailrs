@@ -94,7 +94,6 @@ fn remaining_admin_bodies_match() {
     let group: handlers::groups::CreateGroupRequest = parse("group-create");
     assert_eq!(group.name, "admins");
     assert_eq!(group.description, "Full administrative access");
-    assert_eq!(group.domain.as_deref(), Some("golia.jp"));
 
     let member: handlers::groups::AddGroupMemberRequest = parse("group-members-add");
     assert_eq!(member.address, "qa@golia.jp");

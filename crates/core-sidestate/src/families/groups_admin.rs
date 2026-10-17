@@ -1,8 +1,6 @@
 //! Groups / permissions / api-keys / sieve — admin side-state served from
 //! the network kevy, the same keys webapi + pg-core use:
-//!   `admin:groups`                    hash id → loose JSON group
-//!   `admin:groups:{id}:permissions`   set of permission strings
-//!   `admin:groups:{id}:members`       set of member addresses
+//!   groups, their permissions and members — see `permission_groups`
 //!   `admin:apikey:by-prefix:{prefix}` JSON ApiKeyWire (auth lookup)
 //!   `admin:apikey:{id}:last_used`     epoch of last use
 //!   `sieve:{address}`                 raw sieve script
@@ -15,11 +13,11 @@ use axum::http::StatusCode;
 
 use mailrs_core_api::method::admin::{
     AddGroupMemberRequest, ApiKeyWire, GroupListResponse, GroupMembersResponse,
-    GroupPermissionsResponse, GroupWire, SetGroupPermissionsRequest, SetSieveRequest,
-    SieveScriptResponse,
+    GroupPermissionsResponse, SetGroupPermissionsRequest, SetSieveRequest, SieveScriptResponse,
 };
 
 use crate::NetKevy;
+use crate::families::permission_groups as pg;
 
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
@@ -28,42 +26,11 @@ fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
-/// Parse a loose kevy group JSON (`{id,name,description,created_at}`, no
-/// domain/is_builtin) into the full GroupWire.
-fn parse_group(v: &[u8]) -> Option<GroupWire> {
-    let j: serde_json::Value = serde_json::from_slice(v).ok()?;
-    Some(GroupWire {
-        id: j.get("id")?.as_i64()?,
-        name: j.get("name").and_then(|x| x.as_str()).unwrap_or("").into(),
-        domain: j.get("domain").and_then(|x| x.as_str()).map(String::from),
-        description: j
-            .get("description")
-            .and_then(|x| x.as_str())
-            .unwrap_or("")
-            .into(),
-        is_builtin: j
-            .get("is_builtin")
-            .and_then(|x| x.as_bool())
-            .unwrap_or(false),
-        created_at: j.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0),
-    })
-}
-
-fn all_groups(conn: &mut kevy_client::Connection) -> Vec<GroupWire> {
-    conn.hgetall(b"admin:groups")
-        .unwrap_or_default()
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, v)| if i % 2 == 1 { Some(v) } else { None })
-        .filter_map(|v| parse_group(&v))
-        .collect()
-}
-
 pub async fn list_groups<S: NetKevy>(State(state): State<Arc<S>>) -> Json<GroupListResponse> {
     let Some(mut conn) = state.net_conn() else {
         return Json(GroupListResponse { items: Vec::new() });
     };
-    let mut items = all_groups(&mut conn);
+    let mut items = pg::all_groups(&mut conn).unwrap_or_default();
     items.sort_by_key(|g| g.id);
     Json(GroupListResponse { items })
 }
@@ -77,12 +44,7 @@ pub async fn get_group_permissions<S: NetKevy>(
             permissions: Vec::new(),
         });
     };
-    let permissions = conn
-        .smembers(format!("admin:groups:{id}:permissions").as_bytes())
-        .unwrap_or_default()
-        .into_iter()
-        .map(|v| String::from_utf8_lossy(&v).into_owned())
-        .collect();
+    let permissions = pg::group_permissions(&mut conn, id).unwrap_or_default();
     Json(GroupPermissionsResponse { permissions })
 }
 
@@ -95,12 +57,7 @@ pub async fn list_group_members<S: NetKevy>(
             members: Vec::new(),
         });
     };
-    let members = conn
-        .smembers(format!("admin:groups:{id}:members").as_bytes())
-        .unwrap_or_default()
-        .into_iter()
-        .map(|v| String::from_utf8_lossy(&v).into_owned())
-        .collect();
+    let members = pg::group_members(&mut conn, id).unwrap_or_default();
     Json(GroupMembersResponse { members })
 }
 
@@ -111,19 +68,7 @@ pub async fn get_account_groups<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return Json(GroupListResponse { items: Vec::new() });
     };
-    let groups = all_groups(&mut conn);
-    let mut items = Vec::new();
-    for g in groups {
-        let members = conn
-            .smembers(format!("admin:groups:{}:members", g.id).as_bytes())
-            .unwrap_or_default();
-        if members
-            .iter()
-            .any(|m| String::from_utf8_lossy(m) == address)
-        {
-            items.push(g);
-        }
-    }
+    let items = pg::groups_of(&mut conn, &address).unwrap_or_default();
     Json(GroupListResponse { items })
 }
 
@@ -134,10 +79,7 @@ pub async fn remove_account_from_group<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    match conn.srem(
-        format!("admin:groups:{id}:members").as_bytes(),
-        &[address.as_bytes()],
-    ) {
+    match conn.srem(pg::members_key(id).as_bytes(), &[address.as_bytes()]) {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -232,7 +174,7 @@ pub async fn set_group_permissions<S: NetKevy>(
     let Some(mut conn) = state.net_conn() else {
         return StatusCode::SERVICE_UNAVAILABLE;
     };
-    let key = format!("admin:groups:{id}:permissions");
+    let key = pg::permissions_key(id);
     let _ = conn.del(&[key.as_bytes()]);
     if !req.permissions.is_empty() {
         let refs: Vec<&[u8]> = req.permissions.iter().map(|p| p.as_bytes()).collect();
@@ -250,7 +192,7 @@ pub async fn add_account_to_group<S: NetKevy>(
         return StatusCode::SERVICE_UNAVAILABLE;
     };
     match conn.sadd(
-        format!("admin:groups:{id}:members").as_bytes(),
+        pg::members_key(id).as_bytes(),
         &[req.account_address.as_bytes()],
     ) {
         Ok(_) => StatusCode::NO_CONTENT,

@@ -227,14 +227,4 @@ pub(crate) const APPS_CTR: &str = "admin:apps:counter";
 
 // ── Admin: system-config ─────────────────────────────
 
-// ── Admin: groups + permissions + group members ────────────────────
-
-pub(crate) const GROUPS_KEY: &str = "admin:groups";
-pub(crate) const GROUPS_CTR: &str = "admin:groups:counter";
-
-// ── Admin: email-groups (distribution lists) ──────────────────────
-
-pub(crate) const EG_KEY: &str = "admin:email-groups";
-pub(crate) const EG_CTR: &str = "admin:email-groups:counter";
-
 // ── Agent: keys + webhooks (per-user) ─────────────────────────────

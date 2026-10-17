@@ -203,7 +203,7 @@ pub async fn list_email_group_members(
     Extension(_user): Extension<AuthedUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let key = crate::handlers::groups::email_group_members_key(&id);
+    let key = mailrs_core_sidestate::families::email_groups::members_key(&id);
     let members = with_kevy(move |c| c.smembers(key.as_bytes()).map_err(std::io::Error::from))?;
     let items: Vec<String> = members
         .into_iter()
@@ -223,7 +223,7 @@ pub async fn add_email_group_member(
     Path(id): Path<String>,
     Json(req): Json<AddMemberRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = crate::handlers::groups::email_group_members_key(&id);
+    let key = mailrs_core_sidestate::families::email_groups::members_key(&id);
     let addr = req.address;
     let addr_c = addr.clone();
     with_kevy(move |c| {
@@ -239,7 +239,7 @@ pub async fn remove_email_group_member(
     Extension(AuthedUser(actor)): Extension<AuthedUser>,
     Path((id, address)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
-    let key = crate::handlers::groups::email_group_members_key(&id);
+    let key = mailrs_core_sidestate::families::email_groups::members_key(&id);
     let address_c = address.clone();
     with_kevy(move |c| {
         c.srem(key.as_bytes(), &[address_c.as_bytes()])?;
