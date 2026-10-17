@@ -17,7 +17,7 @@ use crate::handlers::conversations::AuthedUser;
 mod report;
 mod signer;
 use report::{DomainCheckReport, Lookup, Lookups, build_report};
-use signer::DkimSigning;
+use signer::{DkimSigning, Signing};
 
 fn from_result<T>(
     r: Result<T, hickory_resolver::net::NetError>,
@@ -50,19 +50,21 @@ pub async fn check_domain_dns(
     let resolver = hickory_resolver::TokioResolver::builder_tokio()
         .and_then(|b| b.build())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let dkim_signer = DkimSigning::from_env().map(|s| s.signer_for(&name));
-    let dkim = match &dkim_signer {
-        Some(s) if s.aligns_with(&name) => {
+    let published =
+        crate::handlers::kevy_util::with_kevy(mailrs_core_sidestate::families::dkim_signers::read)?;
+    let dkim_signer = signer::finding(published.as_ref(), DkimSigning::from_env().as_ref(), &name);
+    let dkim = match &dkim_signer.signing {
+        Signing::By(s) if s.aligns_with(&name) => {
             txt(
                 &resolver,
                 &format!("{}._domainkey.{}", s.selector, s.domain),
             )
             .await
         }
-        Some(s) => Lookup::NotAsked(format!("{name} is signed as {}", s.domain)),
-        None => Lookup::NotAsked(
+        Signing::Unknown => Lookup::NotAsked(
             "MAILRS_DKIM_DOMAIN or MAILRS_DKIM_SELECTOR is not set on webapi".into(),
         ),
+        _ => Lookup::NotAsked(format!("{name} has no aligned signature to look up")),
     };
     let mx = from_result(resolver.mx_lookup(&name).await, |l| {
         l.answers()

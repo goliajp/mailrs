@@ -38,8 +38,6 @@ pub(crate) struct LoginRequest {
 pub(crate) enum AuthMethod {
     Session,
     ApiKey(#[allow(dead_code)] i64),
-    /// app key: (api_key_id, app_internal_id)
-    AppKey(#[allow(dead_code)] i64, #[allow(dead_code)] i64),
 }
 
 /// extractor that validates bearer token and returns the authenticated user context

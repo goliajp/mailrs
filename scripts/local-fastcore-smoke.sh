@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # local-fastcore-smoke.sh — full chain dry-run on the dev laptop.
 #
-# Boots `mailrs-fastcore` against a fresh /tmp kevy dir, pipes the
-# same sample NDJSON the staging script uses, then walks 16 routes
+# Boots `mailrs-fastcore` against a fresh /tmp kevy dir, pipes a
+# small sample NDJSON into it, then walks 16 routes
 # expected to return non-404. No network deps, no docker, no SSH.
 #
 # Output: status code + body summary per probe, then per-probe

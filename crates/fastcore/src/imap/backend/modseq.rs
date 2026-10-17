@@ -128,7 +128,7 @@ pub fn bump_modseq(state: &Arc<FastcoreState>, user: &str) -> u64 {
     let key = format!("mailrs:user:{user}:imap:modseq");
     // +1 bias: never-mutated messages default to modseq 1, so the very
     // first bump must land at 2 — a raw first incr() returns 1 and the
-    // mutation becomes invisible to CHANGEDSINCE (caught on staging)
+    // mutation becomes invisible to CHANGEDSINCE
     state
         .mailbox
         .store_ref()

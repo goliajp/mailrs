@@ -20,7 +20,6 @@ pub(super) use super::{
 pub mod account_groups;
 pub mod accounts;
 pub mod aliases;
-pub mod apps;
 pub mod audit;
 pub mod cache;
 pub mod domains;
@@ -39,7 +38,6 @@ pub mod sieve;
 pub(super) use account_groups::*;
 pub(super) use accounts::*;
 pub(super) use aliases::*;
-pub(super) use apps::*;
 pub(super) use audit::*;
 pub(super) use cache::*;
 pub(super) use domains::*;

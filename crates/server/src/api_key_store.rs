@@ -31,8 +31,6 @@ pub(crate) struct VerifiedApiKey {
     pub account_address: String,
     pub expires_at: Option<DateTime<Utc>>,
     pub id: i64,
-    /// if set, this is an app key; value is the app's internal id
-    pub app_id: Option<i64>,
 }
 
 /// hex-encode a SHA-256 digest
@@ -79,36 +77,6 @@ pub(crate) async fn insert_api_key(
     .bind(full_key)
     .bind(account_address)
     .bind(name)
-    .bind(expires_at)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(id)
-}
-
-/// insert an API key for an app, returns the row id
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn insert_app_api_key(
-    pool: &BackendPool,
-    prefix: &str,
-    key_hash: &str,
-    full_key: &str,
-    account_address: &str,
-    name: &str,
-    app_id: i64,
-    expires_at: Option<DateTime<Utc>>,
-) -> Result<i64, sqlx::Error> {
-    let id = sqlx::query_scalar::<_, i64>(
-        "INSERT INTO api_keys (prefix, key_hash, full_key, account_address, name, app_id, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id",
-    )
-    .bind(prefix)
-    .bind(key_hash)
-    .bind(full_key)
-    .bind(account_address)
-    .bind(name)
-    .bind(app_id)
     .bind(expires_at)
     .fetch_one(pool)
     .await?;

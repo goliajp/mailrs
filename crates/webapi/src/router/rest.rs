@@ -142,10 +142,6 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             get(handlers::dmarc::list_reports),
         )
         .route(
-            "/api/admin/dmarc/reports/{sid}",
-            get(handlers::dmarc::get_report),
-        )
-        .route(
             "/api/admin/dmarc/sources",
             get(handlers::dmarc::list_sources),
         )

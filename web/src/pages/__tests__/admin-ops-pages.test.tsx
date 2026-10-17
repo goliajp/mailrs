@@ -52,6 +52,14 @@ describe('audit log action filters', () => {
     expect(matchesActionFilter('email_group.create', 'group')).toBe(false)
     expect(matchesActionFilter('email_group.create', 'email_group')).toBe(true)
     expect(matchesActionFilter('domain_create', 'domain')).toBe(false)
+    for (const action of [
+      'mock.settings_update',
+      'mock.namespace_create',
+      'mock.namespace_delete',
+    ]) {
+      expect(matchesActionFilter(action, 'mock')).toBe(true)
+    }
+    expect(matchesActionFilter('mock.namespace_create', 'mail')).toBe(false)
   })
 
   it('filters the rendered rows', async () => {

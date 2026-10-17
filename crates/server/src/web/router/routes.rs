@@ -359,19 +359,6 @@ pub(super) fn admin_routes() -> axum::Router<Arc<WebState>> {
             "/api/admin/email-groups/{id}/members/{address}",
             delete(admin::remove_email_group_member),
         )
-        // apps
-        .route(
-            "/api/admin/apps",
-            get(admin::list_apps).post(admin::create_app),
-        )
-        .route(
-            "/api/admin/apps/{app_id}",
-            get(admin::get_app).delete(admin::delete_app),
-        )
-        .route(
-            "/api/admin/apps/{app_id}/scopes",
-            put(admin::update_app_scopes),
-        )
         // greylist local lists (Phase 2)
         .route(
             "/api/admin/greylist/local-lists",

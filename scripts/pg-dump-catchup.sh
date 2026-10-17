@@ -7,25 +7,25 @@
 # already-imported message is a no-op (kevy hset/zadd both are).
 #
 # Meant to run as a cron or systemd timer every N minutes on the
-# host that has ssh access to both t01/t02:
+# host that has ssh access to the target host:
 #
 #   */5 * * * * ./scripts/pg-dump-catchup.sh
 #
 # Env:
-#   MAILRS_HOST=t02.golia.jp     (or t01 for staging)
+#   MAILRS_HOST=t02.golia.jp                   required
 #   MAILRS_SSH_KEY=~/keys/aws.pem
-#   MAILRS_MONOLITH_CONTAINER=mailrs     (or mailrs-staging)
-#   MAILRS_FASTCORE_CONTAINER=mailrs-fastcore  (or mailrs-staging-fastcore)
+#   MAILRS_MONOLITH_CONTAINER=mailrs           required
+#   MAILRS_FASTCORE_CONTAINER=mailrs-fastcore  required
 #   CATCHUP_STATE_FILE=~/.mailrs-catchup-since   default
 #
 # Exit non-zero on migrate error (some records failed to import).
 
 set -euo pipefail
 
-HOST="${MAILRS_HOST:-t01.golia.jp}"
+HOST="${MAILRS_HOST:?MAILRS_HOST required}"
 KEY="${MAILRS_SSH_KEY:-$HOME/keys/aws.pem}"
-MONO="${MAILRS_MONOLITH_CONTAINER:-mailrs-staging}"
-FC="${MAILRS_FASTCORE_CONTAINER:-mailrs-staging-fastcore}"
+MONO="${MAILRS_MONOLITH_CONTAINER:?MAILRS_MONOLITH_CONTAINER required}"
+FC="${MAILRS_FASTCORE_CONTAINER:?MAILRS_FASTCORE_CONTAINER required}"
 STATE="${CATCHUP_STATE_FILE:-$HOME/.mailrs-catchup-since-${HOST}}"
 
 # Prior high-water mark; default = 24h ago on first run.

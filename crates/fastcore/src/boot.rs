@@ -263,30 +263,18 @@ pub async fn run() {
         acme_task::spawn().await;
     });
 
-    // IMAP + IMAPS + POP3 + POP3S listeners. Cert comes from
-    // MAILRS_TLS_CERT + MAILRS_TLS_KEY (same paths the receiver uses)
-    // — matching the monolith's TLS pattern: plaintext port loads no
-    // cert, implicit-TLS port wraps every accepted socket via a
-    // shared rustls acceptor before entering the session. Set each
+    // IMAP + IMAPS + POP3 + POP3S listeners share one certificate from
+    // MAILRS_TLS_CERT + MAILRS_TLS_KEY, followed on disk: 993/995 wrap
+    // every socket, 143/110 offer STARTTLS / STLS. Set each
     // MAILRS_(IMAP|IMAPS|POP3|POP3S)_BIND=off to disable per-port.
-    let imap_state = state.clone();
-    tokio::spawn(async move {
-        imap::spawn(imap_state).await;
-    });
-    let pop3_state = state.clone();
-    tokio::spawn(async move {
-        pop3::spawn(pop3_state).await;
-    });
-    if let Some(tls) = crate::tls::from_env() {
-        let imaps_state = state.clone();
-        let imaps_tls = tls.clone();
-        tokio::spawn(async move {
-            imap::spawn_tls(imaps_state, imaps_tls).await;
-        });
-        let pop3s_state = state.clone();
-        tokio::spawn(async move {
-            pop3::spawn_tls(pop3s_state, tls).await;
-        });
+    let tls = crate::tls::from_env();
+    tokio::spawn(imap::spawn(state.clone(), tls.clone()));
+    tokio::spawn(pop3::spawn(state.clone(), tls.clone()));
+    // ManageSieve (RFC 5804) on :4190 offers STARTTLS from the same certificate.
+    tokio::spawn(managesieve::spawn(state.clone(), tls.clone()));
+    if let Some(tls) = tls {
+        tokio::spawn(imap::spawn_tls(state.clone(), tls.clone()));
+        tokio::spawn(pop3::spawn_tls(state.clone(), tls));
     }
     // Webhook delivery — drains the kevy outbox. Until 2026-07-31 a
     // subscription could be created and nothing would ever fire on this
@@ -300,11 +288,6 @@ pub async fn run() {
     let calendar_state = state.clone();
     tokio::spawn(async move {
         calendar_sync::spawn(calendar_state).await;
-    });
-    // ManageSieve (RFC 5804) — sieve script CRUD on :4190 (G5).
-    let sieve_state = state.clone();
-    tokio::spawn(async move {
-        managesieve::spawn(sieve_state).await;
     });
 
     let addr = std::env::var("MAILRS_FASTCORE_BIND").unwrap_or_else(|_| "0.0.0.0:3301".into());

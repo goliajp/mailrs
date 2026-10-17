@@ -6,6 +6,9 @@
 //! two were nearly merged by a careless split on 2026-08-02 — the reader
 //! is what an operator invokes, the recorder is what makes invoking it
 //! leave a trace.
+//!
+//! Every read of mail writes its audit row first, with `record_required`:
+//! when the row cannot be written the read answers 503 and returns no mail.
 
 use std::sync::Arc;
 
@@ -82,6 +85,12 @@ pub async fn audit_conversations(
     let Some(target) = q.user else {
         return Ok(Json(serde_json::json!({ "items": [] })));
     };
+    crate::handlers::audit::record_required(
+        &actor,
+        "audit.list_conversations",
+        &target,
+        "via web",
+    )?;
     let req = mailrs_core_api::method::conversation::ListConversationsRequest {
         filter: mailrs_core_api::types::ConversationFilter {
             limit: q.limit,
@@ -93,7 +102,6 @@ pub async fn audit_conversations(
         .list_conversations(&target, &req)
         .await
         .map_err(core_status)?;
-    crate::handlers::audit::record(&actor, "audit.list_conversations", &target, "via web");
     let items: Vec<serde_json::Value> = resp.items.into_iter().map(summary_json).collect();
     Ok(Json(serde_json::json!({
         "user": target,
@@ -127,6 +135,7 @@ pub async fn audit_conversation_detail(
     Path(thread_id): Path<String>,
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    crate::handlers::audit::record_required(&actor, "audit.read_thread", &q.user, &thread_id)?;
     let req = mailrs_core_api::method::conversation::ConversationsByIdsRequest {
         thread_ids: vec![thread_id.clone()],
         folder: None,
@@ -137,7 +146,6 @@ pub async fn audit_conversation_detail(
         .await
         .map_err(core_status)?;
     let summary = resp.items.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
-    crate::handlers::audit::record(&actor, "audit.read_thread", &q.user, &thread_id);
     Ok(Json(summary_json(summary)))
 }
 
@@ -151,12 +159,12 @@ pub async fn audit_conversation_messages(
     Path(thread_id): Path<String>,
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    crate::handlers::audit::record_required(&actor, "audit.read_thread", &q.user, &thread_id)?;
     let resp = state
         .core
         .list_thread_messages(&q.user, &thread_id)
         .await
         .map_err(core_status)?;
-    crate::handlers::audit::record(&actor, "audit.read_thread", &q.user, &thread_id);
     let maildir_root = std::env::var("MAILRS_MAILDIR").unwrap_or_else(|_| "/data/maildir".into());
     let store = mailrs_message_store::MaildirStore;
     let mut items = Vec::with_capacity(resp.items.len());
@@ -186,6 +194,7 @@ pub async fn audit_message_raw(
     Path(uid): Path<u32>,
     axum::extract::Query(q): axum::extract::Query<AuditConvMessagesQuery>,
 ) -> Result<axum::response::Response, StatusCode> {
+    crate::handlers::audit::record_required(&actor, "audit.read_raw", &q.user, &uid.to_string())?;
     let wire = state
         .core
         .get_message_by_uid_for_user(&q.user, uid)
@@ -199,14 +208,11 @@ pub async fn audit_message_raw(
     };
     use mailrs_message_store::MessageStore;
     match mailrs_message_store::MaildirStore.fetch(&path, &id).await {
-        Ok(Some(bytes)) => {
-            crate::handlers::audit::record(&actor, "audit.read_raw", &q.user, &uid.to_string());
-            axum::response::Response::builder()
-                .status(StatusCode::OK)
-                .header("content-type", "message/rfc822")
-                .body(axum::body::Body::from(bytes))
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-        }
+        Ok(Some(bytes)) => axum::response::Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "message/rfc822")
+            .body(axum::body::Body::from(bytes))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR),
         _ => Err(StatusCode::NOT_FOUND),
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # direct-deploy.sh — the default release path (user decision 2026-07-18):
-# build locally, publish to ghcr, and roll prod. Staging was retired
+# build locally, publish to ghcr, and roll prod (t02). The CI path
 # (v*/web-v* tags) runs only when explicitly requested — it takes ~1.5 h
 # vs ~15 min for this script, and every gate that matters runs here:
 # fmt+clippy+test and the release perf budgets up front, replay-clean
@@ -21,12 +21,10 @@
 #      sometimes. clippy and the tests run on a Linux runner
 #      (scripts/remote-gate.sh) alongside steps 0-1 here; nothing is
 #      published until it passes.
-#   1. buildx a linux/arm64 image locally (t01 + t02 are both arm64)
+#   1. buildx a linux/arm64 image locally (t02 is arm64)
 #   2. push ghcr.io/goliajp/mailrs:<version> (arm64-only; best-effort —
 #      a push failure warns but never blocks the deploy)
 #   3. prod (t02): save|ssh load, bump MAILRS_VERSION, compose up
-#   (staging retired 2026-07-21 — prod is the only target)
-#      (it ships the image + soak harness + kicks the 30-min soak)
 #   4. verify prod: :3301 up, health version matches, AOF replay (clean)
 #   5. web: build + rsync into the webapi-fc bind mount, then verify the
 #      container actually serves the new bundle. Added 2026-07-30 — until
@@ -37,7 +35,7 @@
 set -euo pipefail
 
 VERSION="${1:?usage: direct-deploy.sh <version>}"
-TAG="mailrs:staging-local"
+TAG="mailrs:deploy-local"
 GHCR="ghcr.io/goliajp/mailrs:$VERSION"
 PROD="root@t02.golia.jp"
 cd "$(dirname "$0")/.."
@@ -110,6 +108,11 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # went to 6.2.1 while the pin stayed at 5.4.
     ./scripts/check-kevy-versions.sh
 
+    # cargo audit + cargo deny over Cargo.lock. Here rather than on the
+    # runner: both fetch the advisory database and the crates.io index,
+    # this machine has them installed, and neither compiles anything.
+    ./scripts/check-security.sh
+
     # A cache with no expiry is a claim that nothing can change what
     # it holds, and two of the three in this tree were false: a thread
     # showed two messages of three through every reload, and a fraud
@@ -158,6 +161,9 @@ if [ "${SKIP_GATE:-0}" != 1 ] && [ "${WEB_ONLY_SKIPS_RUST_GATE:-0}" != 1 ]; then
     # burned a worker permanently and could not exit on SIGTERM, while the
     # rule said otherwise. Prose cannot tell it has stopped being true.
     ./scripts/check-blocking-pops.sh
+    # web/public/openapi.json documents what crates/webapi serves: every
+    # registered path and method is in it, and nothing else is.
+    ./scripts/check-api-drift.sh
 
     # The 500-line limit, as a ratchet: a new file over it fails, and a
     # file already on the baseline may only shrink. 51 files were over it

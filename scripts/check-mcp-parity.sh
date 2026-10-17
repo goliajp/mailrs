@@ -3,7 +3,7 @@
 #
 # mailrs ships two independent MCP implementations: the fastcore lane
 # (kevy-backed, what prod runs) and the monolith lane (spg SQL, the
-# staging dogfood lane). Neither declares `name = "..."` on its
+# dormant pg/spg backend). Neither declares `name = "..."` on its
 # `#[tool]` attributes, so **the exposed MCP tool name is the Rust
 # function name** — a rename on one side silently breaks every agent
 # that talks to the other.

@@ -131,7 +131,7 @@ export function AuditConversations({
   return (
     <AdminPageShell
       actions={<BackButton label="Back to accounts" onBack={onBack} />}
-      subtitle="Up to 50 conversations. Each time this list or a conversation is opened, the audit log records it under your address"
+      subtitle="Up to 50 conversations. Each time this list or a conversation is opened, the audit log records it under your address first; if it cannot, nothing is shown"
       title={account}
     >
       {renderBody()}

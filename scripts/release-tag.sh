@@ -1,34 +1,39 @@
 #!/usr/bin/env bash
-# release-tag.sh — cut a v* tag through git flow and push it, which
-# starts release.yml (gate + multi-arch image + t02 deploy + GitHub
-# Release).
+# release-tag.sh — cut a tag through git flow and push it, which starts
+# the workflow for that kind of tag:
+#
+#   v<X.Y.Z>                 release.yml (gate + multi-arch image + t02
+#                            deploy + GitHub Release)
+#   web-v<YYYY.MM.DD>-<n>    release-web.yml (bun check + test, build
+#                            web/dist, rsync it to t02; no restart)
 #
 # Usage: ./scripts/release-tag.sh v2.9.31
+#        ./scripts/release-tag.sh web-v2026.10.18-1
 #        ./scripts/release-tag.sh v2.9.31 --dry-run   # print, touch nothing
 #
 # The everyday release is ./scripts/direct-deploy.sh; this lane is for
 # when a multi-arch image and a GitHub Release are wanted.
 #
-# This script used to re-stamp the staging soak verdict on t01 so that
-# release.yml's staging gate could match the tag's commit. That gate
-# was removed from release.yml on 2026-07-21 — staging shares t01 with
-# other projects and failed releases on its neighbours' noise — so
-# nothing here touches staging any more. release.yml's own `gate` job
-# (full test suite) is what stands between the tag and production.
+# release.yml's own `gate` job (full test suite) is what stands between
+# the tag and production.
 #
 # Pushing a tag starts a deploy pipeline, so it asks first, and
 # --dry-run exists to see what it would do.
 set -euo pipefail
 
-TAG="${1:?usage: release-tag.sh v<X.Y.Z> [--dry-run]}"
+TAG="${1:?usage: release-tag.sh v<X.Y.Z>|web-v<YYYY.MM.DD>-<n> [--dry-run]}"
 DRY_RUN=0
 [ "${2:-}" = "--dry-run" ] && DRY_RUN=1
 cd "$(dirname "$0")/.."
 
-case "$TAG" in
-    v[0-9]*.[0-9]*.[0-9]*) ;;
-    *) echo "!! tag must look like v1.2.3 (got '$TAG')"; exit 1 ;;
-esac
+if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    WORKFLOW=release.yml
+elif [[ "$TAG" =~ ^web-v[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]+$ ]]; then
+    WORKFLOW=release-web.yml
+else
+    echo "!! tag must look like v1.2.3 or web-v2026.10.18-1 (got '$TAG')"
+    exit 1
+fi
 
 if [ "$(git branch --show-current)" != develop ]; then
     echo "!! release from develop (on '$(git branch --show-current)')"
@@ -47,22 +52,22 @@ fi
 
 # Two releases racing each other would deploy t02 twice, in an order
 # nobody chose.
-LIVE="$(gh run list --workflow release.yml --limit 20 --json headBranch,status \
+LIVE="$(gh run list --workflow "$WORKFLOW" --limit 20 --json headBranch,status \
     --jq '[.[] | select(.status=="in_progress" or .status=="queued")] | .[0].headBranch' \
     2>/dev/null || true)"
 if [ -n "$LIVE" ] && [ "$LIVE" != "null" ]; then
-    echo "!! release.yml is still running for $LIVE — wait for it or cancel it first"
+    echo "!! $WORKFLOW is still running for $LIVE — wait for it or cancel it first"
     exit 1
 fi
 
-echo "==> $TAG from develop @ $(git rev-parse --short HEAD)"
+echo "==> $TAG from develop @ $(git rev-parse --short HEAD) — starts $WORKFLOW"
 
 if [ "$DRY_RUN" = 1 ]; then
     echo "==> dry run — would git flow release $TAG and push master, develop and tags"
     exit 0
 fi
 
-printf '==> about to tag %s and push (starts release.yml). Continue? [y/N] ' "$TAG"
+printf '==> about to tag %s and push (starts %s). Continue? [y/N] ' "$TAG" "$WORKFLOW"
 read -r reply </dev/tty
 case "$reply" in
     y | Y) ;;
@@ -75,12 +80,12 @@ GIT_MERGE_AUTOEDIT=no git flow release finish -m "Release $TAG" "$TAG" >/dev/nul
 echo "    $TAG -> $(git rev-list -n1 "$TAG")"
 git checkout -q develop
 
-echo "==> [2/2] push — this starts release.yml"
+echo "==> [2/2] push — this starts $WORKFLOW"
 git push origin master develop --tags
 
 cat <<EOF
 
 $TAG is building. Watch it with:
 
-  gh run watch \$(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+  gh run watch \$(gh run list --workflow $WORKFLOW --limit 1 --json databaseId --jq '.[0].databaseId')
 EOF

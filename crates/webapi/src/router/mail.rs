@@ -354,10 +354,6 @@ pub(super) fn mail_routes() -> axum::Router<Arc<WebState>> {
             delete(handlers::complete::delete_agent_key),
         )
         .route(
-            "/api/agent/keys:migrate-legacy",
-            post(handlers::complete::migrate_legacy_agent_key_indexes),
-        )
-        .route(
             "/api/agent/webhooks",
             get(handlers::complete::list_agent_webhooks)
                 .post(handlers::complete::create_agent_webhook),

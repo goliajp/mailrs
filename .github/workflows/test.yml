@@ -10,9 +10,7 @@ name: test
 #
 # **develop, feature/** and bugfix/** deliberately have no CI.** The daily
 # loop has been CI-free since 2026-07-04 and goes straight to production
-# since 2026-07-21, when staging left the release path (it shares t01 with
-# other projects, and a busy neighbour was failing releases on noise). So
-# the gate for everyday work is local and lives in scripts/direct-deploy.sh:
+# on t02. So the gate for everyday work is local and lives in scripts/direct-deploy.sh:
 # mcp parity + core contract, cargo fmt --check, clippy -D warnings, the full test
 # suite --no-fail-fast, and perf-gates.sh. Nothing else stands behind it —
 # skipping it means shipping unbuilt work to prod.
@@ -107,8 +105,8 @@ jobs:
 
       - name: cargo build (4-process binaries — split topology gate)
         # Phase 2/3/4 of the split-fastcore plan. Builds every binary
-        # the deploy compose mounts so a CI green means the staging
-        # image has all four roles.
+        # the deploy compose mounts so a CI green means the image has
+        # all four roles.
         run: |
           cargo build --release -p mailrs-server --features spg,core-rpc
           cargo build --release -p mailrs-receiver
@@ -155,7 +153,7 @@ jobs:
     # drives the production build via `vite preview` and asserts
     # LCP < 2.5 s / CLS < 0.1 on the unauthenticated tier. The
     # authed tier (dashboard / open-thread flows) self-skips in CI —
-    # run it locally against staging with MAILRS_E2E_BASE/USER/PASS.
+    # run it locally against a live instance with MAILRS_E2E_BASE/USER/PASS.
     name: webapp perf baseline
     runs-on: ubuntu-latest
     timeout-minutes: 15

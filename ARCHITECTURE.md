@@ -11,8 +11,7 @@ inbound → spool), `mailrs-sender` (outbound queue + DKIM),
 Prod runs the 4-process fastcore stack (`receiver` + `fastcore` +
 `webapi-fc` + `fastcore-sender`) against a `kevy-server` container, and
 that is the only topology that ships: the monolith has not been built into
-the image since 2026-07-22, and
-staging left the release path on 2026-07-21. Its code stays in the tree as
+the image since 2026-07-22. Its code stays in the tree as
 the dormant pg/spg lane of the v2 dual-mode design — `MAILRS_CORE_RPC_BASE`
 still names the switch, but nothing is running behind it.
 
