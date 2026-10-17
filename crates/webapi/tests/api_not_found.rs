@@ -52,6 +52,12 @@ async fn known_routes_still_answer() {
     assert_ne!(status, StatusCode::NOT_FOUND);
     // an authenticated route is still reached (and refuses the missing
     // session) rather than being swallowed by the fallback
-    let (status, _) = get("/api/mock/namespaces/x/messages").await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    for path in [
+        "/api/mock/namespaces/x/messages",
+        "/api/admin/flow",
+        "/api/admin/mock",
+    ] {
+        let (status, _) = get(path).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
+    }
 }
