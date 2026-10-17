@@ -24,7 +24,7 @@ export function AdminMock() {
           Open namespaces
         </Link>
       }
-      subtitle="Disposable test mailboxes. Namespaces are managed on the Mock mail page"
+      subtitle="Usage and settings for disposable test mailboxes. To create or read namespaces, use Open namespaces"
       title="Mock mail"
     >
       <Body
@@ -45,14 +45,16 @@ function Body({
   error: Error | null
   onRetry: () => void
 }) {
-  if (error) return <AdminErrorState error={error} onRetry={onRetry} />
+  if (error) {
+    return <AdminErrorState error={error} onRetry={onRetry} what="mock mail usage and settings" />
+  }
   if (data === null) return <div aria-busy className="bg-surface h-40 animate-pulse rounded-lg" />
   if (data.domain === '') {
     return (
       <AdminEmptyState
         description="Set MAILRS_MOCK_DOMAIN on the receiver, fastcore, webapi and sender, and point that domain's MX at this server"
         icon={<FlaskConical className="h-10 w-10" />}
-        title="No mock domain is configured"
+        title="No mock domain yet"
       />
     )
   }
@@ -100,7 +102,7 @@ function Usage({ data }: { data: MockAdminOverview }) {
           aria-valuemax={100}
           aria-valuemin={0}
           aria-valuenow={Math.round(share * 100)}
-          className="bg-bg-tertiary mt-2 h-2 overflow-hidden rounded-full"
+          className="bg-border mt-2 h-2 overflow-hidden rounded-full"
           role="meter"
         >
           <div className={`h-full ${meterTone(share)}`} style={{ width: `${share * 100}%` }} />
@@ -108,7 +110,11 @@ function Usage({ data }: { data: MockAdminOverview }) {
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
         <Figure detail={`${u.owners} owners`} label="Namespaces" value={`${u.namespaces}`} />
-        <Figure label="Messages received" value={`${u.received}`} />
+        <Figure
+          detail="Received and captured outgoing"
+          label="Messages stored"
+          value={`${u.received}`}
+        />
         <Figure label="Dropped at the per-namespace limit" value={`${u.dropped}`} />
         <Figure label="Refused, no such namespace" value={`${u.rejected_unknown_ns}`} />
       </dl>

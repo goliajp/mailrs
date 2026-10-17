@@ -29,11 +29,24 @@ pub(super) fn resolve_local(
     maildir_root: &str,
     fwd: &str,
 ) -> Option<String> {
-    if has_maildir(maildir_root, fwd) || provision_if_account(state, maildir_root, fwd) {
-        // an account that was never provisioned a maildir (fresh
-        // add_account) gets the skeleton so its very first mail lands
-        return Some(fwd.to_string());
-    }
+    own_mailbox(state, maildir_root, fwd).or_else(|| aliased(state, maildir_root, fwd))
+}
+
+/// `fwd` itself, when it has a maildir or is an account.
+pub(super) fn own_mailbox(
+    state: &Arc<FastcoreState>,
+    maildir_root: &str,
+    fwd: &str,
+) -> Option<String> {
+    // an account that was never provisioned a maildir (fresh add_account)
+    // gets the skeleton so its very first mail lands
+    (has_maildir(maildir_root, fwd) || provision_if_account(state, maildir_root, fwd))
+        .then(|| fwd.to_string())
+}
+
+/// The alias target of `fwd`, a domain catch-all included, when that
+/// target has a mailbox.
+pub(super) fn aliased(state: &Arc<FastcoreState>, maildir_root: &str, fwd: &str) -> Option<String> {
     let a = canonical_recipient(&state.alias_store.resolve(fwd).ok().flatten()?);
     if has_maildir(maildir_root, &a) || provision_if_account(state, maildir_root, &a) {
         tracing::info!(orig = %fwd, aliased = %a, "spool alias resolved");

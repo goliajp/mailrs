@@ -1,18 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { ConfirmAction } from '@/components/admin-page'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminObjectGet, adminPost } from '@/wire/endpoints/admin'
 
-export function SieveCell({ address }: { address: string }) {
-  const [open, setOpen] = useState(false)
+/** The account's sieve script, editable under its row. */
+export function SievePanel({ address, onClose }: { address: string; onClose: () => void }) {
   const [script, setScript] = useState('')
+  const [confirming, setConfirming] = useState(false)
 
   const sieveKey = [...adminKeys.accounts(), 'sieve', address]
 
   const { data, isPending } = useQuery({
-    enabled: open,
     queryKey: sieveKey,
     queryFn: async ({ signal }) => {
       try {
@@ -45,21 +46,13 @@ export function SieveCell({ address }: { address: string }) {
   })
 
   const handleDelete = () => {
-    if (!window.confirm('Delete this sieve script? This cannot be undone.')) return
     deleteScript.mutate(undefined, {
+      onSettled: () => setConfirming(false),
       onSuccess: () => {
         setScript('')
-        setOpen(false)
+        onClose()
       },
     })
-  }
-
-  if (!open) {
-    return (
-      <button className="text-accent text-xs hover:opacity-80" onClick={() => setOpen(true)}>
-        Sieve
-      </button>
-    )
   }
 
   if (isPending) {
@@ -82,28 +75,42 @@ export function SieveCell({ address }: { address: string }) {
       {saveScript.error instanceof Error && (
         <p className="text-danger text-xs">{saveScript.error.message}</p>
       )}
-      <div className="flex gap-1.5">
+      <div className="flex gap-3 text-xs">
         <button
-          className="text-success text-xs hover:opacity-80 disabled:opacity-50"
+          className="text-accent hover:opacity-80 disabled:opacity-50"
           disabled={saveScript.isPending}
           onClick={() => saveScript.mutate(script)}
+          type="button"
         >
-          {saveScript.isPending ? '...' : 'Save'}
+          {pendingLabel(saveScript.isPending, 'Saving...', 'Save script')}
         </button>
         <button
-          className="text-danger text-xs hover:opacity-80 disabled:opacity-50"
+          className="text-danger hover:opacity-70 disabled:opacity-50"
           disabled={deleteScript.isPending}
-          onClick={handleDelete}
+          onClick={() => setConfirming(true)}
+          type="button"
         >
-          {deleteScript.isPending ? '...' : 'Delete'}
+          Delete script
         </button>
-        <button
-          className="text-fg-muted hover:text-fg-secondary text-xs"
-          onClick={() => setOpen(false)}
-        >
+        <button className="text-fg-muted hover:text-fg-secondary" onClick={onClose} type="button">
           Close
         </button>
       </div>
+      {confirming && (
+        <ConfirmAction
+          confirmLabel={pendingLabel(deleteScript.isPending, 'Deleting...', 'Delete script')}
+          consequence={`New mail to ${address} is no longer run through this script. Mail it already filed stays where it is`}
+          onCancel={() => setConfirming(false)}
+          onConfirm={handleDelete}
+          pending={deleteScript.isPending}
+          title={`Delete the sieve script of ${address}?`}
+        />
+      )}
     </div>
   )
+}
+
+function pendingLabel(pending: boolean, busy: string, idle: string): string {
+  if (pending) return busy
+  return idle
 }

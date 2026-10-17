@@ -120,6 +120,33 @@ fn every_local_member_gets_the_message() {
 }
 
 #[test]
+fn a_domain_catch_all_does_not_take_a_group_s_mail() {
+    let url = "mem://email-group-catch-all";
+    let w = World::new(url, &["alice", "bob", "carol"]);
+    w.state
+        .alias_store
+        .upsert("@golia.example.test", "carol@golia.example.test")
+        .unwrap();
+    let mut kv = Connection::connect(url).unwrap();
+    put_group(
+        &mut kv,
+        1,
+        "team@golia.example.test",
+        &["alice@golia.example.test", "bob@golia.example.test"],
+    );
+    w.spool("team@golia.example.test");
+    assert_eq!(w.drain(), 1);
+    assert_eq!(w.inbox("alice"), 1);
+    assert_eq!(w.inbox("bob"), 1);
+    assert_eq!(w.inbox("carol"), 0, "the catch-all took the group's mail");
+
+    // an address that is no group still falls through to the catch-all
+    w.spool("someone@golia.example.test");
+    assert_eq!(w.drain(), 1);
+    assert_eq!(w.inbox("carol"), 1);
+}
+
+#[test]
 fn a_nested_group_is_expanded_once_and_nobody_gets_two_copies() {
     let url = "mem://email-group-nested";
     let w = World::new(url, &["alice", "bob", "carol"]);

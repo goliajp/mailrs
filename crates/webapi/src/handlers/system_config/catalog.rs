@@ -114,7 +114,7 @@ pub(super) fn refusal(key: &str, value: &str) -> Option<String> {
     if key == "local_domains" {
         return Some(
             "Local domains are managed on the Domains page: a domain added there is \
-             received within a minute."
+             received within a minute"
                 .into(),
         );
     }
@@ -131,7 +131,7 @@ pub(super) fn refusal(key: &str, value: &str) -> Option<String> {
             Ok(n) if (1..=MAX_MESSAGE_SIZE).contains(&n) => None,
             _ => Some(format!(
                 "{key} must be a whole number of bytes from 1 to {MAX_MESSAGE_SIZE}, the \
-                 receiver's built-in limit."
+                 receiver's built-in limit"
             )),
         },
     }

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,7 +49,7 @@ const CONFIG = {
     },
     {
       default_value: null,
-      description: 'Stored here earlier, but no process reads this key.',
+      description: 'Stored here earlier, but no process reads this key',
       editable: false,
       group: 'custom',
       key: 'local_domains',
@@ -63,25 +63,25 @@ const CONFIG = {
 }
 
 function renderPage() {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () =>
-      Promise.resolve(
-        new Response(JSON.stringify(CONFIG), {
-          headers: { 'content-type': 'application/json' },
-          status: 200,
-        })
-      )
+  const fetchMock = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
+    return Promise.resolve(
+      new Response(JSON.stringify(CONFIG), {
+        headers: { 'content-type': 'application/json' },
+        status: 200,
+      })
     )
-  )
+  })
+  vi.stubGlobal('fetch', fetchMock)
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } })
-  return render(
+  render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <AdminSystemConfig />
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return fetchMock
 }
 
 afterEach(() => {
@@ -114,7 +114,52 @@ describe('<AdminSystemConfig />', () => {
   it('lets an override nothing reads be removed, and sends local domains to the Domains page', async () => {
     renderPage()
     expect(await screen.findByTestId('readonly-local_domains')).toHaveTextContent('golia.jp')
-    expect(screen.getAllByRole('button', { name: /Reset to default/ })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Reset to default' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1)
     expect(screen.getAllByText(/Domains page/).length).toBeGreaterThan(0)
+  })
+
+  it('asks before resetting, says what the receiver does, then sends the DELETE', async () => {
+    const fetchMock = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset to default' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Reset max_message_size_bytes?' })
+    expect(dialog).toHaveTextContent(
+      '10485760 is removed and the built-in 52428800 applies again. The receiver uses it for new connections within a minute'
+    )
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reset to default' }))
+    await vi.waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            init?.method === 'DELETE' &&
+            String(url) === '/api/admin/system-config/max_message_size_bytes'
+        )
+      ).toBe(true)
+    )
+  })
+
+  it('says removing a key nothing reads changes nothing', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    expect(screen.getByRole('alertdialog', { name: 'Remove local_domains?' })).toHaveTextContent(
+      'No process reads local_domains, so removing the stored value changes nothing on the server'
+    )
+  })
+
+  it('names what failed to load', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.resolve(new Response('{"error":"kevy down"}', { status: 500 })))
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { gcTime: 0, retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AdminSystemConfig />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(await screen.findByText('Could not load the server settings')).toBeInTheDocument()
   })
 })

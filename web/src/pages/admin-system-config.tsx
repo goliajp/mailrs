@@ -1,33 +1,21 @@
+import type { ConfigEntry } from '@/components/admin-system-config/entry'
 import type { ReactNode } from 'react'
 
 import { useQuery } from '@tanstack/react-query'
-import { RotateCcw, Save, Settings2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Settings2 } from 'lucide-react'
+import { useState } from 'react'
 
-import { AdminEmptyState, AdminErrorState, AdminPageShell } from '@/components/admin-page'
-import { ReadOnlyField } from '@/components/admin-system-config/read-only-field'
+import {
+  AdminEmptyState,
+  AdminErrorState,
+  AdminPageShell,
+  ConfirmAction,
+} from '@/components/admin-page'
+import { ConfigField } from '@/components/admin-system-config/config-field'
+import { resetVerb } from '@/components/admin-system-config/entry'
 import { useAdminMutation } from '@/hooks/use-admin-mutations'
 import { adminKeys } from '@/lib/query-keys'
 import { adminDelete, adminObjectGet, adminPut } from '@/wire/endpoints/admin'
-
-// Backend: crates/webapi/src/handlers/system_config.rs — fn get_system_config
-type ConfigEntry = {
-  default_value: null | string
-  description: string
-  /** false for settings read once at process start, and for keys nothing reads */
-  editable: boolean
-  /** where a read-only setting is set */
-  env_var?: string
-  group: string
-  key: string
-  note?: null | string
-  source: string
-  /** unix seconds; only on a value saved from this page or the MCP tool */
-  updated_at?: number
-  updated_by?: string
-  /** null when webapi cannot see the value */
-  value: null | string
-}
 
 type GroupedEntries = Record<string, ConfigEntry[]>
 
@@ -37,25 +25,14 @@ type SystemConfigResponse = {
   success: boolean
 }
 
+// the one setting that can change here first, keys nothing reads last
+const GROUP_ORDER = ['smtp', 'imap', 'security', 'custom']
+
 const GROUP_LABELS: Record<string, string> = {
-  custom: 'Custom',
+  custom: 'Stored keys nothing reads',
   imap: 'IMAP',
   security: 'Security',
   smtp: 'SMTP',
-}
-
-const SOURCE_STYLES: Record<string, string> = {
-  database: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  default: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  env: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
-  unknown: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  database: 'Database',
-  default: 'Default',
-  env: 'Environment',
-  unknown: 'Not visible here',
 }
 
 export function AdminSystemConfig() {
@@ -79,18 +56,20 @@ export function AdminSystemConfig() {
     successMsg: (vars) => `"${vars.key}" saved`,
   })
 
+  const [resetTarget, setResetTarget] = useState<ConfigEntry | null>(null)
   const resetConfig = useAdminMutation({
     invalidateKey: adminKeys.systemConfig(),
-    mutationFn: (key: string) => adminDelete(`/admin/system-config/${encodeURIComponent(key)}`),
-    successMsg: (key) => `"${key}" reset to default`,
+    mutationFn: (entry: ConfigEntry) =>
+      adminDelete(`/admin/system-config/${encodeURIComponent(entry.key)}`),
+    successMsg: (entry) => resetDone(entry),
   })
 
   const handleSave = (key: string, value: string) => {
     saveConfig.mutate({ key, value })
   }
 
-  const handleReset = (key: string) => {
-    resetConfig.mutate(key)
+  const handleReset = (entry: ConfigEntry) => {
+    resetConfig.mutate(entry, { onSettled: () => setResetTarget(null) })
   }
 
   const grouped: GroupedEntries = {}
@@ -99,17 +78,19 @@ export function AdminSystemConfig() {
     if (!grouped[g]) grouped[g] = []
     grouped[g].push(entry)
   }
-  const sortedGroups = Object.keys(grouped).sort()
+  const sortedGroups = Object.keys(grouped).sort((a, b) => groupRank(a) - groupRank(b))
 
   const renderBody = () => {
     if (isPending) return <PanelGroupSkeleton />
-    if (error) return <AdminErrorState error={error} onRetry={() => refetch()} />
+    if (error) {
+      return <AdminErrorState error={error} onRetry={() => refetch()} what="the server settings" />
+    }
     if (entries.length === 0) {
       return (
         <AdminEmptyState
-          description="The server returned no settings"
+          description="Settings this server's processes read are listed here, with where each one is set"
           icon={<Settings2 className="h-10 w-10" />}
-          title="No configuration entries"
+          title="No settings yet"
         />
       )
     }
@@ -121,8 +102,9 @@ export function AdminSystemConfig() {
               <ConfigField
                 entry={entry}
                 key={entry.key}
-                onReset={handleReset}
+                onReset={setResetTarget}
                 onSave={handleSave}
+                saving={saveConfig.isPending && saveConfig.variables?.key === entry.key}
               />
             ))}
           </GroupCard>
@@ -134,109 +116,34 @@ export function AdminSystemConfig() {
   return (
     <AdminPageShell
       subtitle="Ports, hostname and TLS are set in compose and read when each process starts. Local domains are managed on the Domains page"
-      title="System Configuration"
+      title="System config"
     >
       {renderBody()}
+      {resetTarget && (
+        <ConfirmAction
+          confirmLabel={confirmLabel(resetConfig.isPending, resetTarget)}
+          consequence={resetConsequence(resetTarget)}
+          onCancel={() => setResetTarget(null)}
+          onConfirm={() => handleReset(resetTarget)}
+          pending={resetConfig.isPending}
+          title={confirmTitle(resetTarget)}
+        />
+      )}
     </AdminPageShell>
   )
 }
 
 const EMPTY_ENTRIES: ConfigEntry[] = []
 
-function ConfigField({
-  entry,
-  onReset,
-  onSave,
-}: {
-  entry: ConfigEntry
-  onReset: (key: string) => void
-  onSave: (key: string, value: string) => void
-}) {
-  const [localValue, setLocalValue] = useState(entry.value ?? '')
-  const [saving, setSaving] = useState(false)
-  const [resetting, setResetting] = useState(false)
+function confirmLabel(pending: boolean, entry: ConfigEntry): string {
+  if (!pending) return resetVerb(entry)
+  if (entry.editable) return 'Resetting...'
+  return 'Removing...'
+}
 
-  // sync local value when entry changes from parent
-  useEffect(() => {
-    setLocalValue(entry.value ?? '')
-  }, [entry.value])
-
-  const dirty = localValue !== (entry.value ?? '')
-  const saved = savedBy(entry)
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await onSave(entry.key, localValue)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleReset = async () => {
-    setResetting(true)
-    try {
-      await onReset(entry.key)
-    } finally {
-      setResetting(false)
-    }
-  }
-
-  const resetButton = entry.source === 'database' && (
-    <button
-      className="text-fg-secondary hover:bg-bg-secondary inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition-colors disabled:opacity-50"
-      disabled={resetting}
-      onClick={handleReset}
-    >
-      <RotateCcw className="h-3 w-3" />
-      {resetting && 'Resetting...'}
-      {!resetting && 'Reset to default'}
-    </button>
-  )
-
-  if (!entry.editable) {
-    return (
-      <ReadOnlyField
-        badge={<SourceBadge source={entry.source} />}
-        description={entry.description}
-        envVar={entry.env_var}
-        label={entry.key}
-        note={entry.note}
-        reset={resetButton}
-        value={entry.value}
-      />
-    )
-  }
-
-  return (
-    <div className="border-border border-b px-4 py-4 last:border-0">
-      <div className="mb-1.5 flex flex-wrap items-center gap-2">
-        <code className="text-fg text-sm font-medium">{entry.key}</code>
-        <SourceBadge source={entry.source} />
-        {saved && <span className="text-fg-muted text-xs">{saved}</span>}
-      </div>
-      {entry.description && <p className="text-fg-secondary mb-2 text-xs">{entry.description}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          aria-label={entry.key}
-          className="border-border bg-bg-secondary w-full max-w-md rounded-md border px-3 py-1.5 text-sm"
-          onChange={(e) => setLocalValue(e.target.value)}
-          type="text"
-          value={localValue}
-        />
-        <button
-          className="bg-fg text-bg inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-90 disabled:opacity-50"
-          disabled={!dirty || saving}
-          onClick={handleSave}
-        >
-          <Save className="h-3 w-3" />
-          {saving && 'Saving...'}
-          {!saving && 'Save'}
-        </button>
-        {resetButton}
-      </div>
-    </div>
-  )
+function confirmTitle(entry: ConfigEntry): string {
+  if (entry.editable) return `Reset ${entry.key}?`
+  return `Remove ${entry.key}?`
 }
 
 function GroupCard({ children, group }: { children: ReactNode; group: string }) {
@@ -254,7 +161,7 @@ function GroupCard({ children, group }: { children: ReactNode; group: string }) 
 function loadError(queryError: unknown, response: SystemConfigResponse | undefined): Error | null {
   if (queryError instanceof Error) return queryError
   if (response && !response.success) {
-    return new Error(response.message ?? 'Failed to load configuration')
+    return new Error(response.message ?? 'The server answered without its settings')
   }
   return null
 }
@@ -279,15 +186,33 @@ function PanelGroupSkeleton() {
   )
 }
 
-function savedBy(entry: ConfigEntry): null | string {
-  if (entry.updated_at === undefined) return null
-  const on = new Date(entry.updated_at * 1000).toLocaleString()
-  if (entry.updated_by) return `Saved by ${entry.updated_by} on ${on}`
-  return `Saved on ${on}`
+// who picks up a reset, for the keys a running process reads
+const READERS: Record<string, string> = {
+  max_message_size_bytes: 'The receiver uses it for new connections within a minute',
 }
 
-function SourceBadge({ source }: { source: string }) {
-  const style = SOURCE_STYLES[source] ?? SOURCE_STYLES.default
-  const label = SOURCE_LABELS[source] ?? source
-  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${style}`}>{label}</span>
+function groupRank(group: string): number {
+  const i = GROUP_ORDER.indexOf(group)
+  if (i === -1) return GROUP_ORDER.length
+  return i
+}
+
+// what DELETE /api/admin/system-config/{key} does: drop the stored value and
+// its saved-by line, and write a `system_config.reset` audit row
+function resetConsequence(entry: ConfigEntry): string {
+  const logged = 'The change is recorded in the audit log'
+  if (entry.editable) {
+    const parts = [
+      `${entry.value ?? ''} is removed and the built-in ${entry.default_value ?? ''} applies again`,
+    ]
+    if (READERS[entry.key]) parts.push(READERS[entry.key])
+    parts.push(logged)
+    return parts.join('. ')
+  }
+  return `No process reads ${entry.key}, so removing the stored value changes nothing on the server. ${logged}`
+}
+
+function resetDone(entry: ConfigEntry): string {
+  if (entry.editable) return `"${entry.key}" reset to default`
+  return `"${entry.key}" removed`
 }

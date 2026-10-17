@@ -64,7 +64,7 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
         disabled={updatePassword.isPending || !password}
         onClick={handleSave}
       >
-        {updatePassword.isPending ? '...' : 'Save'}
+        {saveLabel(updatePassword.isPending)}
       </button>
       <button
         className="text-fg-muted hover:text-fg-secondary text-xs transition-colors"
@@ -78,4 +78,9 @@ export function PasswordCell({ account }: { account: AccountInfo }) {
       </button>
     </div>
   )
+}
+
+function saveLabel(pending: boolean): string {
+  if (pending) return '...'
+  return 'Save'
 }

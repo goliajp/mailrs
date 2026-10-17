@@ -1,5 +1,5 @@
 export { DisplayNameCell } from './display-name-cell'
-export { GroupsCell } from './groups-cell'
+export { GroupsPanel } from './groups-panel'
 export { PasswordCell } from './password-cell'
 export { QuotaCell } from './quota-cell'
-export { SieveCell } from './sieve-cell'
+export { SievePanel } from './sieve-panel'

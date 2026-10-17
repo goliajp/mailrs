@@ -34,7 +34,7 @@ mod reported_to;
 mod stuck;
 
 pub(crate) use deliver::*;
-use recipient::resolve_local;
+use recipient::{aliased, own_mailbox};
 use reported_to::reported_to;
 use stuck::{forget_departed, stuck_is_new};
 
@@ -182,10 +182,8 @@ pub fn drain_once(
                 }
                 continue;
             }
-            // 1. Resolve the addressable recipient — direct maildir, a
-            //    fresh account, or the alias table — to the mailbox we
-            //    actually deliver TO.
-            let resolved_addr = resolve_local(state, maildir_root, fwd);
+            // 1. The recipient's own mailbox: a maildir or a fresh account.
+            let own = own_mailbox(state, maildir_root, fwd);
             // SRS reverse (G6): a bounce addressed to
             // SRS0=...@<our-domain> is the return path for mail we
             // forwarded. Reverse it to the original sender and relay
@@ -215,15 +213,20 @@ pub fn drain_once(
                 }
                 continue;
             }
-            let Some(addr) = resolved_addr else {
-                // 1b. An email group's address goes to its members.
-                match inbound.deliver_to_group(fwd) {
-                    Some(group) => {
-                        delivered_here += group.delivered;
-                        unresolved.extend(group.unresolved);
-                    }
-                    None => unresolved.push(fwd.clone()),
-                }
+            // 1b. An email group's address goes to its members. Checked
+            //     before the alias table: a domain catch-all answers for
+            //     every address without a mailbox and would take the
+            //     group's mail.
+            if own.is_none()
+                && let Some(group) = inbound.deliver_to_group(fwd)
+            {
+                delivered_here += group.delivered;
+                unresolved.extend(group.unresolved);
+                continue;
+            }
+            // 1c. Otherwise the alias table, catch-all included.
+            let Some(addr) = own.or_else(|| aliased(state, maildir_root, fwd)) else {
+                unresolved.push(fwd.clone());
                 continue;
             };
             // 2. Report side effects, sieve, and the maildir write.
