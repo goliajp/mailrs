@@ -93,12 +93,15 @@ function inboundStages(flow: AdminFlow): Stage[] {
   ]
   if (flow.mock !== null) {
     stages.push({
-      caption: 'test messages received',
-      details: [`${bytes(flow.mock.bytes)} of ${bytes(flow.mock.max_bytes)} used`],
+      caption: 'test messages kept now',
+      details: [
+        `${bytes(flow.mock.bytes)} of ${bytes(flow.mock.max_bytes)} used`,
+        `${count(flow.mock.received)} received since mock mail started`,
+      ],
       name: 'Mock mail',
       to: '/admin/mock',
       tone: 'plain',
-      value: flow.mock.received,
+      value: flow.mock.stored,
     })
   }
   return stages

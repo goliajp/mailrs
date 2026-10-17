@@ -82,6 +82,7 @@ mod rethread;
 mod table_query;
 mod table_query_tests;
 mod table_spec;
+mod thread_files;
 mod thread_ownership;
 mod thread_row;
 pub use list_threads::{ListThreadsFilter, QuarantineScope};
