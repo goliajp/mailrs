@@ -12,10 +12,8 @@ import { ThreadView } from '@/components/thread-view'
 import { useCurrentSelection } from '@/hooks/use-current-list'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { useMailEvents } from '@/hooks/use-mail-events'
 import { MPane, MPaneGroup } from '@/layouts/pane'
 import { isMailListId, MAIL_LISTS, type MailListId } from '@/lib/mail-lists'
-import { authAtom } from '@/store/auth'
 import {
   activeListAtom,
   categoryFilterAtom,
@@ -28,7 +26,6 @@ import {
 } from '@/store/ui'
 
 export function Chat() {
-  const auth = useAtomValue(authAtom)
   const composingNew = useAtomValue(composingNewAtom)
   const activeList = useAtomValue(activeListAtom)
   const selectList = useSetAtom(selectMailListAtom)
@@ -115,9 +112,6 @@ export function Chat() {
       void Notification.requestPermission()
     }
   }, [])
-
-  // websocket events
-  useMailEvents(auth?.address ?? '')
 
   // keyboard navigation
   useKeyboardNav()

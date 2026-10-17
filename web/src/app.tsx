@@ -23,6 +23,7 @@ import { type StatusBarHealth, StatusBarView } from '@/components/status-bar'
 import { sectionForPath } from '@/components/status-bar-model'
 import { useCurrentUnreadCount } from '@/hooks/use-current-mail-filters'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useMailEvents } from '@/hooks/use-mail-events'
 import { MPane } from '@/layouts/pane'
 import { dashboardLoader, mailListLoader } from '@/lib/route-loaders'
 import { Login } from '@/pages/login'
@@ -117,6 +118,7 @@ function AuthShellLayout() {
   if (isMobile) {
     return (
       <RequireAuth>
+        <LiveEvents />
         <MobileShell>
           <Outlet />
         </MobileShell>
@@ -125,6 +127,7 @@ function AuthShellLayout() {
   }
   return (
     <RequireAuth>
+      <LiveEvents />
       <AppShell gap={6} padded sidebar={<AppSidebar />} sidebarWidth={56} statusBar={<StatusBar />}>
         <Outlet />
       </AppShell>
@@ -154,6 +157,17 @@ function initMailrsTheme() {
 // Each `PageX` is `PagePane` + `Suspense` + the lazy-loaded page —
 // hoisted out of the JSX-in-a-Route form so the router config stays
 // declarative.
+
+/**
+ * The realtime connection, held for every signed-in page. It lived in the
+ * mail page alone, so the status bar showed "connecting" forever on admin,
+ * settings and mock mail, and new mail did not refresh anything there.
+ */
+function LiveEvents() {
+  const auth = useAtomValue(authAtom)
+  useMailEvents(auth?.address ?? '')
+  return null
+}
 
 function LoadingFallback() {
   return (

@@ -93,9 +93,12 @@ pub fn build_router(state: Arc<WebState>) -> axum::Router {
         .layer(axum::extract::DefaultBodyLimit::max(MAX_MULTIPART_BODY))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
-                .make_span_with(
-                    tower_http::trace::DefaultMakeSpan::new().level(tracing::Level::INFO),
-                )
+                // the path only: browsers can only send a WebSocket's or an
+                // attachment link's session token in the query, and the
+                // default span wrote it into the access log in clear
+                .make_span_with(|req: &axum::http::Request<axum::body::Body>| {
+                    tracing::info_span!("request", method = %req.method(), path = %req.uri().path())
+                })
                 .on_response(
                     tower_http::trace::DefaultOnResponse::new().level(tracing::Level::INFO),
                 )
